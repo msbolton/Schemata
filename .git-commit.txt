@@ -1,0 +1,24 @@
+# Commit Message Format
+# ---------------------
+#
+# <type>(<scope>): [JIRA-TICKET] <short description>
+#
+# Example:
+# feat(auth): [ABC-123] Add login functionality
+#
+# Types:
+# - feat: A new feature
+# - fix: A bug fix
+# - chore: Maintenance tasks
+# - docs: Documentation updates
+# - style: Code style improvements (no functionality change)
+# - refactor: Code restructuring (no functionality change)
+# - test: Adding or updating tests
+# - perf: Performance improvements
+
+<type>(<scope>): [JIRA-TICKET] <short description>
+
+# Additional Comments:
+# - Wrap the message at 72 characters for readability.
+# - Use the body to explain "why" you made this change if necessary.
+# - Use the footer for issues closed: e.g., Closes #123.
