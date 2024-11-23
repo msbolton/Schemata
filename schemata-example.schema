@@ -1,0 +1,47 @@
+namespace com.example.people;
+
+# Schema for a user
+schema User {
+    id int @id @generated("UUID") # Primary key with auto-generation
+    username string @unique                  # Unique constraint
+    email string? @unique                    # Nullable, unique constraint
+    password string                          # Required field
+    createdAt datetime @default(value = "now()") # Default timestamp
+    profile Profile?                         # One-to-one relationship
+    orders Order[]                           # One-to-many relationship
+}
+
+# Schema for a user's profile
+schema Profile {
+    id int @id
+    firstName string
+    lastName string
+    bio string?
+    user User @relation(field = "userId", onDelete = "CASCADE") # Foreign key to User
+}
+
+namespace com.example.ecommerce {
+    # Schema for an order
+    schema Order {
+        id int @id @generated("UUID") # UUID strategy for primary key
+        total float
+        status OrderStatus @default(value = "PENDING")
+        user User @relation(field = "userId", onDelete = "CASCADE")
+        # Inline schema
+        items OrderItem[] @relation(onDelete = "CASCADE") schema {
+            id int @id @generated(strategy = "AUTO")
+            productName string
+            quantity int
+            price float
+            order Order @relation(field = "orderId", onDelete = "CASCADE")
+        }
+        placedAt datetime @default(value = "now()")
+    }
+    
+    # Enum for order status
+    enum OrderStatus {
+        PENDING,
+        COMPLETED,
+        CANCELLED
+    }
+}

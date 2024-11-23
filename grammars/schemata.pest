@@ -1,0 +1,21 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ "#" ~ (!"\n" ~ ANY)* }
+
+file = { namespace_declaration ~ (schema | enum | COMMENT)* }
+
+namespace_declaration = { "namespace" ~ identifier }
+
+schema = { "schema" ~ identifier ~ annotation* ~ "{" ~ field* ~ "}" }
+field = { identifier ~ type ~ annotation* ~ (inline_schema)? ~ COMMENT? }
+inline_schema = { "schema" ~ "{" ~ field* ~ "}" }
+type = { basic_type | complex_type }
+basic_type = { "int" | "string" | "float" | "datetime" | "bool" }
+complex_type = { identifier ~ "[]" | identifier }
+
+annotation = { "@" ~ identifier ~ ("(" ~ annotation_args ~ ")")? }
+annotation_args = { (identifier ~ "=" ~ literal) ~ ("," ~ identifier ~ "=" ~ literal)* }
+literal = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+enum = { "enum" ~ identifier ~ annotation* ~ "{" ~ identifier ~ ("," ~ identifier)* ~ "}" }
+
+identifier = @{ (ASCII_ALPHANUMERIC | "_" | ".")* }
