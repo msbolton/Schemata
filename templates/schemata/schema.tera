@@ -1,0 +1,30 @@
+{% for ns in namespaces %}
+namespace {{ ns.name }};
+
+{% for schema in ns.schemas %}
+{% if schema.comment %}# {{ schema.comment }}{% endif %}
+schema {{ schema.name }} {
+    {% for field in schema.fields %}
+    {{ field.name }} {{ field.type_name }}{% if field.nullable %}?{% endif %}{% if field.annotations %} {{ field.annotations }}{% endif %}{% if field.comment %} # {{ field.comment }}{% endif %}
+    {% if field.inline_schema %}
+    schema {
+        {% for inline_field in field.inline_schema.fields %}
+        {{ inline_field.name }} {{ inline_field.type_name }}{% if inline_field.nullable %}?{% endif %}{% if inline_field.annotations %} {{ inline_field.annotations }}{% endif %}{% if inline_field.comment %} # {{ inline_field.comment }}{% endif %}
+        {% endfor %}
+    }
+    {% endif %}
+    {% endfor %}
+}
+
+{% endfor %}
+
+{% for enum in ns.enums %}
+{% if enum.comment %}# {{ enum.comment }}{% endif %}
+enum {{ enum.name }} {
+    {% for value in enum.values %}
+    {{ value }},
+    {% endfor %}
+}
+
+{% endfor %}
+{% endfor %}
