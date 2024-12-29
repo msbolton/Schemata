@@ -24,7 +24,7 @@ namespace com.example.ecommerce {
     # Schema for an order
     schema Order {
         id int @id @generated("UUID") # UUID strategy for primary key
-        total float
+        total number
         status OrderStatus @default(value = "PENDING")
         user User @relation(field = "userId", onDelete = "CASCADE")
         # Inline schema
@@ -37,6 +37,24 @@ namespace com.example.ecommerce {
         }
         placedAt datetime @default(value = "now()")
     }
+
+   schema Product {
+        id int @id @generated("UUID")
+        name string
+        inventory {
+            quantity int
+            price float
+        }
+   }
+
+   schema User {
+        username string @type(
+            required = true,
+            minLength = 3,
+            maxLength = 50,
+            unique = true
+        )
+   }
     
     # Enum for order status
     enum OrderStatus {

@@ -1,4 +1,4 @@
-mod generator;
 mod tests;
+pub mod parser;
 pub mod types;
-pub use generator::SchemataGenerator;
+pub mod generator;

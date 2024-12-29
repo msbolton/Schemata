@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::BufReader;
 use clap::Parser;
 use xsd::XsdParser;
-use crate::schemata::SchemataGenerator;
+use crate::xsd::generator::XsdToSchemataGenerator;
 
 #[derive(Parser)]
 #[clap(version = "1.0", author = "Michael Bolton", about = "...")]
@@ -43,7 +43,7 @@ fn handle_xsd(input: &str, output: &str) -> Result<(), Box<dyn std::error::Error
     let schema = XsdParser::parse(reader)?;
 
     log::info!("Generating Schemata...");
-    let generator = SchemataGenerator::new()?;
+    let generator = XsdToSchemataGenerator::new()?;
     let schemata = generator.generate(schema)?;
 
     log::info!("Writing the output to {}...", output);

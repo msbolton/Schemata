@@ -14,3 +14,4 @@ log = "0.4.22"
 env_logger = "0.11.5"
 tera = "1.15.0"
 serde = { version = "1.0.215", features = ["derive"] }
+thiserror = "2.0.7"
