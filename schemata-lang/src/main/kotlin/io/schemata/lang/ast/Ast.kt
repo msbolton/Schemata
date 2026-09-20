@@ -96,6 +96,7 @@ data class UnionMemberDecl(
     val ordinal: Int?,
     val ordinalSpan: Span?,
     val type: TypeExpr,
+    val doc: String?,
     val span: Span,
 )
 

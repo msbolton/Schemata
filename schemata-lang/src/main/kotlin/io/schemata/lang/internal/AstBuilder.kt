@@ -129,6 +129,7 @@ internal class AstBuilder(
                         it.ORDINAL()?.let { o -> ordinal(o) },
                         it.ORDINAL()?.symbol?.span(),
                         build(it.typeExpr()),
+                        doc(it.doc()),
                         it.span(),
                     )
                 },

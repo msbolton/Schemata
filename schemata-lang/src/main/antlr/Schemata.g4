@@ -18,7 +18,7 @@ enumDecl      : doc? annotation* ENUM IDENT '{' (enumValue ','?)* reservedStmt* 
 enumValue     : doc? annotation* ORDINAL? IDENT ;
 
 unionDecl     : doc? annotation* UNION IDENT '=' unionMember ('|' unionMember)* ;
-unionMember   : ORDINAL? typeExpr ;
+unionMember   : doc? ORDINAL? typeExpr ;
 
 aliasDecl     : doc? annotation* ALIAS IDENT '=' typeExpr ;
 

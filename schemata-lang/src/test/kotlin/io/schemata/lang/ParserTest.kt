@@ -205,6 +205,18 @@ class ParserTest {
     }
 
     @Test
+    fun `union members take doc comments`() {
+        val f =
+            Parser.parse(
+                    "namespace a\nrecord A {}\nrecord B {}\nunion U =\n  /// first\n  #1 A |\n  #2 B",
+                    "t",
+                )
+                .file!!
+        val u = f.declarations.filterIsInstance<UnionDecl>().single()
+        assertEquals(listOf("first", null), u.members.map { it.doc })
+    }
+
+    @Test
     fun `a future keyword is a reserved-keyword error and yields no file`() {
         val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
         assertNull(result.file)
