@@ -45,7 +45,7 @@ object Analyzer {
         val sorted = files.sortedBy { it.path }
         sorted.forEach { diagnostics += Unsupported.check(it) }
         val index = DeclarationIndex(sorted, diagnostics)
-        val resolver = Resolver(index, diagnostics)
+        val resolver = Resolver(index, sorted, diagnostics)
         val namespaces =
             sorted
                 .groupBy { it.namespace.name }
@@ -53,6 +53,7 @@ object Analyzer {
                 .map { (name, group) ->
                     analyzeNamespace(name, group, index, resolver, options, diagnostics)
                 }
+        resolver.finish()
         val schema = if (diagnostics.hasErrors) null else Schema(namespaces)
         return AnalysisResult(schema, diagnostics)
     }
