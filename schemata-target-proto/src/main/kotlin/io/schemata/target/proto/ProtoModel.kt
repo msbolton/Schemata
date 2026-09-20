@@ -2,9 +2,11 @@ package io.schemata.target.proto
 
 import io.schemata.target.TargetModel
 
+/** Every `.proto` file the compilation produces, one per namespace, in namespace order. */
+data class ProtoModel(val files: List<ProtoFile>) : TargetModel
+
 /** One `.proto` file, legal by construction. The renderer prints this without making decisions. */
-data class ProtoFile(val path: String, val packageName: String, val messages: List<ProtoMessage>) :
-    TargetModel
+data class ProtoFile(val path: String, val packageName: String, val messages: List<ProtoMessage>)
 
 data class ProtoMessage(val name: String, val fields: List<ProtoField>)
 

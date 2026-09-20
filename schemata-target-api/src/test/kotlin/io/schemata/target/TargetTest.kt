@@ -4,10 +4,13 @@ import io.schemata.core.ir.Schema
 import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Severity
+import io.schemata.lang.Span
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class TargetTest {
+    private val at = Span("t.schemata", 1, 1, 1, 1)
+
     private data class CountModel(val records: Int) : TargetModel
 
     private object CountTarget : Target<CountModel> {
@@ -15,26 +18,19 @@ class TargetTest {
 
         override fun lower(schema: Schema) =
             Lowered(
-                CountModel(schema.records.size),
-                listOf(Diagnostic(Severity.WARNING, Category.LOSSY, "counted", null)),
+                CountModel(schema.namespaces.sumOf { it.records.size }),
+                listOf(
+                    Diagnostic(
+                        Severity.WARNING,
+                        Category.LOSSY,
+                        "counted",
+                        Span("t.schemata", 1, 1, 1, 1),
+                    )
+                ),
             )
 
         override fun render(model: CountModel) =
             listOf(OutputFile("count.txt", "${model.records}\n"))
-    }
-
-    @Test
-    fun `compile runs lower then render and keeps the lowering diagnostics`() {
-        val out = CountTarget.compile(Schema("a", emptyList()))
-        assertEquals(listOf(OutputFile("count.txt", "0\n")), out.files)
-        assertEquals(listOf("counted"), out.diagnostics.map { it.message })
-    }
-
-    @Test
-    fun `compile is callable through a star-projected target`() {
-        val target: Target<*> = CountTarget
-        assertEquals("count", target.name)
-        assertEquals(1, target.compile(Schema("a", emptyList())).files.size)
     }
 
     private object FailingTarget : Target<CountModel> {
@@ -42,17 +38,38 @@ class TargetTest {
 
         override fun lower(schema: Schema) =
             Lowered(
-                CountModel(schema.records.size),
-                listOf(Diagnostic(Severity.ERROR, Category.SEMANTIC, "broken", null)),
+                CountModel(0),
+                listOf(
+                    Diagnostic(
+                        Severity.ERROR,
+                        Category.SEMANTIC,
+                        "broken",
+                        Span("t.schemata", 1, 1, 1, 1),
+                    )
+                ),
             )
 
-        override fun render(model: CountModel) =
-            listOf(OutputFile("count.txt", "${model.records}\n"))
+        override fun render(model: CountModel) = listOf(OutputFile("count.txt", "0\n"))
+    }
+
+    @Test
+    fun `compile runs lower then render and keeps the lowering diagnostics`() {
+        val out = CountTarget.compile(Schema(emptyList()))
+        assertEquals(listOf(OutputFile("count.txt", "0\n")), out.files)
+        assertEquals(listOf("counted"), out.diagnostics.map { it.message })
+        assertEquals(at, out.diagnostics.single().span)
+    }
+
+    @Test
+    fun `compile is callable through a star-projected target`() {
+        val target: Target<*> = CountTarget
+        assertEquals("count", target.name)
+        assertEquals(1, target.compile(Schema(emptyList())).files.size)
     }
 
     @Test
     fun `compile skips render when lowering reports an error`() {
-        val out = FailingTarget.compile(Schema("a", emptyList()))
+        val out = FailingTarget.compile(Schema(emptyList()))
         assertEquals(emptyList(), out.files)
         assertEquals(listOf("broken"), out.diagnostics.map { it.message })
     }
