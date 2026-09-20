@@ -4,6 +4,9 @@ import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
+import io.schemata.lang.Category
+import io.schemata.lang.Diagnostic
+import io.schemata.lang.Severity
 import io.schemata.target.Lowered
 
 /**
@@ -15,9 +18,28 @@ object SqlLowering {
         val tables = schema.records.map { lower(it) }
         return Lowered(
             RelationalSchema(schema.namespace.substringAfterLast('.'), tables),
-            emptyList(),
+            collisionDiagnostics(schema.records),
         )
     }
+
+    private fun collisionDiagnostics(records: List<RecordType>): List<Diagnostic> =
+        records
+            .groupBy { Naming.snakeCase(it.name) }
+            .values
+            .filter { it.size > 1 }
+            .map { colliding ->
+                Diagnostic(
+                    Severity.ERROR,
+                    Category.SEMANTIC,
+                    "records ${englishList(colliding.map { it.name })} both lower to table " +
+                        "'${Naming.snakeCase(colliding.first().name)}'",
+                    null,
+                )
+            }
+
+    private fun englishList(names: List<String>): String =
+        if (names.size <= 1) names.joinToString("")
+        else names.dropLast(1).joinToString(", ") + " and " + names.last()
 
     private fun lower(record: RecordType): Table =
         Table(Naming.snakeCase(record.name), record.fields.map { lower(it) })

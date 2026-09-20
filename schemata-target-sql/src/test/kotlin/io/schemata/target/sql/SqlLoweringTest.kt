@@ -56,4 +56,36 @@ class SqlLoweringTest {
     fun `flat scalar records lower without diagnostics`() {
         assertEquals(emptyList(), SqlLowering.lower(schema).diagnostics)
     }
+
+    @Test
+    fun `diagnoses table-name collisions`() {
+        val colliding =
+            Schema(
+                namespace = "shop.orders",
+                records =
+                    listOf(
+                        RecordType("Abc", listOf(Field(1, "id", Builtin.UUID, nullable = false))),
+                        RecordType("ABC", listOf(Field(1, "id", Builtin.UUID, nullable = false))),
+                    ),
+            )
+        val diagnostics = SqlLowering.lower(colliding).diagnostics
+        assertEquals(
+            listOf("records Abc and ABC both lower to table 'abc'"),
+            diagnostics.map { it.message },
+        )
+    }
+
+    @Test
+    fun `distinct record names yield no collision diagnostics`() {
+        val distinct =
+            Schema(
+                namespace = "shop.orders",
+                records =
+                    listOf(
+                        RecordType("Abc", listOf(Field(1, "id", Builtin.UUID, nullable = false))),
+                        RecordType("Def", listOf(Field(1, "id", Builtin.UUID, nullable = false))),
+                    ),
+            )
+        assertEquals(emptyList(), SqlLowering.lower(distinct).diagnostics)
+    }
 }
