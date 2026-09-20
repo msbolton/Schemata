@@ -249,6 +249,7 @@ class GrammarTest {
         assertEquals("test.schemata", d.span.file)
         assertEquals(2, d.span.startLine)
         assertEquals(18, d.span.startColumn)
+        assertEquals(21, d.span.endColumn)
     }
 
     @Test
