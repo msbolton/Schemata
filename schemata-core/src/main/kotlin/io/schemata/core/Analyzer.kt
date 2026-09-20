@@ -2,6 +2,7 @@ package io.schemata.core
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Category
@@ -15,71 +16,108 @@ import io.schemata.lang.hasErrors
 /** [schema] is null exactly when [diagnostics] contains an error. */
 data class AnalysisResult(val schema: Schema?, val diagnostics: List<Diagnostic>)
 
-/** AST to IR, plus every check the language performs before any target sees the schema. */
+/**
+ * AST to IR over a whole compilation, plus every check the language performs before any target sees
+ * the schema. Files are processed in sorted-path order; namespaces come out sorted by name.
+ */
 object Analyzer {
     private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
     private val lowerSnake = Regex("[a-z][a-z0-9_]*")
 
-    fun analyze(file: SourceFile): AnalysisResult {
+    fun analyze(files: List<SourceFile>): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
-        file.namespace.name.split(".").forEach { segment ->
+        val namespaces =
+            files
+                .sortedBy { it.path }
+                .groupBy { it.namespace.name }
+                .toSortedMap()
+                .map { (name, group) -> analyzeNamespace(name, group, diagnostics) }
+        val schema = if (diagnostics.hasErrors) null else Schema(namespaces)
+        return AnalysisResult(schema, diagnostics)
+    }
+
+    private fun analyzeNamespace(
+        name: String,
+        files: List<SourceFile>,
+        diagnostics: MutableList<Diagnostic>,
+    ): Namespace {
+        val first = files.first()
+        name.split(".").forEach { segment ->
             if (!lowerSnake.matches(segment)) {
                 diagnostics +=
-                    error("namespace segment '$segment' must be lower_snake", file.namespace.span)
+                    error("namespace segment '$segment' must be lower_snake", first.namespace.span)
             }
         }
-        val declared = file.declarations.map { it.name }.toSet()
-        val seenRecords = mutableSetOf<String>()
-
+        val declared = files.flatMap { it.declarations }.map { it.name }.toSet()
+        val seen = mutableMapOf<String, Span>()
         val records =
-            file.declarations.filterIsInstance<RecordDecl>().map { record ->
-                if (!upperCamel.matches(record.name)) {
-                    diagnostics +=
-                        error("record name '${record.name}' must be UpperCamel", record.span)
+            files.flatMap { file ->
+                file.declarations.filterIsInstance<RecordDecl>().map { record ->
+                    analyzeRecord(record, declared, seen, diagnostics)
                 }
-                if (!seenRecords.add(record.name)) {
-                    diagnostics +=
-                        error("record '${record.name}' is declared more than once", record.span)
-                }
-                val seenFields = mutableSetOf<String>()
-                val fields =
-                    record.fields.mapIndexedNotNull { index, field ->
-                        if (!lowerSnake.matches(field.name)) {
-                            diagnostics +=
-                                error("field name '${field.name}' must be lower_snake", field.span)
-                        }
-                        if (!seenFields.add(field.name)) {
-                            diagnostics +=
-                                error(
-                                    "field '${field.name}' is declared more than once in record '${record.name}'",
-                                    field.span,
-                                )
-                        }
-                        val type = Builtin.byName(field.type.name)
-                        if (type == null) {
-                            diagnostics +=
-                                if (field.type.name in declared) {
-                                    error(
-                                        "'${field.type.name}' is a record; record-typed fields are not supported yet",
-                                        field.type.span,
-                                    )
-                                } else {
-                                    error("unknown type '${field.type.name}'", field.type.span)
-                                }
-                            return@mapIndexedNotNull null
-                        }
-                        Field(
-                            ordinal = index + 1,
-                            name = field.name,
-                            type = type,
-                            nullable = field.type.nullable,
-                        )
-                    }
-                RecordType(record.name, fields)
             }
+        return Namespace(name, records, first.namespace.span)
+    }
 
-        val schema = if (diagnostics.hasErrors) null else Schema(file.namespace.name, records)
-        return AnalysisResult(schema, diagnostics)
+    private fun analyzeRecord(
+        record: RecordDecl,
+        declared: Set<String>,
+        seen: MutableMap<String, Span>,
+        diagnostics: MutableList<Diagnostic>,
+    ): RecordType {
+        if (!upperCamel.matches(record.name)) {
+            diagnostics += error("record name '${record.name}' must be UpperCamel", record.span)
+        }
+        val previous = seen.putIfAbsent(record.name, record.span)
+        if (previous != null) {
+            diagnostics +=
+                if (previous.file == record.span.file) {
+                    error("record '${record.name}' is declared more than once", record.span)
+                } else {
+                    error(
+                        "record '${record.name}' is declared in both " +
+                            "${previous.file}:${previous.startLine} and " +
+                            "${record.span.file}:${record.span.startLine}",
+                        record.span,
+                    )
+                }
+        }
+        val seenFields = mutableSetOf<String>()
+        val fields =
+            record.fields.mapIndexedNotNull { index, field ->
+                if (!lowerSnake.matches(field.name)) {
+                    diagnostics +=
+                        error("field name '${field.name}' must be lower_snake", field.span)
+                }
+                if (!seenFields.add(field.name)) {
+                    diagnostics +=
+                        error(
+                            "field '${field.name}' is declared more than once in record '${record.name}'",
+                            field.span,
+                        )
+                }
+                val type = Builtin.byName(field.type.name)
+                if (type == null) {
+                    diagnostics +=
+                        if (field.type.name in declared) {
+                            error(
+                                "'${field.type.name}' is a record; record-typed fields are not supported yet",
+                                field.type.span,
+                            )
+                        } else {
+                            error("unknown type '${field.type.name}'", field.type.span)
+                        }
+                    return@mapIndexedNotNull null
+                }
+                Field(
+                    ordinal = index + 1,
+                    name = field.name,
+                    type = type,
+                    nullable = field.type.nullable,
+                    span = field.span,
+                )
+            }
+        return RecordType(record.name, fields, record.span)
     }
 
     private fun error(message: String, span: Span) =
