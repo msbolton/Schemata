@@ -26,4 +26,21 @@ class RecoveryTest {
         assertEquals(2, span.startLine)
         assertEquals(span.startColumn, span.endColumn + 1)
     }
+
+    @Test
+    fun `a lexer error has a one-character span`() {
+        val d = Parser.parse("namespace a\nrecord R { x: bool } %", "t").diagnostics.first()
+        assertEquals(Span("t", 2, 22, 2, 22), d.span)
+    }
+
+    @Test
+    fun `a trailing backslash does not swallow following lines`() {
+        val result =
+            Parser.parse(
+                "namespace a\nrecord R { s: string = \"oops\\\n}\nrecord Q { t: string = \"x\" }",
+                "t",
+            )
+        assertNull(result.file)
+        assertEquals(2, result.diagnostics.first().span.startLine)
+    }
 }

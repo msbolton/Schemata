@@ -63,7 +63,7 @@ STREAM    : 'stream' ;
 ORDINAL        : '#' [0-9]+ ;
 FLOAT_LITERAL  : '-'? [0-9]+ '.' [0-9]+ ;
 INT_LITERAL    : '-'? [0-9]+ ;
-STRING_LITERAL : '"' (~["\\\r\n] | '\\' .)* '"' ;
+STRING_LITERAL : '"' (~["\\\r\n] | '\\' ~[\r\n])* '"' ;
 RANGE          : '..' ;
 QUESTION       : '?' ;
 IDENT          : [A-Za-z_] [A-Za-z0-9_]* ;

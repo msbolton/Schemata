@@ -217,6 +217,11 @@ class ParserTest {
     }
 
     @Test
+    fun `file span ends at the last real column`() {
+        assertEquals(Span("t", 1, 1, 1, 11), Parser.parse("namespace a", "t").file!!.span)
+    }
+
+    @Test
     fun `a future keyword is a reserved-keyword error and yields no file`() {
         val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
         assertNull(result.file)

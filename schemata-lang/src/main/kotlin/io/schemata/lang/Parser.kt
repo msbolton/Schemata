@@ -13,7 +13,7 @@ data class ParseResult(val file: SourceFile?, val diagnostics: List<Diagnostic>)
 
 /**
  * The only public entry point into the parser. [path] is recorded in every span and never read from
- * disk — loading files is the caller's job.
+ * disk — loading files is the caller's job. Callers never see ANTLR types.
  */
 object Parser {
     fun parse(source: String, path: String): ParseResult {

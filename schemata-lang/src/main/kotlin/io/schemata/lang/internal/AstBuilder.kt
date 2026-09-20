@@ -244,13 +244,10 @@ internal class AstBuilder(
 
     private fun ParserRuleContext.span(): Span {
         val stop = stop ?: start
-        return Span(
-            file,
-            start.line,
-            start.charPositionInLine + 1,
-            stop.line,
-            stop.charPositionInLine + stop.text.length,
-        )
+        val endColumn =
+            if (stop.type == Token.EOF) stop.charPositionInLine
+            else stop.charPositionInLine + stop.text.length
+        return Span(file, start.line, start.charPositionInLine + 1, stop.line, endColumn)
     }
 
     private fun Token.span(): Span =

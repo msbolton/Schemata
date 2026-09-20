@@ -24,7 +24,12 @@ internal class CollectingErrorListener(private val file: String) : BaseErrorList
     ) {
         val column = charPositionInLine + 1
         val token = offendingSymbol as? Token
-        val width = if (token == null || token.type == Token.EOF) 0 else token.text.length
+        val width =
+            when {
+                token == null -> 1
+                token.type == Token.EOF -> 0
+                else -> token.stopIndex - token.startIndex + 1
+            }
         collected +=
             Diagnostic(LangCodes.SYNTAX, msg, Span(file, line, column, line, column + width - 1))
     }
