@@ -5,6 +5,7 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.arguments.argument
+import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
@@ -12,14 +13,13 @@ import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.createParentDirectories
-import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
 class CompileCommand : CliktCommand(name = "compile") {
-    override fun help(context: Context) = "Compile a .schemata file to one or more targets."
+    override fun help(context: Context) =
+        "Compile .schemata files (or directories of them) to one or more targets."
 
     private val targetNames by
         option(
@@ -34,7 +34,7 @@ class CompileCommand : CliktCommand(name = "compile") {
             .path(canBeFile = false)
             .default(Path("out"))
 
-    private val input by argument("FILE").path(mustExist = true, canBeDir = false)
+    private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
 
     override fun run() {
         val targets =
@@ -44,9 +44,12 @@ class CompileCommand : CliktCommand(name = "compile") {
                         "unknown target '$name'; available: ${Pipeline.targets.joinToString(", ") { it.name }}"
                     )
             }
+        val sources = SourceSet.load(inputs)
+        if (sources.isEmpty())
+            throw UsageError("no .schemata files found under: ${inputs.joinToString(", ")}")
 
-        val result = Pipeline.compile(input.readText(), targets)
-        result.diagnostics.forEach { echo(format(it, input), err = true) }
+        val result = Pipeline.compile(sources, targets)
+        result.diagnostics.forEach { echo(format(it), err = true) }
         if (result.hasErrors) throw ProgramResult(1)
 
         result.files.forEach { (target, file) ->
@@ -57,13 +60,12 @@ class CompileCommand : CliktCommand(name = "compile") {
         }
     }
 
-    private fun format(d: Diagnostic, file: Path): String {
+    private fun format(d: Diagnostic): String {
         val kind =
             when (d.category) {
                 Category.LOSSY -> "warning (lossy)"
                 else -> d.severity.name.lowercase()
             }
-        val where = d.span?.let { "$file:${it.startLine}:${it.startColumn}" } ?: "$file"
-        return "$kind: $where: ${d.message}"
+        return "$kind: ${d.span.file}:${d.span.startLine}:${d.span.startColumn}: ${d.message}"
     }
 }
