@@ -25,6 +25,10 @@ object Golden {
         if (!file.exists()) {
             fail("golden file ${file.path} does not exist; run with $UPDATE_ENV=1 to create it")
         }
-        assertEquals(file.readText(), actual, "output differs from ${file.path}; run with $UPDATE_ENV=1 to accept")
+        assertEquals(
+            file.readText(),
+            actual,
+            "output differs from ${file.path}; run with $UPDATE_ENV=1 to accept",
+        )
     }
 }

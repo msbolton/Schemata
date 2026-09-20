@@ -14,9 +14,12 @@ dependencies {
 configurations.api { setExtendsFrom(extendsFrom.filterNot { it.name == "antlr" }) }
 
 tasks.generateGrammarSource {
-    arguments = arguments + listOf("-no-listener", "-no-visitor", "-package", "io.schemata.lang.antlr")
-    outputDirectory = layout.buildDirectory.dir("generated-src/antlr/main/io/schemata/lang/antlr").get().asFile
+    arguments =
+        arguments + listOf("-no-listener", "-no-visitor", "-package", "io.schemata.lang.antlr")
+    outputDirectory =
+        layout.buildDirectory.dir("generated-src/antlr/main/io/schemata/lang/antlr").get().asFile
 }
 
 tasks.compileKotlin { dependsOn(tasks.generateGrammarSource) }
+
 tasks.compileTestKotlin { dependsOn(tasks.generateTestGrammarSource) }

@@ -1,5 +1,7 @@
 # Schemata
 
+![ci](https://github.com/msbolton/Schemata/actions/workflows/ci.yml/badge.svg)
+
 A schema language and compiler. Author a data model once in `.schemata`; emit
 Protobuf and SQL DDL (more targets to follow).
 

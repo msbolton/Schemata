@@ -5,11 +5,23 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 plugins {
     kotlin("jvm")
     `java-library`
+    id("com.diffplug.spotless")
 }
 
 kotlin { jvmToolchain(21) }
 
 dependencies { testImplementation(kotlin("test")) }
+
+spotless {
+    kotlin {
+        target("src/**/*.kt")
+        ktfmt("0.53").kotlinlangStyle()
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktfmt("0.53").kotlinlangStyle()
+    }
+}
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
