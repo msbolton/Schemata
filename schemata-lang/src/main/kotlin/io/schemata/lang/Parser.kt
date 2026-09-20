@@ -30,6 +30,9 @@ object Parser {
             }
         val tree = parser.file()
         if (listener.diagnostics.hasErrors) return ParseResult(null, listener.diagnostics)
-        return ParseResult(AstBuilder(path).build(tree), listener.diagnostics)
+        val builderDiagnostics = mutableListOf<Diagnostic>()
+        val file = AstBuilder(path, builderDiagnostics).build(tree)
+        val diagnostics = listener.diagnostics + builderDiagnostics
+        return ParseResult(if (diagnostics.hasErrors) null else file, diagnostics)
     }
 }
