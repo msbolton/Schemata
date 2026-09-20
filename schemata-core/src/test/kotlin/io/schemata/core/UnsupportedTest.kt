@@ -61,6 +61,18 @@ class UnsupportedTest {
     }
 
     @Test
+    fun `reports every reserved item`() {
+        assertEquals(
+            listOf(
+                "3: reserved statements are not supported yet (SCH-22)",
+                "3: reserved statements are not supported yet (SCH-22)",
+                "4: reserved statements are not supported yet (SCH-22)",
+            ),
+            messages("namespace a\nrecord R {\n  reserved #2, \"old\"\n  reserved #5..#7\n}"),
+        )
+    }
+
+    @Test
     fun `analyzer returns no schema when a construct is unsupported`() {
         val file = Parser.parse("namespace a\nrecord R { #1 x: bool }", "t.schemata").file!!
         val result = Analyzer.analyze(listOf(file))

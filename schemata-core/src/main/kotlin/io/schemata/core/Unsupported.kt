@@ -34,12 +34,8 @@ object Unsupported {
         when (decl) {
             is RecordDecl -> {
                 decl.fields.forEach { field(it, out) }
-                if (decl.reserved.isNotEmpty()) {
-                    out +=
-                        error(
-                            "reserved statements are not supported yet (SCH-22)",
-                            decl.reserved.first().span,
-                        )
+                decl.reserved.forEach {
+                    out += error("reserved statements are not supported yet (SCH-22)", it.span)
                 }
                 decl.nested.forEach { declaration(it, nested = true, out) }
             }
