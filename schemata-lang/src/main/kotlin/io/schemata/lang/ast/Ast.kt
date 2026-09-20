@@ -69,7 +69,7 @@ data class AliasDecl(
     override val span: Span,
 ) : Declaration
 
-/** [ordinal] is null when the field has no `#n`; the checker decides all-or-nothing (spec §5). */
+/** [ordinal] is null when the field has no `#n`; the checker decides all-or-nothing. */
 data class FieldDecl(
     val ordinal: Int?,
     val ordinalSpan: Span?,

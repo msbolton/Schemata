@@ -10,8 +10,8 @@ import kotlin.streams.asSequence
 data class SourceInput(val path: String, val content: String)
 
 /**
- * Expands the paths a user named into the compilation set (spec §12.1): directories contribute
- * every `*.schemata` beneath them; the result is deduplicated by absolute path and sorted by the
+ * Expands the paths a user named into the compilation set: directories contribute every
+ * `*.schemata` beneath them; the result is deduplicated by absolute path and sorted by the
  * normalized path string so the compilation is deterministic.
  */
 object SourceSet {
