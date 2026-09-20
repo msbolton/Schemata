@@ -22,6 +22,12 @@ object Analyzer {
 
     fun analyze(file: SourceFile): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
+        file.namespace.name.split(".").forEach { segment ->
+            if (!lowerSnake.matches(segment)) {
+                diagnostics +=
+                    error("namespace segment '$segment' must be lower_snake", file.namespace.span)
+            }
+        }
         val declared = file.declarations.map { it.name }.toSet()
         val seenRecords = mutableSetOf<String>()
 

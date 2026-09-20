@@ -85,6 +85,15 @@ class AnalyzerTest {
     }
 
     @Test
+    fun `enforces lower_snake namespace segments`() {
+        val result = analyze("namespace Shop.orders")
+        assertNull(result.schema)
+        val d = result.diagnostics.single()
+        assertEquals("namespace segment 'Shop' must be lower_snake", d.message)
+        assertEquals(1, d.span!!.startLine)
+    }
+
+    @Test
     fun `rejects duplicate records and fields`() {
         val result = analyze("namespace a\nrecord R { x: bool\n x: bool }\nrecord R { y: bool }")
         assertNull(result.schema)
