@@ -2,6 +2,7 @@ package io.schemata.target.sql
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Category
@@ -14,26 +15,43 @@ import io.schemata.target.Lowered
  * to compile here rather than being guessed at. Nesting strategy is decided in SCH-28.
  */
 object SqlLowering {
-    fun lower(schema: Schema): Lowered<RelationalSchema> {
-        val tables = schema.records.map { lower(it) }
-        return Lowered(
-            RelationalSchema(schema.namespace.substringAfterLast('.'), tables),
-            collisionDiagnostics(schema.records),
-        )
+    fun lower(schema: Schema): Lowered<RelationalModel> {
+        val schemas = schema.namespaces.map { lower(it) }
+        val diagnostics =
+            schemaCollisions(schema.namespaces) + schema.namespaces.flatMap { tableCollisions(it) }
+        return Lowered(RelationalModel(schemas), diagnostics)
     }
 
-    private fun collisionDiagnostics(records: List<RecordType>): List<Diagnostic> =
-        records
+    private fun lower(namespace: Namespace): RelationalSchema =
+        RelationalSchema(
+            path = namespace.name.replace('.', '/') + ".sql",
+            schemaName = namespace.name.substringAfterLast('.'),
+            tables = namespace.records.map { lower(it) },
+        )
+
+    private fun schemaCollisions(namespaces: List<Namespace>): List<Diagnostic> =
+        namespaces
+            .groupBy { it.name.substringAfterLast('.') }
+            .values
+            .filter { it.size > 1 }
+            .map { colliding ->
+                error(
+                    "namespaces ${englishList(colliding.map { it.name })} both lower to schema " +
+                        "'${colliding.first().name.substringAfterLast('.')}'",
+                    colliding.first().span,
+                )
+            }
+
+    private fun tableCollisions(namespace: Namespace): List<Diagnostic> =
+        namespace.records
             .groupBy { Naming.snakeCase(it.name) }
             .values
             .filter { it.size > 1 }
             .map { colliding ->
-                Diagnostic(
-                    Severity.ERROR,
-                    Category.SEMANTIC,
+                error(
                     "records ${englishList(colliding.map { it.name })} both lower to table " +
                         "'${Naming.snakeCase(colliding.first().name)}'",
-                    null,
+                    colliding.first().span,
                 )
             }
 
@@ -57,4 +75,7 @@ object SqlLowering {
             }
         return Column(field.name, type, field.nullable)
     }
+
+    private fun error(message: String, span: io.schemata.lang.Span) =
+        Diagnostic(Severity.ERROR, Category.SEMANTIC, message, span)
 }

@@ -4,8 +4,8 @@ import io.schemata.target.OutputFile
 
 /** Postgres DDL. Every identifier is quoted so reserved words like `user` are safe. */
 object SqlRenderer {
-    fun render(schema: RelationalSchema): List<OutputFile> =
-        listOf(OutputFile("${schema.schemaName}.sql", text(schema)))
+    fun render(model: RelationalModel): List<OutputFile> =
+        model.schemas.map { OutputFile(it.path, text(it)) }
 
     private fun text(schema: RelationalSchema): String = buildString {
         appendLine("CREATE SCHEMA IF NOT EXISTS ${quote(schema.schemaName)};")
