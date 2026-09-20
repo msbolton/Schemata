@@ -19,6 +19,9 @@ internal object AstBuilder {
             span = ctx.span(),
         )
 
+    // record is the only declaration alternative today; ctx.recordDecl() is a platform type and
+    // will NPE when a second alternative is added — extend this dispatch in the same change
+    // (SCH-16).
     private fun build(ctx: SchemataParser.DeclarationContext): Declaration = build(ctx.recordDecl())
 
     private fun build(ctx: SchemataParser.RecordDeclContext): RecordDecl =

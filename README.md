@@ -9,7 +9,7 @@ Protobuf and SQL DDL (more targets to follow).
 
     ./gradlew build          # compile, test, lint, dependency-direction check
     ./gradlew :schemata-cli:installDist
-    build/install/schemata/bin/schemata compile --target proto,sql --out out schema.schemata
+    schemata-cli/build/install/schemata/bin/schemata compile --target proto,sql --out out schema.schemata
 
 ## Modules
 
