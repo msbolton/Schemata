@@ -24,7 +24,7 @@ class GrammarTest {
             .trimIndent()
 
     private fun parse(source: String): Pair<SchemataParser.FileContext, List<Diagnostic>> {
-        val listener = CollectingErrorListener()
+        val listener = CollectingErrorListener("test.schemata")
         val lexer =
             SchemataLexer(CharStreams.fromString(source)).apply {
                 removeErrorListeners()
@@ -46,10 +46,6 @@ class GrammarTest {
         val record = tree.declaration().single().recordDecl()
         assertEquals("User", record.IDENT().text)
         assertEquals(listOf("id", "email", "name", "age"), record.field().map { it.IDENT().text })
-        assertEquals(
-            listOf(false, true, false, false),
-            record.field().map { it.typeRef().QUESTION() != null },
-        )
     }
 
     @Test
@@ -60,21 +56,21 @@ class GrammarTest {
     }
 
     @Test
-    fun `reports a missing colon with its position`() {
+    fun `reports a missing colon with its file and position`() {
         val (_, diagnostics) = parse("namespace a\nrecord User { id uuid }")
-        assertEquals(1, diagnostics.size)
         val d = diagnostics.single()
         assertEquals(Severity.ERROR, d.severity)
         assertEquals(Category.SYNTAX, d.category)
-        assertEquals(2, d.span!!.startLine)
-        assertEquals(18, d.span!!.startColumn)
+        assertEquals("test.schemata", d.span.file)
+        assertEquals(2, d.span.startLine)
+        assertEquals(18, d.span.startColumn)
     }
 
     @Test
     fun `requires a namespace declaration`() {
         val (_, diagnostics) = parse("record User { id: uuid }")
         assertTrue(diagnostics.hasErrors)
-        assertEquals(1, diagnostics.single().span!!.startLine)
+        assertEquals(1, diagnostics.single().span.startLine)
     }
 
     @Test

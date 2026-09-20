@@ -10,9 +10,10 @@ import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeRef
 import org.antlr.v4.runtime.ParserRuleContext
 
-internal object AstBuilder {
+internal class AstBuilder(private val file: String) {
     fun build(ctx: SchemataParser.FileContext): SourceFile =
         SourceFile(
+            path = file,
             namespace =
                 NamespaceDecl(ctx.namespaceDecl().qualifiedName().text, ctx.namespaceDecl().span()),
             declarations = ctx.declaration().map { build(it) },
@@ -40,6 +41,7 @@ internal object AstBuilder {
     private fun ParserRuleContext.span(): Span {
         val stop = stop ?: start
         return Span(
+            file = file,
             startLine = start.line,
             startColumn = start.charPositionInLine + 1,
             endLine = stop.line,

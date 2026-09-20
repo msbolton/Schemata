@@ -16,7 +16,7 @@ data class Diagnostic(
     val severity: Severity,
     val category: Category,
     val message: String,
-    val span: Span?,
+    val span: Span,
 )
 
 val List<Diagnostic>.hasErrors: Boolean

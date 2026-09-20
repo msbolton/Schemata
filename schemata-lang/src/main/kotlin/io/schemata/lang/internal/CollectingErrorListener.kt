@@ -8,8 +8,8 @@ import org.antlr.v4.runtime.BaseErrorListener
 import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.Recognizer
 
-/** Turns ANTLR syntax errors into [Diagnostic]s instead of printing them to stderr. */
-internal class CollectingErrorListener : BaseErrorListener() {
+/** Turns ANTLR syntax errors into [Diagnostic]s that name [file]. */
+internal class CollectingErrorListener(private val file: String) : BaseErrorListener() {
     private val collected = mutableListOf<Diagnostic>()
     val diagnostics: List<Diagnostic>
         get() = collected
@@ -24,6 +24,6 @@ internal class CollectingErrorListener : BaseErrorListener() {
     ) {
         val column = charPositionInLine + 1
         collected +=
-            Diagnostic(Severity.ERROR, Category.SYNTAX, msg, Span(line, column, line, column))
+            Diagnostic(Severity.ERROR, Category.SYNTAX, msg, Span(file, line, column, line, column))
     }
 }

@@ -7,6 +7,7 @@ import io.schemata.lang.Span
  * here.
  */
 data class SourceFile(
+    val path: String,
     val namespace: NamespaceDecl,
     val declarations: List<Declaration>,
     val span: Span,

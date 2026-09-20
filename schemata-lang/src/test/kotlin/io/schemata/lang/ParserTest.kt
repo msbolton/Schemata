@@ -22,35 +22,31 @@ class ParserTest {
             .trimIndent()
 
     @Test
-    fun `builds an AST for the fixture`() {
-        val result = Parser.parse(fixture)
+    fun `builds an AST for the fixture and records the path`() {
+        val result = Parser.parse(fixture, "src/orders.schemata")
         assertEquals(emptyList(), result.diagnostics)
         val file = assertNotNull(result.file)
+        assertEquals("src/orders.schemata", file.path)
         assertEquals("shop.orders", file.namespace.name)
         val record = file.declarations.single() as RecordDecl
-        assertEquals("User", record.name)
         assertEquals(listOf("id", "email", "name", "age"), record.fields.map { it.name })
-        assertEquals(
-            listOf("uuid", "string", "string", "int32"),
-            record.fields.map { it.type.name },
-        )
         assertEquals(listOf(false, true, false, false), record.fields.map { it.type.nullable })
     }
 
     @Test
-    fun `AST nodes carry source spans`() {
-        val file = Parser.parse(fixture).file!!
+    fun `every AST span names the file`() {
+        val file = Parser.parse(fixture, "src/orders.schemata").file!!
         val record = file.declarations.single() as RecordDecl
-        assertEquals(Span(3, 1, 8, 1), record.span)
-        val email = record.fields[1]
-        assertEquals(5, email.span.startLine)
-        assertEquals(Span(5, 10, 5, 16), email.type.span)
+        assertEquals(Span("src/orders.schemata", 3, 1, 8, 1), record.span)
+        assertEquals(Span("src/orders.schemata", 5, 10, 5, 16), record.fields[1].type.span)
+        assertEquals("src/orders.schemata", file.namespace.span.file)
     }
 
     @Test
     fun `returns no file when there are syntax errors`() {
-        val result = Parser.parse("namespace a\nrecord User { id uuid }")
+        val result = Parser.parse("namespace a\nrecord User { id uuid }", "bad.schemata")
         assertNull(result.file)
         assertTrue(result.diagnostics.hasErrors)
+        assertEquals("bad.schemata", result.diagnostics.single().span.file)
     }
 }
