@@ -1,5 +1,6 @@
 plugins {
     id("buildsrc.convention.kotlin-jvm")
+    id("buildsrc.convention.protoc-tests")
     application
 }
 
@@ -11,6 +12,8 @@ dependencies {
     implementation(project(":schemata-target-sql"))
     implementation(libs.clikt)
     testImplementation(project(":schemata-testkit"))
+    testImplementation(libs.testcontainersPostgres)
+    testImplementation(libs.postgresJdbc)
 }
 
 application {
