@@ -74,6 +74,7 @@ internal class AstBuilder(
         val members = ctx.recordMember()
         return RecordDecl(
             name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
             fields = members.mapNotNull { it.field() }.map { build(it) },
             nested = members.mapNotNull { it.declaration() }.map { build(it) },
             reserved = members.mapNotNull { it.reservedStmt() }.flatMap { build(it) },
@@ -86,7 +87,9 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.FieldContext): FieldDecl =
         FieldDecl(
             ordinal = ctx.ORDINAL()?.let { ordinal(it) },
+            ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
             name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
             type = build(ctx.typeExpr()),
             default = ctx.literal()?.let { build(it) },
             doc = doc(ctx.doc()),
@@ -97,11 +100,14 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.EnumDeclContext): EnumDecl =
         EnumDecl(
             name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
             values =
                 ctx.enumValue().map {
                     EnumValueDecl(
                         ordinal = it.ORDINAL()?.let { o -> ordinal(o) },
+                        ordinalSpan = it.ORDINAL()?.symbol?.span(),
                         name = it.IDENT().text,
+                        nameSpan = it.IDENT().symbol.span(),
                         doc = doc(it.doc()),
                         annotations = it.annotation().map { a -> build(a) },
                         span = it.span(),
@@ -116,10 +122,12 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.UnionDeclContext): UnionDecl =
         UnionDecl(
             name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
             members =
                 ctx.unionMember().map {
                     UnionMemberDecl(
                         it.ORDINAL()?.let { o -> ordinal(o) },
+                        it.ORDINAL()?.symbol?.span(),
                         build(it.typeExpr()),
                         it.span(),
                     )
@@ -132,6 +140,7 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.AliasDeclContext): AliasDecl =
         AliasDecl(
             name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
             type = build(ctx.typeExpr()),
             doc = doc(ctx.doc()),
             annotations = ctx.annotation().map { build(it) },
@@ -150,6 +159,7 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.TypeExprContext): TypeExpr =
         TypeExpr(
             name = ctx.qualifiedName().text,
+            nameSpan = ctx.qualifiedName().span(),
             args = ctx.typeArgs()?.typeExpr()?.map { build(it) } ?: emptyList(),
             refinements =
                 ctx.refinements()?.refinement()?.map { r ->

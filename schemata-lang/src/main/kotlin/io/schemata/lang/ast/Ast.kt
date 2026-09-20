@@ -24,6 +24,7 @@ data class ImportDecl(val namespace: String, val alias: String?, val span: Span)
 
 sealed interface Declaration {
     val name: String
+    val nameSpan: Span
     val doc: String?
     val annotations: List<Annotation>
     val span: Span
@@ -31,6 +32,7 @@ sealed interface Declaration {
 
 data class RecordDecl(
     override val name: String,
+    override val nameSpan: Span,
     val fields: List<FieldDecl>,
     val nested: List<Declaration>,
     val reserved: List<ReservedItem>,
@@ -41,6 +43,7 @@ data class RecordDecl(
 
 data class EnumDecl(
     override val name: String,
+    override val nameSpan: Span,
     val values: List<EnumValueDecl>,
     val reserved: List<ReservedItem>,
     override val doc: String?,
@@ -50,6 +53,7 @@ data class EnumDecl(
 
 data class UnionDecl(
     override val name: String,
+    override val nameSpan: Span,
     val members: List<UnionMemberDecl>,
     override val doc: String?,
     override val annotations: List<Annotation>,
@@ -58,6 +62,7 @@ data class UnionDecl(
 
 data class AliasDecl(
     override val name: String,
+    override val nameSpan: Span,
     val type: TypeExpr,
     override val doc: String?,
     override val annotations: List<Annotation>,
@@ -67,7 +72,9 @@ data class AliasDecl(
 /** [ordinal] is null when the field has no `#n`; the checker decides all-or-nothing (spec §5). */
 data class FieldDecl(
     val ordinal: Int?,
+    val ordinalSpan: Span?,
     val name: String,
+    val nameSpan: Span,
     val type: TypeExpr,
     val default: Literal?,
     val doc: String?,
@@ -77,13 +84,20 @@ data class FieldDecl(
 
 data class EnumValueDecl(
     val ordinal: Int?,
+    val ordinalSpan: Span?,
     val name: String,
+    val nameSpan: Span,
     val doc: String?,
     val annotations: List<Annotation>,
     val span: Span,
 )
 
-data class UnionMemberDecl(val ordinal: Int?, val type: TypeExpr, val span: Span)
+data class UnionMemberDecl(
+    val ordinal: Int?,
+    val ordinalSpan: Span?,
+    val type: TypeExpr,
+    val span: Span,
+)
 
 sealed interface ReservedItem {
     val span: Span
@@ -101,6 +115,7 @@ sealed interface ReservedItem {
  */
 data class TypeExpr(
     val name: String,
+    val nameSpan: Span,
     val args: List<TypeExpr>,
     val refinements: List<Refinement>,
     val nullable: Boolean,

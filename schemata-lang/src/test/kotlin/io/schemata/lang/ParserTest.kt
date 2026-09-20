@@ -194,6 +194,17 @@ class ParserTest {
     }
 
     @Test
+    fun `name, ordinal, and type-name spans point at their tokens`() {
+        val f = Parser.parse("namespace a\nrecord R {\n  #1 x: uuid\n}", "t").file!!
+        val r = f.declarations.single() as RecordDecl
+        assertEquals(Span("t", 2, 8, 2, 8), r.nameSpan)
+        val x = r.fields.single()
+        assertEquals(Span("t", 3, 3, 3, 4), x.ordinalSpan)
+        assertEquals(Span("t", 3, 6, 3, 6), x.nameSpan)
+        assertEquals(Span("t", 3, 9, 3, 12), x.type.nameSpan)
+    }
+
+    @Test
     fun `a future keyword is a reserved-keyword error and yields no file`() {
         val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
         assertNull(result.file)
