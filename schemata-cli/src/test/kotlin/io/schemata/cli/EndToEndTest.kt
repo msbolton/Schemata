@@ -3,6 +3,7 @@ package io.schemata.cli
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlTarget
 import io.schemata.testkit.Protoc
+import java.sql.Connection
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,6 +25,12 @@ class EndToEndTest {
           email: string?
           name:  string
           age:   int32
+        }
+
+        record Session {
+          token:   string
+          user_id: uuid
+          active:  bool
         }
         """
             .trimIndent()
@@ -51,25 +58,6 @@ class EndToEndTest {
             pg.start()
             DriverManager.getConnection(pg.jdbcUrl, pg.username, pg.password).use { conn ->
                 conn.createStatement().use { it.execute(ddl) }
-                val columns =
-                    conn.createStatement().use { st ->
-                        val rs =
-                            st.executeQuery(
-                                """
-                                select column_name, data_type, is_nullable
-                                from information_schema.columns
-                                where table_schema = 'orders' and table_name = 'user'
-                                order by ordinal_position
-                                """
-                                    .trimIndent()
-                            )
-                        generateSequence {
-                                if (rs.next())
-                                    Triple(rs.getString(1), rs.getString(2), rs.getString(3))
-                                else null
-                            }
-                            .toList()
-                    }
                 assertEquals(
                     listOf(
                         Triple("id", "uuid", "NO"),
@@ -77,9 +65,36 @@ class EndToEndTest {
                         Triple("name", "text", "NO"),
                         Triple("age", "integer", "NO"),
                     ),
-                    columns,
+                    columnsOf(conn, "user"),
+                )
+                assertEquals(
+                    listOf(
+                        Triple("token", "text", "NO"),
+                        Triple("user_id", "uuid", "NO"),
+                        Triple("active", "boolean", "NO"),
+                    ),
+                    columnsOf(conn, "session"),
                 )
             }
         }
     }
+
+    private fun columnsOf(conn: Connection, table: String): List<Triple<String, String, String>> =
+        conn.createStatement().use { st ->
+            val rs =
+                st.executeQuery(
+                    """
+                    select column_name, data_type, is_nullable
+                    from information_schema.columns
+                    where table_schema = 'orders' and table_name = '$table'
+                    order by ordinal_position
+                    """
+                        .trimIndent()
+                )
+            generateSequence {
+                    if (rs.next()) Triple(rs.getString(1), rs.getString(2), rs.getString(3))
+                    else null
+                }
+                .toList()
+        }
 }

@@ -17,6 +17,12 @@ class PipelineTest {
           name:  string
           age:   int32
         }
+
+        record Session {
+          token:   string
+          user_id: uuid
+          active:  bool
+        }
         """
             .trimIndent()
 
@@ -28,7 +34,7 @@ class PipelineTest {
             listOf("proto" to "shop/orders.proto", "sql" to "orders.sql"),
             result.files.map { it.target to it.file.path },
         )
-        assertEquals(1, result.diagnostics.count { it.category == Category.LOSSY })
+        assertEquals(2, result.diagnostics.count { it.category == Category.LOSSY })
     }
 
     @Test

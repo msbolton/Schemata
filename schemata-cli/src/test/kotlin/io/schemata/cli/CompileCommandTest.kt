@@ -19,6 +19,12 @@ class CompileCommandTest {
           name:  string
           age:   int32
         }
+
+        record Session {
+          token:   string
+          user_id: uuid
+          active:  bool
+        }
         """
             .trimIndent()
 
