@@ -26,6 +26,7 @@ object Analyzer {
 
     fun analyze(files: List<SourceFile>): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
+        files.sortedBy { it.path }.forEach { diagnostics += Unsupported.check(it) }
         val namespaces =
             files
                 .sortedBy { it.path }
