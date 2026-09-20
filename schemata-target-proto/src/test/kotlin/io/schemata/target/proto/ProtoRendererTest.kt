@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class ProtoRendererTest {
-    private val file =
+    private val user =
         ProtoFile(
             path = "shop/orders.proto",
             packageName = "shop.orders",
@@ -49,21 +49,48 @@ class ProtoRendererTest {
                 ),
         )
 
+    private val customer =
+        ProtoFile(
+            path = "shop/customers.proto",
+            packageName = "shop.customers",
+            messages =
+                listOf(
+                    ProtoMessage(
+                        "Customer",
+                        listOf(
+                            ProtoField(
+                                1,
+                                "name",
+                                ProtoScalar.STRING,
+                                optional = false,
+                                loweredFrom = null,
+                            )
+                        ),
+                    )
+                ),
+        )
+
     @Test
     fun `renders the golden file`() {
-        val out = ProtoRenderer.render(file).single()
+        val out = ProtoRenderer.render(ProtoModel(listOf(user))).single()
         assertEquals("shop/orders.proto", out.path)
         Golden.assertMatches("user.proto", out.content)
     }
 
     @Test
-    fun `rendered output compiles under protoc`() {
-        val out = ProtoRenderer.render(file).single()
-        assertNull(Protoc.compile(mapOf(out.path to out.content)))
+    fun `renders one output per file in model order`() {
+        val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user)))
+        assertEquals(listOf("shop/customers.proto", "shop/orders.proto"), outs.map { it.path })
     }
 
     @Test
-    fun `target exposes lower and render under the name proto`() {
+    fun `rendered output compiles under protoc`() {
+        val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user)))
+        assertNull(Protoc.compile(outs.associate { it.path to it.content }))
+    }
+
+    @Test
+    fun `target is named proto`() {
         assertEquals("proto", ProtoTarget.name)
     }
 }

@@ -2,20 +2,25 @@ package io.schemata.target.proto
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
 import io.schemata.target.Lowered
 
 object ProtoLowering {
-    fun lower(schema: Schema): Lowered<ProtoFile> {
+    fun lower(schema: Schema): Lowered<ProtoModel> {
         val diagnostics = mutableListOf<Diagnostic>()
-        val messages = schema.records.map { record -> lower(record, diagnostics) }
-        val path = schema.namespace.replace('.', '/') + ".proto"
-        return Lowered(ProtoFile(path, schema.namespace, messages), diagnostics)
+        val files = schema.namespaces.map { lower(it, diagnostics) }
+        return Lowered(ProtoModel(files), diagnostics)
     }
+
+    private fun lower(namespace: Namespace, diagnostics: MutableList<Diagnostic>): ProtoFile =
+        ProtoFile(
+            path = namespace.name.replace('.', '/') + ".proto",
+            packageName = namespace.name,
+            messages = namespace.records.map { lower(it, diagnostics) },
+        )
 
     private fun lower(record: RecordType, diagnostics: MutableList<Diagnostic>): ProtoMessage =
         ProtoMessage(record.name, record.fields.map { field -> lower(record, field, diagnostics) })
@@ -35,10 +40,9 @@ object ProtoLowering {
                         Builtin.UUID -> {
                             diagnostics +=
                                 Diagnostic(
-                                    Severity.WARNING,
-                                    Category.LOSSY,
+                                    ProtoCodes.LOSSY_UUID,
                                     "field '${record.name}.${field.name}': uuid has no Protobuf representation; lowered to string",
-                                    null,
+                                    field.span,
                                 )
                             ProtoScalar.STRING to "uuid"
                         }

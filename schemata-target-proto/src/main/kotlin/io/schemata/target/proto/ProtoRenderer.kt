@@ -2,9 +2,10 @@ package io.schemata.target.proto
 
 import io.schemata.target.OutputFile
 
-/** Prints a [ProtoFile]. No decisions are made here; anything lossy was decided in lowering. */
+/** Prints a [ProtoModel]. No decisions are made here; anything lossy was decided in lowering. */
 object ProtoRenderer {
-    fun render(file: ProtoFile): List<OutputFile> = listOf(OutputFile(file.path, text(file)))
+    fun render(model: ProtoModel): List<OutputFile> =
+        model.files.map { OutputFile(it.path, text(it)) }
 
     private fun text(file: ProtoFile): String = buildString {
         appendLine("syntax = \"proto3\";")

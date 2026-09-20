@@ -11,10 +11,13 @@ import org.antlr.v4.runtime.CommonTokenStream
 /** [file] is null exactly when [diagnostics] contains an error. */
 data class ParseResult(val file: SourceFile?, val diagnostics: List<Diagnostic>)
 
-/** The only public entry point into the parser. Callers never see ANTLR types. */
+/**
+ * The only public entry point into the parser. [path] is recorded in every span and never read from
+ * disk — loading files is the caller's job. Callers never see ANTLR types.
+ */
 object Parser {
-    fun parse(source: String): ParseResult {
-        val listener = CollectingErrorListener()
+    fun parse(source: String, path: String): ParseResult {
+        val listener = CollectingErrorListener(path)
         val lexer =
             SchemataLexer(CharStreams.fromString(source)).apply {
                 removeErrorListeners()
@@ -27,6 +30,9 @@ object Parser {
             }
         val tree = parser.file()
         if (listener.diagnostics.hasErrors) return ParseResult(null, listener.diagnostics)
-        return ParseResult(AstBuilder.build(tree), listener.diagnostics)
+        val builderDiagnostics = mutableListOf<Diagnostic>()
+        val file = AstBuilder(path, builderDiagnostics).build(tree)
+        val diagnostics = listener.diagnostics + builderDiagnostics
+        return ParseResult(if (diagnostics.hasErrors) null else file, diagnostics)
     }
 }

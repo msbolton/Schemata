@@ -4,6 +4,7 @@ import io.schemata.core.ir.Builtin
 import io.schemata.lang.Category
 import io.schemata.lang.Parser
 import io.schemata.lang.Severity
+import io.schemata.lang.ast.SourceFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -24,28 +25,65 @@ class AnalyzerTest {
         """
             .trimIndent()
 
-    private fun analyze(source: String): AnalysisResult =
-        Analyzer.analyze(Parser.parse(source).file!!)
+    private fun file(source: String, path: String = "test.schemata"): SourceFile =
+        Parser.parse(source, path).file!!
+
+    private fun analyze(source: String): AnalysisResult = Analyzer.analyze(listOf(file(source)))
 
     @Test
-    fun `lowers the fixture to IR with implicit ordinals`() {
+    fun `lowers the fixture to IR with implicit ordinals and spans`() {
         val result = analyze(fixture)
         assertEquals(emptyList(), result.diagnostics)
         val schema = assertNotNull(result.schema)
-        assertEquals("shop.orders", schema.namespace)
-        val user = schema.records.single()
+        val ns = schema.namespaces.single()
+        assertEquals("shop.orders", ns.name)
+        assertEquals(1, ns.span.startLine)
+        val user = ns.records.single()
         assertEquals("User", user.name)
+        assertEquals(3, user.span.startLine)
         assertEquals(listOf(1, 2, 3, 4), user.fields.map { it.ordinal })
         assertEquals(
             listOf(Builtin.UUID, Builtin.STRING, Builtin.STRING, Builtin.INT32),
             user.fields.map { it.type },
         )
         assertEquals(listOf(false, true, false, false), user.fields.map { it.nullable })
+        assertEquals(listOf(4, 5, 6, 7), user.fields.map { it.span.startLine })
+        assertTrue(user.fields.all { it.span.file == "test.schemata" })
     }
 
     @Test
     fun `is deterministic`() {
         assertEquals(analyze(fixture), analyze(fixture))
+    }
+
+    @Test
+    fun `merges files that share a namespace in sorted-path order`() {
+        val b = file("namespace shop.orders\nrecord Beta { x: bool }", "b.schemata")
+        val a = file("namespace shop.orders\nrecord Alpha { x: bool }", "a.schemata")
+        val result = Analyzer.analyze(listOf(b, a))
+        assertEquals(emptyList(), result.diagnostics)
+        val ns = result.schema!!.namespaces.single()
+        assertEquals(listOf("Alpha", "Beta"), ns.records.map { it.name })
+        assertEquals("a.schemata", ns.span.file)
+    }
+
+    @Test
+    fun `orders namespaces by name`() {
+        val z = file("namespace zoo\nrecord Z { x: bool }", "1.schemata")
+        val a = file("namespace apple\nrecord A { x: bool }", "2.schemata")
+        val result = Analyzer.analyze(listOf(z, a))
+        assertEquals(listOf("apple", "zoo"), result.schema!!.namespaces.map { it.name })
+    }
+
+    @Test
+    fun `reports a record declared in two files naming both`() {
+        val a = file("namespace n\nrecord R { x: bool }", "a.schemata")
+        val b = file("namespace n\n\nrecord R { y: bool }", "b.schemata")
+        val result = Analyzer.analyze(listOf(a, b))
+        assertNull(result.schema)
+        val d = result.diagnostics.single()
+        assertEquals("record 'R' is declared in both a.schemata:2 and b.schemata:3", d.message)
+        assertEquals("b.schemata", d.span.file)
     }
 
     @Test
@@ -56,8 +94,8 @@ class AnalyzerTest {
         assertEquals(Severity.ERROR, d.severity)
         assertEquals(Category.SEMANTIC, d.category)
         assertEquals("unknown type 'money'", d.message)
-        assertEquals(2, d.span!!.startLine)
-        assertEquals(15, d.span!!.startColumn)
+        assertEquals(2, d.span.startLine)
+        assertEquals(15, d.span.startColumn)
     }
 
     @Test
@@ -90,11 +128,23 @@ class AnalyzerTest {
         assertNull(result.schema)
         val d = result.diagnostics.single()
         assertEquals("namespace segment 'Shop' must be lower_snake", d.message)
-        assertEquals(1, d.span!!.startLine)
+        assertEquals(1, d.span.startLine)
     }
 
     @Test
-    fun `rejects duplicate records and fields`() {
+    fun `naming diagnostics point at the name, not the doc comment or annotation`() {
+        val result =
+            analyze("namespace a\n/// doc\nrecord bad_name {\n  /// d\n  BadField: bool\n}")
+        assertNull(result.schema)
+        val (record, field) = result.diagnostics
+        assertEquals("record name 'bad_name' must be UpperCamel", record.message)
+        assertEquals(3 to 8, record.span.startLine to record.span.startColumn)
+        assertEquals("field name 'BadField' must be lower_snake", field.message)
+        assertEquals(5 to 3, field.span.startLine to field.span.startColumn)
+    }
+
+    @Test
+    fun `rejects duplicate records and fields within one file`() {
         val result = analyze("namespace a\nrecord R { x: bool\n x: bool }\nrecord R { y: bool }")
         assertNull(result.schema)
         assertTrue(

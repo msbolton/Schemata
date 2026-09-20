@@ -17,19 +17,21 @@ data class PipelineResult(val files: List<TargetFile>, val diagnostics: List<Dia
 }
 
 /**
- * parse → analyze → (lower → render) per target. Stops at the first stage that reports an error.
+ * parse every source → analyze the set → (lower → render) per target. Stops at the first stage that
+ * reports an error; every file is parsed before stopping so all syntax errors are reported.
  */
 object Pipeline {
     val targets: List<Target<*>> = listOf(ProtoTarget, SqlTarget)
 
     fun targetNamed(name: String): Target<*>? = targets.firstOrNull { it.name == name }
 
-    fun compile(source: String, targets: List<Target<*>>): PipelineResult {
-        val parsed = Parser.parse(source)
-        val file = parsed.file ?: return PipelineResult(emptyList(), parsed.diagnostics)
+    fun compile(sources: List<SourceInput>, targets: List<Target<*>>): PipelineResult {
+        val parsed = sources.map { Parser.parse(it.content, it.path) }
+        val parseDiagnostics = parsed.flatMap { it.diagnostics }
+        if (parseDiagnostics.hasErrors) return PipelineResult(emptyList(), parseDiagnostics)
 
-        val analyzed = Analyzer.analyze(file)
-        val diagnostics = parsed.diagnostics + analyzed.diagnostics
+        val analyzed = Analyzer.analyze(parsed.map { it.file!! })
+        val diagnostics = parseDiagnostics + analyzed.diagnostics
         val schema = analyzed.schema ?: return PipelineResult(emptyList(), diagnostics)
 
         val outputs = targets.map { target -> target to target.compile(schema) }
