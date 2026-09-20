@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package shop.orders;
+
+message User {
+  string id = 1;  // schemata: uuid
+  optional string email = 2;
+  string name = 3;
+  int32 age = 4;
+}

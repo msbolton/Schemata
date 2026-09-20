@@ -1,29 +1,78 @@
-// The code in this file is a convention plugin - a Gradle mechanism for sharing reusable build logic.
-// `buildSrc` is a Gradle-recognized directory and every plugin there will be easily available in the rest of the build.
 package buildsrc.convention
 
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
-    // Apply the Kotlin JVM plugin to add support for Kotlin in JVM projects.
     kotlin("jvm")
+    `java-library`
+    id("com.diffplug.spotless")
 }
 
-kotlin {
-    // Use a specific Java version to make it easier to work in different environments.
-    jvmToolchain(21)
+kotlin { jvmToolchain(21) }
+
+dependencies { testImplementation(kotlin("test")) }
+
+spotless {
+    kotlin {
+        target("src/**/*.kt")
+        ktfmt("0.53").kotlinlangStyle()
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktfmt("0.53").kotlinlangStyle()
+    }
 }
 
 tasks.withType<Test>().configureEach {
-    // Configure all test Gradle tasks to use JUnitPlatform.
     useJUnitPlatform()
+    testLogging { events(TestLogEvent.FAILED, TestLogEvent.PASSED, TestLogEvent.SKIPPED) }
+}
 
-    // Log information about all test results, not only the failed ones.
-    testLogging {
-        events(
-            TestLogEvent.FAILED,
-            TestLogEvent.PASSED,
-            TestLogEvent.SKIPPED
-        )
-    }
+// Dependency direction: a module may only depend on modules in a strictly lower layer.
+// lang(0) -> core(1) -> target-api(2) -> proto/sql(3) -> cli(4). testkit is outside the layering.
+val layers =
+    mapOf(
+        "schemata-lang" to 0,
+        "schemata-core" to 1,
+        "schemata-target-api" to 2,
+        "schemata-target-proto" to 3,
+        "schemata-target-sql" to 3,
+        "schemata-cli" to 4,
+    )
+
+layers[project.name]?.let { myLayer ->
+    val moduleName = project.name
+    // Captured as a plain Map so the doLast closure below closes over data, not the script
+    // object, which the configuration cache requires.
+    val layersForTask = layers
+    val projectDeps =
+        provider {
+            listOf("api", "implementation", "compileOnly", "runtimeOnly").flatMap { name ->
+                configurations.findByName(name)?.dependencies?.withType(ProjectDependency::class.java)?.map { it.name }
+                    ?: emptyList()
+            }
+        }
+    val checkModuleDependencies =
+        tasks.register("checkModuleDependencies") {
+            group = "verification"
+            description = "Fails if this module depends on a module in the same or a higher layer."
+            doLast {
+                val violations =
+                    projectDeps.get().filter { dep ->
+                        val depLayer =
+                            layersForTask[dep]
+                                ?: throw GradleException(
+                                    "$dep is not in the layer map in kotlin-jvm.gradle.kts; add it"
+                                )
+                        depLayer >= myLayer
+                    }
+                if (violations.isNotEmpty()) {
+                    throw GradleException(
+                        "$moduleName (layer $myLayer) depends on ${violations.joinToString()}, which is not strictly below it. " +
+                            "Dependencies must point downward: lang -> core -> target-api -> targets -> cli."
+                    )
+                }
+            }
+        }
+    tasks.named("check") { dependsOn(checkModuleDependencies) }
 }

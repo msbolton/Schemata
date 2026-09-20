@@ -1,23 +1,34 @@
 # Schemata
 
-This project uses [Gradle](https://gradle.org/).
-To build and run the application, use the *Gradle* tool window by clicking the Gradle icon in the right-hand toolbar,
-or run it directly from the terminal:
+![ci](https://github.com/msbolton/Schemata/actions/workflows/ci.yml/badge.svg)
 
-* Run `./gradlew run` to build and run the application.
-* Run `./gradlew build` to only build the application.
-* Run `./gradlew check` to run all checks, including tests.
-* Run `./gradlew clean` to clean all build outputs.
+A schema language and compiler. Author a data model once in `.schemata`; emit
+Protobuf and SQL DDL (more targets to follow).
 
-Note the usage of the Gradle Wrapper (`./gradlew`).
-This is the suggested way to use Gradle in production projects.
+## Build
 
-[Learn more about the Gradle Wrapper](https://docs.gradle.org/current/userguide/gradle_wrapper.html).
+    ./gradlew build          # compile, test, lint, dependency-direction check
+    ./gradlew :schemata-cli:installDist
+    schemata-cli/build/install/schemata/bin/schemata compile --target proto,sql --out out schema.schemata
 
-[Learn more about Gradle tasks](https://docs.gradle.org/current/userguide/command_line_interface.html#common_tasks).
+## Modules
 
-This project follows the suggested multi-module setup and consists of the `app` and `utils` subprojects.
-The shared build logic was extracted to a convention plugin located in `buildSrc`.
+Dependencies point strictly downward; the build fails if they do not.
 
-This project uses a version catalog (see `gradle/libs.versions.toml`) to declare and version dependencies
-and both a build cache and a configuration cache (see `gradle.properties`).
+| Module | Owns |
+|---|---|
+| `schemata-lang` | grammar, parser, AST, parse diagnostics |
+| `schemata-core` | IR, analysis, checks |
+| `schemata-target-api` | `Target` SPI: `lower` then `render` |
+| `schemata-target-proto` | Protobuf model, lowering, renderer |
+| `schemata-target-sql` | relational model, lowering, renderer |
+| `schemata-cli` | command surface |
+| `schemata-testkit` | test-only helpers (golden files, protoc) |
+
+## Testing conventions
+
+- Lowering is tested by asserting on the **model** it produces, never on rendered text.
+- Rendered text is golden-tested. Golden files live in `src/test/resources/golden/`.
+  Run `SCHEMATA_GOLDEN_UPDATE=1 ./gradlew test` to accept new output, then review the diff.
+- Generated `.proto` is validated with a real `protoc`; generated DDL is executed against a
+  real Postgres via Testcontainers (needs Docker; the test is skipped without it).

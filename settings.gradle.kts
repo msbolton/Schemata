@@ -16,10 +16,12 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
 }
 
-// Include the `app` and `utils` subprojects in the build.
-// If there are changes in only one of the projects, Gradle will rebuild only the one that has changed.
-// Learn more about structuring projects with Gradle - https://docs.gradle.org/8.7/userguide/multi_project_builds.html
-include(":app")
-include(":utils")
+include(":schemata-lang")
+include(":schemata-core")
+include(":schemata-target-api")
+include(":schemata-target-proto")
+include(":schemata-target-sql")
+include(":schemata-cli")
+include(":schemata-testkit")
 
 rootProject.name = "Schemata"
