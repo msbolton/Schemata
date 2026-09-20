@@ -1,8 +1,7 @@
 package io.schemata.lang.internal
 
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
+import io.schemata.lang.LangCodes
 import io.schemata.lang.Span
 import org.antlr.v4.runtime.BaseErrorListener
 import org.antlr.v4.runtime.RecognitionException
@@ -27,11 +26,6 @@ internal class CollectingErrorListener(private val file: String) : BaseErrorList
         val token = offendingSymbol as? Token
         val width = if (token == null || token.type == Token.EOF) 0 else token.text.length
         collected +=
-            Diagnostic(
-                Severity.ERROR,
-                Category.SYNTAX,
-                msg,
-                Span(file, line, column, line, column + width - 1),
-            )
+            Diagnostic(LangCodes.SYNTAX, msg, Span(file, line, column, line, column + width - 1))
     }
 }

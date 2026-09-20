@@ -3,6 +3,7 @@ package io.schemata.target
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 import io.schemata.lang.Span
 import kotlin.test.Test
@@ -21,8 +22,7 @@ class TargetTest {
                 CountModel(schema.namespaces.sumOf { it.records.size }),
                 listOf(
                     Diagnostic(
-                        Severity.WARNING,
-                        Category.LOSSY,
+                        DiagnosticCode("SCH9901", Severity.WARNING, Category.LOSSY),
                         "counted",
                         Span("t.schemata", 1, 1, 1, 1),
                     )
@@ -41,8 +41,7 @@ class TargetTest {
                 CountModel(0),
                 listOf(
                     Diagnostic(
-                        Severity.ERROR,
-                        Category.SEMANTIC,
+                        DiagnosticCode("SCH9902", Severity.ERROR, Category.SEMANTIC),
                         "broken",
                         Span("t.schemata", 1, 1, 1, 1),
                     )

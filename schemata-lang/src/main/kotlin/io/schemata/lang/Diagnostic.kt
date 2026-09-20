@@ -12,12 +12,13 @@ enum class Category {
     LOSSY,
 }
 
-data class Diagnostic(
-    val severity: Severity,
-    val category: Category,
-    val message: String,
-    val span: Span,
-)
+data class Diagnostic(val code: DiagnosticCode, val message: String, val span: Span) {
+    val severity: Severity
+        get() = code.severity
+
+    val category: Category
+        get() = code.category
+}
 
 val List<Diagnostic>.hasErrors: Boolean
     get() = any { it.severity == Severity.ERROR }

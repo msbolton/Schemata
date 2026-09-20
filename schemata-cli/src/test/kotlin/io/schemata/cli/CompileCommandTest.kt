@@ -60,7 +60,9 @@ class CompileCommandTest {
                 .contains("CREATE TABLE \"customers\".\"customer\"")
         )
         assertTrue(
-            result.stderr.contains("warning (lossy): ${src.resolve("orders.schemata")}:4:3:"),
+            result.stderr.contains(
+                "warning (lossy) [SCH2001]: ${src.resolve("orders.schemata")}:4:3:"
+            ),
             result.stderr,
         )
     }
@@ -74,7 +76,7 @@ class CompileCommandTest {
         val result = CompileCommand().test("--target proto $input")
 
         assertEquals(1, result.statusCode)
-        assertTrue(result.stderr.contains("error: $input:2:14: "), result.stderr)
+        assertTrue(result.stderr.contains("error [SCH0001]: $input:2:14: "), result.stderr)
     }
 
     @Test

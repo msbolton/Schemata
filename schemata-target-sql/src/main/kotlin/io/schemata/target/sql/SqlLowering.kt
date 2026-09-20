@@ -5,9 +5,8 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
+import io.schemata.lang.DiagnosticCode
 import io.schemata.target.Lowered
 
 /**
@@ -36,6 +35,7 @@ object SqlLowering {
             .filter { it.size > 1 }
             .map { colliding ->
                 error(
+                    SqlCodes.SCHEMA_COLLISION,
                     "namespaces ${englishList(colliding.map { it.name })} both lower to schema " +
                         "'${colliding.first().name.substringAfterLast('.')}'",
                     colliding.first().span,
@@ -49,6 +49,7 @@ object SqlLowering {
             .filter { it.size > 1 }
             .map { colliding ->
                 error(
+                    SqlCodes.TABLE_COLLISION,
                     "records ${englishList(colliding.map { it.name })} both lower to table " +
                         "'${Naming.snakeCase(colliding.first().name)}'",
                     colliding.first().span,
@@ -76,6 +77,6 @@ object SqlLowering {
         return Column(field.name, type, field.nullable)
     }
 
-    private fun error(message: String, span: io.schemata.lang.Span) =
-        Diagnostic(Severity.ERROR, Category.SEMANTIC, message, span)
+    private fun error(code: DiagnosticCode, message: String, span: io.schemata.lang.Span) =
+        Diagnostic(code, message, span)
 }

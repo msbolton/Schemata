@@ -1,8 +1,6 @@
 package io.schemata.core
 
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
 import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Annotation
@@ -73,5 +71,5 @@ object Unsupported {
     }
 
     private fun error(message: String, span: Span) =
-        Diagnostic(Severity.ERROR, Category.SEMANTIC, message, span)
+        Diagnostic(CoreCodes.UNSUPPORTED_CONSTRUCT, message, span)
 }

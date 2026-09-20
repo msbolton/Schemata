@@ -5,9 +5,7 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
 import io.schemata.target.Lowered
 
 object ProtoLowering {
@@ -42,8 +40,7 @@ object ProtoLowering {
                         Builtin.UUID -> {
                             diagnostics +=
                                 Diagnostic(
-                                    Severity.WARNING,
-                                    Category.LOSSY,
+                                    ProtoCodes.LOSSY_UUID,
                                     "field '${record.name}.${field.name}': uuid has no Protobuf representation; lowered to string",
                                     field.span,
                                 )

@@ -1,8 +1,7 @@
 package io.schemata.lang.internal
 
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
+import io.schemata.lang.LangCodes
 import io.schemata.lang.Span
 import io.schemata.lang.antlr.SchemataParser
 import io.schemata.lang.ast.AliasDecl
@@ -55,8 +54,7 @@ internal class AstBuilder(
             val keyword = reserved.start
             diagnostics +=
                 Diagnostic(
-                    Severity.ERROR,
-                    Category.SYNTAX,
+                    LangCodes.RESERVED_KEYWORD,
                     "'${keyword.text}' is reserved for a future version of Schemata",
                     keyword.span(),
                 )

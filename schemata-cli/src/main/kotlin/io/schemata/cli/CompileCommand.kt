@@ -66,6 +66,6 @@ class CompileCommand : CliktCommand(name = "compile") {
                 Category.LOSSY -> "warning (lossy)"
                 else -> d.severity.name.lowercase()
             }
-        return "$kind: ${d.span.file}:${d.span.startLine}:${d.span.startColumn}: ${d.message}"
+        return "$kind [${d.code.id}]: ${d.span.file}:${d.span.startLine}:${d.span.startColumn}: ${d.message}"
     }
 }

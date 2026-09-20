@@ -5,9 +5,8 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.Severity
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.SourceFile
@@ -46,7 +45,11 @@ object Analyzer {
         name.split(".").forEach { segment ->
             if (!lowerSnake.matches(segment)) {
                 diagnostics +=
-                    error("namespace segment '$segment' must be lower_snake", first.namespace.span)
+                    error(
+                        CoreCodes.NAMESPACE_SEGMENT_NAMING,
+                        "namespace segment '$segment' must be lower_snake",
+                        first.namespace.span,
+                    )
             }
         }
         val declared = files.flatMap { it.declarations }.map { it.name }.toSet()
@@ -67,15 +70,25 @@ object Analyzer {
         diagnostics: MutableList<Diagnostic>,
     ): RecordType {
         if (!upperCamel.matches(record.name)) {
-            diagnostics += error("record name '${record.name}' must be UpperCamel", record.span)
+            diagnostics +=
+                error(
+                    CoreCodes.RECORD_NAMING,
+                    "record name '${record.name}' must be UpperCamel",
+                    record.span,
+                )
         }
         val previous = seen.putIfAbsent(record.name, record.span)
         if (previous != null) {
             diagnostics +=
                 if (previous.file == record.span.file) {
-                    error("record '${record.name}' is declared more than once", record.span)
+                    error(
+                        CoreCodes.DUPLICATE_RECORD,
+                        "record '${record.name}' is declared more than once",
+                        record.span,
+                    )
                 } else {
                     error(
+                        CoreCodes.DUPLICATE_RECORD,
                         "record '${record.name}' is declared in both " +
                             "${previous.file}:${previous.startLine} and " +
                             "${record.span.file}:${record.span.startLine}",
@@ -88,11 +101,16 @@ object Analyzer {
             record.fields.mapIndexedNotNull { index, field ->
                 if (!lowerSnake.matches(field.name)) {
                     diagnostics +=
-                        error("field name '${field.name}' must be lower_snake", field.span)
+                        error(
+                            CoreCodes.FIELD_NAMING,
+                            "field name '${field.name}' must be lower_snake",
+                            field.span,
+                        )
                 }
                 if (!seenFields.add(field.name)) {
                     diagnostics +=
                         error(
+                            CoreCodes.DUPLICATE_FIELD,
                             "field '${field.name}' is declared more than once in record '${record.name}'",
                             field.span,
                         )
@@ -102,11 +120,16 @@ object Analyzer {
                     diagnostics +=
                         if (field.type.name in declared) {
                             error(
+                                CoreCodes.RECORD_TYPED_FIELD,
                                 "'${field.type.name}' is a record; record-typed fields are not supported yet",
                                 field.type.span,
                             )
                         } else {
-                            error("unknown type '${field.type.name}'", field.type.span)
+                            error(
+                                CoreCodes.UNKNOWN_TYPE,
+                                "unknown type '${field.type.name}'",
+                                field.type.span,
+                            )
                         }
                     return@mapIndexedNotNull null
                 }
@@ -121,6 +144,6 @@ object Analyzer {
         return RecordType(record.name, fields, record.span)
     }
 
-    private fun error(message: String, span: Span) =
-        Diagnostic(Severity.ERROR, Category.SEMANTIC, message, span)
+    private fun error(code: DiagnosticCode, message: String, span: Span) =
+        Diagnostic(code, message, span)
 }
