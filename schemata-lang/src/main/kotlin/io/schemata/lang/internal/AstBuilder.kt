@@ -196,7 +196,18 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.LiteralContext): Literal {
         val span = ctx.span()
         ctx.INT_LITERAL()?.let {
-            return Literal.IntLit(it.text.toLong(), span)
+            val value =
+                it.text.toLongOrNull()
+                    ?: run {
+                        diagnostics +=
+                            Diagnostic(
+                                LangCodes.NUMERIC_LITERAL_RANGE,
+                                "numeric literal '${it.text}' is out of range",
+                                span,
+                            )
+                        0L
+                    }
+            return Literal.IntLit(value, span)
         }
         ctx.FLOAT_LITERAL()?.let {
             return Literal.FloatLit(it.text, span)
@@ -216,7 +227,17 @@ internal class AstBuilder(
     private fun doc(ctx: SchemataParser.DocContext?): String? =
         ctx?.DOC_COMMENT()?.joinToString("\n") { it.text.removePrefix("///").trim() }
 
-    private fun ordinal(node: TerminalNode): Int = node.text.removePrefix("#").toInt()
+    private fun ordinal(node: TerminalNode): Int =
+        node.text.removePrefix("#").toIntOrNull()
+            ?: run {
+                diagnostics +=
+                    Diagnostic(
+                        LangCodes.NUMERIC_LITERAL_RANGE,
+                        "ordinal '${node.text}' is out of range",
+                        node.symbol.span(),
+                    )
+                0
+            }
 
     private fun unquote(text: String): String =
         text.substring(1, text.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
