@@ -2,6 +2,7 @@ package io.schemata.target
 
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.hasErrors
 
 /**
  * Marker for a target's own model — the thing [Target.lower] produces and [Target.render] prints.
@@ -27,8 +28,10 @@ interface Target<M : TargetModel> {
 
     fun render(model: M): List<OutputFile>
 
+    /** Runs [lower] then [render]; render is skipped when lowering reports an error. */
     fun compile(schema: Schema): CompileOutput {
         val lowered = lower(schema)
+        if (lowered.diagnostics.hasErrors) return CompileOutput(emptyList(), lowered.diagnostics)
         return CompileOutput(render(lowered.model), lowered.diagnostics)
     }
 }

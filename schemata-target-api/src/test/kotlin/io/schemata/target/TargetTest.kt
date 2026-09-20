@@ -36,4 +36,24 @@ class TargetTest {
         assertEquals("count", target.name)
         assertEquals(1, target.compile(Schema("a", emptyList())).files.size)
     }
+
+    private object FailingTarget : Target<CountModel> {
+        override val name = "failing"
+
+        override fun lower(schema: Schema) =
+            Lowered(
+                CountModel(schema.records.size),
+                listOf(Diagnostic(Severity.ERROR, Category.SEMANTIC, "broken", null)),
+            )
+
+        override fun render(model: CountModel) =
+            listOf(OutputFile("count.txt", "${model.records}\n"))
+    }
+
+    @Test
+    fun `compile skips render when lowering reports an error`() {
+        val out = FailingTarget.compile(Schema("a", emptyList()))
+        assertEquals(emptyList(), out.files)
+        assertEquals(listOf("broken"), out.diagnostics.map { it.message })
+    }
 }
