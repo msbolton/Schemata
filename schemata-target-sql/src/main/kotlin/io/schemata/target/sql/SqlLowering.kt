@@ -7,6 +7,7 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
+import io.schemata.lang.Span
 import io.schemata.target.Lowered
 
 /**
@@ -36,7 +37,8 @@ object SqlLowering {
             .map { colliding ->
                 error(
                     SqlCodes.SCHEMA_COLLISION,
-                    "namespaces ${englishList(colliding.map { it.name })} both lower to schema " +
+                    "namespaces ${englishList(colliding.map { it.name })} " +
+                        "${if (colliding.size > 2) "all" else "both"} lower to schema " +
                         "'${colliding.first().name.substringAfterLast('.')}'",
                     colliding.first().span,
                 )
@@ -50,7 +52,8 @@ object SqlLowering {
             .map { colliding ->
                 error(
                     SqlCodes.TABLE_COLLISION,
-                    "records ${englishList(colliding.map { it.name })} both lower to table " +
+                    "records ${englishList(colliding.map { it.name })} " +
+                        "${if (colliding.size > 2) "all" else "both"} lower to table " +
                         "'${Naming.snakeCase(colliding.first().name)}'",
                     colliding.first().span,
                 )
@@ -77,6 +80,6 @@ object SqlLowering {
         return Column(field.name, type, field.nullable)
     }
 
-    private fun error(code: DiagnosticCode, message: String, span: io.schemata.lang.Span) =
+    private fun error(code: DiagnosticCode, message: String, span: Span) =
         Diagnostic(code, message, span)
 }

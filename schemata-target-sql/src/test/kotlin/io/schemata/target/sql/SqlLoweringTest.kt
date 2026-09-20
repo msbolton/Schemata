@@ -103,6 +103,15 @@ class SqlLoweringTest {
     }
 
     @Test
+    fun `diagnoses schema-name collisions across three or more namespaces`() {
+        val a = namespace("a.x", record("A", field(1, "id", Builtin.UUID)), file = "a.schemata")
+        val b = namespace("b.x", record("B", field(1, "id", Builtin.UUID)), file = "b.schemata")
+        val c = namespace("c.x", record("C", field(1, "id", Builtin.UUID)), file = "c.schemata")
+        val d = SqlLowering.lower(Schema(listOf(a, b, c))).diagnostics.single()
+        assertEquals("namespaces a.x, b.x and c.x all lower to schema 'x'", d.message)
+    }
+
+    @Test
     fun `distinct names yield no collision diagnostics`() {
         val ns =
             namespace(
