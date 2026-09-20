@@ -42,10 +42,12 @@ val layers =
 
 layers[project.name]?.let { myLayer ->
     val moduleName = project.name
+    // Captured as a plain Map so the doLast closure below closes over data, not the script
+    // object, which the configuration cache requires.
     val layersForTask = layers
     val projectDeps =
         provider {
-            listOf("api", "implementation").flatMap { name ->
+            listOf("api", "implementation", "compileOnly", "runtimeOnly").flatMap { name ->
                 configurations.findByName(name)?.dependencies?.withType(ProjectDependency::class.java)?.map { it.name }
                     ?: emptyList()
             }
@@ -55,7 +57,15 @@ layers[project.name]?.let { myLayer ->
             group = "verification"
             description = "Fails if this module depends on a module in the same or a higher layer."
             doLast {
-                val violations = projectDeps.get().filter { dep -> (layersForTask[dep] ?: -1) >= myLayer }
+                val violations =
+                    projectDeps.get().filter { dep ->
+                        val depLayer =
+                            layersForTask[dep]
+                                ?: throw GradleException(
+                                    "$dep is not in the layer map in kotlin-jvm.gradle.kts; add it"
+                                )
+                        depLayer >= myLayer
+                    }
                 if (violations.isNotEmpty()) {
                     throw GradleException(
                         "$moduleName (layer $myLayer) depends on ${violations.joinToString()}, which is not strictly below it. " +
