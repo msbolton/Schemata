@@ -45,11 +45,8 @@ object Unsupported {
 
     private fun field(field: FieldDecl, out: MutableList<Diagnostic>) {
         annotations(field.annotations, out)
-        // field.span starts at the field's leading annotation, if any (grammar: `field : doc?
-        // annotation* ORDINAL? IDENT ...`); field.type.span is the first span inside the field's
-        // own text, so it lands on the field's line rather than an annotation's.
         if (field.ordinal != null) {
-            out += error("explicit ordinals are not supported yet (SCH-22)", field.type.span)
+            out += error("explicit ordinals are not supported yet (SCH-22)", field.ordinalSpan!!)
         }
         type(field.type, out)
         field.default?.let {

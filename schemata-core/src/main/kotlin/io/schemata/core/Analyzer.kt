@@ -74,17 +74,17 @@ object Analyzer {
                 error(
                     CoreCodes.RECORD_NAMING,
                     "record name '${record.name}' must be UpperCamel",
-                    record.span,
+                    record.nameSpan,
                 )
         }
-        val previous = seen.putIfAbsent(record.name, record.span)
+        val previous = seen.putIfAbsent(record.name, record.nameSpan)
         if (previous != null) {
             diagnostics +=
                 if (previous.file == record.span.file) {
                     error(
                         CoreCodes.DUPLICATE_RECORD,
                         "record '${record.name}' is declared more than once",
-                        record.span,
+                        record.nameSpan,
                     )
                 } else {
                     error(
@@ -92,7 +92,7 @@ object Analyzer {
                         "record '${record.name}' is declared in both " +
                             "${previous.file}:${previous.startLine} and " +
                             "${record.span.file}:${record.span.startLine}",
-                        record.span,
+                        record.nameSpan,
                     )
                 }
         }
@@ -104,7 +104,7 @@ object Analyzer {
                         error(
                             CoreCodes.FIELD_NAMING,
                             "field name '${field.name}' must be lower_snake",
-                            field.span,
+                            field.nameSpan,
                         )
                 }
                 if (!seenFields.add(field.name)) {
@@ -112,7 +112,7 @@ object Analyzer {
                         error(
                             CoreCodes.DUPLICATE_FIELD,
                             "field '${field.name}' is declared more than once in record '${record.name}'",
-                            field.span,
+                            field.nameSpan,
                         )
                 }
                 val type = Builtin.byName(field.type.name)
@@ -122,13 +122,13 @@ object Analyzer {
                             error(
                                 CoreCodes.RECORD_TYPED_FIELD,
                                 "'${field.type.name}' is a record; record-typed fields are not supported yet",
-                                field.type.span,
+                                field.type.nameSpan,
                             )
                         } else {
                             error(
                                 CoreCodes.UNKNOWN_TYPE,
                                 "unknown type '${field.type.name}'",
-                                field.type.span,
+                                field.type.nameSpan,
                             )
                         }
                     return@mapIndexedNotNull null

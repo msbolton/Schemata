@@ -132,6 +132,18 @@ class AnalyzerTest {
     }
 
     @Test
+    fun `naming diagnostics point at the name, not the doc comment or annotation`() {
+        val result =
+            analyze("namespace a\n/// doc\nrecord bad_name {\n  /// d\n  BadField: bool\n}")
+        assertNull(result.schema)
+        val (record, field) = result.diagnostics
+        assertEquals("record name 'bad_name' must be UpperCamel", record.message)
+        assertEquals(3 to 8, record.span.startLine to record.span.startColumn)
+        assertEquals("field name 'BadField' must be lower_snake", field.message)
+        assertEquals(5 to 3, field.span.startLine to field.span.startColumn)
+    }
+
+    @Test
     fun `rejects duplicate records and fields within one file`() {
         val result = analyze("namespace a\nrecord R { x: bool\n x: bool }\nrecord R { y: bool }")
         assertNull(result.schema)
