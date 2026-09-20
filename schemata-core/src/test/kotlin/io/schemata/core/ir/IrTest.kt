@@ -79,7 +79,7 @@ class IrTest {
     }
 
     @Test
-    fun `builtins cover the spec table and resolve by name`() {
+    fun `builtins cover every entry and resolve by name`() {
         assertEquals(13, Builtin.entries.size)
         assertEquals(Builtin.INSTANT, Builtin.byName("instant"))
         assertNull(Builtin.byName("money"))

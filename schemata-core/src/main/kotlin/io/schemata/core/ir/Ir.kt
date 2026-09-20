@@ -79,7 +79,7 @@ data class UnionType(
 
 /**
  * [ordinal] is the field's stable identity: the explicit `#n`, else declaration order. [default] is
- * carried unvalidated until B2 (SCH-20); [aliasName] records a transparent alias.
+ * carried unvalidated until SCH-20; [aliasName] records a transparent alias.
  */
 data class Field(
     val ordinal: Int,
@@ -123,7 +123,7 @@ data class MapOf(
 /** A reference to a record, enum, or union by qualified name; resolve with [Schema.lookup]. */
 data class Ref(val target: QualifiedName) : Type
 
-/** Always empty in B1; B2 (SCH-20) fills it from `string(max = 5)` and friends. */
+/** Empty until refinements are analyzed (SCH-20). */
 data class Refinements(
     val min: Long? = null,
     val max: Long? = null,
