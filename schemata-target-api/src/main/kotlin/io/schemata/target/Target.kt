@@ -1,0 +1,34 @@
+package io.schemata.target
+
+import io.schemata.core.ir.Schema
+import io.schemata.lang.Diagnostic
+
+/**
+ * Marker for a target's own model — the thing [Target.lower] produces and [Target.render] prints.
+ */
+interface TargetModel
+
+data class Lowered<M : TargetModel>(val model: M, val diagnostics: List<Diagnostic>)
+
+/** [path] is relative to the target's output root and uses forward slashes. */
+data class OutputFile(val path: String, val content: String)
+
+data class CompileOutput(val files: List<OutputFile>, val diagnostics: List<Diagnostic>)
+
+/**
+ * A backend in two stages. [lower] makes every representational decision and reports each lossy
+ * one; [render] prints a model that is already legal. Test lowering on the model, never on rendered
+ * text.
+ */
+interface Target<M : TargetModel> {
+    val name: String
+
+    fun lower(schema: Schema): Lowered<M>
+
+    fun render(model: M): List<OutputFile>
+
+    fun compile(schema: Schema): CompileOutput {
+        val lowered = lower(schema)
+        return CompileOutput(render(lowered.model), lowered.diagnostics)
+    }
+}
