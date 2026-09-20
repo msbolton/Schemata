@@ -12,7 +12,7 @@ import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 
 class GrammarTest {
-    /** The spec §8 worked example. */
+    /** The worked example from the language reference. */
     private val example =
         """
         /// Order management for the storefront.
@@ -85,7 +85,7 @@ class GrammarTest {
         SchemataLexer(CharStreams.fromString(source)).allTokens.map { it.type }
 
     @Test
-    fun `parses the spec worked example with no diagnostics`() {
+    fun `parses the worked example with no diagnostics`() {
         val (tree, diagnostics) = parse(example)
         assertEquals(emptyList(), diagnostics)
         assertNotNull(tree.doc())
