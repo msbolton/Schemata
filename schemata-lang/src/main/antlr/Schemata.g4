@@ -26,7 +26,7 @@ reservedStmt  : RESERVED reservedItem (',' reservedItem)* ;
 reservedItem  : ORDINAL (RANGE ORDINAL)? | STRING_LITERAL ;
 
 // `service`, `operation`, `stream` parse to a node so the AST builder can report them as
-// reserved for a future version (spec §2.5) instead of a generic syntax error.
+// reserved for a future version instead of a generic syntax error.
 reservedFutureDecl : (SERVICE | OPERATION | STREAM) IDENT? block? ;
 block         : '{' (block | ~('{' | '}'))* '}' ;
 

@@ -2,7 +2,7 @@ package io.schemata.core.ir
 
 import io.schemata.lang.Span
 
-/** The whole compilation after analysis. Namespaces are sorted by name (spec §12.4). */
+/** The whole compilation after analysis. Namespaces are sorted by name. */
 data class Schema(val namespaces: List<Namespace>)
 
 /**
@@ -13,8 +13,8 @@ data class Namespace(val name: String, val records: List<RecordType>, val span: 
 data class RecordType(val name: String, val fields: List<Field>, val span: Span)
 
 /**
- * [ordinal] is the field's stable identity (spec §5). In this phase it is always declaration order;
- * explicit `#n` syntax (SCH-22) will set it instead.
+ * [ordinal] is the field's stable identity. In this phase it is always declaration order; explicit
+ * `#n` syntax (SCH-22) will set it instead.
  */
 data class Field(
     val ordinal: Int,
