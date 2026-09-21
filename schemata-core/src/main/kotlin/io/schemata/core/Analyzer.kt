@@ -116,7 +116,10 @@ object Analyzer {
                 analyzeRecord(decl, qualifiedName, scope, resolver, options, diagnostics)
             is EnumDecl -> analyzeEnum(decl, qualifiedName, options, diagnostics)
             is UnionDecl -> analyzeUnion(decl, qualifiedName, scope, resolver, options, diagnostics)
-            is AliasDecl -> null // transparent: substituted at every use by the resolver
+            is AliasDecl -> {
+                resolver.checkAlias(decl, scope) // transparent: substituted at every use
+                null
+            }
         }
     }
 

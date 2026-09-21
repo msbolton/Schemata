@@ -7,6 +7,7 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Parser
@@ -160,7 +161,9 @@ class AnalyzerTest {
 
     @Test
     fun `lowers every builtin`() {
-        val names = Builtin.entries.map { it.typeName }
+        // decimal always needs its precision and scale; every other builtin takes none here.
+        val names =
+            Builtin.entries.map { if (it == Builtin.DECIMAL) "decimal(19, 4)" else it.typeName }
         val src =
             "namespace a\nrecord R {\n" +
                 names.mapIndexed { i, n -> "  f$i: $n" }.joinToString("\n") +
@@ -168,7 +171,13 @@ class AnalyzerTest {
         val result = analyze(src)
         assertEquals(emptyList(), result.diagnostics)
         val r = result.schema!!.lookup(qn("a", "R")) as RecordType
-        assertEquals(Builtin.entries.map { Scalar(it) }, r.fields.map { it.type })
+        assertEquals(
+            Builtin.entries.map {
+                if (it == Builtin.DECIMAL) Scalar(it, Refinements(precision = 19, scale = 4))
+                else Scalar(it)
+            },
+            r.fields.map { it.type },
+        )
     }
 
     @Test

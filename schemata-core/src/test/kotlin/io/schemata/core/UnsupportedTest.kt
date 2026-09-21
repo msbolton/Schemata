@@ -13,22 +13,19 @@ class UnsupportedTest {
     }
 
     @Test
-    fun `structure is no longer reported`() {
-        val src =
-            "namespace a\nimport b\nenum E { x }\nrecord R {\n  #1 f: list<E> = pending\n  g: b.T\n  reserved #2\n  record N { z: bool }\n}"
+    fun `refinements are no longer reported`() {
+        val src = "namespace a\nrecord R {\n  f: string(max = 5)\n  g: list<int32(min = 0)>\n}"
         assertEquals(emptyList(), messages(src))
     }
 
     @Test
-    fun `refinements and annotations are still reported`() {
+    fun `annotations are still reported`() {
         val src =
-            "@sql(schema = \"s\")\nnamespace a\nrecord R {\n  @deprecated(\"d\")\n  f: string(max = 5)\n  g: list<int32(min = 0)>\n}"
+            "@sql(schema = \"s\")\nnamespace a\nrecord R {\n  @deprecated(\"d\")\n  f: string(max = 5)\n}"
         assertEquals(
             listOf(
                 "1: annotations are not supported yet (SCH-20)",
                 "4: annotations are not supported yet (SCH-20)",
-                "5: type refinements are not supported yet (SCH-20)",
-                "6: type refinements are not supported yet (SCH-20)",
             ),
             messages(src),
         )
@@ -36,7 +33,9 @@ class UnsupportedTest {
 
     @Test
     fun `analyzer returns no schema when a construct is unsupported`() {
-        val file = Parser.parse("namespace a\nrecord R { x: string(max = 1) }", "t.schemata").file!!
+        val file =
+            Parser.parse("namespace a\nrecord R {\n  @deprecated\n  x: string\n}", "t.schemata")
+                .file!!
         assertNull(Analyzer.analyze(listOf(file)).schema)
     }
 }
