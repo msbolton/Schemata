@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Parser
@@ -25,12 +26,16 @@ object Pipeline {
 
     fun targetNamed(name: String): Target<*>? = targets.firstOrNull { it.name == name }
 
-    fun compile(sources: List<SourceInput>, targets: List<Target<*>>): PipelineResult {
+    fun compile(
+        sources: List<SourceInput>,
+        targets: List<Target<*>>,
+        options: AnalysisOptions = AnalysisOptions.DEFAULT,
+    ): PipelineResult {
         val parsed = sources.map { Parser.parse(it.content, it.path) }
         val parseDiagnostics = parsed.flatMap { it.diagnostics }
         if (parseDiagnostics.hasErrors) return PipelineResult(emptyList(), parseDiagnostics)
 
-        val analyzed = Analyzer.analyze(parsed.map { it.file!! })
+        val analyzed = Analyzer.analyze(parsed.map { it.file!! }, options)
         val diagnostics = parseDiagnostics + analyzed.diagnostics
         val schema = analyzed.schema ?: return PipelineResult(emptyList(), diagnostics)
 

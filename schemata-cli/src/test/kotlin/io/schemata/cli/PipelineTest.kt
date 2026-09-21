@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import io.schemata.core.AnalysisOptions
 import io.schemata.lang.Category
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -77,6 +78,17 @@ class PipelineTest {
             )
         assertTrue(semantic.hasErrors)
         assertEquals(emptyList(), semantic.files)
+    }
+
+    @Test
+    fun `strict mode is passed to the analyzer`() {
+        val src = SourceInput("s.schemata", "namespace s\nrecord R { x: bool }")
+        val lax = Pipeline.compile(listOf(src), Pipeline.targets)
+        assertFalse(lax.hasErrors)
+        val strict =
+            Pipeline.compile(listOf(src), Pipeline.targets, AnalysisOptions(strictOrdinals = true))
+        assertTrue(strict.hasErrors)
+        assertEquals("SCH1014", strict.diagnostics.single().code.id)
     }
 
     @Test
