@@ -1,5 +1,6 @@
 package io.schemata.core
 
+import io.schemata.core.annotations.Element
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
@@ -43,16 +44,24 @@ object Analyzer {
     ): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
         val sorted = files.sortedBy { it.path }
-        sorted.forEach { diagnostics += Unsupported.check(it) }
         val index = DeclarationIndex(sorted, diagnostics)
         val resolver = Resolver(index, sorted, diagnostics)
+        val annotations = AnnotationChecker(options.annotations, diagnostics)
         val namespaces =
             Recursion.mark(
                 sorted
                     .groupBy { it.namespace.name }
                     .toSortedMap()
                     .map { (name, group) ->
-                        analyzeNamespace(name, group, index, resolver, options, diagnostics)
+                        analyzeNamespace(
+                            name,
+                            group,
+                            index,
+                            resolver,
+                            annotations,
+                            options,
+                            diagnostics,
+                        )
                     }
             )
         resolver.finish()
@@ -65,6 +74,7 @@ object Analyzer {
         files: List<SourceFile>,
         index: DeclarationIndex,
         resolver: Resolver,
+        annotations: AnnotationChecker,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): Namespace {
@@ -79,6 +89,7 @@ object Analyzer {
                     )
             }
         }
+        val nsAnnotations = annotations.check(files.flatMap { it.annotations }, Element.NAMESPACE)
         val declarations =
             files.flatMap { file ->
                 file.declarations.mapNotNull { decl ->
@@ -87,12 +98,13 @@ object Analyzer {
                         Scope(file, name, emptyList()),
                         index,
                         resolver,
+                        annotations,
                         options,
                         diagnostics,
                     )
                 }
             }
-        return Namespace(name, declarations, first.namespace.span)
+        return Namespace(name, declarations, first.namespace.span, nsAnnotations)
     }
 
     private fun analyzeDeclaration(
@@ -100,6 +112,7 @@ object Analyzer {
         scope: Scope,
         index: DeclarationIndex,
         resolver: Resolver,
+        annotations: AnnotationChecker,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): TypeDecl? {
@@ -115,11 +128,33 @@ object Analyzer {
         val qualifiedName = QualifiedName(scope.namespace, scope.enclosing + decl.name)
         return when (decl) {
             is RecordDecl ->
-                analyzeRecord(decl, qualifiedName, scope, index, resolver, options, diagnostics)
-            is EnumDecl -> analyzeEnum(decl, qualifiedName, options, diagnostics)
-            is UnionDecl -> analyzeUnion(decl, qualifiedName, scope, resolver, options, diagnostics)
+                analyzeRecord(
+                    decl,
+                    qualifiedName,
+                    scope,
+                    index,
+                    resolver,
+                    annotations,
+                    options,
+                    diagnostics,
+                )
+            is EnumDecl -> analyzeEnum(decl, qualifiedName, annotations, options, diagnostics)
+            is UnionDecl ->
+                analyzeUnion(
+                    decl,
+                    qualifiedName,
+                    scope,
+                    resolver,
+                    annotations,
+                    options,
+                    diagnostics,
+                )
             is AliasDecl -> {
-                resolver.checkAlias(decl, scope) // transparent: substituted at every use
+                annotations.check(
+                    decl.annotations,
+                    Element.ALIAS,
+                ) // checked, then dropped: aliases have no IR node
+                resolver.checkAlias(decl, scope)
                 null
             }
         }
@@ -131,9 +166,11 @@ object Analyzer {
         scope: Scope,
         index: DeclarationIndex,
         resolver: Resolver,
+        annotations: AnnotationChecker,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): RecordType {
+        val recordAnnotations = annotations.check(record.annotations, Element.RECORD)
         val inner = scope.copy(enclosing = scope.enclosing + record.name)
         val reserved = Ordinals.reserved(record.reserved, diagnostics)
         val ordinals =
@@ -182,11 +219,12 @@ object Analyzer {
                     doc = field.doc,
                     span = field.span,
                     nameSpan = field.nameSpan,
+                    annotations = annotations.check(field.annotations, Element.FIELD),
                 )
             }
         val nested =
             record.nested.mapNotNull {
-                analyzeDeclaration(it, inner, index, resolver, options, diagnostics)
+                analyzeDeclaration(it, inner, index, resolver, annotations, options, diagnostics)
             }
         return RecordType(
             qualifiedName = qualifiedName,
@@ -198,15 +236,18 @@ object Analyzer {
             doc = record.doc,
             span = record.span,
             nameSpan = record.nameSpan,
+            annotations = recordAnnotations,
         )
     }
 
     private fun analyzeEnum(
         decl: EnumDecl,
         qualifiedName: QualifiedName,
+        annotations: AnnotationChecker,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): EnumType {
+        val enumAnnotations = annotations.check(decl.annotations, Element.ENUM)
         if (decl.values.isEmpty())
             diagnostics +=
                 error(CoreCodes.EMPTY_ENUM, "enum '${decl.name}' has no values", decl.nameSpan)
@@ -243,7 +284,14 @@ object Analyzer {
                             value.nameSpan,
                         )
                 }
-                EnumValue(ordinals[index], value.name, value.doc, value.span, value.nameSpan)
+                EnumValue(
+                    ordinals[index],
+                    value.name,
+                    value.doc,
+                    value.span,
+                    value.nameSpan,
+                    annotations.check(value.annotations, Element.ENUM_VALUE),
+                )
             }
         return EnumType(
             qualifiedName,
@@ -254,6 +302,7 @@ object Analyzer {
             decl.doc,
             decl.span,
             decl.nameSpan,
+            enumAnnotations,
         )
     }
 
@@ -262,9 +311,11 @@ object Analyzer {
         qualifiedName: QualifiedName,
         scope: Scope,
         resolver: Resolver,
+        annotations: AnnotationChecker,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): UnionType {
+        val unionAnnotations = annotations.check(decl.annotations, Element.UNION)
         val ordinals =
             Ordinals.assign(
                 "union",
@@ -325,6 +376,7 @@ object Analyzer {
             decl.doc,
             decl.span,
             decl.nameSpan,
+            unionAnnotations,
         )
     }
 

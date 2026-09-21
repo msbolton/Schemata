@@ -4,7 +4,10 @@ import io.schemata.lang.Category
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 
-/** Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) is retired and must not be reused. */
+/**
+ * Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) and `SCH1008` (unsupported constructs)
+ * are retired and must not be reused.
+ */
 object CoreCodes {
     private fun error(id: String) = DiagnosticCode(id, Severity.ERROR, Category.SEMANTIC)
 
@@ -16,7 +19,6 @@ object CoreCodes {
     val DUPLICATE_TYPE = error("SCH1004")
     val DUPLICATE_FIELD = error("SCH1005")
     val UNKNOWN_TYPE = error("SCH1006")
-    val UNSUPPORTED_CONSTRUCT = error("SCH1008")
     val AMBIGUOUS_TYPE = error("SCH1009")
     val BUILTIN_SHADOWED = warning("SCH1010")
     val UNKNOWN_IMPORT = error("SCH1011")
@@ -62,7 +64,6 @@ object CoreCodes {
             DUPLICATE_TYPE,
             DUPLICATE_FIELD,
             UNKNOWN_TYPE,
-            UNSUPPORTED_CONSTRUCT,
             AMBIGUOUS_TYPE,
             BUILTIN_SHADOWED,
             UNKNOWN_IMPORT,
