@@ -246,6 +246,26 @@ class ProtoLoweringTest {
         )
     }
 
+    @Test
+    fun `decimal precision and scale are not refinements`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(
+                    1,
+                    "total",
+                    Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4)),
+                    line = 11,
+                ),
+            )
+        val ds = ProtoLowering.lower(Schema(listOf(Namespace("a", listOf(r), at(1))))).diagnostics
+        assertEquals(
+            listOf("11 SCH2002 field 'R.total': target 'proto' cannot lower decimal yet (SCH-23)"),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
     private val tagged = Annotations(mapOf("proto" to mapOf("name" to AnnotationValue.Str("x"))))
 
     @Test
