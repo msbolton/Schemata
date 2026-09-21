@@ -2,6 +2,7 @@ package io.schemata.cli
 
 import io.schemata.core.AnalysisOptions
 import io.schemata.lang.Category
+import io.schemata.target.proto.ProtoTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -95,5 +96,17 @@ class PipelineTest {
     fun `looks targets up by name`() {
         assertEquals("proto", Pipeline.targetNamed("proto")?.name)
         assertEquals(null, Pipeline.targetNamed("avro"))
+    }
+
+    @Test
+    fun `annotations of every known target are accepted whatever targets are selected`() {
+        val src =
+            SourceInput(
+                "src/t.schemata",
+                "namespace a\n\nrecord R {\n  @sql(key)\n  id: uuid\n  x: bool\n}",
+            )
+        val result = Pipeline.compile(listOf(src), listOf(ProtoTarget))
+        assertTrue(result.diagnostics.none { it.code.id.startsWith("SCH1") })
+        assertEquals(setOf("SCH2003"), result.diagnostics.map { it.code.id }.toSet())
     }
 }

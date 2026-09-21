@@ -52,7 +52,12 @@ class CompileCommand : CliktCommand(name = "compile") {
         if (sources.isEmpty())
             throw UsageError("no .schemata files found under: ${inputs.joinToString(", ")}")
 
-        val result = Pipeline.compile(sources, targets, AnalysisOptions(strictOrdinals = strict))
+        val result =
+            Pipeline.compile(
+                sources,
+                targets,
+                AnalysisOptions(strictOrdinals = strict, annotations = Pipeline.annotations),
+            )
         result.diagnostics.forEach { echo(format(it), err = true) }
         if (result.hasErrors) throw ProgramResult(1)
 
