@@ -30,10 +30,10 @@ class OrdinalsTest {
         assertEquals(emptyList(), r.diagnostics)
         val rec = r.schema!!.lookup(qn("R")) as RecordType
         assertEquals(listOf(4, 2), rec.fields.map { it.ordinal })
-        assertEquals(Reserved(setOf(1, 5, 6, 7), setOf("old")), rec.reserved)
+        assertEquals(Reserved(listOf(1..1, 5..7), setOf("old")), rec.reserved)
         val e = r.schema!!.lookup(qn("E")) as EnumType
         assertEquals(listOf(10, 20), e.values.map { it.ordinal })
-        assertEquals(Reserved(setOf(15), emptySet()), e.reserved)
+        assertEquals(Reserved(listOf(15..15), emptySet()), e.reserved)
         val u = r.schema!!.lookup(qn("U")) as UnionType
         assertEquals(listOf(3, 1), u.members.map { it.ordinal })
     }
@@ -98,5 +98,11 @@ class OrdinalsTest {
             ),
             messages(r),
         )
+    }
+
+    @Test
+    fun `a huge reserved range is kept as a range and still conflicts`() {
+        val r = analyze("namespace a\nrecord R {\n  #5 x: bool\n  reserved #1..#2000000000\n}")
+        assertEquals(listOf("3:3 ordinal #5 is reserved in record 'R'"), messages(r))
     }
 }

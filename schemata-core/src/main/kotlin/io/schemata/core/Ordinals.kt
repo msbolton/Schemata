@@ -15,7 +15,7 @@ object Ordinals {
     )
 
     fun reserved(items: List<ReservedItem>, diagnostics: MutableList<Diagnostic>): Reserved {
-        val ordinals = mutableSetOf<Int>()
+        val ordinals = mutableListOf<IntRange>()
         val names = mutableSetOf<String>()
         items.forEach { item ->
             when (item) {
@@ -101,7 +101,7 @@ object Ordinals {
                         element.nameSpan,
                     )
             }
-            if (ordinal in reserved.ordinals) {
+            if (ordinal in reserved) {
                 diagnostics +=
                     Diagnostic(
                         CoreCodes.RESERVED_CONFLICT,

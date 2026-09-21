@@ -132,9 +132,12 @@ data class Refinements(
     val scale: Int? = null,
 )
 
-data class Reserved(val ordinals: Set<Int>, val names: Set<String>) {
+/** Reserved ordinal ranges and names; ranges are kept as written so a wide range costs nothing. */
+data class Reserved(val ordinals: List<IntRange>, val names: Set<String>) {
+    operator fun contains(ordinal: Int): Boolean = ordinals.any { ordinal in it }
+
     companion object {
-        val NONE = Reserved(emptySet(), emptySet())
+        val NONE = Reserved(emptyList(), emptySet())
     }
 }
 

@@ -51,7 +51,7 @@ class IrTest {
                         nameSpan = at,
                     ),
                 ),
-            reserved = Reserved(setOf(11), setOf("legacy_ref")),
+            reserved = Reserved(listOf(11..11), setOf("legacy_ref")),
             recursive = false,
             nested = listOf(address),
             doc = "An order",
