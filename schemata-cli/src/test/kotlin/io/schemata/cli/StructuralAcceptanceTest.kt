@@ -15,10 +15,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Plan B1's acceptance: the structural worked example analyzes clean; targets only report shapes
- * they cannot lower yet.
+ * The structural worked example analyzes clean; targets only report shapes they cannot lower yet.
  */
-class AcceptanceB1Test {
+class StructuralAcceptanceTest {
     private val orders =
         """
         /// Order management for the storefront.
