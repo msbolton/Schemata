@@ -195,14 +195,18 @@ object RefinementChecker {
                 ok = false
                 continue
             }
-            if (item.name == "min") min = value else max = value
+            when (item.name) {
+                "min" -> min = value
+                "max" -> max = value
+                else -> error("refinement '${item.name}' is allowed but has no handler")
+            }
             lastBound = item
         }
         if (min != null && max != null && min > max) {
             report(
                 CoreCodes.INVALID_REFINEMENT,
                 "min ${min.toPlainString()} exceeds max ${max.toPlainString()}",
-                lastBound!!.span,
+                checkNotNull(lastBound).span,
                 diagnostics,
             )
             ok = false

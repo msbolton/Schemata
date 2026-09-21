@@ -60,6 +60,8 @@ class DefaultsTest {
             "namespace a\n" +
                 "enum Status { pending, paid }\n" +
                 "record P { x: bool }\n" +
+                "record Q { y: bool }\n" +
+                "union U = P | Q\n" +
                 "record R {\n" +
                 "  a: string = null\n" +
                 "  b: Status = shipped\n" +
@@ -73,23 +75,31 @@ class DefaultsTest {
                 "  j: int32 = \"1\"\n" +
                 "  k: int32(max = 10) = 11\n" +
                 "  l: bool = 1\n" +
+                "  m: decimal(5, 1) = 123456.7\n" +
+                "  n: bytes = \"b\"\n" +
+                "  o: map<string, int32> = 1\n" +
+                "  p: U = 1\n" +
                 "}"
         val r = analyze(src)
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "5:15 a default may not be null; declare the field as nullable with '?'",
-                "6:15 default for enum 'Status' must be one of: pending, paid",
-                "7:10 record fields cannot have a default",
-                "8:20 list fields cannot have a default",
-                "9:23 default 3 is below min 5",
-                "10:24 default is longer than max 2",
-                "11:31 default does not match pattern ^x",
-                "12:22 default 1.25 exceeds scale 1",
-                "13:13 uuid fields cannot have a default",
-                "14:14 default for int32 must be an integer literal",
-                "15:24 default 11 is above max 10",
-                "16:13 default for bool must be true or false",
+                "7:15 a default may not be null; declare the field as nullable with '?'",
+                "8:15 default for enum 'Status' must be one of: pending, paid",
+                "9:10 record fields cannot have a default",
+                "10:20 list fields cannot have a default",
+                "11:23 default 3 is below min 5",
+                "12:24 default is longer than max 2",
+                "13:31 default does not match pattern ^x",
+                "14:22 default 1.25 exceeds scale 1",
+                "15:13 uuid fields cannot have a default",
+                "16:14 default for int32 must be an integer literal",
+                "17:24 default 11 is above max 10",
+                "18:13 default for bool must be true or false",
+                "19:22 default 123456.7 exceeds precision 5",
+                "20:14 bytes fields cannot have a default",
+                "21:27 map fields cannot have a default",
+                "22:10 union fields cannot have a default",
             ),
             messages(r),
         )

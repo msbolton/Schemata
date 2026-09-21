@@ -130,6 +130,17 @@ object DefaultChecker {
                         literal.span,
                         diagnostics,
                     )
+                val precision = r.precision
+                if (precision != null && scale != null) {
+                    val normalized = value.stripTrailingZeros()
+                    val integerDigits = normalized.precision() - maxOf(normalized.scale(), 0)
+                    if (integerDigits > precision - scale)
+                        return violates(
+                            "default ${value.toPlainString()} exceeds precision $precision",
+                            literal.span,
+                            diagnostics,
+                        )
+                }
                 if (!bounds(value, r, literal.span, diagnostics)) null else RealValue(value)
             }
             Builtin.STRING -> {

@@ -116,6 +116,10 @@ class RefinementsTest {
                 "  g: decimal\n" +
                 "  h: string(3)\n" +
                 "  i: int64(min = 1.5)\n" +
+                "  j: decimal(0, 0)\n" +
+                "  k: decimal(3, -1)\n" +
+                "  l: string(pattern = 5)\n" +
+                "  m: string(max = \"x\")\n" +
                 "}"
         val r = analyze(src)
         assertNull(r.schema)
@@ -130,6 +134,10 @@ class RefinementsTest {
                 "9:6 decimal takes its precision and scale positionally: decimal(p, s)",
                 "10:13 only decimal takes positional refinements",
                 "11:12 min for int64 must be an integer literal",
+                "12:14 precision must be at least 1",
+                "13:17 scale must not be negative",
+                "14:13 pattern must be a string literal",
+                "15:13 max must be an integer literal",
             ),
             messages(r),
         )

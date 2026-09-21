@@ -5,6 +5,7 @@ import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -97,6 +98,9 @@ class IrTest {
         assertEquals(Refinements(), Refinements.NONE)
         assertTrue(Refinements.NONE.isEmpty)
         assertEquals(false, Refinements(max = BigDecimal.ONE).isEmpty)
+        assertTrue(Refinements(precision = 19, scale = 4).isEmpty.not())
+        assertFalse(Refinements(precision = 19, scale = 4).hasBounds)
+        assertTrue(Refinements(max = BigDecimal.ONE).hasBounds)
         assertTrue(Annotations.NONE.isEmpty)
         assertEquals(emptyMap(), Annotations.NONE["sql"])
         val a = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag)))

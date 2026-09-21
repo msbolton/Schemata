@@ -184,6 +184,13 @@ data class Refinements(
     val isEmpty: Boolean
         get() = this == NONE
 
+    /**
+     * True when a bound the user wrote is present; `decimal`'s precision and scale are part of the
+     * type, not a bound.
+     */
+    val hasBounds: Boolean
+        get() = min != null || max != null || pattern != null
+
     companion object {
         val NONE = Refinements()
     }
