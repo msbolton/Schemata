@@ -213,6 +213,17 @@ class AnalyzerTest {
     }
 
     @Test
+    fun `a failed nested lookup through a qualified name reports once`() {
+        val a = "a.schemata" to "namespace shop.customers\nrecord Customer { id: uuid }"
+        val b =
+            "b.schemata" to
+                "namespace shop.orders\nrecord Order { x: shop.customers.Customer.Nope }"
+        val result = analyze(a, b)
+        assertNull(result.schema)
+        assertEquals(listOf("2:19 type 'Customer' has no nested type 'Nope'"), messages(result))
+    }
+
+    @Test
     fun `validates generics`() {
         val src =
             "namespace a\nrecord C {}\nrecord R {\n  a: list<string, bool>\n  b: map<string>\n  c: C<bool>\n  d: map<C, bool>\n  e: map<string?, bool>\n}"

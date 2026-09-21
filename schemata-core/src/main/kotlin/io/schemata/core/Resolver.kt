@@ -186,12 +186,17 @@ class Resolver(
         candidates.singleOrNull()?.let {
             return descend(it, parts.drop(1), at)
         }
+        // a form that reported its own error must not fall through to "unknown type"
+        val before = diagnostics.size
         aliased(parts, scope, at)?.let {
             return it
         }
+        if (diagnostics.size != before) return null
+        val beforeQualified = diagnostics.size
         qualified(parts, at)?.let {
             return it
         }
+        if (diagnostics.size != beforeQualified) return null
         if (parts.size == 1)
             Builtin.byName(head)?.let {
                 return Found.Builtin(it)
@@ -237,7 +242,7 @@ class Resolver(
         return null
     }
 
-    private fun descend(base: IndexedDecl, rest: List<String>, at: Span?): Found? {
+    private fun descend(base: IndexedDecl, rest: List<String>, at: Span): Found? {
         var current = base
         for (segment in rest) {
             val next =
@@ -251,7 +256,7 @@ class Resolver(
                 error(
                     CoreCodes.NESTED_TYPE_NOT_FOUND,
                     "type '${current.decl.name}' has no nested type '$segment'",
-                    at ?: current.decl.nameSpan,
+                    at,
                 )
                 return null
             }

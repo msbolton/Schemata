@@ -152,6 +152,18 @@ class ImportsAndAliasesTest {
     }
 
     @Test
+    fun `a failed nested lookup through an import alias reports once`() {
+        val orders =
+            "orders.schemata" to
+                "namespace shop.orders\nimport shop.customers as cust\nrecord Order { x: cust.Customer.Nope }"
+        val r = analyze(customers, orders)
+        assertEquals(
+            listOf("orders.schemata:3:19 type 'Customer' has no nested type 'Nope'"),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `alias cycles and double nullability are errors`() {
         val src =
             "namespace a\nalias A = B\nalias B = A\nalias N = string?\nrecord R { x: A  y: N? }"
