@@ -47,12 +47,14 @@ object Analyzer {
         val index = DeclarationIndex(sorted, diagnostics)
         val resolver = Resolver(index, sorted, diagnostics)
         val namespaces =
-            sorted
-                .groupBy { it.namespace.name }
-                .toSortedMap()
-                .map { (name, group) ->
-                    analyzeNamespace(name, group, index, resolver, options, diagnostics)
-                }
+            Recursion.mark(
+                sorted
+                    .groupBy { it.namespace.name }
+                    .toSortedMap()
+                    .map { (name, group) ->
+                        analyzeNamespace(name, group, index, resolver, options, diagnostics)
+                    }
+            )
         resolver.finish()
         val schema = if (diagnostics.hasErrors) null else Schema(namespaces)
         return AnalysisResult(schema, diagnostics)
