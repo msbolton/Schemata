@@ -1,9 +1,14 @@
 package io.schemata.target.proto
 
+import io.schemata.core.annotations.Element
+import io.schemata.core.annotations.ValueKind
+import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
@@ -26,6 +31,7 @@ import io.schemata.lang.Span
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
@@ -237,6 +243,59 @@ class ProtoLoweringTest {
                 "12 SCH2003 field 'R.l': target 'proto' cannot lower type refinements yet (SCH-23)",
             ),
             ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
+    private val tagged = Annotations(mapOf("proto" to mapOf("name" to AnnotationValue.Str("x"))))
+
+    @Test
+    fun `annotations on a namespace, record, or field are reported`() {
+        val r =
+            record(
+                    "a",
+                    "R",
+                    field(1, "a", Scalar(Builtin.BOOL), line = 11).copy(annotations = tagged),
+                )
+                .copy(annotations = tagged)
+        val ds =
+            ProtoLowering.lower(Schema(listOf(Namespace("a", listOf(r), at(1), tagged))))
+                .diagnostics
+        assertEquals(
+            listOf(
+                "1 SCH2003 target 'proto' cannot lower annotations yet (SCH-23)",
+                "3 SCH2003 target 'proto' cannot lower annotations yet (SCH-23)",
+                "11 SCH2003 field 'R.a': target 'proto' cannot lower annotations yet (SCH-23)",
+            ),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `a default is reported before an unsupported type`() {
+        val r =
+            record("a", "R", field(1, "n", Scalar(Builtin.INT64), default = IntValue(1), line = 11))
+        val ds = ProtoLowering.lower(Schema(listOf(Namespace("a", listOf(r), at(1))))).diagnostics
+        assertEquals(
+            listOf(
+                "11 SCH2003 field 'R.n': target 'proto' cannot lower field defaults yet (SCH-25)"
+            ),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `the target declares its annotation keys`() {
+        assertEquals(
+            listOf(
+                "package" to setOf(Element.NAMESPACE),
+                "name" to setOf(Element.RECORD, Element.ENUM, Element.FIELD, Element.ENUM_VALUE),
+            ),
+            ProtoTarget.annotationSpecs.map { it.key to it.elements },
+        )
+        assertTrue(
+            ProtoTarget.annotationSpecs.all {
+                it.target == "proto" && it.valueKind == ValueKind.STRING
+            }
         )
     }
 }

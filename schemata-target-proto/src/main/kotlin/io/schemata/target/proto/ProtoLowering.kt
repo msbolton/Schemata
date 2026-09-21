@@ -16,6 +16,7 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
 
@@ -31,18 +32,37 @@ object ProtoLowering {
         return Lowered(ProtoModel(files), diagnostics)
     }
 
-    private fun lower(namespace: Namespace, diagnostics: MutableList<Diagnostic>): ProtoFile =
-        ProtoFile(
+    private fun lower(namespace: Namespace, diagnostics: MutableList<Diagnostic>): ProtoFile {
+        if (!namespace.annotations.isEmpty) {
+            unsupported(
+                "annotations",
+                "SCH-23",
+                namespace.span,
+                diagnostics,
+                code = ProtoCodes.UNSUPPORTED_VALUE,
+            )
+        }
+        return ProtoFile(
             path = namespace.name.replace('.', '/') + ".proto",
             packageName = namespace.name,
             messages = namespace.declarations.mapNotNull { lower(it, diagnostics) },
         )
+    }
 
     private fun lower(decl: TypeDecl, diagnostics: MutableList<Diagnostic>): ProtoMessage? =
         when (decl) {
             is RecordType -> {
                 if (decl.reserved != Reserved.NONE) {
                     unsupported("reserved ordinals and names", "SCH-24", decl.nameSpan, diagnostics)
+                }
+                if (!decl.annotations.isEmpty) {
+                    unsupported(
+                        "annotations",
+                        "SCH-23",
+                        decl.nameSpan,
+                        diagnostics,
+                        code = ProtoCodes.UNSUPPORTED_VALUE,
+                    )
                 }
                 val fields = decl.fields.mapNotNull { lower(decl, it, diagnostics) }
                 decl.nested.forEach {
@@ -82,6 +102,17 @@ object ProtoLowering {
                     "$where: target 'proto' cannot lower type refinements yet (SCH-23)",
                     field.span,
                 )
+            return null
+        }
+        if (!field.annotations.isEmpty) {
+            unsupported(
+                "annotations",
+                "SCH-23",
+                field.span,
+                diagnostics,
+                where,
+                ProtoCodes.UNSUPPORTED_VALUE,
+            )
             return null
         }
         val (scalar, loweredFrom) =
@@ -156,13 +187,10 @@ object ProtoLowering {
         span: Span,
         diagnostics: MutableList<Diagnostic>,
         where: String? = null,
+        code: DiagnosticCode = ProtoCodes.UNSUPPORTED_SHAPE,
     ) {
         val prefix = where?.let { "$it: " } ?: ""
         diagnostics +=
-            Diagnostic(
-                ProtoCodes.UNSUPPORTED_SHAPE,
-                "${prefix}target 'proto' cannot lower $what yet ($ticket)",
-                span,
-            )
+            Diagnostic(code, "${prefix}target 'proto' cannot lower $what yet ($ticket)", span)
     }
 }
