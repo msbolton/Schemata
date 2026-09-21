@@ -39,6 +39,7 @@ object CoreCodes {
     val NOT_GENERIC = error("SCH1032")
     val NESTED_TYPE_NOT_FOUND = error("SCH1033")
     val RESERVED_RANGE = error("SCH1034")
+    val INVALID_ORDINAL = error("SCH1035")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -71,5 +72,6 @@ object CoreCodes {
             NOT_GENERIC,
             NESTED_TYPE_NOT_FOUND,
             RESERVED_RANGE,
+            INVALID_ORDINAL,
         )
 }

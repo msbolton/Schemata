@@ -112,8 +112,8 @@ object Analyzer {
         return when (decl) {
             is RecordDecl ->
                 analyzeRecord(decl, qualifiedName, scope, resolver, options, diagnostics)
-            is EnumDecl -> analyzeEnum(decl, qualifiedName, diagnostics)
-            is UnionDecl -> analyzeUnion(decl, qualifiedName, scope, resolver, diagnostics)
+            is EnumDecl -> analyzeEnum(decl, qualifiedName, options, diagnostics)
+            is UnionDecl -> analyzeUnion(decl, qualifiedName, scope, resolver, options, diagnostics)
             is AliasDecl -> null // transparent: substituted at every use by the resolver
         }
     }
@@ -127,6 +127,20 @@ object Analyzer {
         diagnostics: MutableList<Diagnostic>,
     ): RecordType {
         val inner = scope.copy(enclosing = scope.enclosing + record.name)
+        val reserved = Ordinals.reserved(record.reserved, diagnostics)
+        val ordinals =
+            Ordinals.assign(
+                "record",
+                "field",
+                record.name,
+                record.nameSpan,
+                record.fields.map {
+                    Ordinals.Element(it.ordinal, it.ordinalSpan, it.name, it.nameSpan)
+                },
+                reserved,
+                options,
+                diagnostics,
+            )
         val seenFields = mutableSetOf<String>()
         val fields =
             record.fields.mapIndexedNotNull { index, field ->
@@ -148,7 +162,7 @@ object Analyzer {
                 }
                 val resolved = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
                 Field(
-                    ordinal = field.ordinal ?: (index + 1),
+                    ordinal = ordinals[index],
                     name = field.name,
                     type = resolved.type,
                     nullable = resolved.nullable,
@@ -167,7 +181,7 @@ object Analyzer {
             qualifiedName = qualifiedName,
             name = record.name,
             fields = fields,
-            reserved = Reserved.NONE,
+            reserved = reserved,
             recursive = false,
             nested = nested,
             doc = record.doc,
@@ -179,11 +193,26 @@ object Analyzer {
     private fun analyzeEnum(
         decl: EnumDecl,
         qualifiedName: QualifiedName,
+        options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): EnumType {
         if (decl.values.isEmpty())
             diagnostics +=
                 error(CoreCodes.EMPTY_ENUM, "enum '${decl.name}' has no values", decl.nameSpan)
+        val reserved = Ordinals.reserved(decl.reserved, diagnostics)
+        val ordinals =
+            Ordinals.assign(
+                "enum",
+                "value",
+                decl.name,
+                decl.nameSpan,
+                decl.values.map {
+                    Ordinals.Element(it.ordinal, it.ordinalSpan, it.name, it.nameSpan)
+                },
+                reserved,
+                options,
+                diagnostics,
+            )
         val seen = mutableSetOf<String>()
         val values =
             decl.values.mapIndexed { index, value ->
@@ -203,19 +232,13 @@ object Analyzer {
                             value.nameSpan,
                         )
                 }
-                EnumValue(
-                    value.ordinal ?: (index + 1),
-                    value.name,
-                    value.doc,
-                    value.span,
-                    value.nameSpan,
-                )
+                EnumValue(ordinals[index], value.name, value.doc, value.span, value.nameSpan)
             }
         return EnumType(
             qualifiedName,
             decl.name,
             values,
-            Reserved.NONE,
+            reserved,
             emptyList(),
             decl.doc,
             decl.span,
@@ -228,8 +251,22 @@ object Analyzer {
         qualifiedName: QualifiedName,
         scope: Scope,
         resolver: Resolver,
+        options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): UnionType {
+        val ordinals =
+            Ordinals.assign(
+                "union",
+                "member",
+                decl.name,
+                decl.nameSpan,
+                decl.members.map {
+                    Ordinals.Element(it.ordinal, it.ordinalSpan, it.type.name, it.type.nameSpan)
+                },
+                Reserved.NONE,
+                options,
+                diagnostics,
+            )
         val seen = mutableSetOf<Type>()
         val members =
             decl.members.mapIndexedNotNull { index, member ->
@@ -267,7 +304,7 @@ object Analyzer {
                         else -> true
                     }
                 if (!ok) return@mapIndexedNotNull null
-                UnionMember(member.ordinal ?: (index + 1), type, member.doc, member.span)
+                UnionMember(ordinals[index], type, member.doc, member.span)
             }
         return UnionType(
             qualifiedName,
