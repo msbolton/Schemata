@@ -8,7 +8,6 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
@@ -162,10 +161,9 @@ object SqlLowering {
 
     private fun Type.hasRefinements(): Boolean =
         when (this) {
-            is Scalar -> refinements != Refinements()
-            is ListOf -> refinements != Refinements() || element.hasRefinements()
-            is MapOf ->
-                refinements != Refinements() || key.hasRefinements() || value.hasRefinements()
+            is Scalar -> refinements.hasBounds
+            is ListOf -> refinements.hasBounds || element.hasRefinements()
+            is MapOf -> refinements.hasBounds || key.hasRefinements() || value.hasRefinements()
             is Ref -> false
         }
 

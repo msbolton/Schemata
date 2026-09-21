@@ -234,6 +234,21 @@ class SqlLoweringTest {
         assertEquals(emptyList(), SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics)
     }
 
+    @Test
+    fun `decimal precision and scale are not refinements`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "total", Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4))),
+            )
+        val ds = SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics
+        assertEquals(
+            listOf("11 SCH2103 field 'R.total': target 'sql' cannot lower decimal yet (SCH-31)"),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
     private val tagged = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag)))
 
     @Test
