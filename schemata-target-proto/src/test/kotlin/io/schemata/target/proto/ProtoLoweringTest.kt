@@ -38,6 +38,8 @@ class ProtoLoweringTest {
     private fun proto(vararg pairs: Pair<String, String>) =
         Annotations(mapOf("proto" to pairs.associate { (k, v) -> k to AnnotationValue.Str(v) }))
 
+    private val deprecated = Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Flag)))
+
     private fun field(
         ordinal: Int,
         name: String,
@@ -45,8 +47,9 @@ class ProtoLoweringTest {
         nullable: Boolean = false,
         default: Value? = null,
         line: Int = 10 + ordinal,
+        doc: String? = null,
         annotations: Annotations = Annotations.NONE,
-    ) = Field(ordinal, name, type, nullable, default, null, null, at(line), at(line), annotations)
+    ) = Field(ordinal, name, type, nullable, default, null, doc, at(line), at(line), annotations)
 
     private fun record(
         ns: String,
@@ -56,6 +59,7 @@ class ProtoLoweringTest {
         nested: List<TypeDecl> = emptyList(),
         reserved: Reserved = Reserved.NONE,
         line: Int = 3,
+        doc: String? = null,
         annotations: Annotations = Annotations.NONE,
     ) =
         RecordType(
@@ -65,7 +69,7 @@ class ProtoLoweringTest {
             reserved,
             false,
             nested,
-            null,
+            doc,
             at(line),
             at(line),
             annotations,
@@ -578,5 +582,62 @@ class ProtoLoweringTest {
             ),
             messages(lowered),
         )
+    }
+
+    @Test
+    fun `docs and deprecation are carried to messages, fields, enums, and values`() {
+        val status =
+            EnumType(
+                qn("a", "Status"),
+                "Status",
+                listOf(
+                    EnumValue(1, "pending", "Not yet paid.", at(31), at(31)),
+                    EnumValue(2, "paid", null, at(32), at(32), deprecated),
+                ),
+                Reserved.NONE,
+                emptyList(),
+                "Payment status.",
+                at(30),
+                at(30),
+                deprecated,
+            )
+        val r =
+            record(
+                "a",
+                "Order",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    doc = "Primary key.",
+                    annotations = deprecated,
+                ),
+                doc = "An order.",
+                annotations = deprecated,
+            )
+        val u =
+            UnionType(
+                qn("a", "U"),
+                "U",
+                listOf(UnionMember(1, Ref(qn("a", "Order")), "The order.", at(41))),
+                emptyList(),
+                "A choice.",
+                at(40),
+                at(40),
+                deprecated,
+            )
+        val file = ProtoLowering.lower(schema(ns("a", status, r, u))).model.files.single()
+        val e = file.declarations[0] as ProtoEnum
+        assertEquals("Payment status." to true, e.doc to e.deprecated)
+        assertEquals(
+            listOf(null to false, "Not yet paid." to false, null to true),
+            e.values.map { it.doc to it.deprecated },
+        )
+        val m = message(file, "Order")
+        assertEquals("An order." to true, m.doc to m.deprecated)
+        assertEquals("Primary key." to true, m.fields.single().doc to m.fields.single().deprecated)
+        val w = message(file, "U")
+        assertEquals("A choice." to true, w.doc to w.deprecated)
+        assertEquals("The order.", w.oneofs.single().fields.single().doc)
     }
 }
