@@ -72,4 +72,9 @@ class TargetTest {
         assertEquals(emptyList(), out.files)
         assertEquals(listOf("broken"), out.diagnostics.map { it.message })
     }
+
+    @Test
+    fun `a target declares no annotation keys unless it overrides the default`() {
+        assertEquals(emptyList(), CountTarget.annotationSpecs)
+    }
 }
