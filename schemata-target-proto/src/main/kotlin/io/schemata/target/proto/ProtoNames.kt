@@ -9,7 +9,7 @@ import io.schemata.core.ir.TypeDecl
 
 /** The proto target's naming rules: `@proto` overrides, enum-value prefixes, deprecation. */
 object ProtoNames {
-    private val boundary = Regex("(?<=[a-z0-9])(?=[A-Z])")
+    private val boundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
     /** `BankTransfer` → `bank_transfer`; a lowercase name is unchanged. */
     fun snakeCase(name: String): String = name.split(boundary).joinToString("_").lowercase()

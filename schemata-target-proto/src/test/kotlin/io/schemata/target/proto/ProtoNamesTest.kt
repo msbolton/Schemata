@@ -31,6 +31,10 @@ class ProtoNamesTest {
         assertEquals("order_status", ProtoNames.snakeCase("OrderStatus"))
         assertEquals("ORDER_STATUS", ProtoNames.upperSnake("OrderStatus"))
         assertEquals("STATUS", ProtoNames.upperSnake("Status"))
+        assertEquals("http_status", ProtoNames.snakeCase("HTTPStatus"))
+        assertEquals("io_error", ProtoNames.snakeCase("IOError"))
+        assertEquals("kind2", ProtoNames.snakeCase("Kind2"))
+        assertEquals("HTTP_STATUS", ProtoNames.upperSnake("HTTPStatus"))
     }
 
     @Test
