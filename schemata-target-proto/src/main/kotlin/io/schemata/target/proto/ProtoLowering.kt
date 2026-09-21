@@ -8,8 +8,11 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
@@ -38,6 +41,9 @@ object ProtoLowering {
     private fun lower(decl: TypeDecl, diagnostics: MutableList<Diagnostic>): ProtoMessage? =
         when (decl) {
             is RecordType -> {
+                if (decl.reserved != Reserved.NONE) {
+                    unsupported("reserved ordinals and names", "SCH-24", decl.nameSpan, diagnostics)
+                }
                 val fields = decl.fields.mapNotNull { lower(decl, it, diagnostics) }
                 decl.nested.forEach {
                     unsupported("nested declarations", "SCH-24", it.nameSpan, diagnostics)
@@ -65,6 +71,15 @@ object ProtoLowering {
                 Diagnostic(
                     ProtoCodes.UNSUPPORTED_VALUE,
                     "$where: target 'proto' cannot lower field defaults yet (SCH-25)",
+                    field.span,
+                )
+            return null
+        }
+        if (field.type.hasRefinements()) {
+            diagnostics +=
+                Diagnostic(
+                    ProtoCodes.UNSUPPORTED_VALUE,
+                    "$where: target 'proto' cannot lower type refinements yet (SCH-23)",
                     field.span,
                 )
             return null
@@ -125,6 +140,15 @@ object ProtoLowering {
             loweredFrom = loweredFrom,
         )
     }
+
+    private fun Type.hasRefinements(): Boolean =
+        when (this) {
+            is Scalar -> refinements != Refinements()
+            is ListOf -> refinements != Refinements() || element.hasRefinements()
+            is MapOf ->
+                refinements != Refinements() || key.hasRefinements() || value.hasRefinements()
+            is Ref -> false
+        }
 
     private fun unsupported(
         what: String,

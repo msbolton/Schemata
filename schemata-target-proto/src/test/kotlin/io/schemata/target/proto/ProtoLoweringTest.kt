@@ -10,6 +10,7 @@ import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
@@ -187,5 +188,54 @@ class ProtoLoweringTest {
         assertEquals(listOf(Severity.ERROR), lowered.diagnostics.map { it.severity }.distinct())
         val message = lowered.model.files.single().messages.single { it.name == "R" }
         assertEquals(listOf("ok"), message.fields.map { it.name })
+    }
+
+    @Test
+    fun `reserved ordinals and names are reported until proto emits them`() {
+        val r =
+            RecordType(
+                QualifiedName("a", listOf("R")),
+                "R",
+                listOf(field(1, "x", Scalar(Builtin.STRING))),
+                Reserved(listOf(2..2), setOf("old")),
+                false,
+                emptyList(),
+                null,
+                at(3),
+                at(3),
+            )
+        val d =
+            ProtoLowering.lower(Schema(listOf(Namespace("a", listOf(r), at(1)))))
+                .diagnostics
+                .single()
+        assertEquals(
+            "SCH2002 target 'proto' cannot lower reserved ordinals and names yet (SCH-24)",
+            "${d.code.id} ${d.message}",
+        )
+        assertEquals(at(3), d.span)
+    }
+
+    @Test
+    fun `refinements anywhere in a type are reported`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "s", Scalar(Builtin.STRING, Refinements(max = 5)), line = 11),
+                field(
+                    2,
+                    "l",
+                    ListOf(Scalar(Builtin.STRING, Refinements(max = 5)), false),
+                    line = 12,
+                ),
+            )
+        val ds = ProtoLowering.lower(Schema(listOf(Namespace("a", listOf(r), at(1))))).diagnostics
+        assertEquals(
+            listOf(
+                "11 SCH2003 field 'R.s': target 'proto' cannot lower type refinements yet (SCH-23)",
+                "12 SCH2003 field 'R.l': target 'proto' cannot lower type refinements yet (SCH-23)",
+            ),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
     }
 }
