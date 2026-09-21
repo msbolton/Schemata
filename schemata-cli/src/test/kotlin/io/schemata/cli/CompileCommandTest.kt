@@ -80,6 +80,21 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `--strict rejects implicit ordinals`() {
+        val dir = Files.createTempDirectory("schemata-cli")
+        val input =
+            dir.resolve("s.schemata").apply { writeText("namespace s\nrecord R { x: bool }") }
+        val result = CompileCommand().test("--target proto --strict $input")
+        assertEquals(1, result.statusCode)
+        assertTrue(
+            result.stderr.contains(
+                "error [SCH1014]: $input:2:12: field 'x' has no explicit ordinal (--strict)"
+            ),
+            result.stderr,
+        )
+    }
+
+    @Test
     fun `rejects an unknown target`() {
         val dir = Files.createTempDirectory("schemata-cli")
         val input = dir.resolve("a.schemata").apply { writeText("namespace a") }

@@ -6,61 +6,43 @@ import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
-import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
 
 /**
- * The grammar accepts the whole language; the analyzer lowers only the v1 subset. Everything in
- * between is reported here, honestly and at its span, instead of being silently dropped. Each
- * message names the ticket that will remove it.
+ * Two constructs parse but are not analyzed yet — refinements and annotations (SCH-20). They are
+ * reported here at their span so nothing is silently dropped.
  */
 object Unsupported {
     fun check(file: SourceFile): List<Diagnostic> {
         val out = mutableListOf<Diagnostic>()
         annotations(file.annotations, out)
-        file.imports.forEach { out += error("imports are not supported yet (SCH-19)", it.span) }
-        file.declarations.forEach { declaration(it, nested = false, out) }
+        file.declarations.forEach { declaration(it, out) }
         return out
     }
 
-    private fun declaration(decl: Declaration, nested: Boolean, out: MutableList<Diagnostic>) {
-        if (nested) out += error("nested declarations are not supported yet (SCH-19)", decl.span)
+    private fun declaration(decl: Declaration, out: MutableList<Diagnostic>) {
         annotations(decl.annotations, out)
         when (decl) {
             is RecordDecl -> {
-                decl.fields.forEach { field(it, out) }
-                decl.reserved.forEach {
-                    out += error("reserved statements are not supported yet (SCH-22)", it.span)
+                decl.fields.forEach { field ->
+                    annotations(field.annotations, out)
+                    type(field.type, out)
                 }
-                decl.nested.forEach { declaration(it, nested = true, out) }
+                decl.nested.forEach { declaration(it, out) }
             }
-            is EnumDecl -> out += error("enums are not supported yet (SCH-20)", decl.span)
-            is UnionDecl -> out += error("unions are not supported yet (SCH-20)", decl.span)
-            is AliasDecl -> out += error("aliases are not supported yet (SCH-20)", decl.span)
-        }
-    }
-
-    private fun field(field: FieldDecl, out: MutableList<Diagnostic>) {
-        annotations(field.annotations, out)
-        if (field.ordinal != null) {
-            out += error("explicit ordinals are not supported yet (SCH-22)", field.ordinalSpan!!)
-        }
-        type(field.type, out)
-        field.default?.let {
-            out += error("field defaults are not supported yet (SCH-20)", it.span)
+            is EnumDecl -> decl.values.forEach { annotations(it.annotations, out) }
+            is UnionDecl -> decl.members.forEach { type(it.type, out) }
+            is AliasDecl -> type(decl.type, out)
         }
     }
 
     private fun type(type: TypeExpr, out: MutableList<Diagnostic>) {
         if (type.refinements.isNotEmpty())
             out += error("type refinements are not supported yet (SCH-20)", type.span)
-        if (type.args.isNotEmpty())
-            out += error("generic types are not supported yet (SCH-20)", type.span)
-        if ('.' in type.name)
-            out += error("qualified type names are not supported yet (SCH-19)", type.span)
+        type.args.forEach { type(it, out) }
     }
 
     private fun annotations(annotations: List<Annotation>, out: MutableList<Diagnostic>) {

@@ -19,7 +19,7 @@ class TargetTest {
 
         override fun lower(schema: Schema) =
             Lowered(
-                CountModel(schema.namespaces.sumOf { it.records.size }),
+                CountModel(schema.namespaces.sumOf { it.declarations.size }),
                 listOf(
                     Diagnostic(
                         DiagnosticCode("SCH9901", Severity.WARNING, Category.LOSSY),

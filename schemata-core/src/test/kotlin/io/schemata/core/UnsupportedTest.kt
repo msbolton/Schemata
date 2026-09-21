@@ -13,73 +13,30 @@ class UnsupportedTest {
     }
 
     @Test
-    fun `the v1 subset reports nothing`() {
-        assertEquals(
-            emptyList(),
-            messages("namespace a\n/// doc\nrecord R {\n /// doc\n x: bool\n y: string? }"),
-        )
+    fun `structure is no longer reported`() {
+        val src =
+            "namespace a\nimport b\nenum E { x }\nrecord R {\n  #1 f: list<E> = pending\n  g: b.T\n  reserved #2\n  record N { z: bool }\n}"
+        assertEquals(emptyList(), messages(src))
     }
 
     @Test
-    fun `reports each construct once at its span`() {
-        val source =
-            """
-            @sql(schema = "s")
-            namespace a
-            import b
-            alias A = string
-            enum E { x }
-            union U = R | E
-            record R {
-              @deprecated("d")
-              #1 f: string(max = 5) = "x"
-              g: list<string>
-              h: b.Thing
-              reserved #2
-              record N { z: bool }
-            }
-            """
-                .trimIndent()
+    fun `refinements and annotations are still reported`() {
+        val src =
+            "@sql(schema = \"s\")\nnamespace a\nrecord R {\n  @deprecated(\"d\")\n  f: string(max = 5)\n  g: list<int32(min = 0)>\n}"
         assertEquals(
             listOf(
                 "1: annotations are not supported yet (SCH-20)",
-                "3: imports are not supported yet (SCH-19)",
-                "4: aliases are not supported yet (SCH-20)",
-                "5: enums are not supported yet (SCH-20)",
-                "6: unions are not supported yet (SCH-20)",
-                "8: annotations are not supported yet (SCH-20)",
-                "9: explicit ordinals are not supported yet (SCH-22)",
-                "9: type refinements are not supported yet (SCH-20)",
-                "9: field defaults are not supported yet (SCH-20)",
-                "10: generic types are not supported yet (SCH-20)",
-                "11: qualified type names are not supported yet (SCH-19)",
-                "12: reserved statements are not supported yet (SCH-22)",
-                "13: nested declarations are not supported yet (SCH-19)",
+                "4: annotations are not supported yet (SCH-20)",
+                "5: type refinements are not supported yet (SCH-20)",
+                "6: type refinements are not supported yet (SCH-20)",
             ),
-            messages(source),
-        )
-    }
-
-    @Test
-    fun `reports every reserved item`() {
-        assertEquals(
-            listOf(
-                "3: reserved statements are not supported yet (SCH-22)",
-                "3: reserved statements are not supported yet (SCH-22)",
-                "4: reserved statements are not supported yet (SCH-22)",
-            ),
-            messages("namespace a\nrecord R {\n  reserved #2, \"old\"\n  reserved #5..#7\n}"),
+            messages(src),
         )
     }
 
     @Test
     fun `analyzer returns no schema when a construct is unsupported`() {
-        val file = Parser.parse("namespace a\nrecord R { #1 x: bool }", "t.schemata").file!!
-        val result = Analyzer.analyze(listOf(file))
-        assertNull(result.schema)
-        assertEquals(
-            "explicit ordinals are not supported yet (SCH-22)",
-            result.diagnostics.single().message,
-        )
+        val file = Parser.parse("namespace a\nrecord R { x: string(max = 1) }", "t.schemata").file!!
+        assertNull(Analyzer.analyze(listOf(file)).schema)
     }
 }
