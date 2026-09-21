@@ -4,7 +4,10 @@ import io.schemata.lang.Category
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 
-/** Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) is retired and must not be reused. */
+/**
+ * Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) is retired and must not be reused.
+ * `SCH1015`–`SCH1018` are held for the annotation registry (SCH-20).
+ */
 object CoreCodes {
     private fun error(id: String) = DiagnosticCode(id, Severity.ERROR, Category.SEMANTIC)
 
