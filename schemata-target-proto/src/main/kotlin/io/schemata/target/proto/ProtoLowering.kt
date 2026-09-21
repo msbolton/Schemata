@@ -1,5 +1,6 @@
 package io.schemata.target.proto
 
+import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
@@ -26,6 +27,12 @@ import io.schemata.target.Lowered
 object ProtoLowering {
     private const val TIMESTAMP = "google/protobuf/timestamp.proto"
     private const val DURATION = "google/protobuf/duration.proto"
+
+    /** The largest field number proto allows. */
+    private const val MAX_NUMBER = 536870911
+
+    /** Field numbers proto keeps for its own implementation. */
+    private val IMPLEMENTATION_NUMBERS = 19000..19999
 
     fun lower(schema: Schema): Lowered<ProtoModel> {
         val diagnostics = mutableListOf<Diagnostic>()
@@ -60,6 +67,14 @@ object ProtoLowering {
         private val imports = sortedSetOf<String>()
 
         fun lower(): ProtoFile {
+            ProtoNames.override(namespace.annotations, "package")?.let {
+                if (!ProtoNames.isPackage(it)) {
+                    invalidOverride(
+                        "namespace '${namespace.name}': @proto(package = \"$it\") is not a valid package name",
+                        namespace.span,
+                    )
+                }
+            }
             scope(namespace.declarations.flatMap { symbols(it) })
             val declarations = namespace.declarations.map { decl(it, emptyList()) }
             return ProtoFile(
@@ -87,18 +102,23 @@ object ProtoLowering {
 
         private fun record(record: RecordType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + record.name
+            val where = "record '${record.name}'"
+            nameOverride(where, record.annotations, record.nameSpan)
             scope(
                 record.nested.flatMap { symbols(it) } +
                     record.fields.map {
                         Symbol(ProtoNames.of(it), "field '${it.name}'", it.nameSpan)
                     }
             )
+            val fields = record.fields.map { field(record, it, here) }
+            val nested = record.nested.map { decl(it, here) }
+            reservedNumbers(where, record.reserved.ordinals, record.nameSpan, bounded = true)
             return ProtoMessage(
                 name = ProtoNames.of(record),
                 doc = record.doc,
-                fields = record.fields.map { field(record, it, here) },
+                fields = fields,
                 oneofs = emptyList(),
-                nested = record.nested.map { decl(it, here) },
+                nested = nested,
                 reserved = ProtoReserved(record.reserved.ordinals, record.reserved.names.sorted()),
                 deprecated = ProtoNames.deprecated(record.annotations),
             )
@@ -106,6 +126,8 @@ object ProtoLowering {
 
         private fun field(record: RecordType, field: Field, here: List<String>): ProtoField {
             val where = "field '${record.name}.${field.name}'"
+            nameOverride(where, field.annotations, field.nameSpan)
+            fieldNumber(where, field.ordinal, field.span)
             val mapped = map(field.type, field.nullable, where, field.span, here)
             val notes = mutableListOf<String>()
             if (mapped.lossy) notes += ProtoTypes.text(field.type, field.nullable)
@@ -126,6 +148,16 @@ object ProtoLowering {
         }
 
         private fun enum(enum: EnumType): ProtoEnum {
+            nameOverride("enum '${enum.name}'", enum.annotations, enum.nameSpan)
+            enum.values.forEach {
+                nameOverride("value '${enum.name}.${it.name}'", it.annotations, it.nameSpan)
+            }
+            reservedNumbers(
+                "enum '${enum.name}'",
+                enum.reserved.ordinals,
+                enum.nameSpan,
+                bounded = false,
+            )
             val name = ProtoNames.of(enum)
             val zero = ProtoNames.zeroValue(name)
             lossy(
@@ -157,6 +189,7 @@ object ProtoLowering {
 
         private fun union(union: UnionType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + union.name
+            nameOverride("union '${union.name}'", union.annotations, union.nameSpan)
             scope(
                 listOf(Symbol("kind", "the oneof", union.nameSpan)) +
                     union.members.map { member ->
@@ -168,6 +201,7 @@ object ProtoLowering {
                 union.members.map { member ->
                     val memberName = memberName(member.type)
                     val where = "member '${union.name}.$memberName'"
+                    fieldNumber(where, member.ordinal, member.span)
                     val mapped = map(member.type, nullable = false, where, member.span, here)
                     val notes =
                         if (mapped.lossy) listOf(ProtoTypes.text(member.type)) else emptyList()
@@ -378,6 +412,72 @@ object ProtoLowering {
 
         private fun lossy(message: String, span: Span) {
             diagnostics += Diagnostic(ProtoCodes.LOSSY, message, span)
+        }
+
+        private fun invalidOverride(message: String, span: Span) {
+            diagnostics += Diagnostic(ProtoCodes.INVALID_OVERRIDE, message, span)
+        }
+
+        /** Checks a `@proto(name)` override as written, before anything is named from it. */
+        private fun nameOverride(where: String, annotations: Annotations, span: Span) {
+            val value = ProtoNames.override(annotations, "name") ?: return
+            if (ProtoNames.isIdentifier(value)) return
+            invalidOverride("$where: @proto(name = \"$value\") is not a valid identifier", span)
+        }
+
+        private fun invalidNumber(message: String, span: Span) {
+            diagnostics += Diagnostic(ProtoCodes.INVALID_FIELD_NUMBER, message, span)
+        }
+
+        /** The numbers proto refuses for a field or a oneof member. */
+        private fun fieldNumber(where: String, number: Int, span: Span) {
+            if (number !in 1..MAX_NUMBER) {
+                invalidNumber(
+                    "$where: field number $number exceeds the Protobuf maximum $MAX_NUMBER",
+                    span,
+                )
+            }
+            if (number in IMPLEMENTATION_NUMBERS) {
+                invalidNumber(
+                    "$where: field number $number is reserved for the Protobuf implementation " +
+                        "(${IMPLEMENTATION_NUMBERS.first} to ${IMPLEMENTATION_NUMBERS.last})",
+                    span,
+                )
+            }
+        }
+
+        /**
+         * Reserved ranges proto refuses. [bounded] is false for an enum, whose values are not
+         * capped like field numbers. Overlaps are reported against the range that starts before.
+         */
+        private fun reservedNumbers(
+            where: String,
+            ranges: List<IntRange>,
+            span: Span,
+            bounded: Boolean,
+        ) {
+            ranges.forEach {
+                if (it.first < 1) {
+                    invalidNumber("$where: reserved number ${it.first} must be positive", span)
+                }
+                if (bounded && it.last > MAX_NUMBER) {
+                    invalidNumber(
+                        "$where: reserved number ${it.last} exceeds the Protobuf maximum $MAX_NUMBER",
+                        span,
+                    )
+                }
+            }
+            ranges
+                .sortedBy { it.first }
+                .zipWithNext { earlier, later ->
+                    if (later.first <= earlier.last) {
+                        invalidNumber(
+                            "$where: reserved range ${later.first} to ${later.last} overlaps " +
+                                "${earlier.first} to ${earlier.last}",
+                            span,
+                        )
+                    }
+                }
         }
 
         /** One symbol a proto scope holds; [span] is where a later duplicate is reported. */

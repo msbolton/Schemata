@@ -99,7 +99,13 @@ class ProtoLoweringTest {
             annotations,
         )
 
-    private fun union(ns: String, name: String, vararg members: Type, line: Int = 40) =
+    private fun union(
+        ns: String,
+        name: String,
+        vararg members: Type,
+        line: Int = 40,
+        annotations: Annotations = Annotations.NONE,
+    ) =
         UnionType(
             qn(ns, name),
             name,
@@ -108,6 +114,7 @@ class ProtoLoweringTest {
             null,
             at(line),
             at(line),
+            annotations,
         )
 
     private fun schema(vararg namespaces: Namespace) = Schema(namespaces.toList())
@@ -778,6 +785,77 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `invalid field numbers and reserved ranges are reported`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(19000, "a", Scalar(Builtin.BOOL), line = 11),
+                field(600000000, "b", Scalar(Builtin.BOOL), line = 12),
+                reserved = Reserved(listOf(0..0, 3..5, 4..4), emptySet()),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", r)))
+        assertEquals(
+            listOf(
+                "11 SCH2006 field 'R.a': field number 19000 is reserved for the Protobuf implementation (19000 to 19999)",
+                "12 SCH2006 field 'R.b': field number 600000000 exceeds the Protobuf maximum 536870911",
+                "3 SCH2006 record 'R': reserved number 0 must be positive",
+                "3 SCH2006 record 'R': reserved range 4 to 4 overlaps 3 to 5",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `proto overrides must be identifiers`() {
+        val e =
+            EnumType(
+                qn("corp", "E"),
+                "E",
+                listOf(EnumValue(1, "x", null, at(31), at(31), proto("name" to "A-B"))),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(30),
+                at(30),
+            )
+        val payment =
+            union(
+                "corp",
+                "Payment",
+                Scalar(Builtin.INT64),
+                line = 40,
+                annotations = proto("name" to "Pay"),
+            )
+        val r =
+            record(
+                "corp",
+                "R",
+                field(1, "sku", Scalar(Builtin.STRING), annotations = proto("name" to "1x")),
+                field(2, "pay", Ref(qn("corp", "Payment")), line = 12),
+                annotations = proto("name" to "Bad Name"),
+            )
+        val lowered =
+            ProtoLowering.lower(
+                schema(
+                    Namespace("corp", listOf(e, payment, r), at(1), proto("package" to "corp v1"))
+                )
+            )
+        assertEquals(
+            listOf(
+                "1 SCH2007 namespace 'corp': @proto(package = \"corp v1\") is not a valid package name",
+                "31 SCH2007 value 'E.x': @proto(name = \"A-B\") is not a valid identifier",
+                "3 SCH2007 record 'R': @proto(name = \"Bad Name\") is not a valid identifier",
+                "11 SCH2007 field 'R.sku': @proto(name = \"1x\") is not a valid identifier",
+            ),
+            messages(lowered).filter { "SCH2007" in it },
+        )
+        val file = lowered.model.files.single()
+        assertEquals("Pay", message(file, "Pay").name)
+        assertEquals(ProtoType.Named("Pay"), message(file, "Bad Name").fields[1].type)
+    }
+
+    @Test
     fun `two namespaces lowering to one package is an error`() {
         val lowered =
             ProtoLowering.lower(
@@ -820,7 +898,14 @@ class ProtoLoweringTest {
         assertEquals(
             listOf(
                 "package" to setOf(Element.NAMESPACE),
-                "name" to setOf(Element.RECORD, Element.ENUM, Element.FIELD, Element.ENUM_VALUE),
+                "name" to
+                    setOf(
+                        Element.RECORD,
+                        Element.ENUM,
+                        Element.UNION,
+                        Element.FIELD,
+                        Element.ENUM_VALUE,
+                    ),
             ),
             ProtoTarget.annotationSpecs.map { it.key to it.elements },
         )

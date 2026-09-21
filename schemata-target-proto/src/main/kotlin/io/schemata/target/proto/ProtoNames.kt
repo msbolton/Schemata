@@ -10,6 +10,7 @@ import io.schemata.core.ir.TypeDecl
 /** The proto target's naming rules: `@proto` overrides, enum-value prefixes, deprecation. */
 object ProtoNames {
     private val boundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+    private val identifier = Regex("[A-Za-z_][A-Za-z0-9_]*")
 
     /** `BankTransfer` → `bank_transfer`; a lowercase name is unchanged. */
     fun snakeCase(name: String): String = name.split(boundary).joinToString("_").lowercase()
@@ -35,6 +36,13 @@ object ProtoNames {
 
     fun deprecated(annotations: Annotations): Boolean = "deprecated" in annotations[""]
 
-    private fun override(annotations: Annotations, key: String): String? =
+    /** What proto accepts as a name: a letter or underscore, then letters, digits, underscores. */
+    fun isIdentifier(s: String): Boolean = identifier.matches(s)
+
+    /** A package is dot-separated identifiers. */
+    fun isPackage(s: String): Boolean = s.split('.').all { isIdentifier(it) }
+
+    /** The raw `@proto(<key>)` text, before any check that it is spellable in proto. */
+    fun override(annotations: Annotations, key: String): String? =
         (annotations["proto"][key] as? AnnotationValue.Str)?.value
 }

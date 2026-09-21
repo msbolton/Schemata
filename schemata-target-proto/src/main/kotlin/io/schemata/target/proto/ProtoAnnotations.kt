@@ -19,7 +19,13 @@ object ProtoAnnotations {
             AnnotationSpec(
                 "proto",
                 "name",
-                setOf(Element.RECORD, Element.ENUM, Element.FIELD, Element.ENUM_VALUE),
+                setOf(
+                    Element.RECORD,
+                    Element.ENUM,
+                    Element.UNION,
+                    Element.FIELD,
+                    Element.ENUM_VALUE,
+                ),
                 ValueKind.STRING,
                 Role.NAME,
             ),
