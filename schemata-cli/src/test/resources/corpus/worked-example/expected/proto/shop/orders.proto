@@ -35,15 +35,15 @@ message Payment {
 // A customer's order. One row per checkout.
 message Order {
   string id = 1;  // schemata: uuid
-  shop.customers.Customer customer = 2;
+  .shop.customers.Customer customer = 2;
   Status status = 3;  // schemata: default = pending
   repeated Line lines = 4;  // schemata: list<Line>(min = 1)
   string total = 5;  // schemata: decimal(19, 4)
   Payment payment = 6;
   Address shipping = 7;
-  google.protobuf.Timestamp placed_at = 8;
+  .google.protobuf.Timestamp placed_at = 8;
   optional string note = 9;  // schemata: string(max = 500)?
-  google.protobuf.Timestamp created = 10 [deprecated = true];
+  .google.protobuf.Timestamp created = 10 [deprecated = true];
 
   // One purchasable item.
   message Line {

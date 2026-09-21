@@ -5,7 +5,7 @@ package corp.orders.v1;
 import "corpus/people.proto";
 
 message Order {
-  corpus.people.Person customer = 1;
+  .corpus.people.Person customer = 1;
   repeated Line lines = 2;
   Order parent = 3;
   Note note = 4;
@@ -23,6 +23,6 @@ message Order {
 
 message Audit {
   Order.Line line = 1;
-  corpus.people.Person who = 2;
-  corpus.people.Person again = 3;
+  .corpus.people.Person who = 2;
+  .corpus.people.Person again = 3;
 }

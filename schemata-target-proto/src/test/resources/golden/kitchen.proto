@@ -32,11 +32,11 @@ message Order {
   option deprecated = true;
 
   string id = 1;  // schemata: uuid
-  shop.customers.Customer customer = 2;
+  .shop.customers.Customer customer = 2;
   optional Status status = 3;  // schemata: default = pending
   repeated Line lines = 4;
   map<string, int32> counts = 5;
-  google.protobuf.Timestamp placed_at = 6 [deprecated = true];
+  .google.protobuf.Timestamp placed_at = 6 [deprecated = true];
 
   message Line {
     int32 quantity = 1;

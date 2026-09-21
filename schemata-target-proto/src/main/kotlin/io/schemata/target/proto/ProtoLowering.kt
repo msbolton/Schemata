@@ -312,11 +312,11 @@ object ProtoLowering {
             return when (builtin) {
                 Builtin.INSTANT -> {
                     imports += TIMESTAMP
-                    ProtoType.Named("google.protobuf.Timestamp") to false
+                    ProtoType.Named(".google.protobuf.Timestamp") to false
                 }
                 Builtin.DURATION -> {
                     imports += DURATION
-                    ProtoType.Named("google.protobuf.Duration") to false
+                    ProtoType.Named(".google.protobuf.Duration") to false
                 }
                 else -> {
                     lossy(
@@ -341,15 +341,16 @@ object ProtoLowering {
 
         /**
          * Spells a reference as proto resolves it from a message at [here]: a nested type by its
-         * remaining path, a type in another package fully qualified (and imported), and a relative
-         * name a closer declaration would shadow by its package-qualified form.
+         * remaining path, a type in another package package-qualified with a leading dot, which
+         * proto resolves absolutely (and imported), and a relative name a closer declaration would
+         * shadow by that same absolute form.
          */
         private fun reference(target: QualifiedName, here: List<String>): ProtoType.Named {
             val path = protoPath(target)
             if (target.namespace != namespace.name) {
                 imports += target.namespace.replace('.', '/') + ".proto"
                 return ProtoType.Named(
-                    "${packages.getValue(target.namespace)}.${path.joinToString(".")}"
+                    ".${packages.getValue(target.namespace)}.${path.joinToString(".")}"
                 )
             }
             val common = here.zip(target.path).takeWhile { (a, b) -> a == b }.size
@@ -362,7 +363,7 @@ object ProtoLowering {
                         here.take(depth) + target.path.getOrNull(keep) != target.path.take(keep + 1)
                 }
             return ProtoType.Named(
-                if (shadowed) "${packages.getValue(namespace.name)}.${path.joinToString(".")}"
+                if (shadowed) ".${packages.getValue(namespace.name)}.${path.joinToString(".")}"
                 else relative.joinToString(".")
             )
         }

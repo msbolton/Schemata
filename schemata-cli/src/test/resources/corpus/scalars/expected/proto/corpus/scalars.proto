@@ -17,9 +17,9 @@ message Scalars {
   string i = 9;  // schemata: uuid
   string j = 10;  // schemata: date
   string k = 11;  // schemata: time
-  google.protobuf.Timestamp l = 12;
-  google.protobuf.Duration m = 13;
+  .google.protobuf.Timestamp l = 12;
+  .google.protobuf.Duration m = 13;
   optional string n = 14;  // schemata: string(max = 8, pattern = "^[a-z]+$")?
   int32 o = 15;  // schemata: int32(min = 0); default = 3
-  google.protobuf.Timestamp p = 16;
+  .google.protobuf.Timestamp p = 16;
 }

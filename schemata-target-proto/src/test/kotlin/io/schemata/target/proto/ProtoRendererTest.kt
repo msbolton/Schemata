@@ -118,7 +118,7 @@ class ProtoRendererTest {
                                 ProtoField(
                                     2,
                                     "customer",
-                                    ProtoType.Named("shop.customers.Customer"),
+                                    ProtoType.Named(".shop.customers.Customer"),
                                 ),
                                 ProtoField(
                                     3,
@@ -136,7 +136,7 @@ class ProtoRendererTest {
                                 ProtoField(
                                     6,
                                     "placed_at",
-                                    ProtoType.Named("google.protobuf.Timestamp"),
+                                    ProtoType.Named(".google.protobuf.Timestamp"),
                                     deprecated = true,
                                 ),
                             ),

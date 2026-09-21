@@ -191,8 +191,8 @@ class ProtoLoweringTest {
             file.imports,
         )
         val fields = message(file, "R").fields
-        assertEquals(ProtoType.Named("google.protobuf.Timestamp"), fields[0].type)
-        assertEquals(ProtoType.Named("google.protobuf.Duration"), fields[1].type)
+        assertEquals(ProtoType.Named(".google.protobuf.Timestamp"), fields[0].type)
+        assertEquals(ProtoType.Named(".google.protobuf.Duration"), fields[1].type)
         assertEquals(Label.NONE, fields[2].label) // message-typed: presence is inherent
     }
 
@@ -235,7 +235,7 @@ class ProtoLoweringTest {
             ProtoType.MapOf(ProtoType.Scalar("int64"), ProtoType.Named("Item")),
             fields[4].type,
         )
-        assertEquals(ProtoType.Named("google.protobuf.Timestamp"), fields[5].type)
+        assertEquals(ProtoType.Named(".google.protobuf.Timestamp"), fields[5].type)
         assertEquals(listOf("google/protobuf/timestamp.proto"), file.imports)
     }
 
@@ -297,12 +297,12 @@ class ProtoLoweringTest {
             listOf(
                 ProtoType.Named("Note"),
                 ProtoType.Named("Order"),
-                ProtoType.Named("people.v1.Person"),
+                ProtoType.Named(".people.v1.Person"),
             ),
             lineMessage.fields.map { it.type },
         )
         assertEquals(
-            listOf(ProtoType.Named("Order.Line"), ProtoType.Named("people.v1.Person")),
+            listOf(ProtoType.Named("Order.Line"), ProtoType.Named(".people.v1.Person")),
             message(a, "Audit").fields.map { it.type },
         )
         val b = files[1]
@@ -326,7 +326,7 @@ class ProtoLoweringTest {
         val card = record("a", "Card", field(1, "y", Scalar(Builtin.BOOL)))
         val file = ProtoLowering.lower(schema(ns("a", card, order))).model.files.single()
         assertEquals(
-            listOf(ProtoType.Named("a.Card"), ProtoType.Named("Card")),
+            listOf(ProtoType.Named(".a.Card"), ProtoType.Named("Card")),
             message(file, "Order").fields.map { it.type },
         )
     }
