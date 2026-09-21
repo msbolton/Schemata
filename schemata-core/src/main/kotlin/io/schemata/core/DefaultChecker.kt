@@ -133,7 +133,7 @@ object DefaultChecker {
                 val precision = r.precision
                 if (precision != null && scale != null) {
                     val normalized = value.stripTrailingZeros()
-                    val integerDigits = normalized.precision() - maxOf(normalized.scale(), 0)
+                    val integerDigits = normalized.precision() - normalized.scale()
                     if (integerDigits > precision - scale)
                         return violates(
                             "default ${value.toPlainString()} exceeds precision $precision",

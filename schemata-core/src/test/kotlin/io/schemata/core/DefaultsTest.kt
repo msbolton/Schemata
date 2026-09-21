@@ -79,6 +79,7 @@ class DefaultsTest {
                 "  n: bytes = \"b\"\n" +
                 "  o: map<string, int32> = 1\n" +
                 "  p: U = 1\n" +
+                "  q: decimal(2, 0) = 100\n" +
                 "}"
         val r = analyze(src)
         assertNull(r.schema)
@@ -100,6 +101,7 @@ class DefaultsTest {
                 "20:14 bytes fields cannot have a default",
                 "21:27 map fields cannot have a default",
                 "22:10 union fields cannot have a default",
+                "23:22 default 100 exceeds precision 2",
             ),
             messages(r),
         )
