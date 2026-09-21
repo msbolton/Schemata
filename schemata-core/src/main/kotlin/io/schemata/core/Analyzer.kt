@@ -85,6 +85,7 @@ object Analyzer {
                     analyzeDeclaration(
                         decl,
                         Scope(file, name, emptyList()),
+                        index,
                         resolver,
                         options,
                         diagnostics,
@@ -97,6 +98,7 @@ object Analyzer {
     private fun analyzeDeclaration(
         decl: Declaration,
         scope: Scope,
+        index: DeclarationIndex,
         resolver: Resolver,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
@@ -113,7 +115,7 @@ object Analyzer {
         val qualifiedName = QualifiedName(scope.namespace, scope.enclosing + decl.name)
         return when (decl) {
             is RecordDecl ->
-                analyzeRecord(decl, qualifiedName, scope, resolver, options, diagnostics)
+                analyzeRecord(decl, qualifiedName, scope, index, resolver, options, diagnostics)
             is EnumDecl -> analyzeEnum(decl, qualifiedName, options, diagnostics)
             is UnionDecl -> analyzeUnion(decl, qualifiedName, scope, resolver, options, diagnostics)
             is AliasDecl -> {
@@ -127,6 +129,7 @@ object Analyzer {
         record: RecordDecl,
         qualifiedName: QualifiedName,
         scope: Scope,
+        index: DeclarationIndex,
         resolver: Resolver,
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
@@ -148,7 +151,7 @@ object Analyzer {
             )
         val seenFields = mutableSetOf<String>()
         val fields =
-            record.fields.mapIndexedNotNull { index, field ->
+            record.fields.mapIndexedNotNull { i, field ->
                 if (!lowerSnake.matches(field.name)) {
                     diagnostics +=
                         error(
@@ -167,11 +170,14 @@ object Analyzer {
                 }
                 val resolved = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
                 Field(
-                    ordinal = ordinals[index],
+                    ordinal = ordinals[i],
                     name = field.name,
                     type = resolved.type,
                     nullable = resolved.nullable,
-                    default = null,
+                    default =
+                        field.default?.let {
+                            DefaultChecker.check(it, resolved.type, index, diagnostics)
+                        },
                     aliasName = resolved.aliasName,
                     doc = field.doc,
                     span = field.span,
@@ -180,7 +186,7 @@ object Analyzer {
             }
         val nested =
             record.nested.mapNotNull {
-                analyzeDeclaration(it, inner, resolver, options, diagnostics)
+                analyzeDeclaration(it, inner, index, resolver, options, diagnostics)
             }
         return RecordType(
             qualifiedName = qualifiedName,

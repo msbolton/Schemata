@@ -9,6 +9,7 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.StringValue
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Parser
 import io.schemata.lang.ast.SourceFile
@@ -301,10 +302,11 @@ class AnalyzerTest {
     }
 
     @Test
-    fun `carries docs through unchanged`() {
+    fun `carries docs and defaults through unchanged`() {
         val src = "namespace a\n/// about R\nrecord R {\n  /// about x\n  x: string = \"v\"\n}"
         val r = analyze(src).schema!!.lookup(qn("a", "R")) as RecordType
         assertEquals("about R", r.doc)
         assertEquals("about x", r.fields.single().doc)
+        assertEquals(StringValue("v"), r.fields.single().default)
     }
 }
