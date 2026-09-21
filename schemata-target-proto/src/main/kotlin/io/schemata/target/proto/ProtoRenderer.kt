@@ -122,6 +122,7 @@ object ProtoRenderer {
     }
 
     private fun StringBuilder.doc(doc: String?, indent: String) {
-        doc?.lines()?.forEach { appendLine("$indent// $it") }
+        // An empty doc line prints as a bare `//`: no trailing space survives.
+        doc?.lines()?.forEach { appendLine("$indent// $it".trimEnd()) }
     }
 }

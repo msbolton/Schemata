@@ -352,13 +352,23 @@ object ProtoLowering {
                     imports += DURATION
                     ProtoType.Named(".google.protobuf.Duration") to false
                 }
-                else -> {
+                Builtin.UUID,
+                Builtin.DECIMAL,
+                Builtin.DATE,
+                Builtin.TIME -> {
                     lossy(
                         "$where: ${builtin.typeName} has no Protobuf representation; lowered to string",
                         span,
                     )
                     ProtoType.Scalar("string") to true
                 }
+                Builtin.BOOL,
+                Builtin.INT32,
+                Builtin.INT64,
+                Builtin.FLOAT32,
+                Builtin.FLOAT64,
+                Builtin.STRING,
+                Builtin.BYTES -> error("unreachable: keyword builtins returned above")
             }
         }
 

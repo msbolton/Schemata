@@ -173,6 +173,44 @@ class ProtoRendererTest {
     }
 
     @Test
+    fun `a blank doc line renders as a bare comment marker`() {
+        val file =
+            ProtoFile(
+                path = "a.proto",
+                packageName = "a",
+                imports = emptyList(),
+                declarations =
+                    listOf(
+                        ProtoMessage(
+                            name = "Spaced",
+                            doc = "Line one.\n\nLine three.",
+                            fields = listOf(ProtoField(1, "x", scalar("bool"))),
+                            oneofs = emptyList(),
+                            nested = emptyList(),
+                            reserved = ProtoReserved.NONE,
+                        )
+                    ),
+            )
+        assertEquals(
+            """
+            syntax = "proto3";
+
+            package a;
+
+            // Line one.
+            //
+            // Line three.
+            message Spaced {
+              bool x = 1;
+            }
+
+            """
+                .trimIndent(),
+            ProtoRenderer.render(ProtoModel(listOf(file))).single().content,
+        )
+    }
+
+    @Test
     fun `renders one output per file in model order`() {
         val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user)))
         assertEquals(listOf("shop/customers.proto", "shop/orders.proto"), outs.map { it.path })
