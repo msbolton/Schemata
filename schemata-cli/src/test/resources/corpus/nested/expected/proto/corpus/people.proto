@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package corpus.people;
+
+message Person {
+  string name = 1;
+  repeated Person friends = 2;
+}

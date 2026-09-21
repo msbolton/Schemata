@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package shop.orders;
+
+import "google/protobuf/timestamp.proto";
+import "shop/customers.proto";
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PENDING = 1;
+  STATUS_PAID = 2;
+  STATUS_SHIPPED = 3;
+  STATUS_CANCELLED = 4;
+}
+
+message Card {
+  string last4 = 1;  // schemata: string(max = 4)
+  string brand = 2;  // schemata: string(max = 32)
+}
+
+message BankTransfer {
+  string iban = 1;  // schemata: string(max = 34)
+}
+
+message Cash {}
+
+message Payment {
+  oneof kind {
+    Card card = 1;
+    BankTransfer bank_transfer = 2;
+    Cash cash = 3;
+  }
+}
+
+// A customer's order. One row per checkout.
+message Order {
+  string id = 1;  // schemata: uuid
+  shop.customers.Customer customer = 2;
+  Status status = 3;  // schemata: default = pending
+  repeated Line lines = 4;  // schemata: list<Line>(min = 1)
+  string total = 5;  // schemata: decimal(19, 4)
+  Payment payment = 6;
+  Address shipping = 7;
+  google.protobuf.Timestamp placed_at = 8;
+  optional string note = 9;  // schemata: string(max = 500)?
+  google.protobuf.Timestamp created = 10 [deprecated = true];
+
+  // One purchasable item.
+  message Line {
+    string sku = 1;  // schemata: string(max = 64)
+    int32 quantity = 2;  // schemata: int32(min = 1)
+    string price = 3;  // schemata: decimal(19, 4)
+  }
+
+  message Address {
+    string street = 1;  // schemata: string(max = 200)
+    string city = 2;  // schemata: string(max = 100)
+    string country = 3;  // schemata: string(min = 2, max = 2)
+  }
+
+  reserved 11;
+  reserved "legacy_ref";
+}

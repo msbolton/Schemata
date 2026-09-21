@@ -1,0 +1,27 @@
+@proto(package = "corp.orders.v1")
+namespace corpus.orders
+
+import corpus.people
+
+record Order {
+  #1 customer: Person
+  #2 lines: list<Line>
+  #3 parent: Order?
+  #4 note: Note
+
+  record Line {
+    #1 sku: string
+    #2 gift: Note
+    #3 order: Order
+  }
+
+  record Note {
+    #1 text: string
+  }
+}
+
+record Audit {
+  #1 line: Order.Line
+  #2 who: Person
+  #3 again: corpus.people.Person
+}

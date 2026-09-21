@@ -1,0 +1,26 @@
+namespace corpus.variants
+
+/// Payment status.
+enum Status {
+  /// Not yet paid.
+  #1 pending
+  #2 paid
+  @deprecated("use paid")
+  #3 settled
+  @proto(name = "CANCELLED_BY_USER")
+  #4 cancelled
+  reserved #5..#6, "old_status"
+}
+
+record Card { #1 last4: string(max = 4) }
+record Cash {}
+
+/// How the customer paid.
+union Payment = #1 Card | #2 Cash | #3 uuid | #4 string(max = 5)
+
+record Order {
+  #1 payment: Payment
+  #2 fallback: Payment?
+  #3 history: list<Payment>
+  #4 status: Status = pending
+}

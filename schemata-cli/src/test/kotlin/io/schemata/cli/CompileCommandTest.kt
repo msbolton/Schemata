@@ -68,6 +68,26 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `the worked example compiles to proto with exit 0 and warnings on stderr`() {
+        val dir = Files.createTempDirectory("schemata-cli")
+        val src = dir.resolve("src").createDirectories()
+        val corpus = java.io.File("src/test/resources/corpus/worked-example")
+        src.resolve("orders.schemata").writeText(corpus.resolve("orders.schemata").readText())
+        src.resolve("customers.schemata").writeText(corpus.resolve("customers.schemata").readText())
+        val out = dir.resolve("out")
+        val result = CompileCommand().test("--target proto --out $out $src")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertEquals(
+            corpus.resolve("expected/proto/shop/orders.proto").readText(),
+            out.resolve("proto/shop/orders.proto").readText(),
+        )
+        assertTrue(
+            result.stderr.lines().count { it.startsWith("warning (lossy) [SCH2001]") } == 17,
+            result.stderr,
+        )
+    }
+
+    @Test
     fun `exits 1 and reports the file and position on a syntax error`() {
         val dir = Files.createTempDirectory("schemata-cli")
         val input =
