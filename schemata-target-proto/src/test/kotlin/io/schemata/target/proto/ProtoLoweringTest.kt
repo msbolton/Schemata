@@ -703,6 +703,17 @@ class ProtoLoweringTest {
                 at(30),
                 at(30),
             )
+        val f =
+            EnumType(
+                qn("a", "F"),
+                "F",
+                listOf(EnumValue(1, "x", null, at(36), at(36), proto("name" to "E_X"))),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(35),
+                at(35),
+            )
         val u = union("a", "U", Ref(qn("a", "Kind")), Ref(qn("a", "Kind2")), line = 40)
         val kind = record("a", "Kind", field(1, "x", Scalar(Builtin.BOOL)), line = 50)
         val kind2 =
@@ -713,16 +724,54 @@ class ProtoLoweringTest {
                 line = 52,
                 annotations = proto("name" to "Kind"),
             )
-        val lowered = ProtoLowering.lower(schema(ns("a", a, b, c, e, u, kind, kind2)))
+        val g =
+            record(
+                "a",
+                "G",
+                field(
+                    1,
+                    "line",
+                    Scalar(Builtin.BOOL),
+                    line = 62,
+                    annotations = proto("name" to "Line"),
+                ),
+                nested =
+                    listOf(
+                        record(
+                            "a",
+                            "Line",
+                            field(1, "q", Scalar(Builtin.BOOL)),
+                            path = listOf("G", "Line"),
+                            line = 61,
+                        )
+                    ),
+                line = 60,
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", a, b, c, kind, kind2, e, f, u, g)))
         assertEquals(
             listOf(
                 "6 SCH2004 proto name 'Same' is already used by record 'A' (orders.schemata:3)",
                 "52 SCH2004 proto name 'Kind' is already used by record 'Kind' (orders.schemata:50)",
-                "12 SCH2004 proto name 'N' is already used by record 'In1' (orders.schemata:10)",
-                "16 SCH2004 proto name 'p' is already used by field 'p' (orders.schemata:15)",
                 "31 SCH2004 proto name 'E_UNSPECIFIED' is already used by the synthesized zero value",
                 "33 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
+                "36 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
+                "12 SCH2004 proto name 'N' is already used by record 'In1' (orders.schemata:10)",
+                "16 SCH2004 proto name 'p' is already used by field 'p' (orders.schemata:15)",
                 "41 SCH2004 proto name 'kind' is already used by the oneof",
+                "62 SCH2004 proto name 'Line' is already used by record 'Line' (orders.schemata:61)",
+            ),
+            messages(lowered).filter { "SCH2004" in it },
+        )
+    }
+
+    @Test
+    fun `enum values collide across sibling enums because proto scopes them at the package`() {
+        val payment = enum("a", "Payment", "method_card", line = 30)
+        val method = enum("a", "PaymentMethod", "card", line = 40)
+        val lowered = ProtoLowering.lower(schema(ns("a", payment, method)))
+        assertEquals(
+            listOf(
+                "41 SCH2004 proto name 'PAYMENT_METHOD_CARD' is already used by value 'method_card' (orders.schemata:31)"
             ),
             messages(lowered).filter { "SCH2004" in it },
         )
@@ -734,11 +783,11 @@ class ProtoLoweringTest {
             ProtoLowering.lower(
                 schema(
                     ns("a.x", annotations = proto("package" to "p")),
-                    ns("b.y", annotations = proto("package" to "p")),
+                    Namespace("b.y", emptyList(), at(7), proto("package" to "p")),
                 )
             )
         assertEquals(
-            listOf("1 SCH2004 namespaces a.x and b.y both lower to package 'p'"),
+            listOf("7 SCH2004 namespaces a.x and b.y both lower to package 'p'"),
             messages(lowered),
         )
     }
