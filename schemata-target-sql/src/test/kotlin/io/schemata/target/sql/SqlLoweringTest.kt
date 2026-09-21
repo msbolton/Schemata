@@ -1,9 +1,14 @@
 package io.schemata.target.sql
 
+import io.schemata.core.annotations.Element
+import io.schemata.core.annotations.ValueKind
+import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
@@ -21,6 +26,7 @@ import io.schemata.lang.Span
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SqlLoweringTest {
     private fun at(file: String, line: Int) = Span(file, line, 1, line, 30)
@@ -226,5 +232,64 @@ class SqlLoweringTest {
                 at("o.schemata", 3),
             )
         assertEquals(emptyList(), SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics)
+    }
+
+    private val tagged = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag)))
+
+    @Test
+    fun `annotations on a namespace, record, or field are reported`() {
+        val r =
+            record("a", "R", field(1, "a", Scalar(Builtin.BOOL)).copy(annotations = tagged))
+                .copy(annotations = tagged)
+        val ns = namespace("a", r).copy(annotations = tagged)
+        val ds = SqlLowering.lower(Schema(listOf(ns))).diagnostics
+        assertEquals(
+            listOf(
+                "1 SCH2104 target 'sql' cannot lower annotations yet (SCH-31)",
+                "3 SCH2104 target 'sql' cannot lower annotations yet (SCH-31)",
+                "11 SCH2104 field 'R.a': target 'sql' cannot lower annotations yet (SCH-31)",
+            ),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `a default is reported before an unsupported type`() {
+        val r = record("a", "R", field(1, "n", Scalar(Builtin.INT64), default = IntValue(1)))
+        val ds = SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics
+        assertEquals(
+            listOf("11 SCH2104 field 'R.n': target 'sql' cannot lower field defaults yet (SCH-32)"),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `the target declares the whole sql key table`() {
+        val specs = SqlTarget.annotationSpecs
+        assertTrue(specs.all { it.target == "sql" })
+        assertEquals(
+            listOf(
+                "column",
+                "index",
+                "key",
+                "key",
+                "schema",
+                "strategy",
+                "table",
+                "type",
+                "unique",
+            ),
+            specs.map { it.key }.sorted(),
+        )
+        val keyOnField = specs.single { it.key == "key" && Element.FIELD in it.elements }
+        val keyOnRecord = specs.single { it.key == "key" && Element.RECORD in it.elements }
+        assertEquals(ValueKind.FLAG, keyOnField.valueKind)
+        assertEquals(ValueKind.NAME_TUPLE, keyOnRecord.valueKind)
+        val strategy = specs.single { it.key == "strategy" }
+        assertEquals(
+            ValueKind.NAME to setOf("embed", "table", "json"),
+            strategy.valueKind to strategy.choices,
+        )
+        assertEquals(setOf(Element.NAMESPACE), specs.single { it.key == "schema" }.elements)
     }
 }

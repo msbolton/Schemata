@@ -7,6 +7,7 @@ import io.schemata.target.Target
 
 object SqlTarget : Target<RelationalModel> {
     override val name = "sql"
+    override val annotationSpecs = SqlAnnotations.specs
 
     override fun lower(schema: Schema): Lowered<RelationalModel> = SqlLowering.lower(schema)
 
