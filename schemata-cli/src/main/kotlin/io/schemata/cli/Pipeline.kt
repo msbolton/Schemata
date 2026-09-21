@@ -38,13 +38,17 @@ object Pipeline {
     fun compile(
         sources: List<SourceInput>,
         targets: List<Target<*>>,
-        options: AnalysisOptions = AnalysisOptions(annotations = annotations),
+        strict: Boolean = false,
     ): PipelineResult {
         val parsed = sources.map { Parser.parse(it.content, it.path) }
         val parseDiagnostics = parsed.flatMap { it.diagnostics }
         if (parseDiagnostics.hasErrors) return PipelineResult(emptyList(), parseDiagnostics)
 
-        val analyzed = Analyzer.analyze(parsed.map { it.file!! }, options)
+        val analyzed =
+            Analyzer.analyze(
+                parsed.map { it.file!! },
+                AnalysisOptions(strictOrdinals = strict, annotations = annotations),
+            )
         val diagnostics = parseDiagnostics + analyzed.diagnostics
         val schema = analyzed.schema ?: return PipelineResult(emptyList(), diagnostics)
 
