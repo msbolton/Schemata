@@ -6,190 +6,295 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
 
 /**
- * Lowers flat records over `bool`, `int32`, `string`, and `uuid`. Every other IR shape is reported
- * at its span with the ticket that will lower it; the `when`s are exhaustive so a new IR shape
- * fails to compile here rather than being guessed at.
+ * Lowers every IR shape to a [ProtoModel]. Each decision that loses information is reported once as
+ * [ProtoCodes.LOSSY] at the construct's span and recorded in the field's note; references are
+ * spelled as proto resolves them from where they are used, and imports follow from them.
  */
 object ProtoLowering {
+    private const val TIMESTAMP = "google/protobuf/timestamp.proto"
+    private const val DURATION = "google/protobuf/duration.proto"
+
     fun lower(schema: Schema): Lowered<ProtoModel> {
         val diagnostics = mutableListOf<Diagnostic>()
-        val files = schema.namespaces.map { lower(it, diagnostics) }
+        val packages = schema.namespaces.associate { it.name to ProtoNames.packageOf(it) }
+        val files =
+            schema.namespaces.map { FileLowering(schema, packages, it, diagnostics).lower() }
         return Lowered(ProtoModel(files), diagnostics)
     }
 
-    private fun lower(namespace: Namespace, diagnostics: MutableList<Diagnostic>): ProtoFile {
-        if (!namespace.annotations.isEmpty) {
-            unsupported(
-                "annotations",
-                "SCH-23",
-                namespace.span,
-                diagnostics,
-                code = ProtoCodes.UNSUPPORTED_VALUE,
+    private class Mapped(val type: ProtoType, val label: Label, val lossy: Boolean)
+
+    private class FileLowering(
+        private val schema: Schema,
+        private val packages: Map<String, String>,
+        private val namespace: Namespace,
+        private val diagnostics: MutableList<Diagnostic>,
+    ) {
+        private val imports = sortedSetOf<String>()
+
+        fun lower(): ProtoFile {
+            val declarations = namespace.declarations.map { decl(it, emptyList()) }
+            return ProtoFile(
+                path = namespace.name.replace('.', '/') + ".proto",
+                packageName = packages.getValue(namespace.name),
+                imports = imports.toList(),
+                declarations = declarations,
             )
         }
-        return ProtoFile(
-            path = namespace.name.replace('.', '/') + ".proto",
-            packageName = namespace.name,
-            imports = emptyList(),
-            declarations = namespace.declarations.mapNotNull { lower(it, diagnostics) },
-        )
-    }
 
-    private fun lower(decl: TypeDecl, diagnostics: MutableList<Diagnostic>): ProtoMessage? =
-        when (decl) {
-            is RecordType -> {
-                if (decl.reserved != Reserved.NONE) {
-                    unsupported("reserved ordinals and names", "SCH-24", decl.nameSpan, diagnostics)
-                }
-                if (!decl.annotations.isEmpty) {
-                    unsupported(
-                        "annotations",
-                        "SCH-23",
-                        decl.nameSpan,
-                        diagnostics,
-                        code = ProtoCodes.UNSUPPORTED_VALUE,
+        /** [enclosing] is the Schemata path of the records this declaration sits inside. */
+        private fun decl(decl: TypeDecl, enclosing: List<String>): ProtoDecl =
+            when (decl) {
+                is RecordType -> record(decl, enclosing)
+                is EnumType -> enum(decl)
+                is UnionType -> union(decl, enclosing)
+            }
+
+        private fun record(record: RecordType, enclosing: List<String>): ProtoMessage {
+            val here = enclosing + record.name
+            return ProtoMessage(
+                name = ProtoNames.of(record),
+                doc = record.doc,
+                fields = record.fields.map { field(record, it, here) },
+                oneofs = emptyList(),
+                nested = record.nested.map { decl(it, here) },
+                reserved = ProtoReserved(record.reserved.ordinals, record.reserved.names.sorted()),
+                deprecated = ProtoNames.deprecated(record.annotations),
+            )
+        }
+
+        private fun field(record: RecordType, field: Field, here: List<String>): ProtoField {
+            val where = "field '${record.name}.${field.name}'"
+            val mapped = map(field.type, field.nullable, where, field.span, here)
+            val notes = mutableListOf<String>()
+            if (mapped.lossy) notes += ProtoTypes.text(field.type, field.nullable)
+            return ProtoField(
+                number = field.ordinal,
+                name = ProtoNames.of(field),
+                type = mapped.type,
+                label = mapped.label,
+                doc = field.doc,
+                notes = notes,
+                deprecated = ProtoNames.deprecated(field.annotations),
+            )
+        }
+
+        private fun enum(enum: EnumType): ProtoEnum {
+            val name = ProtoNames.of(enum)
+            val zero = ProtoNames.zeroValue(name)
+            val values =
+                listOf(ProtoEnumValue(zero, 0)) +
+                    enum.values.map {
+                        ProtoEnumValue(
+                            ProtoNames.of(name, it),
+                            it.ordinal,
+                            it.doc,
+                            ProtoNames.deprecated(it.annotations),
+                        )
+                    }
+            return ProtoEnum(
+                name = name,
+                doc = enum.doc,
+                values = values,
+                reserved =
+                    ProtoReserved(
+                        enum.reserved.ordinals,
+                        enum.reserved.names.sorted().map { ProtoNames.valueName(name, it) },
+                    ),
+                deprecated = ProtoNames.deprecated(enum.annotations),
+            )
+        }
+
+        private fun union(union: UnionType, enclosing: List<String>): ProtoMessage {
+            val here = enclosing + union.name
+            val members =
+                union.members.map { member ->
+                    val memberName = memberName(member.type)
+                    val where = "member '${union.name}.$memberName'"
+                    val mapped = map(member.type, nullable = false, where, member.span, here)
+                    val notes =
+                        if (mapped.lossy) listOf(ProtoTypes.text(member.type)) else emptyList()
+                    ProtoField(
+                        member.ordinal,
+                        memberName,
+                        mapped.type,
+                        Label.NONE,
+                        member.doc,
+                        notes,
                     )
                 }
-                val fields = decl.fields.mapNotNull { lower(decl, it, diagnostics) }
-                decl.nested.forEach {
-                    unsupported("nested declarations", "SCH-24", it.nameSpan, diagnostics)
-                }
-                ProtoMessage(decl.name, null, fields, emptyList(), emptyList(), ProtoReserved.NONE)
-            }
-            is EnumType -> {
-                unsupported("enums", "SCH-24", decl.nameSpan, diagnostics)
-                null
-            }
-            is UnionType -> {
-                unsupported("unions", "SCH-24", decl.nameSpan, diagnostics)
-                null
-            }
-        }
-
-    private fun lower(
-        record: RecordType,
-        field: Field,
-        diagnostics: MutableList<Diagnostic>,
-    ): ProtoField? {
-        val where = "field '${record.name}.${field.name}'"
-        if (field.default != null) {
-            diagnostics +=
-                Diagnostic(
-                    ProtoCodes.UNSUPPORTED_VALUE,
-                    "$where: target 'proto' cannot lower field defaults yet (SCH-25)",
-                    field.span,
-                )
-            return null
-        }
-        if (field.type.hasRefinements()) {
-            diagnostics +=
-                Diagnostic(
-                    ProtoCodes.UNSUPPORTED_VALUE,
-                    "$where: target 'proto' cannot lower type refinements yet (SCH-23)",
-                    field.span,
-                )
-            return null
-        }
-        if (!field.annotations.isEmpty) {
-            unsupported(
-                "annotations",
-                "SCH-23",
-                field.span,
-                diagnostics,
-                where,
-                ProtoCodes.UNSUPPORTED_VALUE,
+            return ProtoMessage(
+                name = ProtoNames.of(union),
+                doc = union.doc,
+                fields = emptyList(),
+                oneofs = listOf(ProtoOneof("kind", null, members)),
+                nested = emptyList(),
+                reserved = ProtoReserved.NONE,
+                deprecated = ProtoNames.deprecated(union.annotations),
             )
-            return null
         }
-        val (scalar, loweredFrom) =
-            when (val type = field.type) {
-                is Scalar ->
-                    when (type.builtin) {
-                        Builtin.BOOL -> ProtoType.Scalar("bool") to null
-                        Builtin.INT32 -> ProtoType.Scalar("int32") to null
-                        Builtin.STRING -> ProtoType.Scalar("string") to null
-                        Builtin.UUID -> {
-                            diagnostics +=
-                                Diagnostic(
-                                    ProtoCodes.LOSSY,
-                                    "$where: uuid has no Protobuf representation; lowered to string",
-                                    field.span,
-                                )
-                            ProtoType.Scalar("string") to "uuid"
-                        }
-                        Builtin.INT64,
-                        Builtin.FLOAT32,
-                        Builtin.FLOAT64,
-                        Builtin.DECIMAL,
-                        Builtin.BYTES,
-                        Builtin.DATE,
-                        Builtin.TIME,
-                        Builtin.INSTANT,
-                        Builtin.DURATION -> {
-                            unsupported(
-                                type.builtin.typeName,
-                                "SCH-23",
-                                field.span,
-                                diagnostics,
-                                where,
-                            )
-                            return null
-                        }
+
+        private fun memberName(type: Type): String =
+            when (type) {
+                is Scalar -> type.builtin.typeName
+                is Ref -> ProtoNames.snakeCase(type.target.simpleName)
+                is ListOf,
+                is MapOf ->
+                    error(
+                        "union members are named types or scalars; the analyzer rejects collections"
+                    )
+            }
+
+        /** Maps a field's or member's type; [nullable] is the field's own `?`. */
+        private fun map(
+            type: Type,
+            nullable: Boolean,
+            where: String,
+            span: Span,
+            here: List<String>,
+        ): Mapped {
+            var lossy = false
+            val (proto, label) =
+                when (type) {
+                    is Scalar -> {
+                        val (scalar, isLossy) = scalar(type.builtin, where, span)
+                        lossy = lossy || isLossy
+                        val label =
+                            if (nullable && scalar is ProtoType.Scalar) Label.OPTIONAL
+                            else Label.NONE
+                        scalar to label
                     }
-                is Ref -> {
-                    unsupported("record references", "SCH-24", field.span, diagnostics, where)
-                    return null
+                    is Ref ->
+                        reference(type.target, here) to
+                            (if (nullable && isEnum(type.target)) Label.OPTIONAL else Label.NONE)
+                    is ListOf -> {
+                        val element =
+                            element(type.element, type, where, span, here) { lossy = true }
+                        element to Label.REPEATED
+                    }
+                    is MapOf -> {
+                        val key =
+                            ProtoType.Scalar(ProtoTypes.keyword((type.key as Scalar).builtin)!!)
+                        val value = element(type.value, type, where, span, here) { lossy = true }
+                        ProtoType.MapOf(key, value) to Label.NONE
+                    }
                 }
-                is ListOf -> {
-                    unsupported("lists", "SCH-24", field.span, diagnostics, where)
-                    return null
+            return Mapped(proto, label, lossy)
+        }
+
+        /** The element of a list or the value of a map. Collections do not nest in proto. */
+        private fun element(
+            element: Type,
+            owner: Type,
+            where: String,
+            span: Span,
+            here: List<String>,
+            markLossy: () -> Unit,
+        ): ProtoType =
+            when (element) {
+                is Scalar -> {
+                    val (scalar, isLossy) = scalar(element.builtin, where, span)
+                    if (isLossy) markLossy()
+                    scalar
                 }
-                is MapOf -> {
-                    unsupported("maps", "SCH-24", field.span, diagnostics, where)
-                    return null
+                is Ref -> reference(element.target, here)
+                is ListOf,
+                is MapOf -> nested(owner, where, span)
+            }
+
+        /**
+         * Placeholder for a nested collection; a later change reports it as
+         * [ProtoCodes.UNSUPPORTED_NESTING]. Never rendered once it is an error.
+         */
+        private fun nested(owner: Type, where: String, span: Span): ProtoType =
+            ProtoType.Scalar("bytes")
+
+        /** @return the proto type and whether the mapping lost information. */
+        private fun scalar(builtin: Builtin, where: String, span: Span): Pair<ProtoType, Boolean> {
+            ProtoTypes.keyword(builtin)?.let {
+                return ProtoType.Scalar(it) to false
+            }
+            return when (builtin) {
+                Builtin.INSTANT -> {
+                    imports += TIMESTAMP
+                    ProtoType.Named("google.protobuf.Timestamp") to false
+                }
+                Builtin.DURATION -> {
+                    imports += DURATION
+                    ProtoType.Named("google.protobuf.Duration") to false
+                }
+                else -> {
+                    lossy(
+                        "$where: ${builtin.typeName} has no Protobuf representation; lowered to string",
+                        span,
+                    )
+                    ProtoType.Scalar("string") to true
                 }
             }
-        return ProtoField(
-            number = field.ordinal,
-            name = field.name,
-            type = scalar,
-            label = if (field.nullable) Label.OPTIONAL else Label.NONE,
-            notes = listOfNotNull(loweredFrom),
-        )
-    }
-
-    private fun Type.hasRefinements(): Boolean =
-        when (this) {
-            is Scalar -> refinements.hasBounds
-            is ListOf -> refinements.hasBounds || element.hasRefinements()
-            is MapOf -> refinements.hasBounds || key.hasRefinements() || value.hasRefinements()
-            is Ref -> false
         }
 
-    private fun unsupported(
-        what: String,
-        ticket: String,
-        span: Span,
-        diagnostics: MutableList<Diagnostic>,
-        where: String? = null,
-        code: DiagnosticCode = ProtoCodes.UNSUPPORTED_SHAPE,
-    ) {
-        val prefix = where?.let { "$it: " } ?: ""
-        diagnostics +=
-            Diagnostic(code, "${prefix}target 'proto' cannot lower $what yet ($ticket)", span)
+        private fun isEnum(target: QualifiedName): Boolean = schema.lookup(target) is EnumType
+
+        /**
+         * Proto-named segments of a declaration's path: `Order.Line` with any `@proto(name)`
+         * applied.
+         */
+        private fun protoPath(target: QualifiedName): List<String> =
+            (1..target.path.size).map { n ->
+                ProtoNames.of(schema.lookup(QualifiedName(target.namespace, target.path.take(n))))
+            }
+
+        /**
+         * Spells a reference as proto resolves it from a message at [here]: a nested type by its
+         * remaining path, a type in another package fully qualified (and imported), and a relative
+         * name a closer declaration would shadow by its package-qualified form.
+         */
+        private fun reference(target: QualifiedName, here: List<String>): ProtoType.Named {
+            val path = protoPath(target)
+            if (target.namespace != namespace.name) {
+                imports += target.namespace.replace('.', '/') + ".proto"
+                return ProtoType.Named(
+                    "${packages.getValue(target.namespace)}.${path.joinToString(".")}"
+                )
+            }
+            val common = here.zip(target.path).takeWhile { (a, b) -> a == b }.size
+            val keep = if (common == target.path.size) common - 1 else common
+            val relative = path.drop(keep)
+            val shadowed =
+                (keep + 1..here.size).any { depth ->
+                    val scope = schema.lookup(QualifiedName(namespace.name, here.take(depth)))
+                    scope.nested.any { ProtoNames.of(it) == relative.first() } &&
+                        here.take(depth) + target.path.getOrNull(keep) != target.path.take(keep + 1)
+                }
+            return ProtoType.Named(
+                if (shadowed) "${packages.getValue(namespace.name)}.${path.joinToString(".")}"
+                else relative.joinToString(".")
+            )
+        }
+
+        private fun Type.hasRefinements(): Boolean =
+            when (this) {
+                is Scalar -> refinements.hasBounds
+                is ListOf -> refinements.hasBounds || element.hasRefinements()
+                is MapOf -> refinements.hasBounds || key.hasRefinements() || value.hasRefinements()
+                is Ref -> false
+            }
+
+        private fun lossy(message: String, span: Span) {
+            diagnostics += Diagnostic(ProtoCodes.LOSSY, message, span)
+        }
     }
 }

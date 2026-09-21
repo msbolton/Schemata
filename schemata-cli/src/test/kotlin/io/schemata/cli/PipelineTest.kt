@@ -107,6 +107,6 @@ class PipelineTest {
             )
         val result = Pipeline.compile(listOf(src), listOf(ProtoTarget))
         assertTrue(result.diagnostics.none { it.code.id.startsWith("SCH1") })
-        assertEquals(setOf("SCH2003"), result.diagnostics.map { it.code.id }.toSet())
+        assertEquals(setOf("SCH2001"), result.diagnostics.map { it.code.id }.toSet())
     }
 }

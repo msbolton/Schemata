@@ -124,7 +124,7 @@ class WorkedExampleTest {
     }
 
     @Test
-    fun `targets report only what they cannot lower yet`() {
+    fun `sql still reports the shapes it cannot lower yet`() {
         val result =
             Pipeline.compile(
                 listOf(
@@ -134,9 +134,12 @@ class WorkedExampleTest {
                 Pipeline.targets,
             )
         assertTrue(result.hasErrors)
-        assertEquals(emptyList(), result.files)
         assertEquals(
-            setOf("SCH2001", "SCH2002", "SCH2003", "SCH2103", "SCH2104"),
+            listOf("shop/customers.proto", "shop/orders.proto"),
+            result.files.map { it.file.path },
+        )
+        assertEquals(
+            setOf("SCH2001", "SCH2103", "SCH2104"),
             result.diagnostics.map { it.code.id }.toSet(),
         )
     }
