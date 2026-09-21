@@ -16,7 +16,12 @@ record Card { #1 last4: string(max = 4) }
 record Cash {}
 
 /// How the customer paid.
-union Payment = #1 Card | #2 Cash | #3 uuid | #4 string(max = 5)
+union Payment =
+  /// Paid by card.
+  #1 Card |
+  #2 Cash |
+  #3 uuid |
+  #4 string(max = 5)
 
 record Order {
   #1 payment: Payment

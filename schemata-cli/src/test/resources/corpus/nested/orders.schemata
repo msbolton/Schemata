@@ -8,6 +8,7 @@ record Order {
   #2 lines: list<Line>
   #3 parent: Order?
   #4 note: Note
+  #5 kind: Kind
 
   record Line {
     #1 sku: string
@@ -18,10 +19,13 @@ record Order {
   record Note {
     #1 text: string
   }
+
+  enum Kind { #1 retail, #2 wholesale }
 }
 
 record Audit {
   #1 line: Order.Line
   #2 who: Person
   #3 again: corpus.people.Person
+  #4 kind: Order.Kind
 }

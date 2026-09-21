@@ -24,6 +24,7 @@ message Cash {}
 // How the customer paid.
 message Payment {
   oneof kind {
+    // Paid by card.
     Card card = 1;
     Cash cash = 2;
     string uuid = 3;  // schemata: uuid
