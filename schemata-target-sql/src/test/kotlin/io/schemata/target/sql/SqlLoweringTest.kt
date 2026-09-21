@@ -13,10 +13,12 @@ import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.StringValue
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.Value
 import io.schemata.lang.Span
-import io.schemata.lang.ast.Literal
+import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -28,7 +30,7 @@ class SqlLoweringTest {
         name: String,
         type: Type,
         nullable: Boolean = false,
-        default: Literal? = null,
+        default: Value? = null,
     ) =
         Field(
             ordinal,
@@ -164,12 +166,7 @@ class SqlLoweringTest {
                 field(2, "ref", Ref(leaf.qualifiedName)),
                 field(3, "when", Scalar(Builtin.INSTANT)),
                 field(4, "many", ListOf(Scalar(Builtin.STRING), false)),
-                field(
-                    5,
-                    "dflt",
-                    Scalar(Builtin.STRING),
-                    default = Literal.StringLit("x", at("o.schemata", 15)),
-                ),
+                field(5, "dflt", Scalar(Builtin.STRING), default = StringValue("x")),
                 nested = listOf(inner),
                 line = 10,
             )
@@ -197,8 +194,12 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(1, "s", Scalar(Builtin.STRING, Refinements(max = 5))),
-                field(2, "l", ListOf(Scalar(Builtin.STRING, Refinements(max = 5)), false)),
+                field(1, "s", Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(5)))),
+                field(
+                    2,
+                    "l",
+                    ListOf(Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(5))), false),
+                ),
             )
         val ds = SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics
         assertEquals(

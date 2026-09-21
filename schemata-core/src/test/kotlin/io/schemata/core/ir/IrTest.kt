@@ -1,10 +1,12 @@
 package io.schemata.core.ir
 
 import io.schemata.lang.Span
+import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class IrTest {
     private val at = Span("t", 1, 1, 1, 1)
@@ -88,5 +90,53 @@ class IrTest {
     @Test
     fun `refinements default to empty`() {
         assertEquals(Refinements(), Scalar(Builtin.STRING).refinements)
+    }
+
+    @Test
+    fun `refinements and annotations have empty sentinels`() {
+        assertEquals(Refinements(), Refinements.NONE)
+        assertTrue(Refinements.NONE.isEmpty)
+        assertEquals(false, Refinements(max = BigDecimal.ONE).isEmpty)
+        assertTrue(Annotations.NONE.isEmpty)
+        assertEquals(emptyMap(), Annotations.NONE["sql"])
+        val a = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag)))
+        assertEquals(mapOf("key" to AnnotationValue.Flag), a["sql"])
+        assertEquals(emptyMap(), a["proto"])
+    }
+
+    @Test
+    fun `every builtin declares the refinements it accepts`() {
+        assertEquals(setOf("min", "max", "pattern"), Builtin.STRING.refinementKeys)
+        assertEquals(setOf("min", "max"), Builtin.DECIMAL.refinementKeys)
+        assertEquals(emptySet(), Builtin.BOOL.refinementKeys)
+        assertEquals(emptySet(), Builtin.INSTANT.refinementKeys)
+        Builtin.entries.forEach {
+            assertTrue(
+                it.refinementKeys.all { key -> key in setOf("min", "max", "pattern") },
+                it.name,
+            )
+        }
+    }
+
+    @Test
+    fun `a field carries a checked default and its annotations`() {
+        val f =
+            Field(
+                1,
+                "status",
+                Ref(QualifiedName("a", listOf("Status"))),
+                nullable = false,
+                default = EnumRef(QualifiedName("a", listOf("Status")), "pending"),
+                aliasName = null,
+                doc = null,
+                span = at,
+                nameSpan = at,
+                annotations =
+                    Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Str("x")))),
+            )
+        assertEquals(EnumRef(QualifiedName("a", listOf("Status")), "pending"), f.default)
+        assertEquals(AnnotationValue.Str("x"), f.annotations[""]["deprecated"])
+        assertEquals(Annotations.NONE, order.annotations)
+        assertEquals(Annotations.NONE, order.fields[0].annotations)
     }
 }

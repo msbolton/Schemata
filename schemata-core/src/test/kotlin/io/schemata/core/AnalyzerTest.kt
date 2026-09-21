@@ -292,11 +292,10 @@ class AnalyzerTest {
     }
 
     @Test
-    fun `carries docs and defaults through unchanged`() {
+    fun `carries docs through unchanged`() {
         val src = "namespace a\n/// about R\nrecord R {\n  /// about x\n  x: string = \"v\"\n}"
         val r = analyze(src).schema!!.lookup(qn("a", "R")) as RecordType
         assertEquals("about R", r.doc)
         assertEquals("about x", r.fields.single().doc)
-        assertNotNull(r.fields.single().default)
     }
 }

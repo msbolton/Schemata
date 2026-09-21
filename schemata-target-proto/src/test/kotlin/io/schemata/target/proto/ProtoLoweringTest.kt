@@ -14,14 +14,16 @@ import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.StringValue
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.Value
 import io.schemata.lang.Category
 import io.schemata.lang.Severity
 import io.schemata.lang.Span
-import io.schemata.lang.ast.Literal
+import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -33,7 +35,7 @@ class ProtoLoweringTest {
         name: String,
         type: Type,
         nullable: Boolean = false,
-        default: Literal? = null,
+        default: Value? = null,
         line: Int = 10 + ordinal,
     ) = Field(ordinal, name, type, nullable, default, null, null, at(line), at(line))
 
@@ -158,13 +160,7 @@ class ProtoLoweringTest {
                     MapOf(Scalar(Builtin.STRING), Scalar(Builtin.BOOL), false),
                     line = 15,
                 ),
-                field(
-                    6,
-                    "dflt",
-                    Scalar(Builtin.STRING),
-                    default = Literal.StringLit("x", at(16)),
-                    line = 16,
-                ),
+                field(6, "dflt", Scalar(Builtin.STRING), default = StringValue("x"), line = 16),
                 nested = listOf(inner),
                 line = 10,
             )
@@ -221,11 +217,16 @@ class ProtoLoweringTest {
             record(
                 "a",
                 "R",
-                field(1, "s", Scalar(Builtin.STRING, Refinements(max = 5)), line = 11),
+                field(
+                    1,
+                    "s",
+                    Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(5))),
+                    line = 11,
+                ),
                 field(
                     2,
                     "l",
-                    ListOf(Scalar(Builtin.STRING, Refinements(max = 5)), false),
+                    ListOf(Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(5))), false),
                     line = 12,
                 ),
             )

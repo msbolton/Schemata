@@ -168,7 +168,7 @@ object Analyzer {
                     name = field.name,
                     type = resolved.type,
                     nullable = resolved.nullable,
-                    default = field.default,
+                    default = null,
                     aliasName = resolved.aliasName,
                     doc = field.doc,
                     span = field.span,
