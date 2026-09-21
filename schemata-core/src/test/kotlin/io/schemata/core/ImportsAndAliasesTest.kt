@@ -133,6 +133,25 @@ class ImportsAndAliasesTest {
     }
 
     @Test
+    fun `a local declaration wins over an import alias of the same name`() {
+        val legacy = "legacy.schemata" to "namespace shop.legacy\nrecord Address { old: bool }"
+        val orders =
+            "orders.schemata" to
+                "namespace shop.orders\nimport shop.legacy as Order\nrecord Order {\n  a: Order.Address\n  record Address { city: string }\n}\nrecord R { b: Order.Address }"
+        val r = analyze(legacy, orders)
+        assertEquals(listOf("orders.schemata:2:1 import 'shop.legacy' is unused"), messages(r))
+        val local = Ref(qn("shop.orders", "Order", "Address"))
+        assertEquals(
+            local,
+            (r.schema!!.lookup(qn("shop.orders", "Order")) as RecordType).fields.single().type,
+        )
+        assertEquals(
+            local,
+            (r.schema!!.lookup(qn("shop.orders", "R")) as RecordType).fields.single().type,
+        )
+    }
+
+    @Test
     fun `alias cycles and double nullability are errors`() {
         val src =
             "namespace a\nalias A = B\nalias B = A\nalias N = string?\nrecord R { x: A  y: N? }"

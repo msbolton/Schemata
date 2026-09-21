@@ -172,9 +172,6 @@ class Resolver(
         enclosing(head, scope)?.let {
             return descend(it, parts.drop(1), at)
         }
-        aliased(parts, scope, at)?.let {
-            return it
-        }
         val candidates =
             listOfNotNull(index.find(QualifiedName(scope.namespace, listOf(head)))) +
                 imported(head, scope)
@@ -188,6 +185,9 @@ class Resolver(
         }
         candidates.singleOrNull()?.let {
             return descend(it, parts.drop(1), at)
+        }
+        aliased(parts, scope, at)?.let {
+            return it
         }
         qualified(parts, at)?.let {
             return it
