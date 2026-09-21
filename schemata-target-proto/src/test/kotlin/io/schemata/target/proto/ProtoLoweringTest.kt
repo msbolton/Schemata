@@ -98,25 +98,45 @@ class ProtoLoweringTest {
 
     @Test
     fun `maps scalars and keeps ordinals as field numbers`() {
-        val fields = ProtoLowering.lower(schema).model.files[1].messages.single().fields
+        val fields =
+            ProtoLowering.lower(schema)
+                .model
+                .files[1]
+                .declarations
+                .filterIsInstance<ProtoMessage>()
+                .single()
+                .fields
         assertEquals(listOf(1, 2, 3, 4, 5), fields.map { it.number })
         assertEquals(
             listOf(
-                ProtoScalar.STRING,
-                ProtoScalar.STRING,
-                ProtoScalar.STRING,
-                ProtoScalar.INT32,
-                ProtoScalar.BOOL,
+                ProtoType.Scalar("string"),
+                ProtoType.Scalar("string"),
+                ProtoType.Scalar("string"),
+                ProtoType.Scalar("int32"),
+                ProtoType.Scalar("bool"),
             ),
             fields.map { it.type },
         )
-        assertEquals(listOf(false, true, false, false, false), fields.map { it.optional })
+        assertEquals(
+            listOf(false, true, false, false, false),
+            fields.map { it.label == Label.OPTIONAL },
+        )
     }
 
     @Test
     fun `uuid lowers to string and is reported as lossy at the field's span`() {
         val lowered = ProtoLowering.lower(schema)
-        assertEquals("uuid", lowered.model.files[1].messages.single().fields.first().loweredFrom)
+        assertEquals(
+            "uuid",
+            lowered.model.files[1]
+                .declarations
+                .filterIsInstance<ProtoMessage>()
+                .single()
+                .fields
+                .first()
+                .notes
+                .single(),
+        )
         val d = lowered.diagnostics.single()
         assertEquals(Category.LOSSY, d.category)
         assertEquals(
@@ -188,7 +208,10 @@ class ProtoLoweringTest {
             lowered.diagnostics.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
         )
         assertEquals(listOf(Severity.ERROR), lowered.diagnostics.map { it.severity }.distinct())
-        val message = lowered.model.files.single().messages.single { it.name == "R" }
+        val message =
+            lowered.model.files.single().declarations.filterIsInstance<ProtoMessage>().single {
+                it.name == "R"
+            }
         assertEquals(listOf("ok"), message.fields.map { it.name })
     }
 

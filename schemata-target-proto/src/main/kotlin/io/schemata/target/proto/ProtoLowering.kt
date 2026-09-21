@@ -44,7 +44,8 @@ object ProtoLowering {
         return ProtoFile(
             path = namespace.name.replace('.', '/') + ".proto",
             packageName = namespace.name,
-            messages = namespace.declarations.mapNotNull { lower(it, diagnostics) },
+            imports = emptyList(),
+            declarations = namespace.declarations.mapNotNull { lower(it, diagnostics) },
         )
     }
 
@@ -67,7 +68,7 @@ object ProtoLowering {
                 decl.nested.forEach {
                     unsupported("nested declarations", "SCH-24", it.nameSpan, diagnostics)
                 }
-                ProtoMessage(decl.name, fields)
+                ProtoMessage(decl.name, null, fields, emptyList(), emptyList(), ProtoReserved.NONE)
             }
             is EnumType -> {
                 unsupported("enums", "SCH-24", decl.nameSpan, diagnostics)
@@ -118,17 +119,17 @@ object ProtoLowering {
             when (val type = field.type) {
                 is Scalar ->
                     when (type.builtin) {
-                        Builtin.BOOL -> ProtoScalar.BOOL to null
-                        Builtin.INT32 -> ProtoScalar.INT32 to null
-                        Builtin.STRING -> ProtoScalar.STRING to null
+                        Builtin.BOOL -> ProtoType.Scalar("bool") to null
+                        Builtin.INT32 -> ProtoType.Scalar("int32") to null
+                        Builtin.STRING -> ProtoType.Scalar("string") to null
                         Builtin.UUID -> {
                             diagnostics +=
                                 Diagnostic(
-                                    ProtoCodes.LOSSY_UUID,
+                                    ProtoCodes.LOSSY,
                                     "$where: uuid has no Protobuf representation; lowered to string",
                                     field.span,
                                 )
-                            ProtoScalar.STRING to "uuid"
+                            ProtoType.Scalar("string") to "uuid"
                         }
                         Builtin.INT64,
                         Builtin.FLOAT32,
@@ -166,8 +167,8 @@ object ProtoLowering {
             number = field.ordinal,
             name = field.name,
             type = scalar,
-            optional = field.nullable,
-            loweredFrom = loweredFrom,
+            label = if (field.nullable) Label.OPTIONAL else Label.NONE,
+            notes = listOfNotNull(loweredFrom),
         )
     }
 

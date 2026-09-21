@@ -7,44 +7,28 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class ProtoRendererTest {
+    private fun scalar(keyword: String) = ProtoType.Scalar(keyword)
+
     private val user =
         ProtoFile(
             path = "shop/orders.proto",
             packageName = "shop.orders",
-            messages =
+            imports = emptyList(),
+            declarations =
                 listOf(
                     ProtoMessage(
-                        "User",
-                        listOf(
-                            ProtoField(
-                                1,
-                                "id",
-                                ProtoScalar.STRING,
-                                optional = false,
-                                loweredFrom = "uuid",
+                        name = "User",
+                        doc = null,
+                        fields =
+                            listOf(
+                                ProtoField(1, "id", scalar("string"), notes = listOf("uuid")),
+                                ProtoField(2, "email", scalar("string"), label = Label.OPTIONAL),
+                                ProtoField(3, "name", scalar("string")),
+                                ProtoField(4, "age", scalar("int32")),
                             ),
-                            ProtoField(
-                                2,
-                                "email",
-                                ProtoScalar.STRING,
-                                optional = true,
-                                loweredFrom = null,
-                            ),
-                            ProtoField(
-                                3,
-                                "name",
-                                ProtoScalar.STRING,
-                                optional = false,
-                                loweredFrom = null,
-                            ),
-                            ProtoField(
-                                4,
-                                "age",
-                                ProtoScalar.INT32,
-                                optional = false,
-                                loweredFrom = null,
-                            ),
-                        ),
+                        oneofs = emptyList(),
+                        nested = emptyList(),
+                        reserved = ProtoReserved.NONE,
                     )
                 ),
         )
@@ -53,28 +37,139 @@ class ProtoRendererTest {
         ProtoFile(
             path = "shop/customers.proto",
             packageName = "shop.customers",
-            messages =
+            imports = emptyList(),
+            declarations =
                 listOf(
                     ProtoMessage(
                         "Customer",
-                        listOf(
-                            ProtoField(
-                                1,
-                                "name",
-                                ProtoScalar.STRING,
-                                optional = false,
-                                loweredFrom = null,
-                            )
-                        ),
+                        null,
+                        listOf(ProtoField(1, "name", scalar("string"))),
+                        emptyList(),
+                        emptyList(),
+                        ProtoReserved.NONE,
                     )
                 ),
         )
 
+    /** Every construct the renderer prints, in one file. */
+    private val kitchen =
+        ProtoFile(
+            path = "shop/kitchen.proto",
+            packageName = "shop.kitchen",
+            imports = listOf("google/protobuf/timestamp.proto", "shop/customers.proto"),
+            declarations =
+                listOf(
+                    ProtoEnum(
+                        name = "Status",
+                        doc = "Every construct the renderer prints.",
+                        values =
+                            listOf(
+                                ProtoEnumValue("STATUS_UNSPECIFIED", 0),
+                                ProtoEnumValue("STATUS_PENDING", 1, doc = "Waiting."),
+                                ProtoEnumValue("STATUS_PAID", 2, deprecated = true),
+                            ),
+                        reserved = ProtoReserved(listOf(3..3, 5..7), listOf("STATUS_OLD")),
+                    ),
+                    ProtoMessage(
+                        "Card",
+                        null,
+                        emptyList(),
+                        emptyList(),
+                        emptyList(),
+                        ProtoReserved.NONE,
+                    ),
+                    ProtoMessage(
+                        name = "Payment",
+                        doc = null,
+                        fields = emptyList(),
+                        oneofs =
+                            listOf(
+                                ProtoOneof(
+                                    "kind",
+                                    null,
+                                    listOf(
+                                        ProtoField(1, "card", ProtoType.Named("Card")),
+                                        ProtoField(
+                                            2,
+                                            "cash",
+                                            scalar("string"),
+                                            notes = listOf("string(max = 5)"),
+                                        ),
+                                    ),
+                                )
+                            ),
+                        nested = emptyList(),
+                        reserved = ProtoReserved.NONE,
+                    ),
+                    ProtoMessage(
+                        "Empty",
+                        null,
+                        emptyList(),
+                        emptyList(),
+                        emptyList(),
+                        ProtoReserved.NONE,
+                    ),
+                    ProtoMessage(
+                        name = "Order",
+                        doc = "An order.",
+                        fields =
+                            listOf(
+                                ProtoField(1, "id", scalar("string"), notes = listOf("uuid")),
+                                ProtoField(
+                                    2,
+                                    "customer",
+                                    ProtoType.Named("shop.customers.Customer"),
+                                ),
+                                ProtoField(
+                                    3,
+                                    "status",
+                                    ProtoType.Named("Status"),
+                                    Label.OPTIONAL,
+                                    notes = listOf("default = pending"),
+                                ),
+                                ProtoField(4, "lines", ProtoType.Named("Line"), Label.REPEATED),
+                                ProtoField(
+                                    5,
+                                    "counts",
+                                    ProtoType.MapOf(scalar("string"), scalar("int32")),
+                                ),
+                                ProtoField(
+                                    6,
+                                    "placed_at",
+                                    ProtoType.Named("google.protobuf.Timestamp"),
+                                    deprecated = true,
+                                ),
+                            ),
+                        oneofs = emptyList(),
+                        nested =
+                            listOf(
+                                ProtoMessage(
+                                    "Line",
+                                    null,
+                                    listOf(ProtoField(1, "quantity", scalar("int32"))),
+                                    emptyList(),
+                                    emptyList(),
+                                    ProtoReserved.NONE,
+                                )
+                            ),
+                        reserved = ProtoReserved(listOf(11..11), listOf("legacy_ref")),
+                        deprecated = true,
+                    ),
+                ),
+        )
+
     @Test
-    fun `renders the golden file`() {
+    fun `renders the phase 1 golden unchanged`() {
         val out = ProtoRenderer.render(ProtoModel(listOf(user))).single()
         assertEquals("shop/orders.proto", out.path)
         Golden.assertMatches("user.proto", out.content)
+    }
+
+    @Test
+    fun `renders every construct`() {
+        val out = ProtoRenderer.render(ProtoModel(listOf(kitchen))).single()
+        assertEquals("shop/kitchen.proto", out.path)
+        Golden.assertMatches("kitchen.proto", out.content)
     }
 
     @Test
@@ -84,8 +179,8 @@ class ProtoRendererTest {
     }
 
     @Test
-    fun `rendered output compiles under protoc`() {
-        val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user)))
+    fun `rendered output compiles under protoc, well-known types included`() {
+        val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user, kitchen)))
         assertNull(Protoc.compile(outs.associate { it.path to it.content }))
     }
 
