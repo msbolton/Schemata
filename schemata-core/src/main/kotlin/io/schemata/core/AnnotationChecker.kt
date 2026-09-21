@@ -123,7 +123,7 @@ class AnnotationChecker(
                     .joinToString(", ") { it.displayName }
             report(
                 CoreCodes.ANNOTATION_ELEMENT,
-                "$display is not allowed on a ${element.displayName}; allowed on: $allowed",
+                "$display is not allowed on ${element.article} ${element.displayName}; allowed on: $allowed",
                 span,
             )
             return

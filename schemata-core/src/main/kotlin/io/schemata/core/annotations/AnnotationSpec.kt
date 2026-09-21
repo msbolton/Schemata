@@ -1,14 +1,14 @@
 package io.schemata.core.annotations
 
-/** What an annotation may decorate. */
-enum class Element(val displayName: String) {
-    NAMESPACE("namespace"),
-    RECORD("record"),
-    ENUM("enum"),
-    UNION("union"),
-    ALIAS("alias"),
-    FIELD("field"),
-    ENUM_VALUE("enum value"),
+/** What an annotation may decorate. [article] is the indefinite article for [displayName]. */
+enum class Element(val displayName: String, val article: String) {
+    NAMESPACE("namespace", "a"),
+    RECORD("record", "a"),
+    ENUM("enum", "an"),
+    UNION("union", "a"),
+    ALIAS("alias", "an"),
+    FIELD("field", "a"),
+    ENUM_VALUE("enum value", "an"),
 }
 
 enum class ValueKind {

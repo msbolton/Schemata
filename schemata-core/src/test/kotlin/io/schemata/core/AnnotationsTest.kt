@@ -180,6 +180,24 @@ class AnnotationsTest {
     }
 
     @Test
+    fun `alias annotations are checked and then dropped`() {
+        val clean =
+            analyze(
+                "t.schemata" to
+                    "namespace a\n@deprecated(\"x\")\nalias A = string\nrecord R { x: A }"
+            )
+        assertEquals(emptyList(), messages(clean))
+        val bad =
+            analyze("t.schemata" to "namespace a\n@sql(key)\nalias A = string\nrecord R { x: A }")
+        assertEquals(
+            listOf(
+                "t.schemata:2:6 @sql(key) is not allowed on an alias; allowed on: record, field"
+            ),
+            messages(bad),
+        )
+    }
+
+    @Test
     fun `the default registry knows only core keys`() {
         val file =
             Parser.parse("namespace a\nrecord R {\n  @sql(key)\n  x: bool\n}", "t.schemata").file!!
