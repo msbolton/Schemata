@@ -8,8 +8,10 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
@@ -21,6 +23,7 @@ import io.schemata.target.Lowered
  * Lowers flat records over `bool`, `int32`, `string`, and `uuid`. Every other IR shape is reported
  * at its span with the ticket that will lower it; the `when`s are exhaustive so a new IR shape
  * fails to compile here rather than being guessed at. Nesting strategy is decided in SCH-28.
+ * `reserved` ordinals and names have no relational meaning and are accepted without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -75,6 +78,15 @@ object SqlLowering {
                 )
             return null
         }
+        if (field.type.hasRefinements()) {
+            diagnostics +=
+                Diagnostic(
+                    SqlCodes.UNSUPPORTED_VALUE,
+                    "$where: target 'sql' cannot lower type refinements yet (SCH-31)",
+                    field.span,
+                )
+            return null
+        }
         val type =
             when (val t = field.type) {
                 is Scalar ->
@@ -117,6 +129,15 @@ object SqlLowering {
             }
         return Column(field.name, type, field.nullable)
     }
+
+    private fun Type.hasRefinements(): Boolean =
+        when (this) {
+            is Scalar -> refinements != Refinements()
+            is ListOf -> refinements != Refinements() || element.hasRefinements()
+            is MapOf ->
+                refinements != Refinements() || key.hasRefinements() || value.hasRefinements()
+            is Ref -> false
+        }
 
     private fun unsupported(
         what: String,

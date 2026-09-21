@@ -9,6 +9,7 @@ import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
@@ -188,5 +189,41 @@ class SqlLoweringTest {
             listOf("ok"),
             lowered.model.schemas.single().tables.single { it.name == "r" }.columns.map { it.name },
         )
+    }
+
+    @Test
+    fun `refinements anywhere in a type are reported`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "s", Scalar(Builtin.STRING, Refinements(max = 5))),
+                field(2, "l", ListOf(Scalar(Builtin.STRING, Refinements(max = 5)), false)),
+            )
+        val ds = SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics
+        assertEquals(
+            listOf(
+                "11 SCH2104 field 'R.s': target 'sql' cannot lower type refinements yet (SCH-31)",
+                "12 SCH2104 field 'R.l': target 'sql' cannot lower type refinements yet (SCH-31)",
+            ),
+            ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `reserved is accepted without diagnostics`() {
+        val r =
+            RecordType(
+                QualifiedName("a", listOf("R")),
+                "R",
+                listOf(field(1, "x", Scalar(Builtin.STRING))),
+                Reserved(listOf(2..2), setOf("old")),
+                false,
+                emptyList(),
+                null,
+                at("o.schemata", 3),
+                at("o.schemata", 3),
+            )
+        assertEquals(emptyList(), SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics)
     }
 }
