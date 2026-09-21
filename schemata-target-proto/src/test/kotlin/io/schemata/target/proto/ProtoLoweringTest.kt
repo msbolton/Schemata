@@ -3,22 +3,29 @@ package io.schemata.target.proto
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
+import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.Value
+import io.schemata.lang.Category
 import io.schemata.lang.Span
+import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -36,9 +43,10 @@ class ProtoLoweringTest {
         name: String,
         type: Type,
         nullable: Boolean = false,
+        default: Value? = null,
         line: Int = 10 + ordinal,
         annotations: Annotations = Annotations.NONE,
-    ) = Field(ordinal, name, type, nullable, null, null, null, at(line), at(line), annotations)
+    ) = Field(ordinal, name, type, nullable, default, null, null, at(line), at(line), annotations)
 
     private fun record(
         ns: String,
@@ -89,9 +97,7 @@ class ProtoLoweringTest {
         UnionType(
             qn(ns, name),
             name,
-            members.mapIndexed { i, t ->
-                io.schemata.core.ir.UnionMember(i + 1, t, null, at(line + 1 + i))
-            },
+            members.mapIndexed { i, t -> UnionMember(i + 1, t, null, at(line + 1 + i)) },
             emptyList(),
             null,
             at(line),
@@ -105,6 +111,9 @@ class ProtoLoweringTest {
         vararg decls: TypeDecl,
         annotations: Annotations = Annotations.NONE,
     ) = Namespace(name, decls.toList(), at(1), annotations)
+
+    private fun messages(lowered: io.schemata.target.Lowered<ProtoModel>) =
+        lowered.diagnostics.map { "${it.span.startLine} ${it.code.id} ${it.message}" }
 
     private fun message(file: ProtoFile, name: String) =
         file.declarations.first { it.name == name } as ProtoMessage
@@ -438,6 +447,136 @@ class ProtoLoweringTest {
         assertEquals(
             listOf("sku_code" to ProtoType.Scalar("string"), "s" to ProtoType.Named("State")),
             message(file, "Item").fields.map { it.name to it.type },
+        )
+    }
+
+    @Test
+    fun `lossy scalars are lowered to string, warned once, and noted with the type text`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID)),
+                field(2, "total", Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4))),
+                field(3, "day", Scalar(Builtin.DATE), nullable = true),
+                field(4, "tod", Scalar(Builtin.TIME)),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", r)))
+        val fields = message(lowered.model.files.single(), "R").fields
+        assertTrue(fields.all { it.type == ProtoType.Scalar("string") })
+        assertEquals(
+            listOf(Label.NONE, Label.NONE, Label.OPTIONAL, Label.NONE),
+            fields.map { it.label },
+        )
+        assertEquals(
+            listOf(listOf("uuid"), listOf("decimal(19, 4)"), listOf("date?"), listOf("time")),
+            fields.map { it.notes },
+        )
+        assertEquals(
+            listOf(
+                "11 SCH2001 field 'R.id': uuid has no Protobuf representation; lowered to string",
+                "12 SCH2001 field 'R.total': decimal has no Protobuf representation; lowered to string",
+                "13 SCH2001 field 'R.day': date has no Protobuf representation; lowered to string",
+                "14 SCH2001 field 'R.tod': time has no Protobuf representation; lowered to string",
+            ),
+            messages(lowered),
+        )
+        assertTrue(lowered.diagnostics.all { it.category == Category.LOSSY })
+    }
+
+    @Test
+    fun `refinements, defaults, and nullable collections are lossy in a fixed order`() {
+        val big = BigDecimal.valueOf(5)
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "s", Scalar(Builtin.STRING, Refinements(max = big)), nullable = true),
+                field(
+                    2,
+                    "n",
+                    Scalar(Builtin.INT32, Refinements(min = BigDecimal.ZERO)),
+                    default = IntValue(3),
+                ),
+                field(
+                    3,
+                    "l",
+                    ListOf(
+                        Scalar(Builtin.STRING, Refinements(max = big)),
+                        true,
+                        Refinements(max = big),
+                    ),
+                    nullable = true,
+                ),
+                field(
+                    4,
+                    "m",
+                    MapOf(Scalar(Builtin.STRING), Scalar(Builtin.UUID), true),
+                    nullable = true,
+                ),
+                field(
+                    5,
+                    "d",
+                    Scalar(
+                        Builtin.DECIMAL,
+                        Refinements(min = BigDecimal.ONE, precision = 5, scale = 1),
+                    ),
+                    default = IntValue(2),
+                ),
+                field(6, "e", Ref(qn("a", "E")), default = EnumRef(qn("a", "E"), "x")),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", enum("a", "E", "x"), r)))
+        val fields = message(lowered.model.files.single(), "R").fields
+        assertEquals(
+            listOf(
+                listOf("string(max = 5)?"),
+                listOf("int32(min = 0)", "default = 3"),
+                listOf("list<string(max = 5)?>(max = 5)?"),
+                listOf("map<string, uuid?>?"),
+                listOf("decimal(5, 1, min = 1)", "default = 2"),
+                listOf("default = x"),
+            ),
+            fields.map { it.notes },
+        )
+        assertEquals(
+            listOf(
+                "30 SCH2001 enum 'E': proto3 requires a zero value; synthesized E_UNSPECIFIED = 0",
+                "11 SCH2001 field 'R.s': refinements on string(max = 5) are not enforced by Protobuf",
+                "12 SCH2001 field 'R.n': refinements on int32(min = 0) are not enforced by Protobuf",
+                "12 SCH2001 field 'R.n': default 3 is not carried by proto3",
+                "13 SCH2001 field 'R.l': refinements on list<string(max = 5)?>(max = 5) are not enforced by Protobuf",
+                "13 SCH2001 field 'R.l': a nullable list has no Protobuf representation; lowered to repeated",
+                "13 SCH2001 field 'R.l': nullable list elements have no Protobuf representation; lowered to repeated",
+                "14 SCH2001 field 'R.m': a nullable map has no Protobuf representation; lowered to map",
+                "14 SCH2001 field 'R.m': nullable map values have no Protobuf representation; lowered to map",
+                "14 SCH2001 field 'R.m': uuid has no Protobuf representation; lowered to string",
+                "15 SCH2001 field 'R.d': refinements on decimal(5, 1, min = 1) are not enforced by Protobuf",
+                "15 SCH2001 field 'R.d': decimal has no Protobuf representation; lowered to string",
+                "15 SCH2001 field 'R.d': default 2 is not carried by proto3",
+                "16 SCH2001 field 'R.e': default x is not carried by proto3",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `a refined scalar union member is lossy like a field`() {
+        val u =
+            union(
+                "a",
+                "U",
+                Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(5))),
+                Scalar(Builtin.UUID),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", u)))
+        val members = message(lowered.model.files.single(), "U").oneofs.single().fields
+        assertEquals(listOf(listOf("string(max = 5)"), listOf("uuid")), members.map { it.notes })
+        assertEquals(
+            listOf(
+                "41 SCH2001 member 'U.string': refinements on string(max = 5) are not enforced by Protobuf",
+                "42 SCH2001 member 'U.uuid': uuid has no Protobuf representation; lowered to string",
+            ),
+            messages(lowered),
         )
     }
 }

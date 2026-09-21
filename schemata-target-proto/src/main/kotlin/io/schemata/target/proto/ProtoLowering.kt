@@ -81,6 +81,11 @@ object ProtoLowering {
             val mapped = map(field.type, field.nullable, where, field.span, here)
             val notes = mutableListOf<String>()
             if (mapped.lossy) notes += ProtoTypes.text(field.type, field.nullable)
+            field.default?.let {
+                val text = ProtoTypes.text(it)
+                lossy("$where: default $text is not carried by proto3", field.span)
+                notes += "default = $text"
+            }
             return ProtoField(
                 number = field.ordinal,
                 name = ProtoNames.of(field),
@@ -95,6 +100,10 @@ object ProtoLowering {
         private fun enum(enum: EnumType): ProtoEnum {
             val name = ProtoNames.of(enum)
             val zero = ProtoNames.zeroValue(name)
+            lossy(
+                "enum '${enum.name}': proto3 requires a zero value; synthesized $zero = 0",
+                enum.nameSpan,
+            )
             val values =
                 listOf(ProtoEnumValue(zero, 0)) +
                     enum.values.map {
@@ -167,6 +176,13 @@ object ProtoLowering {
             here: List<String>,
         ): Mapped {
             var lossy = false
+            if (type.hasRefinements()) {
+                lossy(
+                    "$where: refinements on ${ProtoTypes.text(type)} are not enforced by Protobuf",
+                    span,
+                )
+                lossy = true
+            }
             val (proto, label) =
                 when (type) {
                     is Scalar -> {
@@ -181,11 +197,39 @@ object ProtoLowering {
                         reference(type.target, here) to
                             (if (nullable && isEnum(type.target)) Label.OPTIONAL else Label.NONE)
                     is ListOf -> {
+                        if (nullable) {
+                            lossy(
+                                "$where: a nullable list has no Protobuf representation; lowered to repeated",
+                                span,
+                            )
+                            lossy = true
+                        }
+                        if (type.nullableElement) {
+                            lossy(
+                                "$where: nullable list elements have no Protobuf representation; lowered to repeated",
+                                span,
+                            )
+                            lossy = true
+                        }
                         val element =
                             element(type.element, type, where, span, here) { lossy = true }
                         element to Label.REPEATED
                     }
                     is MapOf -> {
+                        if (nullable) {
+                            lossy(
+                                "$where: a nullable map has no Protobuf representation; lowered to map",
+                                span,
+                            )
+                            lossy = true
+                        }
+                        if (type.nullableValue) {
+                            lossy(
+                                "$where: nullable map values have no Protobuf representation; lowered to map",
+                                span,
+                            )
+                            lossy = true
+                        }
                         val key =
                             ProtoType.Scalar(ProtoTypes.keyword((type.key as Scalar).builtin)!!)
                         val value = element(type.value, type, where, span, here) { lossy = true }
