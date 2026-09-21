@@ -1,5 +1,7 @@
 package io.schemata.target.proto
 
+import io.schemata.core.annotations.Element
+import io.schemata.core.annotations.ValueKind
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
@@ -639,5 +641,144 @@ class ProtoLoweringTest {
         val w = message(file, "U")
         assertEquals("A choice." to true, w.doc to w.deprecated)
         assertEquals("The order.", w.oneofs.single().fields.single().doc)
+    }
+
+    @Test
+    fun `names that collide after overrides are errors naming both`() {
+        val a =
+            record(
+                "a",
+                "A",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                line = 3,
+                annotations = proto("name" to "Same"),
+            )
+        val b =
+            record(
+                "a",
+                "B",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                line = 6,
+                annotations = proto("name" to "Same"),
+            )
+        val inner1 =
+            record(
+                "a",
+                "In1",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                path = listOf("C", "In1"),
+                line = 10,
+                annotations = proto("name" to "N"),
+            )
+        val inner2 =
+            record(
+                "a",
+                "In2",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                path = listOf("C", "In2"),
+                line = 12,
+                annotations = proto("name" to "N"),
+            )
+        val c =
+            record(
+                "a",
+                "C",
+                field(1, "p", Scalar(Builtin.BOOL), line = 15),
+                field(2, "q", Scalar(Builtin.BOOL), line = 16, annotations = proto("name" to "p")),
+                nested = listOf(inner1, inner2),
+                line = 9,
+            )
+        val e =
+            EnumType(
+                qn("a", "E"),
+                "E",
+                listOf(
+                    EnumValue(1, "unspecified", null, at(31), at(31)),
+                    EnumValue(2, "x", null, at(32), at(32), proto("name" to "E_X")),
+                    EnumValue(3, "y", null, at(33), at(33), proto("name" to "E_X")),
+                ),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(30),
+                at(30),
+            )
+        val u = union("a", "U", Ref(qn("a", "Kind")), Ref(qn("a", "Kind2")), line = 40)
+        val kind = record("a", "Kind", field(1, "x", Scalar(Builtin.BOOL)), line = 50)
+        val kind2 =
+            record(
+                "a",
+                "Kind2",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                line = 52,
+                annotations = proto("name" to "Kind"),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", a, b, c, e, u, kind, kind2)))
+        assertEquals(
+            listOf(
+                "6 SCH2004 proto name 'Same' is already used by record 'A' (orders.schemata:3)",
+                "52 SCH2004 proto name 'Kind' is already used by record 'Kind' (orders.schemata:50)",
+                "12 SCH2004 proto name 'N' is already used by record 'In1' (orders.schemata:10)",
+                "16 SCH2004 proto name 'p' is already used by field 'p' (orders.schemata:15)",
+                "31 SCH2004 proto name 'E_UNSPECIFIED' is already used by the synthesized zero value",
+                "33 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
+                "41 SCH2004 proto name 'kind' is already used by the oneof",
+            ),
+            messages(lowered).filter { "SCH2004" in it },
+        )
+    }
+
+    @Test
+    fun `two namespaces lowering to one package is an error`() {
+        val lowered =
+            ProtoLowering.lower(
+                schema(
+                    ns("a.x", annotations = proto("package" to "p")),
+                    ns("b.y", annotations = proto("package" to "p")),
+                )
+            )
+        assertEquals(
+            listOf("1 SCH2004 namespaces a.x and b.y both lower to package 'p'"),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `collections inside collections are errors`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "grid", ListOf(ListOf(Scalar(Builtin.INT32), false), false)),
+                field(
+                    2,
+                    "index",
+                    MapOf(Scalar(Builtin.STRING), ListOf(Scalar(Builtin.STRING), false), false),
+                ),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", r)))
+        assertEquals(
+            listOf(
+                "11 SCH2005 field 'R.grid': proto cannot nest collections; wrap the element of list<list<int32>> in a record",
+                "12 SCH2005 field 'R.index': proto cannot nest collections; wrap the element of map<string, list<string>> in a record",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `the target declares its annotation keys`() {
+        assertEquals(
+            listOf(
+                "package" to setOf(Element.NAMESPACE),
+                "name" to setOf(Element.RECORD, Element.ENUM, Element.FIELD, Element.ENUM_VALUE),
+            ),
+            ProtoTarget.annotationSpecs.map { it.key to it.elements },
+        )
+        assertTrue(
+            ProtoTarget.annotationSpecs.all {
+                it.target == "proto" && it.valueKind == ValueKind.STRING
+            }
+        )
     }
 }

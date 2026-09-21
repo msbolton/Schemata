@@ -30,6 +30,19 @@ object ProtoLowering {
     fun lower(schema: Schema): Lowered<ProtoModel> {
         val diagnostics = mutableListOf<Diagnostic>()
         val packages = schema.namespaces.associate { it.name to ProtoNames.packageOf(it) }
+        packages.entries
+            .groupBy({ it.value }, { it.key })
+            .values
+            .filter { it.size > 1 }
+            .forEach { names ->
+                val first = schema.namespaces.first { it.name == names.first() }
+                diagnostics +=
+                    Diagnostic(
+                        ProtoCodes.NAME_COLLISION,
+                        "namespaces ${names.joinToString(" and ")} both lower to package '${packages.getValue(names.first())}'",
+                        first.span,
+                    )
+            }
         val files =
             schema.namespaces.map { FileLowering(schema, packages, it, diagnostics).lower() }
         return Lowered(ProtoModel(files), diagnostics)
@@ -46,6 +59,11 @@ object ProtoLowering {
         private val imports = sortedSetOf<String>()
 
         fun lower(): ProtoFile {
+            collisions(
+                namespace.declarations.map {
+                    Triple(ProtoNames.of(it), "${kindOf(it)} '${it.name}'", it.nameSpan)
+                }
+            )
             val declarations = namespace.declarations.map { decl(it, emptyList()) }
             return ProtoFile(
                 path = namespace.name.replace('.', '/') + ".proto",
@@ -63,8 +81,23 @@ object ProtoLowering {
                 is UnionType -> union(decl, enclosing)
             }
 
+        private fun kindOf(decl: TypeDecl): String =
+            when (decl) {
+                is RecordType -> "record"
+                is EnumType -> "enum"
+                is UnionType -> "union"
+            }
+
         private fun record(record: RecordType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + record.name
+            collisions(
+                record.nested.map {
+                    Triple(ProtoNames.of(it), "${kindOf(it)} '${it.name}'", it.nameSpan)
+                }
+            )
+            collisions(
+                record.fields.map { Triple(ProtoNames.of(it), "field '${it.name}'", it.nameSpan) }
+            )
             return ProtoMessage(
                 name = ProtoNames.of(record),
                 doc = record.doc,
@@ -104,6 +137,12 @@ object ProtoLowering {
                 "enum '${enum.name}': proto3 requires a zero value; synthesized $zero = 0",
                 enum.nameSpan,
             )
+            collisions(
+                listOf(Triple(zero, "the synthesized zero value", enum.nameSpan)) +
+                    enum.values.map {
+                        Triple(ProtoNames.of(name, it), "value '${it.name}'", it.nameSpan)
+                    }
+            )
             val values =
                 listOf(ProtoEnumValue(zero, 0)) +
                     enum.values.map {
@@ -129,6 +168,13 @@ object ProtoLowering {
 
         private fun union(union: UnionType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + union.name
+            collisions(
+                listOf(Triple("kind", "the oneof", union.nameSpan)) +
+                    union.members.map { member ->
+                        val memberName = memberName(member.type)
+                        Triple(memberName, "member '$memberName'", member.span)
+                    }
+            )
             val members =
                 union.members.map { member ->
                     val memberName = memberName(member.type)
@@ -259,12 +305,15 @@ object ProtoLowering {
                 is MapOf -> nested(owner, where, span)
             }
 
-        /**
-         * Placeholder for a nested collection; a later change reports it as
-         * [ProtoCodes.UNSUPPORTED_NESTING]. Never rendered once it is an error.
-         */
-        private fun nested(owner: Type, where: String, span: Span): ProtoType =
-            ProtoType.Scalar("bytes")
+        private fun nested(owner: Type, where: String, span: Span): ProtoType {
+            diagnostics +=
+                Diagnostic(
+                    ProtoCodes.UNSUPPORTED_NESTING,
+                    "$where: proto cannot nest collections; wrap the element of ${ProtoTypes.text(owner)} in a record",
+                    span,
+                )
+            return ProtoType.Scalar("bytes") // never rendered: the error above prevents rendering
+        }
 
         /** @return the proto type and whether the mapping lost information. */
         private fun scalar(builtin: Builtin, where: String, span: Span): Pair<ProtoType, Boolean> {
@@ -339,6 +388,26 @@ object ProtoLowering {
 
         private fun lossy(message: String, span: Span) {
             diagnostics += Diagnostic(ProtoCodes.LOSSY, message, span)
+        }
+
+        /**
+         * One [ProtoCodes.NAME_COLLISION] per repeat of a proto name among siblings, naming the
+         * first holder.
+         */
+        private fun collisions(items: List<Triple<String, String, Span>>) {
+            val first = mutableMapOf<String, Pair<String, Span>>()
+            for ((protoName, ownName, span) in items) {
+                val previous = first.putIfAbsent(protoName, ownName to span) ?: continue
+                val location =
+                    if (previous.first.startsWith("the ")) ""
+                    else " (${previous.second.file}:${previous.second.startLine})"
+                diagnostics +=
+                    Diagnostic(
+                        ProtoCodes.NAME_COLLISION,
+                        "proto name '$protoName' is already used by ${previous.first}$location",
+                        span,
+                    )
+            }
         }
     }
 }
