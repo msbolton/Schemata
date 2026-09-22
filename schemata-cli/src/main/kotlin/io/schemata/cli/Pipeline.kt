@@ -2,6 +2,8 @@ package io.schemata.cli
 
 import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
+import io.schemata.core.annotations.AnnotationRegistry
+import io.schemata.core.annotations.CoreAnnotations
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Parser
 import io.schemata.lang.hasErrors
@@ -24,18 +26,29 @@ data class PipelineResult(val files: List<TargetFile>, val diagnostics: List<Dia
 object Pipeline {
     val targets: List<Target<*>> = listOf(ProtoTarget, SqlTarget)
 
+    /**
+     * Core's keys plus every target's, whatever `--target` selects: validity never depends on the
+     * emitters chosen.
+     */
+    val annotations: AnnotationRegistry =
+        AnnotationRegistry(CoreAnnotations.specs + targets.flatMap { it.annotationSpecs })
+
     fun targetNamed(name: String): Target<*>? = targets.firstOrNull { it.name == name }
 
     fun compile(
         sources: List<SourceInput>,
         targets: List<Target<*>>,
-        options: AnalysisOptions = AnalysisOptions.DEFAULT,
+        strict: Boolean = false,
     ): PipelineResult {
         val parsed = sources.map { Parser.parse(it.content, it.path) }
         val parseDiagnostics = parsed.flatMap { it.diagnostics }
         if (parseDiagnostics.hasErrors) return PipelineResult(emptyList(), parseDiagnostics)
 
-        val analyzed = Analyzer.analyze(parsed.map { it.file!! }, options)
+        val analyzed =
+            Analyzer.analyze(
+                parsed.map { it.file!! },
+                AnalysisOptions(strictOrdinals = strict, annotations = annotations),
+            )
         val diagnostics = parseDiagnostics + analyzed.diagnostics
         val schema = analyzed.schema ?: return PipelineResult(emptyList(), diagnostics)
 

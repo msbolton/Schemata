@@ -8,7 +8,6 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
@@ -37,16 +36,35 @@ object SqlLowering {
     private fun lower(
         namespace: Namespace,
         diagnostics: MutableList<Diagnostic>,
-    ): RelationalSchema =
-        RelationalSchema(
+    ): RelationalSchema {
+        if (!namespace.annotations.isEmpty) {
+            unsupported(
+                "annotations",
+                "SCH-31",
+                namespace.span,
+                diagnostics,
+                code = SqlCodes.UNSUPPORTED_VALUE,
+            )
+        }
+        return RelationalSchema(
             path = namespace.name.replace('.', '/') + ".sql",
             schemaName = namespace.name.substringAfterLast('.'),
             tables = namespace.declarations.mapNotNull { lower(it, diagnostics) },
         )
+    }
 
     private fun lower(decl: TypeDecl, diagnostics: MutableList<Diagnostic>): Table? =
         when (decl) {
             is RecordType -> {
+                if (!decl.annotations.isEmpty) {
+                    unsupported(
+                        "annotations",
+                        "SCH-31",
+                        decl.nameSpan,
+                        diagnostics,
+                        code = SqlCodes.UNSUPPORTED_VALUE,
+                    )
+                }
                 val columns = decl.fields.mapNotNull { lower(decl, it, diagnostics) }
                 decl.nested.forEach {
                     unsupported("nested declarations", "SCH-28", it.nameSpan, diagnostics)
@@ -85,6 +103,17 @@ object SqlLowering {
                     "$where: target 'sql' cannot lower type refinements yet (SCH-31)",
                     field.span,
                 )
+            return null
+        }
+        if (!field.annotations.isEmpty) {
+            unsupported(
+                "annotations",
+                "SCH-31",
+                field.span,
+                diagnostics,
+                where,
+                SqlCodes.UNSUPPORTED_VALUE,
+            )
             return null
         }
         val type =
@@ -132,10 +161,9 @@ object SqlLowering {
 
     private fun Type.hasRefinements(): Boolean =
         when (this) {
-            is Scalar -> refinements != Refinements()
-            is ListOf -> refinements != Refinements() || element.hasRefinements()
-            is MapOf ->
-                refinements != Refinements() || key.hasRefinements() || value.hasRefinements()
+            is Scalar -> refinements.hasBounds
+            is ListOf -> refinements.hasBounds || element.hasRefinements()
+            is MapOf -> refinements.hasBounds || key.hasRefinements() || value.hasRefinements()
             is Ref -> false
         }
 
@@ -145,14 +173,11 @@ object SqlLowering {
         span: Span,
         diagnostics: MutableList<Diagnostic>,
         where: String? = null,
+        code: DiagnosticCode = SqlCodes.UNSUPPORTED_SHAPE,
     ) {
         val prefix = where?.let { "$it: " } ?: ""
         diagnostics +=
-            Diagnostic(
-                SqlCodes.UNSUPPORTED_SHAPE,
-                "${prefix}target 'sql' cannot lower $what yet ($ticket)",
-                span,
-            )
+            Diagnostic(code, "${prefix}target 'sql' cannot lower $what yet ($ticket)", span)
     }
 
     private fun schemaCollisions(namespaces: List<Namespace>): List<Diagnostic> =

@@ -5,8 +5,8 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 
 /**
- * Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) is retired and must not be reused.
- * `SCH1015`–`SCH1018` are held for the annotation registry (SCH-20).
+ * Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) and `SCH1008` (unsupported constructs)
+ * are retired and must not be reused.
  */
 object CoreCodes {
     private fun error(id: String) = DiagnosticCode(id, Severity.ERROR, Category.SEMANTIC)
@@ -19,7 +19,6 @@ object CoreCodes {
     val DUPLICATE_TYPE = error("SCH1004")
     val DUPLICATE_FIELD = error("SCH1005")
     val UNKNOWN_TYPE = error("SCH1006")
-    val UNSUPPORTED_CONSTRUCT = error("SCH1008")
     val AMBIGUOUS_TYPE = error("SCH1009")
     val BUILTIN_SHADOWED = warning("SCH1010")
     val UNKNOWN_IMPORT = error("SCH1011")
@@ -43,6 +42,19 @@ object CoreCodes {
     val NESTED_TYPE_NOT_FOUND = error("SCH1033")
     val RESERVED_RANGE = error("SCH1034")
     val INVALID_ORDINAL = error("SCH1035")
+    val UNKNOWN_ANNOTATION_TARGET = error("SCH1015")
+    val UNKNOWN_ANNOTATION_KEY = error("SCH1016")
+    val ANNOTATION_ELEMENT = error("SCH1017")
+    val ANNOTATION_VALUE = error("SCH1018")
+    val DUPLICATE_ANNOTATION = error("SCH1036")
+    val UNKNOWN_REFINEMENT = error("SCH1037")
+    val INVALID_REFINEMENT = error("SCH1038")
+    val REFINEMENT_NOT_ALLOWED = error("SCH1039")
+    val MISSING_REFINEMENT = error("SCH1040")
+    val DUPLICATE_REFINEMENT = error("SCH1041")
+    val DEFAULT_TYPE = error("SCH1042")
+    val DEFAULT_VIOLATES_REFINEMENT = error("SCH1043")
+    val NULL_DEFAULT = error("SCH1044")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -52,7 +64,6 @@ object CoreCodes {
             DUPLICATE_TYPE,
             DUPLICATE_FIELD,
             UNKNOWN_TYPE,
-            UNSUPPORTED_CONSTRUCT,
             AMBIGUOUS_TYPE,
             BUILTIN_SHADOWED,
             UNKNOWN_IMPORT,
@@ -76,5 +87,18 @@ object CoreCodes {
             NESTED_TYPE_NOT_FOUND,
             RESERVED_RANGE,
             INVALID_ORDINAL,
+            UNKNOWN_ANNOTATION_TARGET,
+            UNKNOWN_ANNOTATION_KEY,
+            ANNOTATION_ELEMENT,
+            ANNOTATION_VALUE,
+            DUPLICATE_ANNOTATION,
+            UNKNOWN_REFINEMENT,
+            INVALID_REFINEMENT,
+            REFINEMENT_NOT_ALLOWED,
+            MISSING_REFINEMENT,
+            DUPLICATE_REFINEMENT,
+            DEFAULT_TYPE,
+            DEFAULT_VIOLATES_REFINEMENT,
+            NULL_DEFAULT,
         )
 }

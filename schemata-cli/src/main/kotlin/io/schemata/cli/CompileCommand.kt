@@ -12,7 +12,6 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.path
-import io.schemata.core.AnalysisOptions
 import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
 import kotlin.io.path.Path
@@ -52,7 +51,7 @@ class CompileCommand : CliktCommand(name = "compile") {
         if (sources.isEmpty())
             throw UsageError("no .schemata files found under: ${inputs.joinToString(", ")}")
 
-        val result = Pipeline.compile(sources, targets, AnalysisOptions(strictOrdinals = strict))
+        val result = Pipeline.compile(sources, targets, strict = strict)
         result.diagnostics.forEach { echo(format(it), err = true) }
         if (result.hasErrors) throw ProgramResult(1)
 

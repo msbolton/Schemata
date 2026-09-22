@@ -1,7 +1,7 @@
 package io.schemata.cli
 
-import io.schemata.core.AnalysisOptions
 import io.schemata.lang.Category
+import io.schemata.target.proto.ProtoTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -81,19 +81,32 @@ class PipelineTest {
     }
 
     @Test
-    fun `strict mode is passed to the analyzer`() {
-        val src = SourceInput("s.schemata", "namespace s\nrecord R { x: bool }")
-        val lax = Pipeline.compile(listOf(src), Pipeline.targets)
-        assertFalse(lax.hasErrors)
-        val strict =
-            Pipeline.compile(listOf(src), Pipeline.targets, AnalysisOptions(strictOrdinals = true))
-        assertTrue(strict.hasErrors)
-        assertEquals("SCH1014", strict.diagnostics.single().code.id)
+    fun `strict is threaded through to the analyzer`() {
+        val src = SourceInput("src/t.schemata", "namespace a\n\nrecord R {\n  x: bool\n}")
+        val strict = Pipeline.compile(listOf(src), listOf(ProtoTarget), strict = true)
+        assertEquals(listOf("SCH1014"), strict.diagnostics.map { it.code.id })
+        assertTrue(
+            Pipeline.compile(listOf(src), listOf(ProtoTarget)).diagnostics.none {
+                it.code.id == "SCH1014"
+            }
+        )
     }
 
     @Test
     fun `looks targets up by name`() {
         assertEquals("proto", Pipeline.targetNamed("proto")?.name)
         assertEquals(null, Pipeline.targetNamed("avro"))
+    }
+
+    @Test
+    fun `annotations of every known target are accepted whatever targets are selected`() {
+        val src =
+            SourceInput(
+                "src/t.schemata",
+                "namespace a\n\nrecord R {\n  @sql(key)\n  id: uuid\n  x: bool\n}",
+            )
+        val result = Pipeline.compile(listOf(src), listOf(ProtoTarget))
+        assertTrue(result.diagnostics.none { it.code.id.startsWith("SCH1") })
+        assertEquals(setOf("SCH2003"), result.diagnostics.map { it.code.id }.toSet())
     }
 }

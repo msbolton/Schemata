@@ -38,6 +38,7 @@ class Resolver(
     private val imports: Map<String, List<ImportDecl>> = files.associate { it.path to it.imports }
     private val usedImports = mutableSetOf<ImportDecl>()
     private val resolvingAliases = mutableSetOf<QualifiedName>()
+    private val aliasTargets = mutableMapOf<QualifiedName, Resolved?>()
 
     init {
         files
@@ -76,7 +77,10 @@ class Resolver(
         when (expr.name) {
             "list" ->
                 return generic(expr, scope, arity = 1) { args ->
-                    ListOf(args[0].type, args[0].nullable)
+                    val refinements =
+                        RefinementChecker.collection("list", expr, diagnostics)
+                            ?: return@generic null
+                    ListOf(args[0].type, args[0].nullable, refinements)
                 }
             "map" ->
                 return generic(expr, scope, arity = 2) { args ->
@@ -97,7 +101,10 @@ class Resolver(
                         )
                         return@generic null
                     }
-                    MapOf(key.type, args[1].type, args[1].nullable)
+                    val refinements =
+                        RefinementChecker.collection("map", expr, diagnostics)
+                            ?: return@generic null
+                    MapOf(key.type, args[1].type, args[1].nullable, refinements)
                 }
         }
         if (expr.args.isNotEmpty()) {
@@ -105,7 +112,11 @@ class Resolver(
             return null
         }
         return when (val found = lookup(expr.name, expr.nameSpan, scope) ?: return null) {
-            is Found.Builtin -> Resolved(Scalar(found.builtin), expr.nullable, null)
+            is Found.Builtin -> {
+                val refinements =
+                    RefinementChecker.scalar(found.builtin, expr, diagnostics) ?: return null
+                Resolved(Scalar(found.builtin, refinements), expr.nullable, null)
+            }
             is Found.Decl -> declared(found.entry, expr)
         }
     }
@@ -130,12 +141,46 @@ class Resolver(
         return Resolved(type, expr.nullable, null)
     }
 
+    /**
+     * Resolves an alias at its declaration so an unused alias is still checked. Every use then
+     * reads the memoized result, so the alias's own diagnostics are reported once.
+     */
+    fun checkAlias(decl: AliasDecl, scope: Scope) {
+        val entry =
+            index.find(QualifiedName(scope.namespace, scope.enclosing + decl.name)) ?: return
+        aliasTarget(entry, decl, decl.nameSpan)
+    }
+
     private fun declared(entry: IndexedDecl, expr: TypeExpr): Resolved? {
-        val alias =
-            entry.decl as? AliasDecl
-                ?: return Resolved(Ref(entry.qualifiedName), expr.nullable, null)
+        val alias = entry.decl as? AliasDecl
+        if (expr.refinements.isNotEmpty()) {
+            val message =
+                if (alias != null) "'${alias.name}' is an alias; refine it where it is declared"
+                else {
+                    val kind = DeclarationIndex.kindOf(entry.decl)
+                    val article = if (kind == "enum") "an" else "a"
+                    "'${entry.decl.name}' is $article $kind; only builtin types and collections take refinements"
+                }
+            error(CoreCodes.REFINEMENT_NOT_ALLOWED, message, expr.refinements.first().span)
+            return null
+        }
+        if (alias == null) return Resolved(Ref(entry.qualifiedName), expr.nullable, null)
+        val target = aliasTarget(entry, alias, expr.nameSpan) ?: return null
+        if (target.nullable && expr.nullable) {
+            error(
+                CoreCodes.DOUBLE_NULLABLE,
+                "'${alias.name}' is already nullable; remove the '?'",
+                expr.span,
+            )
+            return null
+        }
+        return Resolved(target.type, target.nullable || expr.nullable, alias.name)
+    }
+
+    private fun aliasTarget(entry: IndexedDecl, alias: AliasDecl, at: Span): Resolved? {
+        if (entry.qualifiedName in aliasTargets) return aliasTargets[entry.qualifiedName]
         if (!resolvingAliases.add(entry.qualifiedName)) {
-            error(CoreCodes.ALIAS_CYCLE, "alias '${alias.name}' refers to itself", expr.nameSpan)
+            error(CoreCodes.ALIAS_CYCLE, "alias '${alias.name}' refers to itself", at)
             return null
         }
         try {
@@ -145,16 +190,9 @@ class Resolver(
                     entry.qualifiedName.namespace,
                     entry.qualifiedName.path.dropLast(1),
                 )
-            val target = resolve(alias.type, aliasScope) ?: return null
-            if (target.nullable && expr.nullable) {
-                error(
-                    CoreCodes.DOUBLE_NULLABLE,
-                    "'${alias.name}' is already nullable; remove the '?'",
-                    expr.span,
-                )
-                return null
-            }
-            return Resolved(target.type, target.nullable || expr.nullable, alias.name)
+            val target = resolve(alias.type, aliasScope)
+            aliasTargets[entry.qualifiedName] = target
+            return target
         } finally {
             resolvingAliases -= entry.qualifiedName
         }
