@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package corpus.catalog;
+
+// A product for sale.
+message Item {
+  option deprecated = true;
+
+  // Stock keeping unit.
+  string sku_code = 1;
+  optional int32 legacy_id = 2 [deprecated = true];
+  string id = 3;  // schemata: uuid
+}

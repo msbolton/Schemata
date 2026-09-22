@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package shop.kitchen;
+
+import "google/protobuf/timestamp.proto";
+import "shop/customers.proto";
+
+// Every construct the renderer prints.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  // Waiting.
+  STATUS_PENDING = 1;
+  STATUS_PAID = 2 [deprecated = true];
+
+  reserved 3, 5 to 7;
+  reserved "STATUS_OLD";
+}
+
+message Card {}
+
+message Payment {
+  oneof kind {
+    Card card = 1;
+    string cash = 2;  // schemata: string(max = 5)
+  }
+}
+
+message Empty {}
+
+// An order.
+message Order {
+  option deprecated = true;
+
+  string id = 1;  // schemata: uuid
+  .shop.customers.Customer customer = 2;
+  optional Status status = 3;  // schemata: default = pending
+  repeated Line lines = 4;
+  map<string, int32> counts = 5;
+  .google.protobuf.Timestamp placed_at = 6 [deprecated = true];
+
+  message Line {
+    int32 quantity = 1;
+  }
+
+  reserved 11;
+  reserved "legacy_ref";
+}

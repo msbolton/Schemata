@@ -1,0 +1,6 @@
+namespace corpus.people
+
+record Person {
+  #1 name: string
+  #2 friends: list<Person>
+}

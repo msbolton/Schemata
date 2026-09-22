@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package corpus.variants;
+
+// Payment status.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  // Not yet paid.
+  STATUS_PENDING = 1;
+  STATUS_PAID = 2;
+  STATUS_SETTLED = 3 [deprecated = true];
+  CANCELLED_BY_USER = 4;
+
+  reserved 5 to 6;
+  reserved "STATUS_OLD_STATUS";
+}
+
+message Card {
+  string last4 = 1;  // schemata: string(max = 4)
+}
+
+message Cash {}
+
+// How the customer paid.
+message Payment {
+  oneof kind {
+    // Paid by card.
+    Card card = 1;
+    Cash cash = 2;
+    string uuid = 3;  // schemata: uuid
+    string string = 4;  // schemata: string(max = 5)
+  }
+}
+
+message Order {
+  Payment payment = 1;
+  Payment fallback = 2;
+  repeated Payment history = 3;
+  Status status = 4;  // schemata: default = pending
+}

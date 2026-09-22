@@ -112,8 +112,14 @@ class StructuralAcceptanceTest {
                 Pipeline.targets,
             )
         assertTrue(result.hasErrors)
-        assertEquals(emptyList(), result.files)
+        assertEquals(
+            listOf("shop/customers.proto", "shop/orders.proto"),
+            result.files.map { it.file.path },
+        )
         val codes = result.diagnostics.map { it.code.id }.toSet()
-        assertEquals(setOf("SCH2001", "SCH2002", "SCH2103"), codes) // 2001: uuid lossy warnings
+        assertEquals(
+            setOf("SCH2001", "SCH2103"),
+            codes,
+        ) // proto lowers everything; sql still reports shapes
     }
 }

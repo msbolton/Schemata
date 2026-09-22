@@ -1,0 +1,16 @@
+namespace corpus.collections
+
+enum Color { red, green }
+record Item { #1 name: string }
+
+record Collections {
+  #1 tags: list<string>
+  #2 items: list<Item>
+  #3 colors: list<Color>
+  #4 maybe: list<string>?
+  #5 holes: list<string?>
+  #6 counts: map<string, int32>
+  #7 by_id: map<int64, Item>
+  #8 sparse: map<string, int32?>
+  #9 limited: list<string(max = 3)>(max = 2)
+}

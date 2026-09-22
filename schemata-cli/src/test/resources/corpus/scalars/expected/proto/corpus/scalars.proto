@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package corpus.scalars;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+message Scalars {
+  bool a = 1;
+  int32 b = 2;
+  int64 c = 3;
+  float d = 4;
+  double e = 5;
+  string f = 6;  // schemata: decimal(10, 2)
+  string g = 7;
+  bytes h = 8;
+  string i = 9;  // schemata: uuid
+  string j = 10;  // schemata: date
+  string k = 11;  // schemata: time
+  .google.protobuf.Timestamp l = 12;
+  .google.protobuf.Duration m = 13;
+  optional string n = 14;  // schemata: string(max = 8, pattern = "^[a-z]+$")?
+  int32 o = 15;  // schemata: int32(min = 0); default = 3
+  .google.protobuf.Timestamp p = 16;
+}

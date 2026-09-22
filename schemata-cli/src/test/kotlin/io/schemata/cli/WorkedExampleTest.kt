@@ -12,9 +12,11 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.lang.Parser
+import io.schemata.target.proto.ProtoTarget
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** The spec's worked example analyzes clean; targets only report what they cannot lower yet. */
@@ -124,7 +126,7 @@ class WorkedExampleTest {
     }
 
     @Test
-    fun `targets report only what they cannot lower yet`() {
+    fun `sql still reports the shapes it cannot lower yet`() {
         val result =
             Pipeline.compile(
                 listOf(
@@ -134,10 +136,53 @@ class WorkedExampleTest {
                 Pipeline.targets,
             )
         assertTrue(result.hasErrors)
-        assertEquals(emptyList(), result.files)
         assertEquals(
-            setOf("SCH2001", "SCH2002", "SCH2003", "SCH2103", "SCH2104"),
+            listOf("shop/customers.proto", "shop/orders.proto"),
+            result.files.map { it.file.path },
+        )
+        assertEquals(
+            setOf("SCH2001", "SCH2103", "SCH2104"),
             result.diagnostics.map { it.code.id }.toSet(),
         )
+    }
+
+    @Test
+    fun `proto compiles the worked example with warnings only`() {
+        val result =
+            Pipeline.compile(
+                listOf(
+                    SourceInput("orders.schemata", orders),
+                    SourceInput("customers.schemata", customers),
+                ),
+                listOf(ProtoTarget),
+            )
+        assertFalse(result.hasErrors)
+        assertEquals(
+            listOf("shop/customers.proto", "shop/orders.proto"),
+            result.files.map { it.file.path },
+        )
+        assertEquals(
+            listOf(
+                "customers.schemata:4 field 'Customer.id': uuid has no Protobuf representation; lowered to string",
+                "customers.schemata:5 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf",
+                "orders.schemata:10 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0",
+                "orders.schemata:12 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf",
+                "orders.schemata:12 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf",
+                "orders.schemata:13 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf",
+                "orders.schemata:20 field 'Order.id': uuid has no Protobuf representation; lowered to string",
+                "orders.schemata:23 field 'Order.status': default pending is not carried by proto3",
+                "orders.schemata:24 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf",
+                "orders.schemata:25 field 'Order.total': decimal has no Protobuf representation; lowered to string",
+                "orders.schemata:30 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf",
+                "orders.schemata:37 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf",
+                "orders.schemata:38 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf",
+                "orders.schemata:39 field 'Line.price': decimal has no Protobuf representation; lowered to string",
+                "orders.schemata:43 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf",
+                "orders.schemata:44 field 'Address.city': refinements on string(max = 100) are not enforced by Protobuf",
+                "orders.schemata:45 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf",
+            ),
+            result.diagnostics.map { "${it.span.file}:${it.span.startLine} ${it.message}" },
+        )
+        assertTrue(result.diagnostics.all { it.code.id == "SCH2001" })
     }
 }

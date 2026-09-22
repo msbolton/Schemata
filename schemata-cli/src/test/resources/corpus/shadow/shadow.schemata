@@ -1,0 +1,15 @@
+namespace corpus.shadow
+
+record Card { #1 top: bool }
+
+record Order {
+  #1 outer: corpus.shadow.Card
+  #2 inner: Card
+
+  record Card { #1 nested: bool }
+
+  record Line {
+    #1 again: corpus.shadow.Card
+    #2 near: Card
+  }
+}

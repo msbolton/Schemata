@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package corp.orders.v1;
+
+import "corpus/people.proto";
+
+message Order {
+  .corpus.people.Person customer = 1;
+  repeated Line lines = 2;
+  Order parent = 3;
+  Note note = 4;
+  Kind kind = 5;
+
+  message Line {
+    string sku = 1;
+    Note gift = 2;
+    Order order = 3;
+  }
+
+  message Note {
+    string text = 1;
+  }
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_RETAIL = 1;
+    KIND_WHOLESALE = 2;
+  }
+}
+
+message Audit {
+  Order.Line line = 1;
+  .corpus.people.Person who = 2;
+  .corpus.people.Person again = 3;
+  Order.Kind kind = 4;
+}
