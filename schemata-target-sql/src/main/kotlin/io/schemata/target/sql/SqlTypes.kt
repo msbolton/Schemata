@@ -5,9 +5,16 @@ import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.target.sql.Naming.literal
 import io.schemata.target.sql.Naming.quote
+import java.math.BigDecimal
 
 /** Builtins to column types, and refinements to CHECK expressions over a quoted column. */
 object SqlTypes {
+    /** Postgres rejects `varchar(n)` outside `1..10485760`. */
+    private val VARCHAR_LIMIT = BigDecimal(10_485_760)
+
+    /** Postgres rejects `numeric(p, s)` with `p` above 1000. */
+    const val NUMERIC_PRECISION_LIMIT = 1000
+
     /** [checks] pairs a name suffix (`min`, `max`, `pattern`, `enum`) with its expression. */
     class Mapped(val type: ColumnType, val checks: List<Pair<String, String>>)
 
@@ -44,8 +51,9 @@ object SqlTypes {
 
     private fun string(q: String, r: Refinements, overridden: Boolean): Mapped {
         val max = r.max
-        if (!overridden && max != null && r.min == null && r.pattern == null)
-            return Mapped(ColumnType.VARCHAR(max.toInt()), emptyList())
+        val fitsVarchar = max != null && max >= BigDecimal.ONE && max <= VARCHAR_LIMIT
+        if (!overridden && fitsVarchar && r.min == null && r.pattern == null)
+            return Mapped(ColumnType.VARCHAR(max!!.toInt()), emptyList())
         val checks =
             lengths("char_length($q)", r) +
                 listOfNotNull(r.pattern?.let { "pattern" to "$q ~ ${literal(it)}" })

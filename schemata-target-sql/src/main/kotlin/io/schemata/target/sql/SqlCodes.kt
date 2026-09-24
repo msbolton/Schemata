@@ -13,6 +13,7 @@ object SqlCodes {
     val KEY_COLUMN = DiagnosticCode("SCH2107", Severity.ERROR, Category.SEMANTIC)
     val IDENTIFIER_TRUNCATED = DiagnosticCode("SCH2109", Severity.WARNING, Category.SEMANTIC)
     val NAME_COLLISION = DiagnosticCode("SCH2111", Severity.ERROR, Category.SEMANTIC)
+    val TYPE_LIMIT = DiagnosticCode("SCH2112", Severity.ERROR, Category.SEMANTIC)
     val REDUNDANT_CONSTRAINT = DiagnosticCode("SCH2113", Severity.WARNING, Category.SEMANTIC)
 
     val all: List<DiagnosticCode> =
@@ -24,6 +25,7 @@ object SqlCodes {
             KEY_COLUMN,
             IDENTIFIER_TRUNCATED,
             NAME_COLLISION,
+            TYPE_LIMIT,
             REDUNDANT_CONSTRAINT,
         )
 }

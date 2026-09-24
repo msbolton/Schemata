@@ -132,6 +132,35 @@ object SqlLowering {
                         record.nameSpan,
                     )
                 }
+            recordKeyNames
+                ?.groupingBy { it }
+                ?.eachCount()
+                ?.filterValues { it > 1 }
+                ?.keys
+                ?.forEach {
+                    error(
+                        SqlCodes.KEY_COLUMN,
+                        "record '${record.name}': @sql(key) names '$it' more than once",
+                        record.nameSpan,
+                    )
+                }
+            val keyFields =
+                if (recordKeyNames != null) {
+                    recordKeyNames.distinct().mapNotNull { name ->
+                        record.fields.firstOrNull { it.name == name }
+                    }
+                } else {
+                    fieldKeys
+                }
+            keyFields
+                .filter { it.nullable }
+                .forEach {
+                    error(
+                        SqlCodes.KEY_COLUMN,
+                        "record '${record.name}': key field '${it.name}' is nullable; a primary key column cannot be",
+                        it.nameSpan,
+                    )
+                }
             val checks = mutableListOf<Check>()
             val uniques = mutableListOf<Pair<Field, Unique>>()
             val indexes = mutableListOf<Pair<Field, Index>>()
@@ -151,14 +180,6 @@ object SqlLowering {
                 columnsByField[field] = column
             }
             record.nested.forEach { unsupported("nested declarations", it.nameSpan) }
-            val keyFields =
-                if (recordKeyNames != null) {
-                    recordKeyNames.mapNotNull { name ->
-                        record.fields.firstOrNull { it.name == name }
-                    }
-                } else {
-                    fieldKeys
-                }
             val primaryKey = keyFields.mapNotNull { columnsByField[it]?.name }
             val primaryKeyName =
                 if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
@@ -230,7 +251,22 @@ object SqlLowering {
             val override = Naming.override(field.annotations, "type")
             val mapped =
                 when (val type = field.type) {
-                    is Scalar -> SqlTypes.scalar(type, name, overridden = override != null)
+                    is Scalar -> {
+                        val precision = type.refinements.precision
+                        if (
+                            override == null &&
+                                precision != null &&
+                                precision > SqlTypes.NUMERIC_PRECISION_LIMIT
+                        ) {
+                            error(
+                                SqlCodes.TYPE_LIMIT,
+                                "$where: decimal precision $precision exceeds Postgres's limit of ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
+                                field.span,
+                            )
+                            return null
+                        }
+                        SqlTypes.scalar(type, name, overridden = override != null)
+                    }
                     is Ref ->
                         when (val target = schema.lookup(type.target)) {
                             is EnumType -> SqlTypes.enum(target.values.map { it.name }, name)

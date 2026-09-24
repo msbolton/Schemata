@@ -674,6 +674,95 @@ class SqlLoweringTest {
     }
 
     @Test
+    fun `Postgres type limits are respected`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
+                field(2, "s", Scalar(Builtin.STRING, Refinements(max = big(0)))),
+                field(3, "t", Scalar(Builtin.STRING, Refinements(max = big(20_000_000)))),
+                field(4, "d", Scalar(Builtin.DECIMAL, Refinements(precision = 1001, scale = 0))),
+                field(5, "v", Scalar(Builtin.STRING, Refinements(max = big(10_485_760)))),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(
+            listOf(
+                "14 SCH2112 field 'R.d': decimal precision 1001 exceeds Postgres's limit of 1000"
+            ),
+            messages(lowered),
+        )
+        val t = table(lowered, "r")
+        assertEquals(listOf("id", "s", "t", "v"), t.columns.map { it.name })
+        assertEquals(
+            listOf(
+                ColumnType.UUID,
+                ColumnType.TEXT,
+                ColumnType.TEXT,
+                ColumnType.VARCHAR(10_485_760),
+            ),
+            t.columns.map { it.type },
+        )
+        assertEquals(
+            listOf(
+                Check("ck_r_s_max", "char_length(\"s\") <= 0"),
+                Check("ck_r_t_max", "char_length(\"t\") <= 20000000"),
+            ),
+            t.checks,
+        )
+    }
+
+    @Test
+    fun `key fields must be distinct and not nullable`() {
+        val dup =
+            record(
+                "a",
+                "Dup",
+                field(1, "a", Scalar(Builtin.UUID)),
+                field(2, "b", Scalar(Builtin.UUID)),
+                annotations = sql("key" to AnnotationValue.Names(listOf("a", "b", "a", "b", "a"))),
+            )
+        val opt =
+            record(
+                "a",
+                "Opt",
+                field(
+                    1,
+                    "x",
+                    Scalar(Builtin.UUID),
+                    nullable = true,
+                    line = 21,
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
+                line = 20,
+            )
+        val optRecord =
+            record(
+                "a",
+                "OptRecord",
+                field(1, "y", Scalar(Builtin.UUID), nullable = true, line = 31),
+                line = 30,
+                annotations = sql("key" to AnnotationValue.Names(listOf("y"))),
+            )
+        val lowered = lower(namespace("a", dup, opt, optRecord))
+        assertEquals(listOf("a", "b"), table(lowered, "dup").primaryKey)
+        assertEquals(
+            listOf(
+                "3 SCH2107 record 'Dup': @sql(key) names 'a' more than once",
+                "3 SCH2107 record 'Dup': @sql(key) names 'b' more than once",
+                "21 SCH2107 record 'Opt': key field 'x' is nullable; a primary key column cannot be",
+                "31 SCH2107 record 'OptRecord': key field 'y' is nullable; a primary key column cannot be",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
     fun `final names collide across overrides`() {
         val a =
             record(
