@@ -1,5 +1,6 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
@@ -12,15 +13,17 @@ import io.schemata.core.ir.Schema
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
 import io.schemata.target.TypeText
 
 /**
  * Lowers flat records to tables: every builtin, refinements as CHECK constraints, defaults, enums
- * as constrained text, `@sql` overrides. References, unions, lists, maps, nested declarations, and
- * mapping strategies are reported at the boundary until the structural lowering lands (SCH-28).
- * `reserved` ordinals and names have no relational meaning and are accepted without a diagnostic.
+ * as constrained text, `@sql` overrides, primary keys, uniques, and indexes. References, unions,
+ * lists, maps, nested declarations, and mapping strategies are reported at the boundary until the
+ * structural lowering lands (SCH-28). `reserved` ordinals and names have no relational meaning and
+ * are accepted without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -41,12 +44,32 @@ object SqlLowering {
         private val diagnostics: MutableList<Diagnostic>,
     ) {
         fun lower(): RelationalSchema {
+            tableCollisions()
             val tables = namespace.declarations.mapNotNull { decl(it) }
             return RelationalSchema(
                 path = namespace.name.replace('.', '/') + ".sql",
                 schemaName = schemaName,
                 tables = tables,
             )
+        }
+
+        /**
+         * Table collisions are reported over final (overridden) names, before any record lowers.
+         */
+        private fun tableCollisions() {
+            namespace.declarations
+                .filterIsInstance<RecordType>()
+                .groupBy { Naming.tableOf(it) }
+                .values
+                .filter { it.size > 1 }
+                .forEach { colliding ->
+                    diagnostics +=
+                        Diagnostic(
+                            SqlCodes.TABLE_COLLISION,
+                            "records ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${Naming.tableOf(colliding.first())}'",
+                            colliding.first().span,
+                        )
+                }
         }
 
         private fun decl(decl: TypeDecl): Table? =
@@ -57,11 +80,69 @@ object SqlLowering {
             }
 
         private fun record(record: RecordType): Table {
-            val tableName = Naming.tableOf(record)
+            val tableName = identifier(Naming.tableOf(record), record.nameSpan, reserve = 3)
+            val fieldKeys = record.fields.filter { "key" in it.annotations["sql"] }
+            val recordKeyNames =
+                (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
+            if (fieldKeys.isNotEmpty() && recordKeyNames != null) {
+                error(
+                    SqlCodes.KEY_COLUMN,
+                    "record '${record.name}' declares @sql(key) on both the record and its fields",
+                    record.nameSpan,
+                )
+            } else if (fieldKeys.isEmpty() && recordKeyNames == null) {
+                error(
+                    SqlCodes.MISSING_KEY,
+                    "record '${record.name}' has no primary key; mark key fields with @sql(key) or the record with @sql(key = (...))",
+                    record.nameSpan,
+                )
+            }
+            recordKeyNames
+                ?.filter { name -> record.fields.none { it.name == name } }
+                ?.forEach {
+                    error(
+                        SqlCodes.KEY_COLUMN,
+                        "record '${record.name}': @sql(key) names '$it', which is not a field of the record",
+                        record.nameSpan,
+                    )
+                }
             val checks = mutableListOf<Check>()
-            val columns = record.fields.mapNotNull { column(record, tableName, it, checks) }
+            val uniques = mutableListOf<Unique>()
+            val indexes = mutableListOf<Index>()
+            val columnsByField = linkedMapOf<Field, Column>()
+            val seen = mutableMapOf<String, Field>()
+            record.fields.forEach { field ->
+                val column =
+                    column(record, tableName, field, checks, uniques, indexes) ?: return@forEach
+                val previous = seen.putIfAbsent(column.name, field)
+                if (previous != null) {
+                    error(
+                        SqlCodes.NAME_COLLISION,
+                        "field '${record.name}.${field.name}' lowers to column '${column.name}', already used by field '${previous.name}' (${previous.nameSpan.file}:${previous.nameSpan.startLine})",
+                        field.nameSpan,
+                    )
+                }
+                columnsByField[field] = column
+            }
             record.nested.forEach { unsupported("nested declarations", it.nameSpan) }
-            return Table(name = tableName, columns = columns, checks = checks, doc = record.doc)
+            val keyFields =
+                if (recordKeyNames != null) {
+                    recordKeyNames.mapNotNull { name ->
+                        record.fields.firstOrNull { it.name == name }
+                    }
+                } else {
+                    fieldKeys
+                }
+            val primaryKey = keyFields.mapNotNull { columnsByField[it]?.name }
+            return Table(
+                name = tableName,
+                columns = columnsByField.values.toList(),
+                primaryKey = primaryKey,
+                checks = checks,
+                uniques = uniques,
+                indexes = indexes,
+                doc = record.doc,
+            )
         }
 
         private fun column(
@@ -69,13 +150,17 @@ object SqlLowering {
             table: String,
             field: Field,
             checks: MutableList<Check>,
+            uniques: MutableList<Unique>,
+            indexes: MutableList<Index>,
         ): Column? {
             val where = "field '${record.name}.${field.name}'"
-            if ("strategy" in field.annotations["sql"]) {
+            val sql = field.annotations["sql"]
+            if ("strategy" in sql) {
                 unsupported("mapping strategies", field.span, where)
                 return null
             }
-            val name = Naming.columnOf(field)
+            val rawName = Naming.columnOf(field)
+            val name = identifier(rawName, field.nameSpan)
             val override = Naming.override(field.annotations, "type")
             val mapped =
                 when (val type = field.type) {
@@ -103,8 +188,14 @@ object SqlLowering {
                 }
             checks +=
                 mapped.checks.map { (suffix, expression) ->
-                    Check("ck_${table}_${name}_$suffix", expression)
+                    Check(identifier("ck_${table}_${rawName}_$suffix", field.nameSpan), expression)
                 }
+            if ("unique" in sql) {
+                uniques += Unique(identifier("uq_${table}_$rawName", field.nameSpan), listOf(name))
+            }
+            if ("index" in sql) {
+                indexes += Index(identifier("ix_${table}_$rawName", field.nameSpan), listOf(name))
+            }
             return Column(
                 name = name,
                 type = override?.let { ColumnType.RAW(it) } ?: mapped.type,
@@ -117,14 +208,33 @@ object SqlLowering {
             )
         }
 
-        private fun unsupported(what: String, span: Span, where: String? = null) {
-            val prefix = where?.let { "$it: " } ?: ""
-            diagnostics +=
-                Diagnostic(
-                    SqlCodes.UNSUPPORTED_SHAPE,
-                    "${prefix}target 'sql' cannot lower $what yet (SCH-28)",
+        /**
+         * Truncates to Postgres's limit, reporting once per identifier. [reserve] keeps room for a
+         * `pk_` prefix.
+         */
+        private fun identifier(name: String, span: Span, reserve: Int = 0): String {
+            val result = Naming.identifier(name, reserve)
+            if (result != name) {
+                error(
+                    SqlCodes.IDENTIFIER_TRUNCATED,
+                    "identifier '$name' exceeds ${63 - reserve} characters; truncated to '$result'",
                     span,
                 )
+            }
+            return result
+        }
+
+        private fun error(code: DiagnosticCode, message: String, span: Span) {
+            diagnostics += Diagnostic(code, message, span)
+        }
+
+        private fun unsupported(what: String, span: Span, where: String? = null) {
+            val prefix = where?.let { "$it: " } ?: ""
+            error(
+                SqlCodes.UNSUPPORTED_SHAPE,
+                "${prefix}target 'sql' cannot lower $what yet (SCH-28)",
+                span,
+            )
         }
     }
 
