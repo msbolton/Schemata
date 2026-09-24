@@ -585,6 +585,95 @@ class SqlLoweringTest {
     }
 
     @Test
+    fun `derived relation names collide across tables`() {
+        val key = sql("key" to AnnotationValue.Flag)
+        val unique = sql("unique" to AnnotationValue.Flag)
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key),
+                field(2, "line_id", Scalar(Builtin.UUID), annotations = unique),
+                line = 10,
+            )
+        val orderLine =
+            record(
+                "a",
+                "OrderLine",
+                field(1, "order_id", Scalar(Builtin.UUID), line = 21, annotations = key),
+                field(2, "id", Scalar(Builtin.UUID), line = 22, annotations = unique),
+                line = 20,
+            )
+        val pkFoo =
+            record(
+                "a",
+                "PkFoo",
+                field(1, "id", Scalar(Builtin.UUID), line = 31, annotations = key),
+                line = 30,
+            )
+        val foo =
+            record(
+                "a",
+                "Foo",
+                field(1, "id", Scalar(Builtin.UUID), line = 41, annotations = key),
+                line = 40,
+            )
+        val lowered = lower(namespace("a", order, orderLine, pkFoo, foo))
+        assertEquals(
+            listOf(
+                "22 SCH2111 relation name 'uq_order_line_id' is already used by unique 'uq_order_line_id' (o.schemata:12)",
+                "40 SCH2111 relation name 'pk_foo' is already used by table 'pk_foo' (o.schemata:30)",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `a unique or index on the key columns is redundant`() {
+        val r =
+            record(
+                "a",
+                "K",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    annotations =
+                        sql(
+                            "key" to AnnotationValue.Flag,
+                            "unique" to AnnotationValue.Flag,
+                            "index" to AnnotationValue.Flag,
+                        ),
+                ),
+            )
+        val lowered = lower(namespace("a", r))
+        val t = table(lowered, "k")
+        assertEquals(listOf("id"), t.primaryKey)
+        assertEquals(emptyList(), t.uniques)
+        assertEquals(emptyList(), t.indexes)
+        assertEquals(
+            listOf(
+                "11 SCH2113 field 'K.id': @sql(unique) duplicates the primary key; dropped",
+                "11 SCH2113 field 'K.id': @sql(index) duplicates the primary key; dropped",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `long schema names are truncated`() {
+        val raw = "s".repeat(70)
+        val lowered = lower(namespace("x.$raw"))
+        val schemaName = lowered.model.schemas.single().schemaName
+        assertEquals(63, schemaName.length)
+        assertEquals(Naming.identifier(raw), schemaName)
+        assertEquals(
+            listOf("1 SCH2109 identifier '$raw' exceeds 63 bytes; truncated to '$schemaName'"),
+            messages(lowered),
+        )
+    }
+
+    @Test
     fun `final names collide across overrides`() {
         val a =
             record(

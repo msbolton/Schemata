@@ -28,7 +28,10 @@ import io.schemata.target.TypeText
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
         val diagnostics = mutableListOf<Diagnostic>()
-        val schemaNames = schema.namespaces.associate { it.name to Naming.schemaOf(it) }
+        val schemaNames =
+            schema.namespaces.associate {
+                it.name to identifier(Naming.schemaOf(it), it.span, diagnostics)
+            }
         schemaCollisions(schema.namespaces, schemaNames, diagnostics)
         val schemas =
             schema.namespaces.map {
@@ -43,9 +46,14 @@ object SqlLowering {
         private val schemaName: String,
         private val diagnostics: MutableList<Diagnostic>,
     ) {
+        /** Every name a table puts in the schema's relation namespace, with where it came from. */
+        private val relations = mutableListOf<Relation>()
+        private val claimedTables = mutableSetOf<String>()
+
         fun lower(): RelationalSchema {
             tableCollisions()
             val tables = namespace.declarations.mapNotNull { decl(it) }
+            relationCollisions()
             return RelationalSchema(
                 path = namespace.name.replace('.', '/') + ".sql",
                 schemaName = schemaName,
@@ -70,6 +78,24 @@ object SqlLowering {
                             colliding.first().span,
                         )
                 }
+        }
+
+        /**
+         * Tables, primary keys, uniques, and indexes share one Postgres namespace per schema, so a
+         * derived name such as `uq_order_line_id` can be claimed by two tables. Records that lower
+         * to the same table are already reported by [tableCollisions]; only the first of them
+         * contributes names here.
+         */
+        private fun relationCollisions() {
+            val holders = mutableMapOf<String, Relation>()
+            relations.forEach { relation ->
+                val previous = holders.putIfAbsent(relation.name, relation) ?: return@forEach
+                error(
+                    SqlCodes.NAME_COLLISION,
+                    "relation name '${relation.name}' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
+                    relation.span,
+                )
+            }
         }
 
         private fun decl(decl: TypeDecl): Table? =
@@ -107,8 +133,8 @@ object SqlLowering {
                     )
                 }
             val checks = mutableListOf<Check>()
-            val uniques = mutableListOf<Unique>()
-            val indexes = mutableListOf<Index>()
+            val uniques = mutableListOf<Pair<Field, Unique>>()
+            val indexes = mutableListOf<Pair<Field, Index>>()
             val columnsByField = linkedMapOf<Field, Column>()
             val seen = mutableMapOf<String, Field>()
             record.fields.forEach { field ->
@@ -136,25 +162,62 @@ object SqlLowering {
             val primaryKey = keyFields.mapNotNull { columnsByField[it]?.name }
             val primaryKeyName =
                 if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
+            val keptUniques = withoutKey(record, "unique", uniques, primaryKey) { it.columns }
+            val keptIndexes = withoutKey(record, "index", indexes, primaryKey) { it.columns }
+            if (claimedTables.add(tableName)) {
+                relations += Relation(tableName, "table '$tableName'", record.nameSpan)
+                primaryKeyName?.let {
+                    relations += Relation(it, "primary key of '$tableName'", record.nameSpan)
+                }
+                keptUniques.forEach { (field, u) ->
+                    relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
+                }
+                keptIndexes.forEach { (field, ix) ->
+                    relations += Relation(ix.name, "index '${ix.name}'", field.nameSpan)
+                }
+            }
             return Table(
                 name = tableName,
                 columns = columnsByField.values.toList(),
                 primaryKey = primaryKey,
                 primaryKeyName = primaryKeyName,
                 checks = checks,
-                uniques = uniques,
-                indexes = indexes,
+                uniques = keptUniques.map { it.second },
+                indexes = keptIndexes.map { it.second },
                 doc = record.doc,
             )
         }
+
+        /**
+         * A unique or index over exactly the primary-key columns adds nothing the key does not
+         * already enforce, so it is dropped with a warning.
+         */
+        private fun <T> withoutKey(
+            record: RecordType,
+            key: String,
+            constraints: List<Pair<Field, T>>,
+            primaryKey: List<String>,
+            columns: (T) -> List<String>,
+        ): List<Pair<Field, T>> =
+            constraints.filter { (field, constraint) ->
+                val redundant = primaryKey.isNotEmpty() && columns(constraint) == primaryKey
+                if (redundant) {
+                    error(
+                        SqlCodes.REDUNDANT_CONSTRAINT,
+                        "field '${record.name}.${field.name}': @sql($key) duplicates the primary key; dropped",
+                        field.nameSpan,
+                    )
+                }
+                !redundant
+            }
 
         private fun column(
             record: RecordType,
             table: String,
             field: Field,
             checks: MutableList<Check>,
-            uniques: MutableList<Unique>,
-            indexes: MutableList<Index>,
+            uniques: MutableList<Pair<Field, Unique>>,
+            indexes: MutableList<Pair<Field, Index>>,
         ): Column? {
             val where = "field '${record.name}.${field.name}'"
             val sql = field.annotations["sql"]
@@ -194,10 +257,13 @@ object SqlLowering {
                     Check(identifier("ck_${table}_${rawName}_$suffix", field.nameSpan), expression)
                 }
             if ("unique" in sql) {
-                uniques += Unique(identifier("uq_${table}_$rawName", field.nameSpan), listOf(name))
+                uniques +=
+                    field to
+                        Unique(identifier("uq_${table}_$rawName", field.nameSpan), listOf(name))
             }
             if ("index" in sql) {
-                indexes += Index(identifier("ix_${table}_$rawName", field.nameSpan), listOf(name))
+                indexes +=
+                    field to Index(identifier("ix_${table}_$rawName", field.nameSpan), listOf(name))
             }
             return Column(
                 name = name,
@@ -211,18 +277,8 @@ object SqlLowering {
             )
         }
 
-        /** Truncates to Postgres's limit, reporting once per identifier. */
-        private fun identifier(name: String, span: Span): String {
-            val result = Naming.identifier(name)
-            if (result != name) {
-                error(
-                    SqlCodes.IDENTIFIER_TRUNCATED,
-                    "identifier '$name' exceeds 63 bytes; truncated to '$result'",
-                    span,
-                )
-            }
-            return result
-        }
+        private fun identifier(name: String, span: Span): String =
+            SqlLowering.identifier(name, span, diagnostics)
 
         private fun error(code: DiagnosticCode, message: String, span: Span) {
             diagnostics += Diagnostic(code, message, span)
@@ -236,6 +292,23 @@ object SqlLowering {
                 span,
             )
         }
+    }
+
+    /** A name in the schema's relation namespace and the declaration that put it there. */
+    private class Relation(val name: String, val kind: String, val span: Span)
+
+    /** Truncates to Postgres's limit, reporting once per identifier. */
+    private fun identifier(name: String, span: Span, diagnostics: MutableList<Diagnostic>): String {
+        val result = Naming.identifier(name)
+        if (result != name) {
+            diagnostics +=
+                Diagnostic(
+                    SqlCodes.IDENTIFIER_TRUNCATED,
+                    "identifier '$name' exceeds 63 bytes; truncated to '$result'",
+                    span,
+                )
+        }
+        return result
     }
 
     private fun schemaCollisions(
