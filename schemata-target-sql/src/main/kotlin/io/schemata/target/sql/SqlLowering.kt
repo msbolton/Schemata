@@ -107,6 +107,32 @@ object SqlLowering {
 
         private fun record(record: RecordType): Table {
             val tableName = identifier(Naming.tableOf(record), record.nameSpan)
+            val keyFields = keys(record)
+            val body = columns(record, tableName)
+            record.nested.forEach { unsupported("nested declarations", it.nameSpan) }
+            val primaryKey = keyFields.mapNotNull { body.columns[it]?.name }
+            val primaryKeyName =
+                if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
+            val uniques = constraints(record, "unique", body.uniques, primaryKey) { it.columns }
+            val indexes = constraints(record, "index", body.indexes, primaryKey) { it.columns }
+            claim(record, tableName, primaryKeyName, uniques, indexes)
+            return Table(
+                name = tableName,
+                columns = body.columns.values.toList(),
+                primaryKey = primaryKey,
+                primaryKeyName = primaryKeyName,
+                checks = body.checks,
+                uniques = uniques.map { it.second },
+                indexes = indexes.map { it.second },
+                doc = record.doc,
+            )
+        }
+
+        /**
+         * The primary key's fields in key order: the `@sql(key)` fields in declaration order, or
+         * the fields a record-level `@sql(key = (...))` names, each once.
+         */
+        private fun keys(record: RecordType): List<Field> {
             val fieldKeys = record.fields.filter { "key" in it.annotations["sql"] }
             val recordKeyNames =
                 (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
@@ -145,13 +171,9 @@ object SqlLowering {
                     )
                 }
             val keyFields =
-                if (recordKeyNames != null) {
-                    recordKeyNames.distinct().mapNotNull { name ->
-                        record.fields.firstOrNull { it.name == name }
-                    }
-                } else {
-                    fieldKeys
-                }
+                recordKeyNames?.distinct()?.mapNotNull { name ->
+                    record.fields.firstOrNull { it.name == name }
+                } ?: fieldKeys
             keyFields
                 .filter { it.nullable }
                 .forEach {
@@ -161,6 +183,18 @@ object SqlLowering {
                         it.nameSpan,
                     )
                 }
+            return keyFields
+        }
+
+        /** A record's columns and the per-field constraints they carry. */
+        private class Body(
+            val columns: Map<Field, Column>,
+            val checks: List<Check>,
+            val uniques: List<Pair<Field, Unique>>,
+            val indexes: List<Pair<Field, Index>>,
+        )
+
+        private fun columns(record: RecordType, tableName: String): Body {
             val checks = mutableListOf<Check>()
             val uniques = mutableListOf<Pair<Field, Unique>>()
             val indexes = mutableListOf<Pair<Field, Index>>()
@@ -179,41 +213,14 @@ object SqlLowering {
                 }
                 columnsByField[field] = column
             }
-            record.nested.forEach { unsupported("nested declarations", it.nameSpan) }
-            val primaryKey = keyFields.mapNotNull { columnsByField[it]?.name }
-            val primaryKeyName =
-                if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
-            val keptUniques = withoutKey(record, "unique", uniques, primaryKey) { it.columns }
-            val keptIndexes = withoutKey(record, "index", indexes, primaryKey) { it.columns }
-            if (claimedTables.add(tableName)) {
-                relations += Relation(tableName, "table '$tableName'", record.nameSpan)
-                primaryKeyName?.let {
-                    relations += Relation(it, "primary key of '$tableName'", record.nameSpan)
-                }
-                keptUniques.forEach { (field, u) ->
-                    relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
-                }
-                keptIndexes.forEach { (field, ix) ->
-                    relations += Relation(ix.name, "index '${ix.name}'", field.nameSpan)
-                }
-            }
-            return Table(
-                name = tableName,
-                columns = columnsByField.values.toList(),
-                primaryKey = primaryKey,
-                primaryKeyName = primaryKeyName,
-                checks = checks,
-                uniques = keptUniques.map { it.second },
-                indexes = keptIndexes.map { it.second },
-                doc = record.doc,
-            )
+            return Body(columnsByField, checks, uniques, indexes)
         }
 
         /**
          * A unique or index over exactly the primary-key columns adds nothing the key does not
          * already enforce, so it is dropped with a warning.
          */
-        private fun <T> withoutKey(
+        private fun <T> constraints(
             record: RecordType,
             key: String,
             constraints: List<Pair<Field, T>>,
@@ -231,6 +238,30 @@ object SqlLowering {
                 }
                 !redundant
             }
+
+        /**
+         * Records the table's names for [relationCollisions]. A table already claimed by an earlier
+         * record is a table collision, reported on its own.
+         */
+        private fun claim(
+            record: RecordType,
+            tableName: String,
+            primaryKeyName: String?,
+            uniques: List<Pair<Field, Unique>>,
+            indexes: List<Pair<Field, Index>>,
+        ) {
+            if (!claimedTables.add(tableName)) return
+            relations += Relation(tableName, "table '$tableName'", record.nameSpan)
+            primaryKeyName?.let {
+                relations += Relation(it, "primary key of '$tableName'", record.nameSpan)
+            }
+            uniques.forEach { (field, u) ->
+                relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
+            }
+            indexes.forEach { (field, ix) ->
+                relations += Relation(ix.name, "index '${ix.name}'", field.nameSpan)
+            }
+        }
 
         private fun column(
             record: RecordType,
