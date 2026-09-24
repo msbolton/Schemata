@@ -63,8 +63,20 @@ class NamingTest {
         assertFalse(Naming.truncated("order_line"))
         assertEquals("order_line", Naming.identifier("order_line"))
         assertEquals("a".repeat(63), Naming.identifier("a".repeat(63)))
-        assertEquals(60, Naming.identifier("t".repeat(61), reserve = 3).length)
-        assertEquals("t".repeat(60), Naming.identifier("t".repeat(60), reserve = 3))
+    }
+
+    @Test
+    fun `the limit is measured in UTF-8 bytes and truncation keeps whole code points`() {
+        val wide = "\u00e9".repeat(40)
+        assertEquals(80, wide.toByteArray(Charsets.UTF_8).size)
+        assertTrue(Naming.truncated(wide))
+        val short = Naming.identifier(wide)
+        assertTrue(Regex("\u00e9{27}_[0-9a-f]{7}").matches(short), short)
+        assertEquals(62, short.toByteArray(Charsets.UTF_8).size)
+        val fits = "\u00e9".repeat(31)
+        assertEquals(62, fits.toByteArray(Charsets.UTF_8).size)
+        assertFalse(Naming.truncated(fits))
+        assertEquals(fits, Naming.identifier(fits))
     }
 
     @Test

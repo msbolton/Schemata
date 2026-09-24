@@ -73,7 +73,9 @@ object SqlRenderer {
         listOfNotNull(
                 table.primaryKey
                     .takeIf { it.isNotEmpty() }
-                    ?.let { "CONSTRAINT ${quote("pk_${table.name}")} PRIMARY KEY (${columns(it)})" }
+                    ?.let {
+                        "CONSTRAINT ${quote(table.primaryKeyName!!)} PRIMARY KEY (${columns(it)})"
+                    }
             )
             .plus(
                 table.uniques.map { "CONSTRAINT ${quote(it.name)} UNIQUE (${columns(it.columns)})" }

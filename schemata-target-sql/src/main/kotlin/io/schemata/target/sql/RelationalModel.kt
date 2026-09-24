@@ -17,10 +17,14 @@ data class RelationalSchema(
     val foreignKeys: List<ForeignKey> = emptyList(),
 )
 
+/**
+ * [primaryKeyName] is final when [primaryKey] is non-empty; lowering derives it, not the renderer.
+ */
 data class Table(
     val name: String,
     val columns: List<Column>,
     val primaryKey: List<String> = emptyList(),
+    val primaryKeyName: String? = null,
     val checks: List<Check> = emptyList(),
     val uniques: List<Unique> = emptyList(),
     val indexes: List<Index> = emptyList(),

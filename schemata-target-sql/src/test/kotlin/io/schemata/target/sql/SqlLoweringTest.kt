@@ -535,6 +535,7 @@ class SqlLoweringTest {
             )
         val lowered = lower(namespace("a", r))
         val t = table(lowered, "user")
+        assertEquals("pk_user", t.primaryKeyName)
         val column = "a_very_long_field_name_that_goes_well_beyond_the_sixty__b7ff5eb"
         assertEquals(column, t.columns[1].name)
         assertEquals(63, t.checks.single().name.length)
@@ -543,9 +544,41 @@ class SqlLoweringTest {
         assertEquals(63, t.uniques.single().name.length)
         assertEquals(
             listOf(
-                "12 SCH2109 identifier '$long' exceeds 63 characters; truncated to '$column'",
-                "12 SCH2109 identifier 'ck_user_${long}_min' exceeds 63 characters; truncated to '${t.checks.single().name}'",
-                "12 SCH2109 identifier 'uq_user_$long' exceeds 63 characters; truncated to '${t.uniques.single().name}'",
+                "12 SCH2109 identifier '$long' exceeds 63 bytes; truncated to '$column'",
+                "12 SCH2109 identifier 'ck_user_${long}_min' exceeds 63 bytes; truncated to '${t.checks.single().name}'",
+                "12 SCH2109 identifier 'uq_user_$long' exceeds 63 bytes; truncated to '${t.uniques.single().name}'",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `long table names truncate the table and its pk name`() {
+        val name = "A" + "b".repeat(69)
+        val r =
+            record(
+                "a",
+                name,
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
+            )
+        val lowered = lower(namespace("a", r))
+        val t = lowered.model.schemas.single().tables.single()
+        val raw = "a" + "b".repeat(69)
+        assertEquals(70, raw.length)
+        assertEquals(63, t.name.length)
+        assertEquals(Naming.identifier(raw), t.name)
+        assertEquals(Naming.identifier("pk_${t.name}"), t.primaryKeyName)
+        assertEquals(63, t.primaryKeyName!!.length)
+        assertTrue(t.primaryKeyName!!.startsWith("pk_a"))
+        assertEquals(
+            listOf(
+                "3 SCH2109 identifier '$raw' exceeds 63 bytes; truncated to '${t.name}'",
+                "3 SCH2109 identifier 'pk_${t.name}' exceeds 63 bytes; truncated to '${t.primaryKeyName}'",
             ),
             messages(lowered),
         )

@@ -75,6 +75,7 @@ class SqlRendererTest {
                                 ),
                             ),
                         primaryKey = listOf("id"),
+                        primaryKeyName = "pk_product",
                         checks =
                             listOf(
                                 Check(
@@ -96,6 +97,7 @@ class SqlRendererTest {
                                 Column("sku", ColumnType.TEXT, nullable = false),
                             ),
                         primaryKey = listOf("order_id", "position"),
+                        primaryKeyName = "pk_order_line",
                     ),
                     Table("empty", emptyList()),
                 ),

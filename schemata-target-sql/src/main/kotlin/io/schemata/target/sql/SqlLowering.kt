@@ -80,7 +80,7 @@ object SqlLowering {
             }
 
         private fun record(record: RecordType): Table {
-            val tableName = identifier(Naming.tableOf(record), record.nameSpan, reserve = 3)
+            val tableName = identifier(Naming.tableOf(record), record.nameSpan)
             val fieldKeys = record.fields.filter { "key" in it.annotations["sql"] }
             val recordKeyNames =
                 (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
@@ -134,10 +134,13 @@ object SqlLowering {
                     fieldKeys
                 }
             val primaryKey = keyFields.mapNotNull { columnsByField[it]?.name }
+            val primaryKeyName =
+                if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
             return Table(
                 name = tableName,
                 columns = columnsByField.values.toList(),
                 primaryKey = primaryKey,
+                primaryKeyName = primaryKeyName,
                 checks = checks,
                 uniques = uniques,
                 indexes = indexes,
@@ -208,16 +211,13 @@ object SqlLowering {
             )
         }
 
-        /**
-         * Truncates to Postgres's limit, reporting once per identifier. [reserve] keeps room for a
-         * `pk_` prefix.
-         */
-        private fun identifier(name: String, span: Span, reserve: Int = 0): String {
-            val result = Naming.identifier(name, reserve)
+        /** Truncates to Postgres's limit, reporting once per identifier. */
+        private fun identifier(name: String, span: Span): String {
+            val result = Naming.identifier(name)
             if (result != name) {
                 error(
                     SqlCodes.IDENTIFIER_TRUNCATED,
-                    "identifier '$name' exceeds ${63 - reserve} characters; truncated to '$result'",
+                    "identifier '$name' exceeds 63 bytes; truncated to '$result'",
                     span,
                 )
             }

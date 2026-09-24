@@ -15,8 +15,8 @@ import io.schemata.target.Names
 import java.security.MessageDigest
 
 /**
- * The SQL target's naming rules: derived names, `@sql` overrides, quoting, and Postgres's
- * 63-character limit.
+ * The SQL target's naming rules: derived names, `@sql` overrides, quoting, and Postgres's 63-byte
+ * identifier limit.
  */
 object Naming {
     private const val MAX_IDENTIFIER = 63
@@ -37,20 +37,31 @@ object Naming {
             is EnumRef -> literal(value.value)
         }
 
-    /**
-     * [reserve] holds back room for a caller-added suffix, such as a constraint's own qualifier.
-     */
-    fun truncated(name: String, reserve: Int = 0): Boolean = name.length + reserve > MAX_IDENTIFIER
+    /** Postgres measures identifiers in bytes, so a multi-byte name reaches the limit sooner. */
+    fun truncated(name: String): Boolean = name.toByteArray(Charsets.UTF_8).size > MAX_IDENTIFIER
 
     /**
-     * Over the limit: the first `55 - [reserve]` characters, `_`, and 7 hex of the full name's
-     * SHA-1.
+     * Over the limit: the longest run of whole code points that fits in 55 bytes, `_`, and 7 hex of
+     * the full name's SHA-1.
      */
-    fun identifier(name: String, reserve: Int = 0): String {
-        if (!truncated(name, reserve)) return name
-        val digest = MessageDigest.getInstance("SHA-1").digest(name.toByteArray())
+    fun identifier(name: String): String {
+        if (!truncated(name)) return name
+        val digest = MessageDigest.getInstance("SHA-1").digest(name.toByteArray(Charsets.UTF_8))
         val hash = digest.joinToString("") { "%02x".format(it) }.take(7)
-        return name.take(KEPT - reserve) + "_" + hash
+        return prefix(name, KEPT) + "_" + hash
+    }
+
+    private fun prefix(name: String, bytes: Int): String {
+        var end = 0
+        var size = 0
+        while (end < name.length) {
+            val codePoint = name.codePointAt(end)
+            val width = String(Character.toChars(codePoint)).toByteArray(Charsets.UTF_8).size
+            if (size + width > bytes) break
+            size += width
+            end += Character.charCount(codePoint)
+        }
+        return name.substring(0, end)
     }
 
     fun override(annotations: Annotations, key: String): String? =
