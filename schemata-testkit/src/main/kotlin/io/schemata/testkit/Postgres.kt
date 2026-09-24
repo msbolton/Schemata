@@ -70,7 +70,7 @@ object Postgres {
     private fun tables(conn: Connection, schema: String): List<Pair<String, String?>> =
         query(
             conn,
-            "select c.relname, obj_description(c.oid, 'pg_class') from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = '$schema' and c.relkind = 'r' order by c.relname",
+            "select c.relname, obj_description(c.oid, 'pg_class') from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = ${lit(schema)} and c.relkind = 'r' order by c.relname",
         ) {
             it.getString(1) to it.getString(2)
         }
@@ -85,7 +85,7 @@ object Postgres {
             join pg_class c on c.oid = a.attrelid
             join pg_namespace n on n.oid = c.relnamespace
             left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
-            where n.nspname = '$schema' and c.relname = '$table' and a.attnum > 0 and not a.attisdropped
+            where n.nspname = ${lit(schema)} and c.relname = ${lit(table)} and a.attnum > 0 and not a.attisdropped
             order by a.attnum
             """,
         ) { rs ->
@@ -100,7 +100,7 @@ object Postgres {
     private fun constraints(conn: Connection, schema: String, table: String): List<String> =
         query(
             conn,
-            "select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = '\"$schema\".\"$table\"'::regclass order by conname",
+            "select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = ${regclass(schema, table)} order by conname",
         ) {
             "constraint ${it.getString(1)} ${it.getString(2)}"
         }
@@ -110,8 +110,8 @@ object Postgres {
             conn,
             """
             select i.indexname, i.indexdef from pg_indexes i
-            where i.schemaname = '$schema' and i.tablename = '$table'
-              and not exists (select 1 from pg_constraint c where c.conname = i.indexname and c.conrelid = '"$schema"."$table"'::regclass)
+            where i.schemaname = ${lit(schema)} and i.tablename = ${lit(table)}
+              and not exists (select 1 from pg_constraint c where c.conname = i.indexname and c.conrelid = ${regclass(schema, table)})
             order by i.indexname
             """,
         ) {
@@ -124,4 +124,12 @@ object Postgres {
                 generateSequence { if (rs.next()) row(rs) else null }.toList()
             }
         }
+
+    /** A single-quoted SQL string literal, with embedded quotes doubled. */
+    private fun lit(s: String) = "'" + s.replace("'", "''") + "'"
+
+    /** A `schema.table`-style `regclass` literal, with embedded double quotes doubled. */
+    private fun regclass(schema: String, table: String) =
+        lit("\"" + schema.replace("\"", "\"\"") + "\".\"" + table.replace("\"", "\"\"") + "\"") +
+            "::regclass"
 }

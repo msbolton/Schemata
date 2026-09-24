@@ -59,4 +59,33 @@ class PostgresTest {
         Postgres.withDatabase(mapOf("x.sql" to "CREATE SCHEMA \"only\";")) {}
         assertEquals("", Postgres.withDatabase(emptyMap()) { Postgres.catalog(it) })
     }
+
+    @Test
+    fun `names with quotes are snapshotted safely`() {
+        assumeTrue(Postgres.available, "Docker is not available; skipping")
+        val files =
+            mapOf(
+                "x.sql" to
+                    """
+                    CREATE SCHEMA "od'd";
+
+                    CREATE TABLE "od'd"."we""ird" (
+                      "id" integer NOT NULL,
+                      CONSTRAINT "pk_we""ird" PRIMARY KEY ("id")
+                    );
+                    """
+                        .trimIndent()
+            )
+        val catalog = Postgres.withDatabase(files) { Postgres.catalog(it) }
+        assertEquals(
+            """
+            schema od'd
+            table od'd.we"ird
+              column id integer not null
+              constraint pk_we"ird PRIMARY KEY (id)
+            """
+                .trimIndent() + "\n",
+            catalog,
+        )
+    }
 }
