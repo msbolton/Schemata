@@ -10,9 +10,10 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every corpus case with an `expected/sql` tree renders exactly that tree, applies cleanly to a
- * real Postgres, and leaves the catalog described by `expected/sql-catalog.txt`.
- * `SCHEMATA_GOLDEN_UPDATE=1` rewrites both.
+ * Every corpus case with an `expected/sql` tree renders exactly that tree, reports exactly the
+ * warnings in `expected/sql-warnings.txt` (none when the file is absent), applies cleanly to a real
+ * Postgres, and leaves the catalog described by `expected/sql-catalog.txt`.
+ * `SCHEMATA_GOLDEN_UPDATE=1` rewrites all three.
  */
 class SqlConformanceTest {
     private val corpus = File("src/test/resources/corpus")
@@ -63,6 +64,16 @@ class SqlConformanceTest {
                 "$path in ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
             )
         }
+        val warnings = result.diagnostics.joinToString("") { "${it.code.id} ${it.message}\n" }
+        val warningsFile = File(case, "expected/sql-warnings.txt")
+        if (update) {
+            if (warnings.isEmpty()) warningsFile.delete() else warningsFile.writeText(warnings)
+        }
+        assertEquals(
+            if (warningsFile.isFile) warningsFile.readText() else "",
+            warnings,
+            "warnings for ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
+        )
         assumeTrue(Postgres.available, "Docker is not available; skipping the live catalog check")
         val catalog = Postgres.withDatabase(actual) { Postgres.catalog(it) }
         val snapshot = File(case, "expected/sql-catalog.txt")
