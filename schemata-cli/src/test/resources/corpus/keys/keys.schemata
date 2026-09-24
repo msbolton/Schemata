@@ -1,0 +1,17 @@
+namespace corpus.keys
+
+record Account {
+  @sql(key)
+  #1 id: uuid
+  @sql(unique)
+  #2 email: string(max = 254)
+  @sql(index)
+  #3 created: instant
+}
+
+@sql(key = (tenant_id, code))
+record Plan {
+  #1 tenant_id: uuid
+  #2 code: string(max = 32)
+  #3 name: string
+}

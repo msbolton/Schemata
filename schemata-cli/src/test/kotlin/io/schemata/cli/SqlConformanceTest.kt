@@ -1,26 +1,27 @@
 package io.schemata.cli
 
-import io.schemata.target.proto.ProtoTarget
-import io.schemata.testkit.Protoc
+import io.schemata.target.sql.SqlTarget
+import io.schemata.testkit.Postgres
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every corpus case renders exactly its expected tree and compiles under real protoc. Cases live in
- * `src/test/resources/corpus/<case>/` with `.schemata` inputs at the root and the expected files
- * under `expected/proto/`; `SCHEMATA_GOLDEN_UPDATE=1` rewrites the expected tree.
+ * Every corpus case with an `expected/sql` tree renders exactly that tree, applies cleanly to a
+ * real Postgres, and leaves the catalog described by `expected/sql-catalog.txt`.
+ * `SCHEMATA_GOLDEN_UPDATE=1` rewrites both.
  */
-class ProtoConformanceTest {
+class SqlConformanceTest {
     private val corpus = File("src/test/resources/corpus")
+    private val update = System.getenv("SCHEMATA_GOLDEN_UPDATE") == "1"
 
     @TestFactory
-    fun `corpus cases render their expected tree and compile under protoc`(): List<DynamicTest> =
+    fun `corpus cases render their DDL and match the live catalog`(): List<DynamicTest> =
         corpus
-            .listFiles { f -> f.isDirectory && File(f, "expected/proto").isDirectory }!!
+            .listFiles { f -> f.isDirectory && File(f, "expected/sql").isDirectory }!!
             .sortedBy { it.name }
             .map { case -> DynamicTest.dynamicTest(case.name) { check(case) } }
 
@@ -30,14 +31,14 @@ class ProtoConformanceTest {
                 .listFiles { f -> f.extension == "schemata" }!!
                 .sortedBy { it.name }
                 .map { SourceInput(it.name, it.readText()) }
-        val result = Pipeline.compile(inputs, listOf(ProtoTarget))
+        val result = Pipeline.compile(inputs, listOf(SqlTarget))
         assertFalse(
             result.hasErrors,
             result.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
         )
         val actual = result.files.associate { it.file.path to it.file.content }
-        val expectedDir = File(case, "expected/proto")
-        if (System.getenv("SCHEMATA_GOLDEN_UPDATE") == "1") {
+        val expectedDir = File(case, "expected/sql")
+        if (update) {
             expectedDir.deleteRecursively()
             actual.forEach { (path, content) ->
                 File(expectedDir, path).apply {
@@ -62,6 +63,14 @@ class ProtoConformanceTest {
                 "$path in ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
             )
         }
-        assertNull(Protoc.compile(actual))
+        assumeTrue(Postgres.available, "Docker is not available; skipping the live catalog check")
+        val catalog = Postgres.withDatabase(actual) { Postgres.catalog(it) }
+        val snapshot = File(case, "expected/sql-catalog.txt")
+        if (update) snapshot.writeText(catalog)
+        assertEquals(
+            snapshot.readText(),
+            catalog,
+            "live catalog for ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
+        )
     }
 }

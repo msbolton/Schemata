@@ -118,8 +118,8 @@ class StructuralAcceptanceTest {
         )
         val codes = result.diagnostics.map { it.code.id }.toSet()
         assertEquals(
-            setOf("SCH2001", "SCH2103"),
+            setOf("SCH2001", "SCH2103", "SCH2106"),
             codes,
-        ) // proto lowers everything; sql still reports shapes
+        ) // proto lowers everything; sql: structural shapes plus the four keyless records
     }
 }

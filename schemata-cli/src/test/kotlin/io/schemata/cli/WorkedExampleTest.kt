@@ -140,7 +140,10 @@ class WorkedExampleTest {
             listOf("shop/customers.proto", "shop/orders.proto"),
             result.files.map { it.file.path },
         )
-        assertEquals(setOf("SCH2001", "SCH2103"), result.diagnostics.map { it.code.id }.toSet())
+        assertEquals(
+            setOf("SCH2001", "SCH2103", "SCH2106"),
+            result.diagnostics.map { it.code.id }.toSet(),
+        )
     }
 
     @Test
