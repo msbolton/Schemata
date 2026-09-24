@@ -59,10 +59,16 @@ object Postgres {
         }
     }
 
+    /** `public` exists in every database, so it is listed only when it holds a table. */
     private fun schemas(conn: Connection): List<String> =
         query(
             conn,
-            "select nspname from pg_namespace where nspname not in ('pg_catalog', 'information_schema', 'public', 'pg_toast') order by nspname",
+            """
+            select nspname from pg_namespace
+            where nspname not in ('pg_catalog', 'information_schema', 'pg_toast')
+              and (nspname <> 'public' or exists (select 1 from pg_class c where c.relnamespace = pg_namespace.oid and c.relkind = 'r'))
+            order by nspname
+            """,
         ) {
             it.getString(1)
         }
@@ -105,14 +111,19 @@ object Postgres {
             "constraint ${it.getString(1)} ${it.getString(2)}"
         }
 
+    /**
+     * Indexes that back a primary key, unique, or exclusion constraint are already listed as that
+     * constraint. A foreign key also records the index it references, so it must not hide one.
+     */
     private fun indexes(conn: Connection, schema: String, table: String): List<String> =
         query(
             conn,
             """
-            select i.indexname, i.indexdef from pg_indexes i
-            where i.schemaname = ${lit(schema)} and i.tablename = ${lit(table)}
-              and not exists (select 1 from pg_constraint c where c.conname = i.indexname and c.conrelid = ${regclass(schema, table)})
-            order by i.indexname
+            select c.relname, pg_get_indexdef(i.indexrelid) from pg_index i
+            join pg_class c on c.oid = i.indexrelid
+            where i.indrelid = ${regclass(schema, table)}
+              and not exists (select 1 from pg_constraint k where k.conindid = i.indexrelid and k.contype in ('p', 'u', 'x'))
+            order by c.relname
             """,
         ) {
             "index ${it.getString(1)} ${it.getString(2).substringAfter(" USING ")}"
