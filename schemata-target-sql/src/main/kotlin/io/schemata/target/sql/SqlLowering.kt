@@ -43,7 +43,7 @@ object SqlLowering {
                 "SCH-31",
                 namespace.span,
                 diagnostics,
-                code = SqlCodes.UNSUPPORTED_VALUE,
+                code = SqlCodes.UNSUPPORTED_SHAPE,
             )
         }
         return RelationalSchema(
@@ -62,7 +62,7 @@ object SqlLowering {
                         "SCH-31",
                         decl.nameSpan,
                         diagnostics,
-                        code = SqlCodes.UNSUPPORTED_VALUE,
+                        code = SqlCodes.UNSUPPORTED_SHAPE,
                     )
                 }
                 val columns = decl.fields.mapNotNull { lower(decl, it, diagnostics) }
@@ -90,7 +90,7 @@ object SqlLowering {
         if (field.default != null) {
             diagnostics +=
                 Diagnostic(
-                    SqlCodes.UNSUPPORTED_VALUE,
+                    SqlCodes.UNSUPPORTED_SHAPE,
                     "$where: target 'sql' cannot lower field defaults yet (SCH-32)",
                     field.span,
                 )
@@ -99,7 +99,7 @@ object SqlLowering {
         if (field.type.hasRefinements()) {
             diagnostics +=
                 Diagnostic(
-                    SqlCodes.UNSUPPORTED_VALUE,
+                    SqlCodes.UNSUPPORTED_SHAPE,
                     "$where: target 'sql' cannot lower type refinements yet (SCH-31)",
                     field.span,
                 )
@@ -112,7 +112,7 @@ object SqlLowering {
                 field.span,
                 diagnostics,
                 where,
-                SqlCodes.UNSUPPORTED_VALUE,
+                SqlCodes.UNSUPPORTED_SHAPE,
             )
             return null
         }

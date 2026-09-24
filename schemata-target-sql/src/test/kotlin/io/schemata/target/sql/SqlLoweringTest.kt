@@ -183,7 +183,7 @@ class SqlLoweringTest {
                 "12 SCH2103 field 'R.ref': target 'sql' cannot lower record references yet (SCH-28)",
                 "13 SCH2103 field 'R.when': target 'sql' cannot lower instant yet (SCH-31)",
                 "14 SCH2103 field 'R.many': target 'sql' cannot lower lists yet (SCH-28)",
-                "15 SCH2104 field 'R.dflt': target 'sql' cannot lower field defaults yet (SCH-32)",
+                "15 SCH2103 field 'R.dflt': target 'sql' cannot lower field defaults yet (SCH-32)",
                 "20 SCH2103 target 'sql' cannot lower nested declarations yet (SCH-28)",
             ),
             lowered.diagnostics.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
@@ -210,8 +210,8 @@ class SqlLoweringTest {
         val ds = SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics
         assertEquals(
             listOf(
-                "11 SCH2104 field 'R.s': target 'sql' cannot lower type refinements yet (SCH-31)",
-                "12 SCH2104 field 'R.l': target 'sql' cannot lower type refinements yet (SCH-31)",
+                "11 SCH2103 field 'R.s': target 'sql' cannot lower type refinements yet (SCH-31)",
+                "12 SCH2103 field 'R.l': target 'sql' cannot lower type refinements yet (SCH-31)",
             ),
             ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
         )
@@ -260,9 +260,9 @@ class SqlLoweringTest {
         val ds = SqlLowering.lower(Schema(listOf(ns))).diagnostics
         assertEquals(
             listOf(
-                "1 SCH2104 target 'sql' cannot lower annotations yet (SCH-31)",
-                "3 SCH2104 target 'sql' cannot lower annotations yet (SCH-31)",
-                "11 SCH2104 field 'R.a': target 'sql' cannot lower annotations yet (SCH-31)",
+                "1 SCH2103 target 'sql' cannot lower annotations yet (SCH-31)",
+                "3 SCH2103 target 'sql' cannot lower annotations yet (SCH-31)",
+                "11 SCH2103 field 'R.a': target 'sql' cannot lower annotations yet (SCH-31)",
             ),
             ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
         )
@@ -273,7 +273,7 @@ class SqlLoweringTest {
         val r = record("a", "R", field(1, "n", Scalar(Builtin.INT64), default = IntValue(1)))
         val ds = SqlLowering.lower(Schema(listOf(namespace("a", r)))).diagnostics
         assertEquals(
-            listOf("11 SCH2104 field 'R.n': target 'sql' cannot lower field defaults yet (SCH-32)"),
+            listOf("11 SCH2103 field 'R.n': target 'sql' cannot lower field defaults yet (SCH-32)"),
             ds.map { "${it.span.startLine} ${it.code.id} ${it.message}" },
         )
     }
