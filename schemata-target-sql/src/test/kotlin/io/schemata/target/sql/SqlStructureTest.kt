@@ -1001,4 +1001,93 @@ class SqlStructureTest {
             table(loweredOk, "r").columns.single { it.name == "choice" }.type,
         )
     }
+
+    @Test
+    fun `a nested keyed record is a table and references to it have a target`() {
+        val item =
+            RecordType(
+                qn("a", "Order", "Item"),
+                "Item",
+                listOf(
+                    field(
+                        1,
+                        "sku",
+                        Scalar(Builtin.STRING, Refinements(max = big(8))),
+                        line = 21,
+                        annotations = key(),
+                    )
+                ),
+                Reserved.NONE,
+                false,
+                emptyList(),
+                null,
+                at(20),
+                at(20),
+                Annotations.NONE,
+            )
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "item", Ref(qn("a", "Order", "Item"))),
+                nested = listOf(item),
+            )
+        val lowered = lower(namespace("a", order))
+        assertEquals(emptyList(), messages(lowered))
+        val schema = lowered.model.schemas.single()
+        assertEquals(listOf("order", "item"), schema.tables.map { it.name })
+        assertEquals(
+            listOf(
+                Triple("id", ColumnType.UUID, false),
+                Triple("item_sku", ColumnType.VARCHAR(8), false),
+            ),
+            table(lowered, "order").columns.map { Triple(it.name, it.type, it.nullable) },
+        )
+        val itemTable = table(lowered, "item")
+        assertEquals(listOf("sku"), itemTable.columns.map { it.name })
+        assertEquals(listOf("sku") to "pk_item", itemTable.primaryKey to itemTable.primaryKeyName)
+        assertEquals(
+            listOf(
+                ForeignKey(
+                    "fk_order_item",
+                    "a",
+                    "order",
+                    listOf("item_sku"),
+                    "a",
+                    "item",
+                    listOf("sku"),
+                    cascade = false,
+                )
+            ),
+            schema.foreignKeys,
+        )
+    }
+
+    @Test
+    fun `a table and a child table with one name collide`() {
+        val orderLines =
+            record(
+                "a",
+                "OrderLines",
+                field(1, "id", Scalar(Builtin.UUID), line = 4, annotations = key()),
+                line = 3,
+            )
+        val line = record("a", "Line", field(1, "sku", Scalar(Builtin.STRING)), line = 20)
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "lines", ListOf(Ref(qn("a", "Line")), false)),
+                line = 10,
+            )
+        val lowered = lower(namespace("a", orderLines, line, order))
+        assertEquals(
+            listOf(
+                "12 SCH2111 relation name 'order_lines' is already used by table 'order_lines' (o.schemata:3)"
+            ),
+            messages(lowered),
+        )
+    }
 }

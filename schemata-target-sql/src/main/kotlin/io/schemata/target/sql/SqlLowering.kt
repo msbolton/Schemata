@@ -88,38 +88,39 @@ object SqlLowering {
     ) {
         /** Every name a table puts in the schema's relation namespace, with where it came from. */
         private val relations = mutableListOf<Relation>()
-        private val claimedTables = mutableSetOf<String>()
 
+        /** Every table name claimed so far, with the claim that took it first. */
+        private val claimedTables = mutableMapOf<String, TableClaim>()
+
+        /**
+         * Every record in the namespace, top-level or nested, each top-level declaration's tree in
+         * order: a record first, then the records declared inside it.
+         */
+        private val records: List<RecordType> =
+            namespace.declarations.flatMap { it.selfAndNested() }.filterIsInstance<RecordType>()
+
+        /**
+         * Every keyed record has a table, whether it is declared at the top level or nested inside
+         * another record; a nested keyed record's table follows its parent's table and children.
+         * Keyless records, top-level or nested, are value types, each reported if unused.
+         */
         fun lower(): Pair<RelationalSchema, List<PendingForeignKey>> {
             tableCollisions()
             val tables = mutableListOf<Table>()
             val foreignKeys = mutableListOf<PendingForeignKey>()
-            namespace.declarations.forEach { decl ->
-                when (decl) {
-                    is RecordType -> {
-                        if (catalog[decl.qualifiedName] != null) {
-                            val part = record(decl)
-                            tables += part.table
-                            tables += part.children.map { it.table }
-                            foreignKeys += part.foreignKeys
-                            foreignKeys += part.children.flatMap { it.foreignKeys }
-                        }
-                        // Nested declarations are value types with no table of their own; every
-                        // keyless record in the tree, top-level or nested, is reported if unused.
-                        decl.selfAndNested().filterIsInstance<RecordType>().forEach { r ->
-                            if (
-                                catalog[r.qualifiedName] == null && r.qualifiedName !in catalog.used
-                            ) {
-                                error(
-                                    SqlCodes.MISSING_KEY,
-                                    "record '${r.name}' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
-                                    r.nameSpan,
-                                )
-                            }
-                        }
-                    }
-                    is EnumType -> Unit // appears only where it is used
-                    is UnionType -> Unit
+            records.forEach { r ->
+                if (catalog[r.qualifiedName] != null) {
+                    val part = record(r)
+                    tables += part.table
+                    tables += part.children.map { it.table }
+                    foreignKeys += part.foreignKeys
+                    foreignKeys += part.children.flatMap { it.foreignKeys }
+                } else if (r.qualifiedName !in catalog.used) {
+                    error(
+                        SqlCodes.MISSING_KEY,
+                        "record '${r.name}' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
+                        r.nameSpan,
+                    )
                 }
             }
             relationCollisions()
@@ -128,11 +129,10 @@ object SqlLowering {
 
         /**
          * Table collisions are reported over final (overridden) names, before any record lowers.
-         * Only keyed records have tables.
+         * Only keyed records have tables, nested ones included.
          */
         private fun tableCollisions() {
-            namespace.declarations
-                .filterIsInstance<RecordType>()
+            records
                 .filter { catalog[it.qualifiedName] != null }
                 .groupBy { Naming.tableOf(it) }
                 .values
@@ -203,16 +203,22 @@ object SqlLowering {
                 }
             val indexes =
                 constraints(record, "index", owned(parts) { it.indexes }, primaryKey) { it.columns }
-            claim(tableName, primaryKeyName, uniques, indexes, record.nameSpan)
+            claim(
+                TableClaim("table '$tableName'", record.nameSpan, Naming.tableOf(record)),
+                tableName,
+                primaryKeyName,
+                uniques,
+                indexes,
+            )
             parts.forEach { (field, part) ->
                 part.children.forEach { child ->
                     val t = child.table
                     claim(
+                        TableClaim("child table '${t.name}'", field.nameSpan, null),
                         t.name,
                         t.primaryKeyName,
                         t.uniques.map { field to it },
                         t.indexes.map { field to it },
-                        field.nameSpan,
                     )
                 }
             }
@@ -361,18 +367,40 @@ object SqlLowering {
             }
 
         /**
-         * Records a table's names for [relationCollisions]. A table already claimed by an earlier
-         * record is a table collision, reported on its own.
+         * Who claims a table name: [kind] names it in messages, and [recordTable] is the record's
+         * own table name before truncation, or null for a child table.
+         */
+        private class TableClaim(val kind: String, val span: Span, val recordTable: String?)
+
+        /**
+         * Records a table's names for [relationCollisions]. Two records that lower to the same
+         * table are a table collision, already reported by [tableCollisions]; any other second
+         * claim on a table name (a child table against a record's table, or two child tables) is a
+         * name collision reported here, at the later claimant. Either way only the first claimant
+         * contributes names.
          */
         private fun claim(
+            claimant: TableClaim,
             tableName: String,
             primaryKeyName: String?,
             uniques: List<Pair<Field, Unique>>,
             indexes: List<Pair<Field, Index>>,
-            span: Span,
         ) {
-            if (!claimedTables.add(tableName)) return
-            relations += Relation(tableName, "table '$tableName'", span)
+            val previous = claimedTables.putIfAbsent(tableName, claimant)
+            if (previous != null) {
+                val sameRecordTable =
+                    claimant.recordTable != null && claimant.recordTable == previous.recordTable
+                if (!sameRecordTable) {
+                    error(
+                        SqlCodes.NAME_COLLISION,
+                        "relation name '$tableName' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
+                        claimant.span,
+                    )
+                }
+                return
+            }
+            val span = claimant.span
+            relations += Relation(tableName, claimant.kind, span)
             primaryKeyName?.let { relations += Relation(it, "primary key of '$tableName'", span) }
             uniques.forEach { (field, u) ->
                 relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
