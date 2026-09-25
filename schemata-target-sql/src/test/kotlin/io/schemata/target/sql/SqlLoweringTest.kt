@@ -386,7 +386,7 @@ class SqlLoweringTest {
                 "13 SCH2103 field 'R.map': target 'sql' cannot lower maps yet (SCH-28)",
                 "14 SCH2103 field 'R.choice': target 'sql' cannot lower unions yet (SCH-28)",
                 "15 SCH2103 field 'R.flat': target 'sql' cannot lower mapping strategies yet (SCH-28)",
-                "25 SCH2103 target 'sql' cannot lower nested declarations yet (SCH-28)",
+                "25 SCH2106 record 'N' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
             ),
             messages(lowered),
         )

@@ -11,6 +11,7 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
@@ -21,11 +22,12 @@ import io.schemata.target.TypeText
  * Lowers records to tables. A record has a table exactly when it has a key; a keyless record is a
  * value type that only appears where a field uses it. Lowering runs in two passes: a [Catalog] of
  * every keyed record's table and key columns, then each field's [Contribution] to its table.
- * References to keyed records become key columns and a foreign key. Scalars carry every builtin,
+ * References to keyed records become key columns and a foreign key; a reference to a keyless record
+ * embeds that record's own columns under `<field>_`, recursively. Scalars carry every builtin,
  * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides.
- * Embedded records, unions, lists, maps, nested declarations, and mapping strategies are reported
- * at the boundary until their lowering lands (SCH-28). `reserved` ordinals and names have no
- * relational meaning and are accepted without a diagnostic.
+ * Unions, lists, maps, and mapping strategies are reported at the boundary until their lowering
+ * lands (SCH-28). `reserved` ordinals and names have no relational meaning and are accepted without
+ * a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -95,14 +97,20 @@ object SqlLowering {
                             tables += part.children.map { it.table }
                             foreignKeys += part.foreignKeys
                             foreignKeys += part.children.flatMap { it.foreignKeys }
-                        } else if (decl.qualifiedName !in catalog.used) {
-                            error(
-                                SqlCodes.MISSING_KEY,
-                                "record '${decl.name}' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
-                                decl.nameSpan,
-                            )
                         }
-                        decl.nested.forEach { unsupported("nested declarations", it.nameSpan) }
+                        // Nested declarations are value types with no table of their own; every
+                        // keyless record in the tree, top-level or nested, is reported if unused.
+                        decl.selfAndNested().filterIsInstance<RecordType>().forEach { r ->
+                            if (
+                                catalog[r.qualifiedName] == null && r.qualifiedName !in catalog.used
+                            ) {
+                                error(
+                                    SqlCodes.MISSING_KEY,
+                                    "record '${r.name}' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
+                                    r.nameSpan,
+                                )
+                            }
+                        }
                     }
                     is EnumType -> Unit // appears only where it is used
                     is UnionType -> Unit
@@ -376,12 +384,8 @@ object SqlLowering {
                         is EnumType -> column(ctx, field, null, target)
                         is RecordType -> {
                             val entry = catalog[target.qualifiedName]
-                            if (entry != null) {
-                                reference(ctx, field, entry)
-                            } else {
-                                unsupported("record references", field.span, ctx.where)
-                                Contribution.NONE
-                            }
+                            if (entry != null) reference(ctx, field, entry)
+                            else embed(ctx, field, target, Naming.columnOf(field))
                         }
                         is UnionType -> {
                             unsupported("unions", field.span, ctx.where)
@@ -463,6 +467,7 @@ object SqlLowering {
                     },
                 uniques = uniqueOf(ctx, field, rawName, listOf(name)),
                 indexes = indexOf(ctx, field, rawName, listOf(name)),
+                required = if (field.nullable) emptyList() else listOf(name),
             )
         }
 
@@ -500,8 +505,66 @@ object SqlLowering {
                 uniques = uniqueOf(ctx, field, rawName, names),
                 indexes = indexOf(ctx, field, rawName, names),
                 foreignKeys = listOf(PendingForeignKey(fk, namespace.name, entry.namespace)),
+                required = if (field.nullable) emptyList() else names,
             )
         }
+
+        /**
+         * A reference to a keyless record: its own columns are embedded under `<field>_`,
+         * recursively, since a keyless record is a value type rather than a table of its own.
+         * Defaults, docs, and constraint names all carry over, renamed to the embedded columns. A
+         * nullable embed forces every produced column nullable and adds one CHECK that the columns
+         * which would otherwise be required are all present or all absent together; embedding the
+         * same record again inside itself is reported instead of recursing forever.
+         */
+        private fun embed(
+            ctx: FieldContext,
+            field: Field,
+            target: RecordType,
+            rawName: String,
+        ): Contribution {
+            if (target.qualifiedName in ctx.embedding) {
+                val cycle =
+                    (ctx.embedding.dropWhile { it != target.qualifiedName } + target.qualifiedName)
+                        .joinToString(" → ") { it.simpleName }
+                error(
+                    SqlCodes.RECURSIVE_EMBED,
+                    "${ctx.where}: embedding '${target.name}' here would recurse ($cycle); use strategy = json or give '${target.name}' a key",
+                    field.span,
+                )
+                return Contribution.NONE
+            }
+            val inner = ctx.nested(rawName, field.nullable, target.qualifiedName, ctx.where)
+            val parts =
+                target.fields.map {
+                    contribute(inner.copy(where = "field '${target.name}.${it.name}'"), it)
+                }
+            val merged = merge(parts)
+            if (!field.nullable) return merged
+            val required = merged.required
+            val cleared = merged.copy(required = emptyList())
+            if (required.isEmpty()) return cleared
+            val allNull = required.joinToString(" AND ") { "${Naming.quote(it)} IS NULL" }
+            val allSet = required.joinToString(" AND ") { "${Naming.quote(it)} IS NOT NULL" }
+            val present =
+                Check(
+                    identifier("ck_${ctx.table}_${ctx.prefix}${rawName}_present", field.nameSpan),
+                    "(($allNull) OR ($allSet))",
+                )
+            return cleared.copy(checks = cleared.checks + present)
+        }
+
+        /** Every list of a set of contributions, concatenated in order. */
+        private fun merge(parts: List<Contribution>): Contribution =
+            Contribution(
+                columns = parts.flatMap { it.columns },
+                checks = parts.flatMap { it.checks },
+                uniques = parts.flatMap { it.uniques },
+                indexes = parts.flatMap { it.indexes },
+                foreignKeys = parts.flatMap { it.foreignKeys },
+                children = parts.flatMap { it.children },
+                required = parts.flatMap { it.required },
+            )
 
         private fun uniqueOf(
             ctx: FieldContext,

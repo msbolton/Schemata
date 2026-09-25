@@ -6,6 +6,7 @@ import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
@@ -296,6 +297,130 @@ class SqlStructureTest {
         assertEquals(
             listOf("11 SCH2107 record 'R': key field 'other' must be a scalar column"),
             messages(lowered).filter { "SCH2107" in it },
+        )
+    }
+
+    @Test
+    fun `a record that declares a bad key still counts as keyed`() {
+        val bad =
+            record(
+                "a",
+                "Bad",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                line = 8,
+                annotations = sql("key" to AnnotationValue.Names(listOf("nope"))),
+            )
+        val lowered = lower(namespace("a", bad))
+        assertEquals(
+            listOf(
+                "8 SCH2107 record 'Bad': @sql(key) names 'nope', which is not a field of the record"
+            ),
+            messages(lowered),
+        )
+        assertEquals(emptyList(), table(lowered, "bad").primaryKey)
+    }
+
+    @Test
+    fun `a keyless record is embedded with prefixed columns and constraints`() {
+        val address =
+            record(
+                "a",
+                "Address",
+                field(
+                    1,
+                    "street",
+                    Scalar(Builtin.STRING, Refinements(max = big(200))),
+                    doc = "Street.",
+                ),
+                field(
+                    2,
+                    "zip",
+                    Scalar(Builtin.STRING, Refinements(min = big(5), max = big(5))),
+                    annotations = sql("index" to AnnotationValue.Flag),
+                ),
+                field(3, "floor", Scalar(Builtin.INT32), nullable = true, default = IntValue(0)),
+            )
+        val geo =
+            record(
+                "a",
+                "Geo",
+                field(1, "lat", Scalar(Builtin.FLOAT64)),
+                field(2, "home", Ref(qn("a", "Address"))),
+            )
+        val site =
+            record(
+                "a",
+                "Site",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "office", Ref(qn("a", "Address"))),
+                field(3, "where", Ref(qn("a", "Geo")), nullable = true),
+            )
+        val lowered = lower(namespace("a", address, geo, site))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "site")
+        assertEquals(
+            listOf(
+                "id" to false,
+                "office_street" to false,
+                "office_zip" to false,
+                "office_floor" to true,
+                "where_lat" to true,
+                "where_home_street" to true,
+                "where_home_zip" to true,
+                "where_home_floor" to true,
+            ),
+            t.columns.map { it.name to it.nullable },
+        )
+        assertEquals(ColumnType.VARCHAR(200), t.columns[1].type)
+        assertEquals("0", t.columns[3].default)
+        assertEquals("Street.", t.columns[1].doc)
+        assertEquals(
+            listOf(
+                Check("ck_site_office_zip_min", "char_length(\"office_zip\") >= 5"),
+                Check("ck_site_office_zip_max", "char_length(\"office_zip\") <= 5"),
+                Check("ck_site_where_home_zip_min", "char_length(\"where_home_zip\") >= 5"),
+                Check("ck_site_where_home_zip_max", "char_length(\"where_home_zip\") <= 5"),
+                Check(
+                    "ck_site_where_present",
+                    "((\"where_lat\" IS NULL AND \"where_home_street\" IS NULL AND \"where_home_zip\" IS NULL) OR (\"where_lat\" IS NOT NULL AND \"where_home_street\" IS NOT NULL AND \"where_home_zip\" IS NOT NULL))",
+                ),
+            ),
+            t.checks,
+        )
+        assertEquals(
+            listOf(
+                Index("ix_site_office_zip", listOf("office_zip")),
+                Index("ix_site_where_home_zip", listOf("where_home_zip")),
+            ),
+            t.indexes,
+        )
+        assertEquals(listOf("site"), lowered.model.schemas.single().tables.map { it.name })
+    }
+
+    @Test
+    fun `embedding a record inside itself is an error`() {
+        val node =
+            record(
+                "a",
+                "Node",
+                field(1, "label", Scalar(Builtin.STRING)),
+                field(2, "next", Ref(qn("a", "Node")), nullable = true, line = 12),
+                line = 10,
+            )
+        val tree =
+            record(
+                "a",
+                "Tree",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "root", Ref(qn("a", "Node")), line = 22),
+                line = 20,
+            )
+        val lowered = lower(namespace("a", node, tree))
+        assertEquals(
+            listOf(
+                "12 SCH2108 field 'Node.next': embedding 'Node' here would recurse (Node → Node); use strategy = json or give 'Node' a key"
+            ),
+            messages(lowered),
         )
     }
 }

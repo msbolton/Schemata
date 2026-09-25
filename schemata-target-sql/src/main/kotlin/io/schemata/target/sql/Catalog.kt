@@ -48,7 +48,10 @@ class Catalog(
         all.forEach { (ns, decl) ->
             if (decl is RecordType) {
                 val keyFields = keyFields(decl)
-                if (keyFields.isNotEmpty()) {
+                // A record that declares a key, even one whose names all fail to resolve, is still
+                // keyed: it gets a table (with no primary key) and lowering reports the bad names,
+                // rather than the record silently falling back to a value type.
+                if (keyFields.isNotEmpty() || declaresKey(decl)) {
                     val tableName = identifier(Naming.tableOf(decl), decl.nameSpan)
                     entries[decl.qualifiedName] =
                         Entry(
@@ -79,6 +82,13 @@ class Catalog(
         }
         return record.fields.filter { "key" in it.annotations["sql"] }
     }
+
+    /**
+     * Whether the record's own `@sql(key)` says it means to be keyed, whether or not it resolves.
+     */
+    private fun declaresKey(record: RecordType): Boolean =
+        record.annotations["sql"]["key"] is AnnotationValue.Names ||
+            record.fields.any { "key" in it.annotations["sql"] }
 
     private fun targets(decl: TypeDecl): List<QualifiedName> =
         when (decl) {

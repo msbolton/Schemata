@@ -27,7 +27,12 @@ class PendingForeignKey(
 /** A table produced by a field (a list's child), with its own foreign keys. */
 class ChildTable(val table: Table, val foreignKeys: List<PendingForeignKey>)
 
-/** Everything one field adds to its table. */
+/**
+ * Everything one field adds to its table. [required] names the produced columns that are not
+ * nullable on their own account (ignoring any outer embed's forced nullability); an embedding
+ * consumes it to check that a nullable group is all-present or all-absent, then clears it, so a
+ * column an inner optional embed already forced nullable never counts as required one level up.
+ */
 data class Contribution(
     val columns: List<Column> = emptyList(),
     val checks: List<Check> = emptyList(),
@@ -35,6 +40,7 @@ data class Contribution(
     val indexes: List<Index> = emptyList(),
     val foreignKeys: List<PendingForeignKey> = emptyList(),
     val children: List<ChildTable> = emptyList(),
+    val required: List<String> = emptyList(),
 ) {
     companion object {
         val NONE = Contribution()
