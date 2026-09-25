@@ -8,6 +8,7 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
@@ -29,9 +30,10 @@ import io.schemata.target.TypeText
  * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides. A
  * reference to a union becomes a `<field>_kind` discriminator column plus each member's own nested,
  * forced-nullable contribution, with a CHECK that a member's columns are present exactly when the
- * kind names it. Lists, maps, and mapping strategies are still reported at the boundary until their
- * lowering lands (SCH-28). `reserved` ordinals and names have no relational meaning and are
- * accepted without a diagnostic.
+ * kind names it. `@sql(strategy)` overrides a field's default shape with `embed`, `table`, or
+ * `json` wherever the matrix allows it; a strategy a shape forbids, or any strategy at all on a
+ * scalar, is an error. `reserved` ordinals and names have no relational meaning and are accepted
+ * without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -380,54 +382,235 @@ object SqlLowering {
             }
         }
 
-        /** Everything [field] adds to the table [ctx] names. */
+        /** Everything [field] adds to the table [ctx] names, after [strategyOf] its override. */
         private fun contribute(ctx: FieldContext, field: Field): Contribution {
-            if ("strategy" in field.annotations["sql"]) {
-                unsupported("mapping strategies", field.span, ctx.where)
-                return Contribution.NONE
-            }
+            val strategy = strategyOf(field)
             return when (val type = field.type) {
-                is Scalar -> column(ctx, field, type, null)
+                is Scalar -> scalarField(ctx, field, strategy, type, null)
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
-                        is EnumType -> column(ctx, field, null, target)
-                        is RecordType -> {
-                            val entry = catalog[target.qualifiedName]
-                            if (entry != null) reference(ctx, field, entry)
-                            else embed(ctx, field, target, Naming.columnOf(field))
-                        }
-                        is UnionType -> union(ctx, field, target)
+                        is EnumType -> scalarField(ctx, field, strategy, null, target)
+                        is RecordType -> recordField(ctx, field, strategy, target)
+                        is UnionType -> unionField(ctx, field, strategy, target)
                     }
-                is ListOf ->
-                    when (val element = type.element) {
-                        is Scalar -> array(ctx, field, type, element, null)
-                        is Ref ->
-                            when (val elementTarget = schema.lookup(element.target)) {
-                                is EnumType -> array(ctx, field, type, null, elementTarget)
-                                is RecordType -> child(ctx, field, type, elementTarget)
-                                is UnionType -> {
-                                    unsupported("lists", field.span, ctx.where)
-                                    Contribution.NONE
-                                }
-                            }
-                        is ListOf,
-                        is MapOf -> {
-                            unsupported("lists", field.span, ctx.where)
-                            Contribution.NONE
-                        }
-                    }
-                is MapOf -> map(ctx, field, type)
+                is ListOf -> listField(ctx, field, strategy, type)
+                is MapOf -> mapField(ctx, field, strategy, type)
+            }
+        }
+
+        /** The `@sql(strategy)` a field asks for, or null when it takes the default. */
+        private fun strategyOf(field: Field): String? =
+            (field.annotations["sql"]["strategy"] as? AnnotationValue.Name)?.value
+
+        /** A scalar or enum column takes no strategy; any is an error. */
+        private fun scalarField(
+            ctx: FieldContext,
+            field: Field,
+            strategy: String?,
+            scalar: Scalar?,
+            enum: EnumType?,
+        ): Contribution {
+            if (strategy != null) return forbiddenStrategy(ctx, field, strategy, "a scalar", null)
+            return column(ctx, field, scalar, enum)
+        }
+
+        /**
+         * A reference to a record: the default is a reference for a keyed target and an embed for a
+         * keyless one. `embed` flattens either kind's columns under the prefix with no foreign key,
+         * even a keyed target's own key columns; `json` lowers the whole reference to jsonb;
+         * `table` keeps the default reference for a keyed target and is not allowed for a keyless
+         * one, which has no table to reference.
+         */
+        private fun recordField(
+            ctx: FieldContext,
+            field: Field,
+            strategy: String?,
+            target: RecordType,
+        ): Contribution {
+            val entry = catalog[target.qualifiedName]
+            return when (strategy) {
+                "json" -> json(ctx, field, "record")
+                "embed" -> embed(ctx, field, target, Naming.columnOf(field))
+                "table" ->
+                    if (entry != null) reference(ctx, field, entry)
+                    else forbiddenStrategy(ctx, field, "table", "a keyless record", "embed or json")
+                else ->
+                    if (entry != null) reference(ctx, field, entry)
+                    else embed(ctx, field, target, Naming.columnOf(field))
             }
         }
 
         /**
+         * A reference to a union: the default and `embed` both lower it to a discriminator plus
+         * each member's own columns; `json` lowers the whole union to jsonb instead, the only
+         * strategy that also works for a union with a member that is itself a union; `table` has no
+         * meaning for a union.
+         */
+        private fun unionField(
+            ctx: FieldContext,
+            field: Field,
+            strategy: String?,
+            type: UnionType,
+        ): Contribution =
+            when (strategy) {
+                "json" -> json(ctx, field, "union")
+                "table" -> forbiddenStrategy(ctx, field, "table", "a union", "embed or json")
+                else -> union(ctx, field, type)
+            }
+
+        /**
+         * A list: the default is an array for a scalar or enum element and a child table for a
+         * record one; `table` asks for a child table either way, with a single `value` column
+         * carrying a scalar or enum element's own checks instead of an array's stripped bounds;
+         * `json` lowers the whole list to jsonb, the only strategy that reaches a union, nested
+         * list, or nested map element; `embed` has no meaning for a list.
+         */
+        private fun listField(
+            ctx: FieldContext,
+            field: Field,
+            strategy: String?,
+            type: ListOf,
+        ): Contribution {
+            if (strategy == "embed") {
+                return forbiddenStrategy(ctx, field, "embed", "a list", "table or json")
+            }
+            if (strategy == "json") return json(ctx, field, "list")
+            return when (val element = type.element) {
+                is Scalar ->
+                    if (strategy == "table") {
+                        child(
+                            ctx,
+                            field,
+                            type.refinements,
+                            element,
+                            null,
+                            null,
+                            type.nullableElement,
+                            null,
+                        )
+                    } else array(ctx, field, type, element, null)
+                is Ref ->
+                    when (val elementTarget = schema.lookup(element.target)) {
+                        is EnumType ->
+                            if (strategy == "table") {
+                                child(
+                                    ctx,
+                                    field,
+                                    type.refinements,
+                                    null,
+                                    elementTarget,
+                                    null,
+                                    type.nullableElement,
+                                    null,
+                                )
+                            } else array(ctx, field, type, null, elementTarget)
+                        is RecordType ->
+                            child(
+                                ctx,
+                                field,
+                                type.refinements,
+                                null,
+                                null,
+                                elementTarget,
+                                type.nullableElement,
+                                null,
+                            )
+                        is UnionType ->
+                            forbiddenStrategy(ctx, field, "table", "a list of unions", "json")
+                    }
+                is ListOf,
+                is MapOf ->
+                    forbiddenStrategy(ctx, field, "table", "a list of lists or maps", "json")
+            }
+        }
+
+        /**
+         * A map: the default and `json` both lower it to jsonb, since Postgres has no typed map;
+         * `table` asks for a child table keyed by the parent and the map's own key, with the value
+         * lowered the way a list's scalar, enum, or record element is, under a `value` column;
+         * `embed` has no meaning for a map.
+         */
+        private fun mapField(
+            ctx: FieldContext,
+            field: Field,
+            strategy: String?,
+            type: MapOf,
+        ): Contribution {
+            if (strategy == "embed") {
+                return forbiddenStrategy(ctx, field, "embed", "a map", "table or json")
+            }
+            if (strategy == null || strategy == "json") return json(ctx, field, "map")
+            return when (val value = type.value) {
+                is Scalar ->
+                    child(
+                        ctx,
+                        field,
+                        type.refinements,
+                        value,
+                        null,
+                        null,
+                        type.nullableValue,
+                        type.key,
+                    )
+                is Ref ->
+                    when (val valueTarget = schema.lookup(value.target)) {
+                        is EnumType ->
+                            child(
+                                ctx,
+                                field,
+                                type.refinements,
+                                null,
+                                valueTarget,
+                                null,
+                                type.nullableValue,
+                                type.key,
+                            )
+                        is RecordType ->
+                            child(
+                                ctx,
+                                field,
+                                type.refinements,
+                                null,
+                                null,
+                                valueTarget,
+                                type.nullableValue,
+                                type.key,
+                            )
+                        is UnionType ->
+                            forbiddenStrategy(ctx, field, "table", "a map of unions", "json")
+                    }
+                is ListOf,
+                is MapOf -> forbiddenStrategy(ctx, field, "table", "a map of lists or maps", "json")
+            }
+        }
+
+        /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
+        private fun forbiddenStrategy(
+            ctx: FieldContext,
+            field: Field,
+            strategy: String,
+            shape: String,
+            alternatives: String?,
+        ): Contribution {
+            val suffix = if (alternatives != null) "; use $alternatives" else "; remove it"
+            error(
+                SqlCodes.STRATEGY_NOT_ALLOWED,
+                "${ctx.where}: strategy '$strategy' is not allowed for $shape$suffix",
+                field.span,
+            )
+            return Contribution.NONE
+        }
+
+        /**
          * A field's final column name. The owning record's own key fields take the name the
-         * [Catalog] already derived, so a truncation is not reported twice.
+         * [Catalog] already derived, so a truncation is not reported twice; a child table's
+         * synthetic `value` field never matches, since its table is never the owner's own.
          */
         private fun columnName(ctx: FieldContext, field: Field): String {
             val owner =
-                if (ctx.prefix.isEmpty() && ctx.embedding.size == 1) catalog[ctx.embedding.single()]
-                else null
+                if (ctx.prefix.isEmpty() && ctx.embedding.size == 1) {
+                    catalog[ctx.embedding.single()]?.takeIf { it.tableName == ctx.table }
+                } else null
             val keyIndex = owner?.keyFields?.indexOf(field) ?: -1
             return if (keyIndex >= 0) owner!!.keyColumns[keyIndex]
             else identifier(ctx.prefix + Naming.columnOf(field), field.nameSpan)
@@ -671,11 +854,10 @@ object SqlLowering {
                         // `union`.
                         is UnionType -> Contribution.NONE
                     }
+                // Unreachable: the analyzer already rejects a union member that is a list or a
+                // map before lowering ever sees it; kept for exhaustiveness.
                 is ListOf,
-                is MapOf -> {
-                    unsupported("union members that are lists or maps", field.span, ctx.where)
-                    Contribution.NONE
-                }
+                is MapOf -> Contribution.NONE
             }
 
         /** A raw scalar member: one nullable column named `<field>_<member>`. */
@@ -889,13 +1071,17 @@ object SqlLowering {
             )
         }
 
-        /** A `map` field: Postgres has no typed map, so it lowers to `jsonb` with a lossy note. */
-        private fun map(ctx: FieldContext, field: Field, type: MapOf): Contribution {
+        /**
+         * The `json` strategy, and every shape's default that already means it (a bare `map`):
+         * Postgres has no typed record, list, map, or union, so the field lowers whole to `jsonb`
+         * with a lossy note; [shape] names what was lowered away in the message.
+         */
+        private fun json(ctx: FieldContext, field: Field, shape: String): Contribution {
             val rawName = ctx.prefix + Naming.columnOf(field)
             val name = columnName(ctx, field)
             error(
                 SqlCodes.LOSSY,
-                "${ctx.where}: map contents are not typed by Postgres; lowered to jsonb",
+                "${ctx.where}: $shape contents are not typed by Postgres; lowered to jsonb",
                 field.span,
             )
             val column =
@@ -905,7 +1091,7 @@ object SqlLowering {
                     nullable = field.nullable || ctx.forceNullable,
                     default = field.default?.let { Naming.literal(it) },
                     doc = field.doc,
-                    notes = listOf(TypeText.of(type, field.nullable)),
+                    notes = listOf(TypeText.of(field.type, field.nullable)),
                 )
             return Contribution(
                 columns = listOf(column),
@@ -916,27 +1102,44 @@ object SqlLowering {
         }
 
         /**
-         * A `list<Record>` field: a child table named `<table>_<field>`. It is keyed by the table
-         * it is declared on (its own key columns, each renamed `<table>_<key column>`) plus a
-         * `position`; a keyless element's own columns follow unprefixed, a keyed element instead
-         * adds `<element table>_<key column>` reference columns and a foreign key to it. A list
-         * bound is reported since there is no column left to carry a note on. A child's own list
-         * fields make grandchildren the same way, through a fresh context whose table and key are
-         * the child's, so the grandchild points back at the child rather than the root; [ctx]'s
-         * embedding chain still catches a keyless element that would embed itself.
+         * The `table` strategy for a list or a map, and a list of records' default: a child table
+         * named `<table>_<field>`. It is keyed by the table it is declared on (its own key columns,
+         * each renamed `<table>_<key column>`) plus either a `position` (a list) or a `key` typed
+         * like [mapKey] (a map). Exactly one of [scalar], [enum], or [record] describes the element
+         * or value; a list of records is special-cased since a keyless one's own fields follow
+         * unprefixed (the row already is the record) and a keyed one adds `<element table>_<key
+         * column>` reference columns and a foreign key, named from the element rather than the
+         * field. Every other case — a scalar or enum element or value, or a map's record value — is
+         * one `value` column that the ordinary field machinery produces by lowering a synthetic
+         * field named `value`, so it comes out bare for a scalar or enum, under a `value_` prefix
+         * for a keyless record, or as `value_<key column>` plus a foreign key for a keyed one, and
+         * carries the element or value's own checks rather than an array's stripped bounds. A list
+         * or map bound ([refinements]) is reported since there is no column left to carry a note
+         * on. A child's own list or map fields make grandchildren the same way, through a fresh
+         * context whose table and key are the child's, so the grandchild points back at the child
+         * rather than the root; [ctx]'s embedding chain still catches a keyless list element that
+         * would embed itself, and the ordinary field machinery does the same for a map's record
+         * value.
          */
         private fun child(
             ctx: FieldContext,
             field: Field,
-            type: ListOf,
-            target: RecordType,
+            refinements: Refinements,
+            scalar: Scalar?,
+            enum: EnumType?,
+            record: RecordType?,
+            valueNullable: Boolean,
+            mapKey: Type?,
         ): Contribution {
-            val entry = catalog[target.qualifiedName]
-            if (entry == null && recursionError(ctx, field, target)) return Contribution.NONE
-            if (type.refinements.hasBounds) {
+            val entry = record?.let { catalog[it.qualifiedName] }
+            val recordList = record != null && mapKey == null
+            if (recordList && entry == null && recursionError(ctx, field, record)) {
+                return Contribution.NONE
+            }
+            if (refinements.hasBounds) {
                 error(
                     SqlCodes.LOSSY,
-                    "${ctx.where}: refinements on ${TypeText.of(type, field.nullable)} are not enforced by Postgres",
+                    "${ctx.where}: refinements on ${TypeText.of(field.type, field.nullable)} are not enforced by Postgres",
                     field.span,
                 )
             }
@@ -950,8 +1153,6 @@ object SqlLowering {
                         nullable = false,
                     )
                 }
-            val position = Column("position", ColumnType.INTEGER, nullable = false)
-            val childKeys = (parentColumns + position).map { it.name to it.type }
             val parentFk =
                 PendingForeignKey(
                     ForeignKey(
@@ -967,76 +1168,129 @@ object SqlLowering {
                     namespace.name,
                     namespace.name,
                 )
-            if (entry == null) {
+            val discriminator =
+                mapKey?.let { keyColumn(it) }
+                    ?: Column("position", ColumnType.INTEGER, nullable = false)
+            val childKeys = (parentColumns + discriminator).map { it.name to it.type }
+            if (recordList) {
                 val childCtx =
                     FieldContext(
                         table = childName,
-                        embedding = ctx.embedding + target.qualifiedName,
+                        embedding = ctx.embedding + record!!.qualifiedName,
                         parentTable = childName,
                         parentKeys = childKeys,
                         where = ctx.where,
                     )
-                val merged =
-                    merge(
-                        target.fields.map {
-                            contribute(
-                                childCtx.copy(where = "field '${target.name}.${it.name}'"),
-                                it,
-                            )
-                        }
+                if (entry == null) {
+                    val merged =
+                        merge(
+                            record.fields.map {
+                                contribute(
+                                    childCtx.copy(where = "field '${record.name}.${it.name}'"),
+                                    it,
+                                )
+                            }
+                        )
+                    val childTable =
+                        Table(
+                            name = childName,
+                            columns = parentColumns + discriminator + merged.columns,
+                            primaryKey = childKeys.map { it.first },
+                            primaryKeyName = identifier("pk_$childName", field.nameSpan),
+                            checks = merged.checks,
+                            uniques = merged.uniques,
+                            indexes = merged.indexes,
+                            doc = record.doc,
+                        )
+                    return Contribution(
+                        children =
+                            listOf(ChildTable(childTable, listOf(parentFk) + merged.foreignKeys)) +
+                                merged.children
+                    )
+                }
+                val refColumns =
+                    entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
+                        val columnType = keyType(key) ?: return@mapNotNull null
+                        Column(
+                            identifier("${entry.tableName}_$keyColumn", field.nameSpan),
+                            columnType,
+                            nullable = false,
+                        )
+                    }
+                val elementFk =
+                    PendingForeignKey(
+                        ForeignKey(
+                            name = identifier("fk_${childName}_${entry.tableName}", field.nameSpan),
+                            schema = schemaName,
+                            table = childName,
+                            columns = refColumns.map { it.name },
+                            targetSchema = entry.schemaName,
+                            targetTable = entry.tableName,
+                            targetColumns = entry.keyColumns,
+                            cascade = false,
+                        ),
+                        namespace.name,
+                        entry.namespace,
                     )
                 val childTable =
                     Table(
                         name = childName,
-                        columns = parentColumns + position + merged.columns,
+                        columns = parentColumns + discriminator + refColumns,
                         primaryKey = childKeys.map { it.first },
                         primaryKeyName = identifier("pk_$childName", field.nameSpan),
-                        checks = merged.checks,
-                        uniques = merged.uniques,
-                        indexes = merged.indexes,
-                        doc = target.doc,
+                        doc = record.doc,
                     )
                 return Contribution(
-                    children =
-                        listOf(ChildTable(childTable, listOf(parentFk) + merged.foreignKeys)) +
-                            merged.children
+                    children = listOf(ChildTable(childTable, listOf(parentFk, elementFk)))
                 )
             }
-            val refColumns =
-                entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
-                    val columnType = keyType(key) ?: return@mapNotNull null
-                    Column(
-                        identifier("${entry.tableName}_$keyColumn", field.nameSpan),
-                        columnType,
-                        nullable = false,
-                    )
-                }
-            val elementFk =
-                PendingForeignKey(
-                    ForeignKey(
-                        name = identifier("fk_${childName}_${entry.tableName}", field.nameSpan),
-                        schema = schemaName,
-                        table = childName,
-                        columns = refColumns.map { it.name },
-                        targetSchema = entry.schemaName,
-                        targetTable = entry.tableName,
-                        targetColumns = entry.keyColumns,
-                        cascade = false,
-                    ),
-                    namespace.name,
-                    entry.namespace,
+            val childCtx =
+                FieldContext(
+                    table = childName,
+                    embedding = ctx.embedding,
+                    parentTable = childName,
+                    parentKeys = childKeys,
+                    where = ctx.where,
                 )
+            val valueType: Type =
+                scalar ?: enum?.let { Ref(it.qualifiedName) } ?: Ref(record!!.qualifiedName)
+            val valueField =
+                Field(
+                    0,
+                    "value",
+                    valueType,
+                    valueNullable,
+                    null,
+                    null,
+                    null,
+                    field.span,
+                    field.nameSpan,
+                )
+            val value = contribute(childCtx, valueField)
             val childTable =
                 Table(
                     name = childName,
-                    columns = parentColumns + position + refColumns,
+                    columns = parentColumns + discriminator + value.columns,
                     primaryKey = childKeys.map { it.first },
                     primaryKeyName = identifier("pk_$childName", field.nameSpan),
-                    doc = target.doc,
+                    checks = value.checks,
+                    uniques = value.uniques,
+                    indexes = value.indexes,
+                    doc = record?.doc,
                 )
             return Contribution(
-                children = listOf(ChildTable(childTable, listOf(parentFk, elementFk)))
+                children =
+                    listOf(ChildTable(childTable, listOf(parentFk) + value.foreignKeys)) +
+                        value.children
             )
+        }
+
+        /**
+         * A map's `key` column, typed like [type] — always a bare scalar, so it carries no checks.
+         */
+        private fun keyColumn(type: Type): Column {
+            val mapped = (type as? Scalar)?.let { SqlTypes.scalar(it, "key", overridden = false) }
+            return Column("key", mapped?.type ?: ColumnType.TEXT, nullable = false)
         }
 
         /** Every list of a set of contributions, concatenated in order. */
@@ -1076,15 +1330,6 @@ object SqlLowering {
 
         private fun error(code: DiagnosticCode, message: String, span: Span) {
             diagnostics += Diagnostic(code, message, span)
-        }
-
-        private fun unsupported(what: String, span: Span, where: String? = null) {
-            val prefix = where?.let { "$it: " } ?: ""
-            error(
-                SqlCodes.UNSUPPORTED_SHAPE,
-                "${prefix}target 'sql' cannot lower $what yet (SCH-28)",
-                span,
-            )
         }
     }
 

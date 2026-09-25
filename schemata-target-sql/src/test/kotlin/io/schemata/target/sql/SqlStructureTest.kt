@@ -808,6 +808,112 @@ class SqlStructureTest {
         )
     }
 
+    private fun strategy(s: String) = sql("strategy" to AnnotationValue.Name(s))
+
+    @Test
+    fun `strategies override the default mapping`() {
+        val addr = record("a", "Addr", field(1, "city", Scalar(Builtin.STRING)))
+        val cust =
+            record(
+                "a",
+                "Cust",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "name", Scalar(Builtin.STRING)),
+            )
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "home", Ref(qn("a", "Addr")), annotations = strategy("json")),
+                field(3, "cust", Ref(qn("a", "Cust")), annotations = strategy("embed")),
+                field(
+                    4,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING, Refinements(max = big(8))), false),
+                    annotations = strategy("table"),
+                ),
+                field(
+                    5,
+                    "meta",
+                    MapOf(Scalar(Builtin.STRING), Ref(qn("a", "Addr")), false),
+                    annotations = strategy("table"),
+                ),
+                field(
+                    6,
+                    "lines",
+                    ListOf(Ref(qn("a", "Addr")), false),
+                    annotations = strategy("json"),
+                ),
+            )
+        val lowered = lower(namespace("a", addr, cust, r))
+        assertEquals(
+            listOf(
+                "12 SCH2105 field 'R.home': record contents are not typed by Postgres; lowered to jsonb",
+                "16 SCH2105 field 'R.lines': list contents are not typed by Postgres; lowered to jsonb",
+            ),
+            messages(lowered),
+        )
+        val schema = lowered.model.schemas.single()
+        assertEquals(listOf("cust", "r", "r_tags", "r_meta"), schema.tables.map { it.name })
+        val t = table(lowered, "r")
+        assertEquals(
+            listOf(
+                "id" to ColumnType.UUID,
+                "home" to ColumnType.JSONB,
+                "cust_id" to ColumnType.UUID,
+                "cust_name" to ColumnType.TEXT,
+                "lines" to ColumnType.JSONB,
+            ),
+            t.columns.map { it.name to it.type },
+        )
+        assertEquals(
+            emptyList(),
+            schema.foreignKeys.filter { it.table == "r" },
+        ) // embed of a keyed record: no FK
+        val tags = schema.tables[2]
+        assertEquals(listOf("r_id", "position", "value"), tags.columns.map { it.name })
+        assertEquals(ColumnType.VARCHAR(8), tags.columns[2].type)
+        val meta = schema.tables[3]
+        assertEquals(listOf("r_id", "key", "value_city"), meta.columns.map { it.name })
+        assertEquals(listOf("r_id", "key"), meta.primaryKey)
+    }
+
+    @Test
+    fun `strategies a shape forbids are errors`() {
+        val addr = record("a", "Addr", field(1, "city", Scalar(Builtin.STRING)))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "home", Ref(qn("a", "Addr")), annotations = strategy("table")),
+                field(
+                    3,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING), false),
+                    annotations = strategy("embed"),
+                ),
+                field(
+                    4,
+                    "meta",
+                    MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false),
+                    annotations = strategy("embed"),
+                ),
+                field(5, "flag", Scalar(Builtin.BOOL), annotations = strategy("json")),
+            )
+        val lowered = lower(namespace("a", addr, r))
+        assertEquals(
+            listOf(
+                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless record; use embed or json",
+                "13 SCH2110 field 'R.tags': strategy 'embed' is not allowed for a list; use table or json",
+                "14 SCH2110 field 'R.meta': strategy 'embed' is not allowed for a map; use table or json",
+                "15 SCH2110 field 'R.flag': strategy 'json' is not allowed for a scalar; remove it",
+            ),
+            messages(lowered),
+        )
+    }
+
     @Test
     fun `a union with a union member needs the json strategy`() {
         val a = record("a", "A", field(1, "x", Scalar(Builtin.BOOL)))

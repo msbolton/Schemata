@@ -334,7 +334,7 @@ class SqlLoweringTest {
     }
 
     @Test
-    fun `structural shapes are still reported at the boundary`() {
+    fun `nothing is left at the boundary`() {
         val leaf =
             record(
                 "a",
@@ -383,7 +383,7 @@ class SqlLoweringTest {
         assertEquals(
             listOf(
                 "13 SCH2105 field 'R.map': map contents are not typed by Postgres; lowered to jsonb",
-                "15 SCH2103 field 'R.flat': target 'sql' cannot lower mapping strategies yet (SCH-28)",
+                "15 SCH2110 field 'R.flat': strategy 'json' is not allowed for a scalar; remove it",
                 "25 SCH2106 record 'N' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
             ),
             messages(lowered),
