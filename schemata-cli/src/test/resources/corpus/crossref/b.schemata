@@ -1,0 +1,5 @@
+namespace x.beta
+
+record B {
+  @sql(key) #1 id: uuid
+}

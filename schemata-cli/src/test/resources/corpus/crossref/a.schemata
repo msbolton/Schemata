@@ -1,0 +1,8 @@
+namespace x.alpha
+
+import x.beta
+
+record A {
+  @sql(key) #1 id: uuid
+  #2 b: B
+}

@@ -20,7 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The spec's worked example analyzes clean; targets only report what they cannot lower yet. */
+/** The spec's worked example compiles to both targets with warnings only. */
 class WorkedExampleTest {
     private val orders =
         """
