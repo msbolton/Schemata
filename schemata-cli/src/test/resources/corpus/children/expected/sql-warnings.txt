@@ -1,0 +1,2 @@
+SCH2105 field 'Order.tags': refinements on list<string(max = 16)> are not enforced by Postgres
+SCH2105 field 'Order.attributes': map contents are not typed by Postgres; lowered to jsonb

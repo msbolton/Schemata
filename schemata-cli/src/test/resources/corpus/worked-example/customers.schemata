@@ -1,6 +1,6 @@
 namespace shop.customers
 
 record Customer {
-  #1 id:   uuid
+  @sql(key) #1 id:   uuid
   #2 name: string(max = 100)
 }

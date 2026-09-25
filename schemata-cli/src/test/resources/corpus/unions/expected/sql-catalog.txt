@@ -1,0 +1,17 @@
+schema unions
+table unions.order
+  column id uuid not null
+  column payment_kind text not null
+  column payment_card_last4 character varying(4)
+  column payment_uuid uuid
+  column refund_kind text
+  column refund_card_last4 character varying(4)
+  column refund_uuid uuid
+  column archived jsonb not null
+  constraint ck_order_payment_card CHECK (((payment_kind <> 'card'::text) OR (payment_card_last4 IS NOT NULL)))
+  constraint ck_order_payment_kind CHECK ((payment_kind = ANY (ARRAY['card'::text, 'cash'::text, 'uuid'::text])))
+  constraint ck_order_payment_uuid CHECK (((payment_kind <> 'uuid'::text) OR (payment_uuid IS NOT NULL)))
+  constraint ck_order_refund_card CHECK (((refund_kind <> 'card'::text) OR (refund_card_last4 IS NOT NULL)))
+  constraint ck_order_refund_kind CHECK ((refund_kind = ANY (ARRAY['card'::text, 'cash'::text, 'uuid'::text])))
+  constraint ck_order_refund_uuid CHECK (((refund_kind <> 'uuid'::text) OR (refund_uuid IS NOT NULL)))
+  constraint pk_order PRIMARY KEY (id)

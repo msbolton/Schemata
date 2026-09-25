@@ -1,0 +1,14 @@
+schema embedding
+table embedding.site
+  column id uuid not null
+  column office_street character varying(200) not null
+  column office_zip text not null
+  column home_street character varying(200)
+  column home_zip text
+  column legacy jsonb not null
+  constraint ck_site_home_present CHECK ((((home_street IS NULL) AND (home_zip IS NULL)) OR ((home_street IS NOT NULL) AND (home_zip IS NOT NULL))))
+  constraint ck_site_home_zip_max CHECK ((char_length(home_zip) <= 5))
+  constraint ck_site_home_zip_min CHECK ((char_length(home_zip) >= 5))
+  constraint ck_site_office_zip_max CHECK ((char_length(office_zip) <= 5))
+  constraint ck_site_office_zip_min CHECK ((char_length(office_zip) >= 5))
+  constraint pk_site PRIMARY KEY (id)

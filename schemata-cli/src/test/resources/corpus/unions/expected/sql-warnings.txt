@@ -1,0 +1,1 @@
+SCH2105 field 'Order.archived': union contents are not typed by Postgres; lowered to jsonb
