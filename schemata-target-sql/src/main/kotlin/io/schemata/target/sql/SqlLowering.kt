@@ -47,8 +47,8 @@ object SqlLowering {
 
     /**
      * A foreign key is emitted by the file that sorts later of the two it links, so every table it
-     * names already exists when the files are applied in path order. Within a file, keys keep
-     * namespace order, then table and field order.
+     * names already exists when the files are applied in path order. Within a file, its own keys
+     * come first in table and field order, then the keys moved in from other files.
      */
     private fun placeForeignKeys(
         schema: Schema,
@@ -56,14 +56,16 @@ object SqlLowering {
     ): List<RelationalSchema> {
         val pending = lowered.flatMap { it.second }
         val paths = schema.namespaces.associate { it.name to pathOf(it) }
-        return lowered.map { (relational, _) ->
+        return schema.namespaces.zip(lowered).map { (namespace, part) ->
+            val relational = part.first
             val mine =
                 pending.filter { fk ->
                     val source = paths.getValue(fk.sourceNamespace)
                     val target = paths.getValue(fk.targetNamespace)
                     maxOf(source, target) == relational.path
                 }
-            relational.copy(foreignKeys = mine.map { it.fk })
+            val (own, moved) = mine.partition { it.sourceNamespace == namespace.name }
+            relational.copy(foreignKeys = (own + moved).map { it.fk })
         }
     }
 
@@ -485,6 +487,7 @@ object SqlLowering {
             val fk =
                 ForeignKey(
                     name = identifier("fk_${ctx.table}_$rawName", field.nameSpan),
+                    schema = schemaName,
                     table = ctx.table,
                     columns = names,
                     targetSchema = entry.schemaName,

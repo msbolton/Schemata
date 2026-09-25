@@ -21,6 +21,7 @@ import io.schemata.lang.Span
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SqlStructureTest {
     private fun at(line: Int, file: String = "o.schemata") = Span(file, line, 1, line, 30)
@@ -138,6 +139,7 @@ class SqlStructureTest {
             listOf(
                 ForeignKey(
                     "fk_order_customer",
+                    "orders",
                     "order",
                     listOf("customer_id"),
                     "customers",
@@ -147,6 +149,7 @@ class SqlStructureTest {
                 ),
                 ForeignKey(
                     "fk_order_parent",
+                    "orders",
                     "order",
                     listOf("parent_id"),
                     "orders",
@@ -194,6 +197,7 @@ class SqlStructureTest {
             listOf(
                 ForeignKey(
                     "fk_subscription_plan",
+                    "a",
                     "subscription",
                     listOf("plan_tenant_id", "plan_plan_code"),
                     "a",
@@ -231,10 +235,28 @@ class SqlStructureTest {
         assertEquals(emptyList(), schemaOf(lowered, "alpha").foreignKeys)
         assertEquals(
             listOf(
-                ForeignKey("fk_a_b", "a", listOf("b_id"), "beta", "b", listOf("id"), false),
-                ForeignKey("fk_b_a", "b", listOf("a_id"), "alpha", "a", listOf("id"), false),
+                ForeignKey(
+                    "fk_b_a",
+                    "beta",
+                    "b",
+                    listOf("a_id"),
+                    "alpha",
+                    "a",
+                    listOf("id"),
+                    false,
+                ),
+                ForeignKey("fk_a_b", "alpha", "a", listOf("b_id"), "beta", "b", listOf("id"), false),
             ),
             schemaOf(lowered, "beta").foreignKeys,
+        )
+        val beta = SqlRenderer.render(lowered.model).first { it.path == "x/beta.sql" }.content
+        assertTrue(
+            beta
+                .lines()
+                .contains(
+                    "ALTER TABLE \"alpha\".\"a\" ADD CONSTRAINT \"fk_a_b\" FOREIGN KEY (\"b_id\") REFERENCES \"beta\".\"b\" (\"id\");"
+                ),
+            beta,
         )
     }
 

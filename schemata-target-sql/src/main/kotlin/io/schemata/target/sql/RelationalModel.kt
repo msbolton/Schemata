@@ -87,6 +87,7 @@ data class Index(val name: String, val columns: List<String>)
 
 data class ForeignKey(
     val name: String,
+    val schema: String,
     val table: String,
     val columns: List<String>,
     val targetSchema: String,

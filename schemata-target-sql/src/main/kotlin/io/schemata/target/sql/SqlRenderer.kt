@@ -35,7 +35,9 @@ object SqlRenderer {
         }
         if (schema.foreignKeys.isNotEmpty()) appendLine()
         schema.foreignKeys.forEach { fk ->
-            append("ALTER TABLE $s.${quote(fk.table)} ADD CONSTRAINT ${quote(fk.name)} ")
+            append(
+                "ALTER TABLE ${quote(fk.schema)}.${quote(fk.table)} ADD CONSTRAINT ${quote(fk.name)} "
+            )
             append("FOREIGN KEY (${columns(fk.columns)}) ")
             append(
                 "REFERENCES ${quote(fk.targetSchema)}.${quote(fk.targetTable)} (${columns(fk.targetColumns)})"

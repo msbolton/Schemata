@@ -105,6 +105,7 @@ class SqlRendererTest {
                 listOf(
                     ForeignKey(
                         name = "fk_order_line_order_id",
+                        schema = "kitchen",
                         table = "order_line",
                         columns = listOf("order_id"),
                         targetSchema = "kitchen",
