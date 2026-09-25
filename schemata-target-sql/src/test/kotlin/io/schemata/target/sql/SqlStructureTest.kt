@@ -929,7 +929,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", a, inner, outer, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.choice': strategy 'embed' is not allowed for a union whose member is a union; use json"
+                "12 SCH2110 field 'R.choice': a union whose member is a union has no relational mapping; use strategy = json"
             ),
             messages(lowered),
         )
@@ -1315,5 +1315,85 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", money, r))
         assertEquals(emptyList(), messages(lowered))
         assertEquals(emptyList(), table(lowered, "r").checks)
+    }
+
+    @Test
+    fun `a nullable composite reference is all-or-none`() {
+        val plan =
+            record(
+                "a",
+                "Plan",
+                field(1, "tenant_id", Scalar(Builtin.UUID)),
+                field(2, "code", Scalar(Builtin.STRING)),
+                annotations = sql("key" to AnnotationValue.Names(listOf("tenant_id", "code"))),
+            )
+        val sub =
+            record(
+                "a",
+                "Subscription",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "plan", Ref(qn("a", "Plan")), nullable = true),
+                field(3, "base", Ref(qn("a", "Plan"))),
+            )
+        val lowered = lower(namespace("a", plan, sub))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf(
+                Check(
+                    "ck_subscription_plan_present",
+                    "((\"plan_tenant_id\" IS NULL AND \"plan_code\" IS NULL) OR (\"plan_tenant_id\" IS NOT NULL AND \"plan_code\" IS NOT NULL))",
+                )
+            ),
+            table(lowered, "subscription").checks,
+        )
+    }
+
+    @Test
+    fun `embed on a list or map of unions suggests json only`() {
+        val u = union("a", "U", Scalar(Builtin.UUID), Scalar(Builtin.STRING), line = 30)
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "us", ListOf(Ref(qn("a", "U")), false), annotations = strategy("embed")),
+                field(
+                    3,
+                    "byName",
+                    MapOf(Scalar(Builtin.STRING), Ref(qn("a", "U")), false),
+                    annotations = strategy("embed"),
+                ),
+            )
+        val lowered = lower(namespace("a", u, r))
+        assertEquals(
+            listOf(
+                "12 SCH2110 field 'R.us': strategy 'embed' is not allowed for a list; use json",
+                "13 SCH2110 field 'R.byName': strategy 'embed' is not allowed for a map; use json",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `a union field's doc goes on its kind column only`() {
+        val u = union("a", "U", Scalar(Builtin.UUID), Scalar(Builtin.STRING), line = 30)
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "pick", Ref(qn("a", "U")), doc = "Which one."),
+            )
+        val lowered = lower(namespace("a", u, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf(
+                "id" to null,
+                "pick_kind" to "Which one.",
+                "pick_uuid" to null,
+                "pick_string" to null,
+            ),
+            table(lowered, "r").columns.map { it.name to it.doc },
+        )
     }
 }

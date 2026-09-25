@@ -550,7 +550,7 @@ object SqlLowering {
         ): Contribution {
             collectionConstraints(ctx, field)
             if (strategy == "embed") {
-                return forbiddenStrategy(ctx, field, "embed", "a list", "table or json")
+                return forbiddenStrategy(ctx, field, "embed", "a list", alternatives(type.element))
             }
             if (strategy == "json") return json(ctx, field, "list")
             return when (val element = type.element) {
@@ -608,7 +608,7 @@ object SqlLowering {
         ): Contribution {
             collectionConstraints(ctx, field)
             if (strategy == "embed") {
-                return forbiddenStrategy(ctx, field, "embed", "a map", "table or json")
+                return forbiddenStrategy(ctx, field, "embed", "a map", alternatives(type.value))
             }
             if (strategy == null || strategy == "json") return json(ctx, field, "map")
             // The resolver only admits string, int32, and int64 keys; the fallback is never taken.
@@ -667,6 +667,21 @@ object SqlLowering {
                 }
         }
 
+        /**
+         * The strategies a list or map could take instead of `embed`: `table` only reaches a
+         * scalar, enum, or record element, so a union or collection element is left with `json`.
+         */
+        private fun alternatives(element: Type): String {
+            val tableable =
+                when (element) {
+                    is Scalar -> true
+                    is Ref -> schema.lookup(element.target) !is UnionType
+                    is ListOf,
+                    is MapOf -> false
+                }
+            return if (tableable) "table or json" else "json"
+        }
+
         /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
         private fun forbiddenStrategy(
             ctx: FieldContext,
@@ -685,9 +700,10 @@ object SqlLowering {
         }
 
         /**
-         * A list element with no relational form at all — a union, a nested list, or a nested map —
-         * regardless of whether the default or an explicit `table` asked for one; only naming a
-         * strategy the field never wrote would be misleading, so this names the shape instead.
+         * A shape with no relational form at all — a list of unions, nested lists, or nested maps,
+         * or a union with a union member — regardless of whether the default or an explicit
+         * strategy asked for one; naming a strategy the field never wrote would be misleading, so
+         * this names the shape instead.
          */
         private fun noRelationalMapping(
             ctx: FieldContext,
@@ -774,7 +790,9 @@ object SqlLowering {
 
         /**
          * A reference to a keyed record: one column per key column of the target, named
-         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table.
+         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table. A
+         * nullable reference over a composite key adds a CHECK that its columns are all null or all
+         * set.
          */
         private fun reference(ctx: FieldContext, field: Field, entry: Catalog.Entry): Contribution {
             val rawName = ctx.prefix + Naming.columnOf(field)
@@ -801,8 +819,22 @@ object SqlLowering {
                     targetColumns = entry.keyColumns,
                     cascade = false,
                 )
+            // A composite foreign key with only some of its columns null is not checked at all, so
+            // a nullable reference over more than one column is all-or-none.
+            val present =
+                if ((field.nullable || ctx.forceNullable) && names.size > 1) {
+                    val allNull = names.joinToString(" AND ") { "${Naming.quote(it)} IS NULL" }
+                    val allSet = names.joinToString(" AND ") { "${Naming.quote(it)} IS NOT NULL" }
+                    listOf(
+                        Check(
+                            identifier("ck_${ctx.table}_${rawName}_present", field.nameSpan),
+                            "(($allNull) OR ($allSet))",
+                        )
+                    )
+                } else emptyList()
             return Contribution(
                 columns = columns,
+                checks = present,
                 uniques = uniqueOf(ctx, field, rawName, names),
                 indexes = indexOf(ctx, field, rawName, names),
                 foreignKeys = listOf(PendingForeignKey(fk, namespace.name, entry.namespace)),
@@ -873,18 +905,19 @@ object SqlLowering {
         }
 
         /**
-         * A reference to a union: a `<field>_kind` text column naming which member is present, a
-         * CHECK constraining it to the member names, and each member's own contribution nested
-         * under `<field>_<member>`, every column forced nullable since only the member the kind
-         * names is ever populated. A member's own required columns (the ones that would be NOT NULL
-         * on their own account) back a second CHECK that they are all present exactly when the kind
-         * names that member; a member with none (a keyless record with no fields) needs no such
-         * check. The union's own [Contribution.required] names only the kind column: a member's
-         * columns never make the enclosing table's presence checks, since a member is optional by
-         * construction and its own CHECK already enforces it. `@sql(unique)` or `@sql(index)` on
-         * the field covers the kind column and every member column. A member that is itself a union
-         * has no kind column of its own to nest a second one under, so it has no embed strategy and
-         * must be lowered with `strategy = json` instead (SCH-28).
+         * A reference to a union: a `<field>_kind` text column naming which member is present (and
+         * carrying the field's doc, which no member column repeats), a CHECK constraining it to the
+         * member names, and each member's own contribution nested under `<field>_<member>`, every
+         * column forced nullable since only the member the kind names is ever populated. A member's
+         * own required columns (the ones that would be NOT NULL on their own account) back a second
+         * CHECK that they are all present exactly when the kind names that member; a member with
+         * none (a keyless record with no fields) needs no such check. The union's own
+         * [Contribution.required] names only the kind column: a member's columns never make the
+         * enclosing table's presence checks, since a member is optional by construction and its own
+         * CHECK already enforces it. `@sql(unique)` or `@sql(index)` on the field covers the kind
+         * column and every member column. A member that is itself a union has no kind column of its
+         * own to nest a second one under, so it has no embed strategy and must be lowered with
+         * `strategy = json` instead (SCH-28).
          */
         private fun union(ctx: FieldContext, field: Field, type: UnionType): Contribution {
             if (
@@ -892,12 +925,7 @@ object SqlLowering {
                     it.type is Ref && schema.lookup((it.type as Ref).target) is UnionType
                 }
             ) {
-                error(
-                    SqlCodes.STRATEGY_NOT_ALLOWED,
-                    "${ctx.where}: strategy 'embed' is not allowed for a union whose member is a union; use json",
-                    field.span,
-                )
-                return Contribution.NONE
+                return noRelationalMapping(ctx, field, "a union whose member is a union")
             }
             val bare = Naming.columnOf(field)
             val outerRaw = ctx.prefix + bare
@@ -994,7 +1022,7 @@ object SqlLowering {
                 return Contribution.NONE
             }
             val mapped = SqlTypes.scalar(scalar, name, overridden = false)
-            val column = Column(name = name, type = mapped.type, nullable = true, doc = field.doc)
+            val column = Column(name = name, type = mapped.type, nullable = true)
             val checks =
                 mapped.checks.map { (suffix, expression) ->
                     Check(
@@ -1021,7 +1049,7 @@ object SqlLowering {
             val rawName = "${ctx.prefix}${bare}_$literal"
             val name = identifier(rawName, field.nameSpan)
             val mapped = SqlTypes.enum(target.values.map { it.name }, name)
-            val column = Column(name = name, type = mapped.type, nullable = true, doc = field.doc)
+            val column = Column(name = name, type = mapped.type, nullable = true)
             val checks =
                 mapped.checks.map { (suffix, expression) ->
                     Check(
@@ -1056,7 +1084,6 @@ object SqlLowering {
                         name = identifier("${rawName}_$keyColumn", field.nameSpan),
                         type = columnType,
                         nullable = true,
-                        doc = field.doc,
                     )
                 }
             if (columns.isEmpty()) return Contribution.NONE
