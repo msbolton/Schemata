@@ -488,7 +488,7 @@ class SqlStructureTest {
         assertEquals(listOf(Check("ck_order_lines_qty_min", "\"qty\" >= 1")), lines.checks)
         assertEquals("One item.", lines.doc)
         val items = schema.tables[3]
-        assertEquals(listOf("order_id", "position", "item_id"), items.columns.map { it.name })
+        assertEquals(listOf("order_id", "position", "value_id"), items.columns.map { it.name })
         assertEquals(
             listOf(
                 ForeignKey(
@@ -512,10 +512,10 @@ class SqlStructureTest {
                     cascade = true,
                 ),
                 ForeignKey(
-                    "fk_order_items_item",
+                    "fk_order_items_value",
                     "a",
                     "order_items",
-                    listOf("item_id"),
+                    listOf("value_id"),
                     "a",
                     "item",
                     listOf("id"),
@@ -1089,5 +1089,107 @@ class SqlStructureTest {
             ),
             messages(lowered),
         )
+    }
+
+    @Test
+    fun `a list of the record's own type references it through value columns`() {
+        val employee =
+            record(
+                "a",
+                "Employee",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "reports", ListOf(Ref(qn("a", "Employee")), false)),
+            )
+        val lowered = lower(namespace("a", employee))
+        assertEquals(emptyList(), messages(lowered))
+        val schema = lowered.model.schemas.single()
+        assertEquals(listOf("employee", "employee_reports"), schema.tables.map { it.name })
+        val reports = table(lowered, "employee_reports")
+        assertEquals(listOf("employee_id", "position", "value_id"), reports.columns.map { it.name })
+        assertEquals(listOf("employee_id", "position"), reports.primaryKey)
+        assertEquals(
+            listOf(
+                ForeignKey(
+                    "fk_employee_reports_employee",
+                    "a",
+                    "employee_reports",
+                    listOf("employee_id"),
+                    "a",
+                    "employee",
+                    listOf("id"),
+                    cascade = true,
+                ),
+                ForeignKey(
+                    "fk_employee_reports_value",
+                    "a",
+                    "employee_reports",
+                    listOf("value_id"),
+                    "a",
+                    "employee",
+                    listOf("id"),
+                    cascade = false,
+                ),
+            ),
+            schema.foreignKeys,
+        )
+    }
+
+    @Test
+    fun `child table columns collide with the parent key and position`() {
+        val step =
+            record(
+                "a",
+                "Step",
+                field(1, "position", Scalar(Builtin.INT32), line = 21),
+                field(2, "order_id", Scalar(Builtin.STRING), line = 22),
+                line = 20,
+            )
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "lines", ListOf(Ref(qn("a", "Step")), false)),
+            )
+        val lowered = lower(namespace("a", step, order))
+        assertEquals(
+            listOf(
+                "21 SCH2111 field 'Step.position' lowers to column 'position', already used by the child table's position column (o.schemata:12)",
+                "22 SCH2111 field 'Step.order_id' lowers to column 'order_id', already used by the child table's parent key column (o.schemata:12)",
+            ),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `a list of nullable records keeps a keyed element and reports a keyless one`() {
+        val item = record("a", "Item", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
+        val line = record("a", "Line", field(1, "sku", Scalar(Builtin.STRING)), line = 20)
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "items", ListOf(Ref(qn("a", "Item")), true)),
+                field(3, "lines", ListOf(Ref(qn("a", "Line")), true)),
+                line = 10,
+            )
+        val lowered = lower(namespace("a", item, line, order))
+        assertEquals(
+            listOf(
+                "13 SCH2105 field 'Order.lines': nullable elements of list<Line?> are not represented by a child table"
+            ),
+            messages(lowered),
+        )
+        assertEquals(
+            listOf("order_id" to false, "position" to false, "value_id" to true),
+            table(lowered, "order_items").columns.map { it.name to it.nullable },
+        )
+        val lines = table(lowered, "order_lines")
+        assertEquals(
+            listOf("order_id" to false, "position" to false, "sku" to false),
+            lines.columns.map { it.name to it.nullable },
+        )
+        assertTrue(lines.columns.all { it.notes.isEmpty() })
     }
 }
