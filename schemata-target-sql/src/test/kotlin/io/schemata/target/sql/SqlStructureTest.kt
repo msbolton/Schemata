@@ -7,6 +7,8 @@ import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.IntValue
+import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
@@ -421,6 +423,229 @@ class SqlStructureTest {
                 "12 SCH2108 field 'Node.next': embedding 'Node' here would recurse (Node → Node); use strategy = json or give 'Node' a key"
             ),
             messages(lowered),
+        )
+    }
+
+    @Test
+    fun `a list of records becomes a child table keyed by the parent and position`() {
+        val line =
+            record(
+                "a",
+                "Line",
+                field(1, "sku", Scalar(Builtin.STRING, Refinements(max = big(64)))),
+                field(2, "qty", Scalar(Builtin.INT32, Refinements(min = big(1)))),
+                doc = "One item.",
+            )
+        val item = record("a", "Item", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "lines", ListOf(Ref(qn("a", "Line")), false, Refinements(min = big(1)))),
+                field(3, "items", ListOf(Ref(qn("a", "Item")), false)),
+            )
+        val lowered = lower(namespace("a", line, item, order))
+        assertEquals(
+            listOf(
+                "12 SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres"
+            ),
+            messages(lowered),
+        )
+        val schema = lowered.model.schemas.single()
+        assertEquals(
+            listOf("item", "order", "order_lines", "order_items"),
+            schema.tables.map { it.name },
+        )
+        val lines = schema.tables[2]
+        assertEquals(
+            listOf(
+                "order_id" to ColumnType.UUID,
+                "position" to ColumnType.INTEGER,
+                "sku" to ColumnType.VARCHAR(64),
+                "qty" to ColumnType.INTEGER,
+            ),
+            lines.columns.map { it.name to it.type },
+        )
+        assertTrue(lines.columns.all { !it.nullable })
+        assertEquals(
+            listOf("order_id", "position") to "pk_order_lines",
+            lines.primaryKey to lines.primaryKeyName,
+        )
+        assertEquals(listOf(Check("ck_order_lines_qty_min", "\"qty\" >= 1")), lines.checks)
+        assertEquals("One item.", lines.doc)
+        val items = schema.tables[3]
+        assertEquals(listOf("order_id", "position", "item_id"), items.columns.map { it.name })
+        assertEquals(
+            listOf(
+                ForeignKey(
+                    "fk_order_lines_order",
+                    "a",
+                    "order_lines",
+                    listOf("order_id"),
+                    "a",
+                    "order",
+                    listOf("id"),
+                    cascade = true,
+                ),
+                ForeignKey(
+                    "fk_order_items_order",
+                    "a",
+                    "order_items",
+                    listOf("order_id"),
+                    "a",
+                    "order",
+                    listOf("id"),
+                    cascade = true,
+                ),
+                ForeignKey(
+                    "fk_order_items_item",
+                    "a",
+                    "order_items",
+                    listOf("item_id"),
+                    "a",
+                    "item",
+                    listOf("id"),
+                    cascade = false,
+                ),
+            ),
+            schema.foreignKeys,
+        )
+        assertEquals(listOf("id"), table(lowered, "order").columns.map { it.name })
+    }
+
+    @Test
+    fun `scalar lists are arrays and maps are jsonb`() {
+        val color = enum("a", "Color", "red")
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "tags", ListOf(Scalar(Builtin.STRING), false)),
+                field(
+                    3,
+                    "codes",
+                    ListOf(
+                        Scalar(Builtin.STRING, Refinements(max = big(3))),
+                        false,
+                        Refinements(max = big(5)),
+                    ),
+                    nullable = true,
+                ),
+                field(4, "colors", ListOf(Ref(qn("a", "Color")), false)),
+                field(5, "meta", MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false)),
+                field(
+                    6,
+                    "extra",
+                    MapOf(Scalar(Builtin.STRING), Ref(qn("a", "Color")), true),
+                    nullable = true,
+                ),
+            )
+        val lowered = lower(namespace("a", color, r))
+        assertEquals(
+            listOf(
+                "13 SCH2105 field 'R.codes': refinements on list<string(max = 3)>(max = 5)? are not enforced by Postgres",
+                "15 SCH2105 field 'R.meta': map contents are not typed by Postgres; lowered to jsonb",
+                "16 SCH2105 field 'R.extra': map contents are not typed by Postgres; lowered to jsonb",
+            ),
+            messages(lowered),
+        )
+        val t = table(lowered, "r")
+        assertEquals(
+            listOf(
+                ColumnType.UUID,
+                ColumnType.ARRAY(ColumnType.TEXT),
+                ColumnType.ARRAY(ColumnType.TEXT),
+                ColumnType.ARRAY(ColumnType.TEXT),
+                ColumnType.JSONB,
+                ColumnType.JSONB,
+            ),
+            t.columns.map { it.type },
+        )
+        assertEquals(listOf(false, false, true, false, false, true), t.columns.map { it.nullable })
+        assertEquals(
+            listOf(
+                emptyList(),
+                emptyList(),
+                listOf("list<string(max = 3)>(max = 5)?"),
+                emptyList(),
+                listOf("map<string, int32>"),
+                listOf("map<string, Color?>?"),
+            ),
+            t.columns.map { it.notes },
+        )
+        assertEquals(emptyList(), t.checks) // enum arrays carry no IN check
+    }
+
+    @Test
+    fun `a list inside a child record nests child tables and a recursive list is an error`() {
+        val note = record("a", "Note", field(1, "text", Scalar(Builtin.STRING)))
+        val line =
+            record(
+                "a",
+                "Line",
+                field(1, "sku", Scalar(Builtin.STRING)),
+                field(2, "notes", ListOf(Ref(qn("a", "Note")), false)),
+            )
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "lines", ListOf(Ref(qn("a", "Line")), false)),
+            )
+        val lowered = lower(namespace("a", note, line, order))
+        assertEquals(emptyList(), messages(lowered))
+        val schema = lowered.model.schemas.single()
+        assertEquals(
+            listOf("order", "order_lines", "order_lines_notes"),
+            schema.tables.map { it.name },
+        )
+        val notes = schema.tables[2]
+        assertEquals(
+            listOf("order_lines_order_id", "order_lines_position", "position", "text"),
+            notes.columns.map { it.name },
+        )
+        assertEquals(
+            listOf("order_lines_order_id", "order_lines_position", "position"),
+            notes.primaryKey,
+        )
+        assertEquals(
+            ForeignKey(
+                "fk_order_lines_notes_order_lines",
+                "a",
+                "order_lines_notes",
+                listOf("order_lines_order_id", "order_lines_position"),
+                "a",
+                "order_lines",
+                listOf("order_id", "position"),
+                true,
+            ),
+            schema.foreignKeys[1],
+        )
+
+        val folder =
+            record(
+                "a",
+                "Folder",
+                field(1, "name", Scalar(Builtin.STRING)),
+                field(2, "children", ListOf(Ref(qn("a", "Folder")), false), line = 32),
+                line = 30,
+            )
+        val root =
+            record(
+                "a",
+                "Root",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "folders", ListOf(Ref(qn("a", "Folder")), false)),
+                line = 40,
+            )
+        assertEquals(
+            listOf(
+                "32 SCH2108 field 'Folder.children': embedding 'Folder' here would recurse (Folder → Folder); use strategy = json or give 'Folder' a key"
+            ),
+            messages(lower(namespace("a", folder, root))),
         )
     }
 }
