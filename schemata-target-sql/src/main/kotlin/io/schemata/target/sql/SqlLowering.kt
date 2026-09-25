@@ -203,6 +203,12 @@ object SqlLowering {
                     )
                 }
             )
+            constraintCollisions(
+                tableName,
+                parts.flatMap { (field, part) ->
+                    constraintNames(part).map { it to field.nameSpan }
+                },
+            )
             val columns = parts.flatMap { (_, part) -> part.columns }
             val primaryKey = entry.keyColumns.filter { key -> columns.any { it.name == key } }
             val primaryKeyName =
@@ -265,6 +271,28 @@ object SqlLowering {
             val span: Span,
             val columns: List<String>,
         )
+
+        /** The CHECK and foreign key names a contribution puts on its own table. */
+        private fun constraintNames(part: Contribution): List<String> =
+            part.checks.map { it.name } + part.foreignKeys.map { it.fk.name }
+
+        /**
+         * CHECK and foreign key names share one namespace per table, so two derivations that land
+         * on the same name (a union's kind check and a member named `Kind`'s presence check, say)
+         * are reported at the later one.
+         */
+        private fun constraintCollisions(table: String, names: List<Pair<String, Span>>) {
+            val seen = mutableSetOf<String>()
+            names.forEach { (name, span) ->
+                if (!seen.add(name)) {
+                    error(
+                        SqlCodes.NAME_COLLISION,
+                        "constraint name '$name' is already used on table '$table'",
+                        span,
+                    )
+                }
+            }
+        }
 
         /** Two sources whose columns land on the same final name, reported at the later one. */
         private fun columnCollisions(sources: List<ColumnSource>) {
@@ -520,6 +548,7 @@ object SqlLowering {
             strategy: String?,
             type: ListOf,
         ): Contribution {
+            collectionConstraints(ctx, field)
             if (strategy == "embed") {
                 return forbiddenStrategy(ctx, field, "embed", "a list", "table or json")
             }
@@ -577,6 +606,7 @@ object SqlLowering {
             strategy: String?,
             type: MapOf,
         ): Contribution {
+            collectionConstraints(ctx, field)
             if (strategy == "embed") {
                 return forbiddenStrategy(ctx, field, "embed", "a map", "table or json")
             }
@@ -619,6 +649,22 @@ object SqlLowering {
                 is ListOf,
                 is MapOf -> forbiddenStrategy(ctx, field, "table", "a map of lists or maps", "json")
             }
+        }
+
+        /**
+         * `@sql(unique)` or `@sql(index)` on a list or map would constrain the whole collection
+         * rather than its elements, whichever shape it lowers to, so either is an error.
+         */
+        private fun collectionConstraints(ctx: FieldContext, field: Field) {
+            listOf("unique", "index")
+                .filter { it in field.annotations["sql"] }
+                .forEach {
+                    error(
+                        SqlCodes.STRATEGY_NOT_ALLOWED,
+                        "${ctx.where}: @sql($it) is not allowed on a list or map field",
+                        field.span,
+                    )
+                }
         }
 
         /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
@@ -768,9 +814,10 @@ object SqlLowering {
          * A reference to a keyless record: its own columns are embedded under `<field>_`,
          * recursively, since a keyless record is a value type rather than a table of its own.
          * Defaults, docs, and constraint names all carry over, renamed to the embedded columns. A
-         * nullable embed forces every produced column nullable and adds one CHECK that the columns
-         * which would otherwise be required are all present or all absent together; embedding the
-         * same record again inside itself is reported instead of recursing forever.
+         * nullable embed forces every produced column nullable and, when two or more of them would
+         * otherwise be required, adds one CHECK that those are all present or all absent together.
+         * `@sql(unique)` or `@sql(index)` on the field itself covers every column it produced.
+         * Embedding the same record again inside itself is reported instead of recursing forever.
          */
         private fun embed(
             ctx: FieldContext,
@@ -784,16 +831,24 @@ object SqlLowering {
                 target.fields.map {
                     contribute(inner.copy(where = "field '${target.name}.${it.name}'"), it)
                 }
-            val merged = merge(parts)
+            val own = merge(parts)
+            val outerRaw = ctx.prefix + rawName
+            val names = own.columns.map { it.name }
+            val merged =
+                own.copy(
+                    uniques = own.uniques + uniqueOf(ctx, field, outerRaw, names),
+                    indexes = own.indexes + indexOf(ctx, field, outerRaw, names),
+                )
             if (!field.nullable) return merged
             val required = merged.required
             val cleared = merged.copy(required = emptyList())
-            if (required.isEmpty()) return cleared
+            // One column's all-or-none is always true once it is forced nullable.
+            if (required.size < 2) return cleared
             val allNull = required.joinToString(" AND ") { "${Naming.quote(it)} IS NULL" }
             val allSet = required.joinToString(" AND ") { "${Naming.quote(it)} IS NOT NULL" }
             val present =
                 Check(
-                    identifier("ck_${ctx.table}_${ctx.prefix}${rawName}_present", field.nameSpan),
+                    identifier("ck_${ctx.table}_${outerRaw}_present", field.nameSpan),
                     "(($allNull) OR ($allSet))",
                 )
             return cleared.copy(checks = cleared.checks + present)
@@ -826,8 +881,9 @@ object SqlLowering {
          * names that member; a member with none (a keyless record with no fields) needs no such
          * check. The union's own [Contribution.required] names only the kind column: a member's
          * columns never make the enclosing table's presence checks, since a member is optional by
-         * construction and its own CHECK already enforces it. A member that is itself a union has
-         * no kind column of its own to nest a second one under, so it has no embed strategy and
+         * construction and its own CHECK already enforces it. `@sql(unique)` or `@sql(index)` on
+         * the field covers the kind column and every member column. A member that is itself a union
+         * has no kind column of its own to nest a second one under, so it has no embed strategy and
          * must be lowered with `strategy = json` instead (SCH-28).
          */
         private fun union(ctx: FieldContext, field: Field, type: UnionType): Contribution {
@@ -865,11 +921,13 @@ object SqlLowering {
                         unionMember(ctx, field, bare, literal, kindName, member)
                     }
                 )
+            val columns = listOf(kindColumn) + merged.columns
+            val names = columns.map { it.name }
             return Contribution(
-                columns = listOf(kindColumn) + merged.columns,
+                columns = columns,
                 checks = listOf(kindCheck) + merged.checks,
-                uniques = merged.uniques,
-                indexes = merged.indexes,
+                uniques = merged.uniques + uniqueOf(ctx, field, outerRaw, names),
+                indexes = merged.indexes + indexOf(ctx, field, outerRaw, names),
                 foreignKeys = merged.foreignKeys,
                 children = merged.children,
                 required = if (field.nullable) emptyList() else listOf(kindName),
@@ -1304,6 +1362,11 @@ object SqlLowering {
                         ColumnSource(where, where, span, part.columns.map { it.name })
                     }
             )
+            constraintCollisions(
+                childName,
+                listOf(parentFk.fk.name to field.nameSpan) +
+                    parts.flatMap { (_, span, part) -> constraintNames(part).map { it to span } },
+            )
             val merged = merge(parts.map { it.third })
             val childTable =
                 Table(
@@ -1341,25 +1404,33 @@ object SqlLowering {
                 required = parts.flatMap { it.required },
             )
 
+        /**
+         * The unique [field] asks for over [columns], if any. A list or map field never gets one;
+         * [collectionConstraints] has already reported the annotation.
+         */
         private fun uniqueOf(
             ctx: FieldContext,
             field: Field,
             rawName: String,
             columns: List<String>,
         ) =
-            if ("unique" in field.annotations["sql"])
+            if ("unique" in field.annotations["sql"] && constrainable(field, columns))
                 listOf(Unique(identifier("uq_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
+        /** The index [field] asks for over [columns], if any, on the same terms as [uniqueOf]. */
         private fun indexOf(
             ctx: FieldContext,
             field: Field,
             rawName: String,
             columns: List<String>,
         ) =
-            if ("index" in field.annotations["sql"])
+            if ("index" in field.annotations["sql"] && constrainable(field, columns))
                 listOf(Index(identifier("ix_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
+
+        private fun constrainable(field: Field, columns: List<String>): Boolean =
+            columns.isNotEmpty() && field.type !is ListOf && field.type !is MapOf
 
         private fun identifier(name: String, span: Span): String =
             SqlLowering.identifier(name, span, diagnostics)

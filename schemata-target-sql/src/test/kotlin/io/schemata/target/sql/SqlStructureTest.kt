@@ -1192,4 +1192,128 @@ class SqlStructureTest {
         )
         assertTrue(lines.columns.all { it.notes.isEmpty() })
     }
+
+    @Test
+    fun `a check name derived twice on one table collides`() {
+        val kind = record("a", "Kind", field(1, "x", Scalar(Builtin.BOOL)), line = 20)
+        val u = union("a", "U", Ref(qn("a", "Kind")), Scalar(Builtin.UUID), line = 30)
+        val host =
+            record(
+                "a",
+                "Host",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "u", Ref(qn("a", "U"))),
+            )
+        val lowered = lower(namespace("a", kind, u, host))
+        assertEquals(
+            listOf("12 SCH2111 constraint name 'ck_host_u_kind' is already used on table 'host'"),
+            messages(lowered),
+        )
+    }
+
+    @Test
+    fun `unique and index cover every column an embedded or union field produces`() {
+        val addr =
+            record(
+                "a",
+                "Addr",
+                field(1, "street", Scalar(Builtin.STRING)),
+                field(2, "zip", Scalar(Builtin.STRING)),
+            )
+        val u = union("a", "U", Scalar(Builtin.UUID), Scalar(Builtin.STRING), line = 30)
+        val site =
+            record(
+                "a",
+                "Site",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(
+                    2,
+                    "home",
+                    Ref(qn("a", "Addr")),
+                    annotations = sql("unique" to AnnotationValue.Flag),
+                ),
+                field(
+                    3,
+                    "pick",
+                    Ref(qn("a", "U")),
+                    annotations = sql("index" to AnnotationValue.Flag),
+                ),
+                field(
+                    4,
+                    "alt",
+                    Ref(qn("a", "U")),
+                    annotations = sql("unique" to AnnotationValue.Flag),
+                ),
+            )
+        val lowered = lower(namespace("a", addr, u, site))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "site")
+        assertEquals(
+            listOf(
+                Unique("uq_site_home", listOf("home_street", "home_zip")),
+                Unique("uq_site_alt", listOf("alt_kind", "alt_uuid", "alt_string")),
+            ),
+            t.uniques,
+        )
+        assertEquals(
+            listOf(Index("ix_site_pick", listOf("pick_kind", "pick_uuid", "pick_string"))),
+            t.indexes,
+        )
+    }
+
+    @Test
+    fun `unique and index are not allowed on a list or map field`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(
+                    2,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING), false),
+                    annotations = sql("unique" to AnnotationValue.Flag),
+                ),
+                field(
+                    3,
+                    "meta",
+                    MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false),
+                    annotations =
+                        sql(
+                            "index" to AnnotationValue.Flag,
+                            "strategy" to AnnotationValue.Name("table"),
+                        ),
+                ),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(
+            listOf(
+                "12 SCH2110 field 'R.tags': @sql(unique) is not allowed on a list or map field",
+                "13 SCH2110 field 'R.meta': @sql(index) is not allowed on a list or map field",
+            ),
+            messages(lowered),
+        )
+        assertEquals(emptyList(), table(lowered, "r").uniques)
+    }
+
+    @Test
+    fun `a nullable embed with one required column has no presence check`() {
+        val money =
+            record(
+                "a",
+                "Money",
+                field(1, "amount", Scalar(Builtin.INT64)),
+                field(2, "note", Scalar(Builtin.STRING), nullable = true),
+            )
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "price", Ref(qn("a", "Money")), nullable = true),
+            )
+        val lowered = lower(namespace("a", money, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(emptyList(), table(lowered, "r").checks)
+    }
 }
