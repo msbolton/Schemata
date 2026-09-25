@@ -15,14 +15,14 @@ class PipelineTest {
             namespace shop.orders
 
             record User {
-              id:    uuid
+              @sql(key) id:    uuid
               email: string?
               name:  string
               age:   int32
             }
 
             record Session {
-              token:   string
+              @sql(key) token:   string
               user_id: uuid
               active:  bool
             }
@@ -37,7 +37,7 @@ class PipelineTest {
             namespace shop.customers
 
             record Customer {
-              id:   uuid
+              @sql(key) id:   uuid
               name: string
             }
             """

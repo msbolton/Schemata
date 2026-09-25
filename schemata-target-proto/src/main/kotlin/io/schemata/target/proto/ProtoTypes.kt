@@ -4,34 +4,16 @@ import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.IntValue
-import io.schemata.core.ir.ListOf
-import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.RealValue
-import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Refinements
-import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.StringValue
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.Value
+import io.schemata.target.TypeText
 
 /** Text for lossy notes and the scalar keyword table. */
 object ProtoTypes {
     /** The type as a user would write it: `string(max = 254)?`, `list<Line>(min = 1)`. */
-    fun text(type: Type, nullable: Boolean = false): String {
-        val core =
-            when (type) {
-                is Scalar ->
-                    type.builtin.typeName +
-                        args(type.refinements, decimal = type.builtin == Builtin.DECIMAL)
-                is ListOf ->
-                    "list<${text(type.element, type.nullableElement)}>" + args(type.refinements)
-                is MapOf ->
-                    "map<${text(type.key)}, ${text(type.value, type.nullableValue)}>" +
-                        args(type.refinements)
-                is Ref -> type.target.simpleName
-            }
-        return if (nullable) "$core?" else core
-    }
+    fun text(type: Type, nullable: Boolean = false): String = TypeText.of(type, nullable)
 
     fun text(value: Value): String =
         when (value) {
@@ -59,14 +41,4 @@ object ProtoTypes {
             Builtin.INSTANT,
             Builtin.DURATION -> null
         }
-
-    private fun args(r: Refinements, decimal: Boolean = false): String {
-        val parts = mutableListOf<String>()
-        if (decimal && r.precision != null && r.scale != null)
-            parts += listOf("${r.precision}", "${r.scale}")
-        r.min?.let { parts += "min = ${it.toPlainString()}" }
-        r.max?.let { parts += "max = ${it.toPlainString()}" }
-        r.pattern?.let { parts += "pattern = \"$it\"" }
-        return if (parts.isEmpty()) "" else parts.joinToString(", ", "(", ")")
-    }
 }

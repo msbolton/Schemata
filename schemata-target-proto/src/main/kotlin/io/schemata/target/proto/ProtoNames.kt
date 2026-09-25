@@ -6,14 +6,14 @@ import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.TypeDecl
+import io.schemata.target.Names
 
 /** The proto target's naming rules: `@proto` overrides, enum-value prefixes, deprecation. */
 object ProtoNames {
-    private val boundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
     private val identifier = Regex("[A-Za-z_][A-Za-z0-9_]*")
 
     /** `BankTransfer` → `bank_transfer`; a lowercase name is unchanged. */
-    fun snakeCase(name: String): String = name.split(boundary).joinToString("_").lowercase()
+    fun snakeCase(name: String): String = Names.snakeCase(name)
 
     /** `OrderStatus` → `ORDER_STATUS`. */
     fun upperSnake(name: String): String = snakeCase(name).uppercase()

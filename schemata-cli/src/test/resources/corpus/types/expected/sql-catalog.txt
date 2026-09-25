@@ -1,0 +1,30 @@
+schema types
+table types.everything
+  column id uuid not null
+  column flag boolean not null default true
+  column small integer not null default 3
+  column big bigint not null
+  column ratio real not null
+  column exact double precision not null
+  column money numeric(19,4) not null default 1.25
+  column name text not null
+  column email text not null
+  column code character varying(4)
+  column note text not null default 'n/a'::text
+  column blob bytea not null
+  column day date not null
+  column tod time without time zone not null
+  column at timestamp with time zone not null
+  column took interval not null
+  column status text not null default 'pending'::text
+  column legacy character varying(36)
+  constraint ck_everything_big_min CHECK ((big >= 1))
+  constraint ck_everything_blob_max CHECK ((octet_length(blob) <= 1024))
+  constraint ck_everything_email_pattern CHECK ((email ~ '^[^@]+@[^@]+$'::text))
+  constraint ck_everything_exact_max CHECK ((exact <= (1.5)::double precision))
+  constraint ck_everything_name_max CHECK ((char_length(name) <= 8))
+  constraint ck_everything_name_min CHECK ((char_length(name) >= 2))
+  constraint ck_everything_small_max CHECK ((small <= 100))
+  constraint ck_everything_small_min CHECK ((small >= 0))
+  constraint ck_everything_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text])))
+  constraint pk_everything PRIMARY KEY (id)

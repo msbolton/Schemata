@@ -20,7 +20,7 @@ class ProtoConformanceTest {
     @TestFactory
     fun `corpus cases render their expected tree and compile under protoc`(): List<DynamicTest> =
         corpus
-            .listFiles { f -> f.isDirectory }!!
+            .listFiles { f -> f.isDirectory && File(f, "expected/proto").isDirectory }!!
             .sortedBy { it.name }
             .map { case -> DynamicTest.dynamicTest(case.name) { check(case) } }
 

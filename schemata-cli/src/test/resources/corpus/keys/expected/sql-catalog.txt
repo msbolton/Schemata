@@ -1,0 +1,13 @@
+schema keys
+table keys.account
+  column id uuid not null
+  column email character varying(254) not null
+  column created timestamp with time zone not null
+  constraint pk_account PRIMARY KEY (id)
+  constraint uq_account_email UNIQUE (email)
+  index ix_account_created btree (created)
+table keys.plan
+  column tenant_id uuid not null
+  column code character varying(32) not null
+  column name text not null
+  constraint pk_plan PRIMARY KEY (tenant_id, code)

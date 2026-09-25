@@ -1,0 +1,22 @@
+@sql(schema = "naming_v1")
+namespace corpus.naming
+
+@sql(table = "http_status_codes")
+record HTTPStatus {
+  @sql(key)
+  #1 code: int32
+  @sql(column = "reason_phrase")
+  #2 reason: string
+}
+
+record User {
+  @sql(key)
+  #1 id: uuid
+  #2 order: int32
+  #3 a_very_long_field_name_that_goes_well_beyond_the_sixty_three_character_limit_of_postgres: bool
+}
+
+record IOError {
+  @sql(key)
+  #1 id: uuid
+}

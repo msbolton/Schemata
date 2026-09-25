@@ -1,0 +1,13 @@
+schema naming_v1
+table naming_v1.http_status_codes
+  column code integer not null
+  column reason_phrase text not null
+  constraint pk_http_status_codes PRIMARY KEY (code)
+table naming_v1.io_error
+  column id uuid not null
+  constraint pk_io_error PRIMARY KEY (id)
+table naming_v1.user
+  column id uuid not null
+  column order integer not null
+  column a_very_long_field_name_that_goes_well_beyond_the_sixty__b7ff5eb boolean not null
+  constraint pk_user PRIMARY KEY (id)

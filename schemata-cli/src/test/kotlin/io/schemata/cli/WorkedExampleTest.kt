@@ -141,7 +141,7 @@ class WorkedExampleTest {
             result.files.map { it.file.path },
         )
         assertEquals(
-            setOf("SCH2001", "SCH2103", "SCH2104"),
+            setOf("SCH2001", "SCH2103", "SCH2106"),
             result.diagnostics.map { it.code.id }.toSet(),
         )
     }
