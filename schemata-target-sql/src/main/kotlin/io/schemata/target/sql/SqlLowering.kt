@@ -515,12 +515,10 @@ object SqlLowering {
                                 type.nullableElement,
                                 null,
                             )
-                        is UnionType ->
-                            forbiddenStrategy(ctx, field, "table", "a list of unions", "json")
+                        is UnionType -> noRelationalMapping(ctx, field, "a list of unions")
                     }
                 is ListOf,
-                is MapOf ->
-                    forbiddenStrategy(ctx, field, "table", "a list of lists or maps", "json")
+                is MapOf -> noRelationalMapping(ctx, field, "a list of lists or maps")
             }
         }
 
@@ -596,6 +594,24 @@ object SqlLowering {
             error(
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: strategy '$strategy' is not allowed for $shape$suffix",
+                field.span,
+            )
+            return Contribution.NONE
+        }
+
+        /**
+         * A list element with no relational form at all — a union, a nested list, or a nested map —
+         * regardless of whether the default or an explicit `table` asked for one; only naming a
+         * strategy the field never wrote would be misleading, so this names the shape instead.
+         */
+        private fun noRelationalMapping(
+            ctx: FieldContext,
+            field: Field,
+            shape: String,
+        ): Contribution {
+            error(
+                SqlCodes.STRATEGY_NOT_ALLOWED,
+                "${ctx.where}: $shape has no relational mapping; use strategy = json",
                 field.span,
             )
             return Contribution.NONE

@@ -934,4 +934,71 @@ class SqlStructureTest {
             messages(lowered),
         )
     }
+
+    @Test
+    fun `lists of unions or collections need the json strategy`() {
+        val card = record("a", "Card", field(1, "amt", Scalar(Builtin.INT32)))
+        val u = union("a", "U", Ref(qn("a", "Card")), Scalar(Builtin.UUID))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "choices", ListOf(Ref(qn("a", "U")), false)),
+                field(3, "grid", ListOf(ListOf(Scalar(Builtin.INT32), false), false)),
+                field(4, "ok", ListOf(Ref(qn("a", "U")), false), annotations = strategy("json")),
+            )
+        val lowered = lower(namespace("a", card, u, r))
+        assertEquals(
+            listOf(
+                "12 SCH2110 field 'R.choices': a list of unions has no relational mapping; use strategy = json",
+                "13 SCH2110 field 'R.grid': a list of lists or maps has no relational mapping; use strategy = json",
+                "14 SCH2105 field 'R.ok': list contents are not typed by Postgres; lowered to jsonb",
+            ),
+            messages(lowered),
+        )
+        val t = table(lowered, "r")
+        assertEquals(ColumnType.JSONB, t.columns.single { it.name == "ok" }.type)
+    }
+
+    @Test
+    fun `union strategies, table is forbidden and json legalizes a union of unions`() {
+        val payment = union("a", "Payment", Scalar(Builtin.UUID), Scalar(Builtin.STRING), line = 40)
+        val forbidden =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "choice", Ref(qn("a", "Payment")), annotations = strategy("table")),
+            )
+        val loweredForbidden = lower(namespace("a", payment, forbidden))
+        assertEquals(
+            listOf(
+                "12 SCH2110 field 'R.choice': strategy 'table' is not allowed for a union; use embed or json"
+            ),
+            messages(loweredForbidden),
+        )
+
+        val a = record("a", "A", field(1, "x", Scalar(Builtin.BOOL)))
+        val inner = union("a", "Inner", Ref(qn("a", "A")), Scalar(Builtin.INT32), line = 40)
+        val outer = union("a", "Outer", Ref(qn("a", "Inner")), Scalar(Builtin.STRING), line = 50)
+        val ok =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "choice", Ref(qn("a", "Outer")), annotations = strategy("json")),
+            )
+        val loweredOk = lower(namespace("a", a, inner, outer, ok))
+        assertEquals(
+            listOf(
+                "12 SCH2105 field 'R.choice': union contents are not typed by Postgres; lowered to jsonb"
+            ),
+            messages(loweredOk),
+        )
+        assertEquals(
+            ColumnType.JSONB,
+            table(loweredOk, "r").columns.single { it.name == "choice" }.type,
+        )
+    }
 }
