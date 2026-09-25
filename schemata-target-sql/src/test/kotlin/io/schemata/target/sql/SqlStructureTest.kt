@@ -19,6 +19,8 @@ import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionMember
+import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.lang.Span
 import java.math.BigDecimal
@@ -91,6 +93,17 @@ class SqlStructureTest {
         file: String = "o.schemata",
         annotations: Annotations = Annotations.NONE,
     ) = Namespace(name, decls.toList(), at(1, file), annotations)
+
+    private fun union(ns: String, name: String, vararg members: Type, line: Int = 40) =
+        UnionType(
+            qn(ns, name),
+            name,
+            members.mapIndexed { i, t -> UnionMember(i + 1, t, null, at(line + 1 + i)) },
+            emptyList(),
+            null,
+            at(line),
+            at(line),
+        )
 
     private fun lower(vararg namespaces: Namespace) = SqlLowering.lower(Schema(namespaces.toList()))
 
@@ -646,6 +659,173 @@ class SqlStructureTest {
                 "32 SCH2108 field 'Folder.children': embedding 'Folder' here would recurse (Folder → Folder); use strategy = json or give 'Folder' a key"
             ),
             messages(lower(namespace("a", folder, root))),
+        )
+    }
+
+    @Test
+    fun `a union becomes a discriminator and nullable variant columns with per-variant checks`() {
+        val card =
+            record(
+                "a",
+                "Card",
+                field(1, "last4", Scalar(Builtin.STRING, Refinements(max = big(4)))),
+                field(2, "brand", Scalar(Builtin.STRING), nullable = true),
+            )
+        val transfer =
+            record(
+                "a",
+                "BankTransfer",
+                field(1, "iban", Scalar(Builtin.STRING, Refinements(min = big(15), max = big(34)))),
+            )
+        val cash = record("a", "Cash")
+        val account =
+            record("a", "Account", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
+        val payment =
+            union(
+                "a",
+                "Payment",
+                Ref(qn("a", "Card")),
+                Ref(qn("a", "BankTransfer")),
+                Ref(qn("a", "Cash")),
+                Scalar(Builtin.UUID),
+                Ref(qn("a", "Account")),
+            )
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "payment", Ref(qn("a", "Payment"))),
+                field(3, "refund", Ref(qn("a", "Payment")), nullable = true),
+            )
+        val lowered = lower(namespace("a", card, transfer, cash, account, payment, order))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "order")
+        assertEquals(
+            listOf(
+                "id" to false,
+                "payment_kind" to false,
+                "payment_card_last4" to true,
+                "payment_card_brand" to true,
+                "payment_bank_transfer_iban" to true,
+                "payment_uuid" to true,
+                "payment_account_id" to true,
+                "refund_kind" to true,
+                "refund_card_last4" to true,
+                "refund_card_brand" to true,
+                "refund_bank_transfer_iban" to true,
+                "refund_uuid" to true,
+                "refund_account_id" to true,
+            ),
+            t.columns.map { it.name to it.nullable },
+        )
+        assertEquals(ColumnType.VARCHAR(4), t.columns[2].type)
+        assertEquals(
+            listOf(
+                Check(
+                    "ck_order_payment_kind",
+                    "\"payment_kind\" IN ('card', 'bank_transfer', 'cash', 'uuid', 'account')",
+                ),
+                Check(
+                    "ck_order_payment_card",
+                    "(\"payment_kind\" <> 'card') OR (\"payment_card_last4\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_payment_bank_transfer_iban_min",
+                    "char_length(\"payment_bank_transfer_iban\") >= 15",
+                ),
+                Check(
+                    "ck_order_payment_bank_transfer_iban_max",
+                    "char_length(\"payment_bank_transfer_iban\") <= 34",
+                ),
+                Check(
+                    "ck_order_payment_bank_transfer",
+                    "(\"payment_kind\" <> 'bank_transfer') OR (\"payment_bank_transfer_iban\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_payment_uuid",
+                    "(\"payment_kind\" <> 'uuid') OR (\"payment_uuid\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_payment_account",
+                    "(\"payment_kind\" <> 'account') OR (\"payment_account_id\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_refund_kind",
+                    "\"refund_kind\" IN ('card', 'bank_transfer', 'cash', 'uuid', 'account')",
+                ),
+                Check(
+                    "ck_order_refund_card",
+                    "(\"refund_kind\" <> 'card') OR (\"refund_card_last4\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_refund_bank_transfer_iban_min",
+                    "char_length(\"refund_bank_transfer_iban\") >= 15",
+                ),
+                Check(
+                    "ck_order_refund_bank_transfer_iban_max",
+                    "char_length(\"refund_bank_transfer_iban\") <= 34",
+                ),
+                Check(
+                    "ck_order_refund_bank_transfer",
+                    "(\"refund_kind\" <> 'bank_transfer') OR (\"refund_bank_transfer_iban\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_refund_uuid",
+                    "(\"refund_kind\" <> 'uuid') OR (\"refund_uuid\" IS NOT NULL)",
+                ),
+                Check(
+                    "ck_order_refund_account",
+                    "(\"refund_kind\" <> 'account') OR (\"refund_account_id\" IS NOT NULL)",
+                ),
+            ),
+            t.checks,
+        )
+        assertEquals(
+            listOf(
+                ForeignKey(
+                    "fk_order_payment_account",
+                    "a",
+                    "order",
+                    listOf("payment_account_id"),
+                    "a",
+                    "account",
+                    listOf("id"),
+                    false,
+                ),
+                ForeignKey(
+                    "fk_order_refund_account",
+                    "a",
+                    "order",
+                    listOf("refund_account_id"),
+                    "a",
+                    "account",
+                    listOf("id"),
+                    false,
+                ),
+            ),
+            lowered.model.schemas.single().foreignKeys,
+        )
+    }
+
+    @Test
+    fun `a union with a union member needs the json strategy`() {
+        val a = record("a", "A", field(1, "x", Scalar(Builtin.BOOL)))
+        val inner = union("a", "Inner", Ref(qn("a", "A")), Scalar(Builtin.INT32), line = 40)
+        val outer = union("a", "Outer", Ref(qn("a", "Inner")), Scalar(Builtin.STRING), line = 50)
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(2, "choice", Ref(qn("a", "Outer")), line = 12),
+            )
+        val lowered = lower(namespace("a", a, inner, outer, r))
+        assertEquals(
+            listOf(
+                "12 SCH2110 field 'R.choice': strategy 'embed' is not allowed for a union whose member is a union; use json"
+            ),
+            messages(lowered),
         )
     }
 }

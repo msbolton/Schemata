@@ -10,6 +10,8 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Type
+import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Diagnostic
@@ -24,10 +26,12 @@ import io.schemata.target.TypeText
  * every keyed record's table and key columns, then each field's [Contribution] to its table.
  * References to keyed records become key columns and a foreign key; a reference to a keyless record
  * embeds that record's own columns under `<field>_`, recursively. Scalars carry every builtin,
- * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides.
- * Unions, lists, maps, and mapping strategies are reported at the boundary until their lowering
- * lands (SCH-28). `reserved` ordinals and names have no relational meaning and are accepted without
- * a diagnostic.
+ * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides. A
+ * reference to a union becomes a `<field>_kind` discriminator column plus each member's own nested,
+ * forced-nullable contribution, with a CHECK that a member's columns are present exactly when the
+ * kind names it. Lists, maps, and mapping strategies are still reported at the boundary until their
+ * lowering lands (SCH-28). `reserved` ordinals and names have no relational meaning and are
+ * accepted without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -392,10 +396,7 @@ object SqlLowering {
                             if (entry != null) reference(ctx, field, entry)
                             else embed(ctx, field, target, Naming.columnOf(field))
                         }
-                        is UnionType -> {
-                            unsupported("unions", field.span, ctx.where)
-                            Contribution.NONE
-                        }
+                        is UnionType -> union(ctx, field, target)
                     }
                 is ListOf ->
                     when (val element = type.element) {
@@ -576,6 +577,263 @@ object SqlLowering {
                 field.span,
             )
             return true
+        }
+
+        /**
+         * A reference to a union: a `<field>_kind` text column naming which member is present, a
+         * CHECK constraining it to the member names, and each member's own contribution nested
+         * under `<field>_<member>`, every column forced nullable since only the member the kind
+         * names is ever populated. A member's own required columns (the ones that would be NOT NULL
+         * on their own account) back a second CHECK that they are all present exactly when the kind
+         * names that member; a member with none (a keyless record with no fields) needs no such
+         * check. The union's own [Contribution.required] names only the kind column: a member's
+         * columns never make the enclosing table's presence checks, since a member is optional by
+         * construction and its own CHECK already enforces it. A member that is itself a union has
+         * no kind column of its own to nest a second one under, so it has no embed strategy and
+         * must be lowered with `strategy = json` instead (SCH-28).
+         */
+        private fun union(ctx: FieldContext, field: Field, type: UnionType): Contribution {
+            if (
+                type.members.any {
+                    it.type is Ref && schema.lookup((it.type as Ref).target) is UnionType
+                }
+            ) {
+                error(
+                    SqlCodes.STRATEGY_NOT_ALLOWED,
+                    "${ctx.where}: strategy 'embed' is not allowed for a union whose member is a union; use json",
+                    field.span,
+                )
+                return Contribution.NONE
+            }
+            val bare = Naming.columnOf(field)
+            val outerRaw = ctx.prefix + bare
+            val kindName = identifier("${outerRaw}_kind", field.nameSpan)
+            val literals = type.members.map { memberLiteral(it.type) }
+            val kindColumn =
+                Column(
+                    name = kindName,
+                    type = ColumnType.TEXT,
+                    nullable = field.nullable || ctx.forceNullable,
+                    doc = field.doc,
+                )
+            val kindCheck =
+                Check(
+                    identifier("ck_${ctx.table}_${outerRaw}_kind", field.nameSpan),
+                    "${Naming.quote(kindName)} IN (${literals.joinToString(", ") { Naming.literal(it) }})",
+                )
+            val merged =
+                merge(
+                    type.members.zip(literals).map { (member, literal) ->
+                        unionMember(ctx, field, bare, literal, kindName, member)
+                    }
+                )
+            return Contribution(
+                columns = listOf(kindColumn) + merged.columns,
+                checks = listOf(kindCheck) + merged.checks,
+                uniques = merged.uniques,
+                indexes = merged.indexes,
+                foreignKeys = merged.foreignKeys,
+                children = merged.children,
+                required = if (field.nullable) emptyList() else listOf(kindName),
+            )
+        }
+
+        /** The text a member compares the kind column to, and lists in its `IN (...)` check. */
+        private fun memberLiteral(type: Type): String =
+            when (type) {
+                is Scalar -> type.builtin.typeName
+                is Ref -> Naming.snakeCase(type.target.simpleName)
+                is ListOf,
+                is MapOf -> "member"
+            }
+
+        /** One union member's own columns, checks, and foreign keys, named from [literal]. */
+        private fun unionMember(
+            ctx: FieldContext,
+            field: Field,
+            bare: String,
+            literal: String,
+            kindName: String,
+            member: UnionMember,
+        ): Contribution =
+            when (val type = member.type) {
+                is Scalar -> unionScalar(ctx, field, bare, literal, kindName, type)
+                is Ref ->
+                    when (val target = schema.lookup(type.target)) {
+                        is EnumType -> unionEnum(ctx, field, bare, literal, kindName, target)
+                        is RecordType -> {
+                            val entry = catalog[target.qualifiedName]
+                            if (entry != null) {
+                                unionReference(ctx, field, bare, literal, kindName, entry)
+                            } else unionEmbed(ctx, field, bare, literal, kindName, target)
+                        }
+                        // A union member that is itself a union already failed the field in
+                        // `union`.
+                        is UnionType -> Contribution.NONE
+                    }
+                is ListOf,
+                is MapOf -> {
+                    unsupported("union members that are lists or maps", field.span, ctx.where)
+                    Contribution.NONE
+                }
+            }
+
+        /** A raw scalar member: one nullable column named `<field>_<member>`. */
+        private fun unionScalar(
+            ctx: FieldContext,
+            field: Field,
+            bare: String,
+            literal: String,
+            kindName: String,
+            scalar: Scalar,
+        ): Contribution {
+            val rawName = "${ctx.prefix}${bare}_$literal"
+            val name = identifier(rawName, field.nameSpan)
+            val precision = scalar.refinements.precision
+            if (precision != null && precision > SqlTypes.NUMERIC_PRECISION_LIMIT) {
+                error(
+                    SqlCodes.TYPE_LIMIT,
+                    "${ctx.where}: decimal precision $precision exceeds Postgres's limit of ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
+                    field.span,
+                )
+                return Contribution.NONE
+            }
+            val mapped = SqlTypes.scalar(scalar, name, overridden = false)
+            val column = Column(name = name, type = mapped.type, nullable = true, doc = field.doc)
+            val checks =
+                mapped.checks.map { (suffix, expression) ->
+                    Check(
+                        identifier("ck_${ctx.table}_${rawName}_$suffix", field.nameSpan),
+                        expression,
+                    )
+                }
+            return Contribution(
+                columns = listOf(column),
+                checks =
+                    checks + presenceCheck(ctx, field, kindName, rawName, literal, listOf(name)),
+            )
+        }
+
+        /** A member that references an enum: one nullable column constrained to its values. */
+        private fun unionEnum(
+            ctx: FieldContext,
+            field: Field,
+            bare: String,
+            literal: String,
+            kindName: String,
+            target: EnumType,
+        ): Contribution {
+            val rawName = "${ctx.prefix}${bare}_$literal"
+            val name = identifier(rawName, field.nameSpan)
+            val mapped = SqlTypes.enum(target.values.map { it.name }, name)
+            val column = Column(name = name, type = mapped.type, nullable = true, doc = field.doc)
+            val checks =
+                mapped.checks.map { (suffix, expression) ->
+                    Check(
+                        identifier("ck_${ctx.table}_${rawName}_$suffix", field.nameSpan),
+                        expression,
+                    )
+                }
+            return Contribution(
+                columns = listOf(column),
+                checks =
+                    checks + presenceCheck(ctx, field, kindName, rawName, literal, listOf(name)),
+            )
+        }
+
+        /**
+         * A member that references a keyed record: `<field>_<member>_<key column>` columns and a
+         * foreign key, named from the member rather than from the field the way [reference] is.
+         */
+        private fun unionReference(
+            ctx: FieldContext,
+            field: Field,
+            bare: String,
+            literal: String,
+            kindName: String,
+            entry: Catalog.Entry,
+        ): Contribution {
+            val rawName = "${ctx.prefix}${bare}_$literal"
+            val columns =
+                entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
+                    val columnType = keyType(key) ?: return@mapNotNull null
+                    Column(
+                        name = identifier("${rawName}_$keyColumn", field.nameSpan),
+                        type = columnType,
+                        nullable = true,
+                        doc = field.doc,
+                    )
+                }
+            if (columns.isEmpty()) return Contribution.NONE
+            val names = columns.map { it.name }
+            val fk =
+                ForeignKey(
+                    name = identifier("fk_${ctx.table}_$rawName", field.nameSpan),
+                    schema = schemaName,
+                    table = ctx.table,
+                    columns = names,
+                    targetSchema = entry.schemaName,
+                    targetTable = entry.tableName,
+                    targetColumns = entry.keyColumns,
+                    cascade = false,
+                )
+            return Contribution(
+                columns = columns,
+                checks = presenceCheck(ctx, field, kindName, rawName, literal, names),
+                foreignKeys = listOf(PendingForeignKey(fk, namespace.name, entry.namespace)),
+            )
+        }
+
+        /**
+         * A member that references a keyless record: its fields embed under `<field>_<member>_`,
+         * forced nullable throughout, exactly like [embed] but checked for presence by kind rather
+         * than by a nullable embed's own all-or-nothing CHECK.
+         */
+        private fun unionEmbed(
+            ctx: FieldContext,
+            field: Field,
+            bare: String,
+            literal: String,
+            kindName: String,
+            target: RecordType,
+        ): Contribution {
+            if (recursionError(ctx, field, target)) return Contribution.NONE
+            val rawName = "${ctx.prefix}${bare}_$literal"
+            val inner = ctx.nested("${bare}_$literal", true, target.qualifiedName, ctx.where)
+            val merged =
+                merge(
+                    target.fields.map {
+                        contribute(inner.copy(where = "field '${target.name}.${it.name}'"), it)
+                    }
+                )
+            return merged.copy(
+                required = emptyList(),
+                checks =
+                    merged.checks +
+                        presenceCheck(ctx, field, kindName, rawName, literal, merged.required),
+            )
+        }
+
+        /**
+         * The CHECK that a member's own columns are all present exactly when the kind names it; a
+         * member with no such columns needs none.
+         */
+        private fun presenceCheck(
+            ctx: FieldContext,
+            field: Field,
+            kindName: String,
+            rawName: String,
+            literal: String,
+            required: List<String>,
+        ): List<Check> {
+            if (required.isEmpty()) return emptyList()
+            val present = required.joinToString(" AND ") { "${Naming.quote(it)} IS NOT NULL" }
+            return listOf(
+                Check(
+                    identifier("ck_${ctx.table}_$rawName", field.nameSpan),
+                    "(${Naming.quote(kindName)} <> ${Naming.literal(literal)}) OR ($present)",
+                )
+            )
         }
 
         /**

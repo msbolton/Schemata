@@ -383,14 +383,13 @@ class SqlLoweringTest {
         assertEquals(
             listOf(
                 "13 SCH2105 field 'R.map': map contents are not typed by Postgres; lowered to jsonb",
-                "14 SCH2103 field 'R.choice': target 'sql' cannot lower unions yet (SCH-28)",
                 "15 SCH2103 field 'R.flat': target 'sql' cannot lower mapping strategies yet (SCH-28)",
                 "25 SCH2106 record 'N' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
             ),
             messages(lowered),
         )
         assertEquals(
-            listOf("id", "ref_x", "many", "map"),
+            listOf("id", "ref_x", "many", "map", "choice_kind", "choice_leaf_x"),
             table(lowered, "r").columns.map { it.name },
         )
         assertEquals(listOf("leaf", "r"), lowered.model.schemas.single().tables.map { it.name })
