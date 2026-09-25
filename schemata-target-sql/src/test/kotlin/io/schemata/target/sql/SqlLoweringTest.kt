@@ -320,7 +320,13 @@ class SqlLoweringTest {
             record(
                 "a",
                 "Product",
-                field(1, "sku", Scalar(Builtin.STRING), doc = "Stock keeping unit."),
+                field(
+                    1,
+                    "sku",
+                    Scalar(Builtin.STRING),
+                    doc = "Stock keeping unit.",
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
                 doc = "A product.",
             )
         val t = table(lower(namespace("a", r)), "product")
@@ -356,11 +362,12 @@ class SqlLoweringTest {
                 "a",
                 "R",
                 field(
-                    1,
-                    "ref",
-                    Ref(qn("a", "Leaf")),
+                    0,
+                    "id",
+                    Scalar(Builtin.UUID),
                     annotations = sql("key" to AnnotationValue.Flag),
                 ),
+                field(1, "ref", Ref(qn("a", "Leaf"))),
                 field(2, "many", ListOf(Scalar(Builtin.STRING), false)),
                 field(3, "map", MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false)),
                 field(4, "choice", Ref(qn("a", "U"))),
@@ -375,7 +382,6 @@ class SqlLoweringTest {
         val lowered = lower(namespace("a", leaf, u, r))
         assertEquals(
             listOf(
-                "11 SCH2103 field 'R.ref': target 'sql' cannot lower record references yet (SCH-28)",
                 "12 SCH2103 field 'R.many': target 'sql' cannot lower lists yet (SCH-28)",
                 "13 SCH2103 field 'R.map': target 'sql' cannot lower maps yet (SCH-28)",
                 "14 SCH2103 field 'R.choice': target 'sql' cannot lower unions yet (SCH-28)",
@@ -384,7 +390,7 @@ class SqlLoweringTest {
             ),
             messages(lowered),
         )
-        assertEquals(emptyList(), table(lowered, "r").columns)
+        assertEquals(listOf("id", "ref_x"), table(lowered, "r").columns.map { it.name })
         assertEquals(listOf("leaf", "r"), lowered.model.schemas.single().tables.map { it.name })
     }
 
@@ -505,11 +511,11 @@ class SqlLoweringTest {
             lower(namespace("a", record("a", "Loose", field(1, "x", Scalar(Builtin.BOOL)))))
         assertEquals(
             listOf(
-                "3 SCH2106 record 'Loose' has no primary key; mark key fields with @sql(key) or the record with @sql(key = (...))"
+                "3 SCH2106 record 'Loose' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))"
             ),
             messages(lowered),
         )
-        assertEquals(emptyList(), table(lowered, "loose").primaryKey)
+        assertEquals(emptyList(), lowered.model.schemas.single().tables)
     }
 
     @Test

@@ -10,7 +10,6 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
-import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
@@ -19,11 +18,14 @@ import io.schemata.target.Lowered
 import io.schemata.target.TypeText
 
 /**
- * Lowers flat records to tables: every builtin, refinements as CHECK constraints, defaults, enums
- * as constrained text, `@sql` overrides, primary keys, uniques, and indexes. References, unions,
- * lists, maps, nested declarations, and mapping strategies are reported at the boundary until the
- * structural lowering lands (SCH-28). `reserved` ordinals and names have no relational meaning and
- * are accepted without a diagnostic.
+ * Lowers records to tables. A record has a table exactly when it has a key; a keyless record is a
+ * value type that only appears where a field uses it. Lowering runs in two passes: a [Catalog] of
+ * every keyed record's table and key columns, then each field's [Contribution] to its table.
+ * References to keyed records become key columns and a foreign key. Scalars carry every builtin,
+ * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides.
+ * Embedded records, unions, lists, maps, nested declarations, and mapping strategies are reported
+ * at the boundary until their lowering lands (SCH-28). `reserved` ordinals and names have no
+ * relational meaning and are accepted without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -33,15 +35,43 @@ object SqlLowering {
                 it.name to identifier(Naming.schemaOf(it), it.span, diagnostics)
             }
         schemaCollisions(schema.namespaces, schemaNames, diagnostics)
-        val schemas =
+        val catalog =
+            Catalog(schema, schemaNames) { name, span -> identifier(name, span, diagnostics) }
+        val lowered =
             schema.namespaces.map {
-                NamespaceLowering(schema, it, schemaNames.getValue(it.name), diagnostics).lower()
+                NamespaceLowering(schema, catalog, it, schemaNames.getValue(it.name), diagnostics)
+                    .lower()
             }
-        return Lowered(RelationalModel(schemas), diagnostics)
+        return Lowered(RelationalModel(placeForeignKeys(schema, lowered)), diagnostics)
     }
+
+    /**
+     * A foreign key is emitted by the file that sorts later of the two it links, so every table it
+     * names already exists when the files are applied in path order. Within a file, keys keep
+     * namespace order, then table and field order.
+     */
+    private fun placeForeignKeys(
+        schema: Schema,
+        lowered: List<Pair<RelationalSchema, List<PendingForeignKey>>>,
+    ): List<RelationalSchema> {
+        val pending = lowered.flatMap { it.second }
+        val paths = schema.namespaces.associate { it.name to pathOf(it) }
+        return lowered.map { (relational, _) ->
+            val mine =
+                pending.filter { fk ->
+                    val source = paths.getValue(fk.sourceNamespace)
+                    val target = paths.getValue(fk.targetNamespace)
+                    maxOf(source, target) == relational.path
+                }
+            relational.copy(foreignKeys = mine.map { it.fk })
+        }
+    }
+
+    private fun pathOf(namespace: Namespace): String = namespace.name.replace('.', '/') + ".sql"
 
     private class NamespaceLowering(
         private val schema: Schema,
+        private val catalog: Catalog,
         private val namespace: Namespace,
         private val schemaName: String,
         private val diagnostics: MutableList<Diagnostic>,
@@ -50,23 +80,44 @@ object SqlLowering {
         private val relations = mutableListOf<Relation>()
         private val claimedTables = mutableSetOf<String>()
 
-        fun lower(): RelationalSchema {
+        fun lower(): Pair<RelationalSchema, List<PendingForeignKey>> {
             tableCollisions()
-            val tables = namespace.declarations.mapNotNull { decl(it) }
+            val tables = mutableListOf<Table>()
+            val foreignKeys = mutableListOf<PendingForeignKey>()
+            namespace.declarations.forEach { decl ->
+                when (decl) {
+                    is RecordType -> {
+                        if (catalog[decl.qualifiedName] != null) {
+                            val part = record(decl)
+                            tables += part.table
+                            tables += part.children.map { it.table }
+                            foreignKeys += part.foreignKeys
+                            foreignKeys += part.children.flatMap { it.foreignKeys }
+                        } else if (decl.qualifiedName !in catalog.used) {
+                            error(
+                                SqlCodes.MISSING_KEY,
+                                "record '${decl.name}' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
+                                decl.nameSpan,
+                            )
+                        }
+                        decl.nested.forEach { unsupported("nested declarations", it.nameSpan) }
+                    }
+                    is EnumType -> Unit // appears only where it is used
+                    is UnionType -> Unit
+                }
+            }
             relationCollisions()
-            return RelationalSchema(
-                path = namespace.name.replace('.', '/') + ".sql",
-                schemaName = schemaName,
-                tables = tables,
-            )
+            return RelationalSchema(pathOf(namespace), schemaName, tables) to foreignKeys
         }
 
         /**
          * Table collisions are reported over final (overridden) names, before any record lowers.
+         * Only keyed records have tables.
          */
         private fun tableCollisions() {
             namespace.declarations
                 .filterIsInstance<RecordType>()
+                .filter { catalog[it.qualifiedName] != null }
                 .groupBy { Naming.tableOf(it) }
                 .values
                 .filter { it.size > 1 }
@@ -98,41 +149,98 @@ object SqlLowering {
             }
         }
 
-        private fun decl(decl: TypeDecl): Table? =
-            when (decl) {
-                is RecordType -> record(decl)
-                is EnumType -> null // appears only where it is used
-                is UnionType -> null
-            }
+        /** A keyed record's table, the child tables its fields produce, and its foreign keys. */
+        private class RecordTables(
+            val table: Table,
+            val children: List<ChildTable>,
+            val foreignKeys: List<PendingForeignKey>,
+        )
 
-        private fun record(record: RecordType): Table {
-            val tableName = identifier(Naming.tableOf(record), record.nameSpan)
-            val keyFields = keys(record)
-            val body = columns(record, tableName)
-            record.nested.forEach { unsupported("nested declarations", it.nameSpan) }
-            val primaryKey = keyFields.mapNotNull { body.columns[it]?.name }
+        private fun record(record: RecordType): RecordTables {
+            val entry = catalog[record.qualifiedName]!!
+            val tableName = entry.tableName
+            keys(record)
+            val ctx =
+                FieldContext(
+                    table = tableName,
+                    embedding = listOf(record.qualifiedName),
+                    where = "",
+                )
+            val parts =
+                record.fields.map { field ->
+                    field to
+                        contribute(ctx.copy(where = "field '${record.name}.${field.name}'"), field)
+                }
+            columnCollisions(record, parts)
+            val columns = parts.flatMap { (_, part) -> part.columns }
+            val primaryKey = entry.keyColumns.filter { key -> columns.any { it.name == key } }
             val primaryKeyName =
                 if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
-            val uniques = constraints(record, "unique", body.uniques, primaryKey) { it.columns }
-            val indexes = constraints(record, "index", body.indexes, primaryKey) { it.columns }
-            claim(record, tableName, primaryKeyName, uniques, indexes)
-            return Table(
-                name = tableName,
-                columns = body.columns.values.toList(),
-                primaryKey = primaryKey,
-                primaryKeyName = primaryKeyName,
-                checks = body.checks,
-                uniques = uniques.map { it.second },
-                indexes = indexes.map { it.second },
-                doc = record.doc,
+            val uniques =
+                constraints(record, "unique", owned(parts) { it.uniques }, primaryKey) {
+                    it.columns
+                }
+            val indexes =
+                constraints(record, "index", owned(parts) { it.indexes }, primaryKey) { it.columns }
+            claim(tableName, primaryKeyName, uniques, indexes, record.nameSpan)
+            parts.forEach { (field, part) ->
+                part.children.forEach { child ->
+                    val t = child.table
+                    claim(
+                        t.name,
+                        t.primaryKeyName,
+                        t.uniques.map { field to it },
+                        t.indexes.map { field to it },
+                        field.nameSpan,
+                    )
+                }
+            }
+            val table =
+                Table(
+                    name = tableName,
+                    columns = columns,
+                    primaryKey = primaryKey,
+                    primaryKeyName = primaryKeyName,
+                    checks = parts.flatMap { (_, part) -> part.checks },
+                    uniques = uniques.map { it.second },
+                    indexes = indexes.map { it.second },
+                    doc = record.doc,
+                )
+            return RecordTables(
+                table,
+                parts.flatMap { (_, part) -> part.children },
+                parts.flatMap { (_, part) -> part.foreignKeys },
             )
         }
 
+        private fun <T> owned(
+            parts: List<Pair<Field, Contribution>>,
+            of: (Contribution) -> List<T>,
+        ): List<Pair<Field, T>> = parts.flatMap { (field, part) -> of(part).map { field to it } }
+
+        /** Two fields whose columns land on the same final name. */
+        private fun columnCollisions(record: RecordType, parts: List<Pair<Field, Contribution>>) {
+            val seen = mutableMapOf<String, Field>()
+            parts.forEach { (field, part) ->
+                part.columns.forEach { column ->
+                    val previous = seen.putIfAbsent(column.name, field)
+                    if (previous != null) {
+                        error(
+                            SqlCodes.NAME_COLLISION,
+                            "field '${record.name}.${field.name}' lowers to column '${column.name}', already used by field '${previous.name}' (${previous.nameSpan.file}:${previous.nameSpan.startLine})",
+                            field.nameSpan,
+                        )
+                    }
+                }
+            }
+        }
+
         /**
-         * The primary key's fields in key order: the `@sql(key)` fields in declaration order, or
-         * the fields a record-level `@sql(key = (...))` names, each once.
+         * Reports the key's form: the `@sql(key)` fields in declaration order, or the fields a
+         * record-level `@sql(key = (...))` names, each once. Only keyed records reach here; the key
+         * itself comes from the [Catalog].
          */
-        private fun keys(record: RecordType): List<Field> {
+        private fun keys(record: RecordType) {
             val fieldKeys = record.fields.filter { "key" in it.annotations["sql"] }
             val recordKeyNames =
                 (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
@@ -140,12 +248,6 @@ object SqlLowering {
                 error(
                     SqlCodes.KEY_COLUMN,
                     "record '${record.name}' declares @sql(key) on both the record and its fields",
-                    record.nameSpan,
-                )
-            } else if (fieldKeys.isEmpty() && recordKeyNames == null) {
-                error(
-                    SqlCodes.MISSING_KEY,
-                    "record '${record.name}' has no primary key; mark key fields with @sql(key) or the record with @sql(key = (...))",
                     record.nameSpan,
                 )
             }
@@ -170,10 +272,7 @@ object SqlLowering {
                         record.nameSpan,
                     )
                 }
-            val keyFields =
-                recordKeyNames?.distinct()?.mapNotNull { name ->
-                    record.fields.firstOrNull { it.name == name }
-                } ?: fieldKeys
+            val keyFields = catalog[record.qualifiedName]!!.keyFields
             keyFields
                 .filter { it.nullable }
                 .forEach {
@@ -183,37 +282,38 @@ object SqlLowering {
                         it.nameSpan,
                     )
                 }
-            return keyFields
-        }
-
-        /** A record's columns and the per-field constraints they carry. */
-        private class Body(
-            val columns: Map<Field, Column>,
-            val checks: List<Check>,
-            val uniques: List<Pair<Field, Unique>>,
-            val indexes: List<Pair<Field, Index>>,
-        )
-
-        private fun columns(record: RecordType, tableName: String): Body {
-            val checks = mutableListOf<Check>()
-            val uniques = mutableListOf<Pair<Field, Unique>>()
-            val indexes = mutableListOf<Pair<Field, Index>>()
-            val columnsByField = linkedMapOf<Field, Column>()
-            val seen = mutableMapOf<String, Field>()
-            record.fields.forEach { field ->
-                val column =
-                    column(record, tableName, field, checks, uniques, indexes) ?: return@forEach
-                val previous = seen.putIfAbsent(column.name, field)
-                if (previous != null) {
+            keyFields
+                .filter { keyType(it) == null }
+                .forEach {
                     error(
-                        SqlCodes.NAME_COLLISION,
-                        "field '${record.name}.${field.name}' lowers to column '${column.name}', already used by field '${previous.name}' (${previous.nameSpan.file}:${previous.nameSpan.startLine})",
-                        field.nameSpan,
+                        SqlCodes.KEY_COLUMN,
+                        "record '${record.name}': key field '${it.name}' must be a scalar column",
+                        it.nameSpan,
                     )
                 }
-                columnsByField[field] = column
+        }
+
+        /**
+         * The column type a key field has, which a reference to its record copies; null when the
+         * field is not a single scalar column (a builtin or an enum).
+         */
+        private fun keyType(field: Field): ColumnType? {
+            val override = Naming.override(field.annotations, "type")
+            return when (val type = field.type) {
+                is Scalar ->
+                    override?.let { ColumnType.RAW(it) }
+                        ?: SqlTypes.scalar(type, field.name, overridden = false).type
+                is Ref ->
+                    when (val target = schema.lookup(type.target)) {
+                        is EnumType ->
+                            override?.let { ColumnType.RAW(it) }
+                                ?: SqlTypes.enum(target.values.map { it.name }, field.name).type
+                        is RecordType,
+                        is UnionType -> null
+                    }
+                is ListOf,
+                is MapOf -> null
             }
-            return Body(columnsByField, checks, uniques, indexes)
         }
 
         /**
@@ -240,21 +340,19 @@ object SqlLowering {
             }
 
         /**
-         * Records the table's names for [relationCollisions]. A table already claimed by an earlier
+         * Records a table's names for [relationCollisions]. A table already claimed by an earlier
          * record is a table collision, reported on its own.
          */
         private fun claim(
-            record: RecordType,
             tableName: String,
             primaryKeyName: String?,
             uniques: List<Pair<Field, Unique>>,
             indexes: List<Pair<Field, Index>>,
+            span: Span,
         ) {
             if (!claimedTables.add(tableName)) return
-            relations += Relation(tableName, "table '$tableName'", record.nameSpan)
-            primaryKeyName?.let {
-                relations += Relation(it, "primary key of '$tableName'", record.nameSpan)
-            }
+            relations += Relation(tableName, "table '$tableName'", span)
+            primaryKeyName?.let { relations += Relation(it, "primary key of '$tableName'", span) }
             uniques.forEach { (field, u) ->
                 relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
             }
@@ -263,86 +361,164 @@ object SqlLowering {
             }
         }
 
-        private fun column(
-            record: RecordType,
-            table: String,
-            field: Field,
-            checks: MutableList<Check>,
-            uniques: MutableList<Pair<Field, Unique>>,
-            indexes: MutableList<Pair<Field, Index>>,
-        ): Column? {
-            val where = "field '${record.name}.${field.name}'"
-            val sql = field.annotations["sql"]
-            if ("strategy" in sql) {
-                unsupported("mapping strategies", field.span, where)
-                return null
+        /** Everything [field] adds to the table [ctx] names. */
+        private fun contribute(ctx: FieldContext, field: Field): Contribution {
+            if ("strategy" in field.annotations["sql"]) {
+                unsupported("mapping strategies", field.span, ctx.where)
+                return Contribution.NONE
             }
-            val rawName = Naming.columnOf(field)
-            val name = identifier(rawName, field.nameSpan)
+            return when (val type = field.type) {
+                is Scalar -> column(ctx, field, type, null)
+                is Ref ->
+                    when (val target = schema.lookup(type.target)) {
+                        is EnumType -> column(ctx, field, null, target)
+                        is RecordType -> {
+                            val entry = catalog[target.qualifiedName]
+                            if (entry != null) {
+                                reference(ctx, field, entry)
+                            } else {
+                                unsupported("record references", field.span, ctx.where)
+                                Contribution.NONE
+                            }
+                        }
+                        is UnionType -> {
+                            unsupported("unions", field.span, ctx.where)
+                            Contribution.NONE
+                        }
+                    }
+                is ListOf -> {
+                    unsupported("lists", field.span, ctx.where)
+                    Contribution.NONE
+                }
+                is MapOf -> {
+                    unsupported("maps", field.span, ctx.where)
+                    Contribution.NONE
+                }
+            }
+        }
+
+        /**
+         * A field's final column name. The owning record's own key fields take the name the
+         * [Catalog] already derived, so a truncation is not reported twice.
+         */
+        private fun columnName(ctx: FieldContext, field: Field): String {
+            val owner =
+                if (ctx.prefix.isEmpty() && ctx.embedding.size == 1) catalog[ctx.embedding.single()]
+                else null
+            val keyIndex = owner?.keyFields?.indexOf(field) ?: -1
+            return if (keyIndex >= 0) owner!!.keyColumns[keyIndex]
+            else identifier(ctx.prefix + Naming.columnOf(field), field.nameSpan)
+        }
+
+        /** One column for a scalar or enum field, with its checks, unique, and index. */
+        private fun column(
+            ctx: FieldContext,
+            field: Field,
+            scalar: Scalar?,
+            enum: EnumType?,
+        ): Contribution {
+            val rawName = ctx.prefix + Naming.columnOf(field)
+            val name = columnName(ctx, field)
             val override = Naming.override(field.annotations, "type")
             val mapped =
-                when (val type = field.type) {
-                    is Scalar -> {
-                        val precision = type.refinements.precision
-                        if (
-                            override == null &&
-                                precision != null &&
-                                precision > SqlTypes.NUMERIC_PRECISION_LIMIT
-                        ) {
-                            error(
-                                SqlCodes.TYPE_LIMIT,
-                                "$where: decimal precision $precision exceeds Postgres's limit of ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
-                                field.span,
-                            )
-                            return null
-                        }
-                        SqlTypes.scalar(type, name, overridden = override != null)
+                if (scalar != null) {
+                    val precision = scalar.refinements.precision
+                    if (
+                        override == null &&
+                            precision != null &&
+                            precision > SqlTypes.NUMERIC_PRECISION_LIMIT
+                    ) {
+                        error(
+                            SqlCodes.TYPE_LIMIT,
+                            "${ctx.where}: decimal precision $precision exceeds Postgres's limit of ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
+                            field.span,
+                        )
+                        return Contribution.NONE
                     }
-                    is Ref ->
-                        when (val target = schema.lookup(type.target)) {
-                            is EnumType -> SqlTypes.enum(target.values.map { it.name }, name)
-                            is RecordType -> {
-                                unsupported("record references", field.span, where)
-                                return null
-                            }
-                            is UnionType -> {
-                                unsupported("unions", field.span, where)
-                                return null
-                            }
-                        }
-                    is ListOf -> {
-                        unsupported("lists", field.span, where)
-                        return null
-                    }
-                    is MapOf -> {
-                        unsupported("maps", field.span, where)
-                        return null
-                    }
+                    SqlTypes.scalar(scalar, name, overridden = override != null)
+                } else {
+                    SqlTypes.enum(enum!!.values.map { it.name }, name)
                 }
-            checks +=
-                mapped.checks.map { (suffix, expression) ->
-                    Check(identifier("ck_${table}_${rawName}_$suffix", field.nameSpan), expression)
-                }
-            if ("unique" in sql) {
-                uniques +=
-                    field to
-                        Unique(identifier("uq_${table}_$rawName", field.nameSpan), listOf(name))
-            }
-            if ("index" in sql) {
-                indexes +=
-                    field to Index(identifier("ix_${table}_$rawName", field.nameSpan), listOf(name))
-            }
-            return Column(
-                name = name,
-                type = override?.let { ColumnType.RAW(it) } ?: mapped.type,
-                nullable = field.nullable,
-                default = field.default?.let { Naming.literal(it) },
-                doc = field.doc,
-                notes =
-                    if (override != null) listOf(TypeText.of(field.type, field.nullable))
-                    else emptyList(),
+            val column =
+                Column(
+                    name = name,
+                    type = override?.let { ColumnType.RAW(it) } ?: mapped.type,
+                    nullable = field.nullable || ctx.forceNullable,
+                    default = field.default?.let { Naming.literal(it) },
+                    doc = field.doc,
+                    notes =
+                        if (override != null) listOf(TypeText.of(field.type, field.nullable))
+                        else emptyList(),
+                )
+            return Contribution(
+                columns = listOf(column),
+                checks =
+                    mapped.checks.map { (suffix, expression) ->
+                        Check(
+                            identifier("ck_${ctx.table}_${rawName}_$suffix", field.nameSpan),
+                            expression,
+                        )
+                    },
+                uniques = uniqueOf(ctx, field, rawName, listOf(name)),
+                indexes = indexOf(ctx, field, rawName, listOf(name)),
             )
         }
+
+        /**
+         * A reference to a keyed record: one column per key column of the target, named
+         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table.
+         */
+        private fun reference(ctx: FieldContext, field: Field, entry: Catalog.Entry): Contribution {
+            val rawName = ctx.prefix + Naming.columnOf(field)
+            val columns =
+                entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
+                    val type = keyType(key) ?: return@mapNotNull null
+                    Column(
+                        name = identifier("${rawName}_$keyColumn", field.nameSpan),
+                        type = type,
+                        nullable = field.nullable || ctx.forceNullable,
+                        doc = field.doc,
+                    )
+                }
+            if (columns.isEmpty()) return Contribution.NONE
+            val names = columns.map { it.name }
+            val fk =
+                ForeignKey(
+                    name = identifier("fk_${ctx.table}_$rawName", field.nameSpan),
+                    table = ctx.table,
+                    columns = names,
+                    targetSchema = entry.schemaName,
+                    targetTable = entry.tableName,
+                    targetColumns = entry.keyColumns,
+                    cascade = false,
+                )
+            return Contribution(
+                columns = columns,
+                uniques = uniqueOf(ctx, field, rawName, names),
+                indexes = indexOf(ctx, field, rawName, names),
+                foreignKeys = listOf(PendingForeignKey(fk, namespace.name, entry.namespace)),
+            )
+        }
+
+        private fun uniqueOf(
+            ctx: FieldContext,
+            field: Field,
+            rawName: String,
+            columns: List<String>,
+        ) =
+            if ("unique" in field.annotations["sql"])
+                listOf(Unique(identifier("uq_${ctx.table}_$rawName", field.nameSpan), columns))
+            else emptyList()
+
+        private fun indexOf(
+            ctx: FieldContext,
+            field: Field,
+            rawName: String,
+            columns: List<String>,
+        ) =
+            if ("index" in field.annotations["sql"])
+                listOf(Index(identifier("ix_${ctx.table}_$rawName", field.nameSpan), columns))
+            else emptyList()
 
         private fun identifier(name: String, span: Span): String =
             SqlLowering.identifier(name, span, diagnostics)
