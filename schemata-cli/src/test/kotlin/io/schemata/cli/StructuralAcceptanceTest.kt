@@ -102,7 +102,7 @@ class StructuralAcceptanceTest {
     }
 
     @Test
-    fun `targets report only the shapes they cannot lower yet`() {
+    fun `sql rejects the structural example's keyless records`() {
         val result =
             Pipeline.compile(
                 listOf(
@@ -118,8 +118,8 @@ class StructuralAcceptanceTest {
         )
         val codes = result.diagnostics.map { it.code.id }.toSet()
         assertEquals(
-            setOf("SCH2001", "SCH2103", "SCH2106"),
+            setOf("SCH2001", "SCH2106"),
             codes,
-        ) // proto lowers everything; sql: structural shapes plus the four keyless records
+        ) // proto lowers everything; sql: Order has no key and nothing uses it
     }
 }

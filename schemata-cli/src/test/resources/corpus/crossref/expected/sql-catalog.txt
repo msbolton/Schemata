@@ -1,0 +1,10 @@
+schema alpha
+table alpha.a
+  column id uuid not null
+  column b_id uuid not null
+  constraint fk_a_b FOREIGN KEY (b_id) REFERENCES beta.b(id)
+  constraint pk_a PRIMARY KEY (id)
+schema beta
+table beta.b
+  column id uuid not null
+  constraint pk_b PRIMARY KEY (id)

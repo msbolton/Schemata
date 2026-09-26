@@ -1,0 +1,26 @@
+schema children
+table children.order
+  column id uuid not null
+  column tags text[] not null
+  column attributes jsonb not null
+  constraint pk_order PRIMARY KEY (id)
+table children.order_codes
+  column order_id uuid not null
+  column position integer not null
+  column value character varying(8) not null
+  constraint fk_order_codes_order FOREIGN KEY (order_id) REFERENCES children."order"(id) ON DELETE CASCADE
+  constraint pk_order_codes PRIMARY KEY (order_id, "position")
+table children.order_lines -- One purchasable item.
+  column order_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  constraint ck_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint fk_order_lines_order FOREIGN KEY (order_id) REFERENCES children."order"(id) ON DELETE CASCADE
+  constraint pk_order_lines PRIMARY KEY (order_id, "position")
+table children.order_prices
+  column order_id uuid not null
+  column key text not null
+  column value numeric(10,2) not null
+  constraint fk_order_prices_order FOREIGN KEY (order_id) REFERENCES children."order"(id) ON DELETE CASCADE
+  constraint pk_order_prices PRIMARY KEY (order_id, key)

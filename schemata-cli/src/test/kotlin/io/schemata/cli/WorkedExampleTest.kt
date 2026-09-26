@@ -13,13 +13,14 @@ import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.lang.Parser
 import io.schemata.target.proto.ProtoTarget
+import io.schemata.target.sql.SqlTarget
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The spec's worked example analyzes clean; targets only report what they cannot lower yet. */
+/** The spec's worked example compiles to both targets with warnings only. */
 class WorkedExampleTest {
     private val orders =
         """
@@ -74,7 +75,7 @@ class WorkedExampleTest {
             .trimIndent()
 
     private val customers =
-        "namespace shop.customers\n\nrecord Customer {\n  #1 id:   uuid\n  #2 name: string(max = 100)\n}"
+        "namespace shop.customers\n\nrecord Customer {\n  @sql(key) #1 id:   uuid\n  #2 name: string(max = 100)\n}"
 
     private fun qn(ns: String, vararg path: String) = QualifiedName(ns, path.toList())
 
@@ -126,7 +127,32 @@ class WorkedExampleTest {
     }
 
     @Test
-    fun `sql still reports the shapes it cannot lower yet`() {
+    fun `sql compiles the worked example with warnings only`() {
+        val result =
+            Pipeline.compile(
+                listOf(
+                    SourceInput("orders.schemata", orders),
+                    SourceInput("customers.schemata", customers),
+                ),
+                listOf(SqlTarget),
+            )
+        assertFalse(result.hasErrors)
+        assertEquals(
+            listOf("shop/customers.sql", "shop/orders.sql"),
+            result.files.map { it.file.path },
+        )
+        assertEquals(
+            listOf(
+                "orders.schemata:24 SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres"
+            ),
+            result.diagnostics.map {
+                "${it.span.file}:${it.span.startLine} ${it.code.id} ${it.message}"
+            },
+        )
+    }
+
+    @Test
+    fun `both targets compile the worked example with warnings only`() {
         val result =
             Pipeline.compile(
                 listOf(
@@ -135,15 +161,9 @@ class WorkedExampleTest {
                 ),
                 Pipeline.targets,
             )
-        assertTrue(result.hasErrors)
-        assertEquals(
-            listOf("shop/customers.proto", "shop/orders.proto"),
-            result.files.map { it.file.path },
-        )
-        assertEquals(
-            setOf("SCH2001", "SCH2103", "SCH2106"),
-            result.diagnostics.map { it.code.id }.toSet(),
-        )
+        assertFalse(result.hasErrors)
+        assertEquals(4, result.files.size)
+        assertEquals(setOf("SCH2001", "SCH2105"), result.diagnostics.map { it.code.id }.toSet())
     }
 
     @Test

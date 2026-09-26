@@ -1,0 +1,14 @@
+schema references
+table references.account
+  column id uuid not null
+  column owner_tenant_id uuid not null
+  column owner_code character varying(8) not null
+  column parent_id uuid
+  constraint fk_account_owner FOREIGN KEY (owner_tenant_id, owner_code) REFERENCES "references".person(tenant_id, code)
+  constraint fk_account_parent FOREIGN KEY (parent_id) REFERENCES "references".account(id)
+  constraint pk_account PRIMARY KEY (id)
+table references.person
+  column tenant_id uuid not null
+  column code character varying(8) not null
+  column name text not null
+  constraint pk_person PRIMARY KEY (tenant_id, code)

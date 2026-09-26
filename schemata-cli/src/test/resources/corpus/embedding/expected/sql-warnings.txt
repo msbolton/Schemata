@@ -1,0 +1,1 @@
+SCH2105 field 'Site.legacy': record contents are not typed by Postgres; lowered to jsonb
