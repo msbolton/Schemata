@@ -33,6 +33,7 @@ object JsonRenderer {
                                         "id" to it.id,
                                         "severity" to it.severity.name.lowercase(),
                                         "category" to it.category.name.lowercase(),
+                                        "description" to it.description,
                                     )
                                 },
                         )

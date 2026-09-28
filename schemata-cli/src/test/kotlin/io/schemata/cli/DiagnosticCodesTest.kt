@@ -33,4 +33,16 @@ class DiagnosticCodesTest {
     fun `every target publishes at least one code`() {
         Pipeline.targets.forEach { assertTrue(it.codes.isNotEmpty(), it.name) }
     }
+
+    @Test
+    fun `every live code has a one-clause description`() {
+        val bad =
+            all.filter {
+                it.description.isBlank() ||
+                    it.description.first().isUpperCase() ||
+                    it.description.endsWith(".") ||
+                    it.description.contains(it.id)
+            }
+        assertEquals(emptyList(), bad.map { it.id })
+    }
 }
