@@ -110,6 +110,8 @@ class AnnotationChecker(
                 CoreCodes.UNKNOWN_ANNOTATION_KEY,
                 "'$key' is not a key of @$target; keys: ${registry.keys(target).joinToString(", ")}",
                 span,
+                help =
+                    "use one of the keys listed, or run `schemata targets` to see every key with its element and value",
             )
             return
         }
@@ -171,7 +173,7 @@ class AnnotationChecker(
             ValueKind.NAME_TUPLE -> "expects a tuple of names: (a, b)"
         }
 
-    private fun report(code: DiagnosticCode, message: String, span: Span) {
-        diagnostics += Diagnostic(code, message, span)
+    private fun report(code: DiagnosticCode, message: String, span: Span, help: String? = null) {
+        diagnostics += Diagnostic(code, message, span, help)
     }
 }

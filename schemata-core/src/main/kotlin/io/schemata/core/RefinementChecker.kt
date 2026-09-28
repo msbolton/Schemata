@@ -145,12 +145,19 @@ object RefinementChecker {
         var lastBound: Refinement.Named? = null
         for (item in items) {
             if (item.name !in allowed) {
-                val message =
-                    if (allowed.isEmpty())
-                        "'${item.name}' is not a refinement; $typeName takes no refinements"
-                    else
-                        "'${item.name}' is not a refinement of $typeName; allowed: ${allowed.sorted().joinToString(", ")}"
-                report(CoreCodes.UNKNOWN_REFINEMENT, message, item.span, diagnostics)
+                val message: String
+                val help: String
+                if (allowed.isEmpty()) {
+                    message = "'${item.name}' is not a refinement; $typeName takes no refinements"
+                    help = "remove the parentheses; `$typeName` takes no refinements"
+                } else {
+                    val sorted = allowed.sorted()
+                    message =
+                        "'${item.name}' is not a refinement of $typeName; allowed: ${sorted.joinToString(", ")}"
+                    help =
+                        "write one of the allowed refinements, for example `$typeName(${sorted.first()} = ...)`"
+                }
+                report(CoreCodes.UNKNOWN_REFINEMENT, message, item.span, diagnostics, help)
                 ok = false
                 continue
             }
@@ -307,7 +314,8 @@ object RefinementChecker {
         message: String,
         span: Span,
         diagnostics: MutableList<Diagnostic>,
+        help: String? = null,
     ) {
-        diagnostics += Diagnostic(code, message, span)
+        diagnostics += Diagnostic(code, message, span, help)
     }
 }

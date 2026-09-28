@@ -70,6 +70,8 @@ object Ordinals {
                             CoreCodes.IMPLICIT_ORDINAL_STRICT,
                             "$elementKind '${it.name}' has no explicit ordinal (--strict)",
                             it.nameSpan,
+                            help =
+                                "write `#n` before every field and enum value, starting at #1 in declaration order",
                         )
                 }
         }

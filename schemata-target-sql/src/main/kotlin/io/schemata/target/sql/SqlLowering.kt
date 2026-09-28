@@ -663,6 +663,8 @@ object SqlLowering {
                         SqlCodes.STRATEGY_NOT_ALLOWED,
                         "${ctx.where}: @sql($it) is not allowed on a list or map field",
                         field.span,
+                        help =
+                            "move `@sql($it)` to a field of the element record, or index the child table's columns",
                     )
                 }
         }
@@ -695,6 +697,9 @@ object SqlLowering {
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: strategy '$strategy' is not allowed for $shape$suffix",
                 field.span,
+                help =
+                    if (alternatives != null) "use $alternatives"
+                    else "remove the strategy annotation",
             )
             return Contribution.NONE
         }
@@ -714,6 +719,7 @@ object SqlLowering {
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: $shape has no relational mapping; use strategy = json",
                 field.span,
+                help = "add `@sql(strategy = json)` to store the field as jsonb",
             )
             return Contribution.NONE
         }
@@ -1192,6 +1198,8 @@ object SqlLowering {
                     SqlCodes.LOSSY,
                     "${ctx.where}: refinements on ${TypeText.of(type, field.nullable)} are not enforced by Postgres",
                     field.span,
+                    help =
+                        "use `@sql(strategy = table)` so the elements become rows with their own constraints",
                 )
             }
             val column =
@@ -1223,6 +1231,7 @@ object SqlLowering {
                 SqlCodes.LOSSY,
                 "${ctx.where}: $shape contents are not typed by Postgres; lowered to jsonb",
                 field.span,
+                help = "use `@sql(strategy = table)` to lower the entries to a child table",
             )
             val column =
                 Column(
@@ -1289,6 +1298,8 @@ object SqlLowering {
                     SqlCodes.LOSSY,
                     "${ctx.where}: refinements on ${TypeText.of(field.type, field.nullable)} are not enforced by Postgres",
                     field.span,
+                    help =
+                        "enforce the collection bound in application code; child tables carry no row-count constraints",
                 )
             }
             if (rows && elementNullable) {
@@ -1296,6 +1307,8 @@ object SqlLowering {
                     SqlCodes.LOSSY,
                     "${ctx.where}: nullable elements of ${TypeText.of(field.type, field.nullable)} are not represented by a child table",
                     field.span,
+                    help =
+                        "declare the elements non-nullable, or use `@sql(strategy = json)` to keep nulls",
                 )
             }
             val childName =
@@ -1462,8 +1475,8 @@ object SqlLowering {
         private fun identifier(name: String, span: Span): String =
             SqlLowering.identifier(name, span, diagnostics)
 
-        private fun error(code: DiagnosticCode, message: String, span: Span) {
-            diagnostics += Diagnostic(code, message, span)
+        private fun error(code: DiagnosticCode, message: String, span: Span, help: String? = null) {
+            diagnostics += Diagnostic(code, message, span, help)
         }
     }
 
