@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import com.github.ajalt.clikt.testing.test
 import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
 import io.schemata.core.ir.AnnotationValue
@@ -15,6 +16,9 @@ import io.schemata.lang.Parser
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlTarget
 import java.math.BigDecimal
+import java.nio.file.Files
+import kotlin.io.path.createDirectories
+import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -204,5 +208,31 @@ class WorkedExampleTest {
             result.diagnostics.map { "${it.span.file}:${it.span.startLine} ${it.message}" },
         )
         assertTrue(result.diagnostics.all { it.code.id == "SCH2001" })
+    }
+
+    @Test
+    fun `check --format json lists exactly the lossy codes with exit 2, and exit 1 under strict`() {
+        val dir = Files.createTempDirectory("schemata-worked")
+        val src = dir.resolve("src").createDirectories()
+        src.resolve("orders.schemata").writeText(orders)
+        src.resolve("customers.schemata").writeText(customers)
+
+        val result = CheckCommand().test("--format json $src")
+        assertEquals(2, result.statusCode, result.stdout)
+        assertEquals("", result.stderr)
+        val codes =
+            Regex("\"code\":\"(SCH\\d{4})\"")
+                .findAll(result.stdout)
+                .map { it.groupValues[1] }
+                .toSet()
+        assertEquals(setOf("SCH2001", "SCH2105"), codes)
+        assertTrue(result.stdout.contains("\"exitCode\": 2"), result.stdout)
+        assertTrue(result.stdout.contains("\"promoted\":false"), result.stdout)
+        assertFalse(result.stdout.contains("\"severity\":\"error\""), result.stdout)
+
+        val strict = CheckCommand().test("--format json --strict $src")
+        assertEquals(1, strict.statusCode, strict.stdout)
+        assertTrue(strict.stdout.contains("\"promoted\":true"), strict.stdout)
+        assertFalse(strict.stdout.contains("\"severity\":\"warning\""), strict.stdout)
     }
 }
