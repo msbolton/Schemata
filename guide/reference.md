@@ -9,7 +9,12 @@ Postgres schema.
 Every file begins with a namespace declaration: `namespace a.b.c`. Each segment is lower_snake.
 Several files may share a namespace; the compilation unit is the whole set of files given on the
 command line, with any directories walked recursively. Output paths follow the namespace, so
-`namespace shop.orders` writes `shop/orders.proto` and `shop/orders.sql`.
+`namespace shop.orders` writes `shop/orders.proto` and `shop/orders.sql`. A doc comment and any
+annotations may precede the `namespace` line itself; section 15 shows both.
+
+By default, a namespace's Postgres schema is its last segment: `shop.orders` lowers to schema
+`"orders"`. Two namespaces with the same last segment collide (SCH2102) unless one sets
+`@sql(schema = "…")`.
 
 ```schemata
 namespace shop.orders
@@ -95,9 +100,11 @@ record Order {
 
 ## 3. Comments
 
-`//` starts a line comment; the parser ignores everything to the end of the line. `///` starts a
-doc comment; it attaches to the declaration or field that follows and is carried into the
-generated Protobuf and SQL as a comment.
+`//` starts a line comment; the parser ignores everything to the end of the line. `/* … */` starts
+a block comment, closed by the next `*/`. `///` starts a doc comment; it attaches to the
+declaration or field that follows and is carried into the generated Protobuf and SQL as a comment.
+A doc comment before the `namespace` line is the exception: the parser keeps it, but neither output
+carries it.
 
 ```schemata
 namespace shop.orders
@@ -181,10 +188,13 @@ record OrderLine {
 
 ## 6. Nullability
 
-`T?` means the field's value may be absent. A nullable field lowers to a nullable column in
-Postgres and, in Protobuf, to proto3 `optional`, as section 16 shows. A map key may not
-be nullable. A nullable alias may not be marked `?` again where it is used; section 8 shows an
-alias declared nullable and a field that uses it bare.
+`T?` means the field's value may be absent. A nullable field always lowers to a nullable column in
+Postgres. In Protobuf, a nullable scalar or enum lowers to proto3 `optional`; a nullable
+`list<T>?` or `map<K, V>?` lowers to a plain `repeated` or `map` and reports SCH2001, since an
+empty collection already means absent; a nullable `Record?` or `Union?` lowers to a plain message
+field, since a message field's presence in proto3 is already implicit. Section 16 shows all four.
+A map key may not be nullable. A nullable alias may not be marked `?` again where it is used;
+section 8 shows an alias declared nullable and a field that uses it bare.
 
 ```schemata
 namespace shop.orders
@@ -274,7 +284,9 @@ A record field is written `name: type`, with an optional ordinal `#n` before the
 optional default after the type. Records nest: `record Order { record Line { … } }` declares
 `Line` inside `Order`. A field inside `Order` refers to it as `Line`; anything outside refers to it
 as `Order.Line`. A record is a value type unless it declares a key, either `@sql(key)` on a field or
-`@sql(key = (a, b))` on the record itself; section 15 shows both forms.
+`@sql(key = (a, b))` on the record itself; section 15 shows both forms. A top-level record with no
+key that no field uses is an error for the Postgres target (SCH2106); this is why the records in
+this guide's examples all declare a key.
 
 ```schemata
 namespace shop.orders
@@ -309,6 +321,14 @@ record Shipment {
 }
 ```
 
+```schemata error
+namespace shop.orders
+
+record Orphan {
+  #1 id: int64
+}
+```
+
 ## 10. Enums
 
 `enum Status { #1 pending, #2 paid }` declares an enum; its values are lower_snake. The compiler
@@ -337,7 +357,9 @@ it may not be nullable and may not be a collection. Nullability belongs on the f
 union, not on a member. Protobuf lowers a union to a message holding a `oneof`, and the field holds
 that message; a member named `Kind` would collide with the `oneof` itself, always named `kind`
 (SCH2004). Postgres lowers a union to a discriminator column plus each member's columns, with a
-CHECK tying the discriminator to the columns that member requires.
+CHECK tying the discriminator to the columns that member requires. A member named `Kind` collides
+on the Postgres side too: its own CHECK constraint takes the same name as the discriminator's
+(SCH2111).
 
 ```schemata
 namespace shop.orders
@@ -378,8 +400,10 @@ union Payment = #1 Card | #2 list<string>
 `int64`. `min` and `max` refine the collection's count, not its elements. Postgres lowers
 `list<scalar>` to an array column, `list<Record>` to a child table named `<parent>_<field>` with a
 `<parent>_<key>` column and a `position` column, and `map` to `jsonb`; `@sql(strategy)` changes each
-of these, as section 15 shows. A collection nested inside another collection has no Protobuf form
-(SCH2005), and no relational form unless the outer collection takes `@sql(strategy = json)`.
+of these, as section 15 shows. Postgres does not enforce a collection's `min` or `max` count either
+way; the bound is dropped and reported as SCH2105, the same as any other unenforced refinement. A
+collection nested inside another collection has no Protobuf form (SCH2005), and no relational form
+unless the outer collection takes `@sql(strategy = json)`.
 
 ```schemata
 namespace shop.orders
@@ -455,9 +479,9 @@ record OrderLine {
 ## 15. Annotations
 
 An annotation is written `@target(key)` for a flag, `@target(key = value)` for a value, or
-`@target(k1, k2 = v)` for several keys at once. `@deprecated("reason")` applies to any element,
-under no target. A namespace's annotations are written before its `namespace` line; a record's are
-written before its `record` line.
+`@target(k1, k2 = v)` for several keys at once. `@deprecated("reason")` applies to a record, an
+enum, a union, an alias, a field, or an enum value, under no target. A namespace's annotations are
+written before its `namespace` line; a record's are written before its `record` line.
 
 `@proto(package = "…")` renames a namespace's Protobuf package. `@proto(name = "…")` renames a
 single declaration, field, or enum value.
@@ -483,7 +507,7 @@ codes each target can report.
 
 ```schemata
 @proto(package = "shop.orders.v1")
-@sql(schema = "orders")
+@sql(schema = "shop_orders")
 namespace shop.orders
 
 record OrderLine {
@@ -533,7 +557,7 @@ record OrderLine {
 | `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column |
 | `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column |
 | `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns |
-| a nullable field (`T?`) | proto3 `optional`, which adds presence tracking | the column allows `NULL` |
+| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` |
 | a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column |
 | a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint |
 | an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason |
