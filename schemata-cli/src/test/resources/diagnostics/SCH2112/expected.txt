@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2112] (sql): field 'R.d': decimal precision 2000 exceeds Postgres's limit of 1000
+ --> s.schemata:2:36
+  = help: use a precision of at most 1000
+
+1 error, 0 warnings

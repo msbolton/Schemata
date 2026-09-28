@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH2110] (sql): field 'R.grid': a list of lists or maps has no relational mapping; use strategy = json
+error[SCH2110] (sql): field 'R.grid': a list of lists or maps has no relational mapping
  --> s.schemata:2:36
   = help: add `@sql(strategy = json)` to store the field as jsonb
 

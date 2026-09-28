@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2108] (sql): field 'B.a': embedding 'A' here would recurse (A → B → A)
+ --> s.schemata:3:12
+  = help: use `@sql(strategy = json)` on this field, or give 'A' a key so it becomes a table
+
+1 error, 0 warnings

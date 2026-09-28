@@ -1,0 +1,4 @@
+namespace s
+record Kind { #1 x: bool }
+union Choice = Kind | int32
+record R { @sql(key) #1 id: int32  #2 c: Choice }

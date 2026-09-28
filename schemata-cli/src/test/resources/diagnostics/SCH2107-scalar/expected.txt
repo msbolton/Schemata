@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2107] (sql): record 'R': key field 'a' must be a scalar column
+ --> s.schemata:3:25
+  = help: key a scalar or enum field; reference the record from a keyed one instead
+
+1 error, 0 warnings

@@ -149,4 +149,65 @@ class SqlHelpTest {
             ds.single { it.code == SqlCodes.STRATEGY_NOT_ALLOWED }.help,
         )
     }
+
+    @Test
+    fun `an unused keyless record's message drops the mark-key-fields clause, kept in help`() {
+        val ds =
+            diagnostics(
+                """
+                namespace t
+
+                record Orphan { #1 name: string }
+
+                record R { @sql(key) #1 id: uuid }
+                """
+                    .trimIndent()
+            )
+        val diagnostic = ds.single { it.code == SqlCodes.MISSING_KEY }
+        assertEquals(
+            "record 'Orphan' has no primary key and is not used by any field",
+            diagnostic.message,
+        )
+        assertEquals(
+            "mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless record only lowers when a field embeds it",
+            diagnostic.help,
+        )
+    }
+
+    @Test
+    fun `a recursive embed carries help`() {
+        val ds =
+            diagnostics(
+                """
+                namespace t
+
+                record A { #1 b: B }
+                record B { #1 a: A }
+                record R { @sql(key) #1 id: uuid  #2 a: A }
+                """
+                    .trimIndent()
+            )
+        val diagnostic = ds.single { it.code == SqlCodes.RECURSIVE_EMBED }
+        assertEquals(
+            "use `@sql(strategy = json)` on this field, or give 'A' a key so it becomes a table",
+            diagnostic.help,
+        )
+    }
+
+    @Test
+    fun `a relation name collision carries help`() {
+        val ds =
+            diagnostics(
+                """
+                namespace t
+
+                record RItems { @sql(key) #1 id: uuid }
+                record Item { #1 n: bool }
+                record R { @sql(key) #1 id: uuid  @sql(strategy = table) #2 items: list<Item> }
+                """
+                    .trimIndent()
+            )
+        val diagnostic = ds.single { it.code == SqlCodes.NAME_COLLISION }
+        assertEquals("rename one of them, or set `@sql(table = \"…\")` on one", diagnostic.help)
+    }
 }

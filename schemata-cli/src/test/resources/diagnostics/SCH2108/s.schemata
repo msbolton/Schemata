@@ -1,0 +1,4 @@
+namespace s
+record A { #1 b: B }
+record B { #1 a: A }
+record R { @sql(key) #1 id: int32  #2 a: A }

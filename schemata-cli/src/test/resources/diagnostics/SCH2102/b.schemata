@@ -1,0 +1,2 @@
+@sql(schema = "x") namespace b
+record B { @sql(key) #1 id: int32 }

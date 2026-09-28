@@ -119,8 +119,10 @@ object SqlLowering {
                 } else if (r.qualifiedName !in catalog.used) {
                     error(
                         SqlCodes.MISSING_KEY,
-                        "record '${r.name}' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
+                        "record '${r.name}' has no primary key and is not used by any field",
                         r.nameSpan,
+                        help =
+                            "mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless record only lowers when a field embeds it",
                     )
                 }
             }
@@ -144,6 +146,7 @@ object SqlLowering {
                             SqlCodes.TABLE_COLLISION,
                             "records ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${Naming.tableOf(colliding.first())}'",
                             colliding.first().span,
+                            help = "set `@sql(table = \"…\")` on one of them",
                         )
                 }
         }
@@ -162,6 +165,7 @@ object SqlLowering {
                     SqlCodes.NAME_COLLISION,
                     "relation name '${relation.name}' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
                     relation.span,
+                    help = "rename one of them, or set `@sql(table = \"…\")` on one",
                 )
             }
         }
@@ -289,6 +293,8 @@ object SqlLowering {
                         SqlCodes.NAME_COLLISION,
                         "constraint name '$name' is already used on table '$table'",
                         span,
+                        help =
+                            "rename one of the constrained fields; constraint names derive from field names",
                     )
                 }
             }
@@ -305,6 +311,7 @@ object SqlLowering {
                             SqlCodes.NAME_COLLISION,
                             "${source.subject} lowers to column '$column', already used by ${previous.holder} (${previous.span.file}:${previous.span.startLine})",
                             source.span,
+                            help = "rename one of them, or set `@sql(column = \"…\")` on one",
                         )
                     }
                 }
@@ -325,6 +332,8 @@ object SqlLowering {
                     SqlCodes.KEY_COLUMN,
                     "record '${record.name}' declares @sql(key) on both the record and its fields",
                     record.nameSpan,
+                    help =
+                        "keep one form: `@sql(key)` on fields, or `@sql(key = (…))` on the record",
                 )
             }
             recordKeyNames
@@ -334,6 +343,7 @@ object SqlLowering {
                         SqlCodes.KEY_COLUMN,
                         "record '${record.name}': @sql(key) names '$it', which is not a field of the record",
                         record.nameSpan,
+                        help = "name a declared field",
                     )
                 }
             recordKeyNames
@@ -346,6 +356,7 @@ object SqlLowering {
                         SqlCodes.KEY_COLUMN,
                         "record '${record.name}': @sql(key) names '$it' more than once",
                         record.nameSpan,
+                        help = "list each key field once",
                     )
                 }
             val keyFields = catalog[record.qualifiedName]!!.keyFields
@@ -354,8 +365,9 @@ object SqlLowering {
                 .forEach {
                     error(
                         SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': key field '${it.name}' is nullable; a primary key column cannot be",
+                        "record '${record.name}': key field '${it.name}' is nullable",
                         it.nameSpan,
+                        help = "drop the `?`; a primary key column cannot be null",
                     )
                 }
             keyFields
@@ -365,6 +377,8 @@ object SqlLowering {
                         SqlCodes.KEY_COLUMN,
                         "record '${record.name}': key field '${it.name}' must be a scalar column",
                         it.nameSpan,
+                        help =
+                            "key a scalar or enum field; reference the record from a keyed one instead",
                     )
                 }
         }
@@ -410,6 +424,7 @@ object SqlLowering {
                         SqlCodes.REDUNDANT_CONSTRAINT,
                         "field '${record.name}.${field.name}': @sql($key) duplicates the primary key; dropped",
                         field.nameSpan,
+                        help = "remove the annotation; the primary key already enforces it",
                     )
                 }
                 !redundant
@@ -444,6 +459,7 @@ object SqlLowering {
                         SqlCodes.NAME_COLLISION,
                         "relation name '$tableName' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
                         claimant.span,
+                        help = "rename one of them, or set `@sql(table = \"…\")` on one",
                     )
                 }
                 return
@@ -750,7 +766,7 @@ object SqlLowering {
         ): Contribution {
             error(
                 SqlCodes.STRATEGY_NOT_ALLOWED,
-                "${ctx.where}: $shape has no relational mapping; use strategy = json",
+                "${ctx.where}: $shape has no relational mapping",
                 field.span,
                 help = "add `@sql(strategy = json)` to store the field as jsonb",
             )
@@ -794,6 +810,7 @@ object SqlLowering {
                             SqlCodes.TYPE_LIMIT,
                             "${ctx.where}: decimal precision $precision exceeds Postgres's limit of ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
                             field.span,
+                            help = "use a precision of at most ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
                         )
                         return Contribution.NONE
                     }
@@ -937,8 +954,10 @@ object SqlLowering {
                     .joinToString(" → ") { it.simpleName }
             error(
                 SqlCodes.RECURSIVE_EMBED,
-                "${ctx.where}: embedding '${target.name}' here would recurse ($cycle); use strategy = json or give '${target.name}' a key",
+                "${ctx.where}: embedding '${target.name}' here would recurse ($cycle)",
                 field.span,
+                help =
+                    "use `@sql(strategy = json)` on this field, or give '${target.name}' a key so it becomes a table",
             )
             return true
         }
@@ -1053,6 +1072,7 @@ object SqlLowering {
                     SqlCodes.TYPE_LIMIT,
                     "${ctx.where}: decimal precision $precision exceeds Postgres's limit of ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
                     field.span,
+                    help = "use a precision of at most ${SqlTypes.NUMERIC_PRECISION_LIMIT}",
                 )
                 return Contribution.NONE
             }
@@ -1531,6 +1551,8 @@ object SqlLowering {
                     SqlCodes.IDENTIFIER_TRUNCATED,
                     "identifier '$name' exceeds 63 bytes; truncated to '$result'",
                     span,
+                    help =
+                        "shorten the name with `@sql(table = \"…\")` or `@sql(column = \"…\")` to choose it yourself",
                 )
         }
         return result
@@ -1551,6 +1573,7 @@ object SqlLowering {
                         SqlCodes.SCHEMA_COLLISION,
                         "namespaces ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to schema '${names.getValue(colliding.first().name)}'",
                         colliding.first().span,
+                        help = "set `@sql(schema = \"…\")` on one of them",
                     )
             }
     }

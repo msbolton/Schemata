@@ -384,7 +384,7 @@ class SqlLoweringTest {
             listOf(
                 "13 SCH2105 field 'R.map': map contents are not typed by Postgres; lowered to jsonb",
                 "15 SCH2110 field 'R.flat': strategy 'json' is not allowed for a scalar; remove it",
-                "25 SCH2106 record 'N' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))",
+                "25 SCH2106 record 'N' has no primary key and is not used by any field",
             ),
             messages(lowered),
         )
@@ -511,9 +511,7 @@ class SqlLoweringTest {
         val lowered =
             lower(namespace("a", record("a", "Loose", field(1, "x", Scalar(Builtin.BOOL)))))
         assertEquals(
-            listOf(
-                "3 SCH2106 record 'Loose' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))"
-            ),
+            listOf("3 SCH2106 record 'Loose' has no primary key and is not used by any field"),
             messages(lowered),
         )
         assertEquals(emptyList(), lowered.model.schemas.single().tables)
@@ -762,8 +760,8 @@ class SqlLoweringTest {
             listOf(
                 "3 SCH2107 record 'Dup': @sql(key) names 'a' more than once",
                 "3 SCH2107 record 'Dup': @sql(key) names 'b' more than once",
-                "21 SCH2107 record 'Opt': key field 'x' is nullable; a primary key column cannot be",
-                "31 SCH2107 record 'OptRecord': key field 'y' is nullable; a primary key column cannot be",
+                "21 SCH2107 record 'Opt': key field 'x' is nullable",
+                "31 SCH2107 record 'OptRecord': key field 'y' is nullable",
             ),
             messages(lowered),
         )

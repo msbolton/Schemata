@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(key) @sql(unique) #1 id: int32 }

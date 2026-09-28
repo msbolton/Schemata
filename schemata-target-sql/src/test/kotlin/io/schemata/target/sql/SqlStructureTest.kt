@@ -290,9 +290,7 @@ class SqlStructureTest {
             )
         val lowered = lower(namespace("a", used, loose, owner))
         assertEquals(
-            listOf(
-                "6 SCH2106 record 'Loose' has no primary key and is not used by any field; mark key fields with @sql(key) or the record with @sql(key = (...))"
-            ),
+            listOf("6 SCH2106 record 'Loose' has no primary key and is not used by any field"),
             messages(lowered).filter { "SCH2106" in it },
         )
         assertEquals(listOf("owner"), lowered.model.schemas.single().tables.map { it.name })
@@ -433,7 +431,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", node, tree))
         assertEquals(
             listOf(
-                "12 SCH2108 field 'Node.next': embedding 'Node' here would recurse (Node → Node); use strategy = json or give 'Node' a key"
+                "12 SCH2108 field 'Node.next': embedding 'Node' here would recurse (Node → Node)"
             ),
             messages(lowered),
         )
@@ -656,7 +654,7 @@ class SqlStructureTest {
             )
         assertEquals(
             listOf(
-                "32 SCH2108 field 'Folder.children': embedding 'Folder' here would recurse (Folder → Folder); use strategy = json or give 'Folder' a key"
+                "32 SCH2108 field 'Folder.children': embedding 'Folder' here would recurse (Folder → Folder)"
             ),
             messages(lower(namespace("a", folder, root))),
         )
@@ -929,7 +927,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", a, inner, outer, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.choice': a union whose member is a union has no relational mapping; use strategy = json"
+                "12 SCH2110 field 'R.choice': a union whose member is a union has no relational mapping"
             ),
             messages(lowered),
         )
@@ -951,8 +949,8 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", card, u, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.choices': a list of unions has no relational mapping; use strategy = json",
-                "13 SCH2110 field 'R.grid': a list of lists or maps has no relational mapping; use strategy = json",
+                "12 SCH2110 field 'R.choices': a list of unions has no relational mapping",
+                "13 SCH2110 field 'R.grid': a list of lists or maps has no relational mapping",
                 "14 SCH2105 field 'R.ok': list contents are not typed by Postgres; lowered to jsonb",
             ),
             messages(lowered),
