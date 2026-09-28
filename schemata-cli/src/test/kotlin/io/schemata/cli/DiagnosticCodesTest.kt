@@ -2,15 +2,13 @@ package io.schemata.cli
 
 import io.schemata.core.CoreCodes
 import io.schemata.lang.LangCodes
-import io.schemata.target.proto.ProtoCodes
-import io.schemata.target.sql.SqlCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** The catalogs live in different modules; this is the one place that can see them all. */
 class DiagnosticCodesTest {
-    private val all = LangCodes.all + CoreCodes.all + ProtoCodes.all + SqlCodes.all
+    private val all = LangCodes.all + CoreCodes.all + Pipeline.targets.flatMap { it.codes }
 
     @Test
     fun `every code id is unique across modules`() {
@@ -27,7 +25,12 @@ class DiagnosticCodesTest {
     fun `ranges are respected by module`() {
         assertTrue(LangCodes.all.all { it.id.startsWith("SCH0") })
         assertTrue(CoreCodes.all.all { it.id.startsWith("SCH1") })
-        assertTrue(ProtoCodes.all.all { it.id.startsWith("SCH20") })
-        assertTrue(SqlCodes.all.all { it.id.startsWith("SCH21") })
+        assertTrue(Pipeline.targetNamed("proto")!!.codes.all { it.id.startsWith("SCH20") })
+        assertTrue(Pipeline.targetNamed("sql")!!.codes.all { it.id.startsWith("SCH21") })
+    }
+
+    @Test
+    fun `every target publishes at least one code`() {
+        Pipeline.targets.forEach { assertTrue(it.codes.isNotEmpty(), it.name) }
     }
 }
