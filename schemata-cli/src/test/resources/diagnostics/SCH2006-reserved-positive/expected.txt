@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH2006] (proto): record 'R': reserved number 0 must be positive
+ --> s.schemata:2:8
+  = help: reserve ordinals from #1 upward
+
+1 error, 0 warnings

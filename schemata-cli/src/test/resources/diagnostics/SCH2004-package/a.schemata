@@ -1,0 +1,3 @@
+@proto(package = "p")
+namespace a
+record R { #1 x: bool }

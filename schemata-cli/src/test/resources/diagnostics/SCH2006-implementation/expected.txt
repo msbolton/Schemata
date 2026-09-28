@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH2006] (proto): field 'R.x': field number 19500 is reserved for the Protobuf implementation (19000 to 19999)
+ --> s.schemata:2:12
+  = help: use an ordinal outside 19000 to 19999
+
+1 error, 0 warnings

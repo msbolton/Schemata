@@ -886,8 +886,8 @@ class ProtoLoweringTest {
         val lowered = ProtoLowering.lower(schema(ns("a", r)))
         assertEquals(
             listOf(
-                "11 SCH2005 field 'R.grid': proto cannot nest collections; wrap the element of list<list<int32>> in a record",
-                "12 SCH2005 field 'R.index': proto cannot nest collections; wrap the element of map<string, list<string>> in a record",
+                "11 SCH2005 field 'R.grid': proto cannot nest collections; list<list<int32>> has a collection element",
+                "12 SCH2005 field 'R.index': proto cannot nest collections; map<string, list<string>> has a collection element",
             ),
             messages(lowered),
         )
