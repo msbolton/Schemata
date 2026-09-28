@@ -94,7 +94,7 @@ Retired, never reused: SCH2103, SCH2104.
 
 | Code | Severity | Category | Fires when | Message | Help |
 |---|---|---|---|---|---|
-| SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering |  |  |
+| SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering | pattern uses (?, which XSD 1.0 cannot express; dropped | rewrite the pattern without (?, or enforce it in application code |
 | SCH2202 | error | semantic | two constructs lower to the same XSD name |  |  |
 | SCH2203 | error | semantic | two namespaces lower to the same target namespace | namespaces a and b both lower to target namespace 'urn:x' | set `@xsd(namespace = "…")` on one of them |
 | SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute |  |  |
