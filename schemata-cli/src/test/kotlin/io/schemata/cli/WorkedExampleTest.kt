@@ -156,7 +156,7 @@ class WorkedExampleTest {
     }
 
     @Test
-    fun `both targets compile the worked example with warnings only`() {
+    fun `every target compiles the worked example with warnings only`() {
         val result =
             Pipeline.compile(
                 listOf(

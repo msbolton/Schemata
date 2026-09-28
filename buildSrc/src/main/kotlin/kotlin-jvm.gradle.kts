@@ -31,7 +31,7 @@ tasks.withType<Test>().configureEach {
 }
 
 // Dependency direction: a module may only depend on modules in a strictly lower layer.
-// lang(0) -> core(1) -> target-api(2) -> proto/sql(3) -> cli(4). testkit is outside the layering.
+// lang(0) -> core(1) -> target-api(2) -> proto/sql/xsd(3) -> cli(4). testkit is outside the layering.
 val layers =
     mapOf(
         "schemata-lang" to 0,

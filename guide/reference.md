@@ -125,7 +125,8 @@ UpperCamel. Enum values are lower_snake. The help suggests a corrected name when
 from what you wrote. No name in a `.schemata` file, whether a declaration, a field, or an enum
 value, may be one of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`,
 `union`, `alias`, `reserved`, `true`, `false`, `service`, `operation`, `stream`. `service`,
-`operation`, and `stream` are held for a future version of the language.
+`operation`, and `stream` are held for a future version of the language. An annotation key is
+exempt, so `@xsd(namespace = "…")` is legal.
 
 ```schemata
 namespace shop.orders
