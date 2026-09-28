@@ -9,6 +9,7 @@ import io.schemata.lang.Parser
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class OrdinalsTest {
     private fun analyze(src: String, strict: Boolean = false): AnalysisResult =
@@ -108,6 +109,28 @@ class OrdinalsTest {
 
     @Test
     fun `next free ordinal skips used and reserved`() {
-        assertEquals(5, Ordinals.nextFree(setOf(1, 2, 4), setOf(3)))
+        assertEquals(5, Ordinals.nextFree(setOf(1, 2, 4), listOf(3..3)))
+    }
+
+    @Test
+    fun `next free ordinal jumps over a huge reserved range instead of counting through it`() {
+        val start = System.nanoTime()
+        assertEquals(2000000001, Ordinals.nextFree(emptySet(), listOf(1..2000000000)))
+        val elapsedMillis = (System.nanoTime() - start) / 1_000_000
+        assertTrue(elapsedMillis < 1000, "took ${elapsedMillis}ms")
+    }
+
+    @Test
+    fun `next free ordinal stops at the maximum instead of wrapping`() {
+        assertEquals(Int.MAX_VALUE, Ordinals.nextFree(emptySet(), listOf(1..Int.MAX_VALUE)))
+    }
+
+    @Test
+    fun `a duplicate ordinal's help skips a reserved candidate too`() {
+        val r = analyze("namespace a\nrecord R {\n  #1 x: bool\n  #1 y: bool\n  reserved #2\n}")
+        assertEquals(
+            "give each element its own ordinal; the next free one is #3",
+            r.diagnostics.single { it.code.id == "SCH1019" }.help,
+        )
     }
 }

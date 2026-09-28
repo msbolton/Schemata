@@ -14,9 +14,29 @@ object Ordinals {
         val nameSpan: Span,
     )
 
-    /** The smallest positive ordinal in neither [used] nor [reserved]. */
-    fun nextFree(used: Set<Int>, reserved: Set<Int>): Int =
-        generateSequence(1) { it + 1 }.first { it !in used && it !in reserved }
+    /**
+     * The smallest positive ordinal in neither [used] nor any range in [reserved]. Jumps to the end
+     * of a reserved range instead of counting through it, so a huge range costs one step, not one
+     * per ordinal; stops at [Int.MAX_VALUE] instead of overflowing past it.
+     */
+    fun nextFree(used: Set<Int>, reserved: List<IntRange>): Int {
+        val sorted = reserved.sortedBy { it.first }
+        var candidate = 1
+        while (true) {
+            val hit = sorted.firstOrNull { candidate in it }
+            when {
+                hit != null -> {
+                    if (hit.last == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate = hit.last + 1
+                }
+                candidate in used -> {
+                    if (candidate == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate++
+                }
+                else -> return candidate
+            }
+        }
+    }
 
     fun reserved(items: List<ReservedItem>, diagnostics: MutableList<Diagnostic>): Reserved {
         val ordinals = mutableListOf<IntRange>()
@@ -82,18 +102,6 @@ object Ordinals {
                         )
                 }
         }
-        // a Set view over the reserved ranges; contains() is a range check, so a huge range never
-        // gets materialized
-        val reservedOrdinals =
-            object : AbstractSet<Int>() {
-                override val size: Int
-                    get() = reserved.ordinals.sumOf { it.last - it.first + 1 }
-
-                override fun contains(element: Int): Boolean = element in reserved
-
-                override fun iterator(): Iterator<Int> =
-                    reserved.ordinals.asSequence().flatMap { it.asSequence() }.iterator()
-            }
         val seen = mutableSetOf<Int>()
         return elements.mapIndexed { index, element ->
             val ordinal = element.ordinal ?: (index + 1)
@@ -114,7 +122,7 @@ object Ordinals {
                             "ordinal #$ordinal is used more than once in $kind '$name'",
                             at,
                             help =
-                                "give each element its own ordinal; the next free one is #${nextFree(seen, emptySet())}",
+                                "give each element its own ordinal; the next free one is #${nextFree(seen, reserved.ordinals)}",
                         )
             }
             if (element.name in reserved.names) {
@@ -134,7 +142,7 @@ object Ordinals {
                         "ordinal #$ordinal is reserved in $kind '$name'",
                         at,
                         help =
-                            "pick another ordinal; the next free one is #${nextFree(seen, reservedOrdinals)}",
+                            "pick another ordinal; the next free one is #${nextFree(seen, reserved.ordinals)}",
                     )
             }
             ordinal
