@@ -25,7 +25,7 @@ object SqlCodes {
             "SCH2105",
             Severity.WARNING,
             Category.LOSSY,
-            "postgres cannot enforce or type something and the lowering relaxed it",
+            "something Postgres cannot enforce or type was relaxed by the lowering",
         )
     val MISSING_KEY =
         DiagnosticCode(

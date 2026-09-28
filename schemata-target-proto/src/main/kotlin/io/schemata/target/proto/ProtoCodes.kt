@@ -11,7 +11,7 @@ object ProtoCodes {
             "SCH2001",
             Severity.WARNING,
             Category.LOSSY,
-            "protobuf cannot carry something and the lowering dropped it",
+            "something Protobuf cannot carry was dropped by the lowering",
         )
     val NAME_COLLISION =
         DiagnosticCode(
