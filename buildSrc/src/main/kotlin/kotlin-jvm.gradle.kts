@@ -8,6 +8,8 @@ plugins {
     id("com.diffplug.spotless")
 }
 
+version = buildsrc.convention.GitVersion.of(providers, rootDir)
+
 kotlin { jvmToolchain(21) }
 
 dependencies { testImplementation(kotlin("test")) }

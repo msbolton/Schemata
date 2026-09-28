@@ -20,3 +20,12 @@ application {
     mainClass = "io.schemata.cli.MainKt"
     applicationName = "schemata"
 }
+
+tasks.jar {
+    manifest {
+        attributes(
+            "Implementation-Title" to "schemata",
+            "Implementation-Version" to project.version,
+        )
+    }
+}
