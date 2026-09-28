@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1040]: decimal needs precision and scale
+ --> s.schemata:2:18
+  = help: write `decimal(p, s)`, for example `decimal(19, 4)`
+
+1 error, 0 warnings

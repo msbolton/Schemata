@@ -1,0 +1,2 @@
+namespace s
+record R { #1 x: string(max = 3) = "abcd" }

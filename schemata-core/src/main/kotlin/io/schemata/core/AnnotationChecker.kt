@@ -33,6 +33,8 @@ class AnnotationChecker(
                             CoreCodes.ANNOTATION_VALUE,
                             "@${annotation.name} needs at least one key",
                             annotation.span,
+                            help =
+                                "write `@${annotation.name}(${registry.keys(annotation.name).first()})`",
                         )
                     }
                     annotation.args.forEach { targetArg(annotation.name, it, element, entries) }
@@ -44,6 +46,8 @@ class AnnotationChecker(
                         CoreCodes.UNKNOWN_ANNOTATION_TARGET,
                         "unknown annotation '@${annotation.name}'; known: ${registry.names().joinToString(", ")}",
                         annotation.span,
+                        help =
+                            "write one of the listed annotations, or run `schemata targets` for each target's keys",
                     )
             }
         }
@@ -67,6 +71,7 @@ class AnnotationChecker(
                             CoreCodes.ANNOTATION_VALUE,
                             "@$target arguments are a bare key or key = value",
                             arg.span,
+                            help = "write `@$target(key)` or `@$target(key = value)`",
                         )
                         return
                     }
@@ -89,7 +94,12 @@ class AnnotationChecker(
                 else -> null
             }
         if (annotation.args.size > 1 || (annotation.args.size == 1 && written == null)) {
-            report(CoreCodes.ANNOTATION_VALUE, "$display takes a single value", annotation.span)
+            report(
+                CoreCodes.ANNOTATION_VALUE,
+                "$display takes a single value",
+                annotation.span,
+                help = "write `$display(\"value\")`",
+            )
             return
         }
         apply("", annotation.name, written, annotation.span, element, entries, display)
@@ -119,27 +129,37 @@ class AnnotationChecker(
         }
         val spec = specs.firstOrNull { element in it.elements }
         if (spec == null) {
-            val allowed =
-                specs
-                    .flatMap { it.elements }
-                    .distinct()
-                    .sortedBy { it.ordinal }
-                    .joinToString(", ") { it.displayName }
+            val allowedElements = specs.flatMap { it.elements }.distinct().sortedBy { it.ordinal }
+            val allowed = allowedElements.joinToString(", ") { it.displayName }
+            val first = allowedElements.first()
             report(
                 CoreCodes.ANNOTATION_ELEMENT,
                 "$display is not allowed on ${element.article} ${element.displayName}; allowed on: $allowed",
                 span,
+                help = "move the annotation to ${first.article} ${first.displayName}, or remove it",
             )
             return
         }
         val value = value(spec, written)
         if (value == null) {
-            report(CoreCodes.ANNOTATION_VALUE, "$display ${expected(spec)}", span)
+            report(
+                CoreCodes.ANNOTATION_VALUE,
+                "$display ${expected(spec)}",
+                span,
+                help =
+                    if (spec.valueKind == ValueKind.FLAG) "write `${example(spec)}`"
+                    else "write `@$target($key = ${example(spec)})`",
+            )
             return
         }
         val forTarget = entries.getOrPut(target) { linkedMapOf() }
         if (key in forTarget) {
-            report(CoreCodes.DUPLICATE_ANNOTATION, "$display is given more than once", span)
+            report(
+                CoreCodes.DUPLICATE_ANNOTATION,
+                "$display is given more than once",
+                span,
+                help = "keep one of them",
+            )
             return
         }
         forTarget[key] = value
@@ -174,6 +194,21 @@ class AnnotationChecker(
                     ?: "expects a name"
             ValueKind.NAME_TUPLE -> "expects a tuple of names: (a, b)"
         }
+
+    /** An example value for [spec]'s kind, for a "write it like this" help message. */
+    private fun example(spec: AnnotationSpec): String {
+        spec.choices?.let {
+            return it.first()
+        }
+        return when (spec.valueKind) {
+            ValueKind.FLAG -> "@${spec.target}(${spec.key})"
+            ValueKind.STRING -> "\"…\""
+            ValueKind.INT -> "1"
+            ValueKind.BOOL -> "true"
+            ValueKind.NAME -> "a"
+            ValueKind.NAME_TUPLE -> "(a, b)"
+        }
+    }
 
     private fun report(code: DiagnosticCode, message: String, span: Span, help: String? = null) {
         diagnostics += Diagnostic(code, message, span, help)

@@ -1,0 +1,5 @@
+error[SCH1018]: @sql needs at least one key
+ --> s.schemata:2:12
+  = help: write `@sql(column)`
+
+1 error, 0 warnings

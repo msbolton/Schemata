@@ -166,14 +166,19 @@ class Resolver(
     private fun declared(entry: IndexedDecl, expr: TypeExpr): Resolved? {
         val alias = entry.decl as? AliasDecl
         if (expr.refinements.isNotEmpty()) {
-            val message =
-                if (alias != null) "'${alias.name}' is an alias; refine it where it is declared"
-                else {
-                    val kind = DeclarationIndex.kindOf(entry.decl)
-                    val article = if (kind == "enum") "an" else "a"
+            val message: String
+            val help: String
+            if (alias != null) {
+                message = "'${alias.name}' is an alias and takes no refinements here"
+                help = "refine the alias where it is declared, or write the builtin type here"
+            } else {
+                val kind = DeclarationIndex.kindOf(entry.decl)
+                val article = if (kind == "enum") "an" else "a"
+                message =
                     "'${entry.decl.name}' is $article $kind; only builtin types and collections take refinements"
-                }
-            error(CoreCodes.REFINEMENT_NOT_ALLOWED, message, expr.refinements.first().span)
+                help = "remove the parentheses"
+            }
+            error(CoreCodes.REFINEMENT_NOT_ALLOWED, message, expr.refinements.first().span, help)
             return null
         }
         if (alias == null) return Resolved(Ref(entry.qualifiedName), expr.nullable, null)

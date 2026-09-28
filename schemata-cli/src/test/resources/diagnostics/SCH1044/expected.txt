@@ -1,4 +1,4 @@
-error[SCH1044]: a default may not be null; declare the field as nullable with '?'
+error[SCH1044]: default may not be null
  --> s.schemata:2:27
   = help: add `?` to the field's type and drop the default; a nullable field is null when absent
 

@@ -38,7 +38,7 @@ object DefaultChecker {
         if (literal is Literal.NameLit && literal.name == "null") {
             report(
                 CoreCodes.NULL_DEFAULT,
-                "a default may not be null; declare the field as nullable with '?'",
+                "default may not be null",
                 literal.span,
                 diagnostics,
                 help =
@@ -47,8 +47,20 @@ object DefaultChecker {
             return null
         }
         return when (type) {
-            is ListOf -> reject("list fields cannot have a default", literal.span, diagnostics)
-            is MapOf -> reject("map fields cannot have a default", literal.span, diagnostics)
+            is ListOf ->
+                reject(
+                    "list fields cannot have a default",
+                    literal.span,
+                    diagnostics,
+                    help = "remove the default; an empty list is the absence",
+                )
+            is MapOf ->
+                reject(
+                    "map fields cannot have a default",
+                    literal.span,
+                    diagnostics,
+                    help = "remove the default; an empty map is the absence",
+                )
             is Ref -> reference(literal, type, index, diagnostics)
             is Scalar -> scalar(literal, type, diagnostics)
         }
@@ -68,17 +80,31 @@ object DefaultChecker {
                         "default for enum '${decl.name}' must be one of: ${decl.values.joinToString(", ") { it.name }}",
                         literal.span,
                         diagnostics,
+                        help =
+                            "write one of the listed values, for example `= ${decl.values.first().name}`",
                     )
                 } else EnumRef(type.target, name.name)
             }
             is RecordDecl ->
-                reject("record fields cannot have a default", literal.span, diagnostics)
-            is UnionDecl -> reject("union fields cannot have a default", literal.span, diagnostics)
+                reject(
+                    "record fields cannot have a default",
+                    literal.span,
+                    diagnostics,
+                    help = "remove the default; give the record's own fields defaults instead",
+                )
+            is UnionDecl ->
+                reject(
+                    "union fields cannot have a default",
+                    literal.span,
+                    diagnostics,
+                    help = "remove the default; a union is chosen by the writer",
+                )
             else ->
                 reject(
                     "'${type.target.simpleName}' fields cannot have a default",
                     literal.span,
                     diagnostics,
+                    help = "remove the default; `${type.target.simpleName}` has no literal form",
                 )
         }
 
@@ -92,7 +118,12 @@ object DefaultChecker {
         return when (type.builtin) {
             Builtin.BOOL ->
                 (literal as? Literal.BoolLit)?.let { BoolValue(it.value) }
-                    ?: reject("default for bool must be true or false", literal.span, diagnostics)
+                    ?: reject(
+                        "default for bool must be true or false",
+                        literal.span,
+                        diagnostics,
+                        help = "write `= true` or `= false`",
+                    )
             Builtin.INT32,
             Builtin.INT64 -> {
                 val lit =
@@ -101,12 +132,15 @@ object DefaultChecker {
                             "default for $name must be an integer literal",
                             literal.span,
                             diagnostics,
+                            help = "write a whole number",
                         )
                 if (type.builtin == Builtin.INT32 && lit.value !in Int.MIN_VALUE..Int.MAX_VALUE)
                     return reject(
                         "default ${lit.value} is outside the range of int32",
                         literal.span,
                         diagnostics,
+                        help =
+                            "use a value between -2147483648 and 2147483647, or declare the field int64",
                     )
                 if (!bounds(BigDecimal.valueOf(lit.value), r, literal.span, diagnostics)) null
                 else IntValue(lit.value)
@@ -123,6 +157,7 @@ object DefaultChecker {
                                 "default for $name must be a numeric literal",
                                 literal.span,
                                 diagnostics,
+                                help = "write a number",
                             )
                     }
                 val scale = r.scale
@@ -131,6 +166,7 @@ object DefaultChecker {
                         "default ${value.toPlainString()} exceeds scale $scale",
                         literal.span,
                         diagnostics,
+                        help = "use at most $scale decimal places",
                     )
                 val precision = r.precision
                 if (precision != null && scale != null) {
@@ -141,6 +177,7 @@ object DefaultChecker {
                             "default ${value.toPlainString()} exceeds precision $precision",
                             literal.span,
                             diagnostics,
+                            help = "use at most $precision digits",
                         )
                 }
                 if (!bounds(value, r, literal.span, diagnostics)) null else RealValue(value)
@@ -152,26 +189,32 @@ object DefaultChecker {
                             "default for string must be a string literal",
                             literal.span,
                             diagnostics,
+                            help = "quote the default: `= \"…\"`",
                         )
                 val length = lit.value.codePointCount(0, lit.value.length).toBigDecimal()
                 when {
                     r.min != null && length < r.min ->
                         violates(
-                            "default is shorter than min ${r.min.toPlainString()}",
+                            "default \"${lit.value}\" is shorter than min ${r.min.toPlainString()}",
                             literal.span,
                             diagnostics,
+                            help =
+                                "use a default of at least ${r.min.toPlainString()} characters, or lower min",
                         )
                     r.max != null && length > r.max ->
                         violates(
-                            "default is longer than max ${r.max.toPlainString()}",
+                            "default \"${lit.value}\" is longer than max ${r.max.toPlainString()}",
                             literal.span,
                             diagnostics,
+                            help =
+                                "use a default of at most ${r.max.toPlainString()} characters, or raise max",
                         )
                     r.pattern != null && !Pattern.compile(r.pattern).matcher(lit.value).find() ->
                         violates(
-                            "default does not match pattern ${r.pattern}",
+                            "default \"${lit.value}\" does not match pattern ${r.pattern}",
                             literal.span,
                             diagnostics,
+                            help = "use a default the pattern accepts, or change the pattern",
                         )
                     else -> StringValue(lit.value)
                 }
@@ -182,7 +225,12 @@ object DefaultChecker {
             Builtin.TIME,
             Builtin.INSTANT,
             Builtin.DURATION ->
-                reject("$name fields cannot have a default", literal.span, diagnostics)
+                reject(
+                    "$name fields cannot have a default",
+                    literal.span,
+                    diagnostics,
+                    help = "remove the default; `$name` has no literal form",
+                )
         }
     }
 
@@ -198,6 +246,7 @@ object DefaultChecker {
                 "default ${value.toPlainString()} is below min ${r.min.toPlainString()}",
                 span,
                 diagnostics,
+                help = "use a default of at least ${r.min.toPlainString()}, or lower min",
             )
             return false
         }
@@ -206,14 +255,20 @@ object DefaultChecker {
                 "default ${value.toPlainString()} is above max ${r.max.toPlainString()}",
                 span,
                 diagnostics,
+                help = "use a default of at most ${r.max.toPlainString()}, or raise max",
             )
             return false
         }
         return true
     }
 
-    private fun reject(message: String, span: Span, diagnostics: MutableList<Diagnostic>): Value? {
-        report(CoreCodes.DEFAULT_TYPE, message, span, diagnostics)
+    private fun reject(
+        message: String,
+        span: Span,
+        diagnostics: MutableList<Diagnostic>,
+        help: String? = null,
+    ): Value? {
+        report(CoreCodes.DEFAULT_TYPE, message, span, diagnostics, help)
         return null
     }
 
@@ -221,8 +276,9 @@ object DefaultChecker {
         message: String,
         span: Span,
         diagnostics: MutableList<Diagnostic>,
+        help: String? = null,
     ): Value? {
-        report(CoreCodes.DEFAULT_VIOLATES_REFINEMENT, message, span, diagnostics)
+        report(CoreCodes.DEFAULT_VIOLATES_REFINEMENT, message, span, diagnostics, help)
         return null
     }
 

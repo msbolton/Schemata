@@ -71,4 +71,27 @@ class HelpTextTest {
             help("namespace t\nrecord R { x: bool }", "SCH1014", strict = true),
         )
     }
+
+    @Test
+    fun `refinement and default diagnostics carry help`() {
+        assertEquals(
+            "write `decimal(p, s)`, for example `decimal(19, 4)`",
+            help("namespace t\nrecord R { #1 x: decimal }", "SCH1040"),
+        )
+        assertEquals(
+            "write `= true` or `= false`",
+            help("namespace t\nrecord R { #1 x: bool = 1 }", "SCH1042"),
+        )
+        assertEquals(
+            "use a default of at most 3 characters, or raise max",
+            help("namespace t\nrecord R { #1 x: string(max = 3) = \"abcd\" }", "SCH1043"),
+        )
+        assertEquals(
+            "keep one of them",
+            help(
+                "namespace t\nrecord R { @deprecated(\"a\") @deprecated(\"b\") #1 x: bool }",
+                "SCH1036",
+            ),
+        )
+    }
 }

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1043]: default 1 is below min 3
+ --> s.schemata:2:35
+  = help: use a default of at least 3, or lower min
+
+1 error, 0 warnings

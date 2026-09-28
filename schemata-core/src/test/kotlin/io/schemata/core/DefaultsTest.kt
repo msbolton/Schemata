@@ -85,13 +85,13 @@ class DefaultsTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "7:15 a default may not be null; declare the field as nullable with '?'",
+                "7:15 default may not be null",
                 "8:15 default for enum 'Status' must be one of: pending, paid",
                 "9:10 record fields cannot have a default",
                 "10:20 list fields cannot have a default",
                 "11:23 default 3 is below min 5",
-                "12:24 default is longer than max 2",
-                "13:31 default does not match pattern ^x",
+                "12:24 default \"abc\" is longer than max 2",
+                "13:31 default \"y\" does not match pattern ^x",
                 "14:22 default 1.25 exceeds scale 1",
                 "15:13 uuid fields cannot have a default",
                 "16:14 default for int32 must be an integer literal",

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1038]: max 99999999999 is outside the range of int32
+ --> s.schemata:2:24
+  = help: use a value between -2147483648 and 2147483647
+
+1 error, 0 warnings

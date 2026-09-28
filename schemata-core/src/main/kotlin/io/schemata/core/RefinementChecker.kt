@@ -45,9 +45,10 @@ object RefinementChecker {
             if (positional.size != 2) {
                 report(
                     CoreCodes.MISSING_REFINEMENT,
-                    "decimal takes its precision and scale positionally: decimal(p, s)",
+                    "decimal needs precision and scale",
                     expr.nameSpan,
                     diagnostics,
+                    help = "write `decimal(p, s)`, for example `decimal(19, 4)`",
                 )
                 return null
             }
@@ -60,6 +61,7 @@ object RefinementChecker {
                     "precision must be at least 1",
                     positional[0].span,
                     diagnostics,
+                    help = "write `decimal(p, s)` with p ≥ 1",
                 )
                 ok = false
             }
@@ -69,6 +71,7 @@ object RefinementChecker {
                     "scale must not be negative",
                     positional[1].span,
                     diagnostics,
+                    help = "use a scale of 0 or more",
                 )
                 ok = false
             }
@@ -78,6 +81,7 @@ object RefinementChecker {
                     "scale $s exceeds precision $p",
                     positional[1].span,
                     diagnostics,
+                    help = "use a scale no larger than the precision",
                 )
                 ok = false
             }
@@ -90,6 +94,7 @@ object RefinementChecker {
                     "only decimal takes positional refinements",
                     it.span,
                     diagnostics,
+                    help = "name the refinement: `${builtin.typeName}(max = …)`",
                 )
                 ok = false
             }
@@ -121,6 +126,7 @@ object RefinementChecker {
                 "only decimal takes positional refinements",
                 it.span,
                 diagnostics,
+                help = "name the refinement: `$kind(max = …)`",
             )
             ok = false
         }
@@ -167,6 +173,7 @@ object RefinementChecker {
                     "'${item.name}' is given more than once",
                     item.span,
                     diagnostics,
+                    help = "keep one of them",
                 )
                 ok = false
                 continue
@@ -179,6 +186,7 @@ object RefinementChecker {
                         "pattern must be a string literal",
                         item.span,
                         diagnostics,
+                        help = "quote the pattern: `pattern = \"^…\$\"`",
                     )
                     ok = false
                     continue
@@ -192,6 +200,8 @@ object RefinementChecker {
                         "pattern does not compile: ${e.description}",
                         item.span,
                         diagnostics,
+                        help =
+                            "fix the regular expression; Postgres and Java must both accept it, so keep to the shared subset",
                     )
                     ok = false
                 }
@@ -215,6 +225,7 @@ object RefinementChecker {
                 "min ${min.toPlainString()} exceeds max ${max.toPlainString()}",
                 checkNotNull(lastBound).span,
                 diagnostics,
+                help = "swap or fix the bounds",
             )
             ok = false
         }
@@ -238,6 +249,7 @@ object RefinementChecker {
                             "${item.name} for $typeName must be an integer literal",
                             item.span,
                             diagnostics,
+                            help = "write a whole number",
                         )
                         null
                     }
@@ -247,6 +259,8 @@ object RefinementChecker {
                             "${item.name} ${value.value} is outside the range of $typeName",
                             item.span,
                             diagnostics,
+                            help =
+                                "use a value between ${bound.range.first} and ${bound.range.last}",
                         )
                         null
                     }
@@ -259,9 +273,10 @@ object RefinementChecker {
                     else -> {
                         report(
                             CoreCodes.INVALID_REFINEMENT,
-                            "${item.name} for $typeName must be a numeric literal",
+                            "${item.name} for $typeName must be a number",
                             item.span,
                             diagnostics,
+                            help = "write a number",
                         )
                         null
                     }
@@ -274,6 +289,7 @@ object RefinementChecker {
                             "${item.name} must be an integer literal",
                             item.span,
                             diagnostics,
+                            help = "write a whole number",
                         )
                         null
                     }
@@ -283,6 +299,7 @@ object RefinementChecker {
                             "${item.name} must not be negative",
                             item.span,
                             diagnostics,
+                            help = "use 0 or more",
                         )
                         null
                     }
@@ -303,6 +320,7 @@ object RefinementChecker {
                 "$what must be an integer literal",
                 item.span,
                 diagnostics,
+                help = "write a whole number",
             )
             return null
         }

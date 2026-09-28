@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1042]: union fields cannot have a default
+ --> s.schemata:5:22
+  = help: remove the default; a union is chosen by the writer
+
+1 error, 0 warnings
