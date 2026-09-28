@@ -5,6 +5,7 @@ import io.schemata.cli.SourceInput
 import io.schemata.cli.TargetResult
 import io.schemata.core.CoreCodes
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.LangCodes
 import io.schemata.lang.Span
 import io.schemata.target.OutputFile
 import io.schemata.target.proto.ProtoCodes
@@ -99,6 +100,17 @@ class HumanRendererTest {
             "report/color.txt",
             render(report(TargetResult("proto", emptyList(), listOf(d))), Palette.ANSI),
         )
+    }
+
+    @Test
+    fun `an EOF token's zero-width span renders a caret under the first character instead of throwing`() {
+        val d =
+            Diagnostic(
+                LangCodes.SYNTAX,
+                "mismatched input '<EOF>' expecting '}'",
+                Span("shop/orders.schemata", 3, 1, 3, 0),
+            )
+        Golden.assertMatches("report/column-zero.txt", render(report(core = listOf(d))))
     }
 
     @Test

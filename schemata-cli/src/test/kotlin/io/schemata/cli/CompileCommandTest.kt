@@ -137,6 +137,21 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `a syntax error at end of file does not crash the human renderer`() {
+        // The trailing extraneous-input diagnostic for this file spans an empty line at endColumn
+        // 0, which used to make HumanRenderer.column() call String.take(-1) and throw.
+        val (src, out) =
+            tempSources(
+                "bad.schemata" to
+                    "namespace shop.orders\n\nrecord OrderLine {\n  #1 record: string\n}\n"
+            )
+        val result = CompileCommand().test("--target proto --out $out $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(result.stderr.contains("error[SCH0001]"), result.stderr)
+        assertFalse(result.stderr.contains("Exception"), result.stderr)
+    }
+
+    @Test
     fun `--strict rejects implicit ordinals and promotes warnings`() {
         val (src, out) = tempSources("s.schemata" to "namespace s\nrecord R { x: bool }")
         val result = CompileCommand().test("--target proto --strict --out $out $src")

@@ -1,0 +1,1 @@
+SCH2105 field 'Entry.lines': refinements on list<Line>(min = 2) are not enforced by Postgres

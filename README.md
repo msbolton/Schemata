@@ -2,14 +2,56 @@
 
 ![ci](https://github.com/msbolton/Schemata/actions/workflows/ci.yml/badge.svg)
 
-A schema language and compiler. Author a data model once in `.schemata`; emit
-Protobuf and SQL DDL (more targets to follow).
+Schemata is a schema language and compiler. You describe a data model once in
+`.schemata` files and compile it to Protobuf and to Postgres DDL, with every
+lossy decision reported as a warning.
 
-## Build
+## Install
 
-    ./gradlew build          # compile, test, lint, dependency-direction check
-    ./gradlew :schemata-cli:installDist
-    schemata-cli/build/install/schemata/bin/schemata compile --out out schema.schemata
+No release exists yet; once one does, it will appear on the
+[releases page](https://github.com/msbolton/Schemata/releases). Until then, build from a checkout
+(JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a `schemata` script under
+`schemata-cli/build/install/schemata/bin/`. `./gradlew build` also produces a runnable jar at
+`schemata-cli/build/libs/schemata-<version>.jar`; run it with `java -jar`.
+
+## Quick start
+
+`contacts.schemata`:
+
+```schemata
+namespace contacts
+
+enum Kind { #1 personal, #2 work }
+
+record Contact {
+  @sql(key)
+  #1 id:    int64
+  #2 name:  string(max = 100)
+  #3 email: string(max = 254, pattern = "^[^@]+@[^@]+$")
+  #4 kind:  Kind = personal
+}
+```
+
+```text
+java -jar schemata-<version>.jar compile --out out contacts.schemata
+```
+
+`out/proto/contacts.proto` begins:
+
+```proto
+syntax = "proto3";
+
+package contacts;
+```
+
+`out/sql/contacts.sql` begins:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS "contacts";
+```
+
+The compiler prints one warning per thing Protobuf cannot carry (the email
+pattern, the default) and exits 2; `--strict` turns those into errors.
 
 ## Commands
 
@@ -32,7 +74,21 @@ a file, pass `--color never`.
 | 2 | warnings only |
 | 1 | any error (after `--strict` promotion), or a usage error |
 
-## Releasing
+## Learn more
+
+- [Language reference](guide/reference.md)
+- [Worked examples](guide/examples.md) and the [`examples/`](examples/) directory
+- [Diagnostics](guide/diagnostics.md) and [annotations](guide/annotations.md)
+
+## Contributing
+
+### Build
+
+    ./gradlew build          # compile, test, lint, dependency-direction check
+    ./gradlew :schemata-cli:installDist
+    schemata-cli/build/install/schemata/bin/schemata compile --out out schema.schemata
+
+### Releasing
 
 Tag `main` with `vX.Y.Z` and push the tag. The release workflow builds, runs
 the full test suite, and attaches `schemata-X.Y.Z.jar` to a GitHub release.
@@ -40,7 +96,7 @@ the full test suite, and attaches `schemata-X.Y.Z.jar` to a GitHub release.
 build prints `X.Y.Z-dev+<sha>`. The `native-image spike` workflow can be
 dispatched by hand from the Actions tab.
 
-## Modules
+### Modules
 
 Dependencies point strictly downward; the build fails if they do not.
 
@@ -54,7 +110,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-cli` | command surface |
 | `schemata-testkit` | test-only helpers (golden files, protoc) |
 
-## Testing conventions
+### Testing conventions
 
 - Lowering is tested by asserting on the **model** it produces, never on rendered text.
 - Rendered text is golden-tested. Golden files live in `src/test/resources/golden/`.

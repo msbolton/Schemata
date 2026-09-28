@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package ledger.reports.v1;
+
+import "ledger/accounts.proto";
+import "ledger/journal.proto";
+
+// A close of one account for one period.
+message Close {
+  string id = 1;  // schemata: uuid
+  string period = 2;  // schemata: string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
+  .ledger.accounts.v1.Account account = 3;
+  .ledger.journal.v1.Entry last = 4;
+  Totals totals = 5;
+
+  message Totals {
+    string debits = 1;  // schemata: decimal(19, 4)
+    string credits = 2;  // schemata: decimal(19, 4)
+  }
+}
