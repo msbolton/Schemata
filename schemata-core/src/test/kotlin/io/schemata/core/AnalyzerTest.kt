@@ -241,11 +241,11 @@ class AnalyzerTest {
         assertNull(result.schema)
         assertEquals(
             listOf(
-                "4:6 list takes 1 type argument, got 2",
-                "5:6 map takes 2 type arguments, got 1",
+                "4:6 'list' takes 1 type argument; got 2",
+                "5:6 'map' takes 2 type arguments; got 1",
                 "6:6 'C' is not generic",
-                "7:10 map keys must be string, int32, or int64",
-                "8:10 map keys may not be nullable",
+                "7:10 map key C must be string, int32, or int64",
+                "8:10 map key string? is nullable",
             ),
             messages(result),
         )
@@ -264,7 +264,7 @@ class AnalyzerTest {
                 "3:18 enum value 'x' is declared more than once in enum 'F'",
                 "5:15 union member 'C' is repeated",
                 "5:19 union 'U' may not contain itself",
-                "5:23 union members must be named types or scalars",
+                "5:23 union member list<C> must be a named type or a scalar",
             ),
             messages(result),
         )

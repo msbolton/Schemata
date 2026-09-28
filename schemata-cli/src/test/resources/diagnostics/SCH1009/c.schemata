@@ -1,0 +1,4 @@
+namespace c
+import a
+import b
+record R { #1 t: T }

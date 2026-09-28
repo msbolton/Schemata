@@ -12,4 +12,7 @@ kotlin {
 dependencies {
     implementation(libs.kotlinGradlePlugin)
     implementation(libs.spotlessGradlePlugin)
+    testImplementation(kotlin("test"))
 }
+
+tasks.withType<Test>().configureEach { useJUnitPlatform() }

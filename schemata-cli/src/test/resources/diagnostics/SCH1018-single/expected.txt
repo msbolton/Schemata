@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1018]: @deprecated takes a single value
+ --> s.schemata:2:12
+  = help: write `@deprecated("value")`
+
+1 error, 0 warnings

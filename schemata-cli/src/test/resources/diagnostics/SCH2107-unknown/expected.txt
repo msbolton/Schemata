@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2107] (sql): record 'R': @sql(key) names 'nope', which is not a field of the record
+ --> s.schemata:2:27
+  = help: name a declared field
+
+1 error, 0 warnings

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1043]: default "ab" is shorter than min 3
+ --> s.schemata:2:36
+  = help: use a default of at least 3 characters, or lower min
+
+1 error, 0 warnings

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1038]: pattern must be a string literal
+ --> s.schemata:2:25
+  = help: quote the pattern: `pattern = "^…$"`
+
+1 error, 0 warnings

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1042]: default for bool must be true or false
+ --> s.schemata:2:25
+  = help: write `= true` or `= false`
+
+1 error, 0 warnings

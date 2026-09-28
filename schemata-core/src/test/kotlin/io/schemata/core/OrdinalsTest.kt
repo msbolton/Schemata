@@ -9,6 +9,7 @@ import io.schemata.lang.Parser
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class OrdinalsTest {
     private fun analyze(src: String, strict: Boolean = false): AnalysisResult =
@@ -104,5 +105,50 @@ class OrdinalsTest {
     fun `a huge reserved range is kept as a range and still conflicts`() {
         val r = analyze("namespace a\nrecord R {\n  #5 x: bool\n  reserved #1..#2000000000\n}")
         assertEquals(listOf("3:3 ordinal #5 is reserved in record 'R'"), messages(r))
+    }
+
+    @Test
+    fun `next free ordinal skips used and reserved`() {
+        assertEquals(5, Ordinals.nextFree(setOf(1, 2, 4), listOf(3..3)))
+    }
+
+    @Test
+    fun `next free ordinal jumps over a huge reserved range instead of counting through it`() {
+        val start = System.nanoTime()
+        assertEquals(2000000001, Ordinals.nextFree(emptySet(), listOf(1..2000000000)))
+        val elapsedMillis = (System.nanoTime() - start) / 1_000_000
+        assertTrue(elapsedMillis < 1000, "took ${elapsedMillis}ms")
+    }
+
+    @Test
+    fun `next free ordinal stops at the maximum instead of wrapping`() {
+        assertEquals(Int.MAX_VALUE, Ordinals.nextFree(emptySet(), listOf(1..Int.MAX_VALUE)))
+    }
+
+    @Test
+    fun `a duplicate ordinal's help skips a reserved candidate too`() {
+        val r = analyze("namespace a\nrecord R {\n  #1 x: bool\n  #1 y: bool\n  reserved #2\n}")
+        assertEquals(
+            "give each element its own ordinal; the next free one is #3",
+            r.diagnostics.single { it.code.id == "SCH1019" }.help,
+        )
+    }
+
+    @Test
+    fun `the next free ordinal considers every explicit ordinal, not only those seen so far`() {
+        val r = analyze("namespace a\nrecord R { #1 a: bool  #1 b: bool  #2 c: bool }")
+        assertEquals(
+            "give each element its own ordinal; the next free one is #3",
+            r.diagnostics.single { it.code.id == "SCH1019" }.help,
+        )
+    }
+
+    @Test
+    fun `the next free ordinal is unaffected by scan order across a duplicate and a reservation`() {
+        val r = analyze("namespace a\nenum E { #1 x, #4 y, #4 z, #2 w\n reserved #3 }")
+        assertEquals(
+            "give each element its own ordinal; the next free one is #5",
+            r.diagnostics.single { it.code.id == "SCH1019" }.help,
+        )
     }
 }

@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(column = 3) #1 x: bool }

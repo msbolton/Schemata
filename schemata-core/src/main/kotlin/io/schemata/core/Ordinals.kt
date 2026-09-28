@@ -14,6 +14,30 @@ object Ordinals {
         val nameSpan: Span,
     )
 
+    /**
+     * The smallest positive ordinal in neither [used] nor any range in [reserved]. Jumps to the end
+     * of a reserved range instead of counting through it, so a huge range costs one step, not one
+     * per ordinal; stops at [Int.MAX_VALUE] instead of overflowing past it.
+     */
+    fun nextFree(used: Set<Int>, reserved: List<IntRange>): Int {
+        val sorted = reserved.sortedBy { it.first }
+        var candidate = 1
+        while (true) {
+            val hit = sorted.firstOrNull { candidate in it }
+            when {
+                hit != null -> {
+                    if (hit.last == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate = hit.last + 1
+                }
+                candidate in used -> {
+                    if (candidate == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate++
+                }
+                else -> return candidate
+            }
+        }
+    }
+
     fun reserved(items: List<ReservedItem>, diagnostics: MutableList<Diagnostic>): Reserved {
         val ordinals = mutableListOf<IntRange>()
         val names = mutableSetOf<String>()
@@ -26,6 +50,8 @@ object Ordinals {
                                 CoreCodes.RESERVED_RANGE,
                                 "reserved range #${item.from}..#${item.to} is inverted",
                                 item.span,
+                                help =
+                                    "write the lower ordinal first: `reserved #${item.to}..#${item.from}`",
                             )
                     } else {
                         ordinals += item.from..item.to
@@ -59,6 +85,7 @@ object Ordinals {
                     CoreCodes.MIXED_ORDINALS,
                     "$kind '$name' mixes explicit and implicit ordinals",
                     nameSpan,
+                    help = "write `#n` on every element or on none",
                 )
         }
         if (options.strictOrdinals) {
@@ -75,6 +102,7 @@ object Ordinals {
                         )
                 }
         }
+        val allExplicit = elements.mapNotNull { it.ordinal }.toSet()
         val seen = mutableSetOf<Int>()
         return elements.mapIndexed { index, element ->
             val ordinal = element.ordinal ?: (index + 1)
@@ -86,6 +114,7 @@ object Ordinals {
                             CoreCodes.INVALID_ORDINAL,
                             "ordinal #$ordinal is not positive",
                             at,
+                            help = "ordinals start at #1",
                         )
                 if (!seen.add(ordinal))
                     diagnostics +=
@@ -93,6 +122,8 @@ object Ordinals {
                             CoreCodes.DUPLICATE_ORDINAL,
                             "ordinal #$ordinal is used more than once in $kind '$name'",
                             at,
+                            help =
+                                "give each element its own ordinal; the next free one is #${nextFree(allExplicit, reserved.ordinals)}",
                         )
             }
             if (element.name in reserved.names) {
@@ -101,6 +132,8 @@ object Ordinals {
                         CoreCodes.RESERVED_CONFLICT,
                         "name '${element.name}' is reserved in $kind '$name'",
                         element.nameSpan,
+                        help =
+                            "pick another name; reserved names are kept out of use for old readers",
                     )
             }
             if (ordinal in reserved) {
@@ -109,6 +142,8 @@ object Ordinals {
                         CoreCodes.RESERVED_CONFLICT,
                         "ordinal #$ordinal is reserved in $kind '$name'",
                         at,
+                        help =
+                            "pick another ordinal; the next free one is #${nextFree(allExplicit, reserved.ordinals)}",
                     )
             }
             ordinal

@@ -1,0 +1,5 @@
+error[SCH1034]: reserved range #5..#3 is inverted
+ --> s.schemata:2:33
+  = help: write the lower ordinal first: `reserved #3..#5`
+
+1 error, 0 warnings

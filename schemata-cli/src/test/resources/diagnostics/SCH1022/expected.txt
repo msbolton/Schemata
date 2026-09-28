@@ -1,0 +1,5 @@
+error[SCH1022]: map key bool must be string, int32, or int64
+ --> s.schemata:2:22
+  = help: use one of the three key types, or store the entries as a list of records
+
+1 error, 0 warnings

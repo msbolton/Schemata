@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2107] (sql): record 'R': key field 'id' is nullable
+ --> s.schemata:2:25
+  = help: drop the `?`; a primary key column cannot be null
+
+1 error, 0 warnings

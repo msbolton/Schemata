@@ -1,0 +1,5 @@
+error[SCH0001]: missing ':' at 'uuid'
+ --> s.schemata:2:14
+  = help: the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, or `union Name = A | B`
+
+1 error, 0 warnings

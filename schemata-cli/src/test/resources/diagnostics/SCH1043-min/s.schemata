@@ -1,0 +1,2 @@
+namespace s
+record R { #1 x: int32(min = 3) = 1 }

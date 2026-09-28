@@ -1,0 +1,5 @@
+error[SCH1004]: record 'R' is declared in both a.schemata:2 and b.schemata:2
+ --> b.schemata:2:8
+  = help: rename or remove one of them
+
+1 error, 0 warnings

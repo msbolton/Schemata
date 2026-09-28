@@ -1,0 +1,4 @@
+namespace s
+record RItems { @sql(key) #1 id: int32 }
+record Item { #1 n: bool }
+record R { @sql(key) #1 id: int32  @sql(strategy = table) #2 items: list<Item> }

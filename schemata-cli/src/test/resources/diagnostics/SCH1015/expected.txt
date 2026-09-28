@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1015]: unknown annotation '@nope'; known: deprecated, proto, sql
+ --> s.schemata:2:12
+  = help: write one of the listed annotations, or run `schemata targets` for each target's keys
+
+1 error, 0 warnings

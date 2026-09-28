@@ -1,0 +1,6 @@
+# targets=sql
+warning[SCH2113] (sql): field 'R.id': @sql(unique) duplicates the primary key; dropped
+ --> s.schemata:2:38
+  = help: remove the annotation; the primary key already enforces it
+
+0 errors, 1 warning

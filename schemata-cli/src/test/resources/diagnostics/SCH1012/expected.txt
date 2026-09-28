@@ -1,0 +1,6 @@
+# targets=proto
+warning[SCH1012]: import 'a' is unused
+ --> b.schemata:2:1
+  = help: remove the import
+
+0 errors, 1 warning

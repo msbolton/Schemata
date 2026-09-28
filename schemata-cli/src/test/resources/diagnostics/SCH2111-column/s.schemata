@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(key) #1 id: int32  @sql(column = "c") #2 x: bool  @sql(column = "c") #3 y: bool }

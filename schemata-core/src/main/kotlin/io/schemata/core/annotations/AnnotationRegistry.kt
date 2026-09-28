@@ -28,6 +28,9 @@ class AnnotationRegistry(specs: List<AnnotationSpec>) {
     fun keys(target: String): List<String> =
         (byTarget[target] ?: emptyList()).map { it.key }.distinct().sorted()
 
+    /** Every spec for [target], in declaration order (not sorted, unlike [keys]). */
+    fun specs(target: String): List<AnnotationSpec> = byTarget[target] ?: emptyList()
+
     fun find(target: String, key: String): List<AnnotationSpec> =
         (byTarget[target] ?: emptyList()).filter { it.key == key }
 

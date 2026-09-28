@@ -1,0 +1,2 @@
+namespace s
+record R { #600000000 x: bool }

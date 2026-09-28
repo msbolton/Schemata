@@ -1,0 +1,5 @@
+error[SCH1024]: 'N' is already nullable
+ --> s.schemata:3:18
+  = help: remove the `?`
+
+1 error, 0 warnings

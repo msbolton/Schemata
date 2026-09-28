@@ -4,12 +4,15 @@ import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.core.annotations.CoreAnnotations
+import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Parser
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ProtoHelpTest {
-    private fun lossyHelp(text: String): List<String?> {
+    private fun diagnostics(text: String, code: DiagnosticCode): List<Diagnostic> {
         val schema =
             Analyzer.analyze(
                     listOf(Parser.parse(text, "t.schemata").file!!),
@@ -19,11 +22,11 @@ class ProtoHelpTest {
                     ),
                 )
                 .schema!!
-        return ProtoTarget.lower(schema)
-            .diagnostics
-            .filter { it.code == ProtoCodes.LOSSY }
-            .map { it.help }
+        return ProtoTarget.lower(schema).diagnostics.filter { it.code == code }
     }
+
+    private fun lossyHelp(text: String): List<String?> =
+        diagnostics(text, ProtoCodes.LOSSY).map { it.help }
 
     @Test
     fun `every lossy diagnostic carries help`() {
@@ -54,5 +57,38 @@ class ProtoHelpTest {
             ),
             helps.take(5),
         )
+    }
+
+    @Test
+    fun `nested collections carry help to wrap the element in a record`() {
+        val found =
+            diagnostics(
+                """
+                namespace t
+
+                record R { #1 g: list<list<int32>> }
+                """
+                    .trimIndent(),
+                ProtoCodes.UNSUPPORTED_NESTING,
+            )
+        assertEquals(1, found.size)
+        assertTrue(found.single().message.endsWith("has a collection element"))
+        assertEquals("wrap the element in a record", found.single().help)
+    }
+
+    @Test
+    fun `invalid field numbers carry help`() {
+        val found =
+            diagnostics(
+                """
+                namespace t
+
+                record R { #600000000 x: bool }
+                """
+                    .trimIndent(),
+                ProtoCodes.INVALID_FIELD_NUMBER,
+            )
+        assertEquals(1, found.size)
+        assertTrue(found.single().help != null)
     }
 }

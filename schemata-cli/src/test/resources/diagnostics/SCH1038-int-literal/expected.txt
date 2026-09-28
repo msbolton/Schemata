@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1038]: max for int32 must be an integer literal
+ --> s.schemata:2:24
+  = help: write a whole number
+
+1 error, 0 warnings

@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(key) #1 id: int32  #2 a_very_long_field_name_that_goes_on_and_on_past_the_postgres_limit_of_sixty_three_bytes: bool }

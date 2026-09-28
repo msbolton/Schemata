@@ -49,6 +49,7 @@ object ProtoLowering {
                         ProtoCodes.NAME_COLLISION,
                         "namespaces ${names.joinToString(" and ")} both lower to package '${packages.getValue(names.first())}'",
                         second.span,
+                        help = "set `@proto(package = \"…\")` on one namespace",
                     )
             }
         val files =
@@ -72,6 +73,7 @@ object ProtoLowering {
                     invalidOverride(
                         "namespace '${namespace.name}': @proto(package = \"$it\") is not a valid package name",
                         namespace.span,
+                        help = "use dotted lower-case identifiers, for example `shop.orders.v1`",
                     )
                 }
             }
@@ -348,8 +350,9 @@ object ProtoLowering {
             diagnostics +=
                 Diagnostic(
                     ProtoCodes.UNSUPPORTED_NESTING,
-                    "$where: proto cannot nest collections; wrap the element of ${ProtoTypes.text(owner)} in a record",
+                    "$where: proto cannot nest collections; ${ProtoTypes.text(owner)} has a collection element",
                     span,
+                    help = "wrap the element in a record",
                 )
             return ProtoType.Scalar("bytes") // never rendered: the error above prevents rendering
         }
@@ -441,19 +444,23 @@ object ProtoLowering {
             diagnostics += Diagnostic(ProtoCodes.LOSSY, message, span, help)
         }
 
-        private fun invalidOverride(message: String, span: Span) {
-            diagnostics += Diagnostic(ProtoCodes.INVALID_OVERRIDE, message, span)
+        private fun invalidOverride(message: String, span: Span, help: String) {
+            diagnostics += Diagnostic(ProtoCodes.INVALID_OVERRIDE, message, span, help)
         }
 
         /** Checks a `@proto(name)` override as written, before anything is named from it. */
         private fun nameOverride(where: String, annotations: Annotations, span: Span) {
             val value = ProtoNames.override(annotations, "name") ?: return
             if (ProtoNames.isIdentifier(value)) return
-            invalidOverride("$where: @proto(name = \"$value\") is not a valid identifier", span)
+            invalidOverride(
+                "$where: @proto(name = \"$value\") is not a valid identifier",
+                span,
+                help = "use letters, digits, and underscores, starting with a letter",
+            )
         }
 
-        private fun invalidNumber(message: String, span: Span) {
-            diagnostics += Diagnostic(ProtoCodes.INVALID_FIELD_NUMBER, message, span)
+        private fun invalidNumber(message: String, span: Span, help: String) {
+            diagnostics += Diagnostic(ProtoCodes.INVALID_FIELD_NUMBER, message, span, help)
         }
 
         /** The numbers proto refuses for a field or a oneof member. */
@@ -462,6 +469,7 @@ object ProtoLowering {
                 invalidNumber(
                     "$where: field number $number exceeds the Protobuf maximum $MAX_NUMBER",
                     span,
+                    help = "use an ordinal of at most $MAX_NUMBER",
                 )
             }
             if (number in IMPLEMENTATION_NUMBERS) {
@@ -469,6 +477,9 @@ object ProtoLowering {
                     "$where: field number $number is reserved for the Protobuf implementation " +
                         "(${IMPLEMENTATION_NUMBERS.first} to ${IMPLEMENTATION_NUMBERS.last})",
                     span,
+                    help =
+                        "use an ordinal outside ${IMPLEMENTATION_NUMBERS.first} to " +
+                            "${IMPLEMENTATION_NUMBERS.last}",
                 )
             }
         }
@@ -485,12 +496,17 @@ object ProtoLowering {
         ) {
             ranges.forEach {
                 if (it.first < 1) {
-                    invalidNumber("$where: reserved number ${it.first} must be positive", span)
+                    invalidNumber(
+                        "$where: reserved number ${it.first} must be positive",
+                        span,
+                        help = "reserve ordinals from #1 upward",
+                    )
                 }
                 if (bounded && it.last > MAX_NUMBER) {
                     invalidNumber(
                         "$where: reserved number ${it.last} exceeds the Protobuf maximum $MAX_NUMBER",
                         span,
+                        help = "reserve ordinals of at most $MAX_NUMBER",
                     )
                 }
             }
@@ -502,6 +518,7 @@ object ProtoLowering {
                             "$where: reserved range ${later.first} to ${later.last} overlaps " +
                                 "${earlier.first} to ${earlier.last}",
                             span,
+                            help = "merge or separate the two ranges",
                         )
                     }
                 }
@@ -525,6 +542,7 @@ object ProtoLowering {
                         ProtoCodes.NAME_COLLISION,
                         "proto name '${symbol.protoName}' is already used by ${previous.holder}$location",
                         symbol.span,
+                        help = "rename one of them, or set `@proto(name = \"…\")` on one",
                     )
             }
         }

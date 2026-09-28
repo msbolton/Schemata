@@ -50,6 +50,8 @@ class Resolver(
                             CoreCodes.UNKNOWN_IMPORT,
                             "import '${imp.namespace}' does not name a namespace in this compilation",
                             imp.span,
+                            help =
+                                "add the file that declares `namespace ${imp.namespace}` to the compilation, or fix the import",
                         )
                         usedImports += imp // never reported as unused as well
                     }
@@ -68,6 +70,7 @@ class Resolver(
                             CoreCodes.UNUSED_IMPORT,
                             "import '${it.namespace}' is unused",
                             it.span,
+                            help = "remove the import",
                         )
                 }
         }
@@ -88,16 +91,19 @@ class Resolver(
                     if (key.nullable) {
                         error(
                             CoreCodes.NULLABLE_MAP_KEY,
-                            "map keys may not be nullable",
+                            "map key ${expr.args[0].text()} is nullable",
                             expr.args[0].span,
+                            help = "write the key type without `?`",
                         )
                         return@generic null
                     }
                     if ((key.type as? Scalar)?.builtin !in mapKeyTypes) {
                         error(
                             CoreCodes.MAP_KEY_TYPE,
-                            "map keys must be string, int32, or int64",
+                            "map key ${expr.args[0].text()} must be string, int32, or int64",
                             expr.args[0].span,
+                            help =
+                                "use one of the three key types, or store the entries as a list of records",
                         )
                         return@generic null
                     }
@@ -108,7 +114,12 @@ class Resolver(
                 }
         }
         if (expr.args.isNotEmpty()) {
-            error(CoreCodes.NOT_GENERIC, "'${expr.name}' is not generic", expr.nameSpan)
+            error(
+                CoreCodes.NOT_GENERIC,
+                "'${expr.name}' is not generic",
+                expr.nameSpan,
+                help = "remove the type arguments; only `list` and `map` take them",
+            )
             return null
         }
         return when (val found = lookup(expr.name, expr.nameSpan, scope) ?: return null) {
@@ -131,8 +142,9 @@ class Resolver(
             val plural = if (arity == 1) "argument" else "arguments"
             error(
                 CoreCodes.GENERIC_ARITY,
-                "${expr.name} takes $arity type $plural, got ${expr.args.size}",
+                "'${expr.name}' takes $arity type $plural; got ${expr.args.size}",
                 expr.nameSpan,
+                help = if (expr.name == "list") "write `list<T>`" else "write `map<K, V>`",
             )
             return null
         }
@@ -154,14 +166,19 @@ class Resolver(
     private fun declared(entry: IndexedDecl, expr: TypeExpr): Resolved? {
         val alias = entry.decl as? AliasDecl
         if (expr.refinements.isNotEmpty()) {
-            val message =
-                if (alias != null) "'${alias.name}' is an alias; refine it where it is declared"
-                else {
-                    val kind = DeclarationIndex.kindOf(entry.decl)
-                    val article = if (kind == "enum") "an" else "a"
+            val message: String
+            val help: String
+            if (alias != null) {
+                message = "'${alias.name}' is an alias and takes no refinements here"
+                help = "refine the alias where it is declared, or write the builtin type here"
+            } else {
+                val kind = DeclarationIndex.kindOf(entry.decl)
+                val article = if (kind == "enum") "an" else "a"
+                message =
                     "'${entry.decl.name}' is $article $kind; only builtin types and collections take refinements"
-                }
-            error(CoreCodes.REFINEMENT_NOT_ALLOWED, message, expr.refinements.first().span)
+                help = "remove the parentheses"
+            }
+            error(CoreCodes.REFINEMENT_NOT_ALLOWED, message, expr.refinements.first().span, help)
             return null
         }
         if (alias == null) return Resolved(Ref(entry.qualifiedName), expr.nullable, null)
@@ -169,8 +186,9 @@ class Resolver(
         if (target.nullable && expr.nullable) {
             error(
                 CoreCodes.DOUBLE_NULLABLE,
-                "'${alias.name}' is already nullable; remove the '?'",
+                "'${alias.name}' is already nullable",
                 expr.span,
+                help = "remove the `?`",
             )
             return null
         }
@@ -180,7 +198,12 @@ class Resolver(
     private fun aliasTarget(entry: IndexedDecl, alias: AliasDecl, at: Span): Resolved? {
         if (entry.qualifiedName in aliasTargets) return aliasTargets[entry.qualifiedName]
         if (!resolvingAliases.add(entry.qualifiedName)) {
-            error(CoreCodes.ALIAS_CYCLE, "alias '${alias.name}' refers to itself", at)
+            error(
+                CoreCodes.ALIAS_CYCLE,
+                "alias '${alias.name}' refers to itself",
+                at,
+                help = "point the alias at a builtin or a declared type",
+            )
             return null
         }
         try {
@@ -214,11 +237,16 @@ class Resolver(
             listOfNotNull(index.find(QualifiedName(scope.namespace, listOf(head)))) +
                 imported(head, scope)
         if (candidates.size > 1) {
-            val where =
-                candidates
-                    .sortedWith(compareBy({ it.file.path }, { it.decl.nameSpan.startLine }))
-                    .joinToString(", ") { "${it.file.path}:${it.decl.nameSpan.startLine}" }
-            error(CoreCodes.AMBIGUOUS_TYPE, "ambiguous type '$head': $where", at)
+            val sorted =
+                candidates.sortedWith(compareBy({ it.file.path }, { it.decl.nameSpan.startLine }))
+            val where = sorted.joinToString(", ") { it.qualifiedName.toString() }
+            error(
+                CoreCodes.AMBIGUOUS_TYPE,
+                "type '$head' is ambiguous; candidates: $where",
+                at,
+                help =
+                    "write the qualified name, for example `${sorted.first().qualifiedName}`, or alias one import",
+            )
             return null
         }
         candidates.singleOrNull()?.let {
@@ -239,7 +267,13 @@ class Resolver(
             Builtin.byName(head)?.let {
                 return Found.Builtin(it)
             }
-        error(CoreCodes.UNKNOWN_TYPE, "unknown type '$name'", at)
+        error(
+            CoreCodes.UNKNOWN_TYPE,
+            "unknown type '$name'",
+            at,
+            help =
+                "declare `$name`, import the namespace that declares it, or check the spelling against the builtin types",
+        )
         return null
     }
 
@@ -295,6 +329,8 @@ class Resolver(
                     CoreCodes.NESTED_TYPE_NOT_FOUND,
                     "type '${current.decl.name}' has no nested type '$segment'",
                     at,
+                    help =
+                        "declare `$segment` inside `${current.decl.name}`, or refer to it by its own qualified name",
                 )
                 return null
             }
@@ -303,7 +339,13 @@ class Resolver(
         return Found.Decl(current)
     }
 
-    private fun error(code: DiagnosticCode, message: String, span: Span) {
-        diagnostics += Diagnostic(code, message, span)
+    private fun error(code: DiagnosticCode, message: String, span: Span, help: String? = null) {
+        diagnostics += Diagnostic(code, message, span, help)
     }
+}
+
+/** The type as the user wrote it: its name, generic args recursively, and a trailing `?`. */
+internal fun TypeExpr.text(): String {
+    val base = if (args.isEmpty()) name else "$name<${args.joinToString(", ") { it.text() }}>"
+    return if (nullable) "$base?" else base
 }

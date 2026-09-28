@@ -1,0 +1,5 @@
+error[SCH1009]: type 'T' is ambiguous; candidates: a.T, b.T
+ --> c.schemata:4:18
+  = help: write the qualified name, for example `a.T`, or alias one import
+
+1 error, 0 warnings

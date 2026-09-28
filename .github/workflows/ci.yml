@@ -10,9 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew build --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: schemata-jar
+          path: schemata-cli/build/libs/schemata-[0-9]*.jar
+          if-no-files-found: error

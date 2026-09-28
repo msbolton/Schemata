@@ -1,0 +1,5 @@
+error[SCH1020]: ordinal #2 is reserved in record 'R'
+ --> s.schemata:2:37
+  = help: pick another ordinal; the next free one is #3
+
+1 error, 0 warnings

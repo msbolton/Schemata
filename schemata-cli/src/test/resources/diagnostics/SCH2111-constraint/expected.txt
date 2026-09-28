@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2111] (sql): constraint name 'ck_r_c_kind' is already used on table 'r'
+ --> s.schemata:4:39
+  = help: rename one of the constrained fields; constraint names derive from field names
+
+1 error, 0 warnings

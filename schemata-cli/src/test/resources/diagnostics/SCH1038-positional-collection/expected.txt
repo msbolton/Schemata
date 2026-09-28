@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1038]: only decimal takes positional refinements
+ --> s.schemata:2:29
+  = help: name the refinement: `list(max = …)`
+
+1 error, 0 warnings

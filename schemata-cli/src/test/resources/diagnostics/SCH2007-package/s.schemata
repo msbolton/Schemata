@@ -1,0 +1,3 @@
+@proto(package = "Bad Name")
+namespace s
+record R { #1 x: bool }

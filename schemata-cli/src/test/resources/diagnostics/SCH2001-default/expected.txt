@@ -1,0 +1,6 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): field 'R.n': default 3 is not carried by proto3
+ --> s.schemata:2:36
+  = help: drop the default or apply it in application code; proto3 has no field defaults
+
+0 errors, 1 warning

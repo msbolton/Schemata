@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1042]: default for string must be a string literal
+ --> s.schemata:2:27
+  = help: quote the default: `= "…"`
+
+1 error, 0 warnings

@@ -2,6 +2,7 @@ plugins {
     id("buildsrc.convention.kotlin-jvm")
     id("buildsrc.convention.protoc-tests")
     application
+    alias(libs.plugins.shadow)
 }
 
 dependencies {
@@ -19,4 +20,27 @@ dependencies {
 application {
     mainClass = "io.schemata.cli.MainKt"
     applicationName = "schemata"
+}
+
+tasks.jar {
+    manifest {
+        attributes(
+            "Implementation-Title" to "schemata",
+            "Implementation-Version" to project.version,
+        )
+    }
+}
+
+tasks.shadowJar {
+    archiveBaseName = "schemata"
+    archiveClassifier = ""
+    mergeServiceFiles()
+}
+
+// The archive path is fixed by configuration, not execution, so reading it here is safe.
+val fatJar = tasks.shadowJar.get().archiveFile
+
+tasks.test {
+    inputs.file(fatJar)
+    systemProperty("schemata.fatJar", fatJar.get().asFile.absolutePath)
 }

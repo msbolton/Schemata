@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2101] (sql): records A and B both lower to table 't'
+ --> s.schemata:2:1
+  = help: set `@sql(table = "…")` on one of them
+
+1 error, 0 warnings

@@ -1,0 +1,3 @@
+namespace s
+record PkR { @sql(key) #1 id: int32 }
+record R { @sql(key) #1 id: int32 }

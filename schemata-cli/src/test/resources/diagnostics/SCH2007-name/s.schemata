@@ -1,0 +1,2 @@
+namespace s
+record R { @proto(name = "1x") #1 x: bool }

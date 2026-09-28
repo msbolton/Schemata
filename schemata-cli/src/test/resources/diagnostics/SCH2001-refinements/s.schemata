@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(key) #1 id: int32  #2 s: string(max = 3) }
