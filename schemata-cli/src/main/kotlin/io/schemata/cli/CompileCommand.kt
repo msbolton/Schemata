@@ -99,11 +99,12 @@ internal fun emit(
 ) {
     val terminal = command.currentContext.terminal
     val ansiSupported = terminal.terminalInfo.ansiLevel != AnsiLevel.NONE
+    val width = if (terminal.terminalInfo.outputInteractive) terminal.size.width else 100
     when (reporting.format) {
         Format.JSON -> terminal.rawPrint(JsonRenderer.report(report, out))
         Format.HUMAN ->
             terminal.rawPrint(
-                HumanRenderer.render(report, sources, reporting.palette(ansiSupported), out),
+                HumanRenderer.render(report, sources, reporting.palette(ansiSupported), out, width),
                 stderr = true,
             )
     }
