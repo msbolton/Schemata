@@ -10,7 +10,7 @@ Every file begins with a namespace declaration: `namespace a.b.c`. Each segment 
 Several files may share a namespace; the compilation unit is the whole set of files given on the
 command line, with any directories walked recursively. Output paths follow the namespace, so
 `namespace shop.orders` writes `shop/orders.proto` and `shop/orders.sql`. A doc comment and any
-annotations may precede the `namespace` line itself; section 15 shows both.
+annotations may precede the `namespace` line itself; section 15 shows annotations there, and `examples/shop/orders.schemata` shows a doc comment.
 
 By default, a namespace's Postgres schema is its last segment: `shop.orders` lowers to schema
 `"orders"`. Two namespaces with the same last segment collide (SCH2102) unless one sets
