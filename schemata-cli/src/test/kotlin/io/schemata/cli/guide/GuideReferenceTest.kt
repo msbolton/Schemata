@@ -8,10 +8,9 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every ```schemata block in the reference compiles through both targets without an error; every
- *
- * ```schemata error block reports at least one. A block may hold several files separated by a line
- * `--- <name>.schemata`; otherwise it is `example.schemata`.
+ * Every fenced `schemata` block in the reference compiles through both targets without an error;
+ * every block fenced `schemata error` must report at least one error. A block may hold several
+ * files separated by a line `--- <name>.schemata`; otherwise it is `example.schemata`.
  */
 class GuideReferenceTest {
     private val file = File(Guide.dir, "reference.md")

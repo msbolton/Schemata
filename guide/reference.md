@@ -114,11 +114,11 @@ record OrderLine {
 ## 4. Identifiers and naming
 
 Namespace segments and field names are lower_snake. Type names (record, enum, union, alias) are
-UpperCamel. Enum values are lower_snake. No name in a `.schemata` file, whether a declaration, a
-field, or an enum value, may be one of the language's reserved words: `namespace`, `import`, `as`,
-`record`, `enum`, `union`, `alias`, `reserved`, `true`, `false`, `service`, `operation`, `stream`.
-`service`, `operation`, and `stream` are held for a future version of the language. Naming
-violations are errors, and most name the corrected spelling.
+UpperCamel. Enum values are lower_snake. Every naming diagnostic's help suggests the corrected
+name. No name in a `.schemata` file, whether a declaration, a field, or an enum value, may be one
+of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`, `union`, `alias`,
+`reserved`, `true`, `false`, `service`, `operation`, `stream`. `service`, `operation`, and `stream`
+are held for a future version of the language.
 
 ```schemata
 namespace shop.orders
@@ -144,26 +144,28 @@ record order_line {
 
 ## 5. Builtin types and refinements
 
-| Type | Protobuf | Postgres | Refinements |
-|---|---|---|---|
-| `bool` | `bool` | `boolean` | none |
-| `int32` | `int32` | `integer` | `min`, `max` |
-| `int64` | `int64` | `bigint` | `min`, `max` |
-| `float32` | `float` | `real` | `min`, `max` |
-| `float64` | `double` | `double precision` | `min`, `max` |
-| `decimal(p, s)` | `string` (lossy) | `numeric(p, s)` | `min`, `max` |
-| `string` | `string` | `varchar` or `text` | `min`, `max`, `pattern` |
-| `bytes` | `bytes` | `bytea` | `min`, `max` |
-| `uuid` | `string` (lossy) | `uuid` | none |
-| `date` | `string` (lossy) | `date` | none |
-| `time` | `string` (lossy) | `time` | none |
-| `instant` | `google.protobuf.Timestamp` | `timestamptz` | none |
-| `duration` | `google.protobuf.Duration` | `interval` | none |
+| Type | Meaning | Protobuf | Postgres | Refinements |
+|---|---|---|---|---|
+| `bool` | true or false | `bool` | `boolean` | none |
+| `int32` | 32-bit signed integer | `int32` | `integer` | `min`, `max` |
+| `int64` | 64-bit signed integer | `int64` | `bigint` | `min`, `max` |
+| `float32` | 32-bit floating point | `float` | `real` | `min`, `max` |
+| `float64` | 64-bit floating point | `double` | `double precision` | `min`, `max` |
+| `decimal(p, s)` | exact decimal with p digits, s after the point | `string` (lossy) | `numeric(p, s)` | `min`, `max` |
+| `string` | text | `string` | `varchar` or `text` | `min`, `max`, `pattern` |
+| `bytes` | raw binary | `bytes` | `bytea` | `min`, `max` |
+| `uuid` | a UUID | `string` (lossy) | `uuid` | none |
+| `date` | a calendar date | `string` (lossy) | `date` | none |
+| `time` | a time of day without a date | `string` (lossy) | `time` | none |
+| `instant` | a point in time, UTC | `google.protobuf.Timestamp` | `timestamptz` | none |
+| `duration` | a span of time | `google.protobuf.Duration` | `interval` | none |
 
 For a number, `min` and `max` are bounds. For `string`, `min` and `max` are lengths and `pattern`
-is a regular expression, in the subset Java and Postgres both accept. `decimal` takes its precision
-and scale positionally: `decimal(19, 4)`. Postgres enforces refinements as CHECK constraints.
-Protobuf carries no constraints; a refined field lowers to its plain type and reports SCH2001.
+is a regular expression. The compiler checks only that Java accepts the pattern; keeping to the
+subset Postgres also accepts is your job. `decimal` takes its precision and scale positionally:
+`decimal(19, 4)`. Postgres enforces refinements as column types or CHECK constraints; a
+`string(max = 100)` becomes `varchar(100)`. Protobuf carries no constraints; a refined field lowers
+to its plain type and reports SCH2001.
 
 ```schemata
 namespace shop.orders
@@ -182,7 +184,7 @@ record OrderLine {
 `T?` means the field's value may be absent. A nullable field lowers to a nullable column in
 Postgres and, in Protobuf, to a wrapper or optional field, as the lowering section later in this
 reference shows. A map key may not be nullable. A nullable alias may not be marked `?` again where
-it is used.
+it is used; section 8 shows an alias declared nullable and a field that uses it bare.
 
 ```schemata
 namespace shop.orders
@@ -206,9 +208,8 @@ record OrderLine {
 ## 7. Defaults
 
 `= literal` after the type gives a field its default. The literal must fit the type and any
-refinements it carries. `= null` is an error; write `T?` instead, since a nullable field is already
-null when absent. An enum default names one of its values. Postgres carries defaults into the
-column; Protobuf does not, and reports SCH2001.
+refinements it carries. `= null` is an error; write `T?` instead. An enum default names one of its
+values. Postgres carries defaults into the column; Protobuf does not, and reports SCH2001.
 
 ```schemata
 namespace shop.orders
@@ -239,17 +240,20 @@ record OrderLine {
 ## 8. Aliases
 
 `alias Money = decimal(19, 4)` gives a refined type a name. You use the alias by name; you may not
-add refinements where it is used, only where it is declared. An alias may be marked nullable.
+add refinements where it is used, only where it is declared. An alias may be marked nullable, but
+the `?` belongs on the alias declaration itself; a field that uses the alias writes its bare name.
 
 ```schemata
 namespace shop.orders
 
 alias Money = decimal(19, 4)
+alias OptionalMoney = decimal(19, 4)?
 
 record OrderLine {
   @sql(key) #1 id: int64
   #2 price: Money
   #3 discount: Money?
+  #4 tip: OptionalMoney
 }
 ```
 
