@@ -1,0 +1,7 @@
+error[SCH0001]: extraneous input 'x' expecting …
+ --> shop/orders.schemata:3:0
+  |
+3 | record Order {
+  | ^
+
+1 error, 0 warnings

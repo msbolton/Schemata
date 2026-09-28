@@ -64,10 +64,14 @@ object HumanRenderer {
         return "$severity[${d.code.id}]$tags: ${palette.bold}${d.message}${palette.reset}"
     }
 
-    /** A 1-based column in the raw line, moved to the same character in the tab-expanded line. */
+    /**
+     * A 1-based column in the raw line, moved to the same character in the tab-expanded line.
+     * Clamped to at least 1: ANTLR reports some spans (an "extraneous input" at line start) at
+     * column 0.
+     */
     private fun column(raw: String, column: Int): Int {
         var expanded = 0
-        raw.take(column - 1).forEach { expanded += if (it == '\t') TAB.length else 1 }
+        raw.take(maxOf(1, column) - 1).forEach { expanded += if (it == '\t') TAB.length else 1 }
         return expanded + 1
     }
 
