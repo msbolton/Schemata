@@ -71,7 +71,7 @@ class CompileCommand : CliktCommand(name = "compile") {
 
 /** Resolves `--target`; every registered target when absent. */
 internal fun selectTargets(names: List<String>?): List<Target<*>> =
-    names?.map { name ->
+    names?.distinct()?.map { name ->
         Pipeline.targetNamed(name)
             ?: throw UsageError(
                 "unknown target '$name'; available: ${Pipeline.targets.joinToString(", ") { it.name }}"

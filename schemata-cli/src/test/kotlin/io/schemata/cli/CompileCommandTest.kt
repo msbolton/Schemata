@@ -187,6 +187,26 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `duplicate --target names lower once`() {
+        val (src, out) = tempSources("customers.schemata" to customers)
+        val duplicated = CompileCommand().test("--target proto,proto --out $out $src")
+        val (src2, out2) = tempSources("customers.schemata" to customers)
+        val single = CompileCommand().test("--target proto --out $out2 $src2")
+        assertEquals(
+            1,
+            duplicated.stderr.lines().count {
+                it.contains("wrote") && it.contains("to $out/proto")
+            },
+            duplicated.stderr,
+        )
+        assertEquals(single.statusCode, duplicated.statusCode)
+        assertEquals(
+            single.stderr.lines().count { it.startsWith("warning[SCH2001]") },
+            duplicated.stderr.lines().count { it.startsWith("warning[SCH2001]") },
+        )
+    }
+
+    @Test
     fun `a write failure is reported as a one-line message with exit 1`() {
         val (src, out) = tempSources("customers.schemata" to customers)
         val blocker = out.parent.resolve("blocker")
