@@ -12,7 +12,8 @@ import kotlin.test.assertEquals
 
 class HelpTextTest {
     // A core-only registry has no target-style key (every core spec has target ""), so
-    // UNKNOWN_ANNOTATION_KEY can never fire; add one fake target key to reach it.
+    // UNKNOWN_ANNOTATION_KEY can never fire; add fake target keys to reach it, one per element,
+    // so the choice between them can be tested too.
     private val registryWithTarget =
         AnnotationRegistry(
             CoreAnnotations.specs +
@@ -23,7 +24,14 @@ class HelpTextTest {
                         elements = setOf(Element.FIELD),
                         valueKind = ValueKind.FLAG,
                         role = Role.STRATEGY,
-                    )
+                    ),
+                    AnnotationSpec(
+                        target = "sql",
+                        key = "table",
+                        elements = setOf(Element.RECORD),
+                        valueKind = ValueKind.STRING,
+                        role = Role.NAME,
+                    ),
                 )
         )
 
@@ -47,7 +55,7 @@ class HelpTextTest {
     @Test
     fun `unknown refinement names an allowed one`() {
         assertEquals(
-            "write one of the allowed refinements, for example `string(max = ...)`",
+            "write one of the allowed refinements, for example `string(max = …)`",
             help("namespace t\nrecord R { #1 x: string(size = 3) }", "SCH1037"),
         )
         assertEquals(
@@ -57,10 +65,26 @@ class HelpTextTest {
     }
 
     @Test
-    fun `unknown annotation key names an allowed one`() {
+    fun `unknown annotation key names an allowed one for the element it was written on`() {
         assertEquals(
             "write one of the listed keys, for example `@sql(key)`",
             help("namespace t\nrecord R { @sql(bogus) #1 x: bool }", "SCH1016"),
+        )
+        assertEquals(
+            "write one of the listed keys, for example `@sql(table)`",
+            help("namespace t\n@sql(bogus) record R { #1 x: bool }", "SCH1016"),
+        )
+    }
+
+    @Test
+    fun `needs at least one key suggests one allowed for the element it was written on`() {
+        assertEquals(
+            "write `@sql(key)`",
+            help("namespace t\nrecord R { @sql() #1 x: bool }", "SCH1018"),
+        )
+        assertEquals(
+            "write `@sql(table = \"…\")`",
+            help("namespace t\n@sql() record R { #1 x: bool }", "SCH1018"),
         )
     }
 

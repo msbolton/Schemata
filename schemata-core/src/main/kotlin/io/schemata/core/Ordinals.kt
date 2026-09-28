@@ -102,6 +102,7 @@ object Ordinals {
                         )
                 }
         }
+        val allExplicit = elements.mapNotNull { it.ordinal }.toSet()
         val seen = mutableSetOf<Int>()
         return elements.mapIndexed { index, element ->
             val ordinal = element.ordinal ?: (index + 1)
@@ -122,7 +123,7 @@ object Ordinals {
                             "ordinal #$ordinal is used more than once in $kind '$name'",
                             at,
                             help =
-                                "give each element its own ordinal; the next free one is #${nextFree(seen, reserved.ordinals)}",
+                                "give each element its own ordinal; the next free one is #${nextFree(allExplicit, reserved.ordinals)}",
                         )
             }
             if (element.name in reserved.names) {
@@ -142,7 +143,7 @@ object Ordinals {
                         "ordinal #$ordinal is reserved in $kind '$name'",
                         at,
                         help =
-                            "pick another ordinal; the next free one is #${nextFree(seen, reserved.ordinals)}",
+                            "pick another ordinal; the next free one is #${nextFree(allExplicit, reserved.ordinals)}",
                     )
             }
             ordinal

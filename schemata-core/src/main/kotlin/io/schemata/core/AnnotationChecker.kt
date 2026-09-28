@@ -29,12 +29,15 @@ class AnnotationChecker(
             when {
                 registry.hasTarget(annotation.name) -> {
                     if (annotation.args.isEmpty()) {
+                        val targetSpecs = registry.specs(annotation.name)
+                        val spec =
+                            targetSpecs.firstOrNull { element in it.elements }
+                                ?: targetSpecs.first()
                         report(
                             CoreCodes.ANNOTATION_VALUE,
                             "@${annotation.name} needs at least one key",
                             annotation.span,
-                            help =
-                                "write `@${annotation.name}(${registry.keys(annotation.name).first()})`",
+                            help = writeHelp(annotation.name, spec),
                         )
                     }
                     annotation.args.forEach { targetArg(annotation.name, it, element, entries) }
@@ -117,13 +120,16 @@ class AnnotationChecker(
         val specs = registry.find(target, key)
         if (specs.isEmpty()) {
             val keys = registry.keys(target)
+            val targetSpecs = registry.specs(target)
+            val suggestion =
+                targetSpecs.firstOrNull { element in it.elements } ?: targetSpecs.firstOrNull()
             report(
                 CoreCodes.UNKNOWN_ANNOTATION_KEY,
                 "'$key' is not a key of @$target; keys: ${keys.joinToString(", ")}",
                 span,
                 help =
-                    if (keys.isEmpty()) "remove the annotation; @$target has no keys"
-                    else "write one of the listed keys, for example `@$target(${keys.first()})`",
+                    if (suggestion == null) "remove the annotation; @$target has no keys"
+                    else "write one of the listed keys, for example `@$target(${suggestion.key})`",
             )
             return
         }
@@ -146,12 +152,7 @@ class AnnotationChecker(
                 CoreCodes.ANNOTATION_VALUE,
                 "$display ${expected(spec)}",
                 span,
-                help =
-                    when {
-                        spec.valueKind == ValueKind.FLAG -> "write `${example(spec)}`"
-                        target.isEmpty() -> "write `@$key(${example(spec)})`"
-                        else -> "write `@$target($key = ${example(spec)})`"
-                    },
+                help = writeHelp(target, spec),
             )
             return
         }
@@ -196,6 +197,14 @@ class AnnotationChecker(
                 spec.choices?.let { "expects one of: ${it.sorted().joinToString(", ")}" }
                     ?: "expects a name"
             ValueKind.NAME_TUPLE -> "expects a tuple of names: (a, b)"
+        }
+
+    /** A "write it like this" help message for writing [spec]'s key under [target]. */
+    private fun writeHelp(target: String, spec: AnnotationSpec): String =
+        when {
+            spec.valueKind == ValueKind.FLAG -> "write `${example(spec)}`"
+            target.isEmpty() -> "write `@${spec.key}(${example(spec)})`"
+            else -> "write `@$target(${spec.key} = ${example(spec)})`"
         }
 
     /** An example value for [spec]'s kind, for a "write it like this" help message. */

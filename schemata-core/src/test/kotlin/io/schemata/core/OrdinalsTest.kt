@@ -133,4 +133,22 @@ class OrdinalsTest {
             r.diagnostics.single { it.code.id == "SCH1019" }.help,
         )
     }
+
+    @Test
+    fun `the next free ordinal considers every explicit ordinal, not only those seen so far`() {
+        val r = analyze("namespace a\nrecord R { #1 a: bool  #1 b: bool  #2 c: bool }")
+        assertEquals(
+            "give each element its own ordinal; the next free one is #3",
+            r.diagnostics.single { it.code.id == "SCH1019" }.help,
+        )
+    }
+
+    @Test
+    fun `the next free ordinal is unaffected by scan order across a duplicate and a reservation`() {
+        val r = analyze("namespace a\nenum E { #1 x, #4 y, #4 z, #2 w\n reserved #3 }")
+        assertEquals(
+            "give each element its own ordinal; the next free one is #5",
+            r.diagnostics.single { it.code.id == "SCH1019" }.help,
+        )
+    }
 }

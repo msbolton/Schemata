@@ -154,7 +154,7 @@ object DefaultChecker {
                         is Literal.FloatLit -> BigDecimal(literal.text)
                         else ->
                             return reject(
-                                "default for $name must be a numeric literal",
+                                "default for $name must be a number",
                                 literal.span,
                                 diagnostics,
                                 help = "write a number",
