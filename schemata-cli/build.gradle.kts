@@ -2,6 +2,7 @@ plugins {
     id("buildsrc.convention.kotlin-jvm")
     id("buildsrc.convention.protoc-tests")
     application
+    alias(libs.plugins.shadow)
 }
 
 dependencies {
@@ -28,4 +29,17 @@ tasks.jar {
             "Implementation-Version" to project.version,
         )
     }
+}
+
+tasks.shadowJar {
+    archiveBaseName = "schemata"
+    archiveClassifier = ""
+    mergeServiceFiles()
+}
+
+val fatJar = tasks.shadowJar.get().archiveFile
+
+tasks.test {
+    inputs.file(fatJar)
+    systemProperty("schemata.fatJar", fatJar.get().asFile.absolutePath)
 }

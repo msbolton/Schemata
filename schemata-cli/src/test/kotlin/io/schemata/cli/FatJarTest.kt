@@ -1,0 +1,50 @@
+package io.schemata.cli
+
+import java.io.File
+import java.util.concurrent.TimeUnit
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
+
+/** The shaded jar runs the command surface end to end with `java -jar`. */
+class FatJarTest {
+    private val jar = System.getProperty("schemata.fatJar")?.let(::File)
+    private val corpus = File("src/test/resources/corpus/worked-example")
+    private val java = File(System.getProperty("java.home"), "bin/java")
+
+    private fun run(vararg args: String): Triple<Int, String, String> {
+        val process =
+            ProcessBuilder(listOf(java.path, "-jar", jar!!.path) + args)
+                .redirectErrorStream(false)
+                .start()
+        val out = process.inputStream.bufferedReader().readText()
+        val err = process.errorStream.bufferedReader().readText()
+        assertTrue(process.waitFor(60, TimeUnit.SECONDS), "timed out")
+        return Triple(process.exitValue(), out, err)
+    }
+
+    @Test
+    fun `check --format json on the worked example exits 2 with one document`() {
+        assumeTrue(
+            jar != null && jar.isFile,
+            "shadow jar not built; run ./gradlew :schemata-cli:shadowJar",
+        )
+        val (code, out, err) = run("check", "--format", "json", corpus.path)
+        assertEquals(2, code, err)
+        assertEquals("", err)
+        assertTrue(out.startsWith("{\n  \"diagnostics\": ["), out)
+        assertTrue(out.contains("\"exitCode\": 2"), out)
+    }
+
+    @Test
+    fun `--version reads the manifest`() {
+        assumeTrue(jar != null && jar.isFile)
+        val (code, out, _) = run("--version")
+        assertEquals(0, code)
+        assertTrue(
+            Regex("""schemata \d+\.\d+\.\d+(-dev\+[0-9a-f]{7})?(-dirty)?\n""").matches(out),
+            out,
+        )
+    }
+}
