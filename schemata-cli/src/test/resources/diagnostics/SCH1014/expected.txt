@@ -1,0 +1,6 @@
+# strict
+error[SCH1014]: field 'x' has no explicit ordinal (--strict)
+ --> s.schemata:2:12
+  = help: write `#n` before every field and enum value, starting at #1 in declaration order
+
+1 error, 0 warnings

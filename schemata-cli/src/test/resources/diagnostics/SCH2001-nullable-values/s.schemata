@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(key) #1 id: uuid  #2 m: map<string, string?> }

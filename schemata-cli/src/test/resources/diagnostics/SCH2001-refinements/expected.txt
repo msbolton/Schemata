@@ -1,0 +1,10 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): field 'R.id': uuid has no Protobuf representation; lowered to string
+ --> s.schemata:2:12
+  = help: keep the string form; parse it in application code
+
+warning[SCH2001] (lossy) (proto): field 'R.s': refinements on string(max = 3) are not enforced by Protobuf
+ --> s.schemata:2:35
+  = help: enforce the refinement in application code; Protobuf carries no constraints
+
+0 errors, 2 warnings

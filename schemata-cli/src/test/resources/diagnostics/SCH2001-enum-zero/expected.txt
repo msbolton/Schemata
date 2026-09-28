@@ -1,0 +1,6 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): enum 'C': proto3 requires a zero value; synthesized C_UNSPECIFIED = 0
+ --> s.schemata:2:6
+  = help: keep the synthesized zero value; proto3 reads an unset enum as 0
+
+0 errors, 1 warning

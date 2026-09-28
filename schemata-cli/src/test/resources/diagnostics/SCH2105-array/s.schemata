@@ -1,0 +1,2 @@
+namespace s
+record R { @sql(key) #1 id: uuid  #2 tags: list<string(max = 3)> }

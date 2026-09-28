@@ -1,0 +1,10 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): field 'R.id': uuid has no Protobuf representation; lowered to string
+ --> s.schemata:2:12
+  = help: keep the string form; parse it in application code
+
+warning[SCH2001] (lossy) (proto): field 'R.t': nullable list elements have no Protobuf representation; lowered to repeated
+ --> s.schemata:2:35
+  = help: declare the list as `list<T>` with non-nullable elements; an empty list already means
+
+0 errors, 2 warnings

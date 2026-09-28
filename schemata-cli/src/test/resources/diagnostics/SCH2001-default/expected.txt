@@ -1,0 +1,10 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): field 'R.id': uuid has no Protobuf representation; lowered to string
+ --> s.schemata:2:12
+  = help: keep the string form; parse it in application code
+
+warning[SCH2001] (lossy) (proto): field 'R.n': default 3 is not carried by proto3
+ --> s.schemata:2:35
+  = help: drop the default or apply it in application code; proto3 has no field defaults
+
+0 errors, 2 warnings

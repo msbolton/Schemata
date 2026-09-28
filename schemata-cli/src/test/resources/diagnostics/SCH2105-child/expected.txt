@@ -1,0 +1,6 @@
+# targets=sql
+warning[SCH2105] (lossy) (sql): field 'R.items': refinements on list<Item>(max = 5) are not enforced by Postgres
+ --> s.schemata:3:35
+  = help: enforce the collection bound in application code; child tables carry no row-count
+
+0 errors, 1 warning
