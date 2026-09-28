@@ -61,3 +61,7 @@ Dependencies point strictly downward; the build fails if they do not.
   Run `SCHEMATA_GOLDEN_UPDATE=1 ./gradlew test` to accept new output, then review the diff.
 - Generated `.proto` is validated with a real `protoc`; generated DDL is executed against a
   real Postgres via Testcontainers (needs Docker; the test is skipped without it).
+- Every diagnostic code has a fixture under `schemata-cli/src/test/resources/diagnostics/<code>/`
+  pinning its message and help; the coverage test fails the build for a code without one.
+  Run `SCHEMATA_GOLDEN_UPDATE=1 ./gradlew :schemata-cli:test --tests '*DiagnosticFixturesTest*'`
+  after changing a message, then review the diff.
