@@ -37,6 +37,7 @@ tasks.shadowJar {
     mergeServiceFiles()
 }
 
+// The archive path is fixed by configuration, not execution, so reading it here is safe.
 val fatJar = tasks.shadowJar.get().archiveFile
 
 tasks.test {

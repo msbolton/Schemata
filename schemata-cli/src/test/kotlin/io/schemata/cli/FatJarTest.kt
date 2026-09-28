@@ -18,8 +18,13 @@ class FatJarTest {
             ProcessBuilder(listOf(java.path, "-jar", jar!!.path) + args)
                 .redirectErrorStream(false)
                 .start()
+        // Drain stderr on its own thread so a full stderr pipe can't block this
+        // thread's stdout read, which would otherwise deadlock before the timeout.
+        var err = ""
+        val stderrDrain = Thread { err = process.errorStream.bufferedReader().readText() }
+        stderrDrain.start()
         val out = process.inputStream.bufferedReader().readText()
-        val err = process.errorStream.bufferedReader().readText()
+        stderrDrain.join()
         assertTrue(process.waitFor(60, TimeUnit.SECONDS), "timed out")
         return Triple(process.exitValue(), out, err)
     }
