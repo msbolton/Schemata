@@ -741,10 +741,9 @@ object SqlLowering {
             shape: String,
             alternatives: String?,
         ): Contribution {
-            val suffix = if (alternatives != null) "; use $alternatives" else "; remove it"
             error(
                 SqlCodes.STRATEGY_NOT_ALLOWED,
-                "${ctx.where}: strategy '$strategy' is not allowed for $shape$suffix",
+                "${ctx.where}: strategy '$strategy' is not allowed for $shape",
                 field.span,
                 help =
                     if (alternatives != null) "use $alternatives"

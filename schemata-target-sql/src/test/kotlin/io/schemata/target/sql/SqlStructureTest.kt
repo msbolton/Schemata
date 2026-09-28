@@ -903,10 +903,10 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", addr, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless record; use embed or json",
-                "13 SCH2110 field 'R.tags': strategy 'embed' is not allowed for a list; use table or json",
-                "14 SCH2110 field 'R.meta': strategy 'embed' is not allowed for a map; use table or json",
-                "15 SCH2110 field 'R.flag': strategy 'json' is not allowed for a scalar; remove it",
+                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless record",
+                "13 SCH2110 field 'R.tags': strategy 'embed' is not allowed for a list",
+                "14 SCH2110 field 'R.meta': strategy 'embed' is not allowed for a map",
+                "15 SCH2110 field 'R.flag': strategy 'json' is not allowed for a scalar",
             ),
             messages(lowered),
         )
@@ -971,9 +971,7 @@ class SqlStructureTest {
             )
         val loweredForbidden = lower(namespace("a", payment, forbidden))
         assertEquals(
-            listOf(
-                "12 SCH2110 field 'R.choice': strategy 'table' is not allowed for a union; use embed or json"
-            ),
+            listOf("12 SCH2110 field 'R.choice': strategy 'table' is not allowed for a union"),
             messages(loweredForbidden),
         )
 
@@ -1365,8 +1363,8 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", u, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.us': strategy 'embed' is not allowed for a list; use json",
-                "13 SCH2110 field 'R.byName': strategy 'embed' is not allowed for a map; use json",
+                "12 SCH2110 field 'R.us': strategy 'embed' is not allowed for a list",
+                "13 SCH2110 field 'R.byName': strategy 'embed' is not allowed for a map",
             ),
             messages(lowered),
         )

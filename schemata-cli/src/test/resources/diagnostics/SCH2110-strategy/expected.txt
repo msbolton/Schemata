@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH2110] (sql): field 'R.numbers': strategy 'embed' is not allowed for a list; use table or json
+error[SCH2110] (sql): field 'R.numbers': strategy 'embed' is not allowed for a list
  --> s.schemata:2:36
   = help: use table or json
 

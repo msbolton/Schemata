@@ -383,7 +383,7 @@ class SqlLoweringTest {
         assertEquals(
             listOf(
                 "13 SCH2105 field 'R.map': map contents are not typed by Postgres; lowered to jsonb",
-                "15 SCH2110 field 'R.flat': strategy 'json' is not allowed for a scalar; remove it",
+                "15 SCH2110 field 'R.flat': strategy 'json' is not allowed for a scalar",
                 "25 SCH2106 record 'N' has no primary key and is not used by any field",
             ),
             messages(lowered),
