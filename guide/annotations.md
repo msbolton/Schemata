@@ -5,25 +5,47 @@ Keys each target accepts, the elements they apply to, and the codes each target 
 
 ## @proto
 
-| Key | Applies to | Value | Choices | Optional |
-|---|---|---|---|---|
-| `package` | namespace | string |  | no |
-| `name` | record, enum, union, field, enum value | string |  | no |
+| Key | Applies to | Value | Choices |
+|---|---|---|---|
+| `package` | namespace | string |  |
+| `name` | record, enum, union, field, enum value | string |  |
 
-Codes: SCH2001 (something Protobuf cannot carry was dropped by the lowering), SCH2004 (two names lower to the same Protobuf name), SCH2005 (a collection element is itself a collection), SCH2006 (a field number or reserved number breaks Protobuf's rules), SCH2007 (a @proto override is not a valid name).
+Codes:
+
+| Code | Severity | Category | Description |
+|---|---|---|---|
+| SCH2001 | warning | lossy | something Protobuf cannot carry was dropped by the lowering |
+| SCH2004 | error | semantic | two names lower to the same Protobuf name |
+| SCH2005 | error | semantic | a collection element is itself a collection |
+| SCH2006 | error | semantic | a field number or reserved number breaks Protobuf's rules |
+| SCH2007 | error | semantic | a @proto override is not a valid name |
 
 ## @sql
 
-| Key | Applies to | Value | Choices | Optional |
-|---|---|---|---|---|
-| `schema` | namespace | string |  | no |
-| `table` | record | string |  | no |
-| `column` | field | string |  | no |
-| `type` | field | string |  | no |
-| `key` | field | flag |  | no |
-| `key` | record | name_tuple |  | no |
-| `strategy` | field | name | embed, json, table | no |
-| `unique` | field | flag |  | no |
-| `index` | field | flag |  | no |
+| Key | Applies to | Value | Choices |
+|---|---|---|---|
+| `schema` | namespace | string |  |
+| `table` | record | string |  |
+| `column` | field | string |  |
+| `type` | field | string |  |
+| `key` | field | flag |  |
+| `key` | record | name_tuple |  |
+| `strategy` | field | name | embed, json, table |
+| `unique` | field | flag |  |
+| `index` | field | flag |  |
 
-Codes: SCH2101 (two records lower to the same table), SCH2102 (two namespaces lower to the same schema), SCH2105 (something Postgres cannot enforce or type was relaxed by the lowering), SCH2106 (a record has no primary key and no field uses it), SCH2107 (a primary key declaration is malformed), SCH2108 (embedding a record would recurse), SCH2109 (an identifier exceeds Postgres's 63-byte limit and was truncated), SCH2110 (a strategy or constraint is not allowed for the field's shape), SCH2111 (two relational names collide), SCH2112 (a decimal precision exceeds Postgres's limit), SCH2113 (a unique or index duplicates the primary key).
+Codes:
+
+| Code | Severity | Category | Description |
+|---|---|---|---|
+| SCH2101 | error | semantic | two records lower to the same table |
+| SCH2102 | error | semantic | two namespaces lower to the same schema |
+| SCH2105 | warning | lossy | something Postgres cannot enforce or type was relaxed by the lowering |
+| SCH2106 | error | semantic | a record has no primary key and no field uses it |
+| SCH2107 | error | semantic | a primary key declaration is malformed |
+| SCH2108 | error | semantic | embedding a record would recurse |
+| SCH2109 | warning | semantic | an identifier exceeds Postgres's 63-byte limit and was truncated |
+| SCH2110 | error | semantic | a strategy or constraint is not allowed for the field's shape |
+| SCH2111 | error | semantic | two relational names collide |
+| SCH2112 | error | semantic | a decimal precision exceeds Postgres's limit |
+| SCH2113 | warning | semantic | a unique or index duplicates the primary key |

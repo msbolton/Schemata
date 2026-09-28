@@ -64,23 +64,23 @@ class GuideAppendicesTest {
         appendLine("# Diagnostics")
         appendLine()
         appendLine(
-            "Every code the compiler can report, with the message shapes and help text its fixtures show. `schemata --strict` promotes warnings to errors."
+            "Every code the compiler can report, with the message shapes and help text its fixtures show. `compile --strict` (or `check --strict`) promotes warnings to errors."
         )
         val fixtures = Fixture.all().groupBy { it.code }
         for (m in modules()) {
             appendLine()
             appendLine("## ${m.title}")
             appendLine()
-            appendLine("| Code | Severity | Fires when | Message | Help |")
-            appendLine("|---|---|---|---|---|")
+            appendLine("| Code | Severity | Category | Fires when | Message | Help |")
+            appendLine("|---|---|---|---|---|---|")
             for (c in m.codes.sortedBy { it.id }) {
                 val shapes = fixtures[c.id].orEmpty().sortedBy { it.name }
-                val messages = shapes.flatMap { messagesOf(it.expected) }.distinct()
-                val helps = shapes.flatMap { helpsOf(it.expected) }.distinct()
-                val severity =
-                    c.severity.name.lowercase() + if (c.category.name == "LOSSY") " (lossy)" else ""
+                val messages = shapes.flatMap { messagesOf(it.expected, c.id) }.distinct()
+                val helps = shapes.flatMap { helpsOf(it.expected, c.id) }.distinct()
+                val severity = c.severity.name.lowercase()
+                val category = c.category.name.lowercase()
                 appendLine(
-                    "| ${c.id} | $severity | ${c.description} | ${cell(messages)} | ${cell(helps)} |"
+                    "| ${c.id} | $severity | $category | ${c.description} | ${cell(messages)} | ${cell(helps)} |"
                 )
             }
             if (m.retired.isNotEmpty()) {
@@ -90,10 +90,15 @@ class GuideAppendicesTest {
         }
     }
 
-    private fun messagesOf(expected: String) =
+    /** The code named in a header line's `[…]`, such as `SCH1010` in `warning[SCH1010] ...`. */
+    private fun headerCode(line: String): String? =
+        Regex("^(?:error|warning)\\[([^]]+)]").find(line)?.groupValues?.get(1)
+
+    /** The header messages in [expected] whose own code is [id]; a fixture may carry others too. */
+    private fun messagesOf(expected: String, id: String) =
         expected
             .lines()
-            .filter { it.startsWith("error[") || it.startsWith("warning[") }
+            .filter { headerCode(it) == id }
             .map { stripLocation(it.substringAfter("]").substringAfter(": ")) }
 
     /**
@@ -108,12 +113,21 @@ class GuideAppendicesTest {
             message.substringAfter("': ")
         else message
 
-    private fun helpsOf(expected: String) =
-        expected
-            .lines()
-            .map { it.trim() }
-            .filter { it.startsWith("= help: ") }
-            .map { it.removePrefix("= help: ") }
+    /** The `= help: ` lines that follow an [id] header, up to the next blank line. */
+    private fun helpsOf(expected: String, id: String): List<String> {
+        val helps = mutableListOf<String>()
+        var inBlock = false
+        for (line in expected.lines()) {
+            val code = headerCode(line)
+            when {
+                code != null -> inBlock = code == id
+                line.isBlank() -> inBlock = false
+                inBlock && line.trim().startsWith("= help: ") ->
+                    helps += line.trim().removePrefix("= help: ")
+            }
+        }
+        return helps
+    }
 
     private fun cell(items: List<String>) = items.joinToString("<br>") { escape(it) }
 
@@ -129,20 +143,26 @@ class GuideAppendicesTest {
             appendLine()
             appendLine("## @${t.name}")
             appendLine()
-            appendLine("| Key | Applies to | Value | Choices | Optional |")
-            appendLine("|---|---|---|---|---|")
+            appendLine("| Key | Applies to | Value | Choices |")
+            appendLine("|---|---|---|---|")
             for (s in t.annotationSpecs) {
                 val elements =
                     s.elements.sortedBy { it.ordinal }.joinToString(", ") { it.displayName }
                 val choices = s.choices?.sorted()?.joinToString(", ") ?: ""
                 appendLine(
-                    "| `${s.key}` | $elements | ${s.valueKind.name.lowercase()} | $choices | ${if (s.optional) "yes" else "no"} |"
+                    "| `${s.key}` | $elements | ${s.valueKind.name.lowercase()} | $choices |"
                 )
             }
             appendLine()
-            appendLine(
-                "Codes: " + t.codes.joinToString(", ") { "${it.id} (${it.description})" } + "."
-            )
+            appendLine("Codes:")
+            appendLine()
+            appendLine("| Code | Severity | Category | Description |")
+            appendLine("|---|---|---|---|")
+            for (c in t.codes.sortedBy { it.id }) {
+                appendLine(
+                    "| ${c.id} | ${c.severity.name.lowercase()} | ${c.category.name.lowercase()} | ${c.description} |"
+                )
+            }
         }
     }
 }
