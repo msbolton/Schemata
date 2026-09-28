@@ -8,11 +8,11 @@ lossy decision reported as a warning.
 
 ## Install
 
-Download `schemata-<version>.jar` from the
-[releases page](https://github.com/msbolton/Schemata/releases) and run it with
-`java -jar` (JDK 21 or later). From a checkout,
-`./gradlew :schemata-cli:installDist` puts a `schemata` script under
-`schemata-cli/build/install/schemata/bin/`.
+No release exists yet; once one does, it will appear on the
+[releases page](https://github.com/msbolton/Schemata/releases). Until then, build from a checkout
+(JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a `schemata` script under
+`schemata-cli/build/install/schemata/bin/`. `./gradlew build` also produces a runnable jar at
+`schemata-cli/build/libs/schemata-<version>.jar`; run it with `java -jar`.
 
 ## Quick start
 
@@ -33,7 +33,7 @@ record Contact {
 ```
 
 ```text
-java -jar schemata-0.1.0.jar compile --out out contacts.schemata
+java -jar schemata-<version>.jar compile --out out contacts.schemata
 ```
 
 `out/proto/contacts.proto` begins:
