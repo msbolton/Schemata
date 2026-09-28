@@ -1,6 +1,7 @@
 package io.schemata.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
@@ -18,6 +19,7 @@ import io.schemata.cli.report.JsonRenderer
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
 import io.schemata.target.Target
+import java.io.IOException
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.createParentDirectories
@@ -55,8 +57,12 @@ class CompileCommand : CliktCommand(name = "compile") {
             .forEach { target ->
                 target.files.forEach { file ->
                     val destination = out.resolve(target.name).resolve(file.path)
-                    destination.createParentDirectories()
-                    destination.writeText(file.content)
+                    try {
+                        destination.createParentDirectories()
+                        destination.writeText(file.content)
+                    } catch (e: IOException) {
+                        throw CliktError("cannot write $destination: ${e.message}")
+                    }
                 }
             }
         emit(this, report, Sources.of(sources), reporting, out.toString())

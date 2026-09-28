@@ -187,6 +187,17 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `a write failure is reported as a one-line message with exit 1`() {
+        val (src, out) = tempSources("customers.schemata" to customers)
+        val blocker = out.parent.resolve("blocker")
+        blocker.writeText("not a directory")
+        val result = CompileCommand().test("--target proto --out ${blocker.resolve("sub")} $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(result.stderr.contains("cannot write"), result.stderr)
+        assertFalse(result.stderr.contains("at io.schemata"), result.stderr)
+    }
+
+    @Test
     fun `--strict promotes lossy warnings so the target is skipped`() {
         val (src, out) =
             tempSources(
