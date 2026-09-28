@@ -46,7 +46,7 @@ class Fixture(val dir: File) {
         val result = Pipeline.check(sources, targets, strict)
         val report = Report.of(result, strict, checkOnly = true)
         val full =
-            HumanRenderer.render(report, Sources.of(sources), Palette.NONE, out = "", width = 100)
+            HumanRenderer.render(report, Sources.of(sources), Palette.NONE, out = "", width = 400)
         return full.lines().filter { keep(it) }.joinToString("\n").trimEnd() + "\n"
     }
 

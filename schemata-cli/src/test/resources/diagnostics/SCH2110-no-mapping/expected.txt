@@ -1,6 +1,6 @@
 # targets=sql
 error[SCH2110] (sql): field 'R.grid': a list of lists or maps has no relational mapping; use strategy = json
- --> s.schemata:2:35
+ --> s.schemata:2:36
   = help: add `@sql(strategy = json)` to store the field as jsonb
 
 1 error, 0 warnings

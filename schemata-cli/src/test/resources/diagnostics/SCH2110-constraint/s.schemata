@@ -1,2 +1,2 @@
 namespace s
-record R { @sql(key) #1 id: uuid  @sql(unique) #2 more: list<string> }
+record R { @sql(key) #1 id: int32  @sql(unique) #2 more: list<string> }

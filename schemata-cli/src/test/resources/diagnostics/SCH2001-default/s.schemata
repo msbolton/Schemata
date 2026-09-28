@@ -1,2 +1,2 @@
 namespace s
-record R { @sql(key) #1 id: uuid  #2 n: int32 = 3 }
+record R { @sql(key) #1 id: int32  #2 n: int32 = 3 }

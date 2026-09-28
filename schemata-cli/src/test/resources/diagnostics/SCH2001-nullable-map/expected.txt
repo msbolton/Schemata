@@ -1,10 +1,6 @@
 # targets=proto
-warning[SCH2001] (lossy) (proto): field 'R.id': uuid has no Protobuf representation; lowered to string
- --> s.schemata:2:12
-  = help: keep the string form; parse it in application code
-
 warning[SCH2001] (lossy) (proto): field 'R.m': a nullable map has no Protobuf representation; lowered to map
- --> s.schemata:2:35
-  = help: declare the map as `map<K, V>` with non-nullable values; a missing key already means
+ --> s.schemata:2:36
+  = help: declare the map as `map<K, V>` with non-nullable values; a missing key already means absent
 
-0 errors, 2 warnings
+0 errors, 1 warning
