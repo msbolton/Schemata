@@ -182,9 +182,9 @@ record OrderLine {
 ## 6. Nullability
 
 `T?` means the field's value may be absent. A nullable field lowers to a nullable column in
-Postgres and, in Protobuf, to a wrapper or optional field, as the lowering section later in this
-reference shows. A map key may not be nullable. A nullable alias may not be marked `?` again where
-it is used; section 8 shows an alias declared nullable and a field that uses it bare.
+Postgres and, in Protobuf, to a wrapper or optional field, as section 16 shows. A map key may not
+be nullable. A nullable alias may not be marked `?` again where it is used; section 8 shows an
+alias declared nullable and a field that uses it bare.
 
 ```schemata
 namespace shop.orders
@@ -268,4 +268,341 @@ record OrderLine {
 }
 ```
 
-Sections on declarations, ordinals, annotations, lowering, and the CLI follow.
+## 9. Records
+
+A record field is written `name: type`, with an optional ordinal `#n` before the name and an
+optional default after the type. Records nest: `record Order { record Line { … } }` declares
+`Line` inside `Order`. A field inside `Order` refers to it as `Line`; anything outside refers to it
+as `Order.Line`. A record is a value type unless it declares a key, either `@sql(key)` on a field or
+`@sql(key = (a, b))` on the record itself; section 15 shows both forms.
+
+```schemata
+namespace shop.orders
+
+record Order {
+  @sql(key) #1 id: int64
+
+  record Line {
+    #1 sku: string
+    #2 quantity: int32
+  }
+
+  #2 first_line: Line
+}
+```
+
+```schemata
+namespace shop.orders
+
+record Order {
+  @sql(key) #1 id: int64
+
+  record Line {
+    @sql(key) #1 id: int64
+    #2 quantity: int32
+  }
+}
+
+record Shipment {
+  @sql(key) #1 id: int64
+  #2 line: Order.Line
+}
+```
+
+## 10. Enums
+
+`enum Status { #1 pending, #2 paid }` declares an enum; its values are lower_snake. Protobuf's
+proto3 needs a zero value it can decode when nothing was set, so the compiler synthesizes one and
+reports SCH2001. Postgres stores the value as `text`, with a CHECK restricting it to the declared
+values.
+
+```schemata
+namespace shop.orders
+
+enum Status {
+  #1 pending
+  #2 paid
+}
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  #2 status: Status = pending
+}
+```
+
+## 11. Unions
+
+`union Payment = #1 Card | #2 BankTransfer | #3 Cash` declares a union; each member carries an
+ordinal like a field does. A member must be a named type, meaning a record or an enum, or a scalar;
+it may not be nullable and may not be a collection. Nullability belongs on the field that holds the
+union, not on a member. Protobuf lowers a union to `oneof`. Postgres lowers it to a discriminator
+column plus one column per member, with a CHECK tying the discriminator to the columns that member
+requires.
+
+```schemata
+namespace shop.orders
+
+record Card {
+  @sql(key) #1 id: int64
+}
+
+record BankTransfer {
+  @sql(key) #1 id: int64
+}
+
+record Cash {
+  @sql(key) #1 id: int64
+}
+
+union Payment = #1 Card | #2 BankTransfer | #3 Cash
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  #2 payment: Payment
+}
+```
+
+```schemata error
+namespace shop.orders
+
+record Card {
+  @sql(key) #1 id: int64
+}
+
+union Payment = #1 Card | #2 list<string>
+```
+
+## 12. Collections
+
+`list<T>` and `map<K, V>` are the two collection types; a map key must be `string`, `int32`, or
+`int64`. `min` and `max` refine the collection's count, not its elements. Postgres lowers
+`list<scalar>` to an array column, `list<Record>` to a child table named `<parent>_<field>` with a
+`<parent>_<key>` column and a `position` column, and `map` to `jsonb`; `@sql(strategy)` changes each
+of these, as section 15 shows. A collection nested inside another collection has no Protobuf form
+(SCH2005), and no relational form unless the outer collection takes `@sql(strategy = json)`.
+
+```schemata
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  #2 tags: list<string>(max = 20)
+  #3 attrs: map<string, int32>
+}
+```
+
+```schemata error
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  #2 grid: list<list<int32>>
+}
+```
+
+## 13. Reserved
+
+`reserved #11, "legacy_ref"` and `reserved #5..#9`, written inside a record or an enum, mark
+ordinals and names that may never be used again. A range is written low`..`high, inclusive on both
+ends. Reusing a reserved ordinal or name is an error.
+
+```schemata
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  #2 quantity: int32
+  reserved #11, "legacy_ref"
+  reserved #5..#9
+}
+```
+
+```schemata error
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  reserved #2
+  #2 quantity: int32
+}
+```
+
+## 14. Ordinals
+
+`#n` numbers a field, an enum value, or a union member. Within one declaration, every element
+carries an explicit ordinal or none do; `--strict` rejects a declaration that leaves them implicit.
+Implicit ordinals are assigned in declaration order, starting at `#1`. Ordinals become Protobuf
+field numbers, so reordering fields that carry explicit ordinals is safe, and reordering fields that
+rely on implicit ones is not.
+
+```schemata
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) id: int64
+  quantity: int32
+}
+```
+
+```schemata error
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  quantity: int32
+}
+```
+
+## 15. Annotations
+
+An annotation is written `@target(key)` for a flag, `@target(key = value)` for a value, or
+`@target(k1, k2 = v)` for several keys at once. `@deprecated("reason")` applies to any element,
+under no target. A namespace's annotations are written before its `namespace` line; a record's are
+written before its `record` line.
+
+`@proto(package = "…")` renames a namespace's Protobuf package. `@proto(name = "…")` renames a
+single declaration, field, or enum value.
+
+`@sql(schema = "…")` renames a namespace's Postgres schema. `@sql(table = "…")` and
+`@sql(column = "…")` rename a record's table or a field's column. `@sql(key)` on a field, or
+`@sql(key = (a, b))` on a record, declares the primary key. `@sql(unique)` and `@sql(index)` add a
+constraint or an index to a field's column; neither is allowed on a list or a map (SCH2110).
+`@sql(type = "…")` overrides the column type. `@sql(strategy = embed | table | json)` overrides how
+a field lowers to Postgres, within this matrix:
+
+| Field's shape | Default | Also allowed |
+|---|---|---|
+| a record | `embed` | `json` |
+| `list<Record>` | `table` | `json` |
+| `list<scalar>` | array | `table`, `json` |
+| `map` | `json` | `table` |
+| a union | `embed` | `json` |
+
+`guide/annotations.md` lists every key both targets accept, the elements it applies to, and the
+codes each target can report.
+
+```schemata
+@proto(package = "shop.orders.v1")
+@sql(schema = "orders")
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  #2 quantity: int32
+}
+```
+
+```schemata
+namespace shop.orders
+
+@sql(key = (order_id, sku))
+record OrderLine {
+  #1 order_id: int64
+  #2 sku: string
+  #3 quantity: int32
+}
+```
+
+```schemata
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  @sql(strategy = table) #2 attrs: map<string, int32>
+}
+```
+
+```schemata error
+namespace shop.orders
+
+record OrderLine {
+  @sql(key) #1 id: int64
+  @sql(unique) #2 tags: list<string>
+}
+```
+
+## 16. How constructs lower
+
+| Construct | Protobuf | Postgres |
+|---|---|---|
+| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name |
+| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it |
+| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table |
+| an enum | `enum`, with a zero value synthesized if none is declared (SCH2001) | `text`, with a CHECK restricting it to the declared values |
+| a union | `oneof` | a discriminator column plus one column per member, with a CHECK tying the discriminator to the columns a given member requires |
+| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column |
+| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column |
+| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns |
+| a nullable field (`T?`) | proto3 `optional`, which adds presence tracking | the column allows `NULL` |
+| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column |
+| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint |
+| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason |
+| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` |
+| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing: a reserved ordinal or name never had a column to remove |
+
+## 17. The CLI
+
+`schemata` has three commands.
+
+`compile <paths>...` compiles to `--out` (default `out`), for `--target` (default both: `proto`,
+`sql`), reporting diagnostics in `--format` (`human`, to stderr, or `json`, to stdout), colored per
+`--color` (`auto`, `always`, or `never`), and treating every warning as an error under `--strict`.
+
+`check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
+would, for every target, without writing anything.
+
+`targets` lists the targets, the annotation keys each accepts, and the diagnostic codes each can
+report, under `--format` (`human` or `json`).
+
+The exit code tells you what happened without reading the output: `0` when there is nothing to
+report, `2` when every diagnostic is a warning, and `1` when any diagnostic is an error, or the
+command line itself was wrong.
+
+A human report goes to stderr, one diagnostic at a time, followed by a summary line. This is
+`schemata check contacts.schemata` run against the `examples/contacts` file, shortened here; the
+run reported eight warnings in total.
+
+```text
+warning[SCH2001] (lossy) (proto): enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
+ --> contacts.schemata:4:6
+  |
+4 | enum Kind { #1 personal, #2 work }
+  |      ^^^
+  = help: keep the synthesized zero value; proto3 reads an unset enum as 0
+
+warning[SCH2105] (lossy) (sql): field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Postgres
+  --> contacts.schemata:15:3
+   |
+15 |   #7 tags:  list<string(max = 20)>
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: use `@sql(strategy = table)` so the elements become rows with their own constraints
+
+0 errors, 8 warnings
+```
+
+A JSON report is one document on stdout: the diagnostics, the files `compile` wrote, the targets it
+skipped because they had errors, and the exit code. `check` never writes, so `written` and `skipped`
+are always empty, as they are below. This is the same run as `--format json`, with the diagnostics
+array shortened to its first entry:
+
+```json
+{
+  "diagnostics": [
+    {
+      "code": "SCH2001",
+      "severity": "warning",
+      "category": "lossy",
+      "promoted": false,
+      "target": "proto",
+      "message": "enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0",
+      "help": "keep the synthesized zero value; proto3 reads an unset enum as 0",
+      "span": {"file": "contacts.schemata", "startLine": 4, "startColumn": 6, "endLine": 4, "endColumn": 9}
+    }
+  ],
+  "written": [],
+  "skipped": [],
+  "exitCode": 2
+}
+```
+
+`schemata --version` prints the compiler's version and exits.
