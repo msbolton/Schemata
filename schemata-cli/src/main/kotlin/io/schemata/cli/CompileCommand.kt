@@ -12,6 +12,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.path
+import com.github.ajalt.mordant.rendering.AnsiLevel
 import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.JsonRenderer
 import io.schemata.cli.report.Report
@@ -91,11 +92,12 @@ internal fun emit(
     out: String,
 ) {
     val terminal = command.currentContext.terminal
+    val ansiSupported = terminal.terminalInfo.ansiLevel != AnsiLevel.NONE
     when (reporting.format) {
         Format.JSON -> terminal.rawPrint(JsonRenderer.report(report, out))
         Format.HUMAN ->
             terminal.rawPrint(
-                HumanRenderer.render(report, sources, reporting.palette(), out),
+                HumanRenderer.render(report, sources, reporting.palette(ansiSupported), out),
                 stderr = true,
             )
     }

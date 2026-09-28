@@ -20,7 +20,11 @@ class ReportingOptions : OptionGroup() {
             .default(Format.HUMAN)
 
     private val color: String by
-        option("--color", help = "auto (default), always, or never")
+        option(
+                "--color",
+                help =
+                    "auto (default, colour when the terminal supports it and NO_COLOR is unset), always, or never",
+            )
             .choice("auto", "always", "never")
             .default("auto")
 
@@ -28,13 +32,16 @@ class ReportingOptions : OptionGroup() {
         option("--strict", help = "Report implicit ordinals and treat every warning as an error")
             .flag()
 
-    /** ANSI when asked for, or when auto and stderr is a terminal with NO_COLOR unset. */
-    fun palette(stderrIsTerminal: Boolean = System.console() != null): Palette =
+    /**
+     * ANSI when asked for; when auto, ANSI only if [ansiSupported] (the terminal Clikt detected for
+     * this run) is true and `NO_COLOR` is unset.
+     */
+    fun palette(ansiSupported: Boolean): Palette =
         when (color) {
             "always" -> Palette.ANSI
             "never" -> Palette.NONE
             else ->
-                if (stderrIsTerminal && System.getenv("NO_COLOR") == null) Palette.ANSI
+                if (ansiSupported && System.getenv("NO_COLOR") == null) Palette.ANSI
                 else Palette.NONE
         }
 }
