@@ -1,0 +1,3 @@
+@xsd(namespace = "orders")
+namespace s
+record R { #1 x: bool }

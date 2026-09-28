@@ -21,6 +21,7 @@ include(":schemata-core")
 include(":schemata-target-api")
 include(":schemata-target-proto")
 include(":schemata-target-sql")
+include(":schemata-target-xsd")
 include(":schemata-cli")
 include(":schemata-testkit")
 

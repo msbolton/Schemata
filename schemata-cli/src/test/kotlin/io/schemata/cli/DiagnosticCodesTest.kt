@@ -27,6 +27,7 @@ class DiagnosticCodesTest {
         assertTrue(CoreCodes.all.all { it.id.startsWith("SCH1") })
         assertTrue(Pipeline.targetNamed("proto")!!.codes.all { it.id.startsWith("SCH20") })
         assertTrue(Pipeline.targetNamed("sql")!!.codes.all { it.id.startsWith("SCH21") })
+        assertTrue(Pipeline.targetNamed("xsd")!!.codes.all { it.id.startsWith("SCH22") })
     }
 
     @Test

@@ -39,6 +39,7 @@ val layers =
         "schemata-target-api" to 2,
         "schemata-target-proto" to 3,
         "schemata-target-sql" to 3,
+        "schemata-target-xsd" to 3,
         "schemata-cli" to 4,
     )
 

@@ -1,0 +1,3 @@
+@xsd(namespace = "urn:x")
+namespace a
+record A { #1 x: bool }

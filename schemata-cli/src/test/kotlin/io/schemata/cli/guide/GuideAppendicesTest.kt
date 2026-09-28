@@ -58,6 +58,7 @@ class GuideAppendicesTest {
                 Pipeline.targetNamed("sql")!!.codes,
                 listOf("SCH2103", "SCH2104"),
             ),
+            Module("XSD (SCH22xx)", "SCH22", Pipeline.targetNamed("xsd")!!.codes, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {
