@@ -23,6 +23,8 @@ writes nothing. `targets` lists each target's annotation keys and diagnostic cod
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.
+`--color auto` follows the terminal the CLI detects on stdout; when redirecting stderr to
+a file, pass `--color never`.
 
 | Exit | Meaning |
 |---|---|
