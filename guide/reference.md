@@ -114,11 +114,11 @@ record OrderLine {
 ## 4. Identifiers and naming
 
 Namespace segments and field names are lower_snake. Type names (record, enum, union, alias) are
-UpperCamel. Enum values are lower_snake. Every naming diagnostic's help suggests the corrected
-name. No name in a `.schemata` file, whether a declaration, a field, or an enum value, may be one
-of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`, `union`, `alias`,
-`reserved`, `true`, `false`, `service`, `operation`, `stream`. `service`, `operation`, and `stream`
-are held for a future version of the language.
+UpperCamel. Enum values are lower_snake. The help suggests a corrected name when it can derive one
+from what you wrote. No name in a `.schemata` file, whether a declaration, a field, or an enum
+value, may be one of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`,
+`union`, `alias`, `reserved`, `true`, `false`, `service`, `operation`, `stream`. `service`,
+`operation`, and `stream` are held for a future version of the language.
 
 ```schemata
 namespace shop.orders
