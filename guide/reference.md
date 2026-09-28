@@ -73,7 +73,7 @@ record Order {
 }
 ```
 
-```schemata error
+```schemata error SCH1009
 --- a.schemata
 namespace shop.a
 
@@ -141,7 +141,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1002
 namespace shop.orders
 
 record order_line {
@@ -206,7 +206,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1021
 namespace shop.orders
 
 record OrderLine {
@@ -238,7 +238,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1044
 namespace shop.orders
 
 record OrderLine {
@@ -267,7 +267,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1039
 namespace shop.orders
 
 alias Money = decimal(19, 4)
@@ -321,7 +321,7 @@ record Shipment {
 }
 ```
 
-```schemata error
+```schemata error SCH2106
 namespace shop.orders
 
 record Orphan {
@@ -384,7 +384,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1027
 namespace shop.orders
 
 record Card {
@@ -415,7 +415,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH2005 SCH2110
 namespace shop.orders
 
 record OrderLine {
@@ -441,7 +441,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1020
 namespace shop.orders
 
 record OrderLine {
@@ -467,7 +467,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH1013
 namespace shop.orders
 
 record OrderLine {
@@ -536,7 +536,7 @@ record OrderLine {
 }
 ```
 
-```schemata error
+```schemata error SCH2110
 namespace shop.orders
 
 record OrderLine {
