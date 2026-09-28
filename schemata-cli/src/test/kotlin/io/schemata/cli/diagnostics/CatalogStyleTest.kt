@@ -30,11 +30,14 @@ class CatalogStyleTest {
         val bad =
             all().filter { (_, d) ->
                 val h = d.help
+                val m = d.message
                 h == null ||
                     h.isEmpty() ||
                     h.first().isUpperCase() ||
                     h.endsWith(".") ||
-                    h == d.message
+                    h == d.message ||
+                    m.endsWith(h) ||
+                    m.endsWith("; $h")
             }
         assertEquals(emptyList(), bad.map { "${it.first}: ${it.second.help}" })
     }

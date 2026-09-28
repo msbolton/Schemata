@@ -1,0 +1,2 @@
+namespace s
+@proto record A { #1 x: bool }

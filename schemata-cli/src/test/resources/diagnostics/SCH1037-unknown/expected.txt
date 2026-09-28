@@ -1,5 +1,5 @@
 error[SCH1037]: 'size' is not a refinement of string; allowed: max, min, pattern
  --> s.schemata:2:25
-  = help: write one of the allowed refinements, for example `string(max = ...)`
+  = help: write one of the allowed refinements, for example `string(max = …)`
 
 1 error, 0 warnings

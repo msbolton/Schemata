@@ -1,5 +1,5 @@
 # targets=proto
-error[SCH1042]: default for float64 must be a numeric literal
+error[SCH1042]: default for float64 must be a number
  --> s.schemata:2:28
   = help: write a number
 
