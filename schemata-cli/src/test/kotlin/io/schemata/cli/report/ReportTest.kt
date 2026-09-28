@@ -15,20 +15,44 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ReportTest {
-    private fun d(code: io.schemata.lang.DiagnosticCode, file: String, line: Int, col: Int, msg: String = "m") =
-        Diagnostic(code, msg, Span(file, line, col, line, col + 1))
+    private fun d(
+        code: io.schemata.lang.DiagnosticCode,
+        file: String,
+        line: Int,
+        col: Int,
+        msg: String = "m",
+    ) = Diagnostic(code, msg, Span(file, line, col, line, col + 1))
 
-    private val clean = PipelineResult(emptyList(), listOf(TargetResult("proto", listOf(OutputFile("a.proto", "")), emptyList())))
+    private val clean =
+        PipelineResult(
+            emptyList(),
+            listOf(TargetResult("proto", listOf(OutputFile("a.proto", "")), emptyList())),
+        )
 
     @Test
     fun `entries are sorted by file, line, column, code, message and keep emission order on ties`() {
         val result =
             PipelineResult(
-                core = listOf(d(CoreCodes.UNUSED_IMPORT, "b.schemata", 1, 1), d(CoreCodes.BUILTIN_SHADOWED, "a.schemata", 3, 1)),
+                core =
+                    listOf(
+                        d(CoreCodes.UNUSED_IMPORT, "b.schemata", 1, 1),
+                        d(CoreCodes.BUILTIN_SHADOWED, "a.schemata", 3, 1),
+                    ),
                 targets =
                     listOf(
-                        TargetResult("sql", emptyList(), listOf(d(SqlCodes.LOSSY, "a.schemata", 2, 5, "second"), d(SqlCodes.LOSSY, "a.schemata", 2, 5, "first"))),
-                        TargetResult("proto", emptyList(), listOf(d(ProtoCodes.LOSSY, "a.schemata", 2, 5))),
+                        TargetResult(
+                            "sql",
+                            emptyList(),
+                            listOf(
+                                d(SqlCodes.LOSSY, "a.schemata", 2, 5, "second"),
+                                d(SqlCodes.LOSSY, "a.schemata", 2, 5, "first"),
+                            ),
+                        ),
+                        TargetResult(
+                            "proto",
+                            emptyList(),
+                            listOf(d(ProtoCodes.LOSSY, "a.schemata", 2, 5)),
+                        ),
                     ),
             )
         val report = Report.of(result, strict = false, checkOnly = true)
@@ -40,7 +64,10 @@ class ReportTest {
                 "a.schemata:3:1 SCH1010 m" to null,
                 "b.schemata:1:1 SCH1012 m" to null,
             ),
-            report.entries.map { "${it.diagnostic.span.file}:${it.diagnostic.span.startLine}:${it.diagnostic.span.startColumn} ${it.diagnostic.code.id} ${it.diagnostic.message}" to it.target },
+            report.entries.map {
+                "${it.diagnostic.span.file}:${it.diagnostic.span.startLine}:${it.diagnostic.span.startColumn} ${it.diagnostic.code.id} ${it.diagnostic.message}" to
+                    it.target
+            },
         )
     }
 
@@ -54,7 +81,8 @@ class ReportTest {
 
     @Test
     fun `exit code is 2 with warnings only and 1 with any error`() {
-        val warn = PipelineResult(listOf(d(CoreCodes.UNUSED_IMPORT, "a.schemata", 1, 1)), emptyList())
+        val warn =
+            PipelineResult(listOf(d(CoreCodes.UNUSED_IMPORT, "a.schemata", 1, 1)), emptyList())
         assertEquals(2, Report.of(warn, strict = false, checkOnly = true).exitCode)
         val err = PipelineResult(listOf(d(LangCodes.SYNTAX, "a.schemata", 1, 1)), emptyList())
         assertEquals(1, Report.of(err, strict = false, checkOnly = true).exitCode)
@@ -65,7 +93,13 @@ class ReportTest {
         val result =
             PipelineResult(
                 listOf(d(CoreCodes.UNUSED_IMPORT, "a.schemata", 1, 1)),
-                listOf(TargetResult("proto", emptyList(), listOf(d(ProtoCodes.LOSSY, "a.schemata", 2, 1)))),
+                listOf(
+                    TargetResult(
+                        "proto",
+                        emptyList(),
+                        listOf(d(ProtoCodes.LOSSY, "a.schemata", 2, 1)),
+                    )
+                ),
             )
         val report = Report.of(result, strict = true, checkOnly = true)
         assertTrue(report.entries.all { it.promoted && it.severity == Severity.ERROR })
@@ -82,7 +116,14 @@ class ReportTest {
                 emptyList(),
                 listOf(
                     TargetResult("proto", listOf(OutputFile("shop/orders.proto", "")), emptyList()),
-                    TargetResult("sql", emptyList(), listOf(d(SqlCodes.MISSING_KEY, "a.schemata", 1, 1), d(SqlCodes.MISSING_KEY, "a.schemata", 2, 1))),
+                    TargetResult(
+                        "sql",
+                        emptyList(),
+                        listOf(
+                            d(SqlCodes.MISSING_KEY, "a.schemata", 1, 1),
+                            d(SqlCodes.MISSING_KEY, "a.schemata", 2, 1),
+                        ),
+                    ),
                 ),
             )
         val report = Report.of(result, strict = false, checkOnly = false)
@@ -96,7 +137,13 @@ class ReportTest {
         val result =
             PipelineResult(
                 emptyList(),
-                listOf(TargetResult("proto", listOf(OutputFile("a.proto", "")), listOf(d(ProtoCodes.LOSSY, "a.schemata", 1, 1)))),
+                listOf(
+                    TargetResult(
+                        "proto",
+                        listOf(OutputFile("a.proto", "")),
+                        listOf(d(ProtoCodes.LOSSY, "a.schemata", 1, 1)),
+                    )
+                ),
             )
         val report = Report.of(result, strict = true, checkOnly = false)
         assertEquals(emptyList(), report.written)

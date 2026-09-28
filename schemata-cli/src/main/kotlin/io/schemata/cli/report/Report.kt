@@ -58,7 +58,9 @@ data class Report(
         fun of(result: PipelineResult, strict: Boolean, checkOnly: Boolean): Report {
             val entries =
                 (result.core.map { entry(it, null, strict) } +
-                        result.targets.flatMap { t -> t.diagnostics.map { entry(it, t.name, strict) } })
+                        result.targets.flatMap { t ->
+                            t.diagnostics.map { entry(it, t.name, strict) }
+                        })
                     .sortedWith(order)
             val written = mutableListOf<Written>()
             val skipped = mutableListOf<Skipped>()
@@ -66,7 +68,10 @@ data class Report(
                 result.targets.forEach { target ->
                     val errors = errorsIn(target, strict)
                     if (errors > 0) skipped += Skipped(target.name, errors)
-                    else target.files.forEach { written += Written(target.name, "${target.name}/${it.path}") }
+                    else
+                        target.files.forEach {
+                            written += Written(target.name, "${target.name}/${it.path}")
+                        }
                 }
             }
             return Report(entries, written, skipped, checkOnly)
