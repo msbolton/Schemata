@@ -41,4 +41,11 @@ class DiagnosticTest {
         assertEquals(LangCodes.all.size, LangCodes.all.map { it.id }.toSet().size)
         LangCodes.all.forEach { assertTrue(Regex("SCH\\d{4}").matches(it.id), it.id) }
     }
+
+    @Test
+    fun `help defaults to null and is carried when given`() {
+        val span = Span("a.schemata", 1, 1, 1, 2)
+        assertNull(Diagnostic(LangCodes.SYNTAX, "m", span).help)
+        assertEquals("fix it", Diagnostic(LangCodes.SYNTAX, "m", span, help = "fix it").help)
+    }
 }

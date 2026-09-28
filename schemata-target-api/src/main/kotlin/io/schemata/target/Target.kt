@@ -3,6 +3,7 @@ package io.schemata.target
 import io.schemata.core.annotations.AnnotationSpec
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.hasErrors
 
 /**
@@ -28,6 +29,9 @@ interface Target<M : TargetModel> {
     /** The annotation keys this target accepts; the CLI unions every target's into one registry. */
     val annotationSpecs: List<AnnotationSpec>
         get() = emptyList()
+
+    /** Every diagnostic code this target can emit; the CLI lists them and checks uniqueness. */
+    val codes: List<DiagnosticCode>
 
     fun lower(schema: Schema): Lowered<M>
 

@@ -106,10 +106,14 @@ class AnnotationChecker(
     ) {
         val specs = registry.find(target, key)
         if (specs.isEmpty()) {
+            val keys = registry.keys(target)
             report(
                 CoreCodes.UNKNOWN_ANNOTATION_KEY,
-                "'$key' is not a key of @$target; keys: ${registry.keys(target).joinToString(", ")}",
+                "'$key' is not a key of @$target; keys: ${keys.joinToString(", ")}",
                 span,
+                help =
+                    if (keys.isEmpty()) "remove the annotation; @$target has no keys"
+                    else "write one of the listed keys, for example `@$target(${keys.first()})`",
             )
             return
         }
@@ -171,7 +175,7 @@ class AnnotationChecker(
             ValueKind.NAME_TUPLE -> "expects a tuple of names: (a, b)"
         }
 
-    private fun report(code: DiagnosticCode, message: String, span: Span) {
-        diagnostics += Diagnostic(code, message, span)
+    private fun report(code: DiagnosticCode, message: String, span: Span, help: String? = null) {
+        diagnostics += Diagnostic(code, message, span, help)
     }
 }

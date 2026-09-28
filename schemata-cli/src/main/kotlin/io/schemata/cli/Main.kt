@@ -8,4 +8,5 @@ class Schemata : CliktCommand(name = "schemata") {
     override fun run() = Unit
 }
 
-fun main(args: Array<String>) = Schemata().subcommands(CompileCommand()).main(args)
+fun main(args: Array<String>) =
+    Schemata().subcommands(CompileCommand(), CheckCommand(), TargetsCommand()).main(args)

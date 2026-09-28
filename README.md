@@ -9,7 +9,28 @@ Protobuf and SQL DDL (more targets to follow).
 
     ./gradlew build          # compile, test, lint, dependency-direction check
     ./gradlew :schemata-cli:installDist
-    schemata-cli/build/install/schemata/bin/schemata compile --target proto,sql --out out schema.schemata
+    schemata-cli/build/install/schemata/bin/schemata compile --out out schema.schemata
+
+## Commands
+
+    schemata compile [--target proto,sql] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata check   [--target proto,sql]            [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata targets [--format human|json]
+
+`compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
+error, even when another target failed. `check` reports everything `compile` would and
+writes nothing. `targets` lists each target's annotation keys and diagnostic codes.
+
+`--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
+error. `--format json` prints one document on stdout and nothing on stderr.
+`--color auto` follows the terminal the CLI detects on stdout; when redirecting stderr to
+a file, pass `--color never`.
+
+| Exit | Meaning |
+|---|---|
+| 0 | nothing reported |
+| 2 | warnings only |
+| 1 | any error (after `--strict` promotion), or a usage error |
 
 ## Modules
 

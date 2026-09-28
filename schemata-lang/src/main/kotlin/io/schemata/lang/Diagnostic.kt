@@ -12,7 +12,13 @@ enum class Category {
     LOSSY,
 }
 
-data class Diagnostic(val code: DiagnosticCode, val message: String, val span: Span) {
+/** [help] states the fix when one is mechanical; renderers print it after the message. */
+data class Diagnostic(
+    val code: DiagnosticCode,
+    val message: String,
+    val span: Span,
+    val help: String? = null,
+) {
     val severity: Severity
         get() = code.severity
 

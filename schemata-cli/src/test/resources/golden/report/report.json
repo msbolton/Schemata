@@ -1,0 +1,6 @@
+{
+  "diagnostics": [{"code":"SCH2105","severity":"warning","category":"lossy","promoted":false,"target":"sql","message":"quote \" and backslash \\ and newline\n","help":null,"span":{"file":"shop/orders.schemata","startLine":1,"startColumn":1,"endLine":1,"endColumn":2}},{"code":"SCH2106","severity":"error","category":"semantic","promoted":false,"target":"sql","message":"no key","help":null,"span":{"file":"shop/orders.schemata","startLine":3,"startColumn":8,"endLine":3,"endColumn":13}},{"code":"SCH1044","severity":"error","category":"semantic","promoted":false,"target":null,"message":"a default may not be null","help":"declare the field as `Status?`","span":{"file":"shop/orders.schemata","startLine":4,"startColumn":20,"endLine":4,"endColumn":24}}],
+  "written": [{"target":"proto","path":"out/proto/shop/orders.proto"}],
+  "skipped": [{"target":"sql","errors":1}],
+  "exitCode": 1
+}

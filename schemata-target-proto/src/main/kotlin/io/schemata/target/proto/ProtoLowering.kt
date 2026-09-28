@@ -133,7 +133,12 @@ object ProtoLowering {
             if (mapped.lossy) notes += ProtoTypes.text(field.type, field.nullable)
             field.default?.let {
                 val text = ProtoTypes.text(it)
-                lossy("$where: default $text is not carried by proto3", field.span)
+                lossy(
+                    "$where: default $text is not carried by proto3",
+                    field.span,
+                    help =
+                        "drop the default or apply it in application code; proto3 has no field defaults",
+                )
                 notes += "default = $text"
             }
             return ProtoField(
@@ -163,6 +168,7 @@ object ProtoLowering {
             lossy(
                 "enum '${enum.name}': proto3 requires a zero value; synthesized $zero = 0",
                 enum.nameSpan,
+                help = "keep the synthesized zero value; proto3 reads an unset enum as 0",
             )
             val values =
                 listOf(ProtoEnumValue(zero, 0)) +
@@ -249,6 +255,8 @@ object ProtoLowering {
                 lossy(
                     "$where: refinements on ${ProtoTypes.text(type)} are not enforced by Protobuf",
                     span,
+                    help =
+                        "enforce the refinement in application code; Protobuf carries no constraints",
                 )
                 lossy = true
             }
@@ -270,6 +278,8 @@ object ProtoLowering {
                             lossy(
                                 "$where: a nullable list has no Protobuf representation; lowered to repeated",
                                 span,
+                                help =
+                                    "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
                             )
                             lossy = true
                         }
@@ -277,6 +287,8 @@ object ProtoLowering {
                             lossy(
                                 "$where: nullable list elements have no Protobuf representation; lowered to repeated",
                                 span,
+                                help =
+                                    "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
                             )
                             lossy = true
                         }
@@ -289,6 +301,8 @@ object ProtoLowering {
                             lossy(
                                 "$where: a nullable map has no Protobuf representation; lowered to map",
                                 span,
+                                help =
+                                    "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent",
                             )
                             lossy = true
                         }
@@ -296,6 +310,8 @@ object ProtoLowering {
                             lossy(
                                 "$where: nullable map values have no Protobuf representation; lowered to map",
                                 span,
+                                help =
+                                    "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent",
                             )
                             lossy = true
                         }
@@ -359,6 +375,7 @@ object ProtoLowering {
                     lossy(
                         "$where: ${builtin.typeName} has no Protobuf representation; lowered to string",
                         span,
+                        help = "keep the string form; parse it in application code",
                     )
                     ProtoType.Scalar("string") to true
                 }
@@ -420,8 +437,8 @@ object ProtoLowering {
                 is Ref -> false
             }
 
-        private fun lossy(message: String, span: Span) {
-            diagnostics += Diagnostic(ProtoCodes.LOSSY, message, span)
+        private fun lossy(message: String, span: Span, help: String) {
+            diagnostics += Diagnostic(ProtoCodes.LOSSY, message, span, help)
         }
 
         private fun invalidOverride(message: String, span: Span) {

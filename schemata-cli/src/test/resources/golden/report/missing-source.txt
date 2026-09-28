@@ -1,0 +1,4 @@
+warning[SCH2105] (lossy) (sql): lost
+ --> elsewhere.schemata:9:1
+
+0 errors, 1 warning

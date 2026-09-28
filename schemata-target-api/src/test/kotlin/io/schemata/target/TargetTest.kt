@@ -16,6 +16,7 @@ class TargetTest {
 
     private object CountTarget : Target<CountModel> {
         override val name = "count"
+        override val codes = emptyList<DiagnosticCode>()
 
         override fun lower(schema: Schema) =
             Lowered(
@@ -35,6 +36,7 @@ class TargetTest {
 
     private object FailingTarget : Target<CountModel> {
         override val name = "failing"
+        override val codes = emptyList<DiagnosticCode>()
 
         override fun lower(schema: Schema) =
             Lowered(

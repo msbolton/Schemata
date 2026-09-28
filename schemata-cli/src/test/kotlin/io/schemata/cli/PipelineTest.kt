@@ -109,4 +109,48 @@ class PipelineTest {
         assertTrue(result.diagnostics.none { it.code.id.startsWith("SCH1") })
         assertEquals(setOf("SCH2001"), result.diagnostics.map { it.code.id }.toSet())
     }
+
+    @Test
+    fun `a target that errors is skipped while the other target still produces files`() {
+        // An unused keyless record is an sql error (SCH2106) and fine for proto.
+        val src =
+            SourceInput(
+                "p.schemata",
+                """
+                namespace p
+
+                record Orphan { #1 name: string }
+
+                record R { @sql(key) #1 id: uuid }
+                """
+                    .trimIndent(),
+            )
+        val result = Pipeline.compile(listOf(src), Pipeline.targets)
+        val proto = result.targets.single { it.name == "proto" }
+        val sql = result.targets.single { it.name == "sql" }
+        assertTrue(proto.ok)
+        assertEquals(listOf("p.proto"), proto.files.map { it.path })
+        assertFalse(sql.ok)
+        assertEquals(emptyList(), sql.files)
+        assertTrue(result.hasErrors)
+        assertEquals(listOf("proto" to "p.proto"), result.files.map { it.target to it.file.path })
+    }
+
+    @Test
+    fun `check lowers every target and writes no files`() {
+        val result = Pipeline.check(listOf(orders, customers), Pipeline.targets)
+        assertEquals(listOf("proto", "sql"), result.targets.map { it.name })
+        assertTrue(result.targets.all { it.files.isEmpty() })
+        assertEquals(
+            Pipeline.compile(listOf(orders, customers), Pipeline.targets).diagnostics,
+            result.diagnostics,
+        )
+    }
+
+    @Test
+    fun `core diagnostics are separate from target diagnostics`() {
+        val result = Pipeline.compile(listOf(orders, customers), Pipeline.targets)
+        assertEquals(emptyList(), result.core)
+        assertEquals(3, result.targets.sumOf { it.diagnostics.size })
+    }
 }

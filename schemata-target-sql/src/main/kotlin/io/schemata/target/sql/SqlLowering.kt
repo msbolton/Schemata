@@ -506,7 +506,13 @@ object SqlLowering {
         ): Contribution {
             val entry = catalog[target.qualifiedName]
             return when (strategy) {
-                "json" -> json(ctx, field, "record")
+                "json" ->
+                    json(
+                        ctx,
+                        field,
+                        "record",
+                        "remove `strategy = json` to get the default mapping for this field",
+                    )
                 "embed" -> embed(ctx, field, target, Naming.columnOf(field))
                 "table" ->
                     if (entry != null) reference(ctx, field, entry)
@@ -530,7 +536,7 @@ object SqlLowering {
             type: UnionType,
         ): Contribution =
             when (strategy) {
-                "json" -> json(ctx, field, "union")
+                "json" -> json(ctx, field, "union", jsonHelp(type))
                 "table" -> forbiddenStrategy(ctx, field, "table", "a union", "embed or json")
                 else -> union(ctx, field, type)
             }
@@ -552,7 +558,7 @@ object SqlLowering {
             if (strategy == "embed") {
                 return forbiddenStrategy(ctx, field, "embed", "a list", alternatives(type.element))
             }
-            if (strategy == "json") return json(ctx, field, "list")
+            if (strategy == "json") return json(ctx, field, "list", jsonHelp(type.element))
             return when (val element = type.element) {
                 is Scalar ->
                     if (strategy == "table") {
@@ -610,7 +616,8 @@ object SqlLowering {
             if (strategy == "embed") {
                 return forbiddenStrategy(ctx, field, "embed", "a map", alternatives(type.value))
             }
-            if (strategy == null || strategy == "json") return json(ctx, field, "map")
+            if (strategy == null || strategy == "json")
+                return json(ctx, field, "map", jsonHelp(type.value))
             // The resolver only admits string, int32, and int64 keys; the fallback is never taken.
             val key = type.key as? Scalar ?: Scalar(Builtin.STRING)
             return when (val value = type.value) {
@@ -663,24 +670,52 @@ object SqlLowering {
                         SqlCodes.STRATEGY_NOT_ALLOWED,
                         "${ctx.where}: @sql($it) is not allowed on a list or map field",
                         field.span,
+                        help =
+                            "move `@sql($it)` to a field of the element record, or index the child table's columns",
                     )
                 }
         }
 
         /**
+         * Whether a list's element or a map's value could lower to a child table: a scalar, enum,
+         * or record can, a union or a nested list or map cannot.
+         */
+        private fun tableable(element: Type): Boolean =
+            when (element) {
+                is Scalar -> true
+                is Ref -> schema.lookup(element.target) !is UnionType
+                is ListOf,
+                is MapOf -> false
+            }
+
+        /**
          * The strategies a list or map could take instead of `embed`: `table` only reaches a
          * scalar, enum, or record element, so a union or collection element is left with `json`.
          */
-        private fun alternatives(element: Type): String {
-            val tableable =
-                when (element) {
-                    is Scalar -> true
-                    is Ref -> schema.lookup(element.target) !is UnionType
-                    is ListOf,
-                    is MapOf -> false
-                }
-            return if (tableable) "table or json" else "json"
-        }
+        private fun alternatives(element: Type): String =
+            if (tableable(element)) "table or json" else "json"
+
+        /**
+         * The help for a list or map's `json` lowering: `table` when the element or value could
+         * lower to a child table instead, otherwise jsonb is the only mapping this shape has.
+         */
+        private fun jsonHelp(element: Type): String =
+            if (tableable(element))
+                "use `@sql(strategy = table)` to lower the entries to a child table"
+            else "keep jsonb; Postgres has no typed mapping for this shape"
+
+        /** Whether a union has a member that is itself a union, which has no relational mapping. */
+        private fun hasUnionMember(type: UnionType): Boolean =
+            type.members.any {
+                it.type is Ref && schema.lookup((it.type as Ref).target) is UnionType
+            }
+
+        /**
+         * The help for a union's `json` lowering: only mandatory when a member is itself a union.
+         */
+        private fun jsonHelp(type: UnionType): String =
+            if (hasUnionMember(type)) "keep jsonb; Postgres has no typed mapping for this shape"
+            else "remove `strategy = json` to get the default mapping for this field"
 
         /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
         private fun forbiddenStrategy(
@@ -695,6 +730,9 @@ object SqlLowering {
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: strategy '$strategy' is not allowed for $shape$suffix",
                 field.span,
+                help =
+                    if (alternatives != null) "use $alternatives"
+                    else "remove the strategy annotation",
             )
             return Contribution.NONE
         }
@@ -714,6 +752,7 @@ object SqlLowering {
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: $shape has no relational mapping; use strategy = json",
                 field.span,
+                help = "add `@sql(strategy = json)` to store the field as jsonb",
             )
             return Contribution.NONE
         }
@@ -920,11 +959,7 @@ object SqlLowering {
          * `strategy = json` instead (SCH-28).
          */
         private fun union(ctx: FieldContext, field: Field, type: UnionType): Contribution {
-            if (
-                type.members.any {
-                    it.type is Ref && schema.lookup((it.type as Ref).target) is UnionType
-                }
-            ) {
+            if (hasUnionMember(type)) {
                 return noRelationalMapping(ctx, field, "a union whose member is a union")
             }
             val bare = Naming.columnOf(field)
@@ -1186,12 +1221,18 @@ object SqlLowering {
                     SqlTypes.scalar(bare, name, overridden = false).type
                 } else SqlTypes.enum(enum!!.values.map { it.name }, name).type
             val elementHasBounds = scalar?.refinements?.hasBounds ?: false
-            val lossy = type.refinements.hasBounds || elementHasBounds || type.nullableElement
+            val elementLossy = elementHasBounds || type.nullableElement
+            val lossy = type.refinements.hasBounds || elementLossy
             if (lossy) {
                 error(
                     SqlCodes.LOSSY,
                     "${ctx.where}: refinements on ${TypeText.of(type, field.nullable)} are not enforced by Postgres",
                     field.span,
+                    help =
+                        if (elementLossy)
+                            "use `@sql(strategy = table)` so the elements become rows with their own constraints"
+                        else
+                            "enforce the list's size bound in application code; Postgres arrays carry no length constraint",
                 )
             }
             val column =
@@ -1214,15 +1255,22 @@ object SqlLowering {
         /**
          * The `json` strategy, and every shape's default that already means it (a bare `map`):
          * Postgres has no typed record, list, map, or union, so the field lowers whole to `jsonb`
-         * with a lossy note; [shape] names what was lowered away in the message.
+         * with a lossy note; [shape] names what was lowered away in the message, and [help] fits
+         * the fix to what this particular field could actually do instead.
          */
-        private fun json(ctx: FieldContext, field: Field, shape: String): Contribution {
+        private fun json(
+            ctx: FieldContext,
+            field: Field,
+            shape: String,
+            help: String,
+        ): Contribution {
             val rawName = ctx.prefix + Naming.columnOf(field)
             val name = columnName(ctx, field)
             error(
                 SqlCodes.LOSSY,
                 "${ctx.where}: $shape contents are not typed by Postgres; lowered to jsonb",
                 field.span,
+                help = help,
             )
             val column =
                 Column(
@@ -1289,6 +1337,8 @@ object SqlLowering {
                     SqlCodes.LOSSY,
                     "${ctx.where}: refinements on ${TypeText.of(field.type, field.nullable)} are not enforced by Postgres",
                     field.span,
+                    help =
+                        "enforce the collection bound in application code; child tables carry no row-count constraints",
                 )
             }
             if (rows && elementNullable) {
@@ -1296,6 +1346,8 @@ object SqlLowering {
                     SqlCodes.LOSSY,
                     "${ctx.where}: nullable elements of ${TypeText.of(field.type, field.nullable)} are not represented by a child table",
                     field.span,
+                    help =
+                        "declare the elements non-nullable, or use `@sql(strategy = json)` to keep nulls",
                 )
             }
             val childName =
@@ -1462,8 +1514,8 @@ object SqlLowering {
         private fun identifier(name: String, span: Span): String =
             SqlLowering.identifier(name, span, diagnostics)
 
-        private fun error(code: DiagnosticCode, message: String, span: Span) {
-            diagnostics += Diagnostic(code, message, span)
+        private fun error(code: DiagnosticCode, message: String, span: Span, help: String? = null) {
+            diagnostics += Diagnostic(code, message, span, help)
         }
     }
 

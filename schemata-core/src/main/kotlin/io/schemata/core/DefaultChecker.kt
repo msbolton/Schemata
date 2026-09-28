@@ -41,6 +41,8 @@ object DefaultChecker {
                 "a default may not be null; declare the field as nullable with '?'",
                 literal.span,
                 diagnostics,
+                help =
+                    "add `?` to the field's type and drop the default; a nullable field is null when absent",
             )
             return null
         }
@@ -229,7 +231,8 @@ object DefaultChecker {
         message: String,
         span: Span,
         diagnostics: MutableList<Diagnostic>,
+        help: String? = null,
     ) {
-        diagnostics += Diagnostic(code, message, span)
+        diagnostics += Diagnostic(code, message, span, help)
     }
 }
