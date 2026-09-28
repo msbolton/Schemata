@@ -32,6 +32,14 @@ a file, pass `--color never`.
 | 2 | warnings only |
 | 1 | any error (after `--strict` promotion), or a usage error |
 
+## Releasing
+
+Tag `main` with `vX.Y.Z` and push the tag. The release workflow builds, runs
+the full test suite, and attaches `schemata-X.Y.Z.jar` to a GitHub release.
+`java -jar schemata-X.Y.Z.jar --version` prints the version; an untagged
+build prints `X.Y.Z-dev+<sha>`. The `native-image spike` workflow can be
+dispatched by hand from the Actions tab.
+
 ## Modules
 
 Dependencies point strictly downward; the build fails if they do not.
