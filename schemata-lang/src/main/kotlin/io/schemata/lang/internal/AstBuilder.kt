@@ -57,6 +57,8 @@ internal class AstBuilder(
                     LangCodes.RESERVED_KEYWORD,
                     "'${keyword.text}' is reserved for a future version of Schemata",
                     keyword.span(),
+                    help =
+                        "rename the declaration; reserved words are listed in the language reference",
                 )
             return null
         }
@@ -202,8 +204,9 @@ internal class AstBuilder(
                         diagnostics +=
                             Diagnostic(
                                 LangCodes.NUMERIC_LITERAL_RANGE,
-                                "numeric literal '${it.text}' is out of range",
+                                "number '${it.text}' is out of range",
                                 span,
+                                help = "use a value that fits in 64 bits",
                             )
                         0L
                     }
@@ -235,6 +238,7 @@ internal class AstBuilder(
                         LangCodes.NUMERIC_LITERAL_RANGE,
                         "ordinal '${node.text}' is out of range",
                         node.symbol.span(),
+                        help = "use an ordinal that fits in 32 bits",
                     )
                 0
             }

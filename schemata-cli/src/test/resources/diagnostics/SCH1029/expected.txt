@@ -1,0 +1,5 @@
+error[SCH1029]: enum value 'red' is declared more than once in enum 'C'
+ --> s.schemata:2:21
+  = help: remove the duplicate value
+
+1 error, 0 warnings

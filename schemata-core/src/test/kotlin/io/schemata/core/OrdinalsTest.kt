@@ -105,4 +105,9 @@ class OrdinalsTest {
         val r = analyze("namespace a\nrecord R {\n  #5 x: bool\n  reserved #1..#2000000000\n}")
         assertEquals(listOf("3:3 ordinal #5 is reserved in record 'R'"), messages(r))
     }
+
+    @Test
+    fun `next free ordinal skips used and reserved`() {
+        assertEquals(5, Ordinals.nextFree(setOf(1, 2, 4), setOf(3)))
+    }
 }

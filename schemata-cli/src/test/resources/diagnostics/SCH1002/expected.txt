@@ -1,0 +1,5 @@
+error[SCH1002]: record name 'order_line' must be UpperCamel
+ --> s.schemata:2:8
+  = help: rename it `OrderLine`
+
+1 error, 0 warnings

@@ -1,0 +1,5 @@
+error[SCH1035]: ordinal #0 is not positive
+ --> s.schemata:2:12
+  = help: ordinals start at #1
+
+1 error, 0 warnings

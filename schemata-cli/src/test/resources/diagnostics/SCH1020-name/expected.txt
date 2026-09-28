@@ -1,0 +1,5 @@
+error[SCH1020]: name 'y' is reserved in record 'R'
+ --> s.schemata:2:41
+  = help: pick another name; reserved names are kept out of use for old readers
+
+1 error, 0 warnings

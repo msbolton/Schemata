@@ -1,0 +1,5 @@
+error[SCH0003]: ordinal '#99999999999' is out of range
+ --> s.schemata:2:12
+  = help: use an ordinal that fits in 32 bits
+
+1 error, 0 warnings

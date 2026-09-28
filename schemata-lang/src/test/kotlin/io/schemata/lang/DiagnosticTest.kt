@@ -29,7 +29,7 @@ class DiagnosticTest {
         assertNull(big.file)
         assertEquals(LangCodes.NUMERIC_LITERAL_RANGE, big.diagnostics.single().code)
         assertEquals(
-            "numeric literal '99999999999999999999' is out of range",
+            "number '99999999999999999999' is out of range",
             big.diagnostics.single().message,
         )
         val ord = Parser.parse("namespace a\nrecord R { #99999999999 x: bool }", "t")

@@ -1,0 +1,2 @@
+namespace s
+enum C { #1 red, #2 red }

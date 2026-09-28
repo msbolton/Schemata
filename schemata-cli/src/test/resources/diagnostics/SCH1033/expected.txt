@@ -1,0 +1,5 @@
+error[SCH1033]: type 'O' has no nested type 'Inner'
+ --> s.schemata:3:18
+  = help: declare `Inner` inside `O`, or refer to it by its own qualified name
+
+1 error, 0 warnings

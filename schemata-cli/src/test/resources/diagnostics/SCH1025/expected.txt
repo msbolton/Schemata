@@ -1,0 +1,5 @@
+error[SCH1025]: union member 'A' is repeated
+ --> s.schemata:3:21
+  = help: remove the duplicate member
+
+1 error, 0 warnings

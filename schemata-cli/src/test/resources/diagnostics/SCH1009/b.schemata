@@ -1,0 +1,2 @@
+namespace b
+record T { #1 x: bool }

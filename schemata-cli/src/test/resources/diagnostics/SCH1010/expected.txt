@@ -1,0 +1,9 @@
+error[SCH1002]: record name 'string' must be UpperCamel
+ --> s.schemata:2:8
+  = help: rename it `String`
+
+warning[SCH1010]: 'string' shadows the builtin type of the same name
+ --> s.schemata:2:8
+  = help: rename the declaration; every bare use of `string` in this namespace now means yours
+
+1 error, 1 warning

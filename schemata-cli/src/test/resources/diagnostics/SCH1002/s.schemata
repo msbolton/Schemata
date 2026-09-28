@@ -1,0 +1,2 @@
+namespace s
+record order_line { #1 x: bool }

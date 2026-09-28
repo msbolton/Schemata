@@ -51,6 +51,8 @@ class DeclarationIndex(files: List<SourceFile>, private val diagnostics: Mutable
                         CoreCodes.BUILTIN_SHADOWED,
                         "'${decl.name}' shadows the builtin type of the same name",
                         decl.nameSpan,
+                        help =
+                            "rename the declaration; every bare use of `${decl.name}` in this namespace now means yours",
                     )
             }
         } else {
@@ -61,12 +63,14 @@ class DeclarationIndex(files: List<SourceFile>, private val diagnostics: Mutable
                         CoreCodes.DUPLICATE_TYPE,
                         "$kind '${decl.name}' is declared more than once",
                         decl.nameSpan,
+                        help = "rename or remove one of them",
                     )
                 } else {
                     Diagnostic(
                         CoreCodes.DUPLICATE_TYPE,
                         "$kind '${decl.name}' is declared in both ${previous.file.path}:${previous.decl.nameSpan.startLine} and ${file.path}:${decl.nameSpan.startLine}",
                         decl.nameSpan,
+                        help = "rename or remove one of them",
                     )
                 }
         }

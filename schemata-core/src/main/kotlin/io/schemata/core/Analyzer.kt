@@ -81,11 +81,15 @@ object Analyzer {
         val first = files.first()
         name.split(".").forEach { segment ->
             if (!lowerSnake.matches(segment)) {
+                val suggestion = Suggest.example(segment, Suggest.lowerSnake(segment))
                 diagnostics +=
                     error(
                         CoreCodes.NAMESPACE_SEGMENT_NAMING,
                         "namespace segment '$segment' must be lower_snake",
                         first.namespace.span,
+                        help =
+                            "write the segment in lower_snake" +
+                                (suggestion?.let { ", for example `$it`" } ?: ""),
                     )
             }
         }
@@ -118,11 +122,13 @@ object Analyzer {
     ): TypeDecl? {
         val kind = DeclarationIndex.kindOf(decl)
         if (!upperCamel.matches(decl.name)) {
+            val suggestion = Suggest.example(decl.name, Suggest.upperCamel(decl.name))
             diagnostics +=
                 error(
                     CoreCodes.TYPE_NAMING,
                     "$kind name '${decl.name}' must be UpperCamel",
                     decl.nameSpan,
+                    help = suggestion?.let { "rename it `$it`" } ?: "rename it in UpperCamel",
                 )
         }
         val qualifiedName = QualifiedName(scope.namespace, scope.enclosing + decl.name)
@@ -190,11 +196,14 @@ object Analyzer {
         val fields =
             record.fields.mapIndexedNotNull { i, field ->
                 if (!lowerSnake.matches(field.name)) {
+                    val suggestion = Suggest.example(field.name, Suggest.lowerSnake(field.name))
                     diagnostics +=
                         error(
                             CoreCodes.FIELD_NAMING,
                             "field name '${field.name}' must be lower_snake",
                             field.nameSpan,
+                            help =
+                                suggestion?.let { "rename it `$it`" } ?: "rename it in lower_snake",
                         )
                 }
                 if (!seenFields.add(field.name)) {
@@ -203,6 +212,7 @@ object Analyzer {
                             CoreCodes.DUPLICATE_FIELD,
                             "field '${field.name}' is declared more than once in record '${record.name}'",
                             field.nameSpan,
+                            help = "rename or remove one of the two fields",
                         )
                 }
                 val resolved = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
@@ -250,7 +260,12 @@ object Analyzer {
         val enumAnnotations = annotations.check(decl.annotations, Element.ENUM)
         if (decl.values.isEmpty())
             diagnostics +=
-                error(CoreCodes.EMPTY_ENUM, "enum '${decl.name}' has no values", decl.nameSpan)
+                error(
+                    CoreCodes.EMPTY_ENUM,
+                    "enum '${decl.name}' has no values",
+                    decl.nameSpan,
+                    help = "declare at least one value",
+                )
         val reserved = Ordinals.reserved(decl.reserved, diagnostics)
         val ordinals =
             Ordinals.assign(
@@ -269,11 +284,14 @@ object Analyzer {
         val values =
             decl.values.mapIndexed { index, value ->
                 if (!lowerSnake.matches(value.name)) {
+                    val suggestion = Suggest.example(value.name, Suggest.lowerSnake(value.name))
                     diagnostics +=
                         error(
                             CoreCodes.ENUM_VALUE_NAMING,
                             "enum value '${value.name}' must be lower_snake",
                             value.nameSpan,
+                            help =
+                                suggestion?.let { "rename it `$it`" } ?: "rename it in lower_snake",
                         )
                 }
                 if (!seen.add(value.name)) {
@@ -282,6 +300,7 @@ object Analyzer {
                             CoreCodes.DUPLICATE_ENUM_VALUE,
                             "enum value '${value.name}' is declared more than once in enum '${decl.name}'",
                             value.nameSpan,
+                            help = "remove the duplicate value",
                         )
                 }
                 EnumValue(
@@ -340,8 +359,10 @@ object Analyzer {
                             diagnostics +=
                                 error(
                                     CoreCodes.UNION_MEMBER_KIND,
-                                    "union members must be named types or scalars",
+                                    "union member ${member.type.text()} must be a named type or a scalar",
                                     member.type.span,
+                                    help =
+                                        "wrap the collection in a record, or drop the `?`; a union is absent through the field, not the member",
                                 )
                             false
                         }
@@ -351,6 +372,8 @@ object Analyzer {
                                     CoreCodes.UNION_SELF_MEMBER,
                                     "union '${decl.name}' may not contain itself",
                                     member.type.nameSpan,
+                                    help =
+                                        "remove `${decl.name}` from its own members; wrap it in a record if the recursion is intended",
                                 )
                             false
                         }
@@ -360,6 +383,7 @@ object Analyzer {
                                     CoreCodes.DUPLICATE_UNION_MEMBER,
                                     "union member '${member.type.name}' is repeated",
                                     member.type.nameSpan,
+                                    help = "remove the duplicate member",
                                 )
                             false
                         }
@@ -380,6 +404,6 @@ object Analyzer {
         )
     }
 
-    private fun error(code: DiagnosticCode, message: String, span: Span) =
-        Diagnostic(code, message, span)
+    private fun error(code: DiagnosticCode, message: String, span: Span, help: String? = null) =
+        Diagnostic(code, message, span, help)
 }

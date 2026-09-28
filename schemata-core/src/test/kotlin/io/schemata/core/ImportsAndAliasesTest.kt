@@ -57,7 +57,7 @@ class ImportsAndAliasesTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "orders.schemata:4:21 ambiguous type 'Customer': customers.schemata:2, orders.schemata:3"
+                "orders.schemata:4:21 type 'Customer' is ambiguous; candidates: shop.customers.Customer, shop.orders.Customer"
             ),
             messages(r),
         )
@@ -73,7 +73,7 @@ class ImportsAndAliasesTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "orders.schemata:4:19 ambiguous type 'Customer': customers.schemata:2, other.schemata:2"
+                "orders.schemata:4:19 type 'Customer' is ambiguous; candidates: shop.customers.Customer, other.customers.Customer"
             ),
             messages(r),
         )
@@ -172,7 +172,7 @@ class ImportsAndAliasesTest {
         assertEquals(
             listOf(
                 "a.schemata:3:11 alias 'A' refers to itself",
-                "a.schemata:5:21 'N' is already nullable; remove the '?'",
+                "a.schemata:5:21 'N' is already nullable",
             ),
             messages(r),
         )

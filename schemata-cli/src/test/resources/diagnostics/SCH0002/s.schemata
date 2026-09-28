@@ -1,0 +1,2 @@
+namespace s
+service Foo {}

@@ -1,0 +1,5 @@
+error[SCH1021]: map key string? is nullable
+ --> s.schemata:2:22
+  = help: write the key type without `?`
+
+1 error, 0 warnings

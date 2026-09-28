@@ -31,6 +31,12 @@ internal class CollectingErrorListener(private val file: String) : BaseErrorList
                 else -> token.stopIndex - token.startIndex + 1
             }
         collected +=
-            Diagnostic(LangCodes.SYNTAX, msg, Span(file, line, column, line, column + width - 1))
+            Diagnostic(
+                LangCodes.SYNTAX,
+                msg,
+                Span(file, line, column, line, column + width - 1),
+                help =
+                    "the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, or `union Name = A | B`",
+            )
     }
 }

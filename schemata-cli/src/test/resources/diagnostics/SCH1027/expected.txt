@@ -1,0 +1,5 @@
+error[SCH1027]: union member list<R> must be a named type or a scalar
+ --> s.schemata:3:14
+  = help: wrap the collection in a record, or drop the `?`; a union is absent through the field, not the member
+
+1 error, 0 warnings
