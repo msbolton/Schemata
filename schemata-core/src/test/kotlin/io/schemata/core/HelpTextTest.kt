@@ -94,4 +94,12 @@ class HelpTextTest {
             ),
         )
     }
+
+    @Test
+    fun `a core key's value help spells the key without a target`() {
+        assertEquals(
+            "write `@deprecated(\"…\")`",
+            help("namespace t\nrecord R { @deprecated(3) #1 x: bool }", "SCH1018"),
+        )
+    }
 }

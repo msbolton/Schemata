@@ -1,0 +1,2 @@
+namespace s
+record R { @deprecated(3) #1 x: bool }

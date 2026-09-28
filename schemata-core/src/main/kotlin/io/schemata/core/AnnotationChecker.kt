@@ -147,8 +147,11 @@ class AnnotationChecker(
                 "$display ${expected(spec)}",
                 span,
                 help =
-                    if (spec.valueKind == ValueKind.FLAG) "write `${example(spec)}`"
-                    else "write `@$target($key = ${example(spec)})`",
+                    when {
+                        spec.valueKind == ValueKind.FLAG -> "write `${example(spec)}`"
+                        target.isEmpty() -> "write `@$key(${example(spec)})`"
+                        else -> "write `@$target($key = ${example(spec)})`"
+                    },
             )
             return
         }
@@ -198,10 +201,11 @@ class AnnotationChecker(
     /** An example value for [spec]'s kind, for a "write it like this" help message. */
     private fun example(spec: AnnotationSpec): String {
         spec.choices?.let {
-            return it.first()
+            return it.sorted().first()
         }
         return when (spec.valueKind) {
-            ValueKind.FLAG -> "@${spec.target}(${spec.key})"
+            ValueKind.FLAG ->
+                if (spec.target.isEmpty()) "@${spec.key}" else "@${spec.target}(${spec.key})"
             ValueKind.STRING -> "\"…\""
             ValueKind.INT -> "1"
             ValueKind.BOOL -> "true"
