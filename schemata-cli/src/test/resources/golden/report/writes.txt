@@ -1,0 +1,9 @@
+error[SCH2106] (sql): record 'Order' has no key
+ --> shop/orders.schemata:3:8
+  |
+3 | record Order {
+  |        ^^^^^
+
+1 error, 0 warnings
+wrote 2 files to out/proto
+sql: not written (1 error)

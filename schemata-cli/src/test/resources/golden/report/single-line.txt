@@ -1,0 +1,8 @@
+error[SCH1044]: a default may not be null; declare the field as nullable with '?'
+ --> shop/orders.schemata:4:20
+  |
+4 |   status: Status = null
+  |                    ^^^^
+  = help: declare the field as `Status?`
+
+1 error, 0 warnings
