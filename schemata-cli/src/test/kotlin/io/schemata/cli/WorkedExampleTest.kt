@@ -226,6 +226,12 @@ class WorkedExampleTest {
                 .map { it.groupValues[1] }
                 .toSet()
         assertEquals(setOf("SCH2001", "SCH2105"), codes)
+        assertEquals(
+            17,
+            Regex("\"code\":\"SCH2001\"").findAll(result.stdout).count(),
+            result.stdout,
+        )
+        assertEquals(1, Regex("\"code\":\"SCH2105\"").findAll(result.stdout).count(), result.stdout)
         assertTrue(result.stdout.contains("\"exitCode\": 2"), result.stdout)
         assertTrue(result.stdout.contains("\"promoted\":false"), result.stdout)
         assertFalse(result.stdout.contains("\"severity\":\"error\""), result.stdout)
