@@ -41,8 +41,9 @@ record Contact {
 java -jar schemata-<version>.jar compile --out out examples/contacts
 ```
 
-The enum widens with a synthesized zero value, and every refinement is gone:
+The enum widens with a synthesized zero value, and every refinement is gone.
 
+From `examples/contacts/expected/proto/contacts.proto`:
 ```proto
 enum Kind {
   KIND_UNSPECIFIED = 0;
@@ -51,24 +52,33 @@ enum Kind {
 }
 ```
 
-Postgres keeps the email pattern and the age bounds as `CHECK` constraints:
+Postgres keeps the email pattern and the age bounds as `CHECK` constraints.
 
+From `examples/contacts/expected/sql/contacts.sql`:
 ```sql
-CONSTRAINT "ck_contact_email_max" CHECK (char_length("email") <= 254),
-CONSTRAINT "ck_contact_email_pattern" CHECK ("email" ~ '^[^@]+@[^@]+$'),
+  CONSTRAINT "ck_contact_email_max" CHECK (char_length("email") <= 254),
+  CONSTRAINT "ck_contact_email_pattern" CHECK ("email" ~ '^[^@]+@[^@]+$'),
+  CONSTRAINT "ck_contact_age_min" CHECK ("age" >= 0),
+  CONSTRAINT "ck_contact_age_max" CHECK ("age" <= 150),
 ```
 
 Warnings from `examples/contacts/expected/proto-warnings.txt`:
 ```text
 SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
+SCH2001 field 'Contact.name': refinements on string(max = 100) are not enforced by Protobuf
 SCH2001 field 'Contact.email': refinements on string(max = 254, pattern = "^[^@]+@[^@]+$") are not enforced by Protobuf
+SCH2001 field 'Contact.age': refinements on int32(min = 0, max = 150) are not enforced by Protobuf
+SCH2001 field 'Contact.kind': default personal is not carried by proto3
 SCH2001 field 'Contact.born': date has no Protobuf representation; lowered to string
+SCH2001 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Protobuf
 ```
 
 Nothing is lost by the synthesized zero value; proto3 already reads an unset enum as 0, so keep
-it. The `max` and `pattern` on `email` are gone in Protobuf; enforce the format in application
-code, since Protobuf carries no constraints. `born` has no Protobuf date type, so it lowers to a
-plain string; parse it back to a date in application code.
+it. Every refinement on `name`, `email`, `age`, and `tags` is dropped the same way; enforce the
+format and bounds in application code, since Protobuf carries no constraints. The default on `kind`
+is dropped too; proto3 has no field defaults, so apply `personal` yourself if you rely on it.
+`born` has no Protobuf date type, so it lowers to a plain string; parse it back to a date in
+application code.
 
 Warnings from `examples/contacts/expected/sql-warnings.txt`:
 ```text
@@ -97,6 +107,13 @@ record Customer {
 
 From `examples/shop/orders.schemata`:
 ```schemata
+import shop.customers
+
+alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
+alias Money = decimal(19, 4)
+
+enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
+
 record Card         { #1 last4: string(max = 4)  #2 brand: string(max = 32) }
 record BankTransfer { #1 iban: string(max = 34) }
 record Cash         {}
@@ -125,8 +142,9 @@ record Order {
 java -jar schemata-<version>.jar compile --out out examples/shop
 ```
 
-The union lowers to a `oneof`, one field per arm:
+The union lowers to a `oneof`, one field per arm.
 
+From `examples/shop/expected/proto/shop/orders.proto`:
 ```proto
 message Payment {
   oneof kind {
@@ -137,27 +155,42 @@ message Payment {
 }
 ```
 
-Postgres flattens the same union to a discriminator column and one `CHECK` per arm:
+Postgres flattens the same union to a discriminator column and a `CHECK` for each arm that has
+fields; `Cash` has no fields, so it gets none.
 
+From `examples/shop/expected/sql/shop/orders.sql`:
 ```sql
-CONSTRAINT "ck_order_payment_kind" CHECK ("payment_kind" IN ('card', 'bank_transfer', 'cash')),
-CONSTRAINT "ck_order_payment_card" CHECK (("payment_kind" <> 'card') OR ("payment_card_last4" IS NOT NULL AND "payment_card_brand" IS NOT NULL)),
-CONSTRAINT "ck_order_payment_bank_transfer" CHECK (("payment_kind" <> 'bank_transfer') OR ("payment_bank_transfer_iban" IS NOT NULL)),
+  CONSTRAINT "ck_order_payment_kind" CHECK ("payment_kind" IN ('card', 'bank_transfer', 'cash')),
+  CONSTRAINT "ck_order_payment_card" CHECK (("payment_kind" <> 'card') OR ("payment_card_last4" IS NOT NULL AND "payment_card_brand" IS NOT NULL)),
+  CONSTRAINT "ck_order_payment_bank_transfer" CHECK (("payment_kind" <> 'bank_transfer') OR ("payment_bank_transfer_iban" IS NOT NULL)),
 ```
 
 Warnings from `examples/shop/expected/proto-warnings.txt`:
 ```text
 SCH2001 field 'Customer.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf
+SCH2001 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0
+SCH2001 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf
+SCH2001 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf
+SCH2001 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf
 SCH2001 field 'Order.status': default pending is not carried by proto3
 SCH2001 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
 SCH2001 field 'Order.total': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf
+SCH2001 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf
+SCH2001 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf
+SCH2001 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf
 ```
 
 `id` has no Protobuf uuid type, so it lowers to a plain string; parse it back to a uuid in
-application code. proto3 has no field defaults, so `pending` is not carried; apply the default in
+application code. The `Status` enum gets a synthesized zero value, the same as `Kind` did in
+`contacts`. proto3 has no field defaults, so `pending` is not carried; apply the default in
 application code if you depend on it. The `min = 1` bound on `lines` is not enforced by Protobuf;
 enforce it in application code. `total` has no Protobuf decimal type, so it lowers to a string;
-parse it back to a decimal in application code.
+parse it back to a decimal in application code. Every refinement on `Customer.name`, `Card`,
+`BankTransfer`, `Order.note`, `Line`, and `Address` is dropped the same way `email` and `age` were
+dropped in `contacts`; enforce them in application code.
 
 Warnings from `examples/shop/expected/sql-warnings.txt`:
 ```text
@@ -243,8 +276,9 @@ record Close {
 java -jar schemata-<version>.jar compile --out out examples/ledger
 ```
 
-`reports.proto` imports both other namespaces and references their types by full package path:
+`reports.proto` imports both other namespaces and references their types by full package path.
 
+From `examples/ledger/expected/proto/ledger/reports.proto`:
 ```proto
 import "ledger/accounts.proto";
 import "ledger/journal.proto";
@@ -257,8 +291,9 @@ message Close {
   .ledger.journal.v1.Entry last = 4;
 ```
 
-`reports.sql` carries that same reference as two foreign keys, one into each schema:
+`reports.sql` carries that same reference as two foreign keys, one into each schema.
 
+From `examples/ledger/expected/sql/ledger/reports.sql`:
 ```sql
 ALTER TABLE "ledger_reports"."close" ADD CONSTRAINT "fk_close_account" FOREIGN KEY ("account_tenant_id", "account_code") REFERENCES "ledger"."account" ("tenant_id", "code");
 ALTER TABLE "ledger_reports"."close" ADD CONSTRAINT "fk_close_last" FOREIGN KEY ("last_id") REFERENCES "ledger_journal"."entry" ("id");
@@ -270,12 +305,29 @@ from `ledger.accounts` and `last` comes from `ledger.journal`.
 
 Warnings from `examples/ledger/expected/proto-warnings.txt`:
 ```text
+SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
+SCH2001 field 'Account.code': refinements on string(max = 16) are not enforced by Protobuf
+SCH2001 field 'Account.name': refinements on string(max = 120) are not enforced by Protobuf
+SCH2001 field 'Account.opened': date has no Protobuf representation; lowered to string
 SCH2001 field 'Account.balances': decimal has no Protobuf representation; lowered to string
+SCH2001 enum 'Source': proto3 requires a zero value; synthesized SOURCE_UNSPECIFIED = 0
+SCH2001 enum 'Side': proto3 requires a zero value; synthesized SIDE_UNSPECIFIED = 0
+SCH2001 field 'Invoice.number': refinements on string(max = 32) are not enforced by Protobuf
+SCH2001 field 'Payment.reference': refinements on string(max = 64) are not enforced by Protobuf
+SCH2001 field 'Entry.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Entry.memo': refinements on string(max = 500) are not enforced by Protobuf
+SCH2001 field 'Entry.lines': refinements on list<Line>(min = 2) are not enforced by Protobuf
 SCH2001 field 'Close.period': refinements on string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$") are not enforced by Protobuf
 ```
 
-The map's decimal values lower to strings; parse them back to decimals in application code. The
-year-month pattern on `period` is not enforced by Protobuf; enforce it in application code.
+The `Kind`, `Source`, and `Side` enums each get a synthesized zero value, the same as `Kind` did in
+`contacts`. Every refinement, on `Account.code`, `Account.name`, `Invoice.number`, and
+`Payment.reference`, is dropped the same way `email` and `age` were dropped in `contacts`; enforce
+them in application code. `Account.opened` and `Entry.id` have no Protobuf date or uuid type, so
+they lower to plain strings; parse them back in application code. `Entry.memo`'s max is dropped
+too. The map's decimal values lower to strings; parse them back to decimals in application code.
+The `min = 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced
+by Protobuf; enforce them in application code.
 
 Warnings from `examples/ledger/expected/sql-warnings.txt`:
 ```text
