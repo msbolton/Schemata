@@ -22,14 +22,18 @@ jobs:
           jar=$(ls schemata-cli/build/libs/schemata-[0-9]*.jar)
           native-image --no-fallback -jar "$jar" schemata
           ls -la schemata
+      - name: Install GNU time
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq time
       - name: Run the worked example
         run: |
           set +e
+          set +o pipefail
           ./schemata check schemata-cli/src/test/resources/corpus/worked-example; echo "check exit=$?"
           ./schemata compile --format json --out /tmp/out schemata-cli/src/test/resources/corpus/worked-example > /tmp/report.json; echo "compile exit=$?"
           head -c 300 /tmp/report.json
-          /usr/bin/time -v ./schemata check schemata-cli/src/test/resources/corpus/worked-example 2>&1 | grep -E 'Elapsed|Maximum resident'
-          /usr/bin/time -v java -jar schemata-cli/build/libs/schemata-[0-9]*.jar check schemata-cli/src/test/resources/corpus/worked-example 2>&1 | grep -E 'Elapsed|Maximum resident'
+          /usr/bin/time -v ./schemata check schemata-cli/src/test/resources/corpus/worked-example 2> time-native.txt >/dev/null; grep -E 'Elapsed|Maximum resident' time-native.txt
+          /usr/bin/time -v java -jar schemata-cli/build/libs/schemata-[0-9]*.jar check schemata-cli/src/test/resources/corpus/worked-example 2> time-jar.txt >/dev/null; grep -E 'Elapsed|Maximum resident' time-jar.txt
+          exit 0
       - uses: actions/upload-artifact@v4
         with:
           name: schemata-native-linux-x64
