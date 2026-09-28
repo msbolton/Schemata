@@ -106,12 +106,14 @@ class AnnotationChecker(
     ) {
         val specs = registry.find(target, key)
         if (specs.isEmpty()) {
+            val keys = registry.keys(target)
             report(
                 CoreCodes.UNKNOWN_ANNOTATION_KEY,
-                "'$key' is not a key of @$target; keys: ${registry.keys(target).joinToString(", ")}",
+                "'$key' is not a key of @$target; keys: ${keys.joinToString(", ")}",
                 span,
                 help =
-                    "use one of the keys listed, or run `schemata targets` to see every key with its element and value",
+                    if (keys.isEmpty()) "remove the annotation; @$target has no keys"
+                    else "write one of the listed keys, for example `@$target(${keys.first()})`",
             )
             return
         }

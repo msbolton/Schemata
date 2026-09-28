@@ -57,9 +57,9 @@ class HelpTextTest {
     }
 
     @Test
-    fun `unknown annotation key points at the targets command`() {
+    fun `unknown annotation key names an allowed one`() {
         assertEquals(
-            "use one of the keys listed, or run `schemata targets` to see every key with its element and value",
+            "write one of the listed keys, for example `@sql(key)`",
             help("namespace t\nrecord R { @sql(bogus) #1 x: bool }", "SCH1016"),
         )
     }
