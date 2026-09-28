@@ -1,0 +1,38 @@
+schema customers
+table customers.customer
+  column id uuid not null
+  column name character varying(100) not null
+  constraint pk_customer PRIMARY KEY (id)
+schema shop
+table shop.order -- A customer's order. One row per checkout.
+  column id uuid not null
+  column customer_id uuid not null
+  column status text not null default 'pending'::text
+  column total numeric(19,4) not null
+  column payment_kind text not null
+  column payment_card_last4 character varying(4)
+  column payment_card_brand character varying(32)
+  column payment_bank_transfer_iban character varying(34)
+  column shipping_street character varying(200) not null
+  column shipping_city character varying(100) not null
+  column shipping_country text not null
+  column placed_at timestamp with time zone not null
+  column note character varying(500)
+  column created timestamp with time zone
+  constraint ck_order_payment_bank_transfer CHECK (((payment_kind <> 'bank_transfer'::text) OR (payment_bank_transfer_iban IS NOT NULL)))
+  constraint ck_order_payment_card CHECK (((payment_kind <> 'card'::text) OR ((payment_card_last4 IS NOT NULL) AND (payment_card_brand IS NOT NULL))))
+  constraint ck_order_payment_kind CHECK ((payment_kind = ANY (ARRAY['card'::text, 'bank_transfer'::text, 'cash'::text])))
+  constraint ck_order_shipping_country_max CHECK ((char_length(shipping_country) <= 2))
+  constraint ck_order_shipping_country_min CHECK ((char_length(shipping_country) >= 2))
+  constraint ck_order_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'cancelled'::text])))
+  constraint fk_order_customer FOREIGN KEY (customer_id) REFERENCES customers.customer(id)
+  constraint pk_order PRIMARY KEY (id)
+table shop.order_lines -- One purchasable item.
+  column order_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  column price numeric(19,4) not null
+  constraint ck_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint fk_order_lines_order FOREIGN KEY (order_id) REFERENCES shop."order"(id) ON DELETE CASCADE
+  constraint pk_order_lines PRIMARY KEY (order_id, "position")

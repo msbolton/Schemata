@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package contacts;
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_PERSONAL = 1;
+  KIND_WORK = 2;
+}
+
+// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
+message Contact {
+  int64 id = 1;
+  string name = 2;  // schemata: string(max = 100)
+  string email = 3;  // schemata: string(max = 254, pattern = "^[^@]+@[^@]+$")
+  optional int32 age = 4;  // schemata: int32(min = 0, max = 150)?
+  Kind kind = 5;  // schemata: default = personal
+  optional string born = 6;  // schemata: date?
+  repeated string tags = 7;  // schemata: list<string(max = 20)>
+}

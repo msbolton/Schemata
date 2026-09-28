@@ -1,0 +1,15 @@
+schema contacts
+table contacts.contact -- One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
+  column id bigint not null
+  column name character varying(100) not null
+  column email text not null
+  column age integer
+  column kind text not null default 'personal'::text
+  column born date
+  column tags text[] not null
+  constraint ck_contact_age_max CHECK ((age <= 150))
+  constraint ck_contact_age_min CHECK ((age >= 0))
+  constraint ck_contact_email_max CHECK ((char_length(email) <= 254))
+  constraint ck_contact_email_pattern CHECK ((email ~ '^[^@]+@[^@]+$'::text))
+  constraint ck_contact_kind_enum CHECK ((kind = ANY (ARRAY['personal'::text, 'work'::text])))
+  constraint pk_contact PRIMARY KEY (id)

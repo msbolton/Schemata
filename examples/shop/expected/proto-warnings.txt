@@ -1,0 +1,17 @@
+SCH2001 field 'Customer.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf
+SCH2001 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0
+SCH2001 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf
+SCH2001 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf
+SCH2001 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf
+SCH2001 field 'Order.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Order.status': default pending is not carried by proto3
+SCH2001 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
+SCH2001 field 'Order.total': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf
+SCH2001 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf
+SCH2001 field 'Line.price': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf
+SCH2001 field 'Address.city': refinements on string(max = 100) are not enforced by Protobuf
+SCH2001 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf

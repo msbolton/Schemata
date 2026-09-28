@@ -1,0 +1,28 @@
+/// Chart of accounts. Every account is owned by a tenant.
+@sql(schema = "ledger")
+@proto(package = "ledger.accounts.v1")
+namespace ledger.accounts
+
+alias Money = decimal(19, 4)
+
+enum Kind { #1 asset, #2 liability, #3 equity, #4 revenue, #5 expense }
+
+/// An account, keyed by tenant and code.
+@sql(key = (tenant_id, code))
+record Account {
+  #1 tenant_id: int64
+  #2 code:      string(max = 16)
+  #3 name:      string(max = 120)
+  #4 kind:      Kind
+  #5 opened:    date
+  #6 closed:    date?
+  #7 limits:    Limits
+  @sql(strategy = table)
+  #8 balances:  map<string, Money>
+
+  /// Overdraft and daily limits in the account's currency.
+  record Limits {
+    #1 overdraft: Money
+    #2 daily:     Money?
+  }
+}

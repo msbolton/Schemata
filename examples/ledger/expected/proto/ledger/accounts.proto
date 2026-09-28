@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package ledger.accounts.v1;
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_ASSET = 1;
+  KIND_LIABILITY = 2;
+  KIND_EQUITY = 3;
+  KIND_REVENUE = 4;
+  KIND_EXPENSE = 5;
+}
+
+// An account, keyed by tenant and code.
+message Account {
+  int64 tenant_id = 1;
+  string code = 2;  // schemata: string(max = 16)
+  string name = 3;  // schemata: string(max = 120)
+  Kind kind = 4;
+  string opened = 5;  // schemata: date
+  optional string closed = 6;  // schemata: date?
+  Limits limits = 7;
+  map<string, string> balances = 8;  // schemata: map<string, decimal(19, 4)>
+
+  // Overdraft and daily limits in the account's currency.
+  message Limits {
+    string overdraft = 1;  // schemata: decimal(19, 4)
+    optional string daily = 2;  // schemata: decimal(19, 4)?
+  }
+}

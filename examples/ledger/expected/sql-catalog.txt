@@ -1,0 +1,59 @@
+schema ledger
+table ledger.account -- An account, keyed by tenant and code.
+  column tenant_id bigint not null
+  column code character varying(16) not null
+  column name character varying(120) not null
+  column kind text not null
+  column opened date not null
+  column closed date
+  column limits_overdraft numeric(19,4) not null
+  column limits_daily numeric(19,4)
+  constraint ck_account_kind_enum CHECK ((kind = ANY (ARRAY['asset'::text, 'liability'::text, 'equity'::text, 'revenue'::text, 'expense'::text])))
+  constraint pk_account PRIMARY KEY (tenant_id, code)
+table ledger.account_balances
+  column account_tenant_id bigint not null
+  column account_code character varying(16) not null
+  column key text not null
+  column value numeric(19,4) not null
+  constraint fk_account_balances_account FOREIGN KEY (account_tenant_id, account_code) REFERENCES ledger.account(tenant_id, code) ON DELETE CASCADE
+  constraint pk_account_balances PRIMARY KEY (account_tenant_id, account_code, key)
+schema ledger_journal
+table ledger_journal.entry -- A balanced entry: at least two lines.
+  column id uuid not null
+  column posted date not null
+  column memo character varying(500)
+  column ref_kind text not null
+  column ref_invoice_number character varying(32)
+  column ref_payment_reference character varying(64)
+  column ref_source text
+  constraint ck_entry_ref_invoice CHECK (((ref_kind <> 'invoice'::text) OR (ref_invoice_number IS NOT NULL)))
+  constraint ck_entry_ref_kind CHECK ((ref_kind = ANY (ARRAY['invoice'::text, 'payment'::text, 'source'::text])))
+  constraint ck_entry_ref_payment CHECK (((ref_kind <> 'payment'::text) OR (ref_payment_reference IS NOT NULL)))
+  constraint ck_entry_ref_source CHECK (((ref_kind <> 'source'::text) OR (ref_source IS NOT NULL)))
+  constraint ck_entry_ref_source_enum CHECK ((ref_source = ANY (ARRAY['manual'::text, 'imported'::text, 'accrual'::text])))
+  constraint pk_entry PRIMARY KEY (id)
+table ledger_journal.entry_lines
+  column entry_id uuid not null
+  column position integer not null
+  column account_tenant_id bigint not null
+  column account_code character varying(16) not null
+  column amount numeric(19,4) not null
+  column side text not null
+  constraint ck_entry_lines_side_enum CHECK ((side = ANY (ARRAY['debit'::text, 'credit'::text])))
+  constraint fk_entry_lines_account FOREIGN KEY (account_tenant_id, account_code) REFERENCES ledger.account(tenant_id, code)
+  constraint fk_entry_lines_entry FOREIGN KEY (entry_id) REFERENCES ledger_journal.entry(id) ON DELETE CASCADE
+  constraint pk_entry_lines PRIMARY KEY (entry_id, "position")
+schema ledger_reports
+table ledger_reports.close -- A close of one account for one period.
+  column id uuid not null
+  column period text not null
+  column account_tenant_id bigint not null
+  column account_code character varying(16) not null
+  column last_id uuid
+  column totals_debits numeric(19,4) not null
+  column totals_credits numeric(19,4) not null
+  constraint ck_close_period_max CHECK ((char_length(period) <= 7))
+  constraint ck_close_period_pattern CHECK ((period ~ '^[0-9]{4}-[0-9]{2}$'::text))
+  constraint fk_close_account FOREIGN KEY (account_tenant_id, account_code) REFERENCES ledger.account(tenant_id, code)
+  constraint fk_close_last FOREIGN KEY (last_id) REFERENCES ledger_journal.entry(id)
+  constraint pk_close PRIMARY KEY (id)
