@@ -66,8 +66,8 @@ object HumanRenderer {
 
     /**
      * A 1-based column in the raw line, moved to the same character in the tab-expanded line.
-     * Clamped to at least 1: ANTLR reports some spans (an "extraneous input" at line start) at
-     * column 0.
+     * Clamped to at least 1: an EOF token has zero width, so its span's `endColumn` is one less
+     * than its `startColumn`, which is 0 when the token starts in column 1.
      */
     private fun column(raw: String, column: Int): Int {
         var expanded = 0

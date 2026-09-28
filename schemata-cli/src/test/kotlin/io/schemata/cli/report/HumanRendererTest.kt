@@ -103,12 +103,12 @@ class HumanRendererTest {
     }
 
     @Test
-    fun `a span at column 0 renders a caret under the first character instead of throwing`() {
+    fun `an EOF token's zero-width span renders a caret under the first character instead of throwing`() {
         val d =
             Diagnostic(
                 LangCodes.SYNTAX,
-                "extraneous input 'x' expecting …",
-                Span("shop/orders.schemata", 3, 0, 3, 1),
+                "mismatched input '<EOF>' expecting '}'",
+                Span("shop/orders.schemata", 3, 1, 3, 0),
             )
         Golden.assertMatches("report/column-zero.txt", render(report(core = listOf(d))))
     }

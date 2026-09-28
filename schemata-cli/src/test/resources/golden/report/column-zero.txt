@@ -1,5 +1,5 @@
-error[SCH0001]: extraneous input 'x' expecting …
- --> shop/orders.schemata:3:0
+error[SCH0001]: mismatched input '<EOF>' expecting '}'
+ --> shop/orders.schemata:3:1
   |
 3 | record Order {
   | ^

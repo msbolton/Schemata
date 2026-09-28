@@ -7,6 +7,7 @@ import io.schemata.target.sql.SqlTarget
 import io.schemata.testkit.Postgres
 import io.schemata.testkit.Protoc
 import java.io.File
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -31,18 +32,14 @@ class ExamplesTest {
             .sortedBy { it.name }
             .map { dir -> DynamicTest.dynamicTest(dir.name) { check(dir) } }
 
-    @TestFactory
-    fun `ledger is clean under strict`(): List<DynamicTest> =
-        listOf(
-            DynamicTest.dynamicTest("ledger --strict") {
-                val result =
-                    Pipeline.check(sources(File(root, "ledger")), Pipeline.targets, strict = true)
-                assertEquals(
-                    emptyList(),
-                    result.diagnostics.filter { it.code.id == "SCH1014" }.map { it.message },
-                )
-            }
+    @Test
+    fun `ledger has no implicit ordinals under strict`() {
+        val result = Pipeline.check(sources(File(root, "ledger")), Pipeline.targets, strict = true)
+        assertEquals(
+            emptyList(),
+            result.diagnostics.filter { it.code.id == "SCH1014" }.map { it.message },
         )
+    }
 
     private fun sources(dir: File) =
         dir.listFiles { f -> f.extension == "schemata" }!!
