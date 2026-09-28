@@ -182,7 +182,7 @@ record OrderLine {
 ## 6. Nullability
 
 `T?` means the field's value may be absent. A nullable field lowers to a nullable column in
-Postgres and, in Protobuf, to a wrapper or optional field, as section 16 shows. A map key may not
+Postgres and, in Protobuf, to proto3 `optional`, as section 16 shows. A map key may not
 be nullable. A nullable alias may not be marked `?` again where it is used; section 8 shows an
 alias declared nullable and a field that uses it bare.
 
@@ -311,10 +311,9 @@ record Shipment {
 
 ## 10. Enums
 
-`enum Status { #1 pending, #2 paid }` declares an enum; its values are lower_snake. Protobuf's
-proto3 needs a zero value it can decode when nothing was set, so the compiler synthesizes one and
-reports SCH2001. Postgres stores the value as `text`, with a CHECK restricting it to the declared
-values.
+`enum Status { #1 pending, #2 paid }` declares an enum; its values are lower_snake. The compiler
+always synthesizes a zero value for proto3 and reports SCH2001. Postgres stores the value as
+`text`, with a CHECK restricting it to the declared values.
 
 ```schemata
 namespace shop.orders
@@ -335,23 +334,24 @@ record OrderLine {
 `union Payment = #1 Card | #2 BankTransfer | #3 Cash` declares a union; each member carries an
 ordinal like a field does. A member must be a named type, meaning a record or an enum, or a scalar;
 it may not be nullable and may not be a collection. Nullability belongs on the field that holds the
-union, not on a member. Protobuf lowers a union to `oneof`. Postgres lowers it to a discriminator
-column plus one column per member, with a CHECK tying the discriminator to the columns that member
-requires.
+union, not on a member. Protobuf lowers a union to a message holding a `oneof`, and the field holds
+that message; a member named `Kind` would collide with the `oneof` itself, always named `kind`
+(SCH2004). Postgres lowers a union to a discriminator column plus each member's columns, with a
+CHECK tying the discriminator to the columns that member requires.
 
 ```schemata
 namespace shop.orders
 
 record Card {
-  @sql(key) #1 id: int64
+  #1 id: int64
 }
 
 record BankTransfer {
-  @sql(key) #1 id: int64
+  #1 id: int64
 }
 
 record Cash {
-  @sql(key) #1 id: int64
+  #1 id: int64
 }
 
 union Payment = #1 Card | #2 BankTransfer | #3 Cash
@@ -432,8 +432,7 @@ record OrderLine {
 `#n` numbers a field, an enum value, or a union member. Within one declaration, every element
 carries an explicit ordinal or none do; `--strict` rejects a declaration that leaves them implicit.
 Implicit ordinals are assigned in declaration order, starting at `#1`. Ordinals become Protobuf
-field numbers, so reordering fields that carry explicit ordinals is safe, and reordering fields that
-rely on implicit ones is not.
+field numbers.
 
 ```schemata
 namespace shop.orders
@@ -472,7 +471,8 @@ a field lowers to Postgres, within this matrix:
 
 | Field's shape | Default | Also allowed |
 |---|---|---|
-| a record | `embed` | `json` |
+| a record without a key | `embed` | `json` |
+| a record with a key | a reference (foreign key) | `embed`, `json`, `table` |
 | `list<Record>` | `table` | `json` |
 | `list<scalar>` | array | `table`, `json` |
 | `map` | `json` | `table` |
@@ -528,8 +528,8 @@ record OrderLine {
 | a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name |
 | a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it |
 | a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table |
-| an enum | `enum`, with a zero value synthesized if none is declared (SCH2001) | `text`, with a CHECK restricting it to the declared values |
-| a union | `oneof` | a discriminator column plus one column per member, with a CHECK tying the discriminator to the columns a given member requires |
+| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values |
+| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires |
 | `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column |
 | `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column |
 | `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns |
@@ -538,15 +538,18 @@ record OrderLine {
 | a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint |
 | an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason |
 | a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` |
-| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing: a reserved ordinal or name never had a column to remove |
+| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing |
 
 ## 17. The CLI
 
 `schemata` has three commands.
 
-`compile <paths>...` compiles to `--out` (default `out`), for `--target` (default both: `proto`,
-`sql`), reporting diagnostics in `--format` (`human`, to stderr, or `json`, to stdout), colored per
-`--color` (`auto`, `always`, or `never`), and treating every warning as an error under `--strict`.
+`compile <paths>...` compiles to `--out` (default `out`), for `--target` (a comma-separated list;
+default both `proto` and `sql`), reporting diagnostics in `--format` (`human`, to stderr, or
+`json`, to stdout), colored per `--color` (`auto`, `always`, or `never`), and treating every
+warning as an error under `--strict`, which also reports any field, enum value, or union member
+left with an implicit ordinal. A path may be a file or a directory, walked recursively for
+`.schemata` files.
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
 would, for every target, without writing anything.
@@ -582,8 +585,8 @@ warning[SCH2105] (lossy) (sql): field 'Contact.tags': refinements on list<string
 
 A JSON report is one document on stdout: the diagnostics, the files `compile` wrote, the targets it
 skipped because they had errors, and the exit code. `check` never writes, so `written` and `skipped`
-are always empty, as they are below. This is the same run as `--format json`, with the diagnostics
-array shortened to its first entry:
+are always empty, as they are below. This is the same run as `--format json`, reformatted for
+reading here and with the diagnostics array shortened to its first entry:
 
 ```json
 {
