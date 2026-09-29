@@ -15,11 +15,6 @@ class FormatRoundTripTest {
     private fun cases(): List<File> =
         roots.flatMap { r -> r.listFiles { f -> f.isDirectory }!!.toList() }.sortedBy { it.path }
 
-    private fun sources(dir: File) =
-        dir.listFiles { f -> f.extension == "schemata" }!!
-            .sortedBy { it.name }
-            .map { SourceInput(it.name, it.readText()) }
-
     private fun formatted(s: SourceInput): SourceInput {
         val r = Formatter.format(s.content, s.path)
         assertTrue(r is FormatResult.Formatted, "${s.path}: $r")
@@ -30,7 +25,7 @@ class FormatRoundTripTest {
     fun `formatting is idempotent`(): List<DynamicTest> =
         cases().map { dir ->
             DynamicTest.dynamicTest(dir.name) {
-                sources(dir).forEach { s ->
+                TestSources.of(dir).forEach { s ->
                     val once = formatted(s)
                     assertEquals(once.content, formatted(once).content, s.path)
                 }
@@ -41,8 +36,8 @@ class FormatRoundTripTest {
     fun `formatting does not change compiled output or diagnostics`(): List<DynamicTest> =
         cases().map { dir ->
             DynamicTest.dynamicTest(dir.name) {
-                val before = Pipeline.compile(sources(dir), Pipeline.targets)
-                val after = Pipeline.compile(sources(dir).map(::formatted), Pipeline.targets)
+                val before = Pipeline.compile(TestSources.of(dir), Pipeline.targets)
+                val after = Pipeline.compile(TestSources.of(dir).map(::formatted), Pipeline.targets)
                 assertEquals(
                     before.diagnostics.map { "${it.code.id} ${it.message}" },
                     after.diagnostics.map { "${it.code.id} ${it.message}" },

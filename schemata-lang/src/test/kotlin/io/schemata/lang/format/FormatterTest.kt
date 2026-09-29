@@ -281,4 +281,11 @@ class FormatterTest {
             )
         fixtures.forEach { assertEquals(it, fmt(it), "not idempotent: $it") }
     }
+
+    @Test
+    fun `CRLF and lone CR line endings become LF even inside a comment`() {
+        val input = "namespace t\r\nrecord R {\r\n#1 a: bool /* x\r\ny */\r#2 b: bool\r\n}\r\n"
+        val expected = "namespace t\n\nrecord R {\n  #1 a: bool  /* x\ny */\n  #2 b: bool\n}\n"
+        assertEquals(expected, fmt(input))
+    }
 }
