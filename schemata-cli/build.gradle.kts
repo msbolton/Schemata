@@ -82,6 +82,10 @@ graalvmNative {
             sharedLibrary = false
             mainClass = "io.schemata.cli.MainKt"
             buildArgs.add("--no-fallback")
+            if (System.getProperty("os.name").lowercase().contains("mac")) {
+                // native-image links with the host's SDK version unless told otherwise.
+                buildArgs.add("-H:NativeLinkerOption=-mmacosx-version-min=12.0")
+            }
         }
     }
 }
