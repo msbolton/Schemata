@@ -103,9 +103,9 @@ record Order {
 
 `//` starts a line comment; the parser ignores everything to the end of the line. `/* … */` starts
 a block comment, closed by the next `*/`. `///` starts a doc comment; it attaches to the
-declaration or field that follows and is carried into the generated Protobuf and SQL as a comment.
-A doc comment before the `namespace` line is the exception: the parser keeps it, but neither output
-carries it.
+declaration or field that follows and is carried into the generated Protobuf and SQL as a comment
+and into the XSD as `xs:documentation`. A doc comment before the `namespace` line is the exception:
+the parser keeps it, but none of the outputs carries it.
 
 ```schemata
 namespace shop.orders
@@ -174,7 +174,10 @@ is a regular expression. The compiler checks only that Java accepts the pattern;
 subset Postgres also accepts is your job. `decimal` takes its precision and scale positionally:
 `decimal(19, 4)`. Postgres enforces refinements as column types or CHECK constraints; a
 `string(max = 100)` becomes `varchar(100)`. Protobuf carries no constraints; a refined field lowers
-to its plain type and reports SCH2001.
+to its plain type and reports SCH2001. A pattern matches anywhere in the value unless anchored with
+`^` or `$`, but an XSD pattern always matches the whole value, so the XSD target wraps each
+unanchored side in `.*`: `pattern = "abc"` becomes `.*(abc).*`. XSD's `.` does not match a newline,
+so a multi-line value can fail an XSD pattern that Java accepts.
 
 ```schemata
 namespace shop.orders
@@ -580,7 +583,7 @@ record Contact {
 | `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets |
 | a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute |
 | a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty |
-| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern` |
+| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines |
 | an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented |
 | a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` |
 | `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented |

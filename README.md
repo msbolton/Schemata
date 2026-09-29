@@ -9,10 +9,10 @@ lossy decision reported as a warning.
 ## Install
 
 Each release on the [releases page](https://github.com/msbolton/Schemata/releases) attaches
-`schemata-<version>.jar`; run it with `java -jar`. Alternatively, build from a checkout
-(JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a `schemata` script under
-`schemata-cli/build/install/schemata/bin/`. `./gradlew build` also produces a runnable jar at
-`schemata-cli/build/libs/schemata-<version>.jar`; run it with `java -jar`.
+`schemata-<version>.jar`. Alternatively, build from a checkout (JDK 21 or later):
+`./gradlew :schemata-cli:installDist` puts a `schemata` script under
+`schemata-cli/build/install/schemata/bin/`, and `./gradlew build` also produces a runnable jar at
+`schemata-cli/build/libs/schemata-<version>.jar`. Run either jar with `java -jar`.
 
 ## Quick start
 
