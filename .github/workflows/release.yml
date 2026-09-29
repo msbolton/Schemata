@@ -4,12 +4,18 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      bump_tap:
+        description: Bump the Homebrew formula to the latest published release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   jar:
+    if: ${{ !inputs.bump_tap }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +38,7 @@ jobs:
           retention-days: 7
 
   native:
+    if: ${{ !inputs.bump_tap }}
     strategy:
       fail-fast: false
       matrix:
@@ -120,3 +127,61 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ steps.release.outputs.id }}" -F draft=false > /dev/null
+
+  tap:
+    # needs a non-default condition because publish is skipped on a dispatch, and a skipped need skips its dependents.
+    if: ${{ !cancelled() && (needs.publish.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.bump_tap)) }}
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: homebrew-tap
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: msbolton/homebrew-schemata
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+      - name: Fetch the release checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tag="$GITHUB_REF_NAME"; else tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName); fi
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "tag $tag is not a vX.Y.Z release tag"
+              echo "skip=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            published=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            if [ "$tag" != "$published" ]; then
+              echo "tag $tag does not match the published release $published"
+              echo "skip=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -O SHA256SUMS
+          echo "version=${tag#v}" >> "$GITHUB_ENV"
+      - name: Bump the formula
+        if: env.skip != 'true'
+        shell: bash
+        run: scripts/bump-formula "$version" SHA256SUMS tap/Formula/schemata.rb | tee bump.txt
+      - name: Push the tap
+        if: env.skip != 'true'
+        shell: bash
+        run: |
+          if grep -q '^unchanged$' bump.txt; then
+            echo "formula already at $version"
+            git -C tap push --dry-run
+            exit 0
+          fi
+          cd tap
+          git config user.name "schemata-release"
+          git config user.email "release@schemata.invalid"
+          git add Formula/schemata.rb
+          git commit -m "schemata $version"
+          git push

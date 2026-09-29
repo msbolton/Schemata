@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Rewrite a Schemata Homebrew formula's release urls and checksums from a SHA256SUMS file.
+
+usage: bump-formula VERSION SHA256SUMS FORMULA
+Prints "changed" or "unchanged"; exits 1 when a checksum or a formula line is missing.
+"""
+import re
+import sys
+
+
+def main(version, sums_path, formula_path):
+    sums = {}
+    with open(sums_path) as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) == 2:
+                sums[parts[1]] = parts[0]
+
+    with open(formula_path) as f:
+        original = f.read()
+    lines = original.split("\n")
+    url_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*url "', l)]
+    sha_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*sha256 "', l)]
+    if not url_lines:
+        sys.exit(f"bump-formula: no url lines found in {formula_path}")
+
+    versions = []
+    for i in url_lines:
+        m = re.search(r"/download/v([^/]+)/schemata-\1-", lines[i])
+        if not m:
+            sys.exit(f"bump-formula: line {i + 1} does not carry the release version: {lines[i].strip()}")
+        versions.append(m.group(1))
+    if len(set(versions)) > 1:
+        sys.exit(f"bump-formula: url lines disagree on the version: {', '.join(versions)}")
+    old = versions[0]
+
+    # Assign each url line its checksum by the platform named in that url, not by position,
+    # so a reordered or reshaped formula still gets the right sha256 on the right line.
+    edits = []
+    for pos, i in enumerate(url_lines):
+        m = re.search(rf"schemata-{re.escape(old)}-(\S+)\.tar\.gz", lines[i])
+        if not m:
+            sys.exit(f"bump-formula: line {i + 1} does not name a platform: {lines[i].strip()}")
+        platform = m.group(1)
+        asset = f"schemata-{version}-{platform}.tar.gz"
+        if asset not in sums:
+            sys.exit(f"bump-formula: no checksum for {asset} in {sums_path}")
+
+        next_url = url_lines[pos + 1] if pos + 1 < len(url_lines) else len(lines)
+        sha_i = next((s for s in sha_lines if i < s < next_url), None)
+        if sha_i is None:
+            sys.exit(f"bump-formula: line {i + 1} has no sha256 line after it: {lines[i].strip()}")
+        edits.append((sha_i, sums[asset]))
+
+    for i in url_lines:
+        lines[i] = lines[i].replace(f"/v{old}/schemata-{old}-", f"/v{version}/schemata-{version}-")
+    for sha_i, sha in edits:
+        lines[sha_i] = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', lines[sha_i])
+
+    text = "\n".join(lines)
+    if text == original:
+        print("unchanged")
+        return
+    with open(formula_path, "w") as f:
+        f.write(text)
+    print("changed")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        sys.exit(__doc__.strip())
+    main(*sys.argv[1:])
