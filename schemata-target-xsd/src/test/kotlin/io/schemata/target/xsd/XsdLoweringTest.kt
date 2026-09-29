@@ -319,7 +319,7 @@ class XsdLoweringTest {
                     Schema(listOf(namespace("s", declarations = listOf(orderLine, order))))
                 )
                 .diagnostics
-                .single { "lowers to type" in it.message }
+                .single()
         assertEquals(
             "record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (orders.schemata:2)",
             d.message,

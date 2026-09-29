@@ -66,7 +66,12 @@ object XsdLowering {
         private val namespace: Namespace,
         private val diagnostics: MutableList<Diagnostic>,
     ) {
-        /** Who owns each XSD name, keyed `"type:<name>"` / `"element:<name>"`. */
+        /**
+         * Who owns each XSD name: `"type:<name>"` for a complex or enumeration type,
+         * `"element:<name>"` for a top-level record's global element, and `"element:<declaring
+         * path>/<field name>"` for a field's element, scoped by the declaring record's full path so
+         * two records sharing a simple name never collide on a same-named field.
+         */
         private val claims = mutableMapOf<String, Pair<String, Span>>()
 
         /** The validated `@xsd(name)` override for a declaration, checked at most once. */
@@ -137,13 +142,15 @@ object XsdLowering {
         }
 
         /**
-         * A record's field as an element; the claim is keyed by the record's XSD type name so two
-         * same-named records nested under different parents never collide.
+         * A record's field as an element; the claim is keyed by the record's declaring path (not
+         * its XSD type name) so two records that happen to lower to the same type name still get
+         * independent field claims, while two same-named records nested under different parents
+         * never collide either.
          */
         private fun field(record: RecordType, field: Field, path: List<String>): XsdElement {
             val where = "field '${record.name}.${field.name}'"
             val name = overrideName(field.annotations, where, field.nameSpan) ?: field.name
-            claim("element", "${XsdNames.typeName(path)}/$name", where, field.nameSpan)
+            claim("element", "${path.joinToString(".")}/$name", where, field.nameSpan)
             return when (val t = field.type) {
                 is Scalar,
                 is Ref ->
