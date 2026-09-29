@@ -7,6 +7,7 @@ postgresJdbc = "42.7.4"
 protobuf = "4.29.3"
 spotless = "7.0.2"
 shadow = "8.3.6"
+graalvmBuildTools = "0.10.6"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -19,3 +20,4 @@ postgresJdbc = { module = "org.postgresql:postgresql", version.ref = "postgresJd
 
 [plugins]
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+graalvmNative = { id = "org.graalvm.buildtools.native", version.ref = "graalvmBuildTools" }

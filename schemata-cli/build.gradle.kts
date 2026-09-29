@@ -3,6 +3,7 @@ plugins {
     id("buildsrc.convention.protoc-tests")
     application
     alias(libs.plugins.shadow)
+    alias(libs.plugins.graalvmNative)
 }
 
 dependencies {
@@ -63,6 +64,19 @@ tasks.shadowJar {
     archiveBaseName = "schemata"
     archiveClassifier = ""
     mergeServiceFiles()
+}
+
+graalvmNative {
+    // The task uses the native-image of the JDK on the path; nothing else in the
+    // build needs GraalVM, so a plain JDK still builds everything but the binary.
+    toolchainDetection = false
+    binaries {
+        named("main") {
+            imageName = "schemata"
+            mainClass = "io.schemata.cli.MainKt"
+            buildArgs.add("--no-fallback")
+        }
+    }
 }
 
 // The archive path is fixed by configuration, not execution, so reading it here is safe.
