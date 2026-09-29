@@ -79,7 +79,10 @@ class NativeImageTest {
     fun `--version matches the jar and the build version`() {
         ready()
         assertSame("--version")
-        assertEquals("schemata $version\n", run(listOf(binary!!.path), listOf("--version")).out)
+        assertEquals(
+            "schemata $version" + System.lineSeparator(),
+            run(listOf(binary!!.path), listOf("--version")).out,
+        )
     }
 
     @Test
