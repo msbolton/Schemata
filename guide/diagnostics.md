@@ -95,7 +95,7 @@ Retired, never reused: SCH2103, SCH2104.
 | Code | Severity | Category | Fires when | Message | Help |
 |---|---|---|---|---|---|
 | SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering | pattern uses (?, which XSD 1.0 cannot express; dropped | rewrite the pattern without (?, or enforce it in application code |
-| SCH2202 | error | semantic | two constructs lower to the same XSD name |  |  |
+| SCH2202 | error | semantic | two constructs lower to the same XSD name | record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (s.schemata:2)<br>record 'HttpStatus' lowers to element 'http_status', already used by record 'HTTPStatus' (s.schemata:2) | rename one of them, or set `@xsd(name = "…")` on one |
 | SCH2203 | error | semantic | two namespaces lower to the same target namespace | namespaces a and b both lower to target namespace 'urn:x' | set `@xsd(namespace = "…")` on one of them |
 | SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute |  |  |
-| SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI | @xsd(namespace = "orders") is not an absolute URI | use an absolute URI such as `urn:example:orders` |
+| SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI | @xsd(name = "1bad") is not a valid XML name<br>@xsd(namespace = "orders") is not an absolute URI | use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore<br>use an absolute URI such as `urn:example:orders` |

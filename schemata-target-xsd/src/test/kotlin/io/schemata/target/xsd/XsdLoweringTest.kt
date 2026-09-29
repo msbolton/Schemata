@@ -242,4 +242,110 @@ class XsdLoweringTest {
             (lowered.model.files.single().types.single() as XsdComplex).sequence.single().type,
         )
     }
+
+    @Test
+    fun `top-level records get a global element named in lower snake`() {
+        val r = record("s", "HTTPStatus", field(1, "code", Scalar(Builtin.INT32)))
+        val file =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                .model
+                .files
+                .single()
+        assertEquals(
+            listOf(
+                XsdElement("http_status", XsdTypeRef.Named("tns", "HTTPStatusType", simple = false))
+            ),
+            file.elements,
+        )
+    }
+
+    @Test
+    fun `an xsd name override renames the element and the type of a record`() {
+        val r =
+            record(
+                "s",
+                "Order",
+                field(1, "id", Scalar(Builtin.INT64)),
+                annotations = xsd("name" to AnnotationValue.Str("purchase")),
+            )
+        val file =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                .model
+                .files
+                .single()
+        assertEquals("purchaseType", file.types.single().name)
+        assertEquals("purchase", file.elements.single().name)
+    }
+
+    @Test
+    fun `two records whose global elements collide report the second`() {
+        val a = record("s", "HTTPStatus", field(1, "x", Scalar(Builtin.BOOL)), line = 2)
+        val b = record("s", "HttpStatus", field(1, "x", Scalar(Builtin.BOOL)), line = 5)
+        val d =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(a, b)))))
+                .diagnostics
+                .single()
+        assertEquals(XsdCodes.NAME_COLLISION, d.code)
+        assertEquals(
+            "record 'HttpStatus' lowers to element 'http_status', already used by record 'HTTPStatus' (orders.schemata:2)",
+            d.message,
+        )
+        assertEquals("rename one of them, or set `@xsd(name = \"…\")` on one", d.help)
+    }
+
+    @Test
+    fun `a nested record whose type name collides with a top-level one reports it`() {
+        val line =
+            record(
+                "s",
+                "Line",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                path = listOf("Order", "Line"),
+                line = 8,
+            )
+        val order =
+            record(
+                "s",
+                "Order",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                nested = listOf(line),
+                line = 6,
+            )
+        val orderLine = record("s", "OrderLine", field(1, "x", Scalar(Builtin.BOOL)), line = 2)
+        val d =
+            XsdLowering.lower(
+                    Schema(listOf(namespace("s", declarations = listOf(orderLine, order))))
+                )
+                .diagnostics
+                .single()
+        assertEquals(
+            "record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (orders.schemata:2)",
+            d.message,
+        )
+    }
+
+    @Test
+    fun `an xsd name that is not an ncname is rejected`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "x",
+                    Scalar(Builtin.BOOL),
+                    annotations = xsd("name" to AnnotationValue.Str("1bad")),
+                ),
+            )
+        val d =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                .diagnostics
+                .single()
+        assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
+        assertEquals("field 'R.x': @xsd(name = \"1bad\") is not a valid XML name", d.message)
+        assertEquals(
+            "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore",
+            d.help,
+        )
+    }
 }
