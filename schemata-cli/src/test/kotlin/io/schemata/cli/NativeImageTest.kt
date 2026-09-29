@@ -5,7 +5,7 @@ import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.fail
 import org.junit.jupiter.api.Assumptions.assumeTrue
 
 /**
@@ -31,11 +31,19 @@ class NativeImageTest {
         val process =
             ProcessBuilder(command + args).directory(dir).redirectErrorStream(false).start()
         var err = ""
-        val drain = Thread { err = process.errorStream.bufferedReader().readText() }
-        drain.start()
-        val out = process.inputStream.bufferedReader().readText()
-        drain.join()
-        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "timed out: $args")
+        var out = ""
+        val drainErr = Thread { err = process.errorStream.bufferedReader().readText() }
+        val drainOut = Thread { out = process.inputStream.bufferedReader().readText() }
+        drainErr.start()
+        drainOut.start()
+        if (!process.waitFor(120, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            drainErr.join(5000)
+            drainOut.join(5000)
+            fail("timed out after 120 s: ${args.joinToString(" ")}")
+        }
+        drainErr.join()
+        drainOut.join()
         val files =
             dir.walkTopDown()
                 .filter { it.isFile }
