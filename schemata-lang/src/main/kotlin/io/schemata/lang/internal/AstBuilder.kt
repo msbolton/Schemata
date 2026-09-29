@@ -228,7 +228,9 @@ internal class AstBuilder(
     }
 
     private fun doc(ctx: SchemataParser.DocContext?): String? =
-        ctx?.DOC_COMMENT()?.joinToString("\n") { it.text.removePrefix("///").trim() }
+        ctx?.DOC_COMMENT()?.joinToString("\n") {
+            it.text.removePrefix("///").removePrefix(" ").trimEnd()
+        }
 
     private fun ordinal(node: TerminalNode): Int =
         node.text.removePrefix("#").toIntOrNull()
@@ -250,10 +252,15 @@ internal class AstBuilder(
         val stop = stop ?: start
         val endColumn =
             if (stop.type == Token.EOF) stop.charPositionInLine
-            else stop.charPositionInLine + stop.text.length
+            else stop.charPositionInLine + stop.text.codePointLength()
         return Span(file, start.line, start.charPositionInLine + 1, stop.line, endColumn)
     }
 
     private fun Token.span(): Span =
-        Span(file, line, charPositionInLine + 1, line, charPositionInLine + text.length)
+        Span(file, line, charPositionInLine + 1, line, charPositionInLine + text.codePointLength())
+
+    // ANTLR counts columns in Unicode code points; a token's own text is a normal UTF-16 Java
+    // string, so an astral character inside it (an emoji, say) counts as one column here too,
+    // rather than the two UTF-16 units `String.length` would give it.
+    private fun String.codePointLength(): Int = codePointCount(0, length)
 }

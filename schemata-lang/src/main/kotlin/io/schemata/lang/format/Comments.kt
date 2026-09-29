@@ -2,6 +2,7 @@ package io.schemata.lang.format
 
 import io.schemata.lang.Span
 import io.schemata.lang.antlr.SchemataLexer
+import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.RecordDecl
@@ -40,6 +41,12 @@ class CommentTable(
  * comment sits after the block's last member, so it belongs to that block's end (or, at the file's
  * own top level, to the end of the file). A comment before the namespace declaration always leads
  * the file, since nothing else could own it.
+ *
+ * Before any of that, a comment that falls inside a member's own span but before its ordinal or
+ * name (its doc and annotations come first in the grammar, so this is the gap between them and the
+ * keyword or ordinal) is attached to that member directly: trailing the annotation it shares a line
+ * with, or leading the member itself when it shares no annotation's line. Otherwise a block
+ * element's own prefix would wrongly be read as part of its body.
  */
 object Comments {
     fun collect(tokens: CommonTokenStream): List<Comment> {
@@ -82,34 +89,73 @@ object Comments {
     /**
      * One AST node that can carry comments. [members] holds a block's own members, in source order,
      * and is always empty for a leaf; [isBlock] tells the two apart even when a block happens to
-     * have no members of its own, such as `record Empty {}`.
+     * have no members of its own, such as `record Empty {}`. [prefixEnd] is the span of the
+     * element's ordinal or name — whichever comes first — and marks where its "prefix" (doc and
+     * annotations) ends; it is null for elements with no such prefix (an import, a union member, a
+     * reserved item). [annotations] are the element's own annotations, used to tell a comment that
+     * shares an annotation's line from one that merely precedes the element's keyword or ordinal.
      */
     private class Element(
         val span: Span,
         val key: Span,
         val members: List<Element>,
         val isBlock: Boolean,
+        val prefixEnd: Span? = null,
+        val annotations: List<Annotation> = emptyList(),
     )
 
-    private fun leaf(span: Span) = Element(span, span, emptyList(), isBlock = false)
+    private fun leaf(
+        span: Span,
+        prefixEnd: Span? = null,
+        annotations: List<Annotation> = emptyList(),
+    ) =
+        Element(
+            span,
+            span,
+            emptyList(),
+            isBlock = false,
+            prefixEnd = prefixEnd,
+            annotations = annotations,
+        )
 
     private fun element(d: Declaration): Element =
         when (d) {
             is RecordDecl ->
                 block(
                     d.span,
-                    d.fields.map { leaf(it.span) } +
+                    d.fields.map { leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations) } +
                         d.nested.map(::element) +
                         reservedElement(d.reserved),
+                    d.nameSpan,
+                    d.annotations,
                 )
             is EnumDecl ->
-                block(d.span, d.values.map { leaf(it.span) } + reservedElement(d.reserved))
-            is UnionDecl -> block(d.span, d.members.map { leaf(it.span) })
-            else -> leaf(d.span)
+                block(
+                    d.span,
+                    d.values.map { leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations) } +
+                        reservedElement(d.reserved),
+                    d.nameSpan,
+                    d.annotations,
+                )
+            is UnionDecl ->
+                block(d.span, d.members.map { leaf(it.span) }, d.nameSpan, d.annotations)
+            else -> leaf(d.span, d.nameSpan, d.annotations)
         }
 
-    private fun block(span: Span, members: List<Element>) =
-        Element(span, span, sortedBlock(members), isBlock = true)
+    private fun block(
+        span: Span,
+        members: List<Element>,
+        prefixEnd: Span? = null,
+        annotations: List<Annotation> = emptyList(),
+    ) =
+        Element(
+            span,
+            span,
+            sortedBlock(members),
+            isBlock = true,
+            prefixEnd = prefixEnd,
+            annotations = annotations,
+        )
 
     private fun sortedBlock(members: List<Element>) =
         members.sortedWith(compareBy({ it.span.startLine }, { it.span.startColumn }))
@@ -144,6 +190,20 @@ object Comments {
         endOfBlock: MutableMap<Span, MutableList<Comment>>,
         fileTrailing: MutableList<Comment>,
     ) {
+        val prefixOwner =
+            members.firstOrNull {
+                it.prefixEnd != null && !before(c, it.span) && before(c, it.prefixEnd)
+            }
+        if (prefixOwner != null) {
+            val onAnnotationLine =
+                prefixOwner.annotations.lastOrNull { c.line in it.span.startLine..it.span.endLine }
+            if (onAnnotationLine != null) {
+                trailing.getOrPut(onAnnotationLine.span) { mutableListOf() } += c
+            } else {
+                leading.getOrPut(prefixOwner.key) { mutableListOf() } += c
+            }
+            return
+        }
         val container =
             members.firstOrNull {
                 it.isBlock &&

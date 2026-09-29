@@ -88,4 +88,29 @@ class CommentsTest {
         assertEquals(listOf("// just this"), p.comments.endOfBlock[r.span]?.map { it.text })
         assertEquals(emptyList(), p.comments.fileTrailing)
     }
+
+    @Test
+    fun `a comment sharing an annotation's line trails that annotation, not the next member`() {
+        val p =
+            parse(
+                "namespace t\n\nrecord R {\n  @sql(key)  // pk\n  #1 id: int64\n  #2 code: string\n}\n"
+            )
+        val r = p.file!!.declarations.single() as RecordDecl
+        val id = r.fields[0]
+        assertEquals(
+            listOf("// pk"),
+            p.comments.trailing[id.annotations.single().span]?.map { it.text },
+        )
+        assertEquals(null, p.comments.leading[r.fields[1].span])
+        assertEquals(null, p.comments.leading[id.span])
+    }
+
+    @Test
+    fun `a comment between a declaration's annotation and its keyword leads the declaration`() {
+        val p = parse("namespace t\n\n@sql(table = \"x\")\n// note\nrecord R {\n  #1 a: bool\n}\n")
+        val r = p.file!!.declarations.single() as RecordDecl
+        assertEquals(listOf("// note"), p.comments.leading[r.span]?.map { it.text })
+        assertEquals(null, p.comments.endOfBlock[r.span])
+        assertEquals(null, p.comments.leading[r.fields.single().span])
+    }
 }
