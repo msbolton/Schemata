@@ -32,10 +32,15 @@ def main(version, sums_path, formula_path):
     sha_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*sha256 "', l)]
     if len(url_lines) != len(PLATFORMS) or len(sha_lines) != len(PLATFORMS):
         sys.exit(f"bump-formula: expected {len(PLATFORMS)} url and sha256 lines, found {len(url_lines)} and {len(sha_lines)}")
-    m = re.search(r"/download/v([^/]+)/schemata-\1-", lines[url_lines[0]])
-    if not m:
-        sys.exit("bump-formula: the first url line does not carry the release version")
-    old = m.group(1)
+    versions = []
+    for i in url_lines:
+        m = re.search(r"/download/v([^/]+)/schemata-\1-", lines[i])
+        if not m:
+            sys.exit(f"bump-formula: line {i + 1} does not carry the release version: {lines[i].strip()}")
+        versions.append(m.group(1))
+    if len(set(versions)) > 1:
+        sys.exit(f"bump-formula: url lines disagree on the version: {', '.join(versions)}")
+    old = versions[0]
     for i in url_lines:
         lines[i] = lines[i].replace(f"/v{old}/schemata-{old}-", f"/v{version}/schemata-{version}-")
     for i, sha in zip(sha_lines, checksums):

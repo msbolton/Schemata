@@ -57,4 +57,17 @@ class BumpFormulaTest {
         assertTrue("schemata-0.4.0-macos-x64.tar.gz" in out, out)
         assertEquals(File(fixtures, "schemata.rb").readText(), f.readText())
     }
+
+    @Test
+    fun `url lines with different versions are refused`() {
+        val f = copyOfFormula()
+        val edited =
+            f.readText()
+                .replace("v0.3.0/schemata-0.3.0-macos-x64", "v0.2.0/schemata-0.2.0-macos-x64")
+        f.writeText(edited)
+        val (code, out) = run("0.4.0", File(fixtures, "SHA256SUMS").path, f.path)
+        assertEquals(1, code, out)
+        assertTrue("0.2.0" in out || "macos-x64" in out, out)
+        assertEquals(edited, f.readText())
+    }
 }
