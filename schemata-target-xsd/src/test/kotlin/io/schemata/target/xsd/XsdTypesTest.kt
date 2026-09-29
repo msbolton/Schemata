@@ -97,8 +97,25 @@ class XsdTypesTest {
 
     @Test
     fun `an escaped dollar at the end is a literal and leaves the end unanchored`() {
-        assertEquals("(a\\$).*", XsdTypes.pattern("^a\\$").value)
+        assertEquals("(a$).*", XsdTypes.pattern("^a\\$").value)
         assertEquals("a\\\\", XsdTypes.pattern("^a\\\\$").value)
+    }
+
+    @Test
+    fun `an escaped dollar anywhere is printed bare`() {
+        assertEquals("a\$b[$]", XsdTypes.pattern("^a\\\$b[\\$]$").value)
+    }
+
+    @Test
+    fun `an unescaped anchor inside the pattern is reported`() {
+        assertEquals(XsdTypes.Pattern(null, "^"), XsdTypes.pattern("a|^b"))
+        assertEquals(XsdTypes.Pattern(null, "$"), XsdTypes.pattern("a$|b"))
+        assertEquals(XsdTypes.Pattern(null, "^"), XsdTypes.pattern("^a|^b$"))
+    }
+
+    @Test
+    fun `a caret or dollar inside a character class stays literal`() {
+        assertEquals(".*(a[b^$]).*", XsdTypes.pattern("a[b^$]").value)
     }
 
     @Test

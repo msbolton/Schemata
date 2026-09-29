@@ -80,17 +80,20 @@ object XsdTypes {
      * matches the whole string. An unescaped leading `^` and trailing `$` are stripped, and each
      * side without one is opened with `.*`, the body parenthesised so an alternation stays whole:
      * `a|b` becomes `.*(a|b).*`, `^abc` becomes `(abc).*`, and `^abc$` stays `abc`. The body is
-     * then screened for the first construct XSD regexes lack.
+     * then screened for the first construct XSD regexes lack; an escaped `\$` is printed bare,
+     * since `$` is an ordinary character in XSD.
      */
     fun pattern(pattern: String): Pattern {
         val start = pattern.startsWith("^")
         val end = pattern.endsWith("$") && !escapedAt(pattern, pattern.length - 1)
         val body = pattern.substring(if (start) 1 else 0, pattern.length - (if (end) 1 else 0))
-        PatternScanner(body).firstUnsupported()?.let {
+        val scanner = PatternScanner(body)
+        scanner.firstUnsupported()?.let {
             return Pattern(null, it)
         }
-        if (start && end) return Pattern(body, null)
-        return Pattern((if (start) "" else ".*") + "($body)" + (if (end) "" else ".*"), null)
+        val xsd = scanner.withBareDollars()
+        if (start && end) return Pattern(xsd, null)
+        return Pattern((if (start) "" else ".*") + "($xsd)" + (if (end) "" else ".*"), null)
     }
 
     /** Whether the character at [index] follows an odd run of backslashes. */
@@ -112,10 +115,22 @@ object XsdTypes {
 
 /**
  * Walks a pattern once, token by token (escapes, character classes, groups, quantifiers), and names
- * the first construct outside XSD 1.0's regex language, exactly as it is written.
+ * the first construct outside XSD 1.0's regex language, exactly as it is written. An unescaped `^`
+ * or `$` outside a class is an anchor to Java but a literal to XSD, so one left in the body after
+ * the leading and trailing anchors are stripped is reported.
  */
 private class PatternScanner(private val s: String) {
     private var i = 0
+
+    /** Where each `\$` escape starts, so its backslash can be dropped for XSD. */
+    private val dollarEscapes = mutableListOf<Int>()
+
+    /** The scanned pattern with each `\$` printed as a bare `$`. */
+    fun withBareDollars(): String {
+        val out = StringBuilder(s)
+        dollarEscapes.asReversed().forEach { out.deleteCharAt(it) }
+        return out.toString()
+    }
 
     fun firstUnsupported(): String? {
         while (i < s.length) {
@@ -128,6 +143,8 @@ private class PatternScanner(private val s: String) {
                     '*',
                     '+' -> quantifier(i + 1)
                     '{' -> braces()
+                    '^',
+                    '$' -> s[i].toString()
                     else -> {
                         i++
                         null
@@ -202,6 +219,11 @@ private class PatternScanner(private val s: String) {
     private fun escape(): String? {
         val c = s.getOrNull(i + 1) ?: return "\\".also { i++ }
         return when {
+            c == '$' -> {
+                dollarEscapes += i
+                i += 2
+                null
+            }
             c in SINGLE_CHAR_ESCAPES -> {
                 i += 2
                 null
@@ -248,8 +270,8 @@ private class PatternScanner(private val s: String) {
     private fun reported(end: Int): String = s.substring(i, end)
 
     private companion object {
-        /** XSD 1.0's single-character and multi-character escapes, plus `$` as a literal. */
-        const val SINGLE_CHAR_ESCAPES = "nrt\\|.-^?*+{}()[]\$sSiIcCdDwW"
+        /** XSD 1.0's single-character and multi-character escapes. */
+        const val SINGLE_CHAR_ESCAPES = "nrt\\|.-^?*+{}()[]sSiIcCdDwW"
         const val HEX = "0123456789abcdefABCDEF"
         val BOUNDS = Regex("[0-9]+(,[0-9]*)?")
         val BLOCK = Regex("Is[A-Za-z0-9\\-]+")
