@@ -227,9 +227,9 @@ class GrammarTest {
     }
 
     @Test
-    fun `triple slash lexes as DOC_COMMENT, double slash is skipped`() {
+    fun `triple slash lexes as DOC_COMMENT, double slash lexes as a hidden LINE_COMMENT`() {
         assertEquals(listOf(SchemataLexer.DOC_COMMENT), tokens("/// doc"))
-        assertEquals(emptyList(), tokens("// plain"))
+        assertEquals(listOf(SchemataLexer.LINE_COMMENT), tokens("// plain"))
     }
 
     @Test
