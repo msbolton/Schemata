@@ -151,6 +151,10 @@ object XsdLowering {
             val where = "field '${record.name}.${field.name}'"
             val name = overrideName(field.annotations, where, field.nameSpan) ?: field.name
             claim("element", "${path.joinToString(".")}/$name", where, field.nameSpan)
+            // The base for any map nested anywhere under this field, at any depth; a map directly
+            // on the field uses it bare, one nested a level down appends "_item" per level, so
+            // every `xs:unique` name in the file stays distinct.
+            val uniqueBase = "${XsdNames.typeName(path)}_$name"
             return when (val t = field.type) {
                 is Scalar,
                 is Ref ->
@@ -173,10 +177,10 @@ object XsdLowering {
                                     "declare the list as `list<T>`; an absent list already means empty",
                             )
                     }
-                    listElement(name, t, where, field.span).copy(doc = field.doc)
+                    listElement(name, t, uniqueBase, where, field.span).copy(doc = field.doc)
                 }
                 is MapOf ->
-                    mapElement(name, t, "${XsdNames.typeName(path)}_$name", where, field.span)
+                    mapElement(name, t, uniqueBase, where, field.span)
                         .copy(minOccurs = if (field.nullable) 0 else 1, doc = field.doc)
             }
         }
@@ -198,11 +202,20 @@ object XsdLowering {
                     error("typeRef does not accept a collection; lower it as an element instead")
             }
 
-        /** A repeated element for [list], its bounds and nillability from its refinements. */
-        private fun listElement(name: String, list: ListOf, where: String, span: Span): XsdElement =
+        /**
+         * A repeated element for [list], its bounds and nillability from its refinements. Any map
+         * nested inside it names its uniqueness constraint from [uniqueBase].
+         */
+        private fun listElement(
+            name: String,
+            list: ListOf,
+            uniqueBase: String,
+            where: String,
+            span: Span,
+        ): XsdElement =
             XsdElement(
                 name = name,
-                type = itemTypeRef(list.element, where, span),
+                type = itemTypeRef(list.element, uniqueBase, where, span),
                 minOccurs = list.refinements.min?.toInt() ?: 0,
                 maxOccurs = list.refinements.max?.toInt(),
                 nillable = list.nullableElement,
@@ -212,18 +225,24 @@ object XsdLowering {
          * A list or map element's item type: a direct reference, or an inner collection nested
          * under the name `item`.
          */
-        private fun itemTypeRef(element: Type, where: String, span: Span): XsdTypeRef =
+        private fun itemTypeRef(
+            element: Type,
+            uniqueBase: String,
+            where: String,
+            span: Span,
+        ): XsdTypeRef =
             when (element) {
                 is Scalar,
                 is Ref -> typeRef(element, where, span)
-                is ListOf -> XsdTypeRef.Anonymous(listOf(listElement("item", element, where, span)))
-                is MapOf ->
-                    XsdTypeRef.Anonymous(listOf(mapElement("item", element, "item", where, span)))
+                is ListOf,
+                is MapOf -> nestedItem(element, uniqueBase, where, span)
             }
 
         /**
          * The wrapper element for a map field: `entry` elements keyed by an attribute, with a
-         * uniqueness constraint named from [uniqueBase].
+         * uniqueness constraint named `"${uniqueBase}_key"`. A map nested one level deeper — inside
+         * this map's value, or inside a list — extends [uniqueBase] with `_item`, so every
+         * `xs:unique` in the file has a distinct name however deeply collections nest.
          */
         private fun mapElement(
             name: String,
@@ -236,7 +255,7 @@ object XsdLowering {
             val entry =
                 XsdElement(
                     name = "entry",
-                    type = entryTypeRef(map.value, key, where, span),
+                    type = entryTypeRef(map.value, key, uniqueBase, where, span),
                     minOccurs = map.refinements.min?.toInt() ?: 0,
                     maxOccurs = map.refinements.max?.toInt(),
                     nillable = map.nullableValue,
@@ -256,6 +275,7 @@ object XsdLowering {
         private fun entryTypeRef(
             value: Type,
             key: XsdAttribute,
+            uniqueBase: String,
             where: String,
             span: Span,
         ): XsdTypeRef =
@@ -267,17 +287,32 @@ object XsdLowering {
                     else XsdTypeRef.Extension(ref, listOf(key))
                 }
                 is Ref -> XsdTypeRef.Extension(typeRef(value, where, span), listOf(key))
-                is ListOf ->
-                    XsdTypeRef.Anonymous(
-                        listOf(listElement("item", value, where, span)),
-                        listOf(key),
-                    )
-                is MapOf ->
-                    XsdTypeRef.Anonymous(
-                        listOf(mapElement("item", value, "item", where, span)),
-                        listOf(key),
-                    )
+                is ListOf,
+                is MapOf -> nestedItem(value, uniqueBase, where, span, listOf(key))
             }
+
+        /**
+         * The anonymous wrapper for [element] (a list or a map) lowered under the name `item`,
+         * carrying [attributes]; its own nested maps, if any, extend [uniqueBase] one more level
+         * with `_item`.
+         */
+        private fun nestedItem(
+            element: Type,
+            uniqueBase: String,
+            where: String,
+            span: Span,
+            attributes: List<XsdAttribute> = emptyList(),
+        ): XsdTypeRef.Anonymous {
+            val itemBase = "${uniqueBase}_item"
+            val item =
+                when (element) {
+                    is ListOf -> listElement("item", element, itemBase, where, span)
+                    is MapOf -> mapElement("item", element, itemBase, where, span)
+                    is Scalar,
+                    is Ref -> error("nestedItem only accepts a list or a map")
+                }
+            return XsdTypeRef.Anonymous(listOf(item), attributes)
+        }
 
         private fun kindOf(decl: TypeDecl): String =
             when (decl) {

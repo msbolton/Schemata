@@ -557,6 +557,74 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `nested maps in different list fields get distinct uniqueness constraint names`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    ListOf(
+                        MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), nullableValue = false),
+                        nullableElement = false,
+                    ),
+                ),
+                field(
+                    2,
+                    "b",
+                    ListOf(
+                        MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), nullableValue = false),
+                        nullableElement = false,
+                    ),
+                ),
+            )
+        val seq =
+            (XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                    .model
+                    .files
+                    .single()
+                    .types
+                    .single() as XsdComplex)
+                .sequence
+        val aMap = (seq[0].type as XsdTypeRef.Anonymous).sequence.single()
+        val bMap = (seq[1].type as XsdTypeRef.Anonymous).sequence.single()
+        assertEquals("RType_a_item_key", aMap.unique)
+        assertEquals("RType_b_item_key", bMap.unique)
+    }
+
+    @Test
+    fun `a map of maps names the outer and inner uniqueness constraints from the field`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "grid",
+                    MapOf(
+                        Scalar(Builtin.STRING),
+                        MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), nullableValue = false),
+                        nullableValue = false,
+                    ),
+                ),
+            )
+        val outer =
+            (XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                    .model
+                    .files
+                    .single()
+                    .types
+                    .single() as XsdComplex)
+                .sequence
+                .single()
+        assertEquals("RType_grid_key", outer.unique)
+        val entry = (outer.type as XsdTypeRef.Anonymous).sequence.single()
+        val innerMap = (entry.type as XsdTypeRef.Anonymous).sequence.single()
+        assertEquals("RType_grid_item_key", innerMap.unique)
+    }
+
+    @Test
     fun `same-named nested records under different parents do not collide`() {
         val orderLine =
             record(
