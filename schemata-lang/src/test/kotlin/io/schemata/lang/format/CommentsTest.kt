@@ -2,6 +2,7 @@ package io.schemata.lang.format
 
 import io.schemata.lang.Parser
 import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.ast.UnionDecl
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -112,5 +113,28 @@ class CommentsTest {
         assertEquals(listOf("// note"), p.comments.leading[r.span]?.map { it.text })
         assertEquals(null, p.comments.endOfBlock[r.span])
         assertEquals(null, p.comments.leading[r.fields.single().span])
+    }
+
+    @Test
+    fun `a comment between a middle union member's doc and ordinal leads that member`() {
+        val p =
+            parse(
+                "namespace t\n\nunion U = #1 A |\n/// d\n// c\n#2 B |\n#3 C\nrecord A { #1 a: bool }\nrecord B { #1 b: bool }\nrecord C { #1 c: bool }\n"
+            )
+        val u = p.file!!.declarations[0] as UnionDecl
+        assertEquals(listOf("// c"), p.comments.leading[u.members[1].span]?.map { it.text })
+        assertEquals(null, p.comments.leading[u.members[2].span])
+        assertEquals(null, p.comments.endOfBlock[u.span])
+    }
+
+    @Test
+    fun `a comment between the last union member's doc and ordinal leads that member`() {
+        val p =
+            parse(
+                "namespace t\n\nunion U = #1 A |\n/// d\n// c\n#2 B\nrecord A { #1 a: bool }\nrecord B { #1 b: bool }\n"
+            )
+        val u = p.file!!.declarations[0] as UnionDecl
+        assertEquals(listOf("// c"), p.comments.leading[u.members[1].span]?.map { it.text })
+        assertEquals(null, p.comments.endOfBlock[u.span])
     }
 }

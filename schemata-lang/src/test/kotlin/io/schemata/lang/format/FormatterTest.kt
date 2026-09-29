@@ -145,6 +145,15 @@ class FormatterTest {
     }
 
     @Test
+    fun `a comment between a union member's doc and ordinal prints above its line and reparses`() {
+        val input =
+            "namespace t\nunion U = #1 A |\n/// d\n// c\n#2 B\nrecord A { #1 a: bool }\nrecord B { #1 b: bool }\n"
+        val expected =
+            "namespace t\n\nunion U =\n  #1 A |\n  // c\n  /// d\n  #2 B\n\nrecord A { #1 a: bool }\n\nrecord B { #1 b: bool }\n"
+        assertEquals(expected, fmt(input))
+    }
+
+    @Test
     fun `astral characters before a literal do not shift its slice`() {
         val input = "namespace t\nrecord R {\n@sql(note = \"🚀 fast\") #1 x: string(max = 10)\n}\n"
         val expected =
@@ -191,6 +200,7 @@ class FormatterTest {
                 "namespace t\n\nrecord R { @sql(note = \"🚀 fast\") #1 x: string(max = 10) }\n",
                 "namespace t\n\n// note\n@sql(table = \"x\")\nrecord R {\n  @sql(key)  // pk\n  #1 id:   int64\n  #2 code: string\n}\n",
                 "namespace t\n\nrecord R {\n  ///     code\n  #1 a: bool\n}\n",
+                "namespace t\n\nunion U =\n  #1 A |\n  // c\n  /// d\n  #2 B\n\nrecord A { #1 a: bool }\n\nrecord B { #1 b: bool }\n",
             )
         fixtures.forEach { assertEquals(it, fmt(it), "not idempotent: $it") }
     }

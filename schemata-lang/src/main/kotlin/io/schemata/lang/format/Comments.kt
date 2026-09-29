@@ -46,7 +46,9 @@ class CommentTable(
  * name (its doc and annotations come first in the grammar, so this is the gap between them and the
  * keyword or ordinal) is attached to that member directly: trailing the annotation it shares a line
  * with, or leading the member itself when it shares no annotation's line. Otherwise a block
- * element's own prefix would wrongly be read as part of its body.
+ * element's own prefix would wrongly be read as part of its body. A union member has no
+ * annotations, only an optional doc, so this always reduces to leading the member for it — a `///`
+ * line cannot carry a trailing `//`, since the doc token itself runs to the end of the line.
  */
 object Comments {
     fun collect(tokens: CommonTokenStream): List<Comment> {
@@ -90,10 +92,11 @@ object Comments {
      * One AST node that can carry comments. [members] holds a block's own members, in source order,
      * and is always empty for a leaf; [isBlock] tells the two apart even when a block happens to
      * have no members of its own, such as `record Empty {}`. [prefixEnd] is the span of the
-     * element's ordinal or name — whichever comes first — and marks where its "prefix" (doc and
-     * annotations) ends; it is null for elements with no such prefix (an import, a union member, a
-     * reserved item). [annotations] are the element's own annotations, used to tell a comment that
-     * shares an annotation's line from one that merely precedes the element's keyword or ordinal.
+     * element's ordinal or name — whichever comes first, an ordinal or a type for a union member —
+     * and marks where its "prefix" (doc and annotations) ends; it is null for elements with no such
+     * prefix (an import, a reserved item). [annotations] are the element's own annotations, used to
+     * tell a comment that shares an annotation's line from one that merely precedes the element's
+     * keyword or ordinal.
      */
     private class Element(
         val span: Span,
@@ -138,7 +141,12 @@ object Comments {
                     d.annotations,
                 )
             is UnionDecl ->
-                block(d.span, d.members.map { leaf(it.span) }, d.nameSpan, d.annotations)
+                block(
+                    d.span,
+                    d.members.map { leaf(it.span, it.ordinalSpan ?: it.type.span) },
+                    d.nameSpan,
+                    d.annotations,
+                )
             else -> leaf(d.span, d.nameSpan, d.annotations)
         }
 

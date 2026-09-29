@@ -249,7 +249,10 @@ object Formatter {
          * on its own line, since the grammar allows no leading `|`: it trails every member but the
          * last. A member's own trailing comment sits at the end of its line; the union's own
          * trailing comment — there being no closing brace to hang it on — sits at the end of the
-         * last member's line instead.
+         * last member's line instead, and a comment after the last member (`endOfBlock`, for the
+         * same reason) follows on its own line after that. A comment between a member's doc and its
+         * ordinal leads that member, like any other leading comment, so it prints above the
+         * member's doc, not between the doc and the ordinal.
          */
         internal fun union(d: UnionDecl, indent: String): String {
             if (canOneLineUnion(d)) {
@@ -273,6 +276,7 @@ object Formatter {
                         innerIndent + unionMemberOneLine(m) + pipe + trailing(m.span) + declTrailing
                     )
                 }
+                comments.endOfBlock[d.span]?.forEach { appendLine(innerIndent + it.text) }
             }
         }
     }
