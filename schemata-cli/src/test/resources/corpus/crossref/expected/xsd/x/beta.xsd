@@ -4,7 +4,7 @@
            targetNamespace="urn:schemata:x.beta"
            elementFormDefault="qualified"
            attributeFormDefault="unqualified">
-  <xs:complexType name="BType">
+  <xs:complexType name="BetaType">
     <xs:sequence>
       <xs:element name="id">
         <xs:simpleType>
@@ -15,5 +15,5 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
-  <xs:element name="b" type="tns:BType"/>
+  <xs:element name="Beta" type="tns:BetaType"/>
 </xs:schema>

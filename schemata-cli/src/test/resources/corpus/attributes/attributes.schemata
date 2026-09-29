@@ -1,7 +1,7 @@
 /// Attributes and roots.
 namespace corpus.attributes
 
-enum Kind { #1 personal, #2 work }
+enum Kind { @xsd(name = "Personal") #1 personal, #2 work }
 
 /// Not a document root on its own.
 @xsd(root = false)

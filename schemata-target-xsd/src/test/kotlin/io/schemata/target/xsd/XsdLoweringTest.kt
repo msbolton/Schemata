@@ -83,12 +83,20 @@ class XsdLoweringTest {
         vararg values: String,
         line: Int = 30,
         annotations: Annotations = Annotations.NONE,
+        valueAnnotations: Map<String, Annotations> = emptyMap(),
     ) =
         EnumType(
             qn(ns, name),
             name,
             values.mapIndexed { i, v ->
-                EnumValue(i + 1, v, null, at(line + 1 + i), at(line + 1 + i))
+                EnumValue(
+                    i + 1,
+                    v,
+                    null,
+                    at(line + 1 + i),
+                    at(line + 1 + i),
+                    valueAnnotations[v] ?: Annotations.NONE,
+                )
             },
             Reserved(emptyList(), emptySet()),
             emptyList(),
@@ -754,9 +762,10 @@ class XsdLoweringTest {
         val member = ds.single { "union member" in it.message }
         assertEquals(XsdCodes.NAME_COLLISION, member.code)
         assertEquals(
-            "union member 'HttpStatus' lowers to element 'http_status', already used by union member 'HTTPStatus' (orders.schemata:6)",
+            "union member 'HttpStatus' lowers to element 'http_status', already used by union member 'HTTPStatus' (orders.schemata:7)",
             member.message,
         )
+        assertEquals(8, member.span.startLine)
     }
 
     @Test
@@ -904,5 +913,225 @@ class XsdLoweringTest {
                 .files
                 .single()
         assertEquals(emptyList(), file.elements)
+    }
+
+    @Test
+    fun `a field referencing an overridden record uses the overridden type name`() {
+        val order =
+            record(
+                "s",
+                "Order",
+                field(1, "id", Scalar(Builtin.INT64)),
+                annotations = xsd("name" to AnnotationValue.Str("Purchase")),
+            )
+        val r =
+            record(
+                "s",
+                "Invoice",
+                field(1, "order", Ref(qn("s", "Order"))),
+                field(2, "orders", ListOf(Ref(qn("s", "Order")), nullableElement = false)),
+                field(
+                    3,
+                    "byId",
+                    MapOf(Scalar(Builtin.STRING), Ref(qn("s", "Order")), nullableValue = false),
+                ),
+            )
+        val u = union("s", "Pay", Ref(qn("s", "Order")))
+        val lowered =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(order, r, u)))))
+        assertEquals(emptyList(), lowered.diagnostics)
+        val file = lowered.model.files.single()
+        val purchase = XsdTypeRef.Named("tns", "PurchaseType", simple = false)
+        val seq = (file.types[1] as XsdComplex).sequence
+        assertEquals(purchase, seq[0].type)
+        assertEquals(purchase, seq[1].type)
+        val entry = (seq[2].type as XsdTypeRef.Anonymous).sequence.single()
+        assertEquals(purchase, (entry.type as XsdTypeRef.Extension).base)
+        assertEquals(purchase, (file.types[2] as XsdChoice).members.single().type)
+        assertEquals(XsdElement("Purchase", purchase), file.elements[0])
+    }
+
+    @Test
+    fun `a cross-namespace reference to an overridden record imports the overridden type name`() {
+        val customer =
+            record(
+                "shop.customers",
+                "Customer",
+                field(1, "name", Scalar(Builtin.STRING)),
+                annotations = xsd("name" to AnnotationValue.Str("Client")),
+            )
+        val order =
+            record(
+                "shop.orders",
+                "Order",
+                field(1, "customer", Ref(qn("shop.customers", "Customer"))),
+            )
+        val model =
+            XsdLowering.lower(
+                    Schema(
+                        listOf(
+                            namespace("shop.customers", declarations = listOf(customer)),
+                            namespace("shop.orders", declarations = listOf(order)),
+                        )
+                    )
+                )
+                .model
+        assertEquals("ClientType", model.files[0].types.single().name)
+        assertEquals(
+            XsdTypeRef.Named("ns1", "ClientType", simple = false),
+            (model.files[1].types.single() as XsdComplex).sequence.single().type,
+        )
+    }
+
+    @Test
+    fun `a nested type under an overridden parent is referenced by the overridden path`() {
+        val line =
+            record(
+                "s",
+                "Line",
+                field(1, "sku", Scalar(Builtin.STRING)),
+                path = listOf("Order", "Line"),
+            )
+        val order =
+            record(
+                "s",
+                "Order",
+                field(1, "id", Scalar(Builtin.INT64)),
+                nested = listOf(line),
+                annotations = xsd("name" to AnnotationValue.Str("Purchase")),
+            )
+        val r = record("s", "Invoice", field(1, "line", Ref(qn("s", "Order", "Line"))))
+        val lowered =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(order, r)))))
+        assertEquals(emptyList(), lowered.diagnostics)
+        val file = lowered.model.files.single()
+        assertEquals(
+            listOf("PurchaseType", "PurchaseLineType", "InvoiceType"),
+            file.types.map { it.name },
+        )
+        assertEquals(
+            XsdTypeRef.Named("tns", "PurchaseLineType", simple = false),
+            (file.types[2] as XsdComplex).sequence.single().type,
+        )
+    }
+
+    @Test
+    fun `an invalid record override referenced from two files is reported once`() {
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "id", Scalar(Builtin.INT64)),
+                annotations = xsd("name" to AnnotationValue.Str("1bad")),
+            )
+        val b = union("b", "B", Ref(qn("a", "Order")))
+        val c = union("c", "C", Ref(qn("a", "Order")))
+        val lowered =
+            XsdLowering.lower(
+                Schema(
+                    listOf(
+                        namespace("a", declarations = listOf(order)),
+                        namespace("b", declarations = listOf(b)),
+                        namespace("c", declarations = listOf(c)),
+                    )
+                )
+            )
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
+        assertEquals("record 'Order': @xsd(name = \"1bad\") is not a valid XML name", d.message)
+        assertEquals(
+            XsdTypeRef.Named("ns1", "OrderType", simple = false),
+            (lowered.model.files[1].types.single() as XsdChoice).members.single().type,
+        )
+    }
+
+    @Test
+    fun `an enum default honours the overridden value name on elements and attributes`() {
+        val kind =
+            enum(
+                "s",
+                "Kind",
+                "personal",
+                "work",
+                valueAnnotations =
+                    mapOf("personal" to xsd("name" to AnnotationValue.Str("Personal"))),
+            )
+        val r =
+            record(
+                "s",
+                "Contact",
+                field(
+                    1,
+                    "kind",
+                    Ref(qn("s", "Kind")),
+                    default = EnumRef(qn("s", "Kind"), "personal"),
+                ),
+                field(
+                    2,
+                    "other",
+                    Ref(qn("s", "Kind")),
+                    default = EnumRef(qn("s", "Kind"), "personal"),
+                    annotations = xsd("attribute" to AnnotationValue.Flag),
+                ),
+            )
+        val lowered =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(kind, r)))))
+        assertEquals(emptyList(), lowered.diagnostics)
+        val file = lowered.model.files.single()
+        assertEquals(
+            listOf("Personal", "work"),
+            (file.types[0] as XsdEnumeration).values.map { it.value },
+        )
+        val contact = file.types[1] as XsdComplex
+        assertEquals("Personal", contact.sequence.single().default)
+        assertEquals("Personal", contact.attributes.single().default)
+    }
+
+    @Test
+    fun `two scalar members of one builtin in a union collide`() {
+        val u =
+            union(
+                "s",
+                "U",
+                Scalar(Builtin.INT32),
+                Scalar(Builtin.INT32, Refinements(min = BigDecimal.ZERO)),
+            )
+        val d =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(u)))))
+                .diagnostics
+                .single()
+        assertEquals(XsdCodes.NAME_COLLISION, d.code)
+        assertEquals(
+            "union member 'int32' lowers to element 'int32', already used by union member 'int32' (orders.schemata:41)",
+            d.message,
+        )
+        assertEquals(42, d.span.startLine)
+    }
+
+    @Test
+    fun `an attribute named like an element in the same record collides as an attribute`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(1, "x", Scalar(Builtin.STRING)),
+                field(
+                    2,
+                    "y",
+                    Scalar(Builtin.STRING),
+                    annotations =
+                        xsd("attribute" to AnnotationValue.Flag, "name" to AnnotationValue.Str("x")),
+                ),
+            )
+        val d =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                .diagnostics
+                .single()
+        assertEquals(XsdCodes.NAME_COLLISION, d.code)
+        assertEquals(
+            "field 'R.y' lowers to attribute 'x', already used by field 'R.x' (orders.schemata:11)",
+            d.message,
+        )
+        assertEquals(12, d.span.startLine)
     }
 }

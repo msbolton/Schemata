@@ -15,7 +15,7 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="b" type="ns1:BType"/>
+      <xs:element name="b" type="ns1:BetaType"/>
     </xs:sequence>
   </xs:complexType>
   <xs:element name="a" type="tns:AType"/>
