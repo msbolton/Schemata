@@ -1,16 +1,17 @@
 # Schemata language reference
 
 A `.schemata` file declares records, enums, unions, and aliases in a namespace. You give the
-compiler a set of `.schemata` files, and it compiles that one set to both a Protobuf schema and a
-Postgres schema.
+compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, a Postgres
+schema, and an XML Schema.
 
 ## 1. Files and namespaces
 
 Every file begins with a namespace declaration: `namespace a.b.c`. Each segment is lower_snake.
 Several files may share a namespace; the compilation unit is the whole set of files given on the
 command line, with any directories walked recursively. Output paths follow the namespace, so
-`namespace shop.orders` writes `shop/orders.proto` and `shop/orders.sql`. A doc comment and any
-annotations may precede the `namespace` line itself; section 15 shows annotations there, and `examples/shop/orders.schemata` shows a doc comment.
+`namespace shop.orders` writes `shop/orders.proto`, `shop/orders.sql`, and `shop/orders.xsd`. A
+doc comment and any annotations may precede the `namespace` line itself; section 15 shows
+annotations there, and `examples/shop/orders.schemata` shows a doc comment.
 
 By default, a namespace's Postgres schema is its last segment: `shop.orders` lowers to schema
 `"orders"`. Two namespaces with the same last segment collide (SCH2102) unless one sets
@@ -503,7 +504,14 @@ a field lowers to Postgres, within this matrix:
 | `map` | `json` | `table` |
 | a union | `embed` | `json` |
 
-`guide/annotations.md` lists every key both targets accept, the elements it applies to, and the
+`@xsd(namespace = "…")` sets a namespace's target XML namespace; without it, the namespace lowers
+to `urn:schemata:<namespace>`. `@xsd(name = "…")` renames a record, an enum, a union, a field, or
+an enum value. `@xsd(attribute)` on a field lowers it to an XML attribute instead of a child
+element; only a scalar or enum field can be one (SCH2204 otherwise). `@xsd(root = false)` on a
+record keeps it from getting the global element every record gets by default, for a record meant
+to appear only nested inside another.
+
+`guide/annotations.md` lists every key each target accepts, the elements it applies to, and the
 codes each target can report.
 
 ```schemata
@@ -546,31 +554,43 @@ record OrderLine {
 }
 ```
 
+```schemata
+@xsd(namespace = "http://example.com/contacts")
+namespace contacts
+
+record Contact {
+  @sql(key)
+  @xsd(attribute) #1 id: int64
+  @xsd(name = "full-name") #2 name: string(max = 100)
+  #3 tags: list<string>
+}
+```
+
 ## 16. How constructs lower
 
-| Construct | Protobuf | Postgres |
-|---|---|---|
-| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name |
-| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it |
-| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table |
-| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values |
-| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires |
-| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column |
-| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column |
-| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns |
-| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` |
-| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column |
-| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint |
-| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason |
-| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` |
-| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing |
+| Construct | Protobuf | Postgres | XSD |
+|---|---|---|---|
+| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name | an `xs:complexType` plus a global element |
+| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it | the same; the key is not represented |
+| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table | its own named type, `OuterInnerType` |
+| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values | an `xs:simpleType` restricting `xs:string` to an enumeration |
+| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member |
+| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column | a repeated element |
+| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column | a repeated element of the record's type |
+| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets |
+| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute |
+| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty |
+| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern` |
+| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented |
+| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` |
+| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented |
 
 ## 17. The CLI
 
 `schemata` has three commands.
 
 `compile <paths>...` compiles to `--out` (default `out`), for `--target` (a comma-separated list;
-default both `proto` and `sql`), reporting diagnostics in `--format` (`human`, to stderr, or
+default `proto`, `sql`, and `xsd`), reporting diagnostics in `--format` (`human`, to stderr, or
 `json`, to stdout), colored per `--color` (`auto`, `always`, or `never`), and treating every
 warning as an error under `--strict`, which also reports any field, enum value, or union member
 left with an implicit ordinal. A path may be a file or a directory, walked recursively for
