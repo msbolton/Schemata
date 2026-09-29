@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.PathSensitivity
+
 plugins {
     id("buildsrc.convention.kotlin-jvm")
     id("buildsrc.convention.protoc-tests")
@@ -70,6 +72,9 @@ graalvmNative {
     // The task uses the native-image of the JDK on the path; nothing else in the
     // build needs GraalVM, so a plain JDK still builds everything but the binary.
     toolchainDetection = false
+    // No native tests exist; this drops the nativeTest tasks and the
+    // junit-platform-native test dependency the plugin otherwise adds.
+    testSupport = false
     binaries {
         named("main") {
             imageName = "schemata"
@@ -94,5 +99,8 @@ tasks.test {
         val binary = rootProject.layout.projectDirectory.file(it).asFile.absoluteFile
         inputs.file(binary)
         systemProperty("schemata.nativeBinary", binary.path)
+        inputs
+            .dir(rootProject.layout.projectDirectory.dir("examples"))
+            .withPathSensitivity(PathSensitivity.RELATIVE)
     }
 }

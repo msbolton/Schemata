@@ -28,28 +28,31 @@ class NativeImageTest {
 
     private fun run(command: List<String>, args: List<String>): Run {
         val dir = Files.createTempDirectory("schemata-parity").toFile()
-        val process =
-            ProcessBuilder(command + args).directory(dir).redirectErrorStream(false).start()
-        var err = ""
-        var out = ""
-        val drainErr = Thread { err = process.errorStream.bufferedReader().readText() }
-        val drainOut = Thread { out = process.inputStream.bufferedReader().readText() }
-        drainErr.start()
-        drainOut.start()
-        if (!process.waitFor(120, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-            drainErr.join(5000)
-            drainOut.join(5000)
-            fail("timed out after 120 s: ${args.joinToString(" ")}")
+        try {
+            val process =
+                ProcessBuilder(command + args).directory(dir).redirectErrorStream(false).start()
+            var err = ""
+            var out = ""
+            val drainErr = Thread { err = process.errorStream.bufferedReader().readText() }
+            val drainOut = Thread { out = process.inputStream.bufferedReader().readText() }
+            drainErr.start()
+            drainOut.start()
+            if (!process.waitFor(120, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                drainErr.join(5000)
+                drainOut.join(5000)
+                fail("timed out after 120 s: ${args.joinToString(" ")}")
+            }
+            drainErr.join()
+            drainOut.join()
+            val files =
+                dir.walkTopDown()
+                    .filter { it.isFile }
+                    .associate { it.relativeTo(dir).invariantSeparatorsPath to it.readText() }
+            return Run(process.exitValue(), out, err, files)
+        } finally {
+            dir.deleteRecursively()
         }
-        drainErr.join()
-        drainOut.join()
-        val files =
-            dir.walkTopDown()
-                .filter { it.isFile }
-                .associate { it.relativeTo(dir).invariantSeparatorsPath to it.readText() }
-        dir.deleteRecursively()
-        return Run(process.exitValue(), out, err, files)
     }
 
     private fun assertSame(vararg args: String) {
