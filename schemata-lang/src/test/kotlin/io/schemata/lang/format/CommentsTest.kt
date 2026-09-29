@@ -80,4 +80,12 @@ class CommentsTest {
         assertEquals(listOf("// trailing"), p.comments.trailing[r.span]?.map { it.text })
         assertEquals(null, p.comments.trailing[r.fields.single().span])
     }
+
+    @Test
+    fun `a comment inside an otherwise empty record belongs to the end of the block`() {
+        val p = parse("namespace t\n\nrecord R {\n  // just this\n}\n")
+        val r = p.file!!.declarations.single() as RecordDecl
+        assertEquals(listOf("// just this"), p.comments.endOfBlock[r.span]?.map { it.text })
+        assertEquals(emptyList(), p.comments.fileTrailing)
+    }
 }

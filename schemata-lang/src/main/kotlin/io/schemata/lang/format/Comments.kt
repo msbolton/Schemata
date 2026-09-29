@@ -68,10 +68,7 @@ object Comments {
         val endOfBlock = mutableMapOf<Span, MutableList<Comment>>()
         val fileTrailing = mutableListOf<Comment>()
         val topLevel =
-            sortedBlock(
-                file.imports.map { Element(it.span, it.span, emptyList()) } +
-                    file.declarations.map(::element)
-            )
+            sortedBlock(file.imports.map { leaf(it.span) } + file.declarations.map(::element))
         for (c in comments) {
             if (before(c, file.namespace.span)) {
                 fileLeading += c
@@ -83,31 +80,36 @@ object Comments {
     }
 
     /**
-     * One AST node that can carry comments; [members] holds a block's own members, in source order.
+     * One AST node that can carry comments. [members] holds a block's own members, in source order,
+     * and is always empty for a leaf; [isBlock] tells the two apart even when a block happens to
+     * have no members of its own, such as `record Empty {}`.
      */
-    private class Element(val span: Span, val key: Span, val members: List<Element>)
+    private class Element(
+        val span: Span,
+        val key: Span,
+        val members: List<Element>,
+        val isBlock: Boolean,
+    )
+
+    private fun leaf(span: Span) = Element(span, span, emptyList(), isBlock = false)
 
     private fun element(d: Declaration): Element =
         when (d) {
             is RecordDecl ->
                 block(
                     d.span,
-                    d.fields.map { Element(it.span, it.span, emptyList()) } +
+                    d.fields.map { leaf(it.span) } +
                         d.nested.map(::element) +
                         reservedElement(d.reserved),
                 )
             is EnumDecl ->
-                block(
-                    d.span,
-                    d.values.map { Element(it.span, it.span, emptyList()) } +
-                        reservedElement(d.reserved),
-                )
-            is UnionDecl -> block(d.span, d.members.map { Element(it.span, it.span, emptyList()) })
-            else -> Element(d.span, d.span, emptyList())
+                block(d.span, d.values.map { leaf(it.span) } + reservedElement(d.reserved))
+            is UnionDecl -> block(d.span, d.members.map { leaf(it.span) })
+            else -> leaf(d.span)
         }
 
     private fun block(span: Span, members: List<Element>) =
-        Element(span, span, sortedBlock(members))
+        Element(span, span, sortedBlock(members), isBlock = true)
 
     private fun sortedBlock(members: List<Element>) =
         members.sortedWith(compareBy({ it.span.startLine }, { it.span.startColumn }))
@@ -126,7 +128,7 @@ object Comments {
                 last.span.endLine,
                 last.span.endColumn,
             )
-        return listOf(Element(span, first.span, emptyList()))
+        return listOf(Element(span, first.span, emptyList(), isBlock = false))
     }
 
     /** Whether [c] ends strictly before [s] starts. */
@@ -144,7 +146,7 @@ object Comments {
     ) {
         val container =
             members.firstOrNull {
-                it.members.isNotEmpty() &&
+                it.isBlock &&
                     it.span.startLine <= c.line &&
                     !before(c, it.span) &&
                     (it.span.endLine > c.endLine ||
