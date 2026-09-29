@@ -8,11 +8,35 @@ lossy decision reported as a warning.
 
 ## Install
 
-Each release on the [releases page](https://github.com/msbolton/Schemata/releases) attaches
-`schemata-<version>.jar`. Alternatively, build from a checkout (JDK 21 or later):
-`./gradlew :schemata-cli:installDist` puts a `schemata` script under
-`schemata-cli/build/install/schemata/bin/`, and `./gradlew build` also produces a runnable jar at
-`schemata-cli/build/libs/schemata-<version>.jar`. Run either jar with `java -jar`.
+Each release on the [releases page](https://github.com/msbolton/Schemata/releases) attaches a
+native binary per platform and the jar:
+
+| Asset | Runs on |
+|---|---|
+| `schemata-<version>-linux-x64.tar.gz` | Linux, x86-64 |
+| `schemata-<version>-macos-arm64.tar.gz` | macOS, Apple silicon |
+| `schemata-<version>-macos-x64.tar.gz` | macOS, Intel |
+| `schemata-<version>-windows-x64.zip` | Windows, x86-64 (`schemata.exe`) |
+| `schemata-<version>.jar` | any JDK 21 or later, with `java -jar` |
+
+For example, on an Apple silicon Mac:
+
+```text
+curl -LO https://github.com/msbolton/Schemata/releases/download/v<version>/schemata-<version>-macos-arm64.tar.gz
+tar -xzf schemata-<version>-macos-arm64.tar.gz
+./schemata --version
+```
+
+`SHA256SUMS` on the same release page lists every asset; `sha256sum -c SHA256SUMS --ignore-missing`
+(or `shasum -a 256 -c` on macOS) checks a download against it. The binaries need no JDK.
+
+To build from a checkout (JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a
+`schemata` script under `schemata-cli/build/install/schemata/bin/`, and `./gradlew build` produces
+a runnable jar at `schemata-cli/build/libs/schemata-<version>.jar`. With a GraalVM JDK 21 on the
+path, `./gradlew :schemata-cli:nativeCompile` builds the native binary at
+`schemata-cli/build/native/nativeCompile/schemata`, and
+`./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' -Pschemata.nativeBinary=<that path>`
+checks it against the jar.
 
 ## Quick start
 
