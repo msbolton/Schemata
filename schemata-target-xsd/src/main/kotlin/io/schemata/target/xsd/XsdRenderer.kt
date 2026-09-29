@@ -83,8 +83,7 @@ object XsdRenderer {
     private fun element(e: XsdElement, indent: String): String = buildString {
         val attrs = buildString {
             append(" name=\"${escape(e.name)}\"")
-            if (e.type is XsdTypeRef.Builtin) append(" type=\"${e.type.xsName}\"")
-            if (e.type is XsdTypeRef.Named) append(" type=\"${e.type.prefix}:${e.type.name}\"")
+            append(typeAttr(e.type))
             if (e.minOccurs != 1) append(" minOccurs=\"${e.minOccurs}\"")
             if (e.maxOccurs != 1) append(" maxOccurs=\"${e.maxOccurs ?: "unbounded"}\"")
             if (e.nillable) append(" nillable=\"true\"")
@@ -120,8 +119,7 @@ object XsdRenderer {
     private fun attribute(a: XsdAttribute, indent: String): String = buildString {
         val attrs = buildString {
             append(" name=\"${escape(a.name)}\"")
-            if (a.type is XsdTypeRef.Builtin) append(" type=\"${a.type.xsName}\"")
-            if (a.type is XsdTypeRef.Named) append(" type=\"${a.type.prefix}:${a.type.name}\"")
+            append(typeAttr(a.type))
             if (a.required) append(" use=\"required\"")
             a.default?.let { append(" default=\"${escape(it)}\"") }
         }
@@ -136,6 +134,14 @@ object XsdRenderer {
         appendLine("$indent</xs:attribute>")
     }
 
+    /** ` type="…"` for a builtin or named type; empty for an inline one. */
+    private fun typeAttr(ref: XsdTypeRef): String =
+        when (ref) {
+            is XsdTypeRef.Builtin -> " type=\"${ref.xsName}\""
+            is XsdTypeRef.Named -> " type=\"${ref.prefix}:${ref.name}\""
+            else -> ""
+        }
+
     private fun restriction(t: XsdTypeRef.Restricted, indent: String): String = buildString {
         appendLine("$indent<xs:simpleType>")
         appendLine("$indent  <xs:restriction base=\"${t.base}\">")
@@ -144,21 +150,14 @@ object XsdRenderer {
         appendLine("$indent</xs:simpleType>")
     }
 
-    /**
-     * simpleContent when the base is a builtin, restricted, or simple named type; complexContent
-     * otherwise.
-     */
+    /** simpleContent when the base is a builtin or simple named type; complexContent otherwise. */
     private fun extension(t: XsdTypeRef.Extension, indent: String): String = buildString {
-        val simple =
-            t.base is XsdTypeRef.Builtin ||
-                t.base is XsdTypeRef.Restricted ||
-                (t.base is XsdTypeRef.Named && t.base.simple)
+        val simple = t.base is XsdTypeRef.Builtin || (t.base is XsdTypeRef.Named && t.base.simple)
         val content = if (simple) "xs:simpleContent" else "xs:complexContent"
         val base =
             when (val b = t.base) {
                 is XsdTypeRef.Builtin -> b.xsName
                 is XsdTypeRef.Named -> "${b.prefix}:${b.name}"
-                is XsdTypeRef.Restricted -> b.base
                 else -> error("an extension base is a builtin or a named type")
             }
         appendLine("$indent<xs:complexType>")

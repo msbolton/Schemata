@@ -3,6 +3,7 @@ package io.schemata.target.xsd
 import io.schemata.testkit.Golden
 import io.schemata.testkit.Xsd
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class XsdRendererTest {
@@ -145,5 +146,35 @@ class XsdRendererTest {
                 it.path to it.content
             }
         assertNull(Xsd.validate(files))
+    }
+
+    @Test
+    fun `an extension of a restricted base is refused`() {
+        val file =
+            XsdFile(
+                "s.xsd",
+                "urn:schemata:s",
+                emptyList(),
+                listOf(
+                    XsdComplex(
+                        "RType",
+                        null,
+                        listOf(
+                            XsdElement(
+                                "x",
+                                XsdTypeRef.Extension(
+                                    XsdTypeRef.Restricted(
+                                        "xs:string",
+                                        listOf(XsdFacet("maxLength", "2")),
+                                    ),
+                                    emptyList(),
+                                ),
+                            )
+                        ),
+                    )
+                ),
+                emptyList(),
+            )
+        assertFailsWith<IllegalStateException> { XsdRenderer.text(file) }
     }
 }

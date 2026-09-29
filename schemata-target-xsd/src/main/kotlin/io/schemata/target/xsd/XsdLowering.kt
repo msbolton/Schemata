@@ -158,10 +158,10 @@ object XsdLowering {
     ) {
         /**
          * Who owns each XSD name: `"type:<name>"` for a complex, enumeration, or choice type,
-         * `"element:<name>"` for a top-level record's global element, and `"element:<declaring
-         * path>/<field or member name>"` for a field's or union member's element, scoped by the
-         * declaring record or union's full path so two of them sharing a simple name never collide
-         * on a same-named field or member.
+         * `"unique:<name>"` for a map's `xs:unique` constraint, `"element:<name>"` for a top-level
+         * record's global element, and `"element:<declaring path>/<field or member name>"` for a
+         * field's or union member's element, scoped by the declaring record or union's full path so
+         * two of them sharing a simple name never collide on a same-named field or member.
          */
         private val claims = mutableMapOf<String, Pair<String, Span>>()
 
@@ -238,18 +238,7 @@ object XsdLowering {
          */
         private fun attribute(record: RecordType, field: Field, path: List<String>): XsdAttribute? {
             val where = fieldWhere(record, field)
-            val shape =
-                when (val t = field.type) {
-                    is Scalar -> null
-                    is Ref ->
-                        when (schema.lookup(t.target)) {
-                            is EnumType -> null
-                            is RecordType -> "record"
-                            is UnionType -> "union"
-                        }
-                    is ListOf -> "list"
-                    is MapOf -> "map"
-                }
+            val shape = attributeShape(field.type)
             if (shape != null) {
                 diagnostics +=
                     Diagnostic(
@@ -270,6 +259,20 @@ object XsdLowering {
                 doc = field.doc,
             )
         }
+
+        /** Null when [type] can be an attribute (a scalar or an enum), else its shape's word. */
+        private fun attributeShape(type: Type): String? =
+            when (type) {
+                is Scalar -> null
+                is Ref ->
+                    when (schema.lookup(type.target)) {
+                        is EnumType -> null
+                        is RecordType -> "record"
+                        is UnionType -> "union"
+                    }
+                is ListOf -> "list"
+                is MapOf -> "map"
+            }
 
         private fun fieldWhere(record: RecordType, field: Field): String =
             "field '${record.name}.${field.name}'"
@@ -381,8 +384,11 @@ object XsdLowering {
                                     "declare the list as `list<T>`; an absent list already means empty",
                             )
                     }
-                    listElement(name, t, uniqueBase(record, name), where, field.span)
-                        .copy(doc = field.doc)
+                    val element = listElement(name, t, uniqueBase(record, name), where, field.span)
+                    element.copy(
+                        minOccurs = if (field.nullable) 0 else element.minOccurs,
+                        doc = field.doc,
+                    )
                 }
                 is MapOf ->
                     mapElement(name, t, uniqueBase(record, name), where, field.span)
@@ -484,6 +490,8 @@ object XsdLowering {
             span: Span,
         ): XsdElement {
             val key = XsdAttribute("key", typeRef(map.key, where, span), required = true)
+            val unique = "${uniqueBase}_key"
+            claim("unique", unique, where, span, displayKind = "uniqueness constraint")
             val entry =
                 XsdElement(
                     name = "entry",
@@ -495,14 +503,15 @@ object XsdLowering {
             return XsdElement(
                 name = name,
                 type = XsdTypeRef.Anonymous(listOf(entry)),
-                unique = "${uniqueBase}_key",
+                unique = unique,
             )
         }
 
         /**
          * A map entry's type: an extension carrying the key attribute for a plain scalar, enum,
          * record, or union value; a `value` element wrapping a refined scalar, since an extension
-         * cannot carry facets; or a nested collection lowered as `item`.
+         * cannot carry facets; or a nested collection lowered as `item`. A record value that
+         * already has an attribute named `key` is reported and lowered as the record itself.
          */
         private fun entryTypeRef(
             value: Type,
@@ -518,10 +527,42 @@ object XsdLowering {
                         XsdTypeRef.Anonymous(listOf(XsdElement("value", ref)), listOf(key))
                     else XsdTypeRef.Extension(ref, listOf(key))
                 }
-                is Ref -> XsdTypeRef.Extension(typeRef(value, where, span), listOf(key))
+                is Ref -> {
+                    val ref = typeRef(value, where, span)
+                    val clash = keyAttribute(value)
+                    if (clash == null) XsdTypeRef.Extension(ref, listOf(key))
+                    else {
+                        diagnostics +=
+                            Diagnostic(
+                                XsdCodes.NAME_COLLISION,
+                                "$where: map entries lower to attribute 'key', already used by " +
+                                    "${fieldWhere(clash.first, clash.second)} " +
+                                    "(${clash.second.nameSpan.file}:${clash.second.nameSpan.startLine})",
+                                span,
+                                help = "rename one of them, or set `@xsd(name = \"…\")` on one",
+                            )
+                        ref
+                    }
+                }
                 is ListOf,
                 is MapOf -> nestedItem(value, uniqueBase, where, span, listOf(key))
             }
+
+        /**
+         * The record and field behind [value]'s own attribute named `key`, which a map entry
+         * extending it cannot add again; null when [value] is not such a record.
+         */
+        private fun keyAttribute(value: Ref): Pair<RecordType, Field>? {
+            val record = schema.lookup(value.target) as? RecordType ?: return null
+            val field =
+                record.fields.firstOrNull { f ->
+                    XsdNames.flag(f.annotations, "attribute") &&
+                        attributeShape(f.type) == null &&
+                        (XsdNames.override(f.annotations, "name")?.takeIf(XsdNames::isNCName)
+                            ?: f.name) == "key"
+                } ?: return null
+            return record to field
+        }
 
         /**
          * The anonymous wrapper for [element] (a list or a map) lowered under the name `item`,

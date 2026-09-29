@@ -449,12 +449,20 @@ class XsdLoweringTest {
                 field(
                     1,
                     "tags",
-                    ListOf(Scalar(Builtin.STRING), nullableElement = false),
+                    ListOf(
+                        Scalar(Builtin.STRING),
+                        nullableElement = false,
+                        Refinements(min = BigDecimal(2)),
+                    ),
                     nullable = true,
                     line = 3,
                 ),
             )
         val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+        assertEquals(
+            0,
+            (lowered.model.files.single().types.single() as XsdComplex).sequence.single().minOccurs,
+        )
         val d = lowered.diagnostics.single()
         assertEquals(XsdCodes.LOSSY, d.code)
         assertEquals(
@@ -1133,5 +1141,68 @@ class XsdLoweringTest {
             d.message,
         )
         assertEquals(12, d.span.startLine)
+    }
+
+    @Test
+    fun `two maps lowering to one uniqueness constraint name collide`() {
+        val inner = MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), nullableValue = false)
+        val r =
+            record(
+                "s",
+                "R",
+                field(1, "x", ListOf(inner, nullableElement = false)),
+                field(2, "x_item", inner),
+            )
+        val d =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                .diagnostics
+                .single()
+        assertEquals(XsdCodes.NAME_COLLISION, d.code)
+        assertEquals(
+            "field 'R.x_item' lowers to uniqueness constraint 'RType_x_item_key', already used by field 'R.x' (orders.schemata:11)",
+            d.message,
+        )
+        assertEquals(12, d.span.startLine)
+    }
+
+    @Test
+    fun `a map whose record value has a key attribute is reported and keeps one key`() {
+        val v =
+            record(
+                "s",
+                "V",
+                field(
+                    1,
+                    "key",
+                    Scalar(Builtin.STRING),
+                    annotations = xsd("attribute" to AnnotationValue.Flag),
+                    line = 4,
+                ),
+                annotations = xsd("root" to AnnotationValue.Bool(false)),
+            )
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "m",
+                    MapOf(Scalar(Builtin.STRING), Ref(qn("s", "V")), nullableValue = false),
+                    line = 8,
+                ),
+            )
+        val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(v, r)))))
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.NAME_COLLISION, d.code)
+        assertEquals(
+            "field 'R.m': map entries lower to attribute 'key', already used by field 'V.key' (orders.schemata:4)",
+            d.message,
+        )
+        assertEquals(8, d.span.startLine)
+        val m = (lowered.model.files.single().types[1] as XsdComplex).sequence.single()
+        assertEquals(
+            XsdTypeRef.Named("tns", "VType", simple = false),
+            (m.type as XsdTypeRef.Anonymous).sequence.single().type,
+        )
     }
 }
