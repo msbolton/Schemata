@@ -49,15 +49,16 @@ jobs:
           java-version: '21'
           distribution: 'graalvm'
       - uses: gradle/actions/setup-gradle@v4
+      # The GraalVM plugin's resource-config task cannot be configuration-cached.
       - name: Build the jar and the binary
-        run: ./gradlew :schemata-cli:shadowJar :schemata-cli:nativeCompile --no-daemon
+        run: ./gradlew :schemata-cli:shadowJar :schemata-cli:nativeCompile --no-daemon --no-configuration-cache
         shell: bash
       - name: Verify the binary against the jar
         run: |
           binary=schemata-cli/build/native/nativeCompile/schemata
           if [ "${{ runner.os }}" = "Windows" ]; then binary="$binary.exe"; fi
           ./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' \
-            -Pschemata.nativeBinary="$binary" --no-daemon
+            -Pschemata.nativeBinary="$binary" --no-daemon --no-configuration-cache
         shell: bash
       - name: Package
         id: package
