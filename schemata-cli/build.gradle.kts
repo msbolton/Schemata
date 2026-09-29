@@ -23,6 +23,33 @@ application {
     applicationName = "schemata"
 }
 
+// The CLI reports its version from a constant compiled into it, so a native image
+// (which carries no jar manifest) prints the same value as the jar.
+val generateBuildVersion by
+    tasks.registering {
+        val version = project.version.toString()
+        val outDir = layout.buildDirectory.dir("generated/version")
+        inputs.property("version", version)
+        outputs.dir(outDir)
+        doLast {
+            val file = outDir.get().file("io/schemata/cli/BuildVersion.kt").asFile
+            file.parentFile.mkdirs()
+            file.writeText(
+                """
+            |package io.schemata.cli
+            |
+            |/** The build's version, written by the build script. */
+            |object BuildVersion {
+            |    const val VERSION: String = "$version"
+            |}
+            |"""
+                    .trimMargin()
+            )
+        }
+    }
+
+kotlin.sourceSets.named("main") { kotlin.srcDir(generateBuildVersion) }
+
 tasks.jar {
     manifest {
         attributes(

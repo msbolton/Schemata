@@ -43,7 +43,7 @@ class FatJarTest {
     }
 
     @Test
-    fun `--version reads the manifest`() {
+    fun `--version prints the build version`() {
         assumeTrue(jar != null && jar.isFile)
         val (code, out, _) = run("--version")
         assertEquals(0, code)

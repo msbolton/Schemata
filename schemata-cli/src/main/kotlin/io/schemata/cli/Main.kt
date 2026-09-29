@@ -13,9 +13,9 @@ class Schemata : CliktCommand(name = "schemata") {
     override fun run() = Unit
 }
 
-/** The build's version as the jar manifest recorded it; `unknown` when not run from a jar. */
+/** The build's version, compiled in so a native image reports it like the jar does. */
 object Version {
-    val current: String = Schemata::class.java.`package`?.implementationVersion ?: "unknown"
+    val current: String = BuildVersion.VERSION
 }
 
 fun main(args: Array<String>) =
