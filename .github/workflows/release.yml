@@ -111,6 +111,7 @@ jobs:
       - name: Checksums
         run: cd assets && sha256sum * > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
+        id: release
         with:
           generate_release_notes: true
           files: assets/*
@@ -118,4 +119,4 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ steps.release.outputs.id }}" -F draft=false > /dev/null
