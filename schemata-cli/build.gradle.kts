@@ -87,7 +87,10 @@ tasks.test {
     systemProperty("schemata.fatJar", fatJar.get().asFile.absolutePath)
     systemProperty("schemata.version", project.version.toString())
     providers.gradleProperty("schemata.nativeBinary").orNull?.let {
-        inputs.file(it)
-        systemProperty("schemata.nativeBinary", File(it).absolutePath)
+        // Resolved against the repository root, so the workflow and a developer
+        // running Gradle from the root both pass the same path.
+        val binary = rootProject.layout.projectDirectory.file(it).asFile.absoluteFile
+        inputs.file(binary)
+        systemProperty("schemata.nativeBinary", binary.path)
     }
 }
