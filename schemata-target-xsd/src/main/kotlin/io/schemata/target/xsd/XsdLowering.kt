@@ -14,6 +14,7 @@ import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
@@ -57,8 +58,9 @@ object XsdLowering {
     }
 
     /**
-     * One namespace's file. Enums and records with scalar or enum-referencing fields become types;
-     * top-level records also get a global element. Imports are added by later work.
+     * One namespace's file. Enums, records, and unions become types; top-level records also get a
+     * global element. A reference into another namespace adds an import for it, prefixed `nsN` in
+     * first-use order.
      */
     internal class FileLowering(
         private val schema: Schema,
@@ -67,15 +69,22 @@ object XsdLowering {
         private val diagnostics: MutableList<Diagnostic>,
     ) {
         /**
-         * Who owns each XSD name: `"type:<name>"` for a complex or enumeration type,
+         * Who owns each XSD name: `"type:<name>"` for a complex, enumeration, or choice type,
          * `"element:<name>"` for a top-level record's global element, and `"element:<declaring
-         * path>/<field name>"` for a field's element, scoped by the declaring record's full path so
-         * two records sharing a simple name never collide on a same-named field.
+         * path>/<field or member name>"` for a field's or union member's element, scoped by the
+         * declaring record or union's full path so two of them sharing a simple name never collide
+         * on a same-named field or member.
          */
         private val claims = mutableMapOf<String, Pair<String, Span>>()
 
         /** The validated `@xsd(name)` override for a declaration, checked at most once. */
         private val nameOverrides = mutableMapOf<QualifiedName, String?>()
+
+        /** Imports accumulated as cross-namespace references are lowered, in first-use order. */
+        private val imports = mutableListOf<XsdImport>()
+
+        /** Prefixes already allocated for another namespace's references, in first-use order. */
+        private val prefixes = mutableMapOf<String, String>()
 
         fun lower(): XsdFile {
             val types = mutableListOf<XsdType>()
@@ -87,7 +96,7 @@ object XsdLowering {
             return XsdFile(
                 XsdNames.pathOf(namespace),
                 uris.getValue(namespace.name),
-                emptyList(),
+                imports,
                 types,
                 elements,
             )
@@ -104,7 +113,7 @@ object XsdLowering {
                 when (decl) {
                     is EnumType -> listOf(enum(decl, here))
                     is RecordType -> listOf(record(decl, here))
-                    is UnionType -> emptyList()
+                    is UnionType -> listOf(choice(decl, here))
                 }
             own.singleOrNull()?.let {
                 claim("type", it.name, "${kindOf(decl)} '${decl.name}'", decl.nameSpan)
@@ -132,6 +141,47 @@ object XsdLowering {
                 record.fields.map { field(record, it, path) },
             )
 
+        private fun choice(union: UnionType, path: List<String>): XsdChoice =
+            XsdChoice(
+                XsdNames.typeName(path),
+                union.doc,
+                union.members.map { unionMember(union, it, path) },
+            )
+
+        /**
+         * A union member as an element: a `Ref` is named for the referenced declaration (its
+         * `@xsd(name)` override, else [XsdNames.elementName] of its own name), a scalar for its
+         * builtin's type name. Claimed per union, keyed by the union's own path so two unions never
+         * collide with each other's members.
+         */
+        private fun unionMember(
+            union: UnionType,
+            member: UnionMember,
+            path: List<String>,
+        ): XsdElement {
+            val (name, declName) =
+                when (val t = member.type) {
+                    is Ref -> {
+                        val target = schema.lookup(t.target)
+                        (nameOverride(target) ?: XsdNames.elementName(target.name)) to target.name
+                    }
+                    is Scalar -> t.builtin.typeName to t.builtin.typeName
+                    is ListOf,
+                    is MapOf -> error("union member cannot be a collection")
+                }
+            claim(
+                "element",
+                "${path.joinToString(".")}/$name",
+                "union member '$declName'",
+                union.nameSpan,
+                displayName = name,
+            )
+            return XsdElement(
+                name,
+                typeRef(member.type, "union '${union.name}' member", member.span),
+            )
+        }
+
         /** A top-level record's global element, named in lower snake unless overridden. */
         private fun globalElement(record: RecordType): XsdElement {
             val override = nameOverride(record)
@@ -150,7 +200,13 @@ object XsdLowering {
         private fun field(record: RecordType, field: Field, path: List<String>): XsdElement {
             val where = "field '${record.name}.${field.name}'"
             val name = overrideName(field.annotations, where, field.nameSpan) ?: field.name
-            claim("element", "${path.joinToString(".")}/$name", where, field.nameSpan)
+            claim(
+                "element",
+                "${path.joinToString(".")}/$name",
+                where,
+                field.nameSpan,
+                displayName = name,
+            )
             // The base for any map nested anywhere under this field, at any depth; a map directly
             // on the field uses it bare, one nested a level down appends "_item" per level, so
             // every `xs:unique` name in the file stays distinct.
@@ -192,7 +248,7 @@ object XsdLowering {
                 is Ref -> {
                     val target = schema.lookup(type.target)
                     XsdTypeRef.Named(
-                        "tns",
+                        prefixFor(type.target.namespace),
                         XsdNames.typeName(type.target.path),
                         simple = target is EnumType,
                     )
@@ -201,6 +257,25 @@ object XsdLowering {
                 is MapOf ->
                     error("typeRef does not accept a collection; lower it as an element instead")
             }
+
+        /**
+         * `"tns"` for this file's own namespace; otherwise the prefix allocated for [ns] on its
+         * first reference (`ns1`, `ns2`, …), recording the import that goes with it.
+         */
+        private fun prefixFor(ns: String): String {
+            if (ns == namespace.name) return "tns"
+            return prefixes.getOrPut(ns) {
+                val prefix = "ns${prefixes.size + 1}"
+                val other = schema.namespaces.first { it.name == ns }
+                imports +=
+                    XsdImport(
+                        uris.getValue(ns),
+                        XsdNames.relativePath(XsdNames.pathOf(namespace), XsdNames.pathOf(other)),
+                        prefix,
+                    )
+                prefix
+            }
+        }
 
         /**
          * A repeated element for [list], its bounds and nillability from its refinements. Any map
@@ -342,17 +417,28 @@ object XsdLowering {
             return null
         }
 
-        /** Reports [XsdCodes.NAME_COLLISION] when `"$kind:$name"` was already claimed. */
-        private fun claim(kind: String, name: String, holder: String, span: Span) {
-            val key = "$kind:$name"
-            val previous = claims[key]
+        /**
+         * Reports [XsdCodes.NAME_COLLISION] when `"$kind:$key"` was already claimed. [key] scopes
+         * uniqueness (a record or union's declaring path, for a field or member claim);
+         * [displayName] is the plain name shown in the message, defaulting to [key] for claims that
+         * are already unscoped (types and global elements).
+         */
+        private fun claim(
+            kind: String,
+            key: String,
+            holder: String,
+            span: Span,
+            displayName: String = key,
+        ) {
+            val fullKey = "$kind:$key"
+            val previous = claims[fullKey]
             if (previous == null) {
-                claims[key] = holder to span
+                claims[fullKey] = holder to span
             } else {
                 diagnostics +=
                     Diagnostic(
                         XsdCodes.NAME_COLLISION,
-                        "$holder lowers to $kind '$name', already used by ${previous.first} " +
+                        "$holder lowers to $kind '$displayName', already used by ${previous.first} " +
                             "(${previous.second.file}:${previous.second.startLine})",
                         span,
                         help = "rename one of them, or set `@xsd(name = \"…\")` on one",

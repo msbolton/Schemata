@@ -21,6 +21,25 @@ object XsdNames {
     /** Global element and union-member element names: `BankTransfer` → `bank_transfer`. */
     fun elementName(declName: String): String = Names.snakeCase(declName)
 
+    /**
+     * The `xs:import schemaLocation` from the directory of [from] (a [pathOf] result) to [to]: no
+     * prefix when they share a directory, else one `..` per directory [from] must climb before
+     * descending to [to].
+     */
+    fun relativePath(from: String, to: String): String {
+        val fromDirs = from.split('/').dropLast(1)
+        val toParts = to.split('/')
+        val toDirs = toParts.dropLast(1)
+        var common = 0
+        while (
+            common < fromDirs.size && common < toDirs.size && fromDirs[common] == toDirs[common]
+        ) {
+            common++
+        }
+        val ups = List(fromDirs.size - common) { ".." }
+        return (ups + toDirs.drop(common) + toParts.last()).joinToString("/")
+    }
+
     fun isNCName(s: String): Boolean = ncName.matches(s)
 
     fun isAbsoluteUri(s: String): Boolean = scheme.matches(s)

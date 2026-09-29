@@ -28,4 +28,17 @@ class XsdNamesTest {
         assertFalse(XsdNames.isAbsoluteUri("orders"))
         assertFalse(XsdNames.isAbsoluteUri("/orders"))
     }
+
+    @Test
+    fun `a relative path stays in the same directory when both files share one`() {
+        assertEquals(
+            "customers.xsd",
+            XsdNames.relativePath("shop/orders.xsd", "shop/customers.xsd"),
+        )
+    }
+
+    @Test
+    fun `a relative path climbs a directory per level of difference`() {
+        assertEquals("../../a.xsd", XsdNames.relativePath("x/y/b.xsd", "a.xsd"))
+    }
 }

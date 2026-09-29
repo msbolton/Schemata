@@ -20,6 +20,8 @@ import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionMember
+import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.lang.Span
 import java.math.BigDecimal
@@ -89,6 +91,24 @@ class XsdLoweringTest {
                 EnumValue(i + 1, v, null, at(line + 1 + i), at(line + 1 + i))
             },
             Reserved(emptyList(), emptySet()),
+            emptyList(),
+            null,
+            at(line),
+            at(line),
+            annotations,
+        )
+
+    private fun union(
+        ns: String,
+        name: String,
+        vararg members: Type,
+        line: Int = 40,
+        annotations: Annotations = Annotations.NONE,
+    ) =
+        UnionType(
+            qn(ns, name),
+            name,
+            members.mapIndexed { i, t -> UnionMember(i + 1, t, null, at(line + 1 + i)) },
             emptyList(),
             null,
             at(line),
@@ -661,5 +681,94 @@ class XsdLoweringTest {
         val lowered =
             XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(order, invoice)))))
         assertEquals(emptyList(), lowered.diagnostics)
+    }
+
+    @Test
+    fun `a union is a choice of elements named after its members`() {
+        val card = record("s", "Card", field(1, "last4", Scalar(Builtin.STRING)))
+        val kind = enum("s", "Kind", "a", "b")
+        val u =
+            union("s", "Payment", Ref(qn("s", "Card")), Scalar(Builtin.INT32), Ref(qn("s", "Kind")))
+        val file =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(card, kind, u)))))
+                .model
+                .files
+                .single()
+        assertEquals(
+            XsdChoice(
+                "PaymentType",
+                null,
+                listOf(
+                    XsdElement("card", XsdTypeRef.Named("tns", "CardType", simple = false)),
+                    XsdElement("int32", XsdTypeRef.Builtin("xs:int")),
+                    XsdElement("kind", XsdTypeRef.Named("tns", "KindType", simple = true)),
+                ),
+            ),
+            file.types[2],
+        )
+    }
+
+    @Test
+    fun `union members that lower to one element name collide`() {
+        val a = record("s", "HTTPStatus", field(1, "x", Scalar(Builtin.BOOL)), line = 2)
+        val b = record("s", "HttpStatus", field(1, "x", Scalar(Builtin.BOOL)), line = 3)
+        val u = union("s", "U", Ref(qn("s", "HTTPStatus")), Ref(qn("s", "HttpStatus")), line = 6)
+        val ds =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(a, b, u)))))
+                .diagnostics
+        val member = ds.single { "union member" in it.message }
+        assertEquals(XsdCodes.NAME_COLLISION, member.code)
+        assertEquals(
+            "union member 'HttpStatus' lowers to element 'http_status', already used by union member 'HTTPStatus' (orders.schemata:6)",
+            member.message,
+        )
+    }
+
+    @Test
+    fun `a reference into another namespace imports it with a relative location and a prefix`() {
+        val customer =
+            record("shop.customers", "Customer", field(1, "name", Scalar(Builtin.STRING)))
+        val order =
+            record(
+                "shop.orders",
+                "Order",
+                field(1, "customer", Ref(qn("shop.customers", "Customer"))),
+            )
+        val model =
+            XsdLowering.lower(
+                    Schema(
+                        listOf(
+                            namespace("shop.customers", declarations = listOf(customer)),
+                            namespace("shop.orders", declarations = listOf(order)),
+                        )
+                    )
+                )
+                .model
+        val orders = model.files[1]
+        assertEquals(
+            listOf(XsdImport("urn:schemata:shop.customers", "customers.xsd", "ns1")),
+            orders.imports,
+        )
+        assertEquals(
+            XsdTypeRef.Named("ns1", "CustomerType", simple = false),
+            (orders.types.single() as XsdComplex).sequence.single().type,
+        )
+    }
+
+    @Test
+    fun `an import from a deeper path climbs directories`() {
+        val a = record("a", "A", field(1, "x", Scalar(Builtin.BOOL)))
+        val b = record("x.y.b", "B", field(1, "a", Ref(qn("a", "A"))))
+        val model =
+            XsdLowering.lower(
+                    Schema(
+                        listOf(
+                            namespace("a", declarations = listOf(a)),
+                            namespace("x.y.b", declarations = listOf(b)),
+                        )
+                    )
+                )
+                .model
+        assertEquals("../../a.xsd", model.files[1].imports.single().schemaLocation)
     }
 }
