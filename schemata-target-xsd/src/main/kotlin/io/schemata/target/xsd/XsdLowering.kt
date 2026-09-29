@@ -4,12 +4,15 @@ import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Diagnostic
@@ -121,7 +124,7 @@ object XsdLowering {
             XsdComplex(
                 XsdNames.typeName(path),
                 record.doc,
-                record.fields.mapNotNull { field(record, it, path) },
+                record.fields.map { field(record, it, path) },
             )
 
         /** A top-level record's global element, named in lower snake unless overridden. */
@@ -134,30 +137,140 @@ object XsdLowering {
         }
 
         /**
-         * Skips fields whose type is not yet lowered (collections, unions, other-namespace refs).
+         * A record's field as an element; the claim is keyed by the record's XSD type name so two
+         * same-named records nested under different parents never collide.
          */
-        private fun field(record: RecordType, field: Field, path: List<String>): XsdElement? {
+        private fun field(record: RecordType, field: Field, path: List<String>): XsdElement {
             val where = "field '${record.name}.${field.name}'"
-            val type =
-                when (val t = field.type) {
-                    is Scalar -> scalarRef(t, where, field.span)
-                    is Ref -> {
-                        val target = schema.lookup(t.target)
-                        if (target !is EnumType) return null
-                        XsdTypeRef.Named("tns", XsdNames.typeName(t.target.path), simple = true)
-                    }
-                    else -> return null
-                }
             val name = overrideName(field.annotations, where, field.nameSpan) ?: field.name
-            claim("element", "${record.name}/$name", where, field.nameSpan)
+            claim("element", "${XsdNames.typeName(path)}/$name", where, field.nameSpan)
+            return when (val t = field.type) {
+                is Scalar,
+                is Ref ->
+                    XsdElement(
+                        name = name,
+                        type = typeRef(t, where, field.span),
+                        minOccurs = if (field.nullable || field.default != null) 0 else 1,
+                        default = field.default?.let(XsdTypes::text),
+                        doc = field.doc,
+                    )
+                is ListOf -> {
+                    if (field.nullable) {
+                        diagnostics +=
+                            Diagnostic(
+                                XsdCodes.LOSSY,
+                                "$where: a nullable list has no XSD representation; lowered to " +
+                                    "an optional repeated element",
+                                field.span,
+                                help =
+                                    "declare the list as `list<T>`; an absent list already means empty",
+                            )
+                    }
+                    listElement(name, t, where, field.span).copy(doc = field.doc)
+                }
+                is MapOf ->
+                    mapElement(name, t, "${XsdNames.typeName(path)}_$name", where, field.span)
+                        .copy(minOccurs = if (field.nullable) 0 else 1, doc = field.doc)
+            }
+        }
+
+        /** [type] as a reference: a builtin or restricted scalar, or a named record/enum/union. */
+        private fun typeRef(type: Type, where: String, span: Span): XsdTypeRef =
+            when (type) {
+                is Scalar -> scalarRef(type, where, span)
+                is Ref -> {
+                    val target = schema.lookup(type.target)
+                    XsdTypeRef.Named(
+                        "tns",
+                        XsdNames.typeName(type.target.path),
+                        simple = target is EnumType,
+                    )
+                }
+                is ListOf,
+                is MapOf ->
+                    error("typeRef does not accept a collection; lower it as an element instead")
+            }
+
+        /** A repeated element for [list], its bounds and nillability from its refinements. */
+        private fun listElement(name: String, list: ListOf, where: String, span: Span): XsdElement =
+            XsdElement(
+                name = name,
+                type = itemTypeRef(list.element, where, span),
+                minOccurs = list.refinements.min?.toInt() ?: 0,
+                maxOccurs = list.refinements.max?.toInt(),
+                nillable = list.nullableElement,
+            )
+
+        /**
+         * A list or map element's item type: a direct reference, or an inner collection nested
+         * under the name `item`.
+         */
+        private fun itemTypeRef(element: Type, where: String, span: Span): XsdTypeRef =
+            when (element) {
+                is Scalar,
+                is Ref -> typeRef(element, where, span)
+                is ListOf -> XsdTypeRef.Anonymous(listOf(listElement("item", element, where, span)))
+                is MapOf ->
+                    XsdTypeRef.Anonymous(listOf(mapElement("item", element, "item", where, span)))
+            }
+
+        /**
+         * The wrapper element for a map field: `entry` elements keyed by an attribute, with a
+         * uniqueness constraint named from [uniqueBase].
+         */
+        private fun mapElement(
+            name: String,
+            map: MapOf,
+            uniqueBase: String,
+            where: String,
+            span: Span,
+        ): XsdElement {
+            val key = XsdAttribute("key", typeRef(map.key, where, span), required = true)
+            val entry =
+                XsdElement(
+                    name = "entry",
+                    type = entryTypeRef(map.value, key, where, span),
+                    minOccurs = map.refinements.min?.toInt() ?: 0,
+                    maxOccurs = map.refinements.max?.toInt(),
+                    nillable = map.nullableValue,
+                )
             return XsdElement(
                 name = name,
-                type = type,
-                minOccurs = if (field.nullable || field.default != null) 0 else 1,
-                default = field.default?.let(XsdTypes::text),
-                doc = field.doc,
+                type = XsdTypeRef.Anonymous(listOf(entry)),
+                unique = "${uniqueBase}_key",
             )
         }
+
+        /**
+         * A map entry's type: an extension carrying the key attribute for a plain scalar, enum,
+         * record, or union value; a `value` element wrapping a refined scalar, since an extension
+         * cannot carry facets; or a nested collection lowered as `item`.
+         */
+        private fun entryTypeRef(
+            value: Type,
+            key: XsdAttribute,
+            where: String,
+            span: Span,
+        ): XsdTypeRef =
+            when (value) {
+                is Scalar -> {
+                    val ref = typeRef(value, where, span)
+                    if (ref is XsdTypeRef.Restricted)
+                        XsdTypeRef.Anonymous(listOf(XsdElement("value", ref)), listOf(key))
+                    else XsdTypeRef.Extension(ref, listOf(key))
+                }
+                is Ref -> XsdTypeRef.Extension(typeRef(value, where, span), listOf(key))
+                is ListOf ->
+                    XsdTypeRef.Anonymous(
+                        listOf(listElement("item", value, where, span)),
+                        listOf(key),
+                    )
+                is MapOf ->
+                    XsdTypeRef.Anonymous(
+                        listOf(mapElement("item", value, "item", where, span)),
+                        listOf(key),
+                    )
+            }
 
         private fun kindOf(decl: TypeDecl): String =
             when (decl) {

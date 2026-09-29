@@ -1,0 +1,6 @@
+# targets=xsd
+warning[SCH2201] (lossy) (xsd): field 'R.tags': a nullable list has no XSD representation; lowered to an optional repeated element
+ --> s.schemata:2:12
+  = help: declare the list as `list<T>`; an absent list already means empty
+
+0 errors, 1 warning

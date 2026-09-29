@@ -8,6 +8,8 @@ import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
@@ -317,7 +319,7 @@ class XsdLoweringTest {
                     Schema(listOf(namespace("s", declarations = listOf(orderLine, order))))
                 )
                 .diagnostics
-                .single()
+                .single { "lowers to type" in it.message }
         assertEquals(
             "record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (orders.schemata:2)",
             d.message,
@@ -347,5 +349,249 @@ class XsdLoweringTest {
             "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore",
             d.help,
         )
+    }
+
+    @Test
+    fun `an embedded record field is an element of the record type`() {
+        val addr = record("s", "Address", field(1, "city", Scalar(Builtin.STRING)))
+        val r = record("s", "Order", field(1, "shipping", Ref(qn("s", "Address")), nullable = true))
+        val file =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(addr, r)))))
+                .model
+                .files
+                .single()
+        val e = (file.types[1] as XsdComplex).sequence.single()
+        assertEquals(
+            XsdElement(
+                "shipping",
+                XsdTypeRef.Named("tns", "AddressType", simple = false),
+                minOccurs = 0,
+            ),
+            e,
+        )
+    }
+
+    @Test
+    fun `a list is a repeated element with occurrence bounds from its refinements`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "tags",
+                    ListOf(
+                        Scalar(Builtin.STRING),
+                        nullableElement = false,
+                        Refinements(min = BigDecimal(1), max = BigDecimal(5)),
+                    ),
+                ),
+                field(2, "notes", ListOf(Scalar(Builtin.STRING), nullableElement = true)),
+            )
+        val seq =
+            (XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                    .model
+                    .files
+                    .single()
+                    .types
+                    .single() as XsdComplex)
+                .sequence
+        assertEquals(
+            XsdElement("tags", XsdTypeRef.Builtin("xs:string"), minOccurs = 1, maxOccurs = 5),
+            seq[0],
+        )
+        assertEquals(
+            XsdElement(
+                "notes",
+                XsdTypeRef.Builtin("xs:string"),
+                minOccurs = 0,
+                maxOccurs = null,
+                nillable = true,
+            ),
+            seq[1],
+        )
+    }
+
+    @Test
+    fun `a nullable list is lowered as optional and reported as lossy`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING), nullableElement = false),
+                    nullable = true,
+                    line = 3,
+                ),
+            )
+        val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.LOSSY, d.code)
+        assertEquals(
+            "field 'R.tags': a nullable list has no XSD representation; lowered to an optional repeated element",
+            d.message,
+        )
+        assertEquals("declare the list as `list<T>`; an absent list already means empty", d.help)
+    }
+
+    @Test
+    fun `a map is a wrapper of entries keyed by an attribute with a uniqueness constraint`() {
+        val r =
+            record(
+                "s",
+                "Account",
+                field(
+                    1,
+                    "balances",
+                    MapOf(
+                        Scalar(Builtin.STRING),
+                        Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4)),
+                        nullableValue = false,
+                    ),
+                ),
+            )
+        val e =
+            (XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                    .model
+                    .files
+                    .single()
+                    .types
+                    .single() as XsdComplex)
+                .sequence
+                .single()
+        val entry =
+            XsdElement(
+                "entry",
+                XsdTypeRef.Anonymous(
+                    listOf(
+                        XsdElement(
+                            "value",
+                            XsdTypeRef.Restricted(
+                                "xs:decimal",
+                                listOf(
+                                    XsdFacet("totalDigits", "19"),
+                                    XsdFacet("fractionDigits", "4"),
+                                ),
+                            ),
+                        )
+                    ),
+                    listOf(XsdAttribute("key", XsdTypeRef.Builtin("xs:string"), required = true)),
+                ),
+                minOccurs = 0,
+                maxOccurs = null,
+            )
+        assertEquals(
+            XsdElement(
+                "balances",
+                XsdTypeRef.Anonymous(listOf(entry)),
+                unique = "AccountType_balances_key",
+            ),
+            e,
+        )
+    }
+
+    @Test
+    fun `a map with a plain scalar value uses simple content`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "counts",
+                    MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), nullableValue = false),
+                ),
+            )
+        val e =
+            (XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                    .model
+                    .files
+                    .single()
+                    .types
+                    .single() as XsdComplex)
+                .sequence
+                .single()
+        val entryType = ((e.type as XsdTypeRef.Anonymous).sequence.single().type)
+        assertEquals(
+            XsdTypeRef.Extension(
+                XsdTypeRef.Builtin("xs:int"),
+                listOf(XsdAttribute("key", XsdTypeRef.Builtin("xs:string"), required = true)),
+            ),
+            entryType,
+        )
+    }
+
+    @Test
+    fun `a nested list wraps inner items`() {
+        val r =
+            record("s", "R", field(1, "grid", ListOf(ListOf(Scalar(Builtin.INT32), false), false)))
+        val e =
+            (XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                    .model
+                    .files
+                    .single()
+                    .types
+                    .single() as XsdComplex)
+                .sequence
+                .single()
+        assertEquals(
+            XsdElement(
+                "grid",
+                XsdTypeRef.Anonymous(
+                    listOf(
+                        XsdElement(
+                            "item",
+                            XsdTypeRef.Builtin("xs:int"),
+                            minOccurs = 0,
+                            maxOccurs = null,
+                        )
+                    )
+                ),
+                minOccurs = 0,
+                maxOccurs = null,
+            ),
+            e,
+        )
+    }
+
+    @Test
+    fun `same-named nested records under different parents do not collide`() {
+        val orderLine =
+            record(
+                "s",
+                "Line",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                path = listOf("Order", "Line"),
+                line = 4,
+            )
+        val order =
+            record(
+                "s",
+                "Order",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                nested = listOf(orderLine),
+                line = 2,
+            )
+        val invoiceLine =
+            record(
+                "s",
+                "Line",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                path = listOf("Invoice", "Line"),
+                line = 9,
+            )
+        val invoice =
+            record(
+                "s",
+                "Invoice",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                nested = listOf(invoiceLine),
+                line = 7,
+            )
+        val lowered =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(order, invoice)))))
+        assertEquals(emptyList(), lowered.diagnostics)
     }
 }
