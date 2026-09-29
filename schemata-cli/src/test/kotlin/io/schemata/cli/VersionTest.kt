@@ -17,4 +17,10 @@ class VersionTest {
         assertTrue(line.startsWith("schemata "), line)
         assertTrue(grammar.matches(line.removePrefix("schemata ")), line)
     }
+
+    @Test
+    fun `the version constant is generated from the build and is what --version prints`() {
+        assertTrue(grammar.matches(BuildVersion.VERSION), BuildVersion.VERSION)
+        assertEquals(BuildVersion.VERSION, Version.current)
+    }
 }

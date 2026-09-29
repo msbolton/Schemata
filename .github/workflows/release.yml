@@ -3,12 +3,13 @@ name: release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  jar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,10 +22,100 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew build --no-daemon
       - name: Check the built version matches the tag
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        run: ls schemata-cli/build/libs/schemata-"${GITHUB_REF_NAME#v}".jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: schemata-cli/build/libs/schemata-[0-9]*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64,   os: ubuntu-latest }
+          - { target: macos-arm64, os: macos-15 }
+          - { target: macos-x64,   os: macos-15-intel }
+          - { target: windows-x64, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '12.0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm'
+      - uses: gradle/actions/setup-gradle@v4
+      # The GraalVM plugin's resource-config task cannot be configuration-cached.
+      - name: Build the jar and the binary
+        run: ./gradlew :schemata-cli:shadowJar :schemata-cli:nativeCompile --no-daemon --no-configuration-cache
+        shell: bash
+      - name: Check the macOS deployment target
+        if: runner.os == 'macOS'
+        shell: bash
         run: |
-          expected="${GITHUB_REF_NAME#v}"
-          ls schemata-cli/build/libs/schemata-"$expected".jar
+          otool -l schemata-cli/build/native/nativeCompile/schemata | grep -A3 LC_BUILD_VERSION | grep -q 'minos 12.0' \
+            || { otool -l schemata-cli/build/native/nativeCompile/schemata | grep -A3 LC_BUILD_VERSION; exit 1; }
+      - name: Verify the binary against the jar
+        run: |
+          binary=schemata-cli/build/native/nativeCompile/schemata
+          if [ "${{ runner.os }}" = "Windows" ]; then binary="$binary.exe"; fi
+          ./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' \
+            -Pschemata.nativeBinary="$binary" --no-daemon --no-configuration-cache
+        shell: bash
+      - name: Package
+        id: package
+        run: |
+          version=$(ls schemata-cli/build/libs/schemata-[0-9]*.jar | sed -E 's|.*/schemata-(.*)\.jar|\1|')
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_EVENT_NAME" = push ] && [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "built $version but the tag is $GITHUB_REF_NAME"; exit 1
+          fi
+          cd schemata-cli/build/native/nativeCompile
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            asset="schemata-$version-${{ matrix.target }}.zip"
+            7z a "$asset" schemata.exe > /dev/null
+          else
+            asset="schemata-$version-${{ matrix.target }}.tar.gz"
+            tar -czf "$asset" schemata
+          fi
+          echo "asset=schemata-cli/build/native/nativeCompile/$asset" >> "$GITHUB_OUTPUT"
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.target }}
+          path: ${{ steps.package.outputs.asset }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [jar, native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Check that every expected asset arrived
+        run: |
+          ls assets
+          [ "$(ls assets | wc -l)" -eq 5 ] && ! ls assets | grep -v -- "${GITHUB_REF_NAME#v}"
+      - name: Checksums
+        run: cd assets && sha256sum * > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: schemata-cli/build/libs/schemata-[0-9]*.jar
+          files: assets/*
+          draft: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
