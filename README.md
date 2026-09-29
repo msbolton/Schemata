@@ -8,7 +8,7 @@ lossy decision reported as a warning.
 
 ## Install
 
-On macOS (Apple silicon or Intel) and Linux x64, Homebrew is the short way:
+On macOS (Apple silicon or Intel) and Linux x64 (glibc 2.34 or later), Homebrew is the short way:
 
 ```text
 brew install msbolton/schemata/schemata
