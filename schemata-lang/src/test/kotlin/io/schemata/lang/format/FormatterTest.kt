@@ -67,12 +67,89 @@ class FormatterTest {
     }
 
     @Test
-    fun `reserved keeps its place among fields and merges into one statement`() {
+    fun `reserved statements keep their place among fields`() {
         val input =
             "namespace t\nrecord R {\n#1 a: bool\nreserved #2, \"old\"\n#3 b: bool\nreserved #4..#6\n}\n"
         assertEquals(
-            "namespace t\n\nrecord R {\n  #1 a: bool\n  reserved #2, \"old\", #4..#6\n  #3 b: bool\n}\n",
+            "namespace t\n\nrecord R {\n  #1 a: bool\n  reserved #2, \"old\"\n  #3 b: bool\n  reserved #4..#6\n}\n",
             fmt(input),
+        )
+    }
+
+    @Test
+    fun `reserved statements keep their own trailing comments`() {
+        val input =
+            "namespace t\nrecord R {\nreserved #7 // r1\n#4 d: bool\nreserved #8, // r2\n#9\n}\n"
+        assertEquals(
+            "namespace t\n\nrecord R {\n  reserved #7  // r1\n  #4 d: bool\n  reserved #8, #9  // r2\n}\n",
+            fmt(input),
+        )
+    }
+
+    @Test
+    fun `a comment inside a member's type trails the member and formatting is idempotent`() {
+        val union = "namespace t\nunion U = #1 list<\n// why\nA> | #2 B\n"
+        val unionOut = "namespace t\n\nunion U =\n  #1 list<A> |  // why\n  #2 B\n"
+        assertEquals(unionOut, fmt(union))
+        assertEquals(unionOut, fmt(unionOut))
+        val record = "namespace t\nrecord R {\n#1 a: bool\n#2 b: list<\n// why\nint32>\n}\n"
+        val recordOut = "namespace t\n\nrecord R {\n  #1 a: bool\n  #2 b: list<int32>  // why\n}\n"
+        assertEquals(recordOut, fmt(record))
+        assertEquals(recordOut, fmt(recordOut))
+    }
+
+    @Test
+    fun `a union broken only by a comment prints it on the member's line`() {
+        val input = "namespace t\nunion U = #1 A // first\n| #2 B\n"
+        val expected = "namespace t\n\nunion U =\n  #1 A |  // first\n  #2 B\n"
+        assertEquals(expected, fmt(input))
+        assertEquals(expected, fmt(expected))
+    }
+
+    @Test
+    fun `a comment trailing a union's last member reads as the union's own and keeps one line`() {
+        val input = "namespace t\nunion U = #1 A | #2 list<\n// why\nB>\n"
+        val expected = "namespace t\n\nunion U = #1 A | #2 list<B>  // why\n"
+        assertEquals(expected, fmt(input))
+        assertEquals(expected, fmt(expected))
+    }
+
+    @Test
+    fun `two line comments due on one line keep the last there and the first above`() {
+        val record = "namespace t\nrecord R {\n#1 a: list<\n// c\nint32> // d\n}\n"
+        val recordOut = "namespace t\n\nrecord R {\n  // c\n  #1 a: list<int32>  // d\n}\n"
+        assertEquals(recordOut, fmt(record))
+        assertEquals(recordOut, fmt(recordOut))
+        val union = "namespace t\nunion U = #1 A | #2 list<\n// m\nB> // u\n"
+        val unionOut = "namespace t\n\nunion U =\n  #1 A |\n  // m\n  #2 list<B>  // u\n"
+        assertEquals(unionOut, fmt(union))
+        assertEquals(unionOut, fmt(unionOut))
+    }
+
+    @Test
+    fun `a comment on the opening brace's line stays there and breaks the body`() {
+        val input = "namespace t // ns\nrecord R { // c\n#1 a: bool\n}\nenum E // e\n{ #1 v }\n"
+        val expected =
+            "namespace t  // ns\n\nrecord R {  // c\n  #1 a: bool\n}\n\nenum E {  // e\n  #1 v\n}\n"
+        assertEquals(expected, fmt(input))
+        assertEquals(expected, fmt(expected))
+    }
+
+    @Test
+    fun `file header comments keep their place`() {
+        val input = "// top\n/// doc\n// between\n@a\n@b // on b\n// before ns\nnamespace t\n"
+        val expected = "// top\n/// doc\n// between\n@a\n@b  // on b\n// before ns\nnamespace t\n"
+        assertEquals(expected, fmt(input))
+    }
+
+    @Test
+    fun `width counts code points so astral characters do not break a line early`() {
+        val rockets = "\uD83D\uDE80".repeat(70)
+        val oneLine = "record R { #1 s: string = \"$rockets\" }"
+        assertEquals(100, oneLine.codePointCount(0, oneLine.length))
+        assertEquals(
+            "namespace t\n\n$oneLine\n",
+            fmt("namespace t\nrecord R {\n#1 s: string = \"$rockets\"\n}\n"),
         )
     }
 
@@ -188,7 +265,7 @@ class FormatterTest {
                 "namespace t\n\nrecord R {\n  /// the id\n  @sql(key) #1 id:   int64\n  @sql(unique, index)\n  #2 code: string\n}\n",
                 "namespace t\n\n/// A record.\n@sql(table = \"r\")\n@proto(name = \"RR\")\nrecord R { #1 a: bool }\n",
                 "namespace t\n\nenum E {\n  #1  a\n  #10 bb\n  reserved #2\n}\n\nunion U = #1 E | #2 R\n\nrecord R { #1 a: bool }\n",
-                "namespace t\n\nrecord R {\n  #1 a: bool\n  reserved #2, \"old\", #4..#6\n  #3 b: bool\n}\n",
+                "namespace t\n\nrecord R {\n  #1 a: bool\n  reserved #2, \"old\"\n  #3 b: bool\n  reserved #4..#6\n}\n",
                 "namespace t\n\nrecord O {\n  #1 l: list<L>\n\n  record L { #1 sku: string }\n\n  #2 n: int32\n}\n",
                 "namespace t\n\nrecord R { #1 p: decimal(19, 4) = 1.00 #2 s: string = \"a\\\"b\" #3 f: float64 = 1.50 }\n",
                 "// top\nnamespace t\n\n// about R\nrecord R {\n  // lead a\n  #1 a: bool  // trail a\n  #2 b: bool\n  // end\n}\n\n// bye\n",

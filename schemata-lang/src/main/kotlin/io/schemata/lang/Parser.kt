@@ -46,7 +46,11 @@ object Parser {
         val file = AstBuilder(path, builderDiagnostics).build(tree)
         val diagnostics = listener.diagnostics + builderDiagnostics
         if (diagnostics.hasErrors) return FormatParse(null, CommentTable.EMPTY, diagnostics)
-        return FormatParse(file, Comments.attach(file, Comments.collect(tokens)), diagnostics)
+        return FormatParse(
+            file,
+            Comments.attach(file, Comments.collect(tokens), source),
+            diagnostics,
+        )
     }
 
     private fun lexAndParse(

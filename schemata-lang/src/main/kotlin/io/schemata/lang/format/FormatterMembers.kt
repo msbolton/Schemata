@@ -48,21 +48,34 @@ internal fun Formatter.Printer.canInlineMember(
 internal fun Formatter.Printer.canOneLineRecord(d: RecordDecl): Boolean =
     d.nested.isEmpty() &&
         d.reserved.isEmpty() &&
+        comments.headerTrailing[d.span].isNullOrEmpty() &&
         comments.endOfBlock[d.span].isNullOrEmpty() &&
         d.fields.all { canInlineMember(it.span, it.doc, it.annotations) }
 
 internal fun Formatter.Printer.canOneLineEnum(d: EnumDecl): Boolean =
     d.reserved.isEmpty() &&
+        comments.headerTrailing[d.span].isNullOrEmpty() &&
         comments.endOfBlock[d.span].isNullOrEmpty() &&
         d.values.all { canInlineMember(it.span, it.doc, it.annotations) }
 
+/**
+ * A union has no closing token, so a comment after its last member reads back as the union's own
+ * trailing comment: it does not force a break unless both end in `//` comments that cannot share
+ * the line, per [lastMemberAbove].
+ */
 internal fun Formatter.Printer.canOneLineUnion(d: UnionDecl): Boolean =
-    comments.endOfBlock[d.span].isNullOrEmpty() &&
-        d.members.all {
-            it.doc == null &&
-                comments.leading[it.span].isNullOrEmpty() &&
-                comments.trailing[it.span].isNullOrEmpty()
-        }
+    d.members.all { it.doc == null && comments.leading[it.span].isNullOrEmpty() } &&
+        d.members.dropLast(1).all { comments.trailing[it.span].isNullOrEmpty() } &&
+        lastMemberAbove(d).isEmpty()
+
+/**
+ * The last member's `//` comment when the union has a trailing comment of its own: both are due at
+ * the end of the last member's line, where nothing can follow a `//` comment, so the member's
+ * prints on its own line above the member.
+ */
+internal fun Formatter.Printer.lastMemberAbove(d: UnionDecl): List<Comment> =
+    if (comments.trailing[d.span].isNullOrEmpty()) emptyList()
+    else comments.trailing[d.members.last().span].orEmpty().filter { it.text.startsWith("//") }
 
 /** The prelude common to a field's and an enum value's printed line, in a multi-line body. */
 internal class MemberPrelude(
@@ -141,10 +154,19 @@ internal fun Formatter.Printer.unionMemberOneLine(m: UnionMemberDecl): String {
 }
 
 /**
- * `reserved #2, #5..#7` merges every `reserved` statement of a record or enum into one printed
- * statement, positioned at the first item and keyed by it for comments, per [CommentTable].
+ * One body member per `reserved` statement of a record or enum, each at its own place among the
+ * other members and keyed by its first item for comments, per [CommentTable].
  */
-internal fun Formatter.Printer.reservedLines(
+internal fun Formatter.Printer.reservedMembers(
+    items: List<ReservedItem>,
+    indent: String,
+): List<BodyMember> =
+    reservedStatements(items, lines).map {
+        BodyMember(it.first().span, isNested = false, reservedLines(it, indent))
+    }
+
+/** `reserved #2, #5..#7`: one statement, with the comments keyed by its first item. */
+private fun Formatter.Printer.reservedLines(
     items: List<ReservedItem>,
     indent: String,
 ): List<String> {

@@ -21,6 +21,9 @@ sealed interface FormatResult {
     data class Failed(val diagnostics: List<Diagnostic>) : FormatResult
 }
 
+/** How wide [s] prints: one column per code point, so an astral character counts once. */
+internal fun width(s: String): Int = s.codePointCount(0, s.length)
+
 /** Prints a schema file in the canonical layout; never analyses, so unresolved imports are fine. */
 object Formatter {
     const val LINE_WIDTH = 100
@@ -46,6 +49,7 @@ object Formatter {
         fileLeading.size +
             leading.values.sumOf { it.size } +
             trailing.values.sumOf { it.size } +
+            headerTrailing.values.sumOf { it.size } +
             endOfBlock.values.sumOf { it.size } +
             fileTrailing.size
 
@@ -55,8 +59,12 @@ object Formatter {
         fun file(f: SourceFile): String = buildString {
             comments.fileLeading.forEach { appendLine(it.text) }
             f.doc?.let { docLines(it, "").forEach { l -> appendLine(l) } }
-            f.annotations.forEach { appendLine(annotation(it)) }
-            appendLine("namespace ${f.namespace.name}")
+            f.annotations.forEach { a ->
+                comments.leading[a.span]?.forEach { appendLine(it.text) }
+                appendLine(annotation(a) + trailing(a.span))
+            }
+            comments.leading[f.namespace.span]?.forEach { appendLine(it.text) }
+            appendLine("namespace ${f.namespace.name}" + trailing(f.namespace.span))
             if (f.imports.isNotEmpty()) {
                 appendLine()
                 f.imports.forEach { i ->
@@ -94,8 +102,10 @@ object Formatter {
             }
         }
 
-        internal fun trailing(span: Span) =
-            comments.trailing[span]?.joinToString("") { "  " + it.text } ?: ""
+        internal fun trailing(span: Span) = lineEnd(comments.trailing[span])
+
+        /** Comments printed at the end of a line, each after two spaces. */
+        internal fun lineEnd(cs: List<Comment>?) = cs?.joinToString("") { "  " + it.text } ?: ""
 
         internal fun docLines(doc: String, indent: String) =
             doc.lines().map { if (it.isEmpty()) "$indent///" else "$indent/// $it" }
@@ -143,20 +153,15 @@ object Formatter {
             }
 
         /**
-         * True when a single annotation with at most one argument can sit inline before a member.
-         */
-        internal fun inlineAnnotation(annotations: List<Annotation>): Boolean =
-            annotations.size == 1 && annotations[0].args.size <= 1
-
-        /**
          * True when [annotations] can print inline before a member: none at all, or exactly one
-         * simple annotation that carries no trailing comment of its own (a comment glued to an
-         * annotation's line forces that annotation onto its own line so the comment has somewhere
-         * to print).
+         * annotation with at most one argument that carries no trailing comment of its own (a
+         * comment glued to an annotation's line forces that annotation onto its own line so the
+         * comment has somewhere to print).
          */
         internal fun canInline(annotations: List<Annotation>): Boolean =
             annotations.isEmpty() ||
-                (inlineAnnotation(annotations) &&
+                (annotations.size == 1 &&
+                    annotations[0].args.size <= 1 &&
                     comments.trailing[annotations[0].span].isNullOrEmpty())
 
         internal fun record(d: RecordDecl, indent: String): String {
@@ -183,14 +188,7 @@ object Formatter {
                         declaration(it, innerIndent).removeSuffix("\n").split("\n"),
                     )
             }
-            if (d.reserved.isNotEmpty()) {
-                members +=
-                    BodyMember(
-                        d.reserved.first().span,
-                        isNested = false,
-                        reservedLines(d.reserved, innerIndent),
-                    )
-            }
+            members += reservedMembers(d.reserved, innerIndent)
             return block(indent, "record ${d.name}", d.span, canOneLine, oneLineMembers, members)
         }
 
@@ -209,14 +207,7 @@ object Formatter {
                         valueMultilineLines(it, innerIndent, ordWidth),
                     )
             }
-            if (d.reserved.isNotEmpty()) {
-                members +=
-                    BodyMember(
-                        d.reserved.first().span,
-                        isNested = false,
-                        reservedLines(d.reserved, innerIndent),
-                    )
-            }
+            members += reservedMembers(d.reserved, innerIndent)
             return block(indent, "enum ${d.name}", d.span, canOneLine, oneLineMembers, members)
         }
 
@@ -232,13 +223,13 @@ object Formatter {
             if (canOneLine) {
                 val body = if (oneLineMembers.isEmpty()) "{}" else "{ $oneLineMembers }"
                 val oneLine = indent + "$keyword $body" + trailing(span)
-                if (oneLine.length <= LINE_WIDTH) return oneLine + "\n"
+                if (width(oneLine) <= LINE_WIDTH) return oneLine + "\n"
             }
             val innerIndent = indent + INDENT
             val bodyLines = assembleBody(members).toMutableList()
             comments.endOfBlock[span]?.forEach { bodyLines += innerIndent + it.text }
             return buildString {
-                appendLine(indent + "$keyword {")
+                appendLine(indent + "$keyword {" + lineEnd(comments.headerTrailing[span]))
                 bodyLines.forEach { appendLine(it) }
                 appendLine(indent + "}" + trailing(span))
             }
@@ -249,10 +240,12 @@ object Formatter {
          * on its own line, since the grammar allows no leading `|`: it trails every member but the
          * last. A member's own trailing comment sits at the end of its line; the union's own
          * trailing comment — there being no closing brace to hang it on — sits at the end of the
-         * last member's line instead, and a comment after the last member (`endOfBlock`, for the
-         * same reason) follows on its own line after that. A comment between a member's doc and its
-         * ordinal leads that member, like any other leading comment, so it prints above the
-         * member's doc, not between the doc and the ordinal.
+         * last member's line instead, after any comment trailing that member (which therefore reads
+         * back as the union's own and alone never breaks the union), except that the member's `//`
+         * comment prints above the member when the union has a trailing comment too, per
+         * [lastMemberAbove]. A comment between a member's doc and its ordinal leads that member,
+         * like any other leading comment, so it prints above the member's doc, not between the doc
+         * and the ordinal.
          */
         internal fun union(d: UnionDecl, indent: String): String {
             if (canOneLineUnion(d)) {
@@ -260,23 +253,25 @@ object Formatter {
                     indent +
                         "union ${d.name} = " +
                         d.members.joinToString(" | ") { unionMemberOneLine(it) } +
+                        trailing(d.members.last().span) +
                         trailing(d.span)
-                if (oneLine.length <= LINE_WIDTH) return oneLine + "\n"
+                if (width(oneLine) <= LINE_WIDTH) return oneLine + "\n"
             }
             val innerIndent = indent + INDENT
+            val declTrailing = comments.trailing[d.span].orEmpty()
             return buildString {
                 appendLine(indent + "union ${d.name} =")
                 d.members.forEachIndexed { i, m ->
                     val last = i == d.members.size - 1
+                    val own = comments.trailing[m.span].orEmpty()
+                    val above = if (last) lastMemberAbove(d) else emptyList()
                     comments.leading[m.span]?.forEach { appendLine(innerIndent + it.text) }
+                    above.forEach { appendLine(innerIndent + it.text) }
                     m.doc?.let { docLines(it, innerIndent).forEach { l -> appendLine(l) } }
                     val pipe = if (last) "" else " |"
-                    val declTrailing = if (last) trailing(d.span) else ""
-                    appendLine(
-                        innerIndent + unionMemberOneLine(m) + pipe + trailing(m.span) + declTrailing
-                    )
+                    val ending = (own - above.toSet()) + if (last) declTrailing else emptyList()
+                    appendLine(innerIndent + unionMemberOneLine(m) + pipe + lineEnd(ending))
                 }
-                comments.endOfBlock[d.span]?.forEach { appendLine(innerIndent + it.text) }
             }
         }
     }
