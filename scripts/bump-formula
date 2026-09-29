@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Rewrite a Schemata Homebrew formula's release urls and checksums from a SHA256SUMS file.
+
+usage: bump-formula VERSION SHA256SUMS FORMULA
+Prints "changed" or "unchanged"; exits 1 when a checksum or a formula line is missing.
+"""
+import re
+import sys
+
+# The formula lists its platforms in this order; each block has one url and one sha256 line.
+PLATFORMS = ["macos-arm64", "macos-x64", "linux-x64"]
+
+
+def main(version, sums_path, formula_path):
+    sums = {}
+    with open(sums_path) as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) == 2:
+                sums[parts[1]] = parts[0]
+    checksums = []
+    for platform in PLATFORMS:
+        asset = f"schemata-{version}-{platform}.tar.gz"
+        if asset not in sums:
+            sys.exit(f"bump-formula: no checksum for {asset} in {sums_path}")
+        checksums.append(sums[asset])
+
+    with open(formula_path) as f:
+        original = f.read()
+    lines = original.split("\n")
+    url_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*url "', l)]
+    sha_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*sha256 "', l)]
+    if len(url_lines) != len(PLATFORMS) or len(sha_lines) != len(PLATFORMS):
+        sys.exit(f"bump-formula: expected {len(PLATFORMS)} url and sha256 lines, found {len(url_lines)} and {len(sha_lines)}")
+    m = re.search(r"/download/v([^/]+)/schemata-\1-", lines[url_lines[0]])
+    if not m:
+        sys.exit("bump-formula: the first url line does not carry the release version")
+    old = m.group(1)
+    for i in url_lines:
+        lines[i] = lines[i].replace(f"/v{old}/schemata-{old}-", f"/v{version}/schemata-{version}-")
+    for i, sha in zip(sha_lines, checksums):
+        lines[i] = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', lines[i])
+    text = "\n".join(lines)
+    if text == original:
+        print("unchanged")
+        return
+    with open(formula_path, "w") as f:
+        f.write(text)
+    print("changed")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        sys.exit(__doc__.strip())
+    main(*sys.argv[1:])

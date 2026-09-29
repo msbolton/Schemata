@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      bump_tap:
+        description: Bump the Homebrew formula to the latest published release
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -120,3 +125,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ steps.release.outputs.id }}" -F draft=false > /dev/null
+
+  tap:
+    # Runs after a tagged publish, or on its own when dispatched with bump_tap.
+    if: always() && (needs.publish.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.bump_tap))
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: msbolton/homebrew-schemata
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+      - name: Fetch the release checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tag="$GITHUB_REF_NAME"; else tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName); fi
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -O SHA256SUMS
+          echo "version=${tag#v}" >> "$GITHUB_ENV"
+      - name: Bump the formula
+        run: scripts/bump-formula "$version" SHA256SUMS tap/Formula/schemata.rb | tee bump.txt
+      - name: Push the tap
+        run: |
+          if grep -q '^unchanged$' bump.txt; then echo "formula already at $version"; exit 0; fi
+          cd tap
+          git config user.name "schemata-release"
+          git config user.email "release@schemata.invalid"
+          git add Formula/schemata.rb
+          git commit -m "schemata $version"
+          git push
