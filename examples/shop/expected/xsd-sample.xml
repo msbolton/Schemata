@@ -5,6 +5,7 @@
     <c:id>11111111-2222-3333-4444-555555555555</c:id>
     <c:name>Ada Lovelace</c:name>
   </customer>
+  <status>paid</status>
   <lines>
     <sku>WIDGET-1</sku>
     <quantity>2</quantity>

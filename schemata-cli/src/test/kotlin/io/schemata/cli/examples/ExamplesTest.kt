@@ -68,8 +68,9 @@ class ExamplesTest {
             coreWarnings,
             "core warnings for ${dir.name}",
         )
-        // The sql target's live catalog check aborts (via assumeTrue) the whole dynamic test when
-        // Docker is unavailable; run it last so proto and xsd are always checked first.
+        // The sql target's live catalog check aborts (via assumeTrue) the rest of this loop when
+        // Docker is unavailable; run it last so proto and xsd, including the shop sample document
+        // check nested under xsd, are always checked first.
         for (target in result.targets.sortedBy { it.name == "sql" }) {
             val files = target.files.associate { it.path to it.content }
             golden(File(expected, target.name), files, dir.name)
@@ -85,7 +86,16 @@ class ExamplesTest {
             )
             when (target.name) {
                 "proto" -> assertNull(Protoc.compile(files), "protoc rejected ${dir.name}")
-                "xsd" -> assertNull(Xsd.validate(files), "the JDK rejected ${dir.name}")
+                "xsd" -> {
+                    assertNull(Xsd.validate(files), "the JDK rejected ${dir.name}")
+                    if (dir.name == "shop") {
+                        val xml = File(expected, "xsd-sample.xml").readText()
+                        assertNull(
+                            Xsd.validateDocument(files, "shop/orders.xsd", xml),
+                            "the JDK rejected the shop sample document",
+                        )
+                    }
+                }
                 "sql" -> {
                     assumeTrue(
                         Postgres.available,
@@ -97,15 +107,6 @@ class ExamplesTest {
                     assertEquals(snapshot.readText(), catalog, "live catalog for ${dir.name}")
                 }
             }
-        }
-        if (dir.name == "shop") {
-            val files =
-                result.targets.first { it.name == "xsd" }.files.associate { it.path to it.content }
-            val xml = File(expected, "xsd-sample.xml").readText()
-            assertNull(
-                Xsd.validateDocument(files, "shop/orders.xsd", xml),
-                "the JDK rejected the shop sample document",
-            )
         }
     }
 
