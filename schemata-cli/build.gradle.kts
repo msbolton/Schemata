@@ -85,4 +85,9 @@ val fatJar = tasks.shadowJar.get().archiveFile
 tasks.test {
     inputs.file(fatJar)
     systemProperty("schemata.fatJar", fatJar.get().asFile.absolutePath)
+    systemProperty("schemata.version", project.version.toString())
+    providers.gradleProperty("schemata.nativeBinary").orNull?.let {
+        inputs.file(it)
+        systemProperty("schemata.nativeBinary", File(it).absolutePath)
+    }
 }
