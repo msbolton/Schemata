@@ -73,6 +73,8 @@ graalvmNative {
     binaries {
         named("main") {
             imageName = "schemata"
+            // The plugin otherwise defaults this project to a shared library.
+            sharedLibrary = false
             mainClass = "io.schemata.cli.MainKt"
             buildArgs.add("--no-fallback")
         }
