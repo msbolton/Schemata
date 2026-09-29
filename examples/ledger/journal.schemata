@@ -6,9 +6,11 @@ namespace ledger.journal
 import ledger.accounts
 
 enum Source { #1 manual, #2 imported, #3 accrual }
-enum Side   { #1 debit, #2 credit }
 
-record Invoice { #1 number:    string(max = 32) }
+enum Side { #1 debit, #2 credit }
+
+record Invoice { #1 number: string(max = 32) }
+
 record Payment { #1 reference: string(max = 64) }
 
 /// What an entry refers back to; a bare source when nothing else applies.
@@ -16,17 +18,12 @@ union Reference = #1 Invoice | #2 Payment | #3 Source
 
 /// A balanced entry: at least two lines.
 record Entry {
-  @sql(key)
-  #1 id:     uuid
+  @sql(key) #1 id:     uuid
   #2 posted: date
   #3 memo:   string(max = 500)?
   #4 lines:  list<Line>(min = 2)
   #5 ref:    Reference
   reserved #6
 
-  record Line {
-    #1 account: Account
-    #2 amount:  Money
-    #3 side:    Side
-  }
+  record Line { #1 account: Account #2 amount: Money #3 side: Side }
 }

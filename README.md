@@ -112,6 +112,7 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
     schemata compile [--target proto,sql,xsd] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata check   [--target proto,sql,xsd]            [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
+    schemata fmt     [--check] PATHS...
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
 error, even when another target failed. `check` reports everything `compile` would and
@@ -127,6 +128,9 @@ a file, pass `--color never`.
 | 0 | nothing reported |
 | 2 | warnings only |
 | 1 | any error (after `--strict` promotion), or a usage error |
+
+`fmt` follows the same codes: 0 when formatted or already formatted, 1 when `--check` finds a
+difference or a file does not parse.
 
 ## Learn more
 

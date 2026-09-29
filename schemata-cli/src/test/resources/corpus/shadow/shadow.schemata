@@ -8,8 +8,5 @@ record Order {
 
   record Card { #1 nested: bool }
 
-  record Line {
-    #1 again: corpus.shadow.Card
-    #2 near: Card
-  }
+  record Line { #1 again: corpus.shadow.Card #2 near: Card }
 }

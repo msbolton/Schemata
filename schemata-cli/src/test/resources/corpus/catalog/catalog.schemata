@@ -6,10 +6,7 @@ namespace corpus.catalog
 @deprecated
 record Product {
   /// Stock keeping unit.
-  @proto(name = "sku_code")
-  #1 sku: string
-  @deprecated("use sku")
-  #2 legacy_id: int32?
-  @sql(key)
-  #3 id: uuid
+  @proto(name = "sku_code") #1 sku:       string
+  @deprecated("use sku") #2 legacy_id: int32?
+  @sql(key) #3 id:        uuid
 }
