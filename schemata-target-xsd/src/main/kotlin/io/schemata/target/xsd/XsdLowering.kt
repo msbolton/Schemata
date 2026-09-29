@@ -91,7 +91,9 @@ object XsdLowering {
             val elements = mutableListOf<XsdElement>()
             namespace.declarations.forEach { decl ->
                 types += types(decl, emptyList())
-                if (decl is RecordType) elements += globalElement(decl)
+                if (decl is RecordType && XsdNames.bool(decl.annotations, "root") != false) {
+                    elements += globalElement(decl)
+                }
             }
             return XsdFile(
                 XsdNames.pathOf(namespace),
@@ -134,12 +136,65 @@ object XsdLowering {
                 },
             )
 
-        private fun record(record: RecordType, path: List<String>): XsdComplex =
-            XsdComplex(
-                XsdNames.typeName(path),
-                record.doc,
-                record.fields.map { field(record, it, path) },
+        private fun record(record: RecordType, path: List<String>): XsdComplex {
+            val sequence = mutableListOf<XsdElement>()
+            val attributes = mutableListOf<XsdAttribute>()
+            record.fields.forEach { f ->
+                if (XsdNames.flag(f.annotations, "attribute")) {
+                    attribute(record, f, path)?.let { attributes += it }
+                } else {
+                    sequence += field(record, f, path)
+                }
+            }
+            return XsdComplex(XsdNames.typeName(path), record.doc, sequence, attributes)
+        }
+
+        /**
+         * A field claiming `@xsd(attribute)` as an `XsdAttribute`, claimed in the same per-record
+         * scope as elements so a field named like an element in the same record collides. Only a
+         * scalar or an enum reference can be an attribute; any other shape is reported and skipped.
+         */
+        private fun attribute(record: RecordType, field: Field, path: List<String>): XsdAttribute? {
+            val where = "field '${record.name}.${field.name}'"
+            val shape =
+                when (val t = field.type) {
+                    is Scalar -> null
+                    is Ref ->
+                        when (schema.lookup(t.target)) {
+                            is EnumType -> null
+                            is RecordType -> "record"
+                            is UnionType -> "union"
+                        }
+                    is ListOf -> "list"
+                    is MapOf -> "map"
+                }
+            if (shape != null) {
+                diagnostics +=
+                    Diagnostic(
+                        XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                        "$where: @xsd(attribute) is not allowed on a $shape",
+                        field.span,
+                        help =
+                            "remove the annotation; only scalar and enum fields lower to attributes",
+                    )
+                return null
+            }
+            val name = overrideName(field.annotations, where, field.nameSpan) ?: field.name
+            claim(
+                "element",
+                "${path.joinToString(".")}/$name",
+                where,
+                field.nameSpan,
+                displayName = name,
             )
+            return XsdAttribute(
+                name = name,
+                type = typeRef(field.type, where, field.span),
+                required = !field.nullable && field.default == null,
+                default = field.default?.let(XsdTypes::text),
+                doc = field.doc,
+            )
+        }
 
         private fun choice(union: UnionType, path: List<String>): XsdChoice =
             XsdChoice(

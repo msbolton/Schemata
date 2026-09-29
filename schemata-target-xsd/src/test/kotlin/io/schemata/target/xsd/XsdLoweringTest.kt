@@ -771,4 +771,103 @@ class XsdLoweringTest {
                 .model
         assertEquals("../../a.xsd", model.files[1].imports.single().schemaLocation)
     }
+
+    @Test
+    fun `an attribute field becomes an xs attribute with use and default`() {
+        val kind = enum("s", "Kind", "a", "b")
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.INT64),
+                    annotations = xsd("attribute" to AnnotationValue.Flag),
+                ),
+                field(
+                    2,
+                    "note",
+                    Scalar(Builtin.STRING, Refinements(max = BigDecimal(10))),
+                    nullable = true,
+                    annotations = xsd("attribute" to AnnotationValue.Flag),
+                ),
+                field(
+                    3,
+                    "kind",
+                    Ref(qn("s", "Kind")),
+                    default = EnumRef(qn("s", "Kind"), "a"),
+                    annotations = xsd("attribute" to AnnotationValue.Flag),
+                    doc = "Which kind.",
+                ),
+                field(4, "body", Scalar(Builtin.STRING)),
+            )
+        val type =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(kind, r)))))
+                .model
+                .files
+                .single()
+                .types[1]
+                as XsdComplex
+        assertEquals(listOf("body"), type.sequence.map { it.name })
+        assertEquals(
+            listOf(
+                XsdAttribute("id", XsdTypeRef.Builtin("xs:long"), required = true),
+                XsdAttribute(
+                    "note",
+                    XsdTypeRef.Restricted("xs:string", listOf(XsdFacet("maxLength", "10"))),
+                    required = false,
+                ),
+                XsdAttribute(
+                    "kind",
+                    XsdTypeRef.Named("tns", "KindType", simple = true),
+                    required = false,
+                    default = "a",
+                    doc = "Which kind.",
+                ),
+            ),
+            type.attributes,
+        )
+    }
+
+    @Test
+    fun `an attribute on a list field is rejected and the field is skipped`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING), false),
+                    annotations = xsd("attribute" to AnnotationValue.Flag),
+                    line = 3,
+                ),
+            )
+        val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.ATTRIBUTE_NOT_ALLOWED, d.code)
+        assertEquals("field 'R.tags': @xsd(attribute) is not allowed on a list", d.message)
+        assertEquals(
+            "remove the annotation; only scalar and enum fields lower to attributes",
+            d.help,
+        )
+    }
+
+    @Test
+    fun `root false suppresses the global element`() {
+        val r =
+            record(
+                "s",
+                "Address",
+                field(1, "city", Scalar(Builtin.STRING)),
+                annotations = xsd("root" to AnnotationValue.Bool(false)),
+            )
+        val file =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(r)))))
+                .model
+                .files
+                .single()
+        assertEquals(emptyList(), file.elements)
+    }
 }
