@@ -608,8 +608,10 @@ report, under `--format` (`human` or `json`).
 `schemata fmt PATHS...` rewrites schema files in the canonical layout and names each file it
 changed; `schemata fmt --check PATHS...` writes nothing, prints a diff for each file that would
 change, and exits 1 if any would, which is how CI keeps a repository formatted. Comments are kept:
-one on its own line stays above the element that follows it, one at the end of a line stays on that
-line. A file that does not parse is reported like `check` would and left untouched.
+one on its own line stays above the element that follows it, and a comment at the end of a line
+stays on that line (after the element, or after the opening brace). Long lines are never wrapped.
+Doc-comment text keeps its indentation beyond one space after `///`. A file that does not parse is
+reported like `check` would and left untouched.
 
 The exit code tells you what happened without reading the output: `0` when there is nothing to
 report, `2` when every diagnostic is a warning, and `1` when any diagnostic is an error, or the
