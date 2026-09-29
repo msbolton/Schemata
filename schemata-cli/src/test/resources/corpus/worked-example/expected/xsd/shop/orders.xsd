@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:shop.orders"
+           xmlns:ns1="urn:schemata:shop.customers"
+           targetNamespace="urn:schemata:shop.orders"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
+  <xs:simpleType name="StatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="paid"/>
+      <xs:enumeration value="shipped"/>
+      <xs:enumeration value="cancelled"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="CardType">
+    <xs:sequence>
+      <xs:element name="last4">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="brand">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="32"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BankTransferType">
+    <xs:sequence>
+      <xs:element name="iban">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="34"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CashType">
+    <xs:sequence/>
+  </xs:complexType>
+  <xs:complexType name="PaymentType">
+    <xs:choice>
+      <xs:element name="card" type="tns:CardType"/>
+      <xs:element name="bank_transfer" type="tns:BankTransferType"/>
+      <xs:element name="cash" type="tns:CashType"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="OrderType">
+    <xs:annotation>
+      <xs:documentation>A customer's order. One row per checkout.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="customer" type="ns1:CustomerType"/>
+      <xs:element name="status" type="tns:StatusType" minOccurs="0" default="pending"/>
+      <xs:element name="lines" type="tns:OrderLineType" maxOccurs="unbounded"/>
+      <xs:element name="total">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="payment" type="tns:PaymentType"/>
+      <xs:element name="shipping" type="tns:OrderAddressType"/>
+      <xs:element name="placed_at" type="xs:dateTime"/>
+      <xs:element name="note" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="500"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="created" type="xs:dateTime" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderLineType">
+    <xs:annotation>
+      <xs:documentation>One purchasable item.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="sku">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="quantity">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="price">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderAddressType">
+    <xs:sequence>
+      <xs:element name="street">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="city">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="country">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="2"/>
+            <xs:maxLength value="2"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="card" type="tns:CardType"/>
+  <xs:element name="bank_transfer" type="tns:BankTransferType"/>
+  <xs:element name="cash" type="tns:CashType"/>
+  <xs:element name="order" type="tns:OrderType"/>
+</xs:schema>

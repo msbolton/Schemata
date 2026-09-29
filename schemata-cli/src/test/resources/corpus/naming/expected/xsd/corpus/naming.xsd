@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:corpus.naming"
+           targetNamespace="urn:schemata:corpus.naming"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:complexType name="HTTPStatusType">
+    <xs:sequence>
+      <xs:element name="code" type="xs:int"/>
+      <xs:element name="reason" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="UserType">
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="order" type="xs:int"/>
+      <xs:element name="a_very_long_field_name_that_goes_well_beyond_the_sixty_three_character_limit_of_postgres" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="IOErrorType">
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="http_status" type="tns:HTTPStatusType"/>
+  <xs:element name="user" type="tns:UserType"/>
+  <xs:element name="io_error" type="tns:IOErrorType"/>
+</xs:schema>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:corpus.collections"
+           targetNamespace="urn:schemata:corpus.collections"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:simpleType name="ColorType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="red"/>
+      <xs:enumeration value="green"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ItemType">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CollectionsType">
+    <xs:sequence>
+      <xs:element name="tags" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="items" type="tns:ItemType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="colors" type="tns:ColorType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="maybe" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="holes" type="xs:string" minOccurs="0" maxOccurs="unbounded" nillable="true"/>
+      <xs:element name="counts">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:simpleContent>
+                  <xs:extension base="xs:int">
+                    <xs:attribute name="key" type="xs:string" use="required"/>
+                  </xs:extension>
+                </xs:simpleContent>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:unique name="CollectionsType_counts_key">
+          <xs:selector xpath="tns:entry"/>
+          <xs:field xpath="@key"/>
+        </xs:unique>
+      </xs:element>
+      <xs:element name="by_id">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:complexContent>
+                  <xs:extension base="tns:ItemType">
+                    <xs:attribute name="key" type="xs:long" use="required"/>
+                  </xs:extension>
+                </xs:complexContent>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:unique name="CollectionsType_by_id_key">
+          <xs:selector xpath="tns:entry"/>
+          <xs:field xpath="@key"/>
+        </xs:unique>
+      </xs:element>
+      <xs:element name="sparse">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="entry" minOccurs="0" maxOccurs="unbounded" nillable="true">
+              <xs:complexType>
+                <xs:simpleContent>
+                  <xs:extension base="xs:int">
+                    <xs:attribute name="key" type="xs:string" use="required"/>
+                  </xs:extension>
+                </xs:simpleContent>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:unique name="CollectionsType_sparse_key">
+          <xs:selector xpath="tns:entry"/>
+          <xs:field xpath="@key"/>
+        </xs:unique>
+      </xs:element>
+      <xs:element name="limited" minOccurs="0" maxOccurs="2">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="3"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="item" type="tns:ItemType"/>
+  <xs:element name="collections" type="tns:CollectionsType"/>
+</xs:schema>

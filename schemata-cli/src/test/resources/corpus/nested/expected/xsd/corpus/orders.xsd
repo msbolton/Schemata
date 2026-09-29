@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:corpus.orders"
+           xmlns:ns1="urn:schemata:corpus.people"
+           targetNamespace="urn:schemata:corpus.orders"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:corpus.people" schemaLocation="people.xsd"/>
+  <xs:complexType name="OrderType">
+    <xs:sequence>
+      <xs:element name="customer" type="ns1:PersonType"/>
+      <xs:element name="lines" type="tns:OrderLineType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="parent" type="tns:OrderType" minOccurs="0"/>
+      <xs:element name="note" type="tns:OrderNoteType"/>
+      <xs:element name="kind" type="tns:OrderKindType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderLineType">
+    <xs:sequence>
+      <xs:element name="sku" type="xs:string"/>
+      <xs:element name="gift" type="tns:OrderNoteType"/>
+      <xs:element name="order" type="tns:OrderType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderNoteType">
+    <xs:sequence>
+      <xs:element name="text" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="OrderKindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="retail"/>
+      <xs:enumeration value="wholesale"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="AuditType">
+    <xs:sequence>
+      <xs:element name="line" type="tns:OrderLineType"/>
+      <xs:element name="who" type="ns1:PersonType"/>
+      <xs:element name="again" type="ns1:PersonType"/>
+      <xs:element name="kind" type="tns:OrderKindType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="order" type="tns:OrderType"/>
+  <xs:element name="audit" type="tns:AuditType"/>
+</xs:schema>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:ledger.journal"
+           xmlns:ns1="urn:schemata:ledger.accounts"
+           targetNamespace="urn:schemata:ledger.journal"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:ledger.accounts" schemaLocation="accounts.xsd"/>
+  <xs:simpleType name="SourceType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="manual"/>
+      <xs:enumeration value="imported"/>
+      <xs:enumeration value="accrual"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="SideType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="debit"/>
+      <xs:enumeration value="credit"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="InvoiceType">
+    <xs:sequence>
+      <xs:element name="number">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="32"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PaymentType">
+    <xs:sequence>
+      <xs:element name="reference">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ReferenceType">
+    <xs:annotation>
+      <xs:documentation>What an entry refers back to; a bare source when nothing else applies.</xs:documentation>
+    </xs:annotation>
+    <xs:choice>
+      <xs:element name="invoice" type="tns:InvoiceType"/>
+      <xs:element name="payment" type="tns:PaymentType"/>
+      <xs:element name="source" type="tns:SourceType"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="EntryType">
+    <xs:annotation>
+      <xs:documentation>A balanced entry: at least two lines.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="posted" type="xs:date"/>
+      <xs:element name="memo" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="500"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="lines" type="tns:EntryLineType" minOccurs="2" maxOccurs="unbounded"/>
+      <xs:element name="ref" type="tns:ReferenceType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EntryLineType">
+    <xs:sequence>
+      <xs:element name="account" type="ns1:AccountType"/>
+      <xs:element name="amount">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="side" type="tns:SideType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="invoice" type="tns:InvoiceType"/>
+  <xs:element name="payment" type="tns:PaymentType"/>
+  <xs:element name="entry" type="tns:EntryType"/>
+</xs:schema>
