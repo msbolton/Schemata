@@ -43,7 +43,11 @@ class FmtCommand : CliktCommand(name = "fmt") {
                             strict = false,
                             checkOnly = true,
                         )
-                    emit(this, report, Sources.of(listOf(s)), reporting, out = "")
+                    // emit exits the command on a non-zero report; every source still needs a
+                    // chance to format, so the exit is deferred to the loop's own final throw.
+                    try {
+                        emit(this, report, Sources.of(listOf(s)), reporting, out = "")
+                    } catch (_: ProgramResult) {}
                 }
                 is FormatResult.Formatted ->
                     if (r.text != s.content) {
