@@ -7,9 +7,6 @@ Prints "changed" or "unchanged"; exits 1 when a checksum or a formula line is mi
 import re
 import sys
 
-# The formula lists its platforms in this order; each block has one url and one sha256 line.
-PLATFORMS = ["macos-arm64", "macos-x64", "linux-x64"]
-
 
 def main(version, sums_path, formula_path):
     sums = {}
@@ -18,20 +15,15 @@ def main(version, sums_path, formula_path):
             parts = line.split()
             if len(parts) == 2:
                 sums[parts[1]] = parts[0]
-    checksums = []
-    for platform in PLATFORMS:
-        asset = f"schemata-{version}-{platform}.tar.gz"
-        if asset not in sums:
-            sys.exit(f"bump-formula: no checksum for {asset} in {sums_path}")
-        checksums.append(sums[asset])
 
     with open(formula_path) as f:
         original = f.read()
     lines = original.split("\n")
     url_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*url "', l)]
     sha_lines = [i for i, l in enumerate(lines) if re.match(r'^\s*sha256 "', l)]
-    if len(url_lines) != len(PLATFORMS) or len(sha_lines) != len(PLATFORMS):
-        sys.exit(f"bump-formula: expected {len(PLATFORMS)} url and sha256 lines, found {len(url_lines)} and {len(sha_lines)}")
+    if not url_lines:
+        sys.exit(f"bump-formula: no url lines found in {formula_path}")
+
     versions = []
     for i in url_lines:
         m = re.search(r"/download/v([^/]+)/schemata-\1-", lines[i])
@@ -41,10 +33,30 @@ def main(version, sums_path, formula_path):
     if len(set(versions)) > 1:
         sys.exit(f"bump-formula: url lines disagree on the version: {', '.join(versions)}")
     old = versions[0]
+
+    # Assign each url line its checksum by the platform named in that url, not by position,
+    # so a reordered or reshaped formula still gets the right sha256 on the right line.
+    edits = []
+    for pos, i in enumerate(url_lines):
+        m = re.search(rf"schemata-{re.escape(old)}-(\S+)\.tar\.gz", lines[i])
+        if not m:
+            sys.exit(f"bump-formula: line {i + 1} does not name a platform: {lines[i].strip()}")
+        platform = m.group(1)
+        asset = f"schemata-{version}-{platform}.tar.gz"
+        if asset not in sums:
+            sys.exit(f"bump-formula: no checksum for {asset} in {sums_path}")
+
+        next_url = url_lines[pos + 1] if pos + 1 < len(url_lines) else len(lines)
+        sha_i = next((s for s in sha_lines if i < s < next_url), None)
+        if sha_i is None:
+            sys.exit(f"bump-formula: line {i + 1} has no sha256 line after it: {lines[i].strip()}")
+        edits.append((sha_i, sums[asset]))
+
     for i in url_lines:
         lines[i] = lines[i].replace(f"/v{old}/schemata-{old}-", f"/v{version}/schemata-{version}-")
-    for i, sha in zip(sha_lines, checksums):
-        lines[i] = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', lines[i])
+    for sha_i, sha in edits:
+        lines[sha_i] = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', lines[sha_i])
+
     text = "\n".join(lines)
     if text == original:
         print("unchanged")

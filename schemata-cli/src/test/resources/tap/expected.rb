@@ -15,6 +15,7 @@ class Schemata < Formula
   end
 
   on_linux do
+    depends_on arch: :x86_64
     on_intel do
       url "https://github.com/msbolton/Schemata/releases/download/v0.4.0/schemata-0.4.0-linux-x64.tar.gz"
       sha256 "1111111111111111111111111111111111111111111111111111111111111111"
@@ -34,7 +35,7 @@ class Schemata < Formula
       record Contact { @sql(key) #1 id: int64  #2 kind: Kind = personal }
     EOS
     assert_match "schemata #{version}", shell_output("#{bin}/schemata --version")
-    # A default is lossy for Protobuf, so `check` reports a warning and exits 2.
+    # A default is lossy for Protobuf, so `check` reports warnings and exits 2.
     shell_output("#{bin}/schemata check #{testpath}/t.schemata", 2)
   end
 end

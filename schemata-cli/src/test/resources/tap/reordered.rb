@@ -3,6 +3,14 @@ class Schemata < Formula
   homepage "https://github.com/msbolton/Schemata"
   license "Apache-2.0"
 
+  on_linux do
+    depends_on arch: :x86_64
+    on_intel do
+      url "https://github.com/msbolton/Schemata/releases/download/v0.3.0/schemata-0.3.0-linux-x64.tar.gz"
+      sha256 "e764014c76a24102c38675b4de44d57fc922b371b442e53fcb83d590adc52a99"
+    end
+  end
+
   on_macos do
     on_arm do
       url "https://github.com/msbolton/Schemata/releases/download/v0.3.0/schemata-0.3.0-macos-arm64.tar.gz"
@@ -11,14 +19,6 @@ class Schemata < Formula
     on_intel do
       url "https://github.com/msbolton/Schemata/releases/download/v0.3.0/schemata-0.3.0-macos-x64.tar.gz"
       sha256 "98a86782d988fcd3b4c15adedd9ca51278eeef160bd59900b4ced29af6b37f3c"
-    end
-  end
-
-  on_linux do
-    depends_on arch: :x86_64
-    on_intel do
-      url "https://github.com/msbolton/Schemata/releases/download/v0.3.0/schemata-0.3.0-linux-x64.tar.gz"
-      sha256 "e764014c76a24102c38675b4de44d57fc922b371b442e53fcb83d590adc52a99"
     end
   end
 
