@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<order xmlns="urn:schemata:shop.orders" xmlns:c="urn:schemata:shop.customers">
+  <id>3fa85f64-5717-4562-b3fc-2c963f66afa6</id>
+  <customer>
+    <c:id>11111111-2222-3333-4444-555555555555</c:id>
+    <c:name>Ada Lovelace</c:name>
+  </customer>
+  <status>paid</status>
+  <lines>
+    <sku>WIDGET-1</sku>
+    <quantity>2</quantity>
+    <price>9.9900</price>
+  </lines>
+  <lines>
+    <sku>WIDGET-2</sku>
+    <quantity>1</quantity>
+    <price>4.5000</price>
+  </lines>
+  <total>24.4800</total>
+  <payment>
+    <card>
+      <last4>4242</last4>
+      <brand>visa</brand>
+    </card>
+  </payment>
+  <shipping>
+    <street>1 Infinite Loop</street>
+    <city>Cupertino</city>
+    <country>US</country>
+  </shipping>
+  <placed_at>2026-09-28T12:00:00Z</placed_at>
+</order>

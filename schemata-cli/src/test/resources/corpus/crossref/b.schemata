@@ -1,5 +1,6 @@
 namespace x.beta
 
+@xsd(name = "Beta")
 record B {
   @sql(key) #1 id: uuid
 }

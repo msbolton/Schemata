@@ -113,7 +113,12 @@ class StructuralAcceptanceTest {
             )
         assertTrue(result.hasErrors)
         assertEquals(
-            listOf("shop/customers.proto", "shop/orders.proto"),
+            listOf(
+                "shop/customers.proto",
+                "shop/orders.proto",
+                "shop/customers.xsd",
+                "shop/orders.xsd",
+            ),
             result.files.map { it.file.path },
         )
         val codes = result.diagnostics.map { it.code.id }.toSet()

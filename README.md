@@ -3,16 +3,16 @@
 ![ci](https://github.com/msbolton/Schemata/actions/workflows/ci.yml/badge.svg)
 
 Schemata is a schema language and compiler. You describe a data model once in
-`.schemata` files and compile it to Protobuf and to Postgres DDL, with every
+`.schemata` files and compile it to Protobuf, Postgres DDL, and XML Schema, with every
 lossy decision reported as a warning.
 
 ## Install
 
-No release exists yet; once one does, it will appear on the
-[releases page](https://github.com/msbolton/Schemata/releases). Until then, build from a checkout
-(JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a `schemata` script under
-`schemata-cli/build/install/schemata/bin/`. `./gradlew build` also produces a runnable jar at
-`schemata-cli/build/libs/schemata-<version>.jar`; run it with `java -jar`.
+Each release on the [releases page](https://github.com/msbolton/Schemata/releases) attaches
+`schemata-<version>.jar`. Alternatively, build from a checkout (JDK 21 or later):
+`./gradlew :schemata-cli:installDist` puts a `schemata` script under
+`schemata-cli/build/install/schemata/bin/`, and `./gradlew build` also produces a runnable jar at
+`schemata-cli/build/libs/schemata-<version>.jar`. Run either jar with `java -jar`.
 
 ## Quick start
 
@@ -50,13 +50,24 @@ package contacts;
 CREATE SCHEMA IF NOT EXISTS "contacts";
 ```
 
+`out/xsd/contacts.xsd` begins:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:contacts"
+           targetNamespace="urn:schemata:contacts"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+```
+
 The compiler prints one warning per thing Protobuf cannot carry (the email
 pattern, the default) and exits 2; `--strict` turns those into errors.
 
 ## Commands
 
-    schemata compile [--target proto,sql] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
-    schemata check   [--target proto,sql]            [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata compile [--target proto,sql,xsd] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata check   [--target proto,sql,xsd]            [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
@@ -107,8 +118,9 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-target-api` | `Target` SPI: `lower` then `render` |
 | `schemata-target-proto` | Protobuf model, lowering, renderer |
 | `schemata-target-sql` | relational model, lowering, renderer |
+| `schemata-target-xsd` | XML Schema model, lowering, renderer |
 | `schemata-cli` | command surface |
-| `schemata-testkit` | test-only helpers (golden files, protoc) |
+| `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator) |
 
 ### Testing conventions
 

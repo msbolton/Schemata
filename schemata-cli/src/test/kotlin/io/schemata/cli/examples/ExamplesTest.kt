@@ -2,10 +2,9 @@ package io.schemata.cli.examples
 
 import io.schemata.cli.Pipeline
 import io.schemata.cli.SourceInput
-import io.schemata.target.proto.ProtoTarget
-import io.schemata.target.sql.SqlTarget
 import io.schemata.testkit.Postgres
 import io.schemata.testkit.Protoc
+import io.schemata.testkit.Xsd
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,9 +15,10 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every directory under `examples/` compiles to both targets without errors, renders exactly its
- * `expected/` tree and warnings, compiles under protoc, applies to Postgres, and matches the
- * committed catalog snapshot. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree.
+ * Every directory under `examples/` compiles to every target without errors, renders exactly its
+ * `expected/` tree and warnings, compiles under protoc and the JDK's XML Schema processor, applies
+ * to Postgres, and matches the committed catalog snapshot. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the
+ * tree.
  */
 class ExamplesTest {
     private val root = File("../examples")
@@ -48,7 +48,7 @@ class ExamplesTest {
 
     private fun check(dir: File) {
         val inputs = sources(dir)
-        val result = Pipeline.compile(inputs, listOf(ProtoTarget, SqlTarget))
+        val result = Pipeline.compile(inputs, Pipeline.targets)
         assertFalse(
             result.hasErrors,
             result.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
@@ -68,7 +68,10 @@ class ExamplesTest {
             coreWarnings,
             "core warnings for ${dir.name}",
         )
-        for (target in result.targets) {
+        // The sql target's live catalog check aborts (via assumeTrue) the rest of this loop when
+        // Docker is unavailable; run it last so proto and xsd, including the shop sample document
+        // check nested under xsd, are always checked first.
+        for (target in result.targets.sortedBy { it.name == "sql" }) {
             val files = target.files.associate { it.path to it.content }
             golden(File(expected, target.name), files, dir.name)
             val warnings = target.diagnostics.joinToString("") { "${it.code.id} ${it.message}\n" }
@@ -83,6 +86,16 @@ class ExamplesTest {
             )
             when (target.name) {
                 "proto" -> assertNull(Protoc.compile(files), "protoc rejected ${dir.name}")
+                "xsd" -> {
+                    assertNull(Xsd.validate(files), "the JDK rejected ${dir.name}")
+                    if (dir.name == "shop") {
+                        val xml = File(expected, "xsd-sample.xml").readText()
+                        assertNull(
+                            Xsd.validateDocument(files, "shop/orders.xsd", xml),
+                            "the JDK rejected the shop sample document",
+                        )
+                    }
+                }
                 "sql" -> {
                     assumeTrue(
                         Postgres.available,

@@ -1,0 +1,4 @@
+namespace s
+record OrderLine { #1 x: bool }
+record Order { #1 x: bool
+  record Line { #1 y: bool } }

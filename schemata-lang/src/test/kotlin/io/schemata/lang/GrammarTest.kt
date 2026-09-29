@@ -163,7 +163,7 @@ class GrammarTest {
         assertEquals("\"x\"", annotations[1].annotationArg().single().literal().text)
         assertEquals(
             listOf("strategy", "type"),
-            annotations[2].annotationArg().map { it.IDENT().text },
+            annotations[2].annotationArg().map { it.annotationKey().text },
         )
         assertEquals(
             listOf("a", "b"),

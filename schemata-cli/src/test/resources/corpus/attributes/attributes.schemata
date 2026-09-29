@@ -1,0 +1,19 @@
+/// Attributes and roots.
+namespace corpus.attributes
+
+enum Kind { @xsd(name = "Personal") #1 personal, #2 work }
+
+/// Not a document root on its own.
+@xsd(root = false)
+record Address {
+  @xsd(attribute) #1 country: string(max = 2)
+  #2 street: string
+}
+
+record Contact {
+  @xsd(attribute) #1 id: int64
+  @xsd(attribute) #2 kind: Kind = personal
+  @xsd(attribute) #3 nick: string?
+  @xsd(name = "full-name") #4 name: string
+  #5 home: Address
+}

@@ -12,6 +12,7 @@ import io.schemata.target.OutputFile
 import io.schemata.target.Target
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlTarget
+import io.schemata.target.xsd.XsdTarget
 
 data class TargetFile(val target: String, val file: OutputFile)
 
@@ -46,7 +47,7 @@ data class PipelineResult(val core: List<Diagnostic>, val targets: List<TargetRe
  * errors are reported. A target's own error stops only that target.
  */
 object Pipeline {
-    val targets: List<Target<*>> = listOf(ProtoTarget, SqlTarget)
+    val targets: List<Target<*>> = listOf(ProtoTarget, SqlTarget, XsdTarget)
 
     /**
      * Core's keys plus every target's, whatever `--target` selects: validity never depends on the

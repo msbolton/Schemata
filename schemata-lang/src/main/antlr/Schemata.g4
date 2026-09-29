@@ -36,7 +36,10 @@ refinements   : '(' refinement (',' refinement)* ')' ;
 refinement    : IDENT '=' literal | literal ;
 
 annotation    : '@' IDENT ('(' (annotationArg (',' annotationArg)*)? ')')? ;
-annotationArg : IDENT '=' annotationValue | literal ;
+annotationArg : annotationKey '=' annotationValue | literal ;
+// A target's key vocabulary is its own, so a reserved word reads fine here; only a declared name
+// (record, field, …) is barred from reusing one.
+annotationKey : IDENT | NAMESPACE | IMPORT | AS | RECORD | ENUM | UNION | ALIAS | RESERVED | TRUE | FALSE | SERVICE | OPERATION | STREAM ;
 annotationValue : literal | '(' IDENT (',' IDENT)* ')' ;
 
 literal       : INT_LITERAL | FLOAT_LITERAL | STRING_LITERAL | TRUE | FALSE | IDENT ;

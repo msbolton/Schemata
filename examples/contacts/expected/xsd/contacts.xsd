@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:contacts"
+           targetNamespace="urn:schemata:contacts"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:simpleType name="KindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="personal"/>
+      <xs:enumeration value="work"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ContactType">
+    <xs:annotation>
+      <xs:documentation>One person. Email and age are checked by Postgres; Protobuf carries them unchecked.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id" type="xs:long"/>
+      <xs:element name="name">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="email">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="254"/>
+            <xs:pattern value="[^@]+@[^@]+"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="age" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="150"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="kind" type="tns:KindType" minOccurs="0" default="personal"/>
+      <xs:element name="born" type="xs:date" minOccurs="0"/>
+      <xs:element name="tags" minOccurs="0" maxOccurs="unbounded">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="20"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="contact" type="tns:ContactType"/>
+</xs:schema>

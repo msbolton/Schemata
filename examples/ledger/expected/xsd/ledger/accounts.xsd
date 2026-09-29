@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:ledger.accounts"
+           targetNamespace="urn:schemata:ledger.accounts"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:simpleType name="KindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="asset"/>
+      <xs:enumeration value="liability"/>
+      <xs:enumeration value="equity"/>
+      <xs:enumeration value="revenue"/>
+      <xs:enumeration value="expense"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="AccountType">
+    <xs:annotation>
+      <xs:documentation>An account, keyed by tenant and code.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="tenant_id" type="xs:long"/>
+      <xs:element name="code">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="16"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="name">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="120"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="kind" type="tns:KindType"/>
+      <xs:element name="opened" type="xs:date"/>
+      <xs:element name="closed" type="xs:date" minOccurs="0"/>
+      <xs:element name="limits" type="tns:AccountLimitsType"/>
+      <xs:element name="balances">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="value">
+                    <xs:simpleType>
+                      <xs:restriction base="xs:decimal">
+                        <xs:totalDigits value="19"/>
+                        <xs:fractionDigits value="4"/>
+                      </xs:restriction>
+                    </xs:simpleType>
+                  </xs:element>
+                </xs:sequence>
+                <xs:attribute name="key" type="xs:string" use="required"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+        <xs:unique name="AccountType_balances_key">
+          <xs:selector xpath="tns:entry"/>
+          <xs:field xpath="@key"/>
+        </xs:unique>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AccountLimitsType">
+    <xs:annotation>
+      <xs:documentation>Overdraft and daily limits in the account's currency.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="overdraft">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="daily" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="account" type="tns:AccountType"/>
+</xs:schema>

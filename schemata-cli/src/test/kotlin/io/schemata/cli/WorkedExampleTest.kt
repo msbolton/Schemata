@@ -156,7 +156,7 @@ class WorkedExampleTest {
     }
 
     @Test
-    fun `both targets compile the worked example with warnings only`() {
+    fun `every target compiles the worked example with warnings only`() {
         val result =
             Pipeline.compile(
                 listOf(
@@ -166,7 +166,7 @@ class WorkedExampleTest {
                 Pipeline.targets,
             )
         assertFalse(result.hasErrors)
-        assertEquals(4, result.files.size)
+        assertEquals(6, result.files.size)
         assertEquals(setOf("SCH2001", "SCH2105"), result.diagnostics.map { it.code.id }.toSet())
     }
 

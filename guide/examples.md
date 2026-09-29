@@ -1,9 +1,9 @@
 # Worked examples
 
 Three example schemas live under `examples/`: `contacts`, `shop`, and `ledger`. Each has a
-committed `expected/proto` tree, an `expected/sql` tree, and the warnings the compiler reports
-for each target. Build the CLI once, then point it at any of them to reproduce what is shown
-here:
+committed `expected/proto` tree, an `expected/sql` tree, an `expected/xsd` tree, and the warnings
+the compiler reports for each target. Build the CLI once, then point it at any of them to
+reproduce what is shown here:
 
 ```text
 java -jar schemata-<version>.jar compile --out out examples/contacts
@@ -88,6 +88,20 @@ SCH2105 field 'Contact.tags': refinements on list<string(max = 20)> are not enfo
 Postgres stores `tags` as a plain array with no per-element length check. Enforce the bound in
 application code, or use `@sql(strategy = table)` so each tag becomes its own row with its own
 constraint.
+
+XSD keeps the email pattern too, as a facet on a restriction rather than a `CHECK` constraint.
+
+From `examples/contacts/expected/xsd/contacts.xsd`:
+```xml
+      <xs:element name="email">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="254"/>
+            <xs:pattern value="[^@]+@[^@]+"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+```
 
 ## shop
 
@@ -200,6 +214,29 @@ SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced
 The child table holding `lines` has no way to enforce a minimum row count. Enforce it in
 application code; child tables carry no row-count constraints.
 
+`orders.xsd` imports `customers.xsd` for the cross-namespace `customer` reference.
+
+From `examples/shop/expected/xsd/shop/orders.xsd`:
+```xml
+  <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
+```
+
+The union lowers to a complexType holding an `xs:choice`, one element per arm.
+
+From `examples/shop/expected/xsd/shop/orders.xsd`:
+```xml
+  <xs:complexType name="PaymentType">
+    <xs:choice>
+      <xs:element name="card" type="tns:CardType"/>
+      <xs:element name="bank_transfer" type="tns:BankTransferType"/>
+      <xs:element name="cash" type="tns:CashType"/>
+    </xs:choice>
+  </xs:complexType>
+```
+
+`examples/shop/expected/xsd-sample.xml` is a hand-written document that validates against
+`orders.xsd`, payment and all.
+
 ## ledger
 
 A ledger split into three namespaces: a chart of accounts, a double-entry journal kept in its own
@@ -303,6 +340,15 @@ The first foreign key reaches into `ledger`, the second into `ledger_journal`: o
 `ledger_reports.close` carries keys into two different Postgres schemas, because `account` comes
 from `ledger.accounts` and `last` comes from `ledger.journal`.
 
+`reports.xsd` imports both other namespaces too, one `xs:import` per schema, the same two
+namespaces `account` and `last` reach into.
+
+From `examples/ledger/expected/xsd/ledger/reports.xsd`:
+```xml
+  <xs:import namespace="urn:schemata:ledger.accounts" schemaLocation="accounts.xsd"/>
+  <xs:import namespace="urn:schemata:ledger.journal" schemaLocation="journal.xsd"/>
+```
+
 Warnings from `examples/ledger/expected/proto-warnings.txt`:
 ```text
 SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
@@ -353,4 +399,6 @@ If you change one of these `.schemata` files, its `expected/` tree and warnings 
 change with it. Run
 `SCHEMATA_GOLDEN_UPDATE=1 ./gradlew :schemata-cli:test --tests 'io.schemata.cli.examples.ExamplesTest'`
 to regenerate them, then read the diff before committing: every change should trace back to the
-edit you made.
+edit you made. `examples/shop/expected/xsd-sample.xml` is not regenerated this way; it is
+hand-written, and the same test run validates it against the regenerated `orders.xsd`, so update it
+by hand if a change to `shop` would make it invalid.

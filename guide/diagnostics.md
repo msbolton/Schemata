@@ -27,7 +27,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1012 | warning | semantic | an import resolves nothing | import 'a' is unused | remove the import |
 | SCH1013 | error | semantic | some elements have explicit ordinals and some do not | record 'R' mixes explicit and implicit ordinals | write `#n` on every element or on none |
 | SCH1014 | error | semantic | an element has no explicit ordinal under --strict | field 'x' has no explicit ordinal (--strict) | write `#n` before every field and enum value, starting at #1 in declaration order |
-| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, proto, sql | write one of the listed annotations, or run `schemata targets` for each target's keys |
+| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
 | SCH1016 | error | semantic | a key is unknown for its annotation target | 'bogus' is not a key of @sql; keys: column, index, key, schema, strategy, table, type, unique | write one of the listed keys, for example `@sql(column)` |
 | SCH1017 | error | semantic | an annotation key is on an element it does not apply to | @sql(column) is not allowed on a record; allowed on: field | move the annotation to a field, or remove it |
 | SCH1018 | error | semantic | an annotation's arguments have the wrong shape or value | @deprecated expects a string<br>@sql needs at least one key<br>@proto needs at least one key<br>@sql arguments are a bare key or key = value<br>@deprecated takes a single value<br>@sql(column) expects a string | write `@deprecated("…")`<br>write `@sql(column = "…")`<br>write `@proto(name = "…")`<br>write `@sql(key)` or `@sql(key = value)`<br>write `@deprecated("value")` |
@@ -89,3 +89,13 @@ Retired, never reused: SCH2002, SCH2003.
 | SCH2113 | warning | semantic | a unique or index duplicates the primary key | @sql(unique) duplicates the primary key; dropped | remove the annotation; the primary key already enforces it |
 
 Retired, never reused: SCH2103, SCH2104.
+
+## XSD (SCH22xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering | a nullable list has no XSD representation; lowered to an optional repeated element<br>pattern uses (?, which XSD 1.0 cannot express; dropped | declare the list as `list<T>`; an absent list already means empty<br>rewrite the pattern without (?, or enforce it in application code |
+| SCH2202 | error | semantic | two constructs lower to the same XSD name | record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (s.schemata:2)<br>record 'HttpStatus' lowers to element 'http_status', already used by record 'HTTPStatus' (s.schemata:2) | rename one of them, or set `@xsd(name = "…")` on one |
+| SCH2203 | error | semantic | two namespaces lower to the same target namespace | namespaces a and b both lower to target namespace 'urn:x' | set `@xsd(namespace = "…")` on one of them |
+| SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute | @xsd(attribute) is not allowed on a list | remove the annotation; only scalar and enum fields lower to attributes |
+| SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI | @xsd(name = "1bad") is not a valid XML name<br>@xsd(namespace = "orders") is not an absolute URI | use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore<br>use an absolute URI such as `urn:example:orders` |

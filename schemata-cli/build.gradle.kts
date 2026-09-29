@@ -11,6 +11,7 @@ dependencies {
     implementation(project(":schemata-target-api"))
     implementation(project(":schemata-target-proto"))
     implementation(project(":schemata-target-sql"))
+    implementation(project(":schemata-target-xsd"))
     implementation(libs.clikt)
     testImplementation(project(":schemata-testkit"))
     testImplementation(libs.testcontainersPostgres)

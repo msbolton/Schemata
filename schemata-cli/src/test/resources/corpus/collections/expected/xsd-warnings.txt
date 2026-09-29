@@ -1,0 +1,1 @@
+SCH2201 field 'Collections.maybe': a nullable list has no XSD representation; lowered to an optional repeated element

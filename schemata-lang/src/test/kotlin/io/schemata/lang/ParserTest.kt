@@ -98,6 +98,35 @@ class ParserTest {
     }
 
     @Test
+    fun `an annotation key may be a reserved word`() {
+        val result =
+            Parser.parse(
+                "@xsd(namespace = \"urn:x\")\nnamespace s\nrecord R { #1 x: bool }",
+                "s.schemata",
+            )
+        assertEquals(emptyList(), result.diagnostics)
+        val ann = result.file!!.annotations.single()
+        assertEquals("xsd", ann.name)
+        val arg = ann.args.single() as AnnotationArg.Named
+        assertEquals("namespace", arg.name)
+        assertEquals(
+            "urn:x",
+            ((arg.value as AnnotationValue.Lit).literal as Literal.StringLit).value,
+        )
+    }
+
+    @Test
+    fun `a bare boolean stays a positional literal`() {
+        val result =
+            Parser.parse("namespace s\nrecord R { @deprecated(true) #1 x: bool }", "s.schemata")
+        assertEquals(emptyList(), result.diagnostics)
+        val field =
+            result.file!!.declarations.filterIsInstance<RecordDecl>().single().fields.single()
+        val arg = field.annotations.single().args.single() as AnnotationArg.Positional
+        assertEquals(true, ((arg.value as AnnotationValue.Lit).literal as Literal.BoolLit).value)
+    }
+
+    @Test
     fun `aliases keep refinements in order with their kind`() {
         val email = file.declarations.filterIsInstance<AliasDecl>().first { it.name == "Email" }
         assertEquals("string", email.type.name)

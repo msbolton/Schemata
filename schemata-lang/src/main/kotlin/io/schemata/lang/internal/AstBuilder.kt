@@ -179,9 +179,9 @@ internal class AstBuilder(
             name = ctx.IDENT().text,
             args =
                 ctx.annotationArg().map { arg ->
-                    val ident = arg.IDENT()
-                    if (ident != null)
-                        AnnotationArg.Named(ident.text, build(arg.annotationValue()), arg.span())
+                    val key = arg.annotationKey()
+                    if (key != null)
+                        AnnotationArg.Named(key.text, build(arg.annotationValue()), arg.span())
                     else
                         AnnotationArg.Positional(
                             AnnotationValue.Lit(build(arg.literal()), arg.span()),
