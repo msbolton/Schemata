@@ -38,7 +38,11 @@
       <xs:documentation>How the customer paid.</xs:documentation>
     </xs:annotation>
     <xs:choice>
-      <xs:element name="card" type="tns:CardType"/>
+      <xs:element name="card" type="tns:CardType">
+        <xs:annotation>
+          <xs:documentation>Paid by card.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
       <xs:element name="cash" type="tns:CashType"/>
       <xs:element name="uuid">
         <xs:simpleType>

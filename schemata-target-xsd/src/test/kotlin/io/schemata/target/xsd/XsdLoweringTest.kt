@@ -709,6 +709,41 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `a union member's doc comment is kept on its choice element`() {
+        val card = record("s", "Card", field(1, "last4", Scalar(Builtin.STRING)))
+        val u =
+            UnionType(
+                qn("s", "Payment"),
+                "Payment",
+                listOf(UnionMember(1, Ref(qn("s", "Card")), "Paid by card.", at(41))),
+                emptyList(),
+                null,
+                at(40),
+                at(40),
+                Annotations.NONE,
+            )
+        val file =
+            XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(card, u)))))
+                .model
+                .files
+                .single()
+        assertEquals(
+            XsdChoice(
+                "PaymentType",
+                null,
+                listOf(
+                    XsdElement(
+                        "card",
+                        XsdTypeRef.Named("tns", "CardType", simple = false),
+                        doc = "Paid by card.",
+                    )
+                ),
+            ),
+            file.types[1],
+        )
+    }
+
+    @Test
     fun `union members that lower to one element name collide`() {
         val a = record("s", "HTTPStatus", field(1, "x", Scalar(Builtin.BOOL)), line = 2)
         val b = record("s", "HttpStatus", field(1, "x", Scalar(Builtin.BOOL)), line = 3)

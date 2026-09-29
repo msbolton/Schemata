@@ -234,6 +234,7 @@ object XsdLowering {
             return XsdElement(
                 name,
                 typeRef(member.type, "union '${union.name}' member", member.span),
+                doc = member.doc,
             )
         }
 
