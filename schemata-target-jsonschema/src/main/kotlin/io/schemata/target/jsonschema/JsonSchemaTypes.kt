@@ -65,12 +65,12 @@ object JsonSchemaTypes {
                 ScalarSchema(
                     "string",
                     pattern = pattern,
-                    minLength = r.min?.toInt(),
-                    maxLength = r.max?.toInt(),
+                    minLength = r.min?.toLong(),
+                    maxLength = r.max?.toLong(),
                 )
             }
             Builtin.BYTES -> {
-                val max = r.max?.toInt()?.let(::base64Length)
+                val max = r.max?.toLong()?.let(::base64Length)
                 if (max != null) {
                     lossy(
                         "max on bytes is approximated as a base64 length of $max",
@@ -80,7 +80,7 @@ object JsonSchemaTypes {
                 ScalarSchema(
                     "string",
                     contentEncoding = "base64",
-                    minLength = r.min?.toInt()?.let(::base64Length),
+                    minLength = r.min?.toLong()?.let(::base64Length),
                     maxLength = max,
                 )
             }
@@ -92,14 +92,17 @@ object JsonSchemaTypes {
         }
     }
 
-    /** `^-?[0-9]{1,p-s}(\.[0-9]{1,s})?$`, without the fraction group when [scale] is 0. */
+    /**
+     * `^-?[0-9]{1,p-s}(\.[0-9]{1,s})?$`, without the fraction group when [scale] is 0; when
+     * [precision] equals [scale] the integer part can only be `0`.
+     */
     fun decimalPattern(precision: Int, scale: Int): String {
-        val whole = "^-?[0-9]{1,${precision - scale}}"
+        val whole = if (precision == scale) "^-?0" else "^-?[0-9]{1,${precision - scale}}"
         return if (scale == 0) "$whole$" else "$whole(\\.[0-9]{1,$scale})?$"
     }
 
     /** The base64 text length of [bytes] bytes: `4 * ceil(bytes / 3)`. */
-    fun base64Length(bytes: Int): Int = 4 * ((bytes + 2) / 3)
+    fun base64Length(bytes: Long): Long = 4 * ((bytes + 2) / 3)
 
     /**
      * A default's JSON form: numbers as numbers except on a decimal, where the string form keeps

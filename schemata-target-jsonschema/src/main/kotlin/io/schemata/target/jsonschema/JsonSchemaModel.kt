@@ -43,8 +43,8 @@ data class Property(val name: String, val schema: JsonSchema, val required: Bool
 
 data class ArraySchema(
     val items: JsonSchema,
-    val minItems: Int? = null,
-    val maxItems: Int? = null,
+    val minItems: Long? = null,
+    val maxItems: Long? = null,
     override val common: Common = Common(),
 ) : JsonSchema
 
@@ -55,8 +55,8 @@ data class ArraySchema(
 data class MapSchema(
     val values: JsonSchema,
     val keys: ScalarSchema? = null,
-    val minProperties: Int? = null,
-    val maxProperties: Int? = null,
+    val minProperties: Long? = null,
+    val maxProperties: Long? = null,
     override val common: Common = Common(),
 ) : JsonSchema
 
@@ -67,8 +67,8 @@ data class ScalarSchema(
     val pattern: String? = null,
     val minimum: BigDecimal? = null,
     val maximum: BigDecimal? = null,
-    val minLength: Int? = null,
-    val maxLength: Int? = null,
+    val minLength: Long? = null,
+    val maxLength: Long? = null,
     val contentEncoding: String? = null,
     override val common: Common = Common(),
 ) : JsonSchema

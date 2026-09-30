@@ -98,6 +98,7 @@ class JsonSchemaTypesTest {
     fun `decimals are strings with a precision and scale pattern`() {
         assertEquals("^-?[0-9]{1,15}(\\.[0-9]{1,4})?$", JsonSchemaTypes.decimalPattern(19, 4))
         assertEquals("^-?[0-9]{1,5}$", JsonSchemaTypes.decimalPattern(5, 0))
+        assertEquals("^-?0(\\.[0-9]{1,4})?$", JsonSchemaTypes.decimalPattern(4, 4))
         assertEquals(
             ScalarSchema("string", pattern = "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"),
             scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4)),
@@ -118,9 +119,9 @@ class JsonSchemaTypesTest {
 
     @Test
     fun `bytes bounds become base64 lengths and max is reported as approximate`() {
-        assertEquals(4, JsonSchemaTypes.base64Length(1))
-        assertEquals(4, JsonSchemaTypes.base64Length(3))
-        assertEquals(8, JsonSchemaTypes.base64Length(4))
+        assertEquals(4L, JsonSchemaTypes.base64Length(1))
+        assertEquals(4L, JsonSchemaTypes.base64Length(3))
+        assertEquals(8L, JsonSchemaTypes.base64Length(4))
         assertEquals(
             ScalarSchema("string", contentEncoding = "base64", minLength = 4, maxLength = 8),
             scalar(Builtin.BYTES, Refinements(min = BigDecimal(1), max = BigDecimal(6))),
