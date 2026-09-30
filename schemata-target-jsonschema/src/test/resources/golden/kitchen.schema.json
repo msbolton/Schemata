@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:shop.orders",
+  "title": "shop.orders",
+  "$defs": {
+    "Status": {
+      "description": "Lifecycle.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "pending",
+          "description": "Not paid yet."
+        },
+        {
+          "const": "paid"
+        }
+      ]
+    },
+    "Plain": {
+      "type": "string",
+      "enum": [
+        "a",
+        "b"
+      ]
+    },
+    "Cash": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "Payment": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "card": {
+              "description": "By card.",
+              "$ref": "#/$defs/Card"
+            }
+          },
+          "required": [
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cash": {
+              "$ref": "#/$defs/Cash"
+            }
+          },
+          "required": [
+            "cash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "int64": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          },
+          "required": [
+            "int64"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "last4": {
+          "type": "string",
+          "maxLength": 4
+        }
+      },
+      "required": [
+        "last4"
+      ],
+      "additionalProperties": false
+    },
+    "Order": {
+      "description": "A customer's order.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "customer": {
+          "$ref": "urn:schemata:shop.customers#/$defs/Customer"
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "default": "pending"
+        },
+        "note": {
+          "description": "Free text.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "payment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Payment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxItems": 10
+        },
+        "attributes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(0|-?[1-9][0-9]*)$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1
+        },
+        "total": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$",
+          "default": "0.0000"
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 3
+        },
+        "active": {
+          "type": "boolean",
+          "default": true,
+          "deprecated": true
+        },
+        "blob": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 8,
+          "contentEncoding": "base64"
+        },
+        "placed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "customer",
+        "tags",
+        "attributes",
+        "blob",
+        "placed_at"
+      ],
+      "deprecated": true
+    }
+  }
+}
