@@ -17,12 +17,8 @@ record Account {
   #5 opened:    date
   #6 closed:    date?
   #7 limits:    Limits
-  @sql(strategy = table)
-  #8 balances:  map<string, Money>
+  @sql(strategy = table) #8 balances:  map<string, Money>
 
   /// Overdraft and daily limits in the account's currency.
-  record Limits {
-    #1 overdraft: Money
-    #2 daily:     Money?
-  }
+  record Limits { #1 overdraft: Money #2 daily: Money? }
 }

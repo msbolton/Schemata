@@ -26,8 +26,7 @@ enum Kind { #1 personal, #2 work }
 
 /// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
 record Contact {
-  @sql(key)
-  #1 id:    int64
+  @sql(key) #1 id:    int64
   #2 name:  string(max = 100)
   #3 email: string(max = 254, pattern = "^[^@]+@[^@]+$")
   #4 age:   int32(min = 0, max = 150)?
@@ -113,10 +112,7 @@ From `examples/shop/customers.schemata`:
 ```schemata
 namespace shop.customers
 
-record Customer {
-  @sql(key) #1 id:   uuid
-  #2 name: string(max = 100)
-}
+record Customer { @sql(key) #1 id: uuid #2 name: string(max = 100) }
 ```
 
 From `examples/shop/orders.schemata`:
@@ -124,31 +120,31 @@ From `examples/shop/orders.schemata`:
 import shop.customers
 
 alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
+
 alias Money = decimal(19, 4)
 
 enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
 
-record Card         { #1 last4: string(max = 4)  #2 brand: string(max = 32) }
+record Card { #1 last4: string(max = 4) #2 brand: string(max = 32) }
+
 record BankTransfer { #1 iban: string(max = 34) }
-record Cash         {}
+
+record Cash {}
 
 union Payment = #1 Card | #2 BankTransfer | #3 Cash
 
 /// A customer's order. One row per checkout.
 record Order {
-  @sql(key)
-  #1 id:         uuid
-  #2 customer:   Customer
-  #3 status:     Status = pending
-  #4 lines:      list<Line>(min = 1)
-  #5 total:      Money
-  #6 payment:    Payment
-  @sql(strategy = embed)
-  #7 shipping:   Address
-  #8 placed_at:  instant
-  #9 note:       string(max = 500)?
-  @deprecated("use placed_at")
-  #10 created:   instant?
+  @sql(key) #1  id:        uuid
+  #2  customer:  Customer
+  #3  status:    Status = pending
+  #4  lines:     list<Line>(min = 1)
+  #5  total:     Money
+  #6  payment:   Payment
+  @sql(strategy = embed) #7  shipping:  Address
+  #8  placed_at: instant
+  #9  note:      string(max = 500)?
+  @deprecated("use placed_at") #10 created:   instant?
   reserved #11, "legacy_ref"
 ```
 
@@ -255,8 +251,7 @@ record Account {
   #5 opened:    date
   #6 closed:    date?
   #7 limits:    Limits
-  @sql(strategy = table)
-  #8 balances:  map<string, Money>
+  @sql(strategy = table) #8 balances:  map<string, Money>
 ```
 
 From `examples/ledger/journal.schemata`:
@@ -274,8 +269,7 @@ From `examples/ledger/journal.schemata`:
 ```schemata
 /// A balanced entry: at least two lines.
 record Entry {
-  @sql(key)
-  #1 id:     uuid
+  @sql(key) #1 id:     uuid
   #2 posted: date
   #3 memo:   string(max = 500)?
   #4 lines:  list<Line>(min = 2)
@@ -295,17 +289,13 @@ import ledger.journal
 
 /// A close of one account for one period.
 record Close {
-  @sql(key)
-  #1 id:      uuid
+  @sql(key) #1 id:      uuid
   #2 period:  string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
   #3 account: Account
   #4 last:    Entry?
   #5 totals:  Totals
 
-  record Totals {
-    #1 debits:  Money
-    #2 credits: Money
-  }
+  record Totals { #1 debits: Money #2 credits: Money }
 }
 ```
 

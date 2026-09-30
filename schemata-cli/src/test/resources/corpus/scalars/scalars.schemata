@@ -1,15 +1,15 @@
 namespace corpus.scalars
 
 record Scalars {
-  #1 a: bool
-  #2 b: int32
-  #3 c: int64
-  #4 d: float32
-  #5 e: float64
-  #6 f: decimal(10, 2)
-  #7 g: string
-  #8 h: bytes
-  #9 i: uuid
+  #1  a: bool
+  #2  b: int32
+  #3  c: int64
+  #4  d: float32
+  #5  e: float64
+  #6  f: decimal(10, 2)
+  #7  g: string
+  #8  h: bytes
+  #9  i: uuid
   #10 j: date
   #11 k: time
   #12 l: instant

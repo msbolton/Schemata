@@ -94,7 +94,7 @@ internal fun emit(
     command: CliktCommand,
     report: Report,
     sources: Sources,
-    reporting: ReportingOptions,
+    reporting: ReportStyle,
     out: String,
 ) {
     val terminal = command.currentContext.terminal

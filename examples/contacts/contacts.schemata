@@ -5,8 +5,7 @@ enum Kind { #1 personal, #2 work }
 
 /// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
 record Contact {
-  @sql(key)
-  #1 id:    int64
+  @sql(key) #1 id:    int64
   #2 name:  string(max = 100)
   #3 email: string(max = 254, pattern = "^[^@]+@[^@]+$")
   #4 age:   int32(min = 0, max = 150)?

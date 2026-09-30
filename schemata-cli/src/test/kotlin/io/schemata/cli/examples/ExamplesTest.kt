@@ -1,7 +1,7 @@
 package io.schemata.cli.examples
 
 import io.schemata.cli.Pipeline
-import io.schemata.cli.SourceInput
+import io.schemata.cli.TestSources
 import io.schemata.testkit.Postgres
 import io.schemata.testkit.Protoc
 import io.schemata.testkit.Xsd
@@ -34,20 +34,16 @@ class ExamplesTest {
 
     @Test
     fun `ledger has no implicit ordinals under strict`() {
-        val result = Pipeline.check(sources(File(root, "ledger")), Pipeline.targets, strict = true)
+        val result =
+            Pipeline.check(TestSources.of(File(root, "ledger")), Pipeline.targets, strict = true)
         assertEquals(
             emptyList(),
             result.diagnostics.filter { it.code.id == "SCH1014" }.map { it.message },
         )
     }
 
-    private fun sources(dir: File) =
-        dir.listFiles { f -> f.extension == "schemata" }!!
-            .sortedBy { it.name }
-            .map { SourceInput(it.name, it.readText()) }
-
     private fun check(dir: File) {
-        val inputs = sources(dir)
+        val inputs = TestSources.of(dir)
         val result = Pipeline.compile(inputs, Pipeline.targets)
         assertFalse(
             result.hasErrors,

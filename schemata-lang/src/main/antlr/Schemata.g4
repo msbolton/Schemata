@@ -72,6 +72,6 @@ QUESTION       : '?' ;
 IDENT          : [A-Za-z_] [A-Za-z0-9_]* ;
 
 DOC_COMMENT   : '///' ~[\r\n]* ;
-LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
-BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
+LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN) ;
+BLOCK_COMMENT : '/*' .*? '*/' -> channel(HIDDEN) ;
 WS            : [ \t\r\n]+ -> skip ;
