@@ -1,0 +1,16 @@
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "customer": {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "name": "Ada Lovelace"
+  },
+  "status": "paid",
+  "lines": [
+    {"sku": "WIDGET-1", "quantity": 2, "price": "9.9900"},
+    {"sku": "WIDGET-2", "quantity": 1, "price": "4.5000"}
+  ],
+  "total": "24.4800",
+  "payment": {"card": {"last4": "4242", "brand": "visa"}},
+  "shipping": {"street": "1 Infinite Loop", "city": "Cupertino", "country": "US"},
+  "placed_at": "2026-09-28T12:00:00Z"
+}

@@ -56,6 +56,8 @@ class PipelineTest {
                 "sql" to "shop/orders.sql",
                 "xsd" to "shop/customers.xsd",
                 "xsd" to "shop/orders.xsd",
+                "jsonschema" to "shop/customers.schema.json",
+                "jsonschema" to "shop/orders.schema.json",
             ),
             result.files.map { it.target to it.file.path },
         )
@@ -131,15 +133,18 @@ class PipelineTest {
         val proto = result.targets.single { it.name == "proto" }
         val sql = result.targets.single { it.name == "sql" }
         val xsd = result.targets.single { it.name == "xsd" }
+        val jsonschema = result.targets.single { it.name == "jsonschema" }
         assertTrue(proto.ok)
         assertEquals(listOf("p.proto"), proto.files.map { it.path })
         assertFalse(sql.ok)
         assertEquals(emptyList(), sql.files)
         assertTrue(xsd.ok)
         assertEquals(listOf("p.xsd"), xsd.files.map { it.path })
+        assertTrue(jsonschema.ok)
+        assertEquals(listOf("p.schema.json"), jsonschema.files.map { it.path })
         assertTrue(result.hasErrors)
         assertEquals(
-            listOf("proto" to "p.proto", "xsd" to "p.xsd"),
+            listOf("proto" to "p.proto", "xsd" to "p.xsd", "jsonschema" to "p.schema.json"),
             result.files.map { it.target to it.file.path },
         )
     }
@@ -147,7 +152,7 @@ class PipelineTest {
     @Test
     fun `check lowers every target and writes no files`() {
         val result = Pipeline.check(listOf(orders, customers), Pipeline.targets)
-        assertEquals(listOf("proto", "sql", "xsd"), result.targets.map { it.name })
+        assertEquals(listOf("proto", "sql", "xsd", "jsonschema"), result.targets.map { it.name })
         assertTrue(result.targets.all { it.files.isEmpty() })
         assertEquals(
             Pipeline.compile(listOf(orders, customers), Pipeline.targets).diagnostics,

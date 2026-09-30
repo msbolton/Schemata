@@ -1,0 +1,4 @@
+namespace s
+record Card {}
+@jsonschema(name = "card") record Other {}
+union U = Card | Other

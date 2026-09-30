@@ -4,4 +4,5 @@ dependencies {
     implementation(kotlin("test"))
     implementation(libs.testcontainersPostgres)
     implementation(libs.postgresJdbc)
+    implementation(libs.jsonSchemaValidator)
 }

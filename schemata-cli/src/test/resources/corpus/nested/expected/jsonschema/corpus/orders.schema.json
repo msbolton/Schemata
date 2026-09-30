@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.orders",
+  "title": "corpus.orders",
+  "$defs": {
+    "Order": {
+      "type": "object",
+      "properties": {
+        "customer": {
+          "$ref": "urn:schemata:corpus.people#/$defs/Person"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Order.Line"
+          }
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Order"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "$ref": "#/$defs/Order.Note"
+        },
+        "kind": {
+          "$ref": "#/$defs/Order.Kind"
+        }
+      },
+      "required": [
+        "customer",
+        "lines",
+        "note",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Order.Line": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string"
+        },
+        "gift": {
+          "$ref": "#/$defs/Order.Note"
+        },
+        "order": {
+          "$ref": "#/$defs/Order"
+        }
+      },
+      "required": [
+        "sku",
+        "gift",
+        "order"
+      ],
+      "additionalProperties": false
+    },
+    "Order.Note": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "Order.Kind": {
+      "type": "string",
+      "enum": [
+        "retail",
+        "wholesale"
+      ]
+    },
+    "Audit": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "$ref": "#/$defs/Order.Line"
+        },
+        "who": {
+          "$ref": "urn:schemata:corpus.people#/$defs/Person"
+        },
+        "again": {
+          "$ref": "urn:schemata:corpus.people#/$defs/Person"
+        },
+        "kind": {
+          "$ref": "#/$defs/Order.Kind"
+        }
+      },
+      "required": [
+        "line",
+        "who",
+        "again",
+        "kind"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

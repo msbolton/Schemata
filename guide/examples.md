@@ -1,9 +1,9 @@
 # Worked examples
 
 Three example schemas live under `examples/`: `contacts`, `shop`, and `ledger`. Each has a
-committed `expected/proto` tree, an `expected/sql` tree, an `expected/xsd` tree, and the warnings
-the compiler reports for each target. Build the CLI once, then point it at any of them to
-reproduce what is shown here:
+committed `expected/proto` tree, an `expected/sql` tree, an `expected/xsd` tree, an
+`expected/jsonschema` tree, and the warnings the compiler reports for each target. Build the CLI
+once, then point it at any of them to reproduce what is shown here:
 
 ```text
 java -jar schemata-<version>.jar compile --out out examples/contacts
@@ -100,6 +100,18 @@ From `examples/contacts/expected/xsd/contacts.xsd`:
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
+```
+
+JSON Schema keeps it as well, as `pattern` on the string, unchanged, since both dialects match
+anywhere in the value.
+
+From `examples/contacts/expected/jsonschema/contacts.schema.json`:
+```json
+        "email": {
+          "type": "string",
+          "pattern": "^[^@]+@[^@]+$",
+          "maxLength": 254
+        },
 ```
 
 ## shop
@@ -217,6 +229,35 @@ From `examples/shop/expected/xsd/shop/orders.xsd`:
   <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
 ```
 
+JSON Schema references `Customer` the same way, but the `$ref` is the absolute `$id` of the
+`shop.customers` document, since references across documents cannot be relative.
+
+From `examples/shop/expected/jsonschema/shop/orders.schema.json`:
+```json
+        "customer": {
+          "$ref": "urn:schemata:shop.customers#/$defs/Customer"
+        },
+```
+
+The `Payment` union lowers to a `oneOf`, one single-property closed object per arm, tagged by the
+member's name; here is the `card` arm.
+
+From `examples/shop/expected/jsonschema/shop/orders.schema.json`:
+```json
+        {
+          "type": "object",
+          "properties": {
+            "card": {
+              "$ref": "#/$defs/Card"
+            }
+          },
+          "required": [
+            "card"
+          ],
+          "additionalProperties": false
+        },
+```
+
 The union lowers to a complexType holding an `xs:choice`, one element per arm.
 
 From `examples/shop/expected/xsd/shop/orders.xsd`:
@@ -231,7 +272,8 @@ From `examples/shop/expected/xsd/shop/orders.xsd`:
 ```
 
 `examples/shop/expected/xsd-sample.xml` is a hand-written document that validates against
-`orders.xsd`, payment and all.
+`orders.xsd`, payment and all. `examples/shop/expected/jsonschema-sample.json` is the same order
+as JSON; it validates against `urn:schemata:shop.orders#/$defs/Order`.
 
 ## ledger
 

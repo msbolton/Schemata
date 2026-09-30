@@ -15,7 +15,7 @@ class GuideExamplesTest {
 
     @TestFactory
     fun `excerpts are verbatim runs of lines from their file`(): List<DynamicTest> =
-        listOf("schemata", "proto", "sql", "xml")
+        listOf("schemata", "proto", "sql", "xml", "json")
             .flatMap { language -> Guide.blocks(text, language) }
             .sortedBy { it.line }
             .map { block ->

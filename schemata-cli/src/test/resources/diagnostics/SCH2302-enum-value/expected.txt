@@ -1,0 +1,6 @@
+# targets=jsonschema
+error[SCH2302] (jsonschema): enum value 'Status.settled' lowers to enum value 'paid', already used by enum value 'Status.paid' (s.schemata:2)
+ --> s.schemata:2:53
+  = help: rename one of them, or set `@jsonschema(name = "…")` on one
+
+1 error, 0 warnings

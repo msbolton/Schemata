@@ -8,6 +8,7 @@ protobuf = "4.29.3"
 spotless = "7.0.2"
 shadow = "8.3.6"
 graalvmBuildTools = "0.10.6"
+jsonSchemaValidator = "1.5.6"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -17,6 +18,7 @@ antlrRuntime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
 clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "clikt" }
 testcontainersPostgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 postgresJdbc = { module = "org.postgresql:postgresql", version.ref = "postgresJdbc" }
+jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 
 [plugins]
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

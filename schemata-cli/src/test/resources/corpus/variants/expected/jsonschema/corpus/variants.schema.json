@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.variants",
+  "title": "corpus.variants",
+  "$defs": {
+    "Status": {
+      "description": "Payment status.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "pending",
+          "description": "Not yet paid."
+        },
+        {
+          "const": "paid"
+        },
+        {
+          "const": "settled"
+        },
+        {
+          "const": "cancelled"
+        }
+      ]
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "last4": {
+          "type": "string",
+          "maxLength": 4
+        }
+      },
+      "required": [
+        "last4"
+      ],
+      "additionalProperties": false
+    },
+    "Cash": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "Payment": {
+      "description": "How the customer paid.",
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "card": {
+              "description": "Paid by card.",
+              "$ref": "#/$defs/Card"
+            }
+          },
+          "required": [
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cash": {
+              "$ref": "#/$defs/Cash"
+            }
+          },
+          "required": [
+            "cash"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "uuid": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          },
+          "required": [
+            "uuid"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "string": {
+              "type": "string",
+              "maxLength": 5
+            }
+          },
+          "required": [
+            "string"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Order": {
+      "type": "object",
+      "properties": {
+        "payment": {
+          "$ref": "#/$defs/Payment"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Payment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Payment"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "default": "pending"
+        }
+      },
+      "required": [
+        "payment",
+        "history"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

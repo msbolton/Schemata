@@ -1,0 +1,2 @@
+@jsonschema(id = "urn:x")
+namespace b

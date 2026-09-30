@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.people",
+  "title": "corpus.people",
+  "$defs": {
+    "Person": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "friends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Person"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "friends"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

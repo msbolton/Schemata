@@ -59,6 +59,12 @@ class GuideAppendicesTest {
                 listOf("SCH2103", "SCH2104"),
             ),
             Module("XSD (SCH22xx)", "SCH22", Pipeline.targetNamed("xsd")!!.codes, emptyList()),
+            Module(
+                "JSON Schema (SCH23xx)",
+                "SCH23",
+                Pipeline.targetNamed("jsonschema")!!.codes,
+                emptyList(),
+            ),
         )
 
     private fun diagnostics(): String = buildString {

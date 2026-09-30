@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:shop.orders",
+  "title": "shop.orders",
+  "$defs": {
+    "Status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "paid",
+        "shipped",
+        "cancelled"
+      ]
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "last4": {
+          "type": "string",
+          "maxLength": 4
+        },
+        "brand": {
+          "type": "string",
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "last4",
+        "brand"
+      ],
+      "additionalProperties": false
+    },
+    "BankTransfer": {
+      "type": "object",
+      "properties": {
+        "iban": {
+          "type": "string",
+          "maxLength": 34
+        }
+      },
+      "required": [
+        "iban"
+      ],
+      "additionalProperties": false
+    },
+    "Cash": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "Payment": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "card": {
+              "$ref": "#/$defs/Card"
+            }
+          },
+          "required": [
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bank_transfer": {
+              "$ref": "#/$defs/BankTransfer"
+            }
+          },
+          "required": [
+            "bank_transfer"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "cash": {
+              "$ref": "#/$defs/Cash"
+            }
+          },
+          "required": [
+            "cash"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Order": {
+      "description": "A customer's order. One row per checkout.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "customer": {
+          "$ref": "urn:schemata:shop.customers#/$defs/Customer"
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "default": "pending"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Order.Line"
+          },
+          "minItems": 1
+        },
+        "total": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "payment": {
+          "$ref": "#/$defs/Payment"
+        },
+        "shipping": {
+          "$ref": "#/$defs/Order.Address"
+        },
+        "placed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "created": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "deprecated": true
+        }
+      },
+      "required": [
+        "id",
+        "customer",
+        "lines",
+        "total",
+        "payment",
+        "shipping",
+        "placed_at"
+      ],
+      "additionalProperties": false
+    },
+    "Order.Line": {
+      "description": "One purchasable item.",
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "price": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        }
+      },
+      "required": [
+        "sku",
+        "quantity",
+        "price"
+      ],
+      "additionalProperties": false
+    },
+    "Order.Address": {
+      "type": "object",
+      "properties": {
+        "street": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "country": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 2
+        }
+      },
+      "required": [
+        "street",
+        "city",
+        "country"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

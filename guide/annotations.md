@@ -68,3 +68,20 @@ Codes:
 | SCH2203 | error | semantic | two namespaces lower to the same target namespace |
 | SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute |
 | SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI |
+
+## @jsonschema
+
+| Key | Applies to | Value | Choices |
+|---|---|---|---|
+| `id` | namespace | string |  |
+| `name` | record, enum, union, field, enum value | string |  |
+| `open` | record | flag |  |
+
+Codes:
+
+| Code | Severity | Category | Description |
+|---|---|---|---|
+| SCH2301 | warning | lossy | something JSON Schema cannot express was dropped or approximated by the lowering |
+| SCH2302 | error | semantic | two constructs lower to the same JSON Schema name |
+| SCH2303 | error | semantic | a @jsonschema override is empty, holds a character a $ref cannot carry, or is not an absolute URI |
+| SCH2304 | error | semantic | two namespaces lower to the same $id |

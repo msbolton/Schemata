@@ -1,0 +1,2 @@
+SCH2301 field 'Order.total': min/max on a decimal has no JSON Schema representation on a string; dropped
+SCH2301 field 'Order.blob': max on bytes is approximated as a base64 length of 8
