@@ -58,6 +58,14 @@ class JsonSchemaTest {
     }
 
     @Test
+    fun `two documents that share an id are reported naming both paths`() {
+        val message = JsonSchema.validate(files + ("shop/customers2.schema.json" to customers))
+        assertNotNull(message)
+        assertTrue(message.contains("shop/customers.schema.json"), message)
+        assertTrue(message.contains("shop/customers2.schema.json"), message)
+    }
+
+    @Test
     fun `a dangling ref is reported`() {
         val dangling = orders.replace("shop.customers#", "shop.nowhere#")
         assertNotNull(JsonSchema.validate(files + ("shop/orders.schema.json" to dangling)))

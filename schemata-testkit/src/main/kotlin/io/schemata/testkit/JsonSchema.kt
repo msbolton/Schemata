@@ -21,10 +21,17 @@ object JsonSchema {
      *   otherwise `"<path>: <first problem>"`.
      */
     fun validate(files: Map<String, String>): String? {
+        val sorted = files.toSortedMap()
+        val firstPathById = mutableMapOf<String, String>()
+        for ((path, text) in sorted) {
+            val id = mapper.readTree(text)["\$id"]?.asText() ?: continue
+            val firstPath = firstPathById.putIfAbsent(id, path) ?: continue
+            return "$path: \$id '$id' is also declared by $firstPath"
+        }
         val byId = idsOf(files)
         val factory = factory(byId)
         val metaSchema = factory.getSchema(SchemaLocation.of(SchemaId.V202012))
-        for ((path, text) in files.toSortedMap()) {
+        for ((path, text) in sorted) {
             val tree = mapper.readTree(text)
             val problems = metaSchema.validate(tree)
             if (problems.isNotEmpty()) return "$path: ${problems.first()}"
