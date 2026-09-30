@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:ledger.accounts",
+  "title": "ledger.accounts",
+  "$defs": {
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "asset",
+        "liability",
+        "equity",
+        "revenue",
+        "expense"
+      ]
+    },
+    "Account": {
+      "description": "An account, keyed by tenant and code.",
+      "type": "object",
+      "properties": {
+        "tenant_id": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        "code": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "opened": {
+          "type": "string",
+          "format": "date"
+        },
+        "closed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "limits": {
+          "$ref": "#/$defs/Account.Limits"
+        },
+        "balances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+          }
+        }
+      },
+      "required": [
+        "tenant_id",
+        "code",
+        "name",
+        "kind",
+        "opened",
+        "limits",
+        "balances"
+      ],
+      "additionalProperties": false
+    },
+    "Account.Limits": {
+      "description": "Overdraft and daily limits in the account's currency.",
+      "type": "object",
+      "properties": {
+        "overdraft": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "daily": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        }
+      },
+      "required": [
+        "overdraft"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

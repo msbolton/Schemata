@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:x.alpha",
+  "title": "x.alpha",
+  "$defs": {
+    "A": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "b": {
+          "$ref": "urn:schemata:x.beta#/$defs/B"
+        }
+      },
+      "required": [
+        "id",
+        "b"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

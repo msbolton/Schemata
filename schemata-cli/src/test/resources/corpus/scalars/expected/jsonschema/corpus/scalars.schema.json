@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.scalars",
+  "title": "corpus.scalars",
+  "$defs": {
+    "Scalars": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "boolean"
+        },
+        "b": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        "c": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        "d": {
+          "type": "number"
+        },
+        "e": {
+          "type": "number"
+        },
+        "f": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,8}(\\.[0-9]{1,2})?$"
+        },
+        "g": {
+          "type": "string"
+        },
+        "h": {
+          "type": "string",
+          "contentEncoding": "base64"
+        },
+        "i": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "j": {
+          "type": "string",
+          "format": "date"
+        },
+        "k": {
+          "type": "string",
+          "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?$"
+        },
+        "l": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "m": {
+          "type": "string",
+          "format": "duration"
+        },
+        "n": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z]+$",
+          "maxLength": 8
+        },
+        "o": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 3
+        },
+        "p": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

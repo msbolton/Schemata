@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:ledger.journal",
+  "title": "ledger.journal",
+  "$defs": {
+    "Source": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "imported",
+        "accrual"
+      ]
+    },
+    "Side": {
+      "type": "string",
+      "enum": [
+        "debit",
+        "credit"
+      ]
+    },
+    "Invoice": {
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string",
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "additionalProperties": false
+    },
+    "Payment": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "reference"
+      ],
+      "additionalProperties": false
+    },
+    "Reference": {
+      "description": "What an entry refers back to; a bare source when nothing else applies.",
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "invoice": {
+              "$ref": "#/$defs/Invoice"
+            }
+          },
+          "required": [
+            "invoice"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "payment": {
+              "$ref": "#/$defs/Payment"
+            }
+          },
+          "required": [
+            "payment"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/Source"
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Entry": {
+      "description": "A balanced entry: at least two lines.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "posted": {
+          "type": "string",
+          "format": "date"
+        },
+        "memo": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Entry.Line"
+          },
+          "minItems": 2
+        },
+        "ref": {
+          "$ref": "#/$defs/Reference"
+        }
+      },
+      "required": [
+        "id",
+        "posted",
+        "lines",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "Entry.Line": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "urn:schemata:ledger.accounts#/$defs/Account"
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "side": {
+          "$ref": "#/$defs/Side"
+        }
+      },
+      "required": [
+        "account",
+        "amount",
+        "side"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:ledger.reports",
+  "title": "ledger.reports",
+  "$defs": {
+    "Close": {
+      "description": "A close of one account for one period.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "period": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}$",
+          "maxLength": 7
+        },
+        "account": {
+          "$ref": "urn:schemata:ledger.accounts#/$defs/Account"
+        },
+        "last": {
+          "anyOf": [
+            {
+              "$ref": "urn:schemata:ledger.journal#/$defs/Entry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totals": {
+          "$ref": "#/$defs/Close.Totals"
+        }
+      },
+      "required": [
+        "id",
+        "period",
+        "account",
+        "totals"
+      ],
+      "additionalProperties": false
+    },
+    "Close.Totals": {
+      "type": "object",
+      "properties": {
+        "debits": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "credits": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        }
+      },
+      "required": [
+        "debits",
+        "credits"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

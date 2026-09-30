@@ -1,0 +1,6 @@
+# targets=jsonschema
+error[SCH2304] (jsonschema): namespaces a and b both lower to $id 'urn:x'
+ --> b.schemata:2:1
+  = help: set `@jsonschema(id = "…")` on one of them
+
+1 error, 0 warnings

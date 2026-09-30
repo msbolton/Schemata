@@ -118,6 +118,8 @@ class StructuralAcceptanceTest {
                 "shop/orders.proto",
                 "shop/customers.xsd",
                 "shop/orders.xsd",
+                "shop/customers.schema.json",
+                "shop/orders.schema.json",
             ),
             result.files.map { it.file.path },
         )

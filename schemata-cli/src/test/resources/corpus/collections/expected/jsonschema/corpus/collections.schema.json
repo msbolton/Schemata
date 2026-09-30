@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.collections",
+  "title": "corpus.collections",
+  "$defs": {
+    "Color": {
+      "type": "string",
+      "enum": [
+        "red",
+        "green"
+      ]
+    },
+    "Item": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Collections": {
+      "type": "object",
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Item"
+          }
+        },
+        "colors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Color"
+          }
+        },
+        "maybe": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "holes": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "by_id": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(0|-?[1-9][0-9]*)$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Item"
+          }
+        },
+        "sparse": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "limited": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 3
+          },
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "tags",
+        "items",
+        "colors",
+        "holes",
+        "counts",
+        "by_id",
+        "sparse",
+        "limited"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

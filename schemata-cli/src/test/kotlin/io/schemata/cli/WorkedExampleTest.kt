@@ -166,7 +166,7 @@ class WorkedExampleTest {
                 Pipeline.targets,
             )
         assertFalse(result.hasErrors)
-        assertEquals(6, result.files.size)
+        assertEquals(8, result.files.size)
         assertEquals(setOf("SCH2001", "SCH2105"), result.diagnostics.map { it.code.id }.toSet())
     }
 

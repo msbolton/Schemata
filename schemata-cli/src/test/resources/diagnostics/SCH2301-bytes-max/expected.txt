@@ -1,0 +1,6 @@
+# targets=jsonschema
+warning[SCH2301] (lossy) (jsonschema): field 'R.x': max on bytes is approximated as a base64 length of 8
+ --> s.schemata:2:12
+  = help: enforce the exact byte length in application code
+
+0 errors, 1 warning

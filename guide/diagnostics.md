@@ -27,7 +27,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1012 | warning | semantic | an import resolves nothing | import 'a' is unused | remove the import |
 | SCH1013 | error | semantic | some elements have explicit ordinals and some do not | record 'R' mixes explicit and implicit ordinals | write `#n` on every element or on none |
 | SCH1014 | error | semantic | an element has no explicit ordinal under --strict | field 'x' has no explicit ordinal (--strict) | write `#n` before every field and enum value, starting at #1 in declaration order |
-| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
+| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, jsonschema, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
 | SCH1016 | error | semantic | a key is unknown for its annotation target | 'bogus' is not a key of @sql; keys: column, index, key, schema, strategy, table, type, unique | write one of the listed keys, for example `@sql(column)` |
 | SCH1017 | error | semantic | an annotation key is on an element it does not apply to | @sql(column) is not allowed on a record; allowed on: field | move the annotation to a field, or remove it |
 | SCH1018 | error | semantic | an annotation's arguments have the wrong shape or value | @deprecated expects a string<br>@sql needs at least one key<br>@proto needs at least one key<br>@sql arguments are a bare key or key = value<br>@deprecated takes a single value<br>@sql(column) expects a string | write `@deprecated("…")`<br>write `@sql(column = "…")`<br>write `@proto(name = "…")`<br>write `@sql(key)` or `@sql(key = value)`<br>write `@deprecated("value")` |
@@ -99,3 +99,12 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2203 | error | semantic | two namespaces lower to the same target namespace | namespaces a and b both lower to target namespace 'urn:x' | set `@xsd(namespace = "…")` on one of them |
 | SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute | @xsd(attribute) is not allowed on a list | remove the annotation; only scalar and enum fields lower to attributes |
 | SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI | @xsd(name = "1bad") is not a valid XML name<br>@xsd(namespace = "orders") is not an absolute URI | use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore<br>use an absolute URI such as `urn:example:orders` |
+
+## JSON Schema (SCH23xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2301 | warning | lossy | something JSON Schema cannot express was dropped or approximated by the lowering | max on bytes is approximated as a base64 length of 8<br>min/max on a decimal has no JSON Schema representation on a string; dropped<br>pattern uses \A, which JSON Schema (ECMA-262) cannot express; dropped | enforce the exact byte length in application code<br>enforce the bound in application code<br>rewrite the pattern without \A, or enforce it in application code |
+| SCH2302 | error | semantic | two constructs lower to the same JSON Schema name | record 'B' lowers to $defs key 'B', already used by record 'A' (s.schemata:2)<br>field 'R.b' lowers to property 'b', already used by field 'R.a' (s.schemata:2)<br>union member 'Other' lowers to tag 'card', already used by union member 'Card' (s.schemata:4) | rename one of them, or set `@jsonschema(name = "…")` on one |
+| SCH2303 | error | semantic | a @jsonschema override is empty or not an absolute URI | @jsonschema(id = "orders") is not an absolute URI<br>@jsonschema(name = "") is empty | use an absolute URI such as `urn:example:orders`<br>give the name at least one character |
+| SCH2304 | error | semantic | two namespaces lower to the same $id | namespaces a and b both lower to $id 'urn:x' | set `@jsonschema(id = "…")` on one of them |

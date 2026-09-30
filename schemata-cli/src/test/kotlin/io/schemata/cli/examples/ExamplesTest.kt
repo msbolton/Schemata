@@ -2,6 +2,7 @@ package io.schemata.cli.examples
 
 import io.schemata.cli.Pipeline
 import io.schemata.cli.TestSources
+import io.schemata.testkit.JsonSchema
 import io.schemata.testkit.Postgres
 import io.schemata.testkit.Protoc
 import io.schemata.testkit.Xsd
@@ -65,8 +66,8 @@ class ExamplesTest {
             "core warnings for ${dir.name}",
         )
         // The sql target's live catalog check aborts (via assumeTrue) the rest of this loop when
-        // Docker is unavailable; run it last so proto and xsd, including the shop sample document
-        // check nested under xsd, are always checked first.
+        // Docker is unavailable; run it last so proto, xsd, and jsonschema, including the shop
+        // sample document check nested under xsd, are always checked first.
         for (target in result.targets.sortedBy { it.name == "sql" }) {
             val files = target.files.associate { it.path to it.content }
             golden(File(expected, target.name), files, dir.name)
@@ -89,6 +90,16 @@ class ExamplesTest {
                         assertNull(
                             Xsd.validateDocument(files, "shop/orders.xsd", xml),
                             "the JDK rejected the shop sample document",
+                        )
+                    }
+                }
+                "jsonschema" -> {
+                    assertNull(JsonSchema.validate(files), "the validator rejected ${dir.name}")
+                    if (dir.name == "shop") {
+                        val instance = File(expected, "jsonschema-sample.json").readText()
+                        assertNull(
+                            JsonSchema.check(files, "urn:schemata:shop.orders", "Order", instance),
+                            "the validator rejected the shop sample instance",
                         )
                     }
                 }

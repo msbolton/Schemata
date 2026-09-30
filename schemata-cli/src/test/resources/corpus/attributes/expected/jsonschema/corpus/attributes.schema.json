@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.attributes",
+  "title": "corpus.attributes",
+  "$defs": {
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "work"
+      ]
+    },
+    "Address": {
+      "description": "Not a document root on its own.",
+      "type": "object",
+      "properties": {
+        "country": {
+          "type": "string",
+          "maxLength": 2
+        },
+        "street": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "country",
+        "street"
+      ],
+      "additionalProperties": false
+    },
+    "Contact": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind",
+          "default": "personal"
+        },
+        "nick": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "home": {
+          "$ref": "#/$defs/Address"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "home"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

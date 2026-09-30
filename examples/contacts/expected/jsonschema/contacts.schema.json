@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:contacts",
+  "title": "contacts",
+  "$defs": {
+    "Kind": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "work"
+      ]
+    },
+    "Contact": {
+      "description": "One person. Email and age are checked by Postgres; Protobuf carries them unchecked.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "pattern": "^[^@]+@[^@]+$",
+          "maxLength": 254
+        },
+        "age": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 150
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind",
+          "default": "personal"
+        },
+        "born": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "tags"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/s",
+  "title": "s",
+  "$defs": {
+    "Status": {
+      "description": "Lifecycle.",
+      "type": "string",
+      "oneOf": [
+        {
+          "const": "pending",
+          "description": "Not paid yet."
+        },
+        {
+          "const": "paid"
+        },
+        {
+          "const": "SHIPPED"
+        }
+      ]
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(0|-?[1-9][0-9]*)$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "Purchase": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "orderTotal": {
+          "type": "string",
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "blob": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 8,
+          "contentEncoding": "base64"
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "default": "pending"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          },
+          "maxItems": 10
+        }
+      },
+      "required": [
+        "id",
+        "orderTotal",
+        "events"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
