@@ -2,15 +2,16 @@
 
 A `.schemata` file declares records, enums, unions, and aliases in a namespace. You give the
 compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, a Postgres
-schema, and an XML Schema.
+schema, an XML Schema, and a JSON Schema.
 
 ## 1. Files and namespaces
 
 Every file begins with a namespace declaration: `namespace a.b.c`. Each segment is lower_snake.
 Several files may share a namespace; the compilation unit is the whole set of files given on the
 command line, with any directories walked recursively. Output paths follow the namespace, so
-`namespace shop.orders` writes `shop/orders.proto`, `shop/orders.sql`, and `shop/orders.xsd`. A
-doc comment and any annotations may precede the `namespace` line itself; section 15 shows
+`namespace shop.orders` writes `shop/orders.proto`, `shop/orders.sql`, `shop/orders.xsd`, and
+`shop/orders.schema.json`. A doc comment and any annotations may precede the `namespace` line
+itself; section 15 shows
 annotations there, and `examples/shop/orders.schemata` shows a doc comment.
 
 By default, a namespace's Postgres schema is its last segment: `shop.orders` lowers to schema
@@ -514,6 +515,12 @@ element; only a scalar or enum field can be one (SCH2204 otherwise). `@xsd(root 
 record keeps it from getting the global element every record gets by default, for a record meant
 to appear only nested inside another.
 
+`@jsonschema(id = "…")` sets a document's `$id`; without it, the namespace lowers to
+`urn:schemata:<namespace>`. `@jsonschema(name = "…")` renames a record, an enum, a union, a field,
+or an enum value (the `$defs` key, the property name, or the enum value string). `@jsonschema(open)`
+on a record drops `additionalProperties: false`, so instances may carry properties the record does
+not declare.
+
 `guide/annotations.md` lists every key each target accepts, the elements it applies to, and the
 codes each target can report.
 
@@ -569,34 +576,56 @@ record Contact {
 }
 ```
 
+```schemata
+@jsonschema(id = "https://example.com/schemas/contacts")
+namespace contacts
+
+@jsonschema(open)
+record Contact {
+  @sql(key)
+  @jsonschema(name = "contactId") #1 id: int64
+  #2 name: string(max = 100)
+}
+```
+
 ## 16. How constructs lower
 
-| Construct | Protobuf | Postgres | XSD |
-|---|---|---|---|
-| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name | an `xs:complexType` plus a global element |
-| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it | the same; the key is not represented |
-| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table | its own named type, `OuterInnerType` |
-| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values | an `xs:simpleType` restricting `xs:string` to an enumeration |
-| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member |
-| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column | a repeated element |
-| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column | a repeated element of the record's type |
-| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets |
-| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute |
-| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty |
-| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines |
-| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented |
-| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` |
-| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented |
+| Construct | Protobuf | Postgres | XSD | JSON Schema |
+|---|---|---|---|---|
+| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name | an `xs:complexType` plus a global element | an `object` in `$defs` with `additionalProperties: false` unless `@jsonschema(open)`; a field of the type is a `$ref` |
+| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it | the same; the key is not represented | the same; the key is not represented |
+| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table | its own named type, `OuterInnerType` | its own `$defs` entry, keyed `Outer.Inner` |
+| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values | an `xs:simpleType` restricting `xs:string` to an enumeration | `type: string` with `enum`; when a value has a doc, `oneOf` of `const` entries so the docs survive |
+| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member | an object with `oneOf`, one single-property closed object per member, tagged by the member type's name in lower snake (`bank_transfer`, `int64`) |
+| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column | a repeated element | an `array` with `items`, `minItems`, `maxItems` |
+| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column | a repeated element of the record's type | an `array` of `$ref` items |
+| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets | an `object` with `additionalProperties`; an integer key adds a digit pattern on `propertyNames`, a refined string key its constraints |
+| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute | not `required`; a scalar's `type` becomes `[T, "null"]`, anything else `anyOf` with `{"type": "null"}` |
+| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty | `default`, an annotation the reader applies; the field is not `required` |
+| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301); `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) |
+| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented | inlined |
+| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` | `description` |
+| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented | not represented |
+
+### 16.1 Validating JSON instances
+
+A document has no top-level `type`; validate an instance against one definition by its pointer,
+`<$id>#/$defs/<Name>`, for example `urn:schemata:shop.orders#/$defs/Order`. Register every
+generated document with your validator by its `$id` (most validators take a map from `$id` to
+document), because references across namespaces are absolute. `format` keywords (`uuid`, `date`,
+`date-time`, `duration`) are assertions only when the validator enables format assertions; `uuid`
+also carries a pattern so it is enforced regardless. `int64` is an `integer` with its full range,
+`decimal(p, s)` is a string such as `"24.4800"`, and `bytes` is a base64 string.
 
 ## 17. The CLI
 
 `schemata` has four commands.
 
 `compile <paths>...` compiles to `--out` (default `out`), for `--target` (a comma-separated list;
-default `proto`, `sql`, and `xsd`), reporting diagnostics in `--format` (`human`, to stderr, or
-`json`, to stdout), colored per `--color` (`auto`, `always`, or `never`), and treating every
-warning as an error under `--strict`, which also reports any field, enum value, or union member
-left with an implicit ordinal. A path may be a file or a directory, walked recursively for
+default `proto`, `sql`, `xsd`, and `jsonschema`), reporting diagnostics in `--format` (`human`, to
+stderr, or `json`, to stdout), colored per `--color` (`auto`, `always`, or `never`), and treating
+every warning as an error under `--strict`, which also reports any field, enum value, or union
+member left with an implicit ordinal. A path may be a file or a directory, walked recursively for
 `.schemata` files.
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`

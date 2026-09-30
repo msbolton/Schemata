@@ -3,7 +3,7 @@
 ![ci](https://github.com/msbolton/Schemata/actions/workflows/ci.yml/badge.svg)
 
 Schemata is a schema language and compiler. You describe a data model once in
-`.schemata` files and compile it to Protobuf, Postgres DDL, and XML Schema, with every
+`.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, with every
 lossy decision reported as a warning.
 
 ## Install
@@ -104,13 +104,22 @@ CREATE SCHEMA IF NOT EXISTS "contacts";
            attributeFormDefault="unqualified">
 ```
 
+`out/jsonschema/contacts.schema.json` begins:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:contacts",
+  "title": "contacts",
+```
+
 The compiler prints one warning per thing Protobuf cannot carry (the email
 pattern, the default) and exits 2; `--strict` turns those into errors.
 
 ## Commands
 
-    schemata compile [--target proto,sql,xsd] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
-    schemata check   [--target proto,sql,xsd]            [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata compile [--target proto,sql,xsd,jsonschema] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata check   [--target proto,sql,xsd,jsonschema]             [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
 
@@ -167,8 +176,9 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-target-proto` | Protobuf model, lowering, renderer |
 | `schemata-target-sql` | relational model, lowering, renderer |
 | `schemata-target-xsd` | XML Schema model, lowering, renderer |
+| `schemata-target-jsonschema` | JSON Schema model, lowering, renderer |
 | `schemata-cli` | command surface |
-| `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator) |
+| `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator, a JSON Schema validator) |
 
 ### Testing conventions
 
