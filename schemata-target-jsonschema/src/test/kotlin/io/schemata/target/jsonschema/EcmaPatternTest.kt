@@ -16,7 +16,7 @@ class EcmaPatternTest {
                 "(?<year>[0-9]{4})-\\k<year>",
                 "(?=a)(?!b)(?<=c)(?<!d)x",
                 "\\p{L}\\p{Lu}\\P{Nd}",
-                "\\d\\w\\s\\b\\B\\.\\-\\/",
+                "\\d\\w\\s\\b\\B\\.\\/[\\-]",
                 "\\u00e9\\x41\\t\\n\\0",
                 "[\\]\\[]",
             )
@@ -47,6 +47,22 @@ class EcmaPatternTest {
         assertEquals("\\p{Alpha}", bad("\\p{Alpha}"))
         assertEquals("\\p{javaLowerCase}", bad("\\p{javaLowerCase}"))
         assertEquals("\\x{41}", bad("\\x{41}"))
+        assertEquals("\\-", bad("a\\-b"))
+        assertEquals("\\@", bad("\\@"))
+        assertEquals("\\01", bad("\\01"))
+        assertEquals("}", bad("a}"))
+        assertEquals("]", bad("a]"))
+    }
+
+    @Test
+    fun `escapes follow the unicode dialect inside and outside a class`() {
+        assertNull(bad("\\cJ[\\cj]"))
+        assertNull(bad("(a)\\1"))
+        assertNull(bad("[a\\-z\\]\\^]"))
+        assertEquals("\\c", bad("\\c1"))
+        assertEquals("\\@", bad("[\\@]"))
+        assertEquals("\\07", bad("[\\07]"))
+        assertEquals("\\ ", bad("a\\ b"))
     }
 
     @Test

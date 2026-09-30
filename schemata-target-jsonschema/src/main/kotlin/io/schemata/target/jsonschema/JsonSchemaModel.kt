@@ -83,7 +83,8 @@ data class EnumEntry(val value: String, val description: String?)
 data class TaggedUnionSchema(val members: List<Member>, override val common: Common = Common()) :
     JsonSchema
 
-data class Member(val tag: String, val schema: JsonSchema, val description: String?)
+/** One member: its tag and its schema, which carries the member's doc as its description. */
+data class Member(val tag: String, val schema: JsonSchema)
 
 /** `#/$defs/<key>` in this document or `<id>#/$defs/<key>` in another. */
 data class RefSchema(val uri: String, override val common: Common = Common()) : JsonSchema

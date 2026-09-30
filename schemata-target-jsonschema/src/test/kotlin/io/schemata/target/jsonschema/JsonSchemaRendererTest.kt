@@ -60,8 +60,11 @@ class JsonSchemaRendererTest {
                         "Payment",
                         TaggedUnionSchema(
                             listOf(
-                                Member("card", RefSchema("#/\$defs/Card"), "By card."),
-                                Member("cash", RefSchema("#/\$defs/Cash"), null),
+                                Member(
+                                    "card",
+                                    RefSchema("#/\$defs/Card", Common(description = "By card.")),
+                                ),
+                                Member("cash", RefSchema("#/\$defs/Cash")),
                                 Member(
                                     "int64",
                                     ScalarSchema(
@@ -69,7 +72,6 @@ class JsonSchemaRendererTest {
                                         minimum = BigDecimal("-9223372036854775808"),
                                         maximum = BigDecimal("9223372036854775807"),
                                     ),
-                                    null,
                                 ),
                             )
                         ),
@@ -104,6 +106,19 @@ class JsonSchemaRendererTest {
                                     RefSchema(
                                         "#/\$defs/Status",
                                         Common(default = JsonString("pending")),
+                                    ),
+                                    false,
+                                ),
+                                Property(
+                                    "kind",
+                                    RefSchema(
+                                        "#/\$defs/Status",
+                                        Common(
+                                            description = "Why.",
+                                            default = JsonString("pending"),
+                                            deprecated = true,
+                                            nullable = true,
+                                        ),
                                     ),
                                     false,
                                 ),

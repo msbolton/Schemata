@@ -7,6 +7,7 @@ import io.schemata.lang.Span
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class JsonSchemaNamesTest {
@@ -49,5 +50,16 @@ class JsonSchemaNamesTest {
         assertTrue(JsonSchemaNames.isAbsoluteUri("https://example.com/s"))
         assertFalse(JsonSchemaNames.isAbsoluteUri("orders"))
         assertFalse(JsonSchemaNames.isAbsoluteUri("/orders"))
+        assertFalse(JsonSchemaNames.isAbsoluteUri("https://x.org/s#v1"))
+        assertFalse(JsonSchemaNames.isAbsoluteUri("urn:a b"))
+    }
+
+    @Test
+    fun `a name a ref cannot carry reports its first reserved character`() {
+        assertEquals('/', JsonSchemaNames.reservedIn("a/b"))
+        assertEquals(' ', JsonSchemaNames.reservedIn("Order Line"))
+        assertNull(JsonSchemaNames.reservedIn("orderId"))
+        assertNull(JsonSchemaNames.reservedIn("full-name"))
+        assertNull(JsonSchemaNames.reservedIn("注文"))
     }
 }

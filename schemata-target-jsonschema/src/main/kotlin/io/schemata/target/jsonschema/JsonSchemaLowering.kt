@@ -42,7 +42,8 @@ object JsonSchemaLowering {
                         JsonSchemaCodes.INVALID_OVERRIDE,
                         "namespace '${ns.name}': @jsonschema(id = \"$override\") is not an absolute URI",
                         ns.span,
-                        help = "use an absolute URI such as `urn:example:orders`",
+                        help =
+                            "use an absolute URI without a fragment, such as `urn:example:orders`",
                     )
                 ids[ns.name] = "urn:schemata:${ns.name}"
             } else {
@@ -111,19 +112,38 @@ object JsonSchemaLowering {
             return getValue(key)
         }
 
-        /** The `@jsonschema(name)` value, or null (with a diagnostic) when it is empty. */
+        /**
+         * The `@jsonschema(name)` value, or null (with a diagnostic) when it is empty or holds a
+         * character a `$ref` cannot carry: names are used verbatim, never escaped.
+         */
         fun overrideName(annotations: Annotations, where: String, span: Span): String? {
             val value = JsonSchemaNames.override(annotations, "name") ?: return null
-            if (value.isNotEmpty()) return value
+            if (value.isEmpty()) {
+                diagnostics +=
+                    Diagnostic(
+                        JsonSchemaCodes.INVALID_OVERRIDE,
+                        "$where: @jsonschema(name = \"\") is empty",
+                        span,
+                        help = "give the name at least one character",
+                    )
+                return null
+            }
+            val reserved = JsonSchemaNames.reservedIn(value) ?: return value
             diagnostics +=
                 Diagnostic(
                     JsonSchemaCodes.INVALID_OVERRIDE,
-                    "$where: @jsonschema(name = \"\") is empty",
+                    "$where: @jsonschema(name = \"$value\") contains '${shown(reserved)}', " +
+                        "which a \$ref cannot carry",
                     span,
-                    help = "give the name at least one character",
+                    help = "leave out whitespace and the characters / ~ # % ? \" \\",
                 )
             return null
         }
+
+        /** A space as itself; any other whitespace or control character as a `\u` escape. */
+        private fun shown(c: Char): String =
+            if (c != ' ' && (c.isWhitespace() || c < ' ')) "\\u%04X".format(c.code)
+            else c.toString()
 
         /** A default's JSON value; a decimal default is scaled to the field's scale. */
         fun defaultValue(value: Value, scalar: Scalar?): JsonValue {
@@ -168,7 +188,8 @@ object JsonSchemaLowering {
         /**
          * Who owns each JSON name: `"def:<key>"` for a `$defs` entry, `"property:<declaring
          * path>/<name>"` for a record's property, `"tag:<declaring path>/<tag>"` for a union
-         * member, scoped so two records may share a property name.
+         * member, `"value:<defs key>/<string>"` for an enum value, scoped so two records may share
+         * a property name.
          */
         private val claims = mutableMapOf<String, Pair<String, Span>>()
 
@@ -214,14 +235,27 @@ object JsonSchemaLowering {
                     ),
             )
 
-        private fun enum(enum: EnumType): EnumSchema =
-            EnumSchema(
-                enum.values.map { EnumEntry(names.enumValueName(enum, it), it.doc) },
+        private fun enum(enum: EnumType): EnumSchema {
+            val key = names.defsKey(enum.qualifiedName)
+            return EnumSchema(
+                enum.values.map { value ->
+                    val string = names.enumValueName(enum, value)
+                    claim(
+                        "value",
+                        "$key/$string",
+                        "enum value '${enum.name}.${value.name}'",
+                        value.nameSpan,
+                        displayName = string,
+                        displayKind = "enum value",
+                    )
+                    EnumEntry(string, value.doc)
+                },
                 Common(
                     description = enum.doc,
                     deprecated = JsonSchemaNames.deprecated(enum.annotations),
                 ),
             )
+        }
 
         private fun union(union: UnionType, path: List<String>): TaggedUnionSchema =
             TaggedUnionSchema(
@@ -233,16 +267,17 @@ object JsonSchemaLowering {
             )
 
         /**
-         * A member's tag: a `Ref` takes the referenced declaration's override, else the lower snake
-         * of its own name; a scalar takes its builtin's name. Claimed per union.
+         * A member's tag: a `Ref` takes the referenced declaration's override verbatim, else the
+         * lower snake of its own name; a scalar takes its builtin's name. Claimed per union. The
+         * member's doc becomes its schema's description.
          */
         private fun unionMember(union: UnionType, member: UnionMember, path: List<String>): Member {
             val (tag, declName) =
                 when (val t = member.type) {
                     is Ref -> {
                         val target = schema.lookup(t.target)
-                        (names.nameOverride(target)?.let(JsonSchemaNames::tag)
-                            ?: JsonSchemaNames.tag(target.name)) to target.name
+                        (names.nameOverride(target) ?: JsonSchemaNames.tag(target.name)) to
+                            target.name
                     }
                     is Scalar -> t.builtin.typeName to t.builtin.typeName
                     is ListOf,
@@ -255,16 +290,14 @@ object JsonSchemaLowering {
                 member.span,
                 displayName = tag,
             )
-            return Member(
-                tag,
+            val schema =
                 typeSchema(
                     member.type,
                     nullable = false,
                     "union '${union.name}' member",
                     member.span,
-                ),
-                member.doc,
-            )
+                )
+            return Member(tag, withCommon(schema, schema.common.copy(description = member.doc)))
         }
 
         private fun fieldWhere(record: RecordType, field: Field): String =
@@ -303,16 +336,9 @@ object JsonSchemaLowering {
         ): JsonSchema =
             when (type) {
                 is Scalar ->
-                    JsonSchemaTypes.scalar(type) { message, help ->
-                            diagnostics +=
-                                Diagnostic(
-                                    JsonSchemaCodes.LOSSY,
-                                    "$where: $message",
-                                    span,
-                                    help = help,
-                                )
-                        }
-                        .let { it.copy(common = it.common.copy(nullable = nullable)) }
+                    JsonSchemaTypes.scalar(type, lossy(where, span)).let {
+                        it.copy(common = it.common.copy(nullable = nullable))
+                    }
                 is Ref -> RefSchema(refUri(type.target), Common(nullable = nullable))
                 is ListOf ->
                     ArraySchema(
@@ -347,19 +373,15 @@ object JsonSchemaLowering {
                 Builtin.INT32,
                 Builtin.INT64 -> ScalarSchema("string", pattern = INTEGER_KEY)
                 else -> {
-                    val s =
-                        JsonSchemaTypes.scalar(key) { message, help ->
-                            diagnostics +=
-                                Diagnostic(
-                                    JsonSchemaCodes.LOSSY,
-                                    "$where: $message",
-                                    span,
-                                    help = help,
-                                )
-                        }
+                    val s = JsonSchemaTypes.scalar(key, lossy(where, span))
                     if (s == ScalarSchema("string")) null else s
                 }
             }
+
+        /** Reports a construct JSON Schema cannot express at [where]. */
+        private fun lossy(where: String, span: Span): (String, String) -> Unit = { message, help ->
+            diagnostics += Diagnostic(JsonSchemaCodes.LOSSY, "$where: $message", span, help = help)
+        }
 
         private fun claim(
             kind: String,

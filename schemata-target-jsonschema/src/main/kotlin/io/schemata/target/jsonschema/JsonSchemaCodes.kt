@@ -25,7 +25,7 @@ object JsonSchemaCodes {
             "SCH2303",
             Severity.ERROR,
             Category.SEMANTIC,
-            "a @jsonschema override is empty or not an absolute URI",
+            "a @jsonschema override is empty, holds a character a \$ref cannot carry, or is not an absolute URI",
         )
     val ID_COLLISION =
         DiagnosticCode(

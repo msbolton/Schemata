@@ -101,6 +101,19 @@
           "$ref": "#/$defs/Status",
           "default": "pending"
         },
+        "kind": {
+          "description": "Why.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Status"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "pending",
+          "deprecated": true
+        },
         "note": {
           "description": "Free text.",
           "type": [

@@ -321,6 +321,57 @@ class JsonSchemaLoweringTest {
     }
 
     @Test
+    fun `a name override with a reserved character is reported and the field name is used`() {
+        val r =
+            record(
+                "s",
+                "Order",
+                field(
+                    1,
+                    "a",
+                    Scalar(Builtin.BOOL),
+                    annotations = js("name" to AnnotationValue.Str("a/b")),
+                ),
+                field(
+                    2,
+                    "c",
+                    Scalar(Builtin.BOOL),
+                    annotations = js("name" to AnnotationValue.Str("c\nd")),
+                ),
+            )
+        val ns = namespace("s", declarations = listOf(r))
+        assertEquals(
+            listOf("a", "c"),
+            (def("Order", ns) as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(
+            listOf(
+                "SCH2303 field 'Order.a': @jsonschema(name = \"a/b\") contains '/', which a \$ref cannot carry",
+                "SCH2303 field 'Order.c': @jsonschema(name = \"c\nd\") contains '\\u000A', which a \$ref cannot carry",
+            ),
+            messages(ns),
+        )
+    }
+
+    @Test
+    fun `two enum values lowering to one string are reported`() {
+        val e =
+            enum(
+                "s",
+                "Status",
+                "paid",
+                "settled",
+                valueAnnotations = mapOf("settled" to js("name" to AnnotationValue.Str("paid"))),
+            )
+        assertEquals(
+            listOf(
+                "SCH2302 enum value 'Status.settled' lowers to enum value 'paid', already used by enum value 'Status.paid' (orders.schemata:31)"
+            ),
+            messages(namespace("s", declarations = listOf(e))),
+        )
+    }
+
+    @Test
     fun `two fields lowering to one property name are reported`() {
         val r =
             record(
@@ -443,9 +494,9 @@ class JsonSchemaLoweringTest {
         assertEquals(
             TaggedUnionSchema(
                 listOf(
-                    Member("card", RefSchema("#/\$defs/Card"), "By card."),
-                    Member("bank_transfer", RefSchema("#/\$defs/BankTransfer"), null),
-                    Member("string", ScalarSchema("string", maxLength = 8), null),
+                    Member("card", RefSchema("#/\$defs/Card", Common(description = "By card."))),
+                    Member("bank_transfer", RefSchema("#/\$defs/BankTransfer")),
+                    Member("string", ScalarSchema("string", maxLength = 8)),
                 ),
                 Common(deprecated = true),
             ),
@@ -462,7 +513,7 @@ class JsonSchemaLoweringTest {
         val u = union("s", "U", Ref(qn("s", "Order", "Line")), Ref(qn("s", "Other")))
         val schema =
             def("U", namespace("s", declarations = listOf(order, other, u))) as TaggedUnionSchema
-        assertEquals(listOf("line", "alt"), schema.members.map { it.tag })
+        assertEquals(listOf("line", "Alt"), schema.members.map { it.tag })
     }
 
     @Test

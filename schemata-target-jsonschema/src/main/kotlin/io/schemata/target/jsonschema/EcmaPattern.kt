@@ -2,7 +2,9 @@ package io.schemata.target.jsonschema
 
 /**
  * Walks a Java pattern once and names the first construct ECMA-262 regexes lack, exactly as it is
- * written; null when every construct exists in both dialects with the same meaning.
+ * written; null when every construct exists in both dialects with the same meaning. The ECMA side
+ * is the Unicode (`u`) dialect JSON Schema validators assume, which rejects identity escapes of
+ * ordinary characters and lone `}` or `]`.
  */
 object EcmaPattern {
     fun firstUnsupported(pattern: String): String? = Scanner(pattern).firstUnsupported()
@@ -21,6 +23,8 @@ object EcmaPattern {
                         '*',
                         '+' -> quantifier(i + 1)
                         '{' -> braces()
+                        '}',
+                        ']' -> reported(i + 1)
                         else -> {
                             i++
                             null
@@ -99,10 +103,24 @@ object EcmaPattern {
             return null
         }
 
+        /**
+         * An escape is kept when it escapes a syntax character, is one ECMA knows, or is `\-`
+         * inside a class; `\0` must not precede a digit, `\c` needs a letter, and `\1`…`\9` are
+         * backreferences outside a class only.
+         */
         private fun escape(inClass: Boolean): String? {
             val c = s.getOrNull(i + 1) ?: return "\\".also { i++ }
             return when {
                 c in JAVA_ONLY -> reported(i + 2)
+                c == '0' && s.getOrNull(i + 2) in '0'..'9' -> reported(i + 3)
+                c == 'c' -> {
+                    val letter = s.getOrNull(i + 2)
+                    if (letter != null && (letter in 'a'..'z' || letter in 'A'..'Z')) {
+                        i += 3
+                        null
+                    } else reported(i + 2)
+                }
+                c in '1'..'9' && inClass -> reported(i + 2)
                 c == 'p' || c == 'P' -> property()
                 c == 'x' && s.getOrNull(i + 2) == '{' ->
                     reported(s.indexOf('}', i).let { if (it < 0) s.length else it + 1 })
@@ -112,10 +130,11 @@ object EcmaPattern {
                         null
                     } else reported(i + 2)
                 }
-                else -> {
+                c in SYNTAX || c in KNOWN || c in '1'..'9' || (inClass && c == '-') -> {
                     i += 2
                     null
                 }
+                else -> reported(i + 2)
             }
         }
 
@@ -139,6 +158,8 @@ object EcmaPattern {
 
         private companion object {
             const val JAVA_ONLY = "AzZGQEhHRXea"
+            const val SYNTAX = "^$\\.*+?()[]{}|/"
+            const val KNOWN = "dDwWsSbBnrtvf0xu"
             val BOUNDS = Regex("[0-9]+(,[0-9]*)?")
             val NAMED = Regex("^<[A-Za-z][A-Za-z0-9]*>")
             val CATEGORIES =

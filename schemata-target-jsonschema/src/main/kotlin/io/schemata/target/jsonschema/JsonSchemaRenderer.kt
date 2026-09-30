@@ -80,21 +80,9 @@ object JsonSchemaRenderer {
                     "oneOf" to
                         JsonArray(
                             schema.members.map { m ->
-                                val member = node(m.schema)
-                                val withDoc =
-                                    if (
-                                        m.description == null ||
-                                            member.members.any { it.first == "description" }
-                                    )
-                                        member
-                                    else
-                                        JsonObject(
-                                            listOf("description" to JsonString(m.description)) +
-                                                member.members
-                                        )
                                 obj(
                                     "type" to JsonString("object"),
-                                    "properties" to obj(m.tag to withDoc),
+                                    "properties" to obj(m.tag to node(m.schema)),
                                     "required" to JsonArray(listOf(JsonString(m.tag))),
                                     "additionalProperties" to JsonBool(false),
                                 )

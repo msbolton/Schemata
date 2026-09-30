@@ -83,5 +83,5 @@ Codes:
 |---|---|---|---|
 | SCH2301 | warning | lossy | something JSON Schema cannot express was dropped or approximated by the lowering |
 | SCH2302 | error | semantic | two constructs lower to the same JSON Schema name |
-| SCH2303 | error | semantic | a @jsonschema override is empty or not an absolute URI |
+| SCH2303 | error | semantic | a @jsonschema override is empty, holds a character a $ref cannot carry, or is not an absolute URI |
 | SCH2304 | error | semantic | two namespaces lower to the same $id |
