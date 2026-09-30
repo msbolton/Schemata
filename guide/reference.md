@@ -517,9 +517,11 @@ to appear only nested inside another.
 
 `@jsonschema(id = "…")` sets a document's `$id`; without it, the namespace lowers to
 `urn:schemata:<namespace>`. `@jsonschema(name = "…")` renames a record, an enum, a union, a field,
-or an enum value (the `$defs` key, the property name, or the enum value string). `@jsonschema(open)`
-on a record drops `additionalProperties: false`, so instances may carry properties the record does
-not declare.
+or an enum value (the `$defs` key, the property name, or the enum value string). A name must be
+non-empty and must not contain whitespace or any of `/ ~ # % ? " \`, which a `$ref` cannot carry.
+Two declarations, fields, union members, or enum values that lower to one JSON name are an error
+(SCH2302). `@jsonschema(open)` on a record drops `additionalProperties: false`, so instances may
+carry properties the record does not declare.
 
 `guide/annotations.md` lists every key each target accepts, the elements it applies to, and the
 codes each target can report.
@@ -596,13 +598,13 @@ record Contact {
 | a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it | the same; the key is not represented | the same; the key is not represented |
 | a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table | its own named type, `OuterInnerType` | its own `$defs` entry, keyed `Outer.Inner` |
 | an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values | an `xs:simpleType` restricting `xs:string` to an enumeration | `type: string` with `enum`; when a value has a doc, `oneOf` of `const` entries so the docs survive |
-| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member | an object with `oneOf`, one single-property closed object per member, tagged by the member type's name in lower snake (`bank_transfer`, `int64`) |
+| a union | a message holding a `oneof`; the field holds that message | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member | an object with `oneOf`, one single-property closed object per member, tagged by the member type's name in lower snake (`bank_transfer`, `int64`), or by its `@jsonschema(name)` as written |
 | `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column | a repeated element | an `array` with `items`, `minItems`, `maxItems` |
 | `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column | a repeated element of the record's type | an `array` of `$ref` items |
 | `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets | an `object` with `additionalProperties`; an integer key adds a digit pattern on `propertyNames`, a refined string key its constraints |
 | a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record or union, whose presence is already implicit | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute | not `required`; a scalar's `type` becomes `[T, "null"]`, anything else `anyOf` with `{"type": "null"}` |
 | a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty | `default`, an annotation the reader applies; the field is not `required` |
-| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301); `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) |
+| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301), including an identity escape such as `\-` outside a class, which the Unicode dialect JSON Schema assumes rejects; `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) |
 | an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented | inlined |
 | a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` | `description` |
 | `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented | not represented |
@@ -615,7 +617,11 @@ generated document with your validator by its `$id` (most validators take a map 
 document), because references across namespaces are absolute. `format` keywords (`uuid`, `date`,
 `date-time`, `duration`) are assertions only when the validator enables format assertions; `uuid`
 also carries a pattern so it is enforced regardless. `int64` is an `integer` with its full range,
-`decimal(p, s)` is a string such as `"24.4800"`, and `bytes` is a base64 string.
+`decimal(p, s)` is a string such as `"24.4800"`, and `bytes` is a base64 string. `time` is a string
+matched by a pattern rather than a `format`, because RFC 3339's `time` requires a zone offset and a
+Schemata `time` has none. An integer map key is checked only by its digit pattern; its range is not
+enforced. JSON Schema has no per-value deprecation for enum values, so `@deprecated` on an enum
+value is not carried.
 
 ## 17. The CLI
 
