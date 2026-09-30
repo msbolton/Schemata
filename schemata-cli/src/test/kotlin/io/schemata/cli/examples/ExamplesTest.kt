@@ -67,7 +67,7 @@ class ExamplesTest {
         )
         // The sql target's live catalog check aborts (via assumeTrue) the rest of this loop when
         // Docker is unavailable; run it last so proto, xsd, and jsonschema, including the shop
-        // sample document check nested under xsd, are always checked first.
+        // sample checks nested under xsd and jsonschema, are always checked first.
         for (target in result.targets.sortedBy { it.name == "sql" }) {
             val files = target.files.associate { it.path to it.content }
             golden(File(expected, target.name), files, dir.name)

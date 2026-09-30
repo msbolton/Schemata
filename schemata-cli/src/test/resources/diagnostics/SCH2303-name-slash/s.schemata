@@ -1,0 +1,2 @@
+namespace s
+record R { @jsonschema(name = "a/b") #1 a: bool }
