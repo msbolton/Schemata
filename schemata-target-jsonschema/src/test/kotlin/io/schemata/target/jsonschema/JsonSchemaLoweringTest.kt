@@ -3,6 +3,7 @@ package io.schemata.target.jsonschema
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
+import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
@@ -373,6 +374,105 @@ class JsonSchemaLoweringTest {
                 "SCH2301 field 'Order.code': pattern uses \\A, which JSON Schema (ECMA-262) cannot express; dropped"
             ),
             messages(ns),
+        )
+    }
+
+    @Test
+    fun `an enum lists its values in order with value docs and overrides`() {
+        val e =
+            enum(
+                "s",
+                "Status",
+                "pending",
+                "paid",
+                valueDocs = mapOf("pending" to "Not paid yet."),
+                valueAnnotations = mapOf("paid" to js("name" to AnnotationValue.Str("PAID"))),
+            )
+        assertEquals(
+            EnumSchema(listOf(EnumEntry("pending", "Not paid yet."), EnumEntry("PAID", null))),
+            def("Status", namespace("s", declarations = listOf(e))),
+        )
+    }
+
+    @Test
+    fun `an enum default uses the value's schema name`() {
+        val e =
+            enum(
+                "s",
+                "Status",
+                "pending",
+                valueAnnotations = mapOf("pending" to js("name" to AnnotationValue.Str("P"))),
+            )
+        val r =
+            record(
+                "s",
+                "Order",
+                field(
+                    1,
+                    "status",
+                    Ref(qn("s", "Status")),
+                    default = EnumRef(qn("s", "Status"), "pending"),
+                ),
+            )
+        val schema = def("Order", namespace("s", declarations = listOf(e, r))) as ObjectSchema
+        assertEquals(
+            RefSchema("#/\$defs/Status", Common(default = JsonString("P"))),
+            schema.properties.single().schema,
+        )
+    }
+
+    @Test
+    fun `a union is tagged by member type names with member docs and refined scalars kept`() {
+        val card = record("s", "Card")
+        val transfer = record("s", "BankTransfer", line = 5)
+        val u =
+            union(
+                "s",
+                "Payment",
+                Ref(qn("s", "Card")),
+                Ref(qn("s", "BankTransfer")),
+                Scalar(Builtin.STRING, Refinements(max = BigDecimal(8))),
+                memberDocs = listOf("By card.", null, null),
+                annotations = Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Flag))),
+            )
+        val schema =
+            def("Payment", namespace("s", declarations = listOf(card, transfer, u)))
+                as TaggedUnionSchema
+        assertEquals(
+            TaggedUnionSchema(
+                listOf(
+                    Member("card", RefSchema("#/\$defs/Card"), "By card."),
+                    Member("bank_transfer", RefSchema("#/\$defs/BankTransfer"), null),
+                    Member("string", ScalarSchema("string", maxLength = 8), null),
+                ),
+                Common(deprecated = true),
+            ),
+            schema,
+        )
+    }
+
+    @Test
+    fun `a member's tag follows its declaration's name override and a nested member uses its own name`() {
+        val line = record("s", "Line", path = listOf("Order", "Line"))
+        val order = record("s", "Order", nested = listOf(line))
+        val other =
+            record("s", "Other", line = 8, annotations = js("name" to AnnotationValue.Str("Alt")))
+        val u = union("s", "U", Ref(qn("s", "Order", "Line")), Ref(qn("s", "Other")))
+        val schema =
+            def("U", namespace("s", declarations = listOf(order, other, u))) as TaggedUnionSchema
+        assertEquals(listOf("line", "alt"), schema.members.map { it.tag })
+    }
+
+    @Test
+    fun `two members lowering to one tag are reported`() {
+        val a = record("s", "Card")
+        val b = record("s", "card", line = 5)
+        val u = union("s", "U", Ref(qn("s", "Card")), Ref(qn("s", "card")))
+        assertEquals(
+            listOf(
+                "SCH2302 union member 'card' lowers to tag 'card', already used by union member 'Card' (orders.schemata:41)"
+            ),
+            messages(namespace("s", declarations = listOf(a, b, u))),
         )
     }
 }

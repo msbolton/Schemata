@@ -17,6 +17,7 @@ import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.lang.Diagnostic
@@ -194,8 +195,8 @@ object JsonSchemaLowering {
             val own =
                 when (decl) {
                     is RecordType -> record(decl, here)
-                    is EnumType -> error("enums are lowered in a later step")
-                    is UnionType -> error("unions are lowered in a later step")
+                    is EnumType -> enum(decl)
+                    is UnionType -> union(decl, here)
                 }
             return listOf(JsonDef(key, own)) + decl.nested.flatMap { defs(it, here) }
         }
@@ -210,6 +211,59 @@ object JsonSchemaLowering {
                         deprecated = JsonSchemaNames.deprecated(record.annotations),
                     ),
             )
+
+        private fun enum(enum: EnumType): EnumSchema =
+            EnumSchema(
+                enum.values.map { EnumEntry(names.enumValueName(enum, it), it.doc) },
+                Common(
+                    description = enum.doc,
+                    deprecated = JsonSchemaNames.deprecated(enum.annotations),
+                ),
+            )
+
+        private fun union(union: UnionType, path: List<String>): TaggedUnionSchema =
+            TaggedUnionSchema(
+                union.members.map { unionMember(union, it, path) },
+                Common(
+                    description = union.doc,
+                    deprecated = JsonSchemaNames.deprecated(union.annotations),
+                ),
+            )
+
+        /**
+         * A member's tag: a `Ref` takes the referenced declaration's override, else the lower snake
+         * of its own name; a scalar takes its builtin's name. Claimed per union.
+         */
+        private fun unionMember(union: UnionType, member: UnionMember, path: List<String>): Member {
+            val (tag, declName) =
+                when (val t = member.type) {
+                    is Ref -> {
+                        val target = schema.lookup(t.target)
+                        (names.nameOverride(target)?.let(JsonSchemaNames::tag)
+                            ?: JsonSchemaNames.tag(target.name)) to target.name
+                    }
+                    is Scalar -> t.builtin.typeName to t.builtin.typeName
+                    is ListOf,
+                    is MapOf -> error("union member cannot be a collection")
+                }
+            claim(
+                "tag",
+                "${path.joinToString(".")}/$tag",
+                "union member '$declName'",
+                member.span,
+                displayName = tag,
+            )
+            return Member(
+                tag,
+                typeSchema(
+                    member.type,
+                    nullable = false,
+                    "union '${union.name}' member",
+                    member.span,
+                ),
+                member.doc,
+            )
+        }
 
         private fun fieldWhere(record: RecordType, field: Field): String =
             "field '${record.name}.${field.name}'"
