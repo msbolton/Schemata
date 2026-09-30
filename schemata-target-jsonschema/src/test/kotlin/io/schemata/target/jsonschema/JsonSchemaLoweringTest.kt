@@ -8,6 +8,8 @@ import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.IntValue
+import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
@@ -473,6 +475,130 @@ class JsonSchemaLoweringTest {
                 "SCH2302 union member 'card' lowers to tag 'card', already used by union member 'Card' (orders.schemata:41)"
             ),
             messages(namespace("s", declarations = listOf(a, b, u))),
+        )
+    }
+
+    @Test
+    fun `lists are arrays with bounds and nullable elements`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "tags",
+                    ListOf(
+                        Scalar(Builtin.STRING),
+                        nullableElement = true,
+                        Refinements(min = BigDecimal(1), max = BigDecimal(10)),
+                    ),
+                ),
+                field(
+                    2,
+                    "lines",
+                    ListOf(Ref(qn("s", "R")), false, Refinements.NONE),
+                    nullable = true,
+                ),
+            )
+        val schema = def("R", namespace("s", declarations = listOf(r))) as ObjectSchema
+        assertEquals(
+            ArraySchema(
+                ScalarSchema("string", common = Common(nullable = true)),
+                minItems = 1,
+                maxItems = 10,
+            ),
+            schema.properties[0].schema,
+        )
+        assertEquals(
+            ArraySchema(RefSchema("#/\$defs/R"), common = Common(nullable = true)),
+            schema.properties[1].schema,
+        )
+        assertEquals(listOf(true, false), schema.properties.map { it.required })
+    }
+
+    @Test
+    fun `maps are objects keyed by property names with bounds and nullable values`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "by_name",
+                    MapOf(
+                        Scalar(Builtin.STRING, Refinements(max = BigDecimal(8))),
+                        Scalar(Builtin.INT32),
+                        false,
+                        Refinements(max = BigDecimal(3)),
+                    ),
+                ),
+                field(
+                    2,
+                    "by_id",
+                    MapOf(
+                        Scalar(Builtin.INT64),
+                        Ref(qn("s", "R")),
+                        nullableValue = true,
+                        Refinements.NONE,
+                    ),
+                ),
+                field(
+                    3,
+                    "plain",
+                    MapOf(Scalar(Builtin.STRING), Scalar(Builtin.BOOL), false, Refinements.NONE),
+                ),
+            )
+        val schema = def("R", namespace("s", declarations = listOf(r))) as ObjectSchema
+        assertEquals(
+            MapSchema(
+                ScalarSchema(
+                    "integer",
+                    minimum = BigDecimal("-2147483648"),
+                    maximum = BigDecimal("2147483647"),
+                ),
+                keys = ScalarSchema("string", maxLength = 8),
+                maxProperties = 3,
+            ),
+            schema.properties[0].schema,
+        )
+        assertEquals(
+            MapSchema(
+                RefSchema("#/\$defs/R", Common(nullable = true)),
+                keys = ScalarSchema("string", pattern = "^(0|-?[1-9][0-9]*)$"),
+            ),
+            schema.properties[1].schema,
+        )
+        assertEquals(MapSchema(ScalarSchema("boolean")), schema.properties[2].schema)
+    }
+
+    @Test
+    fun `collections nest directly`() {
+        val r =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "grid",
+                    ListOf(
+                        ListOf(Scalar(Builtin.INT32), false, Refinements.NONE),
+                        false,
+                        Refinements.NONE,
+                    ),
+                ),
+            )
+        val schema = def("R", namespace("s", declarations = listOf(r))) as ObjectSchema
+        assertEquals(
+            ArraySchema(
+                ArraySchema(
+                    ScalarSchema(
+                        "integer",
+                        minimum = BigDecimal("-2147483648"),
+                        maximum = BigDecimal("2147483647"),
+                    )
+                )
+            ),
+            schema.properties[0].schema,
         )
     }
 }

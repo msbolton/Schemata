@@ -29,6 +29,8 @@ import java.math.BigDecimal
 
 /** Lowers the IR to a [JsonSchemaModel]; every decision and every lossy report lives here. */
 object JsonSchemaLowering {
+    private const val INTEGER_KEY = "^(0|-?[1-9][0-9]*)$"
+
     fun lower(schema: Schema): Lowered<JsonSchemaModel> {
         val diagnostics = mutableListOf<Diagnostic>()
         val ids = LinkedHashMap<String, String>()
@@ -312,8 +314,21 @@ object JsonSchemaLowering {
                         }
                         .let { it.copy(common = it.common.copy(nullable = nullable)) }
                 is Ref -> RefSchema(refUri(type.target), Common(nullable = nullable))
-                is ListOf,
-                is MapOf -> error("collections are lowered in a later step")
+                is ListOf ->
+                    ArraySchema(
+                        typeSchema(type.element, type.nullableElement, where, span),
+                        minItems = type.refinements.min?.toLong(),
+                        maxItems = type.refinements.max?.toLong(),
+                        common = Common(nullable = nullable),
+                    )
+                is MapOf ->
+                    MapSchema(
+                        typeSchema(type.value, type.nullableValue, where, span),
+                        keys = mapKeys(type.key as Scalar, where, span),
+                        minProperties = type.refinements.min?.toLong(),
+                        maxProperties = type.refinements.max?.toLong(),
+                        common = Common(nullable = nullable),
+                    )
             }
 
         /** `#/$defs/<key>` in this document, `<id>#/$defs/<key>` in another. */
@@ -322,6 +337,29 @@ object JsonSchemaLowering {
             return if (target.namespace == namespace.name) "#/\$defs/$key"
             else "${ids.getValue(target.namespace)}#/\$defs/$key"
         }
+
+        /**
+         * The `propertyNames` schema for a map's key: an integer key becomes a digit pattern, a
+         * refined string key keeps its constraints, a plain string key needs nothing.
+         */
+        private fun mapKeys(key: Scalar, where: String, span: Span): ScalarSchema? =
+            when (key.builtin) {
+                Builtin.INT32,
+                Builtin.INT64 -> ScalarSchema("string", pattern = INTEGER_KEY)
+                else -> {
+                    val s =
+                        JsonSchemaTypes.scalar(key) { message, help ->
+                            diagnostics +=
+                                Diagnostic(
+                                    JsonSchemaCodes.LOSSY,
+                                    "$where: $message",
+                                    span,
+                                    help = help,
+                                )
+                        }
+                    if (s == ScalarSchema("string")) null else s
+                }
+            }
 
         private fun claim(
             kind: String,
