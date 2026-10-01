@@ -447,12 +447,12 @@ From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
 ```
 /// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
 ///
-///   GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
+/// GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
 @xsd(namespace = "http://www.topografix.com/GPX/1/1")
 namespace gpx
 
 /// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
-/// 		to the extensions section of the GPX document.
+/// to the extensions section of the GPX document.
 @xsd(name = "gpx")
 record Gpx {
   /// Metadata about the file.

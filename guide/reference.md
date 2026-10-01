@@ -707,23 +707,24 @@ reading here and with the diagnostics array shortened to its first entry:
     schemata import --from xsd [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
 
 `import --from xsd` reads existing XML Schema and lowers it to `.schemata` source: one output file
-per namespace, written to `--out/import/<namespace as a path>.schemata`, so a schema whose
-namespace lowers to `shop.orders` writes `out/import/shop/orders.schemata`. A path may be a file or
-a directory, walked recursively for `.xsd` files, the same as `compile`. An `xs:import` or
-`xs:include` target is resolved first by its own `schemaLocation` against the importing file's own
-directory, then by that same file name tried against each input's directory in turn; an input
-itself never needs naming twice just because another input imports it. `--namespace NAME` renames
-the single output file's namespace and only applies when exactly one input file is given; more than
-one is a usage error. Exit codes match `compile`: `0` when nothing is reported, `2` when every
-diagnostic is a warning, `1` when any is an error, or the command line itself was wrong.
-`--strict` promotes every warning below to an error, the same as it does for `compile`.
+per namespace, written to `--out/import/<namespace as a path>.schemata`, so a schema whose namespace
+lowers to `shop.orders` writes `out/import/shop/orders.schemata`. A path may be a file or a
+directory, walked recursively for `.xsd` files, the same as `compile`. An `xs:import` or
+`xs:include` target is resolved by its own `schemaLocation` against the importing file's own
+directory; an input itself never needs naming twice just because another input imports it, and an
+input that another input includes is merged into that one rather than imported on its own.
+`--namespace NAME` renames the single output file's namespace and only applies when exactly one
+input file is given; more than one is a usage error, as is a name that is not dotted lower_snake
+segments. Exit codes match `compile`: `0` when nothing is reported, `2` when every diagnostic is a
+warning, `1` when any is an error, or the command line itself was wrong. `--strict` promotes every
+warning below to an error, the same as it does for `compile`.
 
 A schema's `targetNamespace` becomes the output's `namespace`. `urn:schemata:<name>` becomes
 `namespace <name>`, matching what the xsd target itself writes for a Schemata namespace. Any other
 URI becomes `namespace <file stem>`, with `@xsd(namespace = "<uri>")` on the namespace to keep the
-real one and a note, SCH2402, naming the namespace it derived; pass `--namespace` to choose the
-name yourself and silence the note. A schema with no `targetNamespace` uses the file stem alone,
-without the annotation; the note still appears, and `--namespace` silences it.
+real one and a note, SCH2402, naming the namespace it derived; pass `--namespace` to choose the name
+yourself and silence the note. A schema with no `targetNamespace` uses the file stem alone, without
+the annotation; the note still appears, and `--namespace` silences it.
 
 ### Types and facets
 
@@ -749,50 +750,78 @@ without the annotation; the note still appears, and `--namespace` silences it.
 `minInclusive`/`maxInclusive` and `minLength`/`maxLength`/`length` become `min`/`max`.
 `minExclusive`/`maxExclusive` shift by one on an integer type (`minExclusive = 0` becomes
 `min = 1`); on anything else, an exclusive bound has no Schemata equivalent and is dropped
-(SCH2404). `pattern` carries over, with its anchoring reversed, since an XSD pattern always matches
-the whole value and a Schemata pattern matches anywhere unless anchored. `enumeration` becomes an
-`enum`. `whiteSpace` and any other facet the table does not name are dropped (SCH2404); a lone
-`totalDigits` or `fractionDigits` falls under the `decimal(38, 9)` note above. A named simple type
-with none of this, just a restriction of a builtin, is inlined at
-its use. A `list` or `union` simple type has no Schemata equivalent and imports as plain `string`
-(SCH2405).
+(SCH2404). A facet whose value does not parse as the number or count it should be is dropped
+(SCH2404), and so is a `minOccurs` or `maxOccurs` that is not a count, which then reads as `1`.
+`pattern` carries over, with its anchoring reversed, since an XSD pattern always matches the whole
+value and a Schemata pattern matches anywhere unless anchored. `enumeration` becomes an `enum`.
+`whiteSpace` and any other facet the table does not name are dropped (SCH2404); a lone `totalDigits`
+or `fractionDigits` falls under the `decimal(38, 9)` note above. A named simple type with none of
+this, just a restriction of a builtin, is inlined at its use. A `list` or `union` simple type has no
+Schemata equivalent and imports as plain `string` (SCH2405).
 
 ### Records, unions, and enums
 
 A named complex type becomes a `record`. A trailing `Type` is stripped when what is left is
 UpperCamel (`OrderType` becomes `Order`); a name without that suffix, such as `Address`, imports as
-given and is reported (SCH2403), because it will regenerate as `AddressType`. The one exception is
-a name ending `Type` whose stem is not UpperCamel, such as `gpxType`: it becomes `record Gpx` with
+given and is reported (SCH2403), because it will regenerate as `AddressType`. The one exception is a
+name ending `Type` whose stem is not UpperCamel, such as `gpxType`: it becomes `record Gpx` with
 `@xsd(name = "gpx")` restoring the original name, silently, since the override already makes the
-round trip exact.
+round trip exact. The same naming applies to the other two named types: an enumerated simple type
+becomes an `enum`, and a choice-only complex type a `union`, so `paymentType` becomes
+`union Payment` with `@xsd(name = "payment")`.
+
+The first global element naming a complex type marks that record as a root. Its name regenerates as
+the record name in lower_snake (`Order` gives `order`), or as the `@xsd(name)` override; when the
+element is named otherwise, the override is added if it alone makes the name exact, and otherwise
+the mismatch is reported (SCH2403) with the name it will regenerate as. A global element with its
+own anonymous complex type becomes a top-level record named after it, reported the same way when
+that name will not regenerate (`myThing` will regenerate as `my_thing`); one whose record name a
+named type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped. The xsd
+target writes one global element per record of its own namespace, so a second global element of the
+same type, and one of a simple type or of a type in another namespace, are dropped (SCH2405).
 
 A `sequence`'s children become fields in order; `xs:all` and a nested `sequence` are flattened into
 the same list of fields (SCH2403). A complex type whose whole content model is a `choice` becomes a
 `union` instead of a record, one member per branch's type; the branch elements' own names are not
-kept, which is reported (SCH2403) when one differs from what its type's name would lower to. An
-inline `choice` nested inside a `sequence` becomes, when every branch is a complex type, a
-synthesized union named `<Record>Choice` held in a field called `choice` (SCH2403); otherwise each
-branch becomes its own optional field (SCH2403). An element with `maxOccurs` greater than one
-becomes `list<T>`, with `min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the
-element type, giving `list<T?>`. A single element with `minOccurs="0"` becomes `T?`, unless it
-carries a `default`, which already implies optional presence.
+kept, which is reported (SCH2403) when one differs from what its type's name would lower to. A union
+has nowhere to put attributes, mixed content, or `abstract`, so a choice-only type's are dropped
+(SCH2405). An element whose type is such a choice with `maxOccurs` greater than one becomes
+`list<Union>`, with `min`/`max` from the choice's own occurrences (SCH2403). An inline `choice`
+nested inside a `sequence` becomes, when every branch is a complex type, a synthesized union named
+`<Record>Choice` held in a field called `choice` (SCH2403); otherwise each branch becomes its own
+optional field (SCH2403). An element with `maxOccurs` greater than one becomes `list<T>`, with
+`min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the element type, giving
+`list<T?>`; a `default` on a repeated element is dropped (SCH2403), since a list has no default. An
+element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A single element with
+`minOccurs="0"` becomes `T?`, unless it carries a `default`, which already implies optional
+presence. An element with both a `type` and an inline type keeps the `type` (SCH2403).
 
 An attribute becomes an `@xsd(attribute)` field, placed after the element fields; a required
 attribute (`use="required"`) is non-nullable, any other is `?`. A `fixed` value is imported as a
 Schemata default (SCH2405), since Schemata has no equivalent of a value XML forces on every
-instance. The xsd target's own rendering of `map<K, V>` is recognized on the way back in and
-becomes `map<K, V>` again, not a record. An anonymous complex type becomes a record nested under
-the element that uses it, named after that element. A complex type never used as a global element
+instance. A default carries over only when Schemata can write it as a literal: a number as a plain
+decimal (`.5` becomes `0.5`, `1e5` becomes `100000`), a boolean's `1` and `0` as `true` and `false`,
+a string quoted, and an enum value by its imported name. One with no Schemata literal, such as
+`INF`, a `dateTime`, a value of a complex type, or a value its enum does not have, is dropped
+(SCH2403). The xsd target's own rendering of `map<K, V>` is recognized on the way back in and
+becomes `map<K, V>` again, not a record. An anonymous complex type becomes a record nested under the
+element that uses it, named after that element. A complex type never used as a global element
 becomes `@xsd(root = false)`, for one meant to appear only nested inside another.
 
 An `extension` flattens the base type's fields in first, ahead of its own (SCH2403), since Schemata
 has no base-record relationship to preserve. A `restriction` of a complex type keeps only its own
-content (SCH2403). A named `group` or `attributeGroup` expands in place wherever it is referenced.
-`xs:documentation` becomes a `///` doc comment; `xs:appinfo` is dropped silently.
+content (SCH2403). A `simpleContent` extension or restriction becomes a record with a `value` field
+of the base's simple type, beside the type's attributes (SCH2403); when the base is itself a complex
+type, `value` imports as `string` (SCH2403). A named `group` or `attributeGroup` expands in place
+wherever it is referenced. `xs:documentation` becomes a `///` doc comment, each line without the
+indentation the schema gave it; `xs:appinfo` is dropped silently.
 
 An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
 lower_snake with `@xsd(name = "…")` restoring the original, silently; a value that cannot be an XML
-name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403).
+name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403). A name that is a Schemata
+keyword, such as `true`, `stream`, or `import`, takes a trailing underscore the same way: an
+enumeration value `true` becomes `true_` with `@xsd(name = "true")`. A record named after an element
+whose name starts with a digit is prefixed with `V`, so `3d` gives `record V3d`.
 
 ### What is dropped
 
@@ -800,9 +829,12 @@ name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403).
 the map form above, `redefine`, `override`, `notation`, and `abstract` all have no Schemata
 equivalent and are dropped, reported SCH2405.
 
-An unresolved import, include, or type reference is an error (SCH2401), as are two inputs
-declaring the same namespace, two elements lowering to the same field, and two union members of the
-same type.
+An unresolved import, include, or type reference is an error (SCH2401), as are two inputs declaring
+the same namespace without one including the other, two elements lowering to the same field, and two
+union members of the same type. So is a simple type, group, or attribute group whose references lead
+back to itself, a construct missing an attribute it cannot be read without (a `group` with no
+`name`, an `extension` with no `base`), and a document with a `DOCTYPE`, which the importer refuses
+to read.
 
 ### Codes
 
@@ -825,12 +857,12 @@ From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
 ```
 /// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
 ///
-///   GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
+/// GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
 @xsd(namespace = "http://www.topografix.com/GPX/1/1")
 namespace gpx
 
 /// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
-/// 		to the extensions section of the GPX document.
+/// to the extensions section of the GPX document.
 @xsd(name = "gpx")
 record Gpx {
   /// Metadata about the file.
