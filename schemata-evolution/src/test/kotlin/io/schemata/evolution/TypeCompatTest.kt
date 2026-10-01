@@ -21,7 +21,7 @@ class TypeCompatTest {
     ) = Scalar(builtin, Refinements(max = max, precision = precision, scale = scale))
 
     private val recordRef = Ref(QualifiedName("s", listOf("Record")))
-    private val enumRef = Ref(QualifiedName("s", listOf("Status")))
+    private val bareRef = Ref(QualifiedName("s", listOf("Status")))
 
     @Test
     fun `proto treats int32 and int64 as compatible`() {
@@ -59,8 +59,9 @@ class TypeCompatTest {
     }
 
     @Test
-    fun `proto treats an enum reference and int32 as compatible`() {
-        assertEquals(Verdict.Compatible, TypeCompat.proto(enumRef, scalar(Builtin.INT32)))
+    fun `a bare reference against int32 breaks`() {
+        assertIs<Verdict.Breaking>(TypeCompat.proto(bareRef, scalar(Builtin.INT32)))
+        assertIs<Verdict.Breaking>(TypeCompat.proto(scalar(Builtin.INT32), bareRef))
     }
 
     @Test

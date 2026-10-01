@@ -16,11 +16,11 @@ object TypeCompat {
     /**
      * Protobuf's own wire-compatibility rules: the same keyword, `int32` widened to `int64`, or a
      * string-shaped keyword (`string`, `uuid`, `date`, `time`, `decimal`) becoming `bytes`. A bare
-     * reference paired with `int32` is treated as an enum, since only an enum's wire format
-     * (`int32`) is ever compatible with a scalar.
+     * reference is never compatible with a scalar here: only an enum reference is, and telling an
+     * enum from a record or union reference needs a schema, which this function does not have.
+     * [ProtoRules] resolves that case itself before falling back to this function.
      */
     fun proto(from: Type, to: Type): Verdict {
-        if (isEnumRefAndInt32(from, to)) return Verdict.Compatible
         val fromKeyword = protoKeyword(from)
         val toKeyword = protoKeyword(to)
         val keywords = setOf(fromKeyword, toKeyword)
@@ -67,10 +67,6 @@ object TypeCompat {
         }
         return sqlWidening(from, to)
     }
-
-    private fun isEnumRefAndInt32(from: Type, to: Type): Boolean =
-        (from is Ref && to is Scalar && to.builtin == Builtin.INT32) ||
-            (to is Ref && from is Scalar && from.builtin == Builtin.INT32)
 
     private fun protoKeyword(type: Type): String =
         when (type) {

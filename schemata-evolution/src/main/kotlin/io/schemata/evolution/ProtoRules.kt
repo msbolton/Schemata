@@ -1,7 +1,9 @@
 package io.schemata.evolution
 
+import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.kindWord
 import io.schemata.target.TypeText
@@ -106,14 +108,33 @@ object ProtoRules : Rulebook {
     }
 
     /**
-     * Two references are resolved before falling back to [TypeCompat.proto], since only looking
-     * them up in the surrounding schemas can tell an enum from a record or union reference.
+     * A reference is resolved against the surrounding schemas before falling back to
+     * [TypeCompat.proto], since only a schema lookup can tell an enum from a record or union
+     * reference: two enum references are compatible regardless of which enum, and an enum reference
+     * paired with `int32` is compatible (the only scalar an enum's wire format matches). A record
+     * or union reference is never compatible with a scalar.
      */
     private fun resolvedTypeVerdict(ctx: ChangeContext, from: Type, to: Type): Verdict {
         if (from is Ref && to is Ref) {
             val fromIsEnum = ctx.old.lookupOrNull(from.target) is EnumType
             val toIsEnum = ctx.new.lookupOrNull(to.target) is EnumType
             if (fromIsEnum && toIsEnum) return Verdict.Compatible
+        }
+        if (
+            from is Ref &&
+                to is Scalar &&
+                to.builtin == Builtin.INT32 &&
+                ctx.old.lookupOrNull(from.target) is EnumType
+        ) {
+            return Verdict.Compatible
+        }
+        if (
+            to is Ref &&
+                from is Scalar &&
+                from.builtin == Builtin.INT32 &&
+                ctx.new.lookupOrNull(to.target) is EnumType
+        ) {
+            return Verdict.Compatible
         }
         return TypeCompat.proto(from, to)
     }

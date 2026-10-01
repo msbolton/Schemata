@@ -161,6 +161,38 @@ class ProtoRulesTest {
     }
 
     @Test
+    fun `a record reference changing to int32 breaks`() {
+        val other = record("s", "Other", field(1, "x"))
+        val recordThenInt32Old =
+            namespace("s", listOf(record("s", "R", field(1, "a", Ref(qn("s", "Other")))), other))
+        val recordThenInt32New =
+            namespace("s", listOf(record("s", "R", field(1, "a", Scalar(Builtin.INT32))), other))
+        assertIs<Verdict.Breaking>(verdict(recordThenInt32Old, recordThenInt32New))
+
+        val int32ThenRecordOld =
+            namespace("s", listOf(record("s", "R", field(1, "a", Scalar(Builtin.INT32))), other))
+        val int32ThenRecordNew =
+            namespace("s", listOf(record("s", "R", field(1, "a", Ref(qn("s", "Other")))), other))
+        assertIs<Verdict.Breaking>(verdict(int32ThenRecordOld, int32ThenRecordNew))
+    }
+
+    @Test
+    fun `an enum reference changing to int32 is compatible`() {
+        val e = enum("s", "E", value(1, "a"))
+        val enumThenInt32Old =
+            namespace("s", listOf(record("s", "R", field(1, "a", Ref(qn("s", "E")))), e))
+        val enumThenInt32New =
+            namespace("s", listOf(record("s", "R", field(1, "a", Scalar(Builtin.INT32))), e))
+        assertEquals(Verdict.Compatible, verdict(enumThenInt32Old, enumThenInt32New))
+
+        val int32ThenEnumOld =
+            namespace("s", listOf(record("s", "R", field(1, "a", Scalar(Builtin.INT32))), e))
+        val int32ThenEnumNew =
+            namespace("s", listOf(record("s", "R", field(1, "a", Ref(qn("s", "E")))), e))
+        assertEquals(Verdict.Compatible, verdict(int32ThenEnumOld, int32ThenEnumNew))
+    }
+
+    @Test
     fun `field made non-null notes the lost presence`() {
         val old = record("s", "R", field(1, "a", nullable = true))
         val new = record("s", "R", field(1, "a", nullable = false))
