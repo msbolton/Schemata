@@ -1,0 +1,6 @@
+namespace s
+
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 code: string(max = 16)
+}

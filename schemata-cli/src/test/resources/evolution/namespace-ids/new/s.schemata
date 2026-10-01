@@ -1,0 +1,8 @@
+@proto(package = "s.v2")
+@xsd(namespace = "urn:example:s2")
+@jsonschema(id = "https://example.com/schemas/s2")
+namespace s
+
+record Customer {
+  #1 id: uuid
+}

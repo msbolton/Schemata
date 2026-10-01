@@ -1,0 +1,7 @@
+namespace s
+
+enum Status {
+  #1 pending
+  #2 paid
+  #3 cancelled
+}

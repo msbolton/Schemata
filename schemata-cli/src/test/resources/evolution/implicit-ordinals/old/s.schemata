@@ -1,0 +1,7 @@
+namespace s
+
+record Customer {
+  id: uuid
+  name: string(max = 100)
+  age: int32
+}

@@ -1,0 +1,31 @@
+s.Customer
+  field 'visits' type changed from int64 to int32    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking
+
+1 change
+proto: 0 breaking, 0 notes
+sql: 1 breaking, 0 notes
+xsd: 1 breaking, 0 notes
+jsonschema: 1 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Customer.visits: type changed from int64 to int32 breaks existing values that no longer fit the narrower type
+ --> new/s.schemata:5:3
+  |
+5 |   #2 visits: int32
+  |   ^^^^^^^^^^^^^^^
+  = help: add a new field instead of changing this one's type
+
+error[SCH2501]: sql: s.Customer.visits: type changed from int64 to int32 breaks existing values that no longer fit the narrower type
+ --> new/s.schemata:5:3
+  |
+5 |   #2 visits: int32
+  |   ^^^^^^^^^^^^^^^
+  = help: add a new column instead of changing this one's type
+
+error[SCH2501]: xsd: s.Customer.visits: type changed from int64 to int32 breaks existing values that no longer fit the narrower type
+ --> new/s.schemata:5:3
+  |
+5 |   #2 visits: int32
+  |   ^^^^^^^^^^^^^^^
+  = help: add a new field instead of changing this one's type
+
+3 errors, 0 warnings

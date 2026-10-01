@@ -24,7 +24,11 @@ object Differ {
         val newNs = new.namespaces.associateBy { it.name }
         new.namespaces.forEach { n ->
             val o = oldNs[n.name]
-            if (o == null) out += NamespaceAdded(n.name, n.span) else declarations(o, n, out)
+            if (o == null) out += NamespaceAdded(n.name, n.span)
+            else {
+                annotations(n.name, n.span, o.annotations, n.annotations, out)
+                declarations(o, n, out)
+            }
         }
         old.namespaces
             .filter { it.name !in newNs }

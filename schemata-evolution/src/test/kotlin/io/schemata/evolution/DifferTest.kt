@@ -324,6 +324,32 @@ class DifferTest {
     }
 
     @Test
+    fun `a namespace annotation change is reported on the namespace`() {
+        val record = record("s", "R", field(1, "x", Scalar(Builtin.BOOL)))
+        val old =
+            namespace(
+                "s",
+                annotations =
+                    Annotations(mapOf("proto" to mapOf("package" to AnnotationValue.Str("s.v1")))),
+                declarations = listOf(record),
+            )
+        val new =
+            namespace(
+                "s",
+                annotations =
+                    Annotations(mapOf("proto" to mapOf("package" to AnnotationValue.Str("s.v2")))),
+                declarations = listOf(record),
+            )
+        val change = diff(old, new).single() as AnnotationChanged
+        assertEquals("annotation.changed", change.kind)
+        assertEquals("s", change.path)
+        assertEquals("proto", change.target)
+        assertEquals("package", change.key)
+        assertEquals(AnnotationValue.Str("s.v1"), change.from)
+        assertEquals(AnnotationValue.Str("s.v2"), change.to)
+    }
+
+    @Test
     fun `changes come in new side order then removals`() {
         val keep = record("s", "Keep", field(1, "x", Scalar(Builtin.BOOL)))
         val oldOnly = record("s", "OldOnly", field(1, "x", Scalar(Builtin.BOOL)))

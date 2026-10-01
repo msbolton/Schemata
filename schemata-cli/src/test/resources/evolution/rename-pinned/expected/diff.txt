@@ -1,0 +1,17 @@
+s.Order
+  field 'note' renamed to 'comment'    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible
+
+1 change
+proto: 0 breaking, 1 note
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+
+warning[SCH2502] (lossy): proto: s.Order.comment: field renamed from 'note' to 'comment'; this changes the JSON mapping
+ --> new/s.schemata:5:75
+  |
+5 |   @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
+  |                                                                           ^^^^^^
+  = help: pin the emitted name with @proto(name = "note")
+
+0 errors, 1 warning

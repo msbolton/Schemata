@@ -1,0 +1,32 @@
+s.Customer
+  field 'note' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+
+2 changes
+proto: 0 breaking, 0 notes
+sql: 1 breaking, 0 notes
+xsd: 1 breaking, 0 notes
+jsonschema: 1 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Customer.note: the field was removed breaks old documents that still carry it
+ --> old/s.schemata:5:6
+  |
+5 |   #2 note: string(max = 200)?
+  |      ^^^
+  = help: keep the field, or mark the record @jsonschema(open)
+
+error[SCH2501]: sql: s.Customer.note: the column was dropped breaks rows that still hold its data
+ --> old/s.schemata:5:6
+  |
+5 |   #2 note: string(max = 200)?
+  |      ^^^
+  = help: migrate the column's data elsewhere before dropping it
+
+error[SCH2501]: xsd: s.Customer.note: the field was removed breaks old documents that still carry it
+ --> old/s.schemata:5:6
+  |
+5 |   #2 note: string(max = 200)?
+  |      ^^^
+  = help: keep the field; an XSD document always carries every element
+
+3 errors, 0 warnings

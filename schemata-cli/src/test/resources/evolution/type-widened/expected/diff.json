@@ -1,0 +1,5 @@
+{
+  "changes": [{"kind":"field.typeChanged","path":"s.Customer.visits","old":"int32","new":"int64","file":"new/s.schemata","line":5,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible"}}],
+  "summary": {"proto":{"breaking":0,"notes":0},"sql":{"breaking":0,"notes":0},"xsd":{"breaking":0,"notes":0},"jsonschema":{"breaking":0,"notes":0}},
+  "exitCode": 0
+}
