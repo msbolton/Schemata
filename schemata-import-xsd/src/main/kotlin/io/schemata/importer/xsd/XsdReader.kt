@@ -61,11 +61,14 @@ object XsdReader {
         fun children(local: String): List<Node> =
             children.filter { it.ns == XS && it.local == local }
 
-        /** `tns:Foo` → QName(uri of tns, Foo); an unprefixed name takes the default namespace. */
+        /**
+         * `tns:Foo` → QName(uri of tns, Foo); an unprefixed name takes the default namespace, or
+         * null when there is none or `xmlns=""` undeclared it.
+         */
         fun qname(value: String): QName {
             val i = value.indexOf(':')
-            return if (i < 0) QName(prefixes[""], value)
-            else QName(prefixes[value.substring(0, i)], value.substring(i + 1))
+            val uri = if (i < 0) prefixes[""] else prefixes[value.substring(0, i)]
+            return QName(uri?.ifEmpty { null }, if (i < 0) value else value.substring(i + 1))
         }
     }
 
@@ -190,7 +193,13 @@ object XsdReader {
             val res = content.child("restriction")
             val d = ext ?: res ?: return XContent.Empty
             attrs += attributeUses(d)
-            val particles = (modelGroup(d) as? XContent.Sequence)?.particles ?: emptyList()
+            val group = modelGroup(d)
+            val particles =
+                when (group) {
+                    is XContent.Sequence -> group.particles
+                    XContent.Empty -> emptyList()
+                    else -> listOf(XParticle.Nested(group, 1, 1, d.line))
+                }
             return if (ext != null)
                 XContent.Extension(d.qname(d.attr("base")!!), particles, simple, d.line)
             else XContent.Restriction(d.qname(d.attr("base")!!), particles, d.line)

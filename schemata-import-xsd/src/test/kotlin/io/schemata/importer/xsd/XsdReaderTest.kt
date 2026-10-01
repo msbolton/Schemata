@@ -144,6 +144,78 @@ class XsdReaderTest {
     }
 
     @Test
+    fun `treats an undeclared default namespace as null rather than empty`() {
+        val r =
+            read(
+                """
+                <xs:schema $xs targetNamespace="urn:x">
+                  <xs:complexType name="A">
+                    <xs:sequence>
+                      <xs:element name="x" xmlns="" type="y"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+                    .trimIndent()
+            )
+        val seq = r.doc!!.complexTypes.single().content as XContent.Sequence
+        val x = (seq.particles.single() as XParticle.Element).element
+        assertEquals(QName(null, "y"), x.type)
+    }
+
+    @Test
+    fun `scopes a prefix declared on one complexType to that complexType alone`() {
+        val r =
+            read(
+                """
+                <xs:schema $xs targetNamespace="urn:x" xmlns:p="urn:a">
+                  <xs:complexType name="A" xmlns:p="urn:b">
+                    <xs:sequence><xs:element name="x" type="p:Foo"/></xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="B">
+                    <xs:sequence><xs:element name="y" type="p:Bar"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+                    .trimIndent()
+            )
+        val doc = r.doc!!
+        val a = doc.complexTypes[0].content as XContent.Sequence
+        val x = (a.particles.single() as XParticle.Element).element
+        assertEquals(QName("urn:b", "Foo"), x.type)
+        val b = doc.complexTypes[1].content as XContent.Sequence
+        val y = (b.particles.single() as XParticle.Element).element
+        assertEquals(QName("urn:a", "Bar"), y.type)
+    }
+
+    @Test
+    fun `keeps extension content that is a choice as one nested particle`() {
+        val r =
+            read(
+                """
+                <xs:schema $xs targetNamespace="urn:x" xmlns:tns="urn:x">
+                  <xs:complexType name="DerivedType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:BaseType">
+                        <xs:choice>
+                          <xs:element name="a" type="xs:int"/>
+                          <xs:element name="b" type="xs:int"/>
+                        </xs:choice>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+                    .trimIndent()
+            )
+        val ext = r.doc!!.complexTypes.single().content as XContent.Extension
+        val nested = ext.particles.single() as XParticle.Nested
+        val choice = nested.content as XContent.Choice
+        assertEquals(2, choice.particles.size)
+        assertTrue(choice.particles.all { it is XParticle.Element })
+    }
+
+    @Test
     fun `malformed xml and a non schema root are reported`() {
         val bad = read("<xs:schema $xs><xs:element name=\"a\"")
         assertNull(bad.doc)
