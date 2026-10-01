@@ -876,3 +876,145 @@ record Gpx {
   /// You can add extend GPX by adding your own elements from another schema here.
   extensions: Extensions?
 ```
+
+## 19. Evolving a schema
+
+    schemata diff    [--target proto,sql,xsd,jsonschema] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+
+`diff OLD NEW` compares two versions of a schema set — each a file or a directory, loaded the same
+way `compile` loads one — and judges every change against each target's compatibility rulebook:
+whether data produced under OLD stays valid, or readable, under NEW, on that target. `--target`
+restricts which rulebooks judge (default all four); `--strict` promotes every note to a breaking
+change. Exit codes match `compile` and `check`: `0` when no selected verdict is a note or a break
+(including when there are no changes at all, printed as `no changes`), `2` when there is a note and
+no break, `1` when any break. `--format json` prints one document on stdout, for CI; a human report
+goes to stderr, the same as `check`. When a side does not parse or analyze cleanly, `diff` reports
+`SCH2503` for that side instead of comparing anything.
+
+### Identity
+
+- A namespace or declaration matches its counterpart by qualified name.
+- A field, enum value, or union member matches by ordinal within its declaration — ordinals are the
+  stable identity, the same as section 14 describes. An ordinal left implicit matches by position
+  instead, so reordering a field, value, or member without numbering it reads as a rename and a
+  type change; number a schema (`check --strict` reports every implicit ordinal) before relying on
+  `diff`. When a compared declaration still carries an implicit ordinal on either side, the report's
+  trailer says so.
+- A rename is a change of name under the same ordinal. The name a target actually writes (its
+  "emitted name") follows that target's own override — `@proto(name)`, `@sql(column | table |
+  schema)`, `@xsd(name)`, or `@jsonschema(name)` — so a rename pinned by an override is compatible
+  on that target alone, and a changed override is itself a rename on that target alone, even when
+  the declared name did not move.
+
+### Verdicts
+
+Every change is judged `compatible`, a note, or breaking, independently per target. Compatible means
+data produced under OLD stays valid, or readable, under NEW on that target. A note is still
+compatible but carries a caveat, printed as a warning (`SCH2502`); breaking is printed as an error
+(`SCH2501`). The table below is each target's rulebook; "emitted name" is after the target's own
+override, so a pinned rename is a doc-level change only.
+
+| Change | Protobuf | Postgres | XSD | JSON Schema |
+|---|---|---|---|---|
+| Field added, nullable or defaulted | compatible | compatible | compatible | compatible |
+| Field added, required (non-null, no default) | compatible | breaking | breaking | breaking |
+| Field removed (any) | compatible on the wire; note when the ordinal or name is not reserved in NEW | breaking (data loss) | breaking (old instances carry an unknown element) | breaking on a closed record; compatible under `@jsonschema(open)` |
+| Field renamed, emitted name changes | compatible; note (the JSON mapping uses names) | breaking | breaking | breaking |
+| Field renamed, emitted name pinned | compatible | compatible | compatible | compatible |
+| Scalar type changed | compatible for `int32`↔`int64`, `string`↔`bytes`, enum↔`int32`; breaking otherwise | compatible for `int32`→`int64`, `float32`→`float64`, a wider `string(max)`, `decimal` to a wider precision at the same scale; breaking otherwise | compatible when every OLD value is valid for NEW (`int32`→`int64`, a wider length or range); breaking otherwise | as XSD, on the JSON forms (`decimal` scale change breaks the pattern) |
+| Scalar ↔ record, list, map, or union; record ↔ union; key type of a map | breaking | breaking | breaking | breaking |
+| Nullable → non-null, no default | compatible; note | breaking | breaking | breaking |
+| Non-null → nullable | compatible | compatible | compatible | compatible |
+| Refinement tightened (`max` lower, `min` higher, `pattern` changed, list bounds tightened) | note (not carried) | breaking | breaking | breaking |
+| Refinement loosened | compatible | compatible | compatible | compatible |
+| Default added or changed | note (not carried) | compatible | note (applied to empty elements only) | compatible |
+| Default removed from a non-null field | note | breaking (inserts omitting the column fail) | compatible | breaking (`required`) |
+| Enum value added | compatible | compatible | compatible | compatible |
+| Enum value removed | breaking unless reserved, then note | breaking | breaking | breaking |
+| Enum value renamed, emitted name changes | compatible | breaking | breaking | breaking |
+| Union member added | compatible | compatible | compatible | compatible |
+| Union member removed or type changed | breaking | breaking | breaking | breaking |
+| Declaration removed | note | breaking when it had a table | breaking when it had a root element, else note | breaking (every def is addressable) |
+| Declaration added | compatible | compatible | compatible | compatible |
+| Declaration kind changed | breaking | breaking | breaking | breaking |
+| `@sql(key)` added, removed, or moved | compatible | breaking | compatible | compatible |
+| `@sql(strategy)` changed | compatible | breaking | compatible | compatible |
+| `@proto(package)` / `@xsd(namespace)` / `@jsonschema(id)` changed | breaking / compatible / compatible | compatible | compatible / breaking / compatible | compatible / compatible / breaking |
+| `@xsd(attribute)` added or removed on a field | compatible | compatible | breaking (an element becomes an attribute or back) | compatible |
+| `@xsd(root = false)` added to a record that had a root element | compatible | compatible | breaking (old root documents no longer validate) | compatible |
+| `@xsd(root = false)` removed | compatible | compatible | compatible | compatible |
+| `@jsonschema(open)` removed from a record | compatible | compatible | compatible | breaking (extra properties now rejected) |
+| `@jsonschema(open)` added | compatible | compatible | compatible | compatible |
+| `reserved` added | compatible | compatible | compatible | compatible |
+| `reserved` removed | note (reuse risk) | compatible | compatible | compatible |
+| `@deprecated` added or removed | compatible | compatible | compatible | compatible |
+| Doc changed | compatible | compatible | compatible | compatible |
+
+`list<T>` → `list<T?>` is compatible everywhere; the reverse is a nullability tightening on the
+element.
+
+`reserved` changes how a removal reads on proto only: removing a field or enum value is compatible
+on the wire regardless, but reported as a note unless the removed ordinal and name are both still
+`reserved` in NEW — reserve both to clear the note, since a reserved number or name can no longer be
+handed to something else by accident. `@deprecated` never changes a verdict on any target; the only
+place it shows up is the JSON report, as `deprecatedInOld` on the change.
+
+### Reporting
+
+A human report groups changes under the declaration they belong to, one line per change, followed
+by a verdict per target (`proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking`);
+every note and break also renders as its own diagnostic, with the rulebook's message and help and
+the changed side's excerpt. A trailer gives the total change count and a `breaking`/`note` count per
+selected target. A JSON report holds one entry per change (`kind`, `path`, `old`, `new`, `file`,
+`line`, `deprecatedInOld`, and a `verdicts` object keyed by target), a `summary` per target, and the
+`exitCode`.
+
+### Worked example
+
+From `schemata-cli/src/test/resources/evolution/rename-pinned/old/s.schemata`:
+```
+namespace s
+
+record Order {
+  #1 id: uuid
+  @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 note: string(max = 500)?
+}
+```
+
+From `schemata-cli/src/test/resources/evolution/rename-pinned/new/s.schemata`:
+```
+namespace s
+
+record Order {
+  #1 id: uuid
+  @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
+}
+```
+
+`schemata diff old new` reports:
+
+```text
+s.Order
+  field 'note' renamed to 'comment'    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible
+
+1 change
+proto: 0 breaking, 1 note
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+
+warning[SCH2502] (lossy): proto: s.Order.comment: field renamed from 'note' to 'comment'; this changes the JSON mapping
+ --> new/s.schemata:5:75
+  |
+5 |   @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
+  |                                                                           ^^^^^^
+  = help: pin the emitted name with @proto(name = "note")
+
+0 errors, 1 warning
+```
+
+The declared name changed, but `@sql(column)`, `@xsd(name)`, and `@jsonschema(name)` already pin
+what those three targets emit, so only proto — the one target left unpinned — reads the rename as a
+change, and only as a note: proto keys the wire format by ordinal, so old and new messages still
+decode into each other, but the JSON mapping Protobuf derives from the field name moves. Pinning
+proto too (`@proto(name = "note")`, as the warning's help says) would make every target compatible.
