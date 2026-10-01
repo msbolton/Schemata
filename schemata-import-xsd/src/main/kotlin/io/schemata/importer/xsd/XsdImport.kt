@@ -5,8 +5,23 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Names
 
-/** A type's resolved Schemata name and the `@xsd(name)` annotation it needs, if any. */
-private data class TypeNameInfo(val finalName: String, val annotation: UnitAnnotation?)
+/**
+ * A type's resolved Schemata name, the `@xsd(name)` annotation it needs (when its name can be
+ * fixed), and a lossy note when it can't be: [TypeNote.Unfixable] when the XSD name doesn't end in
+ * `Type` at all (no override can ever reproduce it), [TypeNote.Blocked] when an override exists in
+ * principle but would regenerate a type name another type in the namespace already owns.
+ */
+private data class TypeNameInfo(
+    val finalName: String,
+    val annotation: UnitAnnotation?,
+    val note: TypeNote? = null,
+)
+
+private sealed interface TypeNote {
+    data class Unfixable(val regeneratedType: String) : TypeNote
+
+    data class Blocked(val other: String) : TypeNote
+}
 
 /**
  * Lowers a resolved set of [XsdDoc]s (includes already merged, every referenced namespace present)
@@ -109,38 +124,66 @@ object XsdImport {
     }
 
     /**
-     * `OrderType` → `Order`; a name whose trailing `Type` cannot be safely stripped (the remainder
-     * collides with another type in the namespace) keeps its full name UpperCamel-cased instead.
-     * [originals] is one namespace's named complex and simple types, in declaration order.
+     * One namespace's named complex and simple types, in declaration order, resolved to their final
+     * Schemata names: a type whose own XSD name already equals its candidate claims that name first
+     * (so `Order`, needing no fix, always keeps `Order`); everything else falls back to its own
+     * full name, UpperCamel-cased, when its candidate is already taken (so a colliding `OrderType`
+     * keeps `OrderType`, not `Order`). Then, for each type: no override when its default
+     * regeneration already reproduces the XSD name; [TypeNote.Unfixable] when the XSD name has no
+     * `Type` suffix to give back; an `@xsd(name)` override when stripping `Type` would fix it and
+     * that override's regenerated name is free; [TypeNote.Blocked] when it isn't (some other type's
+     * own default regeneration already claims it).
      */
     private fun resolveNamespaceTypeNames(originals: List<String>): Map<String, TypeNameInfo> {
+        data class Candidate(val original: String, val hasTypeSuffix: Boolean, val name: String)
+        val candidates =
+            originals.distinct().map {
+                val (name, _) = ImportNames.typeOverride(it)
+                Candidate(it, it.length > 4 && it.endsWith("Type"), name)
+            }
+
         val claimed = mutableSetOf<String>()
-        val result = mutableMapOf<String, TypeNameInfo>()
-        val (exact, transformed) = originals.distinct().partition { typeNameCandidate(it) == it }
-        exact.forEach { original ->
-            claimed += original
-            result[original] = TypeNameInfo(original, roundTripAnnotation(original, original))
+        val finalName = mutableMapOf<String, String>()
+        val (exact, transformed) = candidates.partition { it.original == it.name }
+        exact.forEach { c ->
+            finalName[c.original] = c.name
+            claimed += c.name
         }
-        transformed.forEach { original ->
-            val preferred = typeNameCandidate(original)
-            val final = if (preferred !in claimed) preferred else ImportNames.upperCamel(original)
-            claimed += final
-            result[original] = TypeNameInfo(final, roundTripAnnotation(original, final))
+        transformed.forEach { c ->
+            val chosen = if (c.name !in claimed) c.name else ImportNames.upperCamel(c.original)
+            finalName[c.original] = chosen
+            claimed += chosen
+        }
+
+        // Every "no Type suffix" type's regenerated name is fixed regardless of anything else, and
+        // is the only thing a fixable type's own override could ever collide with (its override
+        // always regenerates its own XSD name exactly, and XSD type names are already unique).
+        val unfixableRegenerated = mutableMapOf<String, String>()
+        candidates
+            .filterNot { it.hasTypeSuffix }
+            .forEach { c ->
+                unfixableRegenerated[finalName.getValue(c.original) + "Type"] = c.original
+            }
+
+        val result = mutableMapOf<String, TypeNameInfo>()
+        candidates.forEach { c ->
+            val n = finalName.getValue(c.original)
+            result[c.original] =
+                when {
+                    c.original == n + "Type" -> TypeNameInfo(n, null)
+                    !c.hasTypeSuffix -> TypeNameInfo(n, null, TypeNote.Unfixable(n + "Type"))
+                    else -> {
+                        val blockedBy = unfixableRegenerated[c.original]
+                        if (blockedBy != null) TypeNameInfo(n, null, TypeNote.Blocked(blockedBy))
+                        else {
+                            val override = c.original.removeSuffix("Type")
+                            TypeNameInfo(n, UnitAnnotation("xsd", "name", "\"$override\""))
+                        }
+                    }
+                }
         }
         return result
     }
-
-    /** Strips a trailing `Type` when present, then UpperCamel-cases the remainder. */
-    private fun typeNameCandidate(original: String): String {
-        val base =
-            if (original.length > 4 && original.endsWith("Type")) original.removeSuffix("Type")
-            else original
-        return ImportNames.upperCamel(base)
-    }
-
-    /** `null` when re-lowering [final] would reproduce [original] exactly (`<final>Type`). */
-    private fun roundTripAnnotation(original: String, final: String): UnitAnnotation? =
-        if (final + "Type" == original) null else UnitAnnotation("xsd", "name", "\"$original\"")
 
     /** `full-name` → `full_name` with `@xsd(name)`; a valid identifier is kept as-is. */
     private fun fieldNameFor(original: String): Pair<String, UnitAnnotation?> {
@@ -256,16 +299,43 @@ object XsdImport {
                         ct.line,
                     )
             }
+            when (val note = info.note) {
+                is TypeNote.Unfixable ->
+                    diagnostics +=
+                        lossy(
+                            ImportCodes.APPROXIMATED,
+                            "complex type '$original'",
+                            "complex type '$original' has no Schemata equivalent; the regenerated " +
+                                "type will be named '${note.regeneratedType}'",
+                            ct.line,
+                        )
+                is TypeNote.Blocked -> diagnostics += typeCollision(original, note.other, ct.line)
+                null -> Unit
+            }
             val rootElement =
                 doc.elements.firstOrNull {
                     it.ref == null && it.type == QName(doc.targetNamespace, original)
                 }
             val rootAnnotation =
-                when {
-                    rootElement == null -> UnitAnnotation("xsd", "root", "false")
-                    rootElement.name != Names.snakeCase(info.finalName) ->
-                        UnitAnnotation("xsd", "name", "\"${rootElement.name}\"")
-                    else -> null
+                if (rootElement == null) UnitAnnotation("xsd", "root", "false")
+                else {
+                    // The override already serves double duty on the XSD target (it also names the
+                    // global element), so a mismatched element name can only be reported, not fixed
+                    // by a second, conflicting use of the same annotation.
+                    val override =
+                        if (info.annotation != null) original.removeSuffix("Type") else null
+                    val regenerated = override ?: Names.snakeCase(info.finalName)
+                    if (rootElement.name != regenerated) {
+                        diagnostics +=
+                            lossy(
+                                ImportCodes.APPROXIMATED,
+                                "element '${rootElement.name}'",
+                                "element '${rootElement.name}' has no Schemata equivalent; the " +
+                                    "regenerated root element will be named '$regenerated'",
+                                rootElement.line,
+                            )
+                    }
+                    null
                 }
             val (fields, nested) = fieldsAndNested(ct, "complex type '$original'")
             val annotations = listOfNotNull(info.annotation, rootAnnotation)
@@ -705,7 +775,7 @@ object XsdImport {
             )
         }
 
-        /** `"$where: $tail"` with the §30.8 help text for [code]. */
+        /** `"$where: $tail"` with the standard help text for [code]. */
         fun lossy(code: DiagnosticCode, where: String, tail: String, line: Int): Diagnostic {
             val help =
                 when (code) {
@@ -736,6 +806,21 @@ object XsdImport {
             return Diagnostic(
                 ImportCodes.UNRESOLVED,
                 "$where: $a and $b both lower to field '$name'",
+                Span(doc.path, l, 1, l, 1),
+                "rename one of them",
+            )
+        }
+
+        /**
+         * [original]'s only possible override would regenerate a type name [other] already owns by
+         * default, so neither can round-trip to [original] exactly: [ImportCodes.UNRESOLVED], no
+         * override applied.
+         */
+        private fun typeCollision(original: String, other: String, line: Int): Diagnostic {
+            val l = line.coerceAtLeast(1)
+            return Diagnostic(
+                ImportCodes.UNRESOLVED,
+                "complex type '$original' and '$other' both lower to type '$original'",
                 Span(doc.path, l, 1, l, 1),
                 "rename one of them",
             )

@@ -42,6 +42,24 @@ object ImportNames {
         return if (isUpperCamel(remainder)) remainder else null
     }
 
+    /**
+     * The Schemata name for an XSD type named [xsdName], and, when regenerating that name exactly
+     * requires an `@xsd(name)` override, the override value: `OrderType` → (`Order`, `null`), since
+     * the default regeneration (`<name>Type`) already reproduces it; `gpxType` → (`Gpx`, `"gpx"`),
+     * since only `@xsd(name = "gpx")` regenerates `gpxType` exactly; `Address` → (`Address`,
+     * `null`), since there's no `Type` suffix to give back — `<name>Type` always ends in `Type`, so
+     * no override can ever make the regenerated type exactly `Address`. Collisions between two
+     * types that would otherwise land on the same Schemata name, or on the same regenerated type
+     * name, are the caller's job.
+     */
+    fun typeOverride(xsdName: String): Pair<String, String?> {
+        val hasTypeSuffix = xsdName.length > 4 && xsdName.endsWith("Type")
+        val remainder = if (hasTypeSuffix) xsdName.removeSuffix("Type") else xsdName
+        val name = upperCamel(remainder)
+        if (!hasTypeSuffix || name + "Type" == xsdName) return name to null
+        return name to remainder
+    }
+
     /** `GPX-1.1.xsd` → `gpx_1_1`: the file stem, lower-snaked. */
     fun namespaceStem(path: String): String {
         val fileName = path.substringAfterLast('/').substringAfterLast('\\')

@@ -3,7 +3,6 @@ package io.schemata.importer.xsd
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class XsdImportTest {
     private val xs = "xmlns:xs=\"http://www.w3.org/2001/XMLSchema\""
@@ -419,10 +418,17 @@ class XsdImportTest {
                 </xs:schema>
                 """
             )
-        assertEquals(emptyList(), imported.diagnostics)
         assertEquals(emptyList(), record(imported, "A").annotations)
         assertEquals(listOf(xsd("root", "false")), record(imported, "B").annotations)
-        assertEquals(listOf(xsd("name", "\"theC\"")), record(imported, "C").annotations)
+        // "theC" differs from the regenerated default ("c"); @xsd(name) is reserved for the type's
+        // own name, so this is reported rather than fixed by a second, conflicting annotation.
+        assertEquals(emptyList(), record(imported, "C").annotations)
+        assertEquals(
+            listOf(
+                "SCH2403 element 'theC': element 'theC' has no Schemata equivalent; the regenerated root element will be named 'c'"
+            ),
+            messages(imported),
+        )
         val myThing = record(imported, "MyThing")
         assertEquals(emptyList(), myThing.annotations)
         assertEquals("x", myThing.fields.single().name)
@@ -449,8 +455,12 @@ class XsdImportTest {
             </xs:schema>
             """
             )
+        // gpxType has no global element at all here, so Gpx also gets @xsd(root = false); the
+        // interesting annotation is the name override, and its value is the bare remainder "gpx"
+        // (not "Gpx"), since that's what regenerates "gpxType" exactly (and "gpx" unmodified, not
+        // snake-cased, for the element too).
         assertEquals(
-            listOf(xsd("root", "false"), xsd("name", "\"gpxType\"")).sortedBy { it.key },
+            listOf(xsd("root", "false"), xsd("name", "\"gpx\"")).sortedBy { it.key },
             record(gpx, "Gpx").annotations.sortedBy { it.key },
         )
         assertEquals(
@@ -468,13 +478,18 @@ class XsdImportTest {
             </xs:schema>
             """
             )
+        // "Address" has no "Type" suffix to give back, so no override can ever regenerate it
+        // exactly ("<name>Type" always ends in "Type"); reported, not annotated.
+        assertEquals(
+            emptyList(),
+            record(address, "Address").annotations.filter { it.key == "name" },
+        )
         assertEquals(
             listOf(
-                "SCH2402 complex type 'Address': complex type 'Address' is not a Schemata identifier; imported as 'Address' with @xsd(name)"
+                "SCH2403 complex type 'Address': complex type 'Address' has no Schemata equivalent; the regenerated type will be named 'AddressType'"
             ),
             messages(address),
         )
-        assertTrue(record(address, "Address").annotations.contains(xsd("name", "\"Address\"")))
 
         val collision =
             lower(
@@ -485,9 +500,19 @@ class XsdImportTest {
             </xs:schema>
             """
             )
-        assertTrue(record(collision, "Order").annotations.contains(xsd("name", "\"Order\"")))
-        assertTrue(
-            record(collision, "OrderType").annotations.contains(xsd("name", "\"OrderType\""))
+        // "Order" (no "Type" suffix) claims the clean name "Order" outright and is itself
+        // unfixable (SCH2403, same as "Address"); "OrderType" would need an override ("Order") to
+        // round-trip, but that override would regenerate "OrderType" — the same type name "Order"
+        // itself already regenerates to by default — so no override is possible (SCH2401) and
+        // "OrderType" keeps its own full name, unannotated.
+        assertEquals(listOf(xsd("root", "false")), record(collision, "Order").annotations)
+        assertEquals(listOf(xsd("root", "false")), record(collision, "OrderType").annotations)
+        assertEquals(
+            listOf(
+                "SCH2401 complex type 'OrderType' and 'Order' both lower to type 'OrderType'",
+                "SCH2403 complex type 'Order': complex type 'Order' has no Schemata equivalent; the regenerated type will be named 'OrderType'",
+            ),
+            messages(collision),
         )
     }
 
