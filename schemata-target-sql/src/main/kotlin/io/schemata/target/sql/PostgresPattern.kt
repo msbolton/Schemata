@@ -1,11 +1,13 @@
 package io.schemata.target.sql
 
 /**
- * Walks a Java pattern once and names the first construct Postgres's ARE (advanced regular
- * expression) dialect lacks, exactly as it is written; null when every construct the pattern uses
- * exists in ARE with the same meaning. Lookahead, lookbehind, lazy quantifiers, back-references,
- * `\d\s\w`, ARE's own `\m\M\y\Y\A\Z`, `\x..`, `\u....`, character classes, and POSIX bracket
- * expressions (`[[:alpha:]]`) all pass.
+ * Walks a Java pattern once and names, exactly as it is written, the first construct it knows
+ * Postgres's ARE (advanced regular expression) dialect lacks or reads differently; null when it
+ * finds none. It reports Unicode properties, possessive quantifiers, named groups, class
+ * intersections and nested classes, embedded options anywhere but a leading `(?imnsx)` group,
+ * repetition counts above 255, and the escapes `\b\B\Q\E\h\H\R\X\G\z\Z\v\V\k`. Everything else
+ * passes unexamined, among it lookahead, lookbehind, lazy quantifiers, back-references, `\d\s\w`,
+ * `\a\e`, `\A`, `\x..`, `\u....`, character classes, and POSIX bracket expressions (`[[:alpha:]]`).
  */
 object PostgresPattern {
     fun firstUnsupported(pattern: String): String? = Scanner(pattern).firstUnsupported()
@@ -46,14 +48,18 @@ object PostgresPattern {
         }
 
         /**
-         * `{n,m}` passes; a possessive `{n,m}+` is reported as just `}+`, as it is written there.
+         * `{n,m}` passes when neither count exceeds ARE's limit of 255, else it is reported whole;
+         * a possessive `{n,m}+` is reported as just `}+`, as it is written there.
          */
         private fun braces(): String? {
             val close = s.indexOf('}', i)
-            if (close < 0 || !BOUNDS.matches(s.substring(i + 1, close))) {
+            val bounds = if (close < 0) null else BOUNDS.matchEntire(s.substring(i + 1, close))
+            if (bounds == null) {
                 i++
                 return null
             }
+            val counts = bounds.groupValues.drop(1).filter { it.isNotEmpty() }
+            if (counts.any { it.toBigInteger() > MAX_COUNT }) return reported(close + 1)
             i = close + 1
             if (s.getOrNull(i) == '+') {
                 i++
@@ -110,10 +116,11 @@ object PostgresPattern {
         }
 
         /**
-         * `(?letters)` is the director form ARE accepts only as the whole pattern's prefix;
-         * `(?letters:` (a Perl-style scoped flag group) is never accepted. Neither is a group ARE
-         * knows some other way (already handled by [group] before this is reached), so no letters
-         * at all means this is just a plain `(` and `?`, not a report.
+         * `(?letters)` is the director form ARE accepts only as the whole pattern's prefix, and
+         * there only with letters from `imnsx`; `(?letters:` (a Perl-style scoped flag group) is
+         * never accepted. Neither is a group ARE knows some other way (already handled by [group]
+         * before this is reached), so no letters at all means this is just a plain `(` and `?`, not
+         * a report.
          */
         private fun embeddedOptions(lettersStart: Int): String? {
             var j = lettersStart
@@ -124,7 +131,7 @@ object PostgresPattern {
             }
             return when (s.getOrNull(j)) {
                 ')' ->
-                    if (i == 0) {
+                    if (i == 0 && s.substring(lettersStart, j).all { it in LEADING_OPTIONS }) {
                         i = j + 1
                         null
                     } else reported(j + 1)
@@ -174,10 +181,12 @@ object PostgresPattern {
         }
 
         /**
-         * `\p`/`\P`, `\b\B\Q\E\h\H\R\X\G\z\e\a\k` have no ARE meaning and are reported as written;
-         * a named group opening is handled by [group], so `\k<name>`-style backreferences never
-         * reach here. Everything else — digits, `\d\s\w`, `\m\M\y\Y`, `\A\Z`, `\x..`, `\u....`, an
-         * escaped syntax character — exists in ARE and is simply consumed.
+         * `\p`/`\P` and `\b\B\Q\E\h\H\R\X\G\z\k` have no ARE meaning, `\V` does not exist there,
+         * and `\Z` (end of string, not before a final line terminator) and `\v` (a vertical-tab
+         * character, not a class) mean something else; all are reported as written. A named group
+         * opening is handled by [group], so `\k<name>`-style backreferences never reach here.
+         * Everything else — digits, `\d\s\w`, `\m\M\y\Y`, `\a\e`, `\A`, `\x..`, `\u....`, an
+         * escaped syntax character — is simply consumed.
          */
         private fun escape(): String? {
             val c = s.getOrNull(i + 1) ?: return reported(i + 1)
@@ -200,8 +209,10 @@ object PostgresPattern {
         private fun reported(end: Int): String = s.substring(i, end)
 
         private companion object {
-            const val UNSUPPORTED = "bBQEhHRXGzeak"
-            val BOUNDS = Regex("[0-9]+(,[0-9]*)?")
+            const val UNSUPPORTED = "bBQEhHRXGzZvVk"
+            const val LEADING_OPTIONS = "imnsx"
+            val MAX_COUNT = 255.toBigInteger()
+            val BOUNDS = Regex("([0-9]+)(?:,([0-9]*))?")
         }
     }
 }
