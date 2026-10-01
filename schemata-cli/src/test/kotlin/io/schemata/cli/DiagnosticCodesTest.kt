@@ -1,6 +1,7 @@
 package io.schemata.cli
 
 import io.schemata.core.CoreCodes
+import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.xsd.ImportCodes
 import io.schemata.lang.LangCodes
 import kotlin.test.Test
@@ -10,7 +11,11 @@ import kotlin.test.assertTrue
 /** The catalogs live in different modules; this is the one place that can see them all. */
 class DiagnosticCodesTest {
     private val all =
-        LangCodes.all + CoreCodes.all + Pipeline.targets.flatMap { it.codes } + ImportCodes.all
+        LangCodes.all +
+            CoreCodes.all +
+            Pipeline.targets.flatMap { it.codes } +
+            ImportCodes.all +
+            EvolutionCodes.all
 
     @Test
     fun `every code id is unique across modules`() {
@@ -32,6 +37,7 @@ class DiagnosticCodesTest {
         assertTrue(Pipeline.targetNamed("xsd")!!.codes.all { it.id.startsWith("SCH22") })
         assertTrue(Pipeline.targetNamed("jsonschema")!!.codes.all { it.id.startsWith("SCH23") })
         assertTrue(ImportCodes.all.all { it.id.startsWith("SCH24") })
+        assertTrue(EvolutionCodes.all.all { it.id.startsWith("SCH25") })
     }
 
     @Test

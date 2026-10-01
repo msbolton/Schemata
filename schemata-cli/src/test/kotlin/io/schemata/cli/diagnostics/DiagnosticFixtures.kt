@@ -2,10 +2,14 @@ package io.schemata.cli.diagnostics
 
 import io.schemata.cli.Pipeline
 import io.schemata.cli.SourceInput
+import io.schemata.cli.cannotDiffDiagnostic
 import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.Palette
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
+import io.schemata.evolution.Evolution
+import io.schemata.evolution.Rulebook
+import io.schemata.evolution.Rulebooks
 import io.schemata.importer.xsd.ImportInput
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Diagnostic
@@ -27,14 +31,26 @@ class Fixture(val dir: File) {
             ?.takeIf { it.startsWith("#") }
 
     val strict: Boolean = header?.contains("strict") == true
+
+    /**
+     * True for a `# diff=old,new` fixture: compared through [Evolution], not compiled or checked.
+     */
+    val isDiff: Boolean = header?.contains("diff=") == true
+
+    private val targetNames: List<String>? =
+        header?.let { Regex("targets=([a-z,]+)").find(it) }?.groupValues?.get(1)?.split(',')
+
     val targets: List<Target<*>> =
-        header
-            ?.let { Regex("targets=([a-z,]+)").find(it) }
-            ?.groupValues
-            ?.get(1)
-            ?.split(',')
-            ?.map { Pipeline.targetNamed(it) ?: error("$name: unknown target '$it'") }
-            ?: Pipeline.targets
+        if (isDiff) emptyList()
+        else
+            targetNames?.map { Pipeline.targetNamed(it) ?: error("$name: unknown target '$it'") }
+                ?: Pipeline.targets
+
+    val rulebooks: List<Rulebook> =
+        if (!isDiff) emptyList()
+        else
+            targetNames?.map { Rulebooks.named(it) ?: error("$name: unknown target '$it'") }
+                ?: Rulebooks.all
 
     val sources: List<SourceInput> =
         dir.listFiles { f -> f.extension == "schemata" }!!
@@ -47,25 +63,49 @@ class Fixture(val dir: File) {
             .sortedBy { it.name }
             .map { SourceInput(it.name, it.readText()) }
 
+    /** The two sides of a diff fixture, loaded from its `old/` and `new/` subdirectories. */
+    val oldSources: List<SourceInput> = if (isDiff) schemataFiles(File(dir, "old")) else emptyList()
+
+    val newSources: List<SourceInput> = if (isDiff) schemataFiles(File(dir, "new")) else emptyList()
+
     val expected: String
         get() = expectedFile.readText().let { if (header != null) it.substringAfter('\n') else it }
 
     /** The report as the CLI prints it, without excerpt and gutter lines. */
     fun render(): String {
         val full =
-            if (xsd.isNotEmpty()) {
-                val report = Report.of(importDiagnostics(), emptyList(), emptyList(), strict)
-                HumanRenderer.render(report, Sources.of(xsd), Palette.NONE, out = "", width = 400)
-            } else {
-                val result = Pipeline.check(sources, targets, strict)
-                val report = Report.of(result, strict, checkOnly = true)
-                HumanRenderer.render(
-                    report,
-                    Sources.of(sources),
-                    Palette.NONE,
-                    out = "",
-                    width = 400,
-                )
+            when {
+                isDiff -> {
+                    val report = Report.of(diffDiagnostics(), emptyList(), emptyList(), strict)
+                    HumanRenderer.render(
+                        report,
+                        Sources.of(oldSources + newSources),
+                        Palette.NONE,
+                        out = "",
+                        width = 400,
+                    )
+                }
+                xsd.isNotEmpty() -> {
+                    val report = Report.of(importDiagnostics(), emptyList(), emptyList(), strict)
+                    HumanRenderer.render(
+                        report,
+                        Sources.of(xsd),
+                        Palette.NONE,
+                        out = "",
+                        width = 400,
+                    )
+                }
+                else -> {
+                    val result = Pipeline.check(sources, targets, strict)
+                    val report = Report.of(result, strict, checkOnly = true)
+                    HumanRenderer.render(
+                        report,
+                        Sources.of(sources),
+                        Palette.NONE,
+                        out = "",
+                        width = 400,
+                    )
+                }
             }
         return full.lines().filter { keep(it) }.joinToString("\n").trimEnd() + "\n"
     }
@@ -75,11 +115,36 @@ class Fixture(val dir: File) {
     fun helps(): List<Pair<String, String?>> = diagnostics().map { it.code.id to it.help }
 
     private fun diagnostics(): List<Diagnostic> =
-        if (xsd.isNotEmpty()) importDiagnostics()
-        else Pipeline.check(sources, targets, strict).diagnostics
+        when {
+            isDiff -> diffDiagnostics()
+            xsd.isNotEmpty() -> importDiagnostics()
+            else -> Pipeline.check(sources, targets, strict).diagnostics
+        }
+
+    /**
+     * A failure to analyze either side reports [io.schemata.evolution.EvolutionCodes.CANNOT_DIFF]
+     * instead of comparing: the underlying parse or analysis diagnostics are not re-emitted here,
+     * since `schemata check` already reports them.
+     */
+    private fun diffDiagnostics(): List<Diagnostic> {
+        val old = Pipeline.analyze(oldSources, strict)
+        val new = Pipeline.analyze(newSources, strict)
+        val cannotDiff =
+            listOfNotNull(
+                if (old.schema == null) cannotDiffDiagnostic("OLD", old.diagnostics) else null,
+                if (new.schema == null) cannotDiffDiagnostic("NEW", new.diagnostics) else null,
+            )
+        if (cannotDiff.isNotEmpty()) return cannotDiff
+        return Evolution.compare(old.schema!!, new.schema!!, rulebooks).diagnostics
+    }
 
     private fun importDiagnostics(): List<Diagnostic> =
         XsdImporter.import(xsd.map { ImportInput(it.path, it.content) }).diagnostics
+
+    private fun schemataFiles(d: File): List<SourceInput> =
+        d.listFiles { f -> f.extension == "schemata" }!!
+            .sortedBy { it.name }
+            .map { SourceInput(it.name, it.readText()) }
 
     fun write(text: String) {
         expectedFile.writeText((header?.let { "$it\n" } ?: "") + text)

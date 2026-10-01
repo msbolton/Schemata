@@ -26,5 +26,6 @@ fun main(args: Array<String>) =
             FmtCommand(),
             TargetsCommand(),
             ImportCommand(),
+            DiffCommand(),
         )
         .main(args)

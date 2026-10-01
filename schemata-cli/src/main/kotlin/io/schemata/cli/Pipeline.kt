@@ -4,9 +4,16 @@ import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.core.annotations.CoreAnnotations
+import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Parser
+import io.schemata.lang.ast.AliasDecl
+import io.schemata.lang.ast.Declaration
+import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.ast.SourceFile
+import io.schemata.lang.ast.UnionDecl
 import io.schemata.lang.hasErrors
 import io.schemata.target.OutputFile
 import io.schemata.target.Target
@@ -26,6 +33,17 @@ data class TargetResult(
     val ok: Boolean
         get() = !diagnostics.hasErrors
 }
+
+/**
+ * Parse and analysis only, no target. [implicitOrdinals] names every declaration (by its parsed
+ * AST, before analysis assigns stand-in ordinals) that has a field, enum value, or union member
+ * with no explicit `#n`; [schema] is null exactly when [diagnostics] contains an error.
+ */
+data class Analyzed(
+    val schema: Schema?,
+    val diagnostics: List<Diagnostic>,
+    val implicitOrdinals: Set<QualifiedName>,
+)
 
 /**
  * [core] holds parse and analysis diagnostics; [targets] holds one entry per selected target, in
@@ -59,6 +77,54 @@ object Pipeline {
 
     fun targetNamed(name: String): Target<*>? = targets.firstOrNull { it.name == name }
 
+    /** Parses and analyses [sources], same as every stage before a target sees the schema. */
+    fun analyze(sources: List<SourceInput>, strict: Boolean = false): Analyzed {
+        val parsed = sources.map { Parser.parse(it.content, it.path) }
+        val parseDiagnostics = parsed.flatMap { it.diagnostics }
+        if (parseDiagnostics.hasErrors) return Analyzed(null, parseDiagnostics, emptySet())
+        val files = parsed.map { it.file!! }
+        val analyzed =
+            Analyzer.analyze(
+                files,
+                AnalysisOptions(strictOrdinals = strict, annotations = annotations),
+            )
+        return Analyzed(
+            analyzed.schema,
+            parseDiagnostics + analyzed.diagnostics,
+            implicitOrdinals(files),
+        )
+    }
+
+    private fun implicitOrdinals(files: List<SourceFile>): Set<QualifiedName> {
+        val out = mutableSetOf<QualifiedName>()
+        files.forEach { file ->
+            file.declarations.forEach { collect(it, file.namespace.name, emptyList(), out) }
+        }
+        return out
+    }
+
+    private fun collect(
+        decl: Declaration,
+        namespace: String,
+        path: List<String>,
+        out: MutableSet<QualifiedName>,
+    ) {
+        when (decl) {
+            is RecordDecl -> {
+                if (decl.fields.any { it.ordinal == null })
+                    out += QualifiedName(namespace, path + decl.name)
+                decl.nested.forEach { collect(it, namespace, path + decl.name, out) }
+            }
+            is EnumDecl ->
+                if (decl.values.any { it.ordinal == null })
+                    out += QualifiedName(namespace, path + decl.name)
+            is UnionDecl ->
+                if (decl.members.any { it.ordinal == null })
+                    out += QualifiedName(namespace, path + decl.name)
+            is AliasDecl -> Unit
+        }
+    }
+
     fun compile(
         sources: List<SourceInput>,
         targets: List<Target<*>>,
@@ -85,17 +151,8 @@ object Pipeline {
         strict: Boolean,
         perTarget: (Target<*>, Schema) -> TargetResult,
     ): PipelineResult {
-        val parsed = sources.map { Parser.parse(it.content, it.path) }
-        val parseDiagnostics = parsed.flatMap { it.diagnostics }
-        if (parseDiagnostics.hasErrors) return PipelineResult(parseDiagnostics, emptyList())
-
-        val analyzed =
-            Analyzer.analyze(
-                parsed.map { it.file!! },
-                AnalysisOptions(strictOrdinals = strict, annotations = annotations),
-            )
-        val core = parseDiagnostics + analyzed.diagnostics
-        val schema = analyzed.schema ?: return PipelineResult(core, emptyList())
-        return PipelineResult(core, targets.map { perTarget(it, schema) })
+        val analyzed = analyze(sources, strict)
+        val schema = analyzed.schema ?: return PipelineResult(analyzed.diagnostics, emptyList())
+        return PipelineResult(analyzed.diagnostics, targets.map { perTarget(it, schema) })
     }
 }

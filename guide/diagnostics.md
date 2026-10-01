@@ -119,3 +119,11 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2403 | warning | lossy | an xsd construct was approximated | xs:all imported as a sequence<br>extension of 'BaseType' has no Schemata equivalent; base fields flattened into the record | review the imported record; the regenerated XSD will differ here |
 | SCH2404 | warning | lossy | an xsd type or facet was widened or dropped | facet whiteSpace dropped<br>xs:gYear imported as string | narrow the type by hand if the data needs it |
 | SCH2405 | warning | lossy | an xsd construct was dropped | xs:any dropped<br>mixed content dropped; elements kept | add the missing part by hand; Schemata cannot express it |
+
+## Evolution (SCH25xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2501 | error | semantic | a change breaks data produced under the old schema on a target | the default was removed from a required field breaks old documents that omit it, which is now rejected by required<br>type changed from int32 to string breaks the wire types are incompatible<br>a required column was added breaks existing rows, which have no value for it<br>the field was removed breaks old documents that still carry it | keep a default, or supply the field explicitly in every document<br>add a new field instead of changing this one's type<br>add the column as nullable or with a default<br>keep the field; an XSD document always carries every element |
+| SCH2502 | warning | lossy | a change is compatible on a target with a caveat | a default was added; proto does not transmit defaults, so only newly generated code applies it<br>a default was added or changed; it is applied to empty elements only, not omitted ones<br>field removed; number 2 and name 'y' are free to be reused | apply the new default in application code, not the wire format<br>supply the value explicitly where an old document omitted the element<br>reserve #2 and "y" so they are not reused |
+| SCH2503 | error | semantic | the two schema sets cannot be compared | NEW: 1 error; fix the schema with check before diffing | run `schemata check` on the NEW side to see what is wrong |

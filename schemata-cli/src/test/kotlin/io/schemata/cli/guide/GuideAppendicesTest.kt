@@ -3,6 +3,7 @@ package io.schemata.cli.guide
 import io.schemata.cli.Pipeline
 import io.schemata.cli.diagnostics.Fixture
 import io.schemata.core.CoreCodes
+import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.xsd.ImportCodes
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.LangCodes
@@ -67,6 +68,7 @@ class GuideAppendicesTest {
                 emptyList(),
             ),
             Module("Import (SCH24xx)", "SCH24", ImportCodes.all, emptyList()),
+            Module("Evolution (SCH25xx)", "SCH25", EvolutionCodes.all, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {
@@ -122,16 +124,21 @@ class GuideAppendicesTest {
      */
     private val fileLocation = Regex("^\\S+\\.xsd: ")
 
+    /** An evolution diagnostic's `<target>: <ns.Decl.member>: ` prefix. */
+    private val evolutionLocation = Regex("^[a-z]+: [A-Za-z0-9_.#]+: ")
+
     /**
      * Drops a message's leading location — `record 'R' field 'x': `, `complex type 'X': `, `element
-     * 'x': `, `attribute 'x': `, `simple type 'X': `, `union 'X': `, `enum value 'X.v': `, or a
-     * bare `<file>: ` — so the shape reads generally.
+     * 'x': `, `attribute 'x': `, `simple type 'X': `, `union 'X': `, `enum value 'X.v': `, a bare
+     * `<file>: `, or an evolution diagnostic's `<target>: <path>: ` — so the shape reads generally.
      */
     private fun stripLocation(message: String): String =
         when {
             quotedLocation.containsMatchIn(message) && message.contains("': ") ->
                 message.substringAfter("': ")
             fileLocation.containsMatchIn(message) -> message.substringAfter(": ")
+            evolutionLocation.containsMatchIn(message) ->
+                message.replaceFirst(evolutionLocation, "")
             else -> message
         }
 
