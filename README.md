@@ -4,7 +4,7 @@
 
 Schemata is a schema language and compiler. You describe a data model once in
 `.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, with every
-lossy decision reported as a warning.
+lossy decision reported as a warning, or import one from an existing XML Schema.
 
 ## Install
 
@@ -120,12 +120,15 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
     schemata compile [--target proto,sql,xsd,jsonschema] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata check   [--target proto,sql,xsd,jsonschema]             [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata import  --from xsd [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
 error, even when another target failed. `check` reports everything `compile` would and
-writes nothing. `targets` lists each target's annotation keys and diagnostic codes.
+writes nothing. `import --from xsd` reads existing `.xsd` files and writes `--out/import/<file>`,
+one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
+codes.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.
@@ -177,6 +180,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-target-sql` | relational model, lowering, renderer |
 | `schemata-target-xsd` | XML Schema model, lowering, renderer |
 | `schemata-target-jsonschema` | JSON Schema model, lowering, renderer |
+| `schemata-import-xsd` | XSD reader, importer, Schemata emitter |
 | `schemata-cli` | command surface |
 | `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator, a JSON Schema validator) |
 

@@ -2,6 +2,7 @@ package io.schemata.cli.diagnostics
 
 import io.schemata.cli.Pipeline
 import io.schemata.core.CoreCodes
+import io.schemata.importer.xsd.ImportCodes
 import io.schemata.lang.LangCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,7 +14,7 @@ import kotlin.test.assertTrue
  */
 class DiagnosticCoverageTest {
     private val live =
-        (LangCodes.all + CoreCodes.all + Pipeline.targets.flatMap { it.codes })
+        (LangCodes.all + CoreCodes.all + Pipeline.targets.flatMap { it.codes } + ImportCodes.all)
             .map { it.id }
             .toSet()
 

@@ -1,0 +1,8 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:s"
+    targetNamespace="urn:schemata:s">
+  <xs:complexType name="RootType">
+    <xs:sequence>
+      <xs:element name="child" type="tns:Missing"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

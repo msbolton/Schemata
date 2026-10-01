@@ -6,6 +6,9 @@ import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.Palette
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
+import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.xsd.XsdImporter
+import io.schemata.lang.Diagnostic
 import io.schemata.target.Target
 import java.io.File
 
@@ -38,23 +41,45 @@ class Fixture(val dir: File) {
             .sortedBy { it.name }
             .map { SourceInput(it.name, it.readText()) }
 
+    /** `.xsd` sources for an import fixture; non-empty exactly when [render] runs the importer. */
+    val xsd: List<SourceInput> =
+        dir.listFiles { f -> f.extension == "xsd" }!!
+            .sortedBy { it.name }
+            .map { SourceInput(it.name, it.readText()) }
+
     val expected: String
         get() = expectedFile.readText().let { if (header != null) it.substringAfter('\n') else it }
 
     /** The report as the CLI prints it, without excerpt and gutter lines. */
     fun render(): String {
-        val result = Pipeline.check(sources, targets, strict)
-        val report = Report.of(result, strict, checkOnly = true)
         val full =
-            HumanRenderer.render(report, Sources.of(sources), Palette.NONE, out = "", width = 400)
+            if (xsd.isNotEmpty()) {
+                val report = Report.of(importDiagnostics(), emptyList(), emptyList(), strict)
+                HumanRenderer.render(report, Sources.of(xsd), Palette.NONE, out = "", width = 400)
+            } else {
+                val result = Pipeline.check(sources, targets, strict)
+                val report = Report.of(result, strict, checkOnly = true)
+                HumanRenderer.render(
+                    report,
+                    Sources.of(sources),
+                    Palette.NONE,
+                    out = "",
+                    width = 400,
+                )
+            }
         return full.lines().filter { keep(it) }.joinToString("\n").trimEnd() + "\n"
     }
 
-    fun codes(): Set<String> =
-        Pipeline.check(sources, targets, strict).diagnostics.map { it.code.id }.toSet()
+    fun codes(): Set<String> = diagnostics().map { it.code.id }.toSet()
 
-    fun helps(): List<Pair<String, String?>> =
-        Pipeline.check(sources, targets, strict).diagnostics.map { it.code.id to it.help }
+    fun helps(): List<Pair<String, String?>> = diagnostics().map { it.code.id to it.help }
+
+    private fun diagnostics(): List<Diagnostic> =
+        if (xsd.isNotEmpty()) importDiagnostics()
+        else Pipeline.check(sources, targets, strict).diagnostics
+
+    private fun importDiagnostics(): List<Diagnostic> =
+        XsdImporter.import(xsd.map { ImportInput(it.path, it.content) }).diagnostics
 
     fun write(text: String) {
         expectedFile.writeText((header?.let { "$it\n" } ?: "") + text)

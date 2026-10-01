@@ -1,0 +1,8 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="urn:schemata:s">
+  <xs:complexType name="EventType">
+    <xs:sequence>
+      <xs:element name="year" type="xs:gYear"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

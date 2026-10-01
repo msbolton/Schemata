@@ -1,0 +1,30 @@
+/// A hand-written schema exercising every import diagnostic.
+@xsd(namespace = "http://example.com/kitchen")
+namespace kitchen
+
+/// The kitchen sink.
+@xsd(name = "kitchen")
+record Kitchen {
+  rack:    BikeRack?
+  built:   string?
+  code:    string?
+  note:    string?
+  dish:    Dish?
+  special: SpecialDish?
+}
+
+@xsd(name = "bike-rack")
+@xsd(root = false)
+record BikeRack { slots: int32 }
+
+@xsd(name = "dish")
+@xsd(root = false)
+record Dish { name: string }
+
+@xsd(name = "baseDish")
+@xsd(root = false)
+record BaseDish { garnish: string }
+
+@xsd(name = "specialDish")
+@xsd(root = false)
+record SpecialDish { garnish: string sauce: string }

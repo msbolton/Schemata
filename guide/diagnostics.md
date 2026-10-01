@@ -109,3 +109,13 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2302 | error | semantic | two constructs lower to the same JSON Schema name | record 'B' lowers to $defs key 'B', already used by record 'A' (s.schemata:2)<br>enum value 'Status.settled' lowers to enum value 'paid', already used by enum value 'Status.paid' (s.schemata:2)<br>field 'R.b' lowers to property 'b', already used by field 'R.a' (s.schemata:2)<br>union member 'Other' lowers to tag 'card', already used by union member 'Card' (s.schemata:4) | rename one of them, or set `@jsonschema(name = "…")` on one |
 | SCH2303 | error | semantic | a @jsonschema override is empty, holds a character a $ref cannot carry, or is not an absolute URI | @jsonschema(id = "orders") is not an absolute URI<br>@jsonschema(name = "") is empty<br>@jsonschema(name = "a/b") contains '/', which a $ref cannot carry | use an absolute URI without a fragment, such as `urn:example:orders`<br>give the name at least one character<br>leave out whitespace and the characters / ~ # % ? " \ |
 | SCH2304 | error | semantic | two namespaces lower to the same $id | namespaces a and b both lower to $id 'urn:x' | set `@jsonschema(id = "…")` on one of them |
+
+## Import (SCH24xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2401 | error | semantic | an xsd reference, import, or include cannot be resolved, or two constructs lower to one name | element 'full-name' and element 'full_name' both lower to field 'full_name'<br>import 'urn:schemata:missing' cannot be resolved<br>type 'Missing' cannot be resolved | rename one of them<br>add the referenced schema to the inputs or fix schemaLocation |
+| SCH2402 | warning | lossy | a namespace name was derived from a file name | namespace 's' was derived from the file name | set --namespace to choose it, or keep it and rename later |
+| SCH2403 | warning | lossy | an xsd construct was approximated | xs:all imported as a sequence<br>extension of 'BaseType' has no Schemata equivalent; base fields flattened into the record | review the imported record; the regenerated XSD will differ here |
+| SCH2404 | warning | lossy | an xsd type or facet was widened or dropped | facet whiteSpace dropped<br>xs:gYear imported as string | narrow the type by hand if the data needs it |
+| SCH2405 | warning | lossy | an xsd construct was dropped | xs:any dropped<br>mixed content dropped; elements kept | add the missing part by hand; Schemata cannot express it |

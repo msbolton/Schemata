@@ -1,0 +1,11 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:s"
+    targetNamespace="urn:schemata:s">
+  <xs:complexType name="BaseType">
+    <xs:sequence/>
+  </xs:complexType>
+  <xs:complexType name="DerivedType">
+    <xs:complexContent>
+      <xs:extension base="tns:BaseType"/>
+    </xs:complexContent>
+  </xs:complexType>
+</xs:schema>

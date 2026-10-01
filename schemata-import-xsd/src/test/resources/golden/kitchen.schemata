@@ -1,0 +1,34 @@
+/// GPX schema version 1.1.
+@xsd(namespace = "http://www.topografix.com/GPX/1/1")
+namespace gpx
+
+import shop.customers
+
+enum Fix {
+  /// No fix.
+  none
+  @xsd(name = "2d") _2d
+}
+
+/// How it was paid.
+union Payment = Card | int64
+
+/// GPX is the root element.
+@xsd(name = "gpxType")
+record Gpx {
+  @xsd(attribute) version:   string = "1.1"
+  /// Who wrote it.
+  @xsd(attribute) creator:   string(max = 100)?
+  @xsd(name = "full-name") full_name: string
+  customer:  shop.customers.Customer
+  /// Waypoints.
+  wpt:       list<Wpt>
+  tags:      list<string(max = 3)?>(max = 2)?
+  counts:    map<int64, Wpt?>(min = 1)
+  total:     decimal(19, 4, min = 0) = 0.0000
+  fix:       Fix = none
+
+  /// A point.
+  @xsd(root = false)
+  record Wpt { lat: float64(min = -90.0, max = 90.0) }
+}
