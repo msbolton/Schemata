@@ -340,6 +340,106 @@ class JsonSchemaRulesTest {
     }
 
     @Test
+    fun `a reservation added is compatible`() {
+        val old = record("s", "R", field(1, "a"), reserved = Reserved.NONE)
+        val new = record("s", "R", field(1, "a"), reserved = Reserved(listOf(5..5), setOf("x")))
+        assertEquals(Verdict.Compatible, verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a jsonschema name override changed to a different name is breaking`() {
+        val pin = { name: String ->
+            Annotations(mapOf("jsonschema" to mapOf("name" to AnnotationValue.Str(name))))
+        }
+        val old = record("s", "R", field(1, "a", annotations = pin("x")))
+        val new = record("s", "R", field(1, "a", annotations = pin("y")))
+        assertIs<Verdict.Breaking>(verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a jsonschema name override added matching the declared name is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(
+                            mapOf("jsonschema" to mapOf("name" to AnnotationValue.Str("a")))
+                        ),
+                ),
+            )
+        assertEquals(Verdict.Compatible, verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a jsonschema name override on an enum value changed is breaking`() {
+        val pin = { name: String ->
+            Annotations(mapOf("jsonschema" to mapOf("name" to AnnotationValue.Str(name))))
+        }
+        val old = enum("s", "E", value(1, "a").copy(annotations = pin("x")))
+        val new = enum("s", "E", value(1, "a").copy(annotations = pin("y")))
+        assertIs<Verdict.Breaking>(verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd attribute flag change is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(mapOf("xsd" to mapOf("attribute" to AnnotationValue.Flag))),
+                ),
+            )
+        assertEquals(Verdict.Compatible, verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd root false change is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "a"),
+                annotations =
+                    Annotations(mapOf("xsd" to mapOf("root" to AnnotationValue.Bool(false)))),
+            )
+        assertEquals(Verdict.Compatible, verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a jsonschema open flag removed is breaking`() {
+        val open = Annotations(mapOf("jsonschema" to mapOf("open" to AnnotationValue.Flag)))
+        val old = record("s", "R", field(1, "a"), annotations = open)
+        val new = record("s", "R", field(1, "a"))
+        val breaking = assertIs<Verdict.Breaking>(verdict(JsonSchemaRules, ns(old), ns(new)))
+        assertTrue(breaking.message.contains("extra properties are now rejected"))
+    }
+
+    @Test
+    fun `a jsonschema open flag added is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "a"),
+                annotations =
+                    Annotations(mapOf("jsonschema" to mapOf("open" to AnnotationValue.Flag))),
+            )
+        assertEquals(Verdict.Compatible, verdict(JsonSchemaRules, ns(old), ns(new)))
+    }
+
+    @Test
     fun `a deprecation change is compatible`() {
         val old = record("s", "R", field(1, "a"))
         val new =

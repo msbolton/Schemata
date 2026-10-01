@@ -347,6 +347,111 @@ class XsdRulesTest {
     }
 
     @Test
+    fun `a reservation added is compatible`() {
+        val old = record("s", "R", field(1, "a"), reserved = Reserved.NONE)
+        val new = record("s", "R", field(1, "a"), reserved = Reserved(listOf(5..5), setOf("x")))
+        assertEquals(Verdict.Compatible, verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd name override changed to a different name is breaking`() {
+        val pin = { name: String ->
+            Annotations(mapOf("xsd" to mapOf("name" to AnnotationValue.Str(name))))
+        }
+        val old = record("s", "R", field(1, "a", annotations = pin("x")))
+        val new = record("s", "R", field(1, "a", annotations = pin("y")))
+        assertIs<Verdict.Breaking>(verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd name override added matching the declared name is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(mapOf("xsd" to mapOf("name" to AnnotationValue.Str("a")))),
+                ),
+            )
+        assertEquals(Verdict.Compatible, verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd name override on an enum value changed is breaking`() {
+        val pin = { name: String ->
+            Annotations(mapOf("xsd" to mapOf("name" to AnnotationValue.Str(name))))
+        }
+        val old = enum("s", "E", value(1, "a").copy(annotations = pin("x")))
+        val new = enum("s", "E", value(1, "a").copy(annotations = pin("y")))
+        assertIs<Verdict.Breaking>(verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd attribute flag added to a field is breaking`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(mapOf("xsd" to mapOf("attribute" to AnnotationValue.Flag))),
+                ),
+            )
+        assertIs<Verdict.Breaking>(verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd attribute flag removed from a field is breaking`() {
+        val attribute = Annotations(mapOf("xsd" to mapOf("attribute" to AnnotationValue.Flag)))
+        val old = record("s", "R", field(1, "a", annotations = attribute))
+        val new = record("s", "R", field(1, "a"))
+        assertIs<Verdict.Breaking>(verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd root false added to a root record is breaking`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "a"),
+                annotations =
+                    Annotations(mapOf("xsd" to mapOf("root" to AnnotationValue.Bool(false)))),
+            )
+        assertIs<Verdict.Breaking>(verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `an xsd root false removed is compatible`() {
+        val notRoot = Annotations(mapOf("xsd" to mapOf("root" to AnnotationValue.Bool(false))))
+        val old = record("s", "R", field(1, "a"), annotations = notRoot)
+        val new = record("s", "R", field(1, "a"))
+        assertEquals(Verdict.Compatible, verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a jsonschema open flag change is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "a"),
+                annotations =
+                    Annotations(mapOf("jsonschema" to mapOf("open" to AnnotationValue.Flag))),
+            )
+        assertEquals(Verdict.Compatible, verdict(XsdRules, ns(old), ns(new)))
+    }
+
+    @Test
     fun `a deprecation change is compatible`() {
         val old = record("s", "R", field(1, "a"))
         val new =

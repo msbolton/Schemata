@@ -278,6 +278,44 @@ class ProtoRulesTest {
     }
 
     @Test
+    fun `a proto name override changed to a different name is noted`() {
+        val pin = { name: String ->
+            Annotations(mapOf("proto" to mapOf("name" to AnnotationValue.Str(name))))
+        }
+        val old = record("s", "R", field(1, "a", annotations = pin("x")))
+        val new = record("s", "R", field(1, "a", annotations = pin("y")))
+        val note = assertIs<Verdict.Note>(verdict(ProtoRules, ns(old), ns(new)))
+        assertTrue(note.message.contains("JSON mapping"))
+    }
+
+    @Test
+    fun `a proto name override added matching the declared name is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(mapOf("proto" to mapOf("name" to AnnotationValue.Str("a")))),
+                ),
+            )
+        assertEquals(Verdict.Compatible, verdict(ProtoRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a proto name override on an enum value changed is compatible`() {
+        val pin = { name: String ->
+            Annotations(mapOf("proto" to mapOf("name" to AnnotationValue.Str(name))))
+        }
+        val old = enum("s", "E", value(1, "a").copy(annotations = pin("x")))
+        val new = enum("s", "E", value(1, "a").copy(annotations = pin("y")))
+        assertEquals(Verdict.Compatible, verdict(ProtoRules, ns(old), ns(new)))
+    }
+
+    @Test
     fun `an xsd namespace annotation change is compatible`() {
         val old = record("s", "R", field(1, "a"))
         val new =

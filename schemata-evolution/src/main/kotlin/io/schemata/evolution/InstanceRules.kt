@@ -1,13 +1,20 @@
 package io.schemata.evolution
 
+import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.EnumType
+import io.schemata.core.ir.EnumValue
+import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.QualifiedName
+import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.selfAndNested
 import io.schemata.target.TypeText
 
 /**
@@ -66,7 +73,7 @@ class InstanceRules(
                     "add a new member instead of changing this one's type",
                 )
             is ReservedChanged -> Verdict.Compatible
-            is AnnotationChanged -> annotationChanged(change)
+            is AnnotationChanged -> annotationChanged(change, ctx)
             is DeprecationChanged -> Verdict.Compatible
             is DocChanged -> Verdict.Compatible
         }
@@ -208,14 +215,119 @@ class InstanceRules(
         )
     }
 
-    private fun annotationChanged(change: AnnotationChanged): Verdict {
+    private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         if (change.target != target) return Verdict.Compatible
         val identityKey = if (target == "xsd") "namespace" else "id"
-        if (change.key != identityKey) return Verdict.Compatible
-        return Verdict.Breaking(
+        return when (change.key) {
+            identityKey -> identityChanged(change, identityKey)
+            "name" -> nameAnnotationChanged(change, ctx)
+            "attribute" -> attributeChanged(change)
+            "root" -> rootChanged(change, ctx)
+            "open" -> openChanged(change)
+            else -> Verdict.Compatible
+        }
+    }
+
+    private fun identityChanged(change: AnnotationChanged, identityKey: String): Verdict =
+        Verdict.Breaking(
             "${change.path}: @$target($identityKey) changed breaks documents that reference the " +
                 "old identifier",
             "avoid changing @$target($identityKey) once published",
         )
+
+    /**
+     * A `name` override, changed without the field or enum value's declared name also changing
+     * (that case is [fieldRenamed] or [enumValueRenamed] instead): a rename of the emitted name,
+     * breaking unless the pin is redundant (the emitted name is the same on both sides).
+     */
+    private fun nameAnnotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        val oldField = fieldAt(ctx.old, change.path)
+        val newField = fieldAt(ctx.new, change.path)
+        if (oldField != null && newField != null) {
+            return renameVerdict(
+                change,
+                ctx.emittedFieldName(target, oldField),
+                ctx.emittedFieldName(target, newField),
+            )
+        }
+        val oldValue = enumValueAt(ctx.old, change.path)
+        val newValue = enumValueAt(ctx.new, change.path)
+        val enumDecl = enumAt(ctx.new, change.path) ?: enumAt(ctx.old, change.path)
+        if (oldValue != null && newValue != null && enumDecl != null) {
+            return renameVerdict(
+                change,
+                ctx.emittedValueName(target, enumDecl, oldValue),
+                ctx.emittedValueName(target, enumDecl, newValue),
+            )
+        }
+        return Verdict.Compatible
     }
+
+    private fun renameVerdict(
+        change: AnnotationChanged,
+        fromName: String,
+        toName: String,
+    ): Verdict {
+        if (fromName == toName) return Verdict.Compatible
+        return Verdict.Breaking(
+            "${change.path}: the emitted name changed from '$fromName' to '$toName' breaks old " +
+                "documents that still use the old name",
+            "pin the emitted name with @$target(name = \"$fromName\")",
+        )
+    }
+
+    /** `@xsd(attribute)` added or removed always changes how the element is serialized. */
+    private fun attributeChanged(change: AnnotationChanged): Verdict {
+        val name = change.path.substringAfterLast(".")
+        val becomesAttribute = change.to != null
+        val what =
+            if (becomesAttribute) "element '$name' becomes an attribute"
+            else "attribute '$name' becomes an element"
+        return Verdict.Breaking(
+            "${change.path}: $what breaks old documents that carry it the old way",
+            "avoid changing @xsd(attribute) once published",
+        )
+    }
+
+    /** `@xsd(root = false)` only matters when it takes away a root element OLD actually had. */
+    private fun rootChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        val qn = (declAt(ctx.new, change.path) ?: declAt(ctx.old, change.path))?.qualifiedName
+        if (qn == null || !ctx.isRoot(Side.OLD, qn) || ctx.isRoot(Side.NEW, qn)) {
+            return Verdict.Compatible
+        }
+        return Verdict.Breaking(
+            "${change.path}: @xsd(root = false) was added breaks validation against the old root " +
+                "element",
+            "keep the declaration reachable as a root element, or confirm nothing validates " +
+                "against it directly",
+        )
+    }
+
+    /** `@jsonschema(open)` only matters when it is taken away: a closed record rejects extras. */
+    private fun openChanged(change: AnnotationChanged): Verdict =
+        if (change.from is AnnotationValue.Flag && change.to == null)
+            Verdict.Breaking(
+                "${change.path}: @jsonschema(open) was removed breaks old documents whose extra " +
+                    "properties are now rejected",
+                "keep the record open, or confirm no old document carries extra properties",
+            )
+        else Verdict.Compatible
+
+    private fun declAt(schema: Schema, path: String): TypeDecl? =
+        schema.namespaces
+            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
+            .firstOrNull { it.qualifiedName.toString() == path }
+
+    private fun fieldAt(schema: Schema, path: String): Field? {
+        val decl = declAt(schema, path.substringBeforeLast(".")) as? RecordType ?: return null
+        return decl.fields.firstOrNull { it.name == path.substringAfterLast(".") }
+    }
+
+    private fun enumValueAt(schema: Schema, path: String): EnumValue? {
+        val decl = declAt(schema, path.substringBeforeLast(".")) as? EnumType ?: return null
+        return decl.values.firstOrNull { it.name == path.substringAfterLast(".") }
+    }
+
+    private fun enumAt(schema: Schema, path: String): EnumType? =
+        declAt(schema, path.substringBeforeLast(".")) as? EnumType
 }

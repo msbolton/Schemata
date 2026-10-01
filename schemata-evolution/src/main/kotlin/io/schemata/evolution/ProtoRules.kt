@@ -2,10 +2,16 @@ package io.schemata.evolution
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
+import io.schemata.core.ir.EnumValue
+import io.schemata.core.ir.Field
+import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
+import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.selfAndNested
 import io.schemata.target.TypeText
 
 /** What each kind of [Change] means for a Protobuf consumer reading data under the old schema. */
@@ -54,7 +60,7 @@ object ProtoRules : Rulebook {
                     "add a new member instead of changing this one's type",
                 )
             is ReservedChanged -> reservedChanged(change)
-            is AnnotationChanged -> annotationChanged(change)
+            is AnnotationChanged -> annotationChanged(change, ctx)
             is DeprecationChanged -> Verdict.Compatible
             is DocChanged -> Verdict.Compatible
         }
@@ -200,7 +206,7 @@ object ProtoRules : Rulebook {
         else Verdict.Compatible
     }
 
-    private fun annotationChanged(change: AnnotationChanged): Verdict =
+    private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict =
         when {
             change.target != "proto" -> Verdict.Compatible
             change.key == "package" ->
@@ -209,12 +215,54 @@ object ProtoRules : Rulebook {
                         "fully-qualified message name",
                     "avoid changing @proto(package) once published",
                 )
-            change.key == "name" ->
-                Verdict.Note(
-                    "${change.path}: the proto name changed; this changes the wire type's name " +
-                        "used by reflection and Any",
-                    "keep @proto(name) stable once published",
-                )
+            change.key == "name" -> nameAnnotationChanged(change, ctx)
             else -> Verdict.Compatible
         }
+
+    /**
+     * A `name` override changed without the field's declared name also changing (that case is
+     * [fieldRenamed] instead): noted only when the emitted field name actually differs, since proto
+     * does not care about an enum value's emitted name at all (see [EnumValueRenamed]'s handling),
+     * and a bare declaration name change (not a field or enum value) keeps its own unconditional
+     * note.
+     */
+    private fun nameAnnotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        val oldField = fieldAt(ctx.old, change.path)
+        val newField = fieldAt(ctx.new, change.path)
+        if (oldField != null && newField != null) {
+            val fromName = ctx.emittedFieldName(target, oldField)
+            val toName = ctx.emittedFieldName(target, newField)
+            if (fromName == toName) return Verdict.Compatible
+            return Verdict.Note(
+                "${change.path}: the emitted name changed from '$fromName' to '$toName'; this " +
+                    "changes the JSON mapping",
+                "pin the emitted name with @proto(name = \"$fromName\")",
+            )
+        }
+        if (
+            enumValueAt(ctx.old, change.path) != null || enumValueAt(ctx.new, change.path) != null
+        ) {
+            return Verdict.Compatible
+        }
+        return Verdict.Note(
+            "${change.path}: the proto name changed; this changes the wire type's name used by " +
+                "reflection and Any",
+            "keep @proto(name) stable once published",
+        )
+    }
+
+    private fun declAt(schema: Schema, path: String): TypeDecl? =
+        schema.namespaces
+            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
+            .firstOrNull { it.qualifiedName.toString() == path }
+
+    private fun fieldAt(schema: Schema, path: String): Field? {
+        val decl = declAt(schema, path.substringBeforeLast(".")) as? RecordType ?: return null
+        return decl.fields.firstOrNull { it.name == path.substringAfterLast(".") }
+    }
+
+    private fun enumValueAt(schema: Schema, path: String): EnumValue? {
+        val decl = declAt(schema, path.substringBeforeLast(".")) as? EnumType ?: return null
+        return decl.values.firstOrNull { it.name == path.substringAfterLast(".") }
+    }
 }
