@@ -49,6 +49,19 @@ sealed interface TypeDecl {
 
 fun TypeDecl.selfAndNested(): List<TypeDecl> = listOf(this) + nested.flatMap { it.selfAndNested() }
 
+/** The word a diagnostic uses for a declaration: `record`, `enum`, or `union`. */
+val TypeDecl.kindWord: String
+    get() =
+        when (this) {
+            is RecordType -> "record"
+            is EnumType -> "enum"
+            is UnionType -> "union"
+        }
+
+/** The declarations on the way to [qn], outermost first: `Order`, then `Order.Line`. */
+fun Schema.declarationPath(qn: QualifiedName): List<TypeDecl> =
+    qn.path.indices.map { i -> lookup(QualifiedName(qn.namespace, qn.path.take(i + 1))) }
+
 /** [recursive] is true when this record can reach itself through [Ref]s. */
 data class RecordType(
     override val qualifiedName: QualifiedName,
