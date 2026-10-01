@@ -1,5 +1,7 @@
 package io.schemata.importer.xsd
 
+import io.schemata.lang.format.FormatResult
+import io.schemata.lang.format.Formatter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -124,8 +126,57 @@ class ImportTypesTest {
     @Test
     fun `default literals`() {
         assertEquals("\"a\\\"b\"", ImportTypes.defaultLiteral("string", "a\"b"))
+        assertEquals("\"a\\\\b\"", ImportTypes.defaultLiteral("string", "a\\b"))
+        assertEquals("\"a\\nb\\tc\\r\"", ImportTypes.defaultLiteral("string", "a\nb\tc\r"))
         assertEquals("3", ImportTypes.defaultLiteral("int32", "3"))
         assertEquals("1.5", ImportTypes.defaultLiteral("float64", "1.5"))
         assertEquals("true", ImportTypes.defaultLiteral("bool", "true"))
+    }
+
+    @Test
+    fun `numeric defaults print as plain decimals or not at all`() {
+        assertEquals("0.5", ImportTypes.defaultLiteral("float64", ".5"))
+        assertEquals("100000", ImportTypes.defaultLiteral("float32", "1e5"))
+        assertEquals("-2", ImportTypes.defaultLiteral("int64", "-2"))
+        assertEquals("7", ImportTypes.defaultLiteral("int32", "+7"))
+        assertEquals("12.50", ImportTypes.defaultLiteral("decimal", "12.50"))
+        assertNull(ImportTypes.defaultLiteral("float64", "INF"))
+        assertNull(ImportTypes.defaultLiteral("float32", "NaN"))
+        assertNull(ImportTypes.defaultLiteral("int32", "ten"))
+    }
+
+    @Test
+    fun `boolean defaults accept the four xsd spellings`() {
+        assertEquals("true", ImportTypes.defaultLiteral("bool", "1"))
+        assertEquals("false", ImportTypes.defaultLiteral("bool", "0"))
+        assertEquals("false", ImportTypes.defaultLiteral("bool", "false"))
+        assertNull(ImportTypes.defaultLiteral("bool", "yes"))
+    }
+
+    @Test
+    fun `types with no literal form have no default`() {
+        listOf("uuid", "date", "time", "instant", "duration", "bytes").forEach {
+            assertNull(ImportTypes.defaultLiteral(it, "2024-01-01"), it)
+        }
+    }
+
+    @Test
+    fun `pattern literals escape backslashes and quotes`() {
+        val (backslash, _) =
+            ImportTypes.facets(s("string"), listOf(XFacet("pattern", "a\\\\b", null, 1)))
+        assertEquals(s("string", "pattern" to "\"^a\\\\\\\\b$\""), backslash)
+        val (quote, _) =
+            ImportTypes.facets(s("string"), listOf(XFacet("pattern", "[^\"]*", null, 1)))
+        assertEquals(s("string", "pattern" to "\"^[^\\\"]*$\""), quote)
+    }
+
+    @Test
+    fun `an escaped pattern literal formats as Schemata source`() {
+        val (email, _) =
+            ImportTypes.facets(s("string"), listOf(XFacet("pattern", "[^\"]+@[^\"]+", null, 1)))
+        val literal = email.refinements.single().second
+        val source = "namespace s\n\nalias Email = string(pattern = $literal)\n"
+        val formatted = Formatter.format(source, "s.schemata") as FormatResult.Formatted
+        assertTrue(formatted.text.contains("\"^[^\\\"]+@[^\\\"]+$\""), formatted.text)
     }
 }

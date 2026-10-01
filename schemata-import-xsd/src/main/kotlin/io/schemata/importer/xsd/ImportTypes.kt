@@ -1,5 +1,6 @@
 package io.schemata.importer.xsd
 
+import java.math.BigDecimal
 import java.math.BigInteger
 
 /**
@@ -162,7 +163,7 @@ object ImportTypes {
                         if (isUuidPattern(f.value)) {
                             return Pair(UnitType.Scalar("uuid", emptyList()), emptyList())
                         }
-                        refinements += "pattern" to "\"" + unanchor(f.value) + "\""
+                        refinements += "pattern" to quote(unanchor(f.value))
                     }
                 else -> notes += dropped(f)
             }
@@ -193,10 +194,51 @@ object ImportTypes {
         return (if (left) "^" else "") + escaped + (if (right) "$" else "")
     }
 
-    /** Quotes strings (escaping `\` and `"`); numbers and booleans pass through as written. */
-    fun defaultLiteral(builtin: String, text: String): String =
+    /**
+     * [text] as a Schemata string literal: quoted, with `\` and `"` escaped, and a line break or
+     * tab written as its escape, since a string literal cannot span lines.
+     */
+    fun quote(text: String): String = buildString {
+        append('"')
+        text.forEach { c ->
+            when (c) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> append(c)
+            }
+        }
+        append('"')
+    }
+
+    /**
+     * The Schemata literal for an XSD default [text] on a [builtin] scalar, or `null` when there is
+     * none: a number prints as a plain decimal (`.5` → `0.5`, `1e5` → `100000`; `INF`, `NaN`, and
+     * anything unparseable have no literal); a boolean accepts `true`, `false`, `1`, and `0`; a
+     * string is quoted; every other scalar (`uuid`, `date`, `time`, `instant`, `duration`, `bytes`)
+     * has no literal form at all.
+     */
+    fun defaultLiteral(builtin: String, text: String): String? =
         when (builtin) {
-            "string" -> "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-            else -> text
+            "string" -> quote(text)
+            "bool" ->
+                when (text.trim()) {
+                    "true",
+                    "1" -> "true"
+                    "false",
+                    "0" -> "false"
+                    else -> null
+                }
+            in numeric -> plainNumber(text)
+            else -> null
+        }
+
+    private fun plainNumber(text: String): String? =
+        try {
+            BigDecimal(text.trim()).toPlainString()
+        } catch (e: NumberFormatException) {
+            null
         }
 }

@@ -1309,6 +1309,7 @@ object XsdImport {
             val resolved: Resolved? =
                 when {
                     el.maxOccurs == 1 && el.type == null && el.inlineComplex != null -> {
+                        (el.fixed ?: el.default)?.let { noLiteral(it, where, el.line) }
                         val inlineContent = el.inlineComplex.content
                         if (inlineContent is XContent.Choice) {
                             val name = ImportNames.upperCamel(original)
@@ -1418,7 +1419,14 @@ object XsdImport {
                             }
                             val default =
                                 rawDefault?.let {
-                                    defaultLiteralFor(type, it, el.type, where, el.line)
+                                    defaultLiteralFor(
+                                        type,
+                                        it,
+                                        el.type,
+                                        el.inlineSimple,
+                                        where,
+                                        el.line,
+                                    )
                                 }
                             val nullable = (el.minOccurs == 0 || el.nillable) && default == null
                             Resolved(type, nullable, default)
@@ -1465,7 +1473,10 @@ object XsdImport {
                 diagnostics +=
                     lossy(ImportCodes.DROPPED, where, "fixed value imported as a default", a.line)
             }
-            val default = rawDefault?.let { defaultLiteralFor(type, it, a.type, where, a.line) }
+            val default =
+                rawDefault?.let {
+                    defaultLiteralFor(type, it, a.type, a.inlineSimple, where, a.line)
+                }
             val nullable = a.use != "required" && default == null
             val claim =
                 nameAndClaim(original, "attribute", where, claimed, whereCollision, a.line)
@@ -1510,52 +1521,92 @@ object XsdImport {
         }
 
         /**
-         * Quotes a scalar default; a default on an enum-to-be reference resolves to the imported
-         * value's own name, looked up by the XSD enumeration text it was declared with — `null` (no
-         * default emitted) when [sourceType] doesn't resolve to one of them.
+         * [raw] as the default literal for a field of [type]: a scalar's own literal; for an enum,
+         * named by [sourceType] or declared inline as [inlineSimple], the imported value's name,
+         * looked up by the XSD enumeration text it was declared with. `null`, reported, when no
+         * Schemata literal can stand for it (a scalar with no literal form, a complex type, a list,
+         * or a value the enum does not have).
          */
         private fun defaultLiteralFor(
             type: UnitType,
             raw: String,
             sourceType: QName?,
+            inlineSimple: XSimpleType?,
             where: String,
             line: Int,
-        ): String? =
-            when (type) {
-                is UnitType.Scalar -> ImportTypes.defaultLiteral(type.builtin, raw)
-                is UnitType.Ref -> sourceType?.let { enumValueNameFor(it, raw, where, line) }
-                else -> raw
-            }
+        ): String? {
+            val literal =
+                when (type) {
+                    is UnitType.Scalar -> ImportTypes.defaultLiteral(type.builtin, raw)
+                    is UnitType.Ref ->
+                        when {
+                            inlineSimple != null && hasEnumeration(inlineSimple) ->
+                                enumValueName(inlineSimple, raw)
+                            sourceType != null -> {
+                                val named = namedEnum(sourceType)
+                                if (named != null) return enumDefault(named, raw, where, line)
+                                null
+                            }
+                            else -> null
+                        }
+                    is UnitType.ListOf,
+                    is UnitType.MapOf -> null
+                }
+            return literal ?: noLiteral(raw, where, line)
+        }
 
-        /**
-         * The imported name of the enum value [qname] declares with XSD text [raw]: `null` with no
-         * diagnostic when [qname] isn't a genuine enumerated simple type at all; `null` with
-         * [ImportCodes.APPROXIMATED] at [where] when it is one but [raw] matches none of its
-         * values.
-         */
-        private fun enumValueNameFor(qname: QName, raw: String, where: String, line: Int): String? {
+        private fun noLiteral(raw: String, where: String, line: Int): String? {
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    where,
+                    "default '$raw' has no Schemata literal; dropped",
+                    line,
+                )
+            return null
+        }
+
+        /** The imported name of [st]'s enumeration value [raw], or `null` when it has none. */
+        private fun enumValueName(st: XSimpleType, raw: String): String? =
+            (st.variety as XVariety.Restriction)
+                .facets
+                .firstOrNull { it.name == "enumeration" && it.value == raw }
+                ?.let { fieldNameFor(it.value).name }
+
+        /** The enumerated simple type [qname] names, with its declaring document. */
+        private fun namedEnum(qname: QName): Pair<XsdDoc, XSimpleType>? {
             if (qname.namespace == ImportTypes.XS) return null
             val targetDoc =
                 allDocs.firstOrNull { it.targetNamespace == qname.namespace } ?: return null
             val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local } ?: return null
-            if (!hasEnumeration(st)) return null
-            val restriction = st.variety as XVariety.Restriction
-            val facet =
-                restriction.facets.firstOrNull { it.name == "enumeration" && it.value == raw }
-            if (facet == null) {
-                val enumName =
-                    typeNames[QName(targetDoc.targetNamespace, qname.local)]?.finalName
-                        ?: qname.local
-                diagnostics +=
-                    lossy(
-                        ImportCodes.APPROXIMATED,
-                        where,
-                        "default '$raw' is not a value of enum '$enumName'; dropped",
-                        line,
-                    )
-                return null
+            return if (hasEnumeration(st)) targetDoc to st else null
+        }
+
+        /**
+         * The imported name of the named enum's value [raw]: `null` with [ImportCodes.APPROXIMATED]
+         * at [where] when [raw] matches none of its values.
+         */
+        private fun enumDefault(
+            named: Pair<XsdDoc, XSimpleType>,
+            raw: String,
+            where: String,
+            line: Int,
+        ): String? {
+            val (targetDoc, st) = named
+            enumValueName(st, raw)?.let {
+                return it
             }
-            return fieldNameFor(facet.value).name
+            val enumName =
+                st.name?.let { typeNames[QName(targetDoc.targetNamespace, it)]?.finalName }
+                    ?: st.name
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    where,
+                    "default '$raw' is not a value of enum '$enumName'; dropped",
+                    line,
+                )
+            return null
         }
 
         private fun implicitAnyType(where: String, line: Int): UnitType.Scalar {

@@ -1642,4 +1642,156 @@ class XsdImportTest {
             messages(imported),
         )
     }
+
+    @Test
+    fun `keyword names take a trailing underscore and keep the original`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="FlagType">
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="true"/>
+                      <xs:enumeration value="false"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="FeedType">
+                    <xs:sequence>
+                      <xs:element name="stream" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attribute name="import" type="xs:string" use="required"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf(
+                UnitEnumValue("true_", null, listOf(xsd("name", "\"true\""))),
+                UnitEnumValue("false_", null, listOf(xsd("name", "\"false\""))),
+            ),
+            enum(imported, "Flag").values,
+        )
+        val feed = record(imported, "Feed").fields
+        assertEquals(listOf("stream_", "import_"), feed.map { it.name })
+        assertEquals(listOf(xsd("name", "\"stream\"")), feed[0].annotations)
+        assertEquals(listOf(xsd("name", "\"import\""), xsd("attribute")), feed[1].annotations)
+    }
+
+    @Test
+    fun `an element name starting with a digit names its nested record with a letter`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ShapeType">
+                    <xs:sequence>
+                      <xs:element name="3d">
+                        <xs:complexType>
+                          <xs:sequence><xs:element name="z" type="xs:int"/></xs:sequence>
+                        </xs:complexType>
+                      </xs:element>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val shape = record(imported, "Shape")
+        val field = shape.fields.single()
+        assertEquals("v3d", field.name)
+        assertEquals(UnitType.Ref("V3d"), field.type)
+        // "3d" is not a valid XML name, so no override could regenerate it
+        assertEquals(emptyList(), field.annotations)
+        assertEquals(listOf("V3d"), shape.nested.map { it.name })
+        assertEquals(
+            listOf(
+                "SCH2403 element '3d': element '3d' has no Schemata equivalent; imported as 'v3d'"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a default with no Schemata literal is dropped and reported`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ChildType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="PayType">
+                    <xs:choice maxOccurs="unbounded">
+                      <xs:element name="child" type="tns:ChildType"/>
+                    </xs:choice>
+                  </xs:complexType>
+                  <xs:complexType name="PointType">
+                    <xs:sequence>
+                      <xs:element name="x" type="xs:double" default="INF"/>
+                      <xs:element name="y" type="xs:double" default=".5"/>
+                      <xs:element name="ok" type="xs:boolean" default="1"/>
+                      <xs:element name="at" type="xs:dateTime" default="2024-01-01T00:00:00Z" minOccurs="0"/>
+                      <xs:element name="child" type="tns:ChildType" default="x"/>
+                      <xs:element name="pays" type="tns:PayType" default="q"/>
+                      <xs:element name="mode" default="slow">
+                        <xs:simpleType>
+                          <xs:restriction base="xs:string"><xs:enumeration value="fast"/></xs:restriction>
+                        </xs:simpleType>
+                      </xs:element>
+                      <xs:element name="speed" default="fast">
+                        <xs:simpleType>
+                          <xs:restriction base="xs:string">
+                            <xs:enumeration value="fast"/>
+                            <xs:enumeration value="true"/>
+                          </xs:restriction>
+                        </xs:simpleType>
+                      </xs:element>
+                      <xs:element name="flag" default="true">
+                        <xs:simpleType>
+                          <xs:restriction base="xs:string"><xs:enumeration value="true"/></xs:restriction>
+                        </xs:simpleType>
+                      </xs:element>
+                      <xs:element name="anon" default="z">
+                        <xs:complexType><xs:sequence/></xs:complexType>
+                      </xs:element>
+                    </xs:sequence>
+                    <xs:attribute name="w" type="xs:float" default="NaN"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val fields = record(imported, "Point").fields.associateBy { it.name }
+        assertEquals(
+            mapOf(
+                "x" to null,
+                "y" to "0.5",
+                "ok" to "true",
+                "at" to null,
+                "child" to null,
+                "pays" to null,
+                "mode" to null,
+                "speed" to "fast",
+                "flag" to "true_",
+                "anon" to null,
+                "w" to null,
+            ),
+            fields.mapValues { it.value.default },
+        )
+        assertEquals(false, fields.getValue("x").nullable)
+        assertEquals(true, fields.getValue("w").nullable)
+        assertEquals(
+            listOf(
+                "SCH2403 element 'x': default 'INF' has no Schemata literal; dropped",
+                "SCH2403 element 'at': default '2024-01-01T00:00:00Z' has no Schemata literal; dropped",
+                "SCH2403 element 'child': default 'x' has no Schemata literal; dropped",
+                "SCH2403 element 'pays': type 'PayType' is a repeated choice; imported as list<Pay>",
+                "SCH2403 element 'pays': default 'q' has no Schemata literal; dropped",
+                "SCH2403 element 'mode': default 'slow' has no Schemata literal; dropped",
+                "SCH2403 element 'anon': default 'z' has no Schemata literal; dropped",
+                "SCH2403 attribute 'w': default 'NaN' has no Schemata literal; dropped",
+            ),
+            messages(imported),
+        )
+    }
 }
