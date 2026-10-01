@@ -1,10 +1,8 @@
 package io.schemata.target.xsd
 
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.EnumType
-import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
@@ -19,9 +17,18 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
+import io.schemata.core.ir.declarationPath
+import io.schemata.core.ir.kindWord
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.NameClaims
+import io.schemata.target.OverrideNames
+import io.schemata.target.bool
+import io.schemata.target.collidingNamespaces
+import io.schemata.target.flag
+import io.schemata.target.string
+import io.schemata.target.unionMemberStem
 
 /** Lowers the IR to an [XsdModel]; every decision and every lossy report lives here. */
 object XsdLowering {
@@ -29,30 +36,28 @@ object XsdLowering {
         val diagnostics = mutableListOf<Diagnostic>()
         val uris = LinkedHashMap<String, String>()
         schema.namespaces.forEach { ns ->
-            XsdNames.override(ns.annotations, "namespace")?.let {
-                if (!XsdNames.isAbsoluteUri(it)) {
-                    diagnostics +=
-                        Diagnostic(
-                            XsdCodes.INVALID_OVERRIDE,
-                            "namespace '${ns.name}': @xsd(namespace = \"$it\") is not an absolute URI",
-                            ns.span,
-                            help = "use an absolute URI such as `urn:example:orders`",
-                        )
-                }
+            val override = ns.annotations.string("xsd", "namespace")
+            if (override != null && !XsdNames.isAbsoluteUri(override)) {
+                diagnostics +=
+                    Diagnostic(
+                        XsdCodes.INVALID_OVERRIDE,
+                        "namespace '${ns.name}': @xsd(namespace = \"$override\") is not an absolute URI",
+                        ns.span,
+                        help =
+                            "use an absolute URI without a fragment, such as `urn:example:orders`",
+                    )
+                uris[ns.name] = "urn:schemata:${ns.name}"
+            } else {
+                uris[ns.name] = XsdNames.namespaceOf(ns)
             }
-            uris[ns.name] = XsdNames.namespaceOf(ns)
         }
-        uris.entries
-            .groupBy({ it.value }, { it.key })
-            .values
-            .filter { it.size > 1 }
-            .forEach { names ->
-                val second = schema.namespaces.first { it.name == names[1] }
+        collidingNamespaces(schema.namespaces) { uris.getValue(it.name) }
+            .forEach { group ->
                 diagnostics +=
                     Diagnostic(
                         XsdCodes.NAMESPACE_COLLISION,
-                        "namespaces ${names.joinToString(" and ")} both lower to target namespace '${uris.getValue(names.first())}'",
-                        second.span,
+                        "namespaces ${group.joinToString(" and ") { it.name }} both lower to target namespace '${uris.getValue(group.first().name)}'",
+                        group[1].span,
                         help = "set `@xsd(namespace = \"…\")` on one of them",
                     )
             }
@@ -67,13 +72,17 @@ object XsdLowering {
      * overrides of declarations and enum values. Each override is checked once for the whole
      * schema, however many files refer to the declaration.
      */
-    internal class SchemaNames(
-        private val schema: Schema,
-        private val diagnostics: MutableList<Diagnostic>,
-    ) {
-        private val declOverrides = mutableMapOf<QualifiedName, String?>()
-        private val valueOverrides = mutableMapOf<Pair<QualifiedName, String>, String?>()
-        private val typeNames = mutableMapOf<QualifiedName, String>()
+    internal class SchemaNames(private val schema: Schema, diagnostics: MutableList<Diagnostic>) {
+        val overrides =
+            OverrideNames(
+                schema,
+                "xsd",
+                XsdCodes.INVALID_OVERRIDE,
+                diagnostics,
+                { if (XsdNames.isNCName(it)) null else "is not a valid XML name" },
+            ) {
+                "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore"
+            }
 
         /**
          * The type name of the declaration at [qn]: each enclosing declaration's segment is its
@@ -81,68 +90,17 @@ object XsdLowering {
          * `record Line` gives `PurchaseType` and `PurchaseLineType`.
          */
         fun xsdTypeName(qn: QualifiedName): String =
-            typeNames.getOrPut(qn) {
-                val segments =
-                    qn.path.indices.map { i ->
-                        val decl = schema.lookup(QualifiedName(qn.namespace, qn.path.take(i + 1)))
-                        nameOverride(decl) ?: decl.name
-                    }
-                XsdNames.typeName(segments)
-            }
-
-        /** [decl]'s validated `@xsd(name)`, memoized so an invalid one is reported only once. */
-        fun nameOverride(decl: TypeDecl): String? =
-            declOverrides.memo(decl.qualifiedName) {
-                overrideName(decl.annotations, "${kindOf(decl)} '${decl.name}'", decl.nameSpan)
-            }
-
-        /** [value]'s name in the enumeration: its valid `@xsd(name)`, else its own name. */
-        fun enumValueName(enum: EnumType, value: EnumValue): String =
-            valueOverrides.memo(enum.qualifiedName to value.name) {
-                overrideName(
-                    value.annotations,
-                    "enum value '${enum.name}.${value.name}'",
-                    value.nameSpan,
-                )
-            } ?: value.name
-
-        /**
-         * Like `getOrPut`, but a stored null counts as computed, so [compute] runs once per key.
-         */
-        private fun <K> MutableMap<K, String?>.memo(key: K, compute: () -> String?): String? {
-            if (key !in this) this[key] = compute()
-            return getValue(key)
-        }
+            XsdNames.typeName(
+                schema.declarationPath(qn).map { overrides.nameOverride(it) ?: it.name }
+            )
 
         /** A default's attribute text; an enum default is the value's name in the enumeration. */
         fun defaultText(value: Value): String {
             if (value !is EnumRef) return XsdTypes.text(value)
             val enum = schema.lookup(value.enum) as EnumType
-            return enumValueName(enum, enum.values.first { it.name == value.value })
-        }
-
-        /** The `@xsd(name)` value, or null (with a diagnostic) when it is not a valid XML name. */
-        fun overrideName(annotations: Annotations, where: String, span: Span): String? {
-            val value = XsdNames.override(annotations, "name") ?: return null
-            if (XsdNames.isNCName(value)) return value
-            diagnostics +=
-                Diagnostic(
-                    XsdCodes.INVALID_OVERRIDE,
-                    "$where: @xsd(name = \"$value\") is not a valid XML name",
-                    span,
-                    help =
-                        "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore",
-                )
-            return null
+            return overrides.enumValueName(enum, enum.values.first { it.name == value.value })
         }
     }
-
-    private fun kindOf(decl: TypeDecl): String =
-        when (decl) {
-            is RecordType -> "record"
-            is EnumType -> "enum"
-            is UnionType -> "union"
-        }
 
     /**
      * One namespace's file. Enums, records, and unions become types; top-level records also get a
@@ -163,7 +121,12 @@ object XsdLowering {
          * field's or union member's element, scoped by the declaring record or union's full path so
          * two of them sharing a simple name never collide on a same-named field or member.
          */
-        private val claims = mutableMapOf<String, Pair<String, Span>>()
+        private val claims =
+            NameClaims(
+                XsdCodes.NAME_COLLISION,
+                "rename one of them, or set `@xsd(name = \"…\")` on one",
+                diagnostics,
+            )
 
         /** Imports accumulated as cross-namespace references are lowered, in first-use order. */
         private val imports = mutableListOf<XsdImport>()
@@ -176,7 +139,7 @@ object XsdLowering {
             val elements = mutableListOf<XsdElement>()
             namespace.declarations.forEach { decl ->
                 types += types(decl, emptyList())
-                if (decl is RecordType && XsdNames.bool(decl.annotations, "root") != false) {
+                if (decl is RecordType && decl.annotations.bool("xsd", "root") != false) {
                     elements += globalElement(decl)
                 }
             }
@@ -195,29 +158,47 @@ object XsdLowering {
          * type.
          */
         private fun types(decl: TypeDecl, path: List<String>): List<XsdType> {
-            val here = path + (names.nameOverride(decl) ?: decl.name)
+            val here = path + (names.overrides.nameOverride(decl) ?: decl.name)
             val own =
                 when (decl) {
                     is EnumType -> enum(decl)
                     is RecordType -> record(decl, here)
                     is UnionType -> choice(decl, here)
                 }
-            claim("type", own.name, "${kindOf(decl)} '${decl.name}'", decl.nameSpan)
+            claims.claim(
+                key = "type:${own.name}",
+                holder = "${decl.kindWord} '${decl.name}'",
+                span = decl.nameSpan,
+                display = own.name,
+                kind = "type",
+            )
             return listOf(own) + decl.nested.flatMap { types(it, here) }
         }
 
-        private fun enum(enum: EnumType): XsdEnumeration =
-            XsdEnumeration(
-                names.xsdTypeName(enum.qualifiedName),
+        private fun enum(enum: EnumType): XsdEnumeration {
+            val typeName = names.xsdTypeName(enum.qualifiedName)
+            return XsdEnumeration(
+                typeName,
                 enum.doc,
-                enum.values.map { XsdEnumValue(names.enumValueName(enum, it), it.doc) },
+                enum.values.map { value ->
+                    val string = names.overrides.enumValueName(enum, value)
+                    claims.claim(
+                        key = "value:$typeName/$string",
+                        holder = "enum value '${enum.name}.${value.name}'",
+                        span = value.nameSpan,
+                        display = string,
+                        kind = "enumeration value",
+                    )
+                    XsdEnumValue(string, value.doc)
+                },
             )
+        }
 
         private fun record(record: RecordType, path: List<String>): XsdComplex {
             val sequence = mutableListOf<XsdElement>()
             val attributes = mutableListOf<XsdAttribute>()
             record.fields.forEach { f ->
-                if (XsdNames.flag(f.annotations, "attribute")) {
+                if (f.annotations.flag("xsd", "attribute")) {
                     attribute(record, f, path)?.let { attributes += it }
                 } else {
                     sequence += field(record, f, path)
@@ -288,14 +269,14 @@ object XsdLowering {
             where: String,
             displayKind: String,
         ): String {
-            val name = names.overrideName(field.annotations, where, field.nameSpan) ?: field.name
-            claim(
-                "element",
-                "${path.joinToString(".")}/$name",
-                where,
-                field.nameSpan,
-                displayName = name,
-                displayKind = displayKind,
+            val name =
+                names.overrides.overrideName(field.annotations, where, field.nameSpan) ?: field.name
+            claims.claim(
+                key = "element:${path.joinToString(".")}/$name",
+                holder = where,
+                span = field.nameSpan,
+                display = name,
+                kind = displayKind,
             )
             return name
         }
@@ -318,23 +299,16 @@ object XsdLowering {
             member: UnionMember,
             path: List<String>,
         ): XsdElement {
-            val (name, declName) =
-                when (val t = member.type) {
-                    is Ref -> {
-                        val target = schema.lookup(t.target)
-                        (names.nameOverride(target) ?: XsdNames.elementName(target.name)) to
-                            target.name
-                    }
-                    is Scalar -> t.builtin.typeName to t.builtin.typeName
-                    is ListOf,
-                    is MapOf -> error("union member cannot be a collection")
-                }
-            claim(
-                "element",
-                "${path.joinToString(".")}/$name",
-                "union member '$declName'",
-                member.span,
-                displayName = name,
+            val name = unionMemberStem(member.type, schema) { names.overrides.nameOverride(it) }
+            val declName =
+                (member.type as? Ref)?.let { schema.lookup(it.target).name }
+                    ?: (member.type as Scalar).builtin.typeName
+            claims.claim(
+                key = "element:${path.joinToString(".")}/$name",
+                holder = "union member '$declName'",
+                span = member.span,
+                display = name,
+                kind = "element",
             )
             return XsdElement(
                 name,
@@ -345,8 +319,14 @@ object XsdLowering {
 
         /** A top-level record's global element, named in lower snake unless overridden. */
         private fun globalElement(record: RecordType): XsdElement {
-            val name = names.nameOverride(record) ?: XsdNames.elementName(record.name)
-            claim("element", name, "record '${record.name}'", record.nameSpan)
+            val name = names.overrides.nameOverride(record) ?: XsdNames.elementName(record.name)
+            claims.claim(
+                key = "element:$name",
+                holder = "record '${record.name}'",
+                span = record.nameSpan,
+                display = name,
+                kind = "element",
+            )
             return XsdElement(
                 name,
                 XsdTypeRef.Named("tns", names.xsdTypeName(record.qualifiedName), simple = false),
@@ -491,7 +471,13 @@ object XsdLowering {
         ): XsdElement {
             val key = XsdAttribute("key", typeRef(map.key, where, span), required = true)
             val unique = "${uniqueBase}_key"
-            claim("unique", unique, where, span, displayKind = "uniqueness constraint")
+            claims.claim(
+                key = "unique:$unique",
+                holder = where,
+                span = span,
+                display = unique,
+                kind = "uniqueness constraint",
+            )
             val entry =
                 XsdElement(
                     name = "entry",
@@ -556,9 +542,9 @@ object XsdLowering {
             val record = schema.lookup(value.target) as? RecordType ?: return null
             val field =
                 record.fields.firstOrNull { f ->
-                    XsdNames.flag(f.annotations, "attribute") &&
+                    f.annotations.flag("xsd", "attribute") &&
                         attributeShape(f.type) == null &&
-                        (XsdNames.override(f.annotations, "name")?.takeIf(XsdNames::isNCName)
+                        (f.annotations.string("xsd", "name")?.takeIf(XsdNames::isNCName)
                             ?: f.name) == "key"
                 } ?: return null
             return record to field
@@ -585,38 +571,6 @@ object XsdLowering {
                     is Ref -> error("nestedItem only accepts a list or a map")
                 }
             return XsdTypeRef.Anonymous(listOf(item), attributes)
-        }
-
-        /**
-         * Reports [XsdCodes.NAME_COLLISION] when `"$kind:$key"` was already claimed. [key] scopes
-         * uniqueness (a record or union's declaring path, for a field or member claim);
-         * [displayName] is the plain name shown in the message, defaulting to [key] for claims that
-         * are already unscoped (types and global elements); [displayKind] is the word the message
-         * uses for what the holder lowers to, so an attribute sharing the element scope still reads
-         * as an attribute.
-         */
-        private fun claim(
-            kind: String,
-            key: String,
-            holder: String,
-            span: Span,
-            displayName: String = key,
-            displayKind: String = kind,
-        ) {
-            val fullKey = "$kind:$key"
-            val previous = claims[fullKey]
-            if (previous == null) {
-                claims[fullKey] = holder to span
-            } else {
-                diagnostics +=
-                    Diagnostic(
-                        XsdCodes.NAME_COLLISION,
-                        "$holder lowers to $displayKind '$displayName', already used by ${previous.first} " +
-                            "(${previous.second.file}:${previous.second.startLine})",
-                        span,
-                        help = "rename one of them, or set `@xsd(name = \"…\")` on one",
-                    )
-            }
         }
 
         /** The type ref for a scalar field, reporting a pattern XSD 1.0 cannot express as lossy. */

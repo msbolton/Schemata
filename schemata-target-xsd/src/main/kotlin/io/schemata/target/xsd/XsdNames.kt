@@ -1,17 +1,16 @@
 package io.schemata.target.xsd
 
-import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Namespace
 import io.schemata.target.Names
+import io.schemata.target.string
 
 /** The XSD target's naming rules: `@xsd` overrides, type and element names, XML name checks. */
 object XsdNames {
     private val ncName = Regex("[A-Za-z_][A-Za-z0-9_.\\-]*")
-    private val scheme = Regex("[A-Za-z][A-Za-z0-9+.\\-]*:.+")
+    private val scheme = Regex("[A-Za-z][A-Za-z0-9+.\\-]*:[^\\s#]+")
 
     fun namespaceOf(namespace: Namespace): String =
-        override(namespace.annotations, "namespace") ?: "urn:schemata:${namespace.name}"
+        namespace.annotations.string("xsd", "namespace") ?: "urn:schemata:${namespace.name}"
 
     fun pathOf(namespace: Namespace): String = namespace.name.replace('.', '/') + ".xsd"
 
@@ -43,14 +42,4 @@ object XsdNames {
     fun isNCName(s: String): Boolean = ncName.matches(s)
 
     fun isAbsoluteUri(s: String): Boolean = scheme.matches(s)
-
-    /** The raw `@xsd(<key>)` text, before any validity check. */
-    fun override(annotations: Annotations, key: String): String? =
-        (annotations["xsd"][key] as? AnnotationValue.Str)?.value
-
-    fun flag(annotations: Annotations, key: String): Boolean =
-        annotations["xsd"][key] is AnnotationValue.Flag
-
-    fun bool(annotations: Annotations, key: String): Boolean? =
-        (annotations["xsd"][key] as? AnnotationValue.Bool)?.value
 }

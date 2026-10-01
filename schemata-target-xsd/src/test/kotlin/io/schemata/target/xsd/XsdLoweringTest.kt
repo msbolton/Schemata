@@ -148,6 +148,14 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `an invalid namespace uri is reported and the default is used`() {
+        val ns = namespace("s", xsd("namespace" to AnnotationValue.Str("urn:a b")))
+        val lowered = XsdLowering.lower(Schema(listOf(ns)))
+        assertEquals(listOf("SCH2205"), lowered.diagnostics.map { it.code.id })
+        assertEquals("urn:schemata:s", lowered.model.files.single().targetNamespace)
+    }
+
+    @Test
     fun `two namespaces sharing a uri collide on the second`() {
         val a = namespace("a", xsd("namespace" to AnnotationValue.Str("urn:x")), line = 1)
         val b = namespace("b", xsd("namespace" to AnnotationValue.Str("urn:x")), line = 5)
@@ -167,7 +175,7 @@ class XsdLoweringTest {
             "namespace 'shop.orders': @xsd(namespace = \"orders\") is not an absolute URI",
             d.message,
         )
-        assertEquals("use an absolute URI such as `urn:example:orders`", d.help)
+        assertEquals("use an absolute URI without a fragment, such as `urn:example:orders`", d.help)
     }
 
     @Test
@@ -248,6 +256,25 @@ class XsdLoweringTest {
                 default = "personal",
             ),
             kind,
+        )
+    }
+
+    @Test
+    fun `two enum values lowering to one enumeration value are reported`() {
+        val e =
+            enum(
+                "s",
+                "Status",
+                "paid",
+                "settled",
+                valueAnnotations = mapOf("settled" to xsd("name" to AnnotationValue.Str("paid"))),
+            )
+        val ns = namespace("s", declarations = listOf(e))
+        assertEquals(
+            listOf(
+                "SCH2202 enum value 'Status.settled' lowers to enumeration value 'paid', already used by enum value 'Status.paid' (orders.schemata:31)"
+            ),
+            XsdLowering.lower(Schema(listOf(ns))).diagnostics.map { "${it.code.id} ${it.message}" },
         )
     }
 
