@@ -120,19 +120,21 @@ object XsdImport {
         return Imported(units, diagnostics)
     }
 
+    /**
+     * [doc]'s namespace name: the `urn:schemata:` suffix of its own `targetNamespace` when it has
+     * one: otherwise, one derived from its file name (fixed into a valid segment when the raw stem
+     * isn't one), reported every time, since nothing in the xsd chose it — the name only exists
+     * because this file happened to be called what it was called.
+     */
     private fun deriveNamespaceName(doc: XsdDoc, diagnostics: MutableList<Diagnostic>): String {
         val tn = doc.targetNamespace
         if (tn != null && tn.startsWith("urn:schemata:")) return tn.removePrefix("urn:schemata:")
         val rawStem = rawStem(doc.path)
-        if (ImportNames.isNamespaceSegment(rawStem)) return rawStem
-        val fixed = ImportNames.namespaceStem(doc.path)
-        diagnostics +=
-            renamed(
-                doc.path,
-                1,
-                "namespace '$rawStem' is not a Schemata identifier; imported as '$fixed'",
-            )
-        return fixed
+        val name =
+            if (ImportNames.isNamespaceSegment(rawStem)) rawStem
+            else ImportNames.namespaceStem(doc.path)
+        diagnostics += renamed(doc.path, 1, "namespace '$name' was derived from the file name")
+        return name
     }
 
     private fun rawStem(path: String): String {
@@ -267,7 +269,7 @@ object XsdImport {
             path,
             line,
             "$path: $message",
-            "keep the annotation so the regenerated XSD uses the original name",
+            "set --namespace to choose it, or keep it and rename later",
         )
 
     private fun dropped(path: String, line: Int, where: String, tail: String) =
@@ -284,8 +286,7 @@ object XsdImport {
         when (code) {
             ImportCodes.UNRESOLVED ->
                 "add the referenced schema to the inputs or fix schemaLocation"
-            ImportCodes.RENAMED ->
-                "keep the annotation so the regenerated XSD uses the original name"
+            ImportCodes.RENAMED -> "set --namespace to choose it, or keep it and rename later"
             ImportCodes.APPROXIMATED ->
                 "review the imported record; the regenerated XSD will differ here"
             ImportCodes.WIDENED -> "narrow the type by hand if the data needs it"
@@ -333,16 +334,6 @@ object XsdImport {
         fun declaration(ct: XComplexType): List<UnitDecl> {
             val original = ct.name ?: error("a top-level complex type always has a name")
             val info = typeNames.getValue(QName(doc.targetNamespace, original))
-            if (info.annotation != null) {
-                diagnostics +=
-                    lossy(
-                        ImportCodes.RENAMED,
-                        "complex type '$original'",
-                        "complex type '$original' is not a Schemata identifier; imported as " +
-                            "'${info.finalName}' with @xsd(name)",
-                        ct.line,
-                    )
-            }
             when (val note = info.note) {
                 is TypeNote.Unfixable ->
                     diagnostics +=
@@ -413,16 +404,6 @@ object XsdImport {
         fun enumDeclaration(st: XSimpleType): UnitEnum {
             val original = st.name ?: error("an enumerated top-level simple type always has a name")
             val info = typeNames.getValue(QName(doc.targetNamespace, original))
-            if (info.annotation != null) {
-                diagnostics +=
-                    lossy(
-                        ImportCodes.RENAMED,
-                        "simple type '$original'",
-                        "simple type '$original' is not a Schemata identifier; imported as " +
-                            "'${info.finalName}' with @xsd(name)",
-                        st.line,
-                    )
-            }
             when (val note = info.note) {
                 is TypeNote.Unfixable ->
                     diagnostics +=
@@ -741,8 +722,14 @@ object XsdImport {
                         particle.line,
                     )
                 val claim =
-                    nameAndClaim(fieldName, whereCollision, claimed, whereCollision, particle.line)
-                        ?: return emptyList()
+                    nameAndClaim(
+                        fieldName,
+                        "choice",
+                        whereCollision,
+                        claimed,
+                        whereCollision,
+                        particle.line,
+                    ) ?: return emptyList()
                 val (name, annotations) = claim
                 val type: UnitType =
                     if (particle.maxOccurs != 1) {
@@ -797,8 +784,14 @@ object XsdImport {
                         ext.line,
                     )
                 val claim =
-                    nameAndClaim("value", whereCollision, claimed, whereCollision, ext.line)
-                        ?: return emptyList()
+                    nameAndClaim(
+                        "value",
+                        "field",
+                        whereCollision,
+                        claimed,
+                        whereCollision,
+                        ext.line,
+                    ) ?: return emptyList()
                 val (name, annotations) = claim
                 return listOf(UnitField(name, valueType, false, null, null, annotations))
             }
@@ -1100,10 +1093,10 @@ object XsdImport {
             val values =
                 facets.mapNotNull { f ->
                     val valueWhere = "enum value '$name.${f.value}'"
-                    // Unlike a type name, a value's @xsd(name) override, when the xsd target would
-                    // accept it, always regenerates the original xsd text exactly, so this is never
-                    // reported as lossy; a value that is not even a valid XML name gets no override
-                    // (one would only be rejected), and that is reported instead.
+                    // A value's @xsd(name) override, when the xsd target would accept it, always
+                    // regenerates the original xsd text exactly, so this is never reported; a value
+                    // that is not even a valid XML name gets no override (one would only be
+                    // rejected), and that is reported instead.
                     val field = fieldNameFor(f.value)
                     if (field.unfixable) {
                         diagnostics +=
@@ -1434,7 +1427,8 @@ object XsdImport {
                 }
             if (resolved == null) return null
             val claim =
-                nameAndClaim(original, where, claimed, whereCollision, el.line) ?: return null
+                nameAndClaim(original, "element", where, claimed, whereCollision, el.line)
+                    ?: return null
             val (name, annotations) = claim
             return UnitField(
                 name,
@@ -1474,22 +1468,23 @@ object XsdImport {
             val default = rawDefault?.let { defaultLiteralFor(type, it, a.type, where, a.line) }
             val nullable = a.use != "required" && default == null
             val claim =
-                nameAndClaim(original, where, claimed, whereCollision, a.line) ?: return null
+                nameAndClaim(original, "attribute", where, claimed, whereCollision, a.line)
+                    ?: return null
             val (name, nameAnnotations) = claim
             val annotations = nameAnnotations + UnitAnnotation("xsd", "attribute", null)
             return UnitField(name, type, nullable, default, a.doc, annotations)
         }
 
         /**
-         * The field's final name, claimed against [claimed]: [ImportCodes.UNRESOLVED] (dropping the
-         * field, returning `null`) when it collides with one already claimed in this record. Unlike
-         * a type name, a field or attribute's `@xsd(name)` override, when the xsd target would
-         * accept it, always regenerates the original xsd text exactly, so needing one is never
-         * reported as lossy; a name that is not even a valid XML name gets no override, and that is
-         * reported.
+         * The field's final name, claimed against [claimed]: [ImportCodes.APPROXIMATED] when
+         * [original] isn't even a valid XML name (no override could ever regenerate it, so none is
+         * offered — a valid override, like a type's, always regenerates the original xsd text
+         * exactly, so needing one is never reported), and [ImportCodes.UNRESOLVED] (dropping the
+         * field, returning `null`) when it collides with one already claimed in this record.
          */
         private fun nameAndClaim(
             original: String,
+            kind: String,
             whereConstruct: String,
             claimed: MutableMap<String, String>,
             whereCollision: String,
@@ -1501,7 +1496,7 @@ object XsdImport {
                     lossy(
                         ImportCodes.APPROXIMATED,
                         whereConstruct,
-                        "$whereConstruct has no Schemata equivalent; imported as '${field.name}'",
+                        "$kind '$original' has no Schemata equivalent; imported as '${field.name}'",
                         line,
                     )
             }

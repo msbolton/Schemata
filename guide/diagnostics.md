@@ -115,7 +115,7 @@ Retired, never reused: SCH2103, SCH2104.
 | Code | Severity | Category | Fires when | Message | Help |
 |---|---|---|---|---|---|
 | SCH2401 | error | semantic | an xsd reference, import, or include cannot be resolved, or two constructs lower to one name | element 'full-name' and element 'full_name' both lower to field 'full_name'<br>import 'urn:schemata:missing' cannot be resolved<br>type 'Missing' cannot be resolved | rename one of them<br>add the referenced schema to the inputs or fix schemaLocation |
-| SCH2402 | warning | lossy | an xsd name was changed to a schemata identifier | complex type 'gpxType' is not a Schemata identifier; imported as 'Gpx' with @xsd(name) | keep the annotation so the regenerated XSD uses the original name |
+| SCH2402 | warning | lossy | a namespace name was derived from a file name | namespace 's' was derived from the file name | set --namespace to choose it, or keep it and rename later |
 | SCH2403 | warning | lossy | an xsd construct was approximated | xs:all imported as a sequence<br>extension of 'BaseType' has no Schemata equivalent; base fields flattened into the record | review the imported record; the regenerated XSD will differ here |
 | SCH2404 | warning | lossy | an xsd type or facet was widened or dropped | facet whiteSpace dropped<br>xs:gYear imported as string | narrow the type by hand if the data needs it |
 | SCH2405 | warning | lossy | an xsd construct was dropped | xs:any dropped<br>mixed content dropped; elements kept | add the missing part by hand; Schemata cannot express it |

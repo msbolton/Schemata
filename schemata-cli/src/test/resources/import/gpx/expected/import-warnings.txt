@@ -1,7 +1,5 @@
-SCH2402 complex type 'gpxType': complex type 'gpxType' is not a Schemata identifier; imported as 'Gpx' with @xsd(name)
+SCH2402 gpx.xsd: namespace 'gpx' was derived from the file name
 SCH2405 attribute 'version': fixed value imported as a default
-SCH2402 complex type 'metadataType': complex type 'metadataType' is not a Schemata identifier; imported as 'Metadata' with @xsd(name)
-SCH2402 complex type 'wptType': complex type 'wptType' is not a Schemata identifier; imported as 'Wpt' with @xsd(name)
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'magvar': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 element 'magvar': facet maxExclusive dropped
@@ -13,29 +11,17 @@ SCH2403 element 'ageofdgpsdata': decimal without totalDigits and fractionDigits 
 SCH2403 attribute 'lat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'lon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 attribute 'lon': facet maxExclusive dropped
-SCH2402 complex type 'rteType': complex type 'rteType' is not a Schemata identifier; imported as 'Rte' with @xsd(name)
-SCH2402 complex type 'trkType': complex type 'trkType' is not a Schemata identifier; imported as 'Trk' with @xsd(name)
-SCH2402 complex type 'extensionsType': complex type 'extensionsType' is not a Schemata identifier; imported as 'Extensions' with @xsd(name)
 SCH2405 complex type 'extensionsType': xs:any dropped
-SCH2402 complex type 'trksegType': complex type 'trksegType' is not a Schemata identifier; imported as 'Trkseg' with @xsd(name)
-SCH2402 complex type 'copyrightType': complex type 'copyrightType' is not a Schemata identifier; imported as 'Copyright' with @xsd(name)
 SCH2404 element 'year': xs:gYear imported as string
-SCH2402 complex type 'linkType': complex type 'linkType' is not a Schemata identifier; imported as 'Link' with @xsd(name)
-SCH2402 complex type 'emailType': complex type 'emailType' is not a Schemata identifier; imported as 'Email' with @xsd(name)
-SCH2402 complex type 'personType': complex type 'personType' is not a Schemata identifier; imported as 'Person' with @xsd(name)
-SCH2402 complex type 'ptType': complex type 'ptType' is not a Schemata identifier; imported as 'Pt' with @xsd(name)
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'lat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'lon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 attribute 'lon': facet maxExclusive dropped
-SCH2402 complex type 'ptsegType': complex type 'ptsegType' is not a Schemata identifier; imported as 'Ptseg' with @xsd(name)
-SCH2402 complex type 'boundsType': complex type 'boundsType' is not a Schemata identifier; imported as 'Bounds' with @xsd(name)
 SCH2403 attribute 'minlat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'minlon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 attribute 'minlon': facet maxExclusive dropped
 SCH2403 attribute 'maxlat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'maxlon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 attribute 'maxlon': facet maxExclusive dropped
-SCH2402 simple type 'fixType': simple type 'fixType' is not a Schemata identifier; imported as 'Fix' with @xsd(name)
 SCH2403 enum value 'Fix.2d': enum value 'Fix.2d' has no Schemata equivalent; imported as 'v2d'
 SCH2403 enum value 'Fix.3d': enum value 'Fix.3d' has no Schemata equivalent; imported as 'v3d'

@@ -594,12 +594,7 @@ class XsdImportTest {
             listOf(xsd("root", "false"), xsd("name", "\"gpx\"")).sortedBy { it.key },
             record(gpx, "Gpx").annotations.sortedBy { it.key },
         )
-        assertEquals(
-            listOf(
-                "SCH2402 complex type 'gpxType': complex type 'gpxType' is not a Schemata identifier; imported as 'Gpx' with @xsd(name)"
-            ),
-            messages(gpx),
-        )
+        assertEquals(emptyList(), gpx.diagnostics)
 
         val address =
             lower(

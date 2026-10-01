@@ -18,7 +18,7 @@ object ImportCodes {
             "SCH2402",
             Severity.WARNING,
             Category.LOSSY,
-            "an xsd name was changed to a schemata identifier",
+            "a namespace name was derived from a file name",
         )
     val APPROXIMATED =
         DiagnosticCode(

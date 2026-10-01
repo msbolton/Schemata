@@ -2,17 +2,25 @@ package io.schemata.cli
 
 import io.schemata.importer.xsd.ImportInput
 import io.schemata.importer.xsd.XsdImporter
+import io.schemata.lang.Severity
+import io.schemata.target.jsonschema.JsonSchemaTarget
+import io.schemata.target.proto.ProtoTarget
+import io.schemata.target.sql.SqlCodes
+import io.schemata.target.sql.SqlTarget
+import io.schemata.target.xsd.XsdTarget
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
  * Every `src/test/resources/import/<case>/` directory imports its `.xsd` files into exactly its
  * `expected/` tree, reports exactly the warnings in `expected/import-warnings.txt` (none when the
- * file is absent), and compiles under every target without errors. `SCHEMATA_GOLDEN_UPDATE=1`
- * rewrites both.
+ * file is absent), and compiles under proto, xsd, and jsonschema without errors; the sql target
+ * cannot carry a key the xsd never declared, so it is checked separately, only for errors other
+ * than a missing key. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree and the warnings.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
@@ -70,15 +78,23 @@ class ImportCorpusTest {
             warnings,
             "import warnings for ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
         )
-        val all =
-            Pipeline.compile(
-                result.files.map { SourceInput(it.path, it.content) },
-                Pipeline.targets,
-            )
+        val sources = result.files.map { SourceInput(it.path, it.content) }
+        val noSql = Pipeline.compile(sources, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
         assertFalse(
-            all.hasErrors,
-            "imported ${case.name} under all targets: " +
-                all.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
+            noSql.hasErrors,
+            "imported ${case.name} under proto, xsd, and jsonschema: " +
+                noSql.diagnostics
+                    .filter { it.severity == Severity.ERROR }
+                    .joinToString("\n") { "${it.code.id} ${it.message}" },
+        )
+        val sqlErrors =
+            Pipeline.compile(sources, listOf(SqlTarget)).diagnostics.filter {
+                it.severity == Severity.ERROR
+            }
+        assertTrue(
+            sqlErrors.all { it.code == SqlCodes.MISSING_KEY },
+            "imported ${case.name} under sql had an error other than a missing key: " +
+                sqlErrors.joinToString("\n") { "${it.code.id} ${it.message}" },
         )
     }
 }

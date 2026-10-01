@@ -1,14 +1,9 @@
-SCH2402 complex type 'kitchenType': complex type 'kitchenType' is not a Schemata identifier; imported as 'Kitchen' with @xsd(name)
 SCH2404 element 'built': xs:gYear imported as string
 SCH2404 element 'code': facet whiteSpace dropped
 SCH2401 element 'widget': type 'Missing' cannot be resolved
 SCH2405 element 'note': substitution group 'comment' dropped; imported as an independent element
 SCH2405 complex type 'kitchenType': xs:any dropped
-SCH2402 complex type 'bike-rackType': complex type 'bike-rackType' is not a Schemata identifier; imported as 'BikeRack' with @xsd(name)
-SCH2402 complex type 'dishType': complex type 'dishType' is not a Schemata identifier; imported as 'Dish' with @xsd(name)
 SCH2405 complex type 'dishType': mixed content dropped; elements kept
-SCH2402 complex type 'baseDishType': complex type 'baseDishType' is not a Schemata identifier; imported as 'BaseDish' with @xsd(name)
 SCH2403 complex type 'baseDishType': xs:all imported as a sequence
-SCH2402 complex type 'specialDishType': complex type 'specialDishType' is not a Schemata identifier; imported as 'SpecialDish' with @xsd(name)
 SCH2403 complex type 'specialDishType': xs:all imported as a sequence
 SCH2403 complex type 'specialDishType': extension of 'baseDishType' has no Schemata equivalent; base fields flattened into the record

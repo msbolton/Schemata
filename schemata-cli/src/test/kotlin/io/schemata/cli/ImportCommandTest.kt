@@ -99,11 +99,16 @@ class ImportCommandTest {
     }
 
     @Test
-    fun `--namespace renames a single input file`() {
+    fun `--namespace renames a single input file and drops the derived-name note`() {
         write("s.xsd", tracksNamespace)
         val out = File(dir, "out")
+        val withoutFlag = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
+        assertEquals(2, withoutFlag.statusCode, withoutFlag.stderr)
+        assertTrue(withoutFlag.stderr.contains("warning[SCH2402]"), withoutFlag.stderr)
+
         val r = ImportCommand().test("--from xsd --namespace tracks --out ${out.path} ${dir.path}")
         assertEquals(0, r.statusCode, r.stderr)
+        assertFalse(r.stderr.contains("SCH2402"), r.stderr)
         val written = out.resolve("import/tracks.schemata")
         assertTrue(written.isFile, r.stderr)
         assertTrue(written.readText().contains("namespace tracks"), written.readText())
