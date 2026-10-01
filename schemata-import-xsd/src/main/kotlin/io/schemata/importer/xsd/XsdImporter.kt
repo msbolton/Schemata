@@ -61,29 +61,45 @@ object XsdImporter {
         return ImportResult(files, diagnostics)
     }
 
+    /**
+     * Merges [doc]'s `xs:include`s into it, and those included documents' own includes in turn,
+     * until no new one appears. [visited] (seeded with [doc]'s own path) guards against a cycle: an
+     * include that resolves to an already-visited path is skipped rather than merged again.
+     */
     private fun mergeIncludes(
         doc: XsdDoc,
         byPath: Map<String, ImportInput>,
         locate: (String) -> ImportInput?,
         diagnostics: MutableList<Diagnostic>,
     ): XsdDoc {
-        if (doc.includes.isEmpty()) return doc
+        val visited = mutableSetOf(doc.path)
         var result = doc
-        doc.includes.forEach { include ->
-            val includedDoc =
-                fetch(doc.path, include, byPath, locate, diagnostics) ?: return@forEach
-            result =
-                result.copy(
-                    complexTypes = result.complexTypes + includedDoc.complexTypes,
-                    simpleTypes = result.simpleTypes + includedDoc.simpleTypes,
-                    elements = result.elements + includedDoc.elements,
-                    attributes = result.attributes + includedDoc.attributes,
-                    groups = result.groups + includedDoc.groups,
-                    attributeGroups = result.attributeGroups + includedDoc.attributeGroups,
-                )
+        var frontier: List<Pair<String, String>> = doc.includes.map { doc.path to it }
+        while (frontier.isNotEmpty()) {
+            val next = mutableListOf<Pair<String, String>>()
+            frontier.forEach { (basePath, include) ->
+                val includedDoc =
+                    fetch(basePath, include, byPath, locate, diagnostics) ?: return@forEach
+                if (!visited.add(includedDoc.path)) return@forEach
+                result = merge(result, includedDoc)
+                next += includedDoc.includes.map { includedDoc.path to it }
+            }
+            frontier = next
         }
         return result
     }
+
+    /** Folds [included]'s imports (deduplicated by namespace) and declarations into [into]. */
+    private fun merge(into: XsdDoc, included: XsdDoc): XsdDoc =
+        into.copy(
+            imports = (into.imports + included.imports).distinctBy { it.namespace },
+            complexTypes = into.complexTypes + included.complexTypes,
+            simpleTypes = into.simpleTypes + included.simpleTypes,
+            elements = into.elements + included.elements,
+            attributes = into.attributes + included.attributes,
+            groups = into.groups + included.groups,
+            attributeGroups = into.attributeGroups + included.attributeGroups,
+        )
 
     /**
      * Resolves [relative] against [basePath]'s directory: an already-read input first, else

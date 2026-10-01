@@ -130,4 +130,141 @@ class XsdImporterTest {
         assertEquals(1, result.diagnostics.count { it.code == ImportCodes.UNRESOLVED })
         assertEquals(1, result.files.size)
     }
+
+    @Test
+    fun `an include brings its own imports along`() {
+        val aXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:a">
+              <xs:include schemaLocation="b.xsd"/>
+            </xs:schema>
+            """
+                .trimIndent()
+        val bXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:c="urn:schemata:c" targetNamespace="urn:schemata:a">
+              <xs:import namespace="urn:schemata:c" schemaLocation="c.xsd"/>
+              <xs:complexType name="BType">
+                <xs:sequence>
+                  <xs:element name="thing" type="c:CType"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val cXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:c">
+              <xs:complexType name="CType">
+                <xs:sequence>
+                  <xs:element name="value" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val result =
+            XsdImporter.import(
+                listOf(ImportInput("a.xsd", aXsd)),
+                locate = { path ->
+                    when (path) {
+                        "b.xsd" -> ImportInput("b.xsd", bXsd)
+                        "c.xsd" -> ImportInput("c.xsd", cXsd)
+                        else -> null
+                    }
+                },
+            )
+        assertEquals(emptyList(), result.diagnostics)
+        val a = result.files.single { it.path == "a.schemata" }
+        assertTrue(a.content.contains("import c"), a.content)
+        assertTrue(a.content.contains("thing: c.C"), a.content)
+    }
+
+    @Test
+    fun `chained includes merge through more than one level`() {
+        val aXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:chain">
+              <xs:include schemaLocation="b.xsd"/>
+            </xs:schema>
+            """
+                .trimIndent()
+        val bXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:chain">
+              <xs:include schemaLocation="d.xsd"/>
+            </xs:schema>
+            """
+                .trimIndent()
+        val dXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:chain">
+              <xs:complexType name="DeepType">
+                <xs:sequence>
+                  <xs:element name="n" type="xs:int"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val result =
+            XsdImporter.import(
+                listOf(ImportInput("a.xsd", aXsd)),
+                locate = { path ->
+                    when (path) {
+                        "b.xsd" -> ImportInput("b.xsd", bXsd)
+                        "d.xsd" -> ImportInput("d.xsd", dXsd)
+                        else -> null
+                    }
+                },
+            )
+        assertEquals(emptyList(), result.diagnostics)
+        val file = result.files.single()
+        assertTrue(file.content.contains("record Deep"), file.content)
+    }
+
+    @Test
+    fun `a cyclic include terminates and merges both declaration sets once`() {
+        val aXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:cyclic">
+              <xs:include schemaLocation="b.xsd"/>
+              <xs:complexType name="AType">
+                <xs:sequence>
+                  <xs:element name="x" type="xs:int"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val bXsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:cyclic">
+              <xs:include schemaLocation="a.xsd"/>
+              <xs:complexType name="BType">
+                <xs:sequence>
+                  <xs:element name="y" type="xs:int"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val result =
+            XsdImporter.import(
+                listOf(ImportInput("a.xsd", aXsd)),
+                locate = { path -> if (path == "b.xsd") ImportInput("b.xsd", bXsd) else null },
+            )
+        assertEquals(emptyList(), result.diagnostics)
+        val file = result.files.single()
+        assertEquals(1, Regex("record A \\{").findAll(file.content).count())
+        assertEquals(1, Regex("record B \\{").findAll(file.content).count())
+    }
 }

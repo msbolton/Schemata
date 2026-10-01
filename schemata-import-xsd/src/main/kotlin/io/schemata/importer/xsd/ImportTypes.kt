@@ -12,7 +12,10 @@ data class Note(val code: String, val tail: String, val line: Int)
 object ImportTypes {
     val XS: String = XsdReader.XS
 
-    /** The uuid pattern `§19.3`'s XSD target writes for `uuid`. */
+    /**
+     * The pattern the XSD target writes for a `uuid` field; a string restricted by exactly this
+     * pattern is recognised as `uuid` on the way back in.
+     */
     private const val UUID_PATTERN =
         "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 
@@ -41,7 +44,7 @@ object ImportTypes {
             "anyURI",
         )
 
-    // "any other builtin" per §30.4: widened to string with SCH2404.
+    // Every other XSD builtin: widened to string with SCH2404, since Schemata has no equivalent.
     private val otherBuiltins =
         setOf(
             "gYear",
@@ -89,7 +92,7 @@ object ImportTypes {
 
     private fun dropped(f: XFacet) = Note("SCH2404", "facet ${f.name} dropped", f.line)
 
-    /** Applies the facet rules of §30.4 to [base], returning the refined scalar and lossy notes. */
+    /** Applies the XSD facet rules to [base], returning the refined scalar and the lossy notes. */
     fun facets(base: UnitType.Scalar, facets: List<XFacet>): Pair<UnitType.Scalar, List<Note>> {
         val notes = mutableListOf<Note>()
         val refinements = mutableListOf<Pair<String, String>>()
@@ -175,8 +178,10 @@ object ImportTypes {
     private val unescapedDollar = Regex("""(?<!\\)\$""")
 
     /**
-     * Reverses §19.3's anchoring: `.*(X).*` → `X`, `(X).*` → `^X`, `.*(X)` → `X$`, anything else →
-     * `^X$`. A literal `$` already in the pattern is escaped so it does not read as an anchor.
+     * The XSD target anchors a partial-match pattern by wrapping each open side in `.*` and
+     * capturing the rest in a group; this reverses it: `.*(X).*` → `X`, `(X).*` → `^X`, `.*(X)` →
+     * `X$`, anything else (already a full match) → `^X$`. A literal `$` already in the pattern is
+     * escaped so it does not read as an anchor.
      */
     fun unanchor(pattern: String): String {
         val (core, left, right) =
