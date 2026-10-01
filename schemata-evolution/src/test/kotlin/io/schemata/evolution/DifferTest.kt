@@ -251,7 +251,7 @@ class DifferTest {
             listOf("unionMember.typeChanged", "unionMember.added"),
             unionChanges.map { it.kind },
         )
-        assertEquals(listOf("s.U.1", "s.U.3"), unionChanges.map { it.path })
+        assertEquals(listOf("s.U.#1", "s.U.#3"), unionChanges.map { it.path })
         val extraRemoved =
             diff(
                     ns(
@@ -266,7 +266,7 @@ class DifferTest {
                     ns(oldUnion),
                 )
                 .single { it.kind == "unionMember.removed" }
-        assertEquals("s.U.3", extraRemoved.path)
+        assertEquals("s.U.#3", extraRemoved.path)
 
         // reserved.changed: ordinals and names
         val oldReservedRecord =
@@ -333,5 +333,169 @@ class DifferTest {
         val changes = Differ.diff(Schema(listOf(old)), Schema(listOf(new)))
         assertEquals(listOf("declaration.added", "declaration.removed"), changes.map { it.kind })
         assertEquals(listOf("s.NewOnly", "s.OldOnly"), changes.map { it.path })
+    }
+
+    @Test
+    fun `an enum value doc change is reported on the value's path`() {
+        val old =
+            EnumType(
+                qn("s", "Status"),
+                "Status",
+                listOf(EnumValue(1, "pending", null, at(31), at(31))),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(30),
+                at(30),
+                Annotations.NONE,
+            )
+        val new =
+            EnumType(
+                qn("s", "Status"),
+                "Status",
+                listOf(EnumValue(1, "pending", "Waiting to be paid.", at(31), at(31))),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(30),
+                at(30),
+                Annotations.NONE,
+            )
+        val change = diff(ns(old), ns(new)).single()
+        assertEquals("doc.changed", change.kind)
+        assertEquals("s.Status.pending", change.path)
+    }
+
+    @Test
+    fun `an enum value xsd name annotation change is reported on the value's path`() {
+        val old =
+            EnumType(
+                qn("s", "Status"),
+                "Status",
+                listOf(EnumValue(1, "pending", null, at(31), at(31), Annotations.NONE)),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(30),
+                at(30),
+                Annotations.NONE,
+            )
+        val new =
+            EnumType(
+                qn("s", "Status"),
+                "Status",
+                listOf(
+                    EnumValue(
+                        1,
+                        "pending",
+                        null,
+                        at(31),
+                        at(31),
+                        Annotations(mapOf("xsd" to mapOf("name" to AnnotationValue.Str("Pending")))),
+                    )
+                ),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(30),
+                at(30),
+                Annotations.NONE,
+            )
+        val change = diff(ns(old), ns(new)).single() as AnnotationChanged
+        assertEquals("annotation.changed", change.kind)
+        assertEquals("s.Status.pending", change.path)
+        assertEquals("xsd", change.target)
+        assertEquals("name", change.key)
+        assertEquals(null, change.from)
+        assertEquals(AnnotationValue.Str("Pending"), change.to)
+    }
+
+    @Test
+    fun `a union member doc change is reported on an ordinal path`() {
+        val old =
+            UnionType(
+                qn("s", "Payment"),
+                "Payment",
+                listOf(UnionMember(1, Scalar(Builtin.BOOL), null, at(41))),
+                emptyList(),
+                null,
+                at(40),
+                at(40),
+                Annotations.NONE,
+            )
+        val new =
+            UnionType(
+                qn("s", "Payment"),
+                "Payment",
+                listOf(UnionMember(1, Scalar(Builtin.BOOL), "Paid by card.", at(41))),
+                emptyList(),
+                null,
+                at(40),
+                at(40),
+                Annotations.NONE,
+            )
+        val change = diff(ns(old), ns(new)).single()
+        assertEquals("doc.changed", change.kind)
+        assertEquals("s.Payment.#1", change.path)
+    }
+
+    @Test
+    fun `a deprecation reason change alone is an annotation change not a deprecation change`() {
+        val old =
+            record(
+                "s",
+                "R5",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                annotations =
+                    Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Str("a")))),
+            )
+        val new =
+            record(
+                "s",
+                "R5",
+                field(1, "x", Scalar(Builtin.BOOL)),
+                annotations =
+                    Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Str("b")))),
+            )
+        val change = diff(ns(old), ns(new)).single() as AnnotationChanged
+        assertEquals("annotation.changed", change.kind)
+        assertEquals("s.R5", change.path)
+        assertEquals("", change.target)
+        assertEquals("deprecated", change.key)
+        assertEquals(AnnotationValue.Str("a"), change.from)
+        assertEquals(AnnotationValue.Str("b"), change.to)
+    }
+
+    @Test
+    fun `a nested declaration's field rename and its removal are pathed through the outer declaration`() {
+        val oldLine =
+            record(
+                "s",
+                "Line",
+                field(1, "code", Scalar(Builtin.STRING)),
+                path = listOf("Order", "Line"),
+                line = 5,
+            )
+        val oldOrder = record("s", "Order", nested = listOf(oldLine), line = 3)
+        val newLine =
+            record(
+                "s",
+                "Line",
+                field(1, "sku", Scalar(Builtin.STRING)),
+                path = listOf("Order", "Line"),
+                line = 5,
+            )
+        val newOrder = record("s", "Order", nested = listOf(newLine), line = 3)
+
+        val renameChanges = diff(ns(oldOrder), ns(newOrder))
+        assertEquals(listOf("field.renamed"), renameChanges.map { it.kind })
+        assertEquals(listOf("s.Order.Line.sku"), renameChanges.map { it.path })
+
+        val removalChanges = diff(ns(oldOrder), namespace("s"))
+        assertEquals(
+            listOf("declaration.removed", "declaration.removed"),
+            removalChanges.map { it.kind },
+        )
+        assertEquals(listOf("s.Order", "s.Order.Line"), removalChanges.map { it.path })
     }
 }

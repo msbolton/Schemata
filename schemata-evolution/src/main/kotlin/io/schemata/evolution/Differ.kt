@@ -1,24 +1,16 @@
 package io.schemata.evolution
 
 import io.schemata.core.ir.Annotations
-import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
-import io.schemata.core.ir.ListOf
-import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
-import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
-import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
-import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Span
-import java.math.BigDecimal
 
 /**
  * Compares two analysed schemas into a target-neutral list of [Change]s: declarations are matched
@@ -112,9 +104,12 @@ object Differ {
         new.values.forEach { nv ->
             val ov = oldValues[nv.ordinal]
             val p = memberPath(new, nv.name)
-            when {
-                ov == null -> out += EnumValueAdded(p, nv.nameSpan, new, nv)
-                ov.name != nv.name -> out += EnumValueRenamed(p, nv.nameSpan, new, ov, nv)
+            if (ov == null) {
+                out += EnumValueAdded(p, nv.nameSpan, new, nv)
+            } else {
+                if (ov.name != nv.name) out += EnumValueRenamed(p, nv.nameSpan, new, ov, nv)
+                annotations(p, nv.nameSpan, ov.annotations, nv.annotations, out)
+                if (ov.doc != nv.doc) out += DocChanged(p, nv.nameSpan)
             }
         }
         old.values
@@ -124,21 +119,24 @@ object Differ {
             }
     }
 
+    /** Members have no name, so they path by ordinal: `s.Payment.#2`. */
     private fun members(new: UnionType, old: UnionType, out: MutableList<Change>) {
         val oldMembers = old.members.associateBy { it.ordinal }
         val newMembers = new.members.associateBy { it.ordinal }
         new.members.forEach { nm ->
             val om = oldMembers[nm.ordinal]
-            val p = memberPath(new, nm.ordinal.toString())
-            when {
-                om == null -> out += UnionMemberAdded(p, nm.span, new, nm)
-                om.type != nm.type -> out += UnionMemberTypeChanged(p, nm.span, new, om, nm)
+            val p = memberPath(new, "#${nm.ordinal}")
+            if (om == null) {
+                out += UnionMemberAdded(p, nm.span, new, nm)
+            } else {
+                if (om.type != nm.type) out += UnionMemberTypeChanged(p, nm.span, new, om, nm)
+                if (om.doc != nm.doc) out += DocChanged(p, nm.span)
             }
         }
         old.members
             .filter { it.ordinal !in newMembers }
             .forEach { om ->
-                out += UnionMemberRemoved(memberPath(old, om.ordinal.toString()), om.span, old, om)
+                out += UnionMemberRemoved(memberPath(old, "#${om.ordinal}"), om.span, old, om)
             }
     }
 
@@ -170,69 +168,14 @@ object Differ {
                 val from = oldKeys[key]
                 val to = newKeys[key]
                 if (from == to) return@forEach
-                if (target == "" && key == "deprecated")
+                if (target == "" && key == "deprecated" && (from == null) != (to == null)) {
                     out += DeprecationChanged(path, span, to != null)
-                else out += AnnotationChanged(path, span, target, key, from, to)
+                } else {
+                    out += AnnotationChanged(path, span, target, key, from, to)
+                }
             }
         }
     }
-
-    /**
-     * A type stripped of its refinements, so a bound or pattern change alone does not look like a
-     * type change.
-     */
-    private fun typeCore(type: Type): Type =
-        when (type) {
-            is Scalar -> Scalar(type.builtin)
-            is ListOf -> ListOf(typeCore(type.element), type.nullableElement)
-            is MapOf -> MapOf(typeCore(type.key), typeCore(type.value), type.nullableValue)
-            is Ref -> type
-        }
-
-    private fun refinementsOf(type: Type): Refinements =
-        when (type) {
-            is Scalar -> type.refinements
-            is ListOf -> type.refinements
-            is MapOf -> type.refinements
-            is Ref -> Refinements.NONE
-        }
-
-    /**
-     * A decimal's precision or scale is part of its type, not a bound, so a change there is a type
-     * change.
-     */
-    private fun typeChanged(old: Type, new: Type): Boolean {
-        if (typeCore(old) != typeCore(new)) return true
-        if (
-            old !is Scalar ||
-                new !is Scalar ||
-                old.builtin != Builtin.DECIMAL ||
-                new.builtin != Builtin.DECIMAL
-        ) {
-            return false
-        }
-        return old.refinements.precision != new.refinements.precision ||
-            old.refinements.scale != new.refinements.scale
-    }
-
-    private fun tightened(old: Refinements, new: Refinements): Boolean {
-        val minTightened = boundTightened(old.min, new.min, widens = false)
-        val maxTightened = boundTightened(old.max, new.max, widens = true)
-        val patternChanged = new.pattern != null && new.pattern != old.pattern
-        return minTightened || maxTightened || patternChanged
-    }
-
-    /**
-     * [widens] is true for an upper bound, where a larger value is looser; false for a lower bound.
-     */
-    private fun boundTightened(old: BigDecimal?, new: BigDecimal?, widens: Boolean): Boolean =
-        when {
-            old == null && new == null -> false
-            new == null -> false
-            old == null -> true
-            widens -> new < old
-            else -> new > old
-        }
 
     private fun path(decl: TypeDecl): String {
         val qn = decl.qualifiedName
