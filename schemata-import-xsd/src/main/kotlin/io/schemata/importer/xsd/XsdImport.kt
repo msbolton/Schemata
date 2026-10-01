@@ -42,7 +42,9 @@ object XsdImport {
             // declare it twice; a urn:schemata: one is caught below, as a namespace name collision.
             val tn = doc.targetNamespace
             val sameUri =
-                live.firstOrNull { tn != null && !tn.startsWith(URN) && it.targetNamespace == tn }
+                live.firstOrNull {
+                    tn != null && schemataName(tn) == null && it.targetNamespace == tn
+                }
             if (sameUri != null) {
                 diagnostics +=
                     unresolved(doc.path, 1, "namespace '$tn' is also declared by ${sameUri.path}")
@@ -156,13 +158,17 @@ object XsdImport {
 
     /**
      * [doc]'s namespace name: the `urn:schemata:` suffix of its own `targetNamespace` when it has
-     * one: otherwise, one derived from its file name (fixed into a valid segment when the raw stem
-     * isn't one), reported every time, since nothing in the xsd chose it — the name only exists
-     * because this file happened to be called what it was called.
+     * one that is dotted lower_snake segments; otherwise, one derived from its file name (fixed
+     * into a valid segment when the raw stem isn't one), reported every time, since nothing in the
+     * xsd chose it — the name only exists because this file happened to be called what it was
+     * called.
      */
     private fun deriveNamespaceName(doc: XsdDoc, diagnostics: MutableList<Diagnostic>): String {
         val tn = doc.targetNamespace
-        if (tn != null && tn.startsWith(URN)) return tn.removePrefix(URN)
+        if (tn != null)
+            schemataName(tn)?.let {
+                return it
+            }
         val rawStem = rawStem(doc.path)
         val name =
             if (ImportNames.isNamespaceSegment(rawStem)) rawStem
@@ -172,6 +178,16 @@ object XsdImport {
     }
 
     private const val URN = "urn:schemata:"
+
+    /**
+     * The Schemata namespace a `urn:schemata:<name>` URI names, or `null` when [uri] is any other
+     * URI or `<name>` is not dotted lower_snake segments, which could not be written as a
+     * `namespace` declaration and so is treated like any other URI.
+     */
+    private fun schemataName(uri: String): String? =
+        uri.takeIf { it.startsWith(URN) }
+            ?.removePrefix(URN)
+            ?.takeIf { name -> name.split('.').all(ImportNames::isNamespaceSegment) }
 
     /** Groups and attribute groups whose own content reaches back to themselves. */
     private data class Cycles(val groups: Set<QName>, val attributeGroups: Set<QName>)

@@ -372,4 +372,52 @@ class XsdImporterTest {
         )
         assertEquals(listOf("a.schemata"), result.files.map { it.path })
     }
+
+    private fun schemaIn(uri: String) =
+        """
+        <?xml version="1.0"?>
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="$uri">
+          <xs:complexType name="ThingType">
+            <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+          </xs:complexType>
+        </xs:schema>
+        """
+            .trimIndent()
+
+    @Test
+    fun `a urn schemata namespace that is not lower snake is derived like any other uri`() {
+        val result =
+            XsdImporter.import(listOf(ImportInput("foo.xsd", schemaIn("urn:schemata:Foo-Bar"))))
+        assertEquals(
+            listOf("SCH2402 foo.xsd: namespace 'foo' was derived from the file name"),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+        val file = result.files.single()
+        assertEquals("foo.schemata", file.path)
+        assertTrue(
+            file.content.startsWith("@xsd(namespace = \"urn:schemata:Foo-Bar\")\nnamespace foo\n"),
+            file.content,
+        )
+    }
+
+    @Test
+    fun `a lower snake urn schemata namespace is taken as it stands`() {
+        val result =
+            XsdImporter.import(listOf(ImportInput("x.xsd", schemaIn("urn:schemata:shop.orders"))))
+        assertEquals(emptyList(), result.diagnostics)
+        val file = result.files.single()
+        assertEquals("shop/orders.schemata", file.path)
+        assertTrue(file.content.startsWith("namespace shop.orders\n"), file.content)
+    }
+
+    @Test
+    fun `urn schemata namespaces that are not identifiers still emit formatted text`() {
+        listOf("urn:schemata:Foo-Bar", "urn:schemata:import", "urn:schemata:a..b", "urn:schemata:")
+            .forEach { uri ->
+                val result = XsdImporter.import(listOf(ImportInput("foo.xsd", schemaIn(uri))))
+                val file = result.files.single()
+                assertTrue(file.content.contains("namespace foo\n"), "$uri: ${file.content}")
+                assertTrue(file.content.contains("record Thing"), "$uri: ${file.content}")
+            }
+    }
 }
