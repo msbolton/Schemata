@@ -699,7 +699,7 @@ class XsdImportTest {
     @Test
     fun `only complex types and enumerated simple types claim names`() {
         // A plain-restriction simple type is inlined at every use and never becomes a declaration
-        // (an enumerated one, an enum, is Task 4's); it must not compete for a name against
+        // (only an enumerated one, an enum, does); it must not compete for a name against
         // AddressType, which would otherwise wrongly collide with the name it strips to.
         val imported =
             lower(

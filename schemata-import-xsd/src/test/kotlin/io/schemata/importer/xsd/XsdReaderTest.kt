@@ -429,4 +429,15 @@ class XsdReaderTest {
         assertEquals(QName("urn:schemata:s", "FooType"), e.type)
         assertNull(e.inlineComplex)
     }
+
+    @Test
+    fun `documentation lines lose their indentation`() {
+        val r =
+            schema(
+                "<xs:complexType name=\"AType\"><xs:annotation><xs:documentation>\n" +
+                    "\t\tFirst line.\n\t\t  Second line.\n\n    Third.\n" +
+                    "</xs:documentation></xs:annotation></xs:complexType>"
+            )
+        assertEquals("First line.\nSecond line.\n\nThird.", r.doc!!.complexTypes.single().doc)
+    }
 }

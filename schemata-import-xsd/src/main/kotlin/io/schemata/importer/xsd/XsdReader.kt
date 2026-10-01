@@ -204,12 +204,15 @@ object XsdReader {
 
         /**
          * The text of every `xs:documentation` under this node's `xs:annotation`, trimmed and
-         * joined by blank lines.
+         * joined by blank lines. Each line loses its leading whitespace: a schema indents its
+         * documentation to suit its own layout, which means nothing once it is a doc comment.
          */
         private fun documentation(n: Node): String? =
             n.child("annotation")
                 ?.children("documentation")
-                ?.map { it.text.toString().trim() }
+                ?.map { d ->
+                    d.text.toString().trim().lines().joinToString("\n") { it.trimStart() }
+                }
                 ?.filter { it.isNotEmpty() }
                 ?.takeIf { it.isNotEmpty() }
                 ?.joinToString("\n\n")

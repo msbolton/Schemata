@@ -15,6 +15,7 @@ import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Sources
 import io.schemata.cli.report.importReport
 import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.xsd.ImportNames
 import io.schemata.importer.xsd.XsdImporter
 import java.io.IOException
 import java.nio.file.Path
@@ -43,14 +44,16 @@ class ImportCommand : CliktCommand(name = "import") {
         if (files.isEmpty()) {
             throw UsageError("no .xsd files found under: ${inputs.joinToString(", ")}")
         }
+        namespace?.let { ns ->
+            if (!ns.split('.').all(ImportNames::isNamespaceSegment)) {
+                throw UsageError("--namespace must be dotted lower-snake segments")
+            }
+        }
         if (namespace != null && files.size != 1) {
             throw UsageError("--namespace applies to a single input file")
         }
         val result =
-            XsdImporter.import(files.map { ImportInput(it.path, it.content) }, namespace) { relative
-                ->
-                locate(files, relative)
-            }
+            XsdImporter.import(files.map { ImportInput(it.path, it.content) }, namespace, ::locate)
         val report = importReport(result, reporting.strict)
         if (report.errors == 0) {
             result.files.forEach { write(out.resolve("import").resolve(it.path), it.content) }

@@ -1,11 +1,11 @@
 /// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
 ///
-///   GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
+/// GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
 @xsd(namespace = "http://www.topografix.com/GPX/1/1")
 namespace gpx
 
 /// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
-/// 		to the extensions section of the GPX document.
+/// to the extensions section of the GPX document.
 @xsd(name = "gpx")
 record Gpx {
   /// Metadata about the file.
@@ -21,12 +21,12 @@ record Gpx {
   /// You must include the version number in your GPX document.
   @xsd(attribute) version:    string = "1.1"
   /// You must include the name or URL of the software that created your GPX document.  This allows others to
-  /// 		inform the creator of a GPX instance document that fails to validate.
+  /// inform the creator of a GPX instance document that fails to validate.
   @xsd(attribute) creator:    string
 }
 
 /// Information about the GPX file, author, and copyright restrictions goes in the metadata section.  Providing rich,
-/// 		meaningful information about your GPX files allows others to search for and use your GPS data.
+/// meaningful information about your GPX files allows others to search for and use your GPS data.
 @xsd(name = "metadata")
 @xsd(root = false)
 record Metadata {
@@ -162,7 +162,7 @@ record Trkseg {
 }
 
 /// Information about the copyright holder and any license governing use of this file.  By linking to an appropriate license,
-/// 	 you may place your data into the public domain or grant additional usage rights.
+/// you may place your data into the public domain or grant additional usage rights.
 @xsd(name = "copyright")
 @xsd(root = false)
 record Copyright {

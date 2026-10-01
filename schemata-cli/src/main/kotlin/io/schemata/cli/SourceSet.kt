@@ -47,19 +47,11 @@ private fun expand(path: Path, extension: String): List<Path> =
     }
 
 /**
- * Resolves an `xs:import`/`xs:include` target `XsdImporter` could not find among [files]: read
- * directly when [relative] already names a file on disk (the facade resolves it against the
- * importing document's own directory before calling this), else that same name tried against each
- * input's directory in turn.
+ * Reads an `xs:import`/`xs:include` target `XsdImporter` could not find among the inputs: [path] is
+ * already resolved against the importing document's own directory, so it is read as it stands, or
+ * `null` when no such file exists.
  */
-fun locate(files: List<SourceInput>, relative: String): ImportInput? {
-    val direct = Path(relative)
-    if (direct.isRegularFile()) return ImportInput(relative, direct.readText())
-    files.forEach { input ->
-        val dir = Path(input.path).parent ?: return@forEach
-        val candidate = dir.resolve(relative)
-        if (candidate.isRegularFile())
-            return ImportInput(candidate.toString(), candidate.readText())
-    }
-    return null
+fun locate(path: String): ImportInput? {
+    val file = Path(path)
+    return if (file.isRegularFile()) ImportInput(path, file.readText()) else null
 }

@@ -131,4 +131,26 @@ class ImportCommandTest {
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(r.stdout.contains("\"path\":\"${out.path}/import/s.schemata\""), r.stdout)
     }
+
+    @Test
+    fun `--namespace must be dotted lower snake segments`() {
+        write("s.xsd", tracksNamespace)
+        listOf("Tracks", "tracks-1", "a..b", "1tracks", "shop.import").forEach { bad ->
+            val out = File(dir, "out")
+            val r =
+                ImportCommand().test("--from xsd --namespace $bad --out ${out.path} ${dir.path}")
+            assertEquals(1, r.statusCode, bad)
+            assertTrue(
+                r.stderr.contains("--namespace must be dotted lower-snake segments"),
+                "$bad: ${r.stderr}",
+            )
+            assertFalse(out.exists(), bad)
+        }
+        val okOut = File(dir, "ok")
+        val ok =
+            ImportCommand()
+                .test("--from xsd --namespace shop.tracks_1 --out ${okOut.path} ${dir.path}")
+        assertEquals(0, ok.statusCode, ok.stderr)
+        assertTrue(okOut.resolve("import/shop/tracks_1.schemata").isFile, ok.stderr)
+    }
 }
