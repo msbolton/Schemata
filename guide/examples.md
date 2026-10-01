@@ -425,6 +425,68 @@ Every warning above becomes an error, because `--strict` treats every warning as
 is SCH1014, though: every field and enum value across these three files already carries an
 explicit ordinal, so `--strict`'s other job, catching an implicit one, finds nothing to report.
 
+## GPX
+
+`schemata import --from xsd` goes the other way: it reads an existing `.xsd` and writes a
+`.schemata` file. The GPX 1.1 schema (`http://www.topografix.com/GPX/1/1`) is a good one to walk
+through, since it exercises most of what the importer does: a namespace that is not
+`urn:schemata:…`, a decimal with no declared precision, a fixed attribute value, and an `xs:any` it
+cannot carry.
+
+```text
+java -jar schemata-<version>.jar import --from xsd --out out gpx.xsd
+```
+
+GPX's `targetNamespace` is a plain URI, not `urn:schemata:…`, so the output keeps it on the
+namespace as `@xsd(namespace = "…")` and takes its own namespace from the file name, `gpx`,
+reported once (SCH2402); pass `--namespace gpx` yourself to silence that note. The root complex
+type, `gpxType`, becomes `record Gpx`, with `@xsd(name = "gpx")` restoring the element name XSD
+expects back.
+
+From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
+```
+/// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
+///
+///   GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
+@xsd(namespace = "http://www.topografix.com/GPX/1/1")
+namespace gpx
+
+/// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
+/// 		to the extensions section of the GPX document.
+@xsd(name = "gpx")
+record Gpx {
+  /// Metadata about the file.
+  metadata:   Metadata?
+  /// A list of waypoints.
+  wpt:        list<Wpt>
+  /// A list of routes.
+  rte:        list<Rte>
+  /// A list of tracks.
+  trk:        list<Trk>
+  /// You can add extend GPX by adding your own elements from another schema here.
+  extensions: Extensions?
+```
+
+Every warning is lossy; none stops the import from writing its file.
+
+Warnings from `schemata-cli/src/test/resources/import/gpx/expected/import-warnings.txt`:
+```
+SCH2402 gpx.xsd: namespace 'gpx' was derived from the file name
+SCH2405 attribute 'version': fixed value imported as a default
+SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
+SCH2403 element 'magvar': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
+SCH2404 element 'magvar': facet maxExclusive dropped
+```
+
+Besides the namespace note already covered, `version`'s `fixed="1.1"` becomes a plain default
+(SCH2405); `ele` and the other coordinates have no `totalDigits`/`fractionDigits`, so they import as
+`decimal(38, 9)` (SCH2403); and `magvar`'s `maxExclusive` has no equivalent on a decimal and is
+dropped (SCH2404). Compiling `out/import/gpx.schemata` under the sql target reports SCH2106 on
+every record, since the import never adds `@sql(key)`; add keys by hand before compiling to SQL.
+The proto, xsd, and jsonschema targets compile it as it stands. More generally, compiling an
+import's own `.schemata` output under the xsd target and importing that result again regenerates
+it byte for byte, with no diagnostics at all.
+
 ## Keeping the examples current
 
 If you change one of these `.schemata` files, its `expected/` tree and warnings files need to

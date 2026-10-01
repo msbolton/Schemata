@@ -701,3 +701,145 @@ reading here and with the diagnostics array shortened to its first entry:
 ```
 
 `schemata --version` prints the compiler's version and exits.
+
+## 18. Importing an XSD
+
+    schemata import --from xsd [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+
+`import --from xsd` reads existing XML Schema and lowers it to `.schemata` source: one output file
+per namespace, written to `--out/import/<namespace as a path>.schemata`, so a schema whose
+namespace lowers to `shop.orders` writes `out/import/shop/orders.schemata`. A path may be a file or
+a directory, walked recursively for `.xsd` files, the same as `compile`. An `xs:import` or
+`xs:include` target is resolved first by its own `schemaLocation` against the importing file's own
+directory, then by that same file name tried against each input's directory in turn; an input
+itself never needs naming twice just because another input imports it. `--namespace NAME` renames
+the single output file's namespace and only applies when exactly one input file is given; more than
+one is a usage error. Exit codes match `compile`: `0` when nothing is reported, `2` when every
+diagnostic is a warning, `1` when any is an error, or the command line itself was wrong.
+`--strict` promotes every warning below to an error, the same as it does for `compile`.
+
+A schema's `targetNamespace` becomes the output's `namespace`. `urn:schemata:<name>` becomes
+`namespace <name>`, matching what the xsd target itself writes for a Schemata namespace. Any other
+URI becomes `namespace <file stem>`, with `@xsd(namespace = "<uri>")` on the namespace to keep the
+real one and a note, SCH2402, naming the namespace it derived; pass `--namespace` to choose the
+name yourself and silence the note. A schema with no `targetNamespace` at all uses the file stem
+alone, with neither the annotation nor the note.
+
+### Types and facets
+
+| XSD type(s) | Schemata type | Notes |
+|---|---|---|
+| `boolean` | `bool` | |
+| `int`, `integer`, `short`, `byte`, `unsignedShort`, `unsignedByte` | `int32` | |
+| `long`, `unsignedInt` | `int64` | |
+| `unsignedLong`, `nonNegativeInteger` | `int64(min = 0)` | |
+| `positiveInteger` | `int64(min = 1)` | |
+| `negativeInteger` | `int64(max = -1)` | |
+| `nonPositiveInteger` | `int64(max = 0)` | |
+| `float` | `float32` | |
+| `double` | `float64` | |
+| `decimal` | `decimal(p, s)` | `p` and `s` are `totalDigits` and `fractionDigits`; without both, `decimal(38, 9)` (SCH2403) |
+| `string`, `normalizedString`, `token`, `language`, `Name`, `NCName`, `NMTOKEN`, `ID`, `IDREF`, `anyURI` | `string` | |
+| a `string` restricted by the UUID pattern | `uuid` | |
+| `base64Binary` | `bytes` | |
+| `hexBinary` | `bytes` | SCH2404 |
+| `date`, `time`, `dateTime`, `duration` | `date`, `time`, `instant`, `duration` | |
+| any other builtin | `string` | SCH2404 |
+
+`minInclusive`/`maxInclusive` and `minLength`/`maxLength`/`length` become `min`/`max`.
+`minExclusive`/`maxExclusive` shift by one on an integer type (`minExclusive = 0` becomes
+`min = 1`); on anything else, an exclusive bound has no Schemata equivalent and is dropped
+(SCH2404). `pattern` carries over, with its anchoring reversed, since an XSD pattern always matches
+the whole value and a Schemata pattern matches anywhere unless anchored. `enumeration` becomes an
+`enum`. `whiteSpace` and a lone `totalDigits` or `fractionDigits` (without the other) are dropped
+(SCH2404). A named simple type with none of this, just a restriction of a builtin, is inlined at
+its use. A `list` or `union` simple type has no Schemata equivalent and imports as plain `string`
+(SCH2405).
+
+### Records, unions, and enums
+
+A named complex type becomes a `record`. A trailing `Type` is stripped when what is left is
+UpperCamel (`OrderType` becomes `Order`); a name without that suffix, such as `Address`, imports as
+given and is reported (SCH2403), because it will regenerate as `AddressType`. The one exception is
+a name ending `Type` whose stem is not UpperCamel, such as `gpxType`: it becomes `record Gpx` with
+`@xsd(name = "gpx")` restoring the original name, silently, since the override already makes the
+round trip exact.
+
+A `sequence`'s children become fields in order; `xs:all` and a nested `sequence` are flattened into
+the same list of fields (SCH2403). A complex type whose whole content model is a `choice` becomes a
+`union` instead of a record, one member per branch's type; the branch elements' own names are not
+kept, which is reported (SCH2403) when one differs from what its type's name would lower to. An
+inline `choice` nested inside a `sequence` becomes, when every branch is a complex type, a
+synthesized union named `<Record>Choice` held in a field called `choice` (SCH2403); otherwise each
+branch becomes its own optional field (SCH2403). An element with `maxOccurs` greater than one
+becomes `list<T>`, with `min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the
+element type, giving `list<T?>`. A single element with `minOccurs="0"` becomes `T?`, unless it
+carries a `default`, which already implies optional presence.
+
+An attribute becomes an `@xsd(attribute)` field, placed after the element fields; a required
+attribute (`use="required"`) is non-nullable, any other is `?`. A `fixed` value is imported as a
+Schemata default (SCH2405), since Schemata has no equivalent of a value XML forces on every
+instance. The xsd target's own rendering of `map<K, V>` is recognized on the way back in and
+becomes `map<K, V>` again, not a record. An anonymous complex type becomes a record nested under
+the element that uses it, named after that element. A complex type never used as a global element
+becomes `@xsd(root = false)`, for one meant to appear only nested inside another.
+
+An `extension` flattens the base type's fields in first, ahead of its own (SCH2403), since Schemata
+has no base-record relationship to preserve. A `restriction` of a complex type keeps only its own
+content (SCH2403). A named `group` or `attributeGroup` expands in place wherever it is referenced.
+`xs:documentation` becomes a `///` doc comment; `xs:appinfo` is dropped silently.
+
+An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
+lower_snake with `@xsd(name = "…")` restoring the original, silently; a value that cannot be an XML
+name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403).
+
+### What is dropped
+
+`xs:any`, `xs:anyAttribute`, mixed content, a substitution group, an identity constraint other than
+the map form above, `redefine`, `override`, `notation`, and `abstract` all have no Schemata
+equivalent and are dropped, reported SCH2405.
+
+An unresolved import, include, or type reference is an error (SCH2401), as are two inputs
+declaring the same namespace, two elements lowering to the same field, and two union members of the
+same type.
+
+### Codes
+
+| Code | Meaning |
+|---|---|
+| SCH2401 | error: an xsd reference, import, or include cannot be resolved, or two constructs lower to one name |
+| SCH2402 | warning: a namespace name was derived from the file name |
+| SCH2403 | warning: an xsd construct was approximated |
+| SCH2404 | warning: an xsd type or facet was widened or dropped |
+| SCH2405 | warning: an xsd construct was dropped |
+
+The diagnostics appendix lists the exact message and help text for each.
+
+An imported record never carries `@sql(key)`, so compiling the result under the sql target reports
+SCH2106 for every record until you add one by hand; the proto, xsd, and jsonschema targets compile
+the import straight away. Importing the xsd target's own output regenerates it byte for byte, with
+no diagnostics at all, which is how the round trip is tested.
+
+From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
+```
+/// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
+///
+///   GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
+@xsd(namespace = "http://www.topografix.com/GPX/1/1")
+namespace gpx
+
+/// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
+/// 		to the extensions section of the GPX document.
+@xsd(name = "gpx")
+record Gpx {
+  /// Metadata about the file.
+  metadata:   Metadata?
+  /// A list of waypoints.
+  wpt:        list<Wpt>
+  /// A list of routes.
+  rte:        list<Rte>
+  /// A list of tracks.
+  trk:        list<Trk>
+  /// You can add extend GPX by adding your own elements from another schema here.
+  extensions: Extensions?
+```
