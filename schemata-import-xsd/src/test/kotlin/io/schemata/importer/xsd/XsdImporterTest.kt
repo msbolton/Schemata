@@ -1,5 +1,6 @@
 package io.schemata.importer.xsd
 
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -266,5 +267,54 @@ class XsdImporterTest {
         val file = result.files.single()
         assertEquals(1, Regex("record A \\{").findAll(file.content).count())
         assertEquals(1, Regex("record B \\{").findAll(file.content).count())
+    }
+
+    @Test
+    fun `round trips the shop orders and customers xsd into an Order record`() {
+        // Payment is a union; unions aren't imported until a later task. A plain string replacement
+        // drops PaymentType and its field so this slice can run against the real fixture today.
+        val ordersXml =
+            File("../examples/shop/expected/xsd/shop/orders.xsd")
+                .readText()
+                .replace(
+                    Regex("(?s) {2}<xs:complexType name=\"PaymentType\">.*?</xs:complexType>\n"),
+                    "",
+                )
+                .replace("  <xs:element name=\"payment\" type=\"tns:PaymentType\"/>\n", "")
+        val customersXml = File("../examples/shop/expected/xsd/shop/customers.xsd").readText()
+
+        val result =
+            XsdImporter.import(
+                listOf(
+                    ImportInput("shop/orders.xsd", ordersXml),
+                    ImportInput("shop/customers.xsd", customersXml),
+                )
+            )
+        assertEquals(emptyList(), result.diagnostics)
+
+        val orders = result.files.single { it.path == "shop/orders.schemata" }.content
+        val order =
+            orders
+                .substringAfter("record Order {")
+                .substringBefore("\n}")
+                .replace(Regex("[ \t]+"), " ")
+        val fields =
+            listOf(
+                "id: uuid",
+                "customer: shop.customers.Customer",
+                "status: Status = pending",
+                "lines: list<OrderLine>(min = 1)",
+                "total: decimal(19, 4)",
+                "shipping: OrderAddress",
+                "placed_at: instant",
+                "note: string(max = 500)?",
+                "created: instant?",
+            )
+        var pos = 0
+        fields.forEach { field ->
+            val idx = order.indexOf(field, pos)
+            assertTrue(idx >= pos, "expected '$field' at or after $pos in:\n$order")
+            pos = idx + field.length
+        }
     }
 }
