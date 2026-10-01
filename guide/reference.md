@@ -722,8 +722,8 @@ A schema's `targetNamespace` becomes the output's `namespace`. `urn:schemata:<na
 `namespace <name>`, matching what the xsd target itself writes for a Schemata namespace. Any other
 URI becomes `namespace <file stem>`, with `@xsd(namespace = "<uri>")` on the namespace to keep the
 real one and a note, SCH2402, naming the namespace it derived; pass `--namespace` to choose the
-name yourself and silence the note. A schema with no `targetNamespace` at all uses the file stem
-alone, with neither the annotation nor the note.
+name yourself and silence the note. A schema with no `targetNamespace` uses the file stem alone,
+without the annotation; the note still appears, and `--namespace` silences it.
 
 ### Types and facets
 
@@ -751,8 +751,9 @@ alone, with neither the annotation nor the note.
 `min = 1`); on anything else, an exclusive bound has no Schemata equivalent and is dropped
 (SCH2404). `pattern` carries over, with its anchoring reversed, since an XSD pattern always matches
 the whole value and a Schemata pattern matches anywhere unless anchored. `enumeration` becomes an
-`enum`. `whiteSpace` and a lone `totalDigits` or `fractionDigits` (without the other) are dropped
-(SCH2404). A named simple type with none of this, just a restriction of a builtin, is inlined at
+`enum`. `whiteSpace` and any other facet the table does not name are dropped (SCH2404); a lone
+`totalDigits` or `fractionDigits` falls under the `decimal(38, 9)` note above. A named simple type
+with none of this, just a restriction of a builtin, is inlined at
 its use. A `list` or `union` simple type has no Schemata equivalent and imports as plain `string`
 (SCH2405).
 
