@@ -1352,4 +1352,195 @@ class XsdImportTest {
             record(imported, "Order").fields,
         )
     }
+
+    @Test
+    fun `cyclic complex type extension terminates and is reported`() {
+        val selfCycle =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="DerivedType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:DerivedType">
+                        <xs:sequence><xs:element name="x" type="xs:string"/></xs:sequence>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("x"), record(selfCycle, "Derived").fields.map { it.name })
+        assertEquals(
+            listOf(
+                "SCH2401 complex type 'DerivedType': extension of 'DerivedType' cannot be " +
+                    "resolved; the base chain is cyclic"
+            ),
+            messages(selfCycle),
+        )
+
+        val twoTypeCycle =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="AType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:BType">
+                        <xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                  <xs:complexType name="BType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:AType">
+                        <xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        // Each of the two types independently starts its own chain (A's and B's own top-level
+        // import), and each chain terminates with exactly one SCH2401, at the point where it would
+        // revisit a type already on its own chain.
+        assertEquals(listOf("b", "a"), record(twoTypeCycle, "A").fields.map { it.name })
+        assertEquals(listOf("a", "b"), record(twoTypeCycle, "B").fields.map { it.name })
+        assertEquals(
+            1,
+            messages(twoTypeCycle).count {
+                it ==
+                    "SCH2401 complex type 'AType': extension of 'AType' cannot be resolved; " +
+                        "the base chain is cyclic"
+            },
+        )
+        assertEquals(
+            1,
+            messages(twoTypeCycle).count {
+                it ==
+                    "SCH2401 complex type 'BType': extension of 'BType' cannot be resolved; " +
+                        "the base chain is cyclic"
+            },
+        )
+    }
+
+    @Test
+    fun `a repeated group reference expands once and is reported`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:group name="g">
+                    <xs:sequence>
+                      <xs:element name="x" type="xs:string"/>
+                      <xs:element name="y" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:group>
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:group ref="tns:g" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("id", "x", "y"), record(imported, "Thing").fields.map { it.name })
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'ThingType': repeated group 'g' has no Schemata equivalent; " +
+                    "expanded once"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `an unknown enum default is dropped and reported`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="StatusType">
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="pending"/>
+                      <xs:enumeration value="paid"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="status" type="tns:StatusType" default="gone" minOccurs="0"/>
+                    </xs:sequence>
+                    <xs:attribute name="state" type="tns:StatusType" default="missing"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val order = record(imported, "Order").fields
+        val status = order.single { it.name == "status" }
+        assertEquals(null, status.default)
+        assertEquals(true, status.nullable)
+        val state = order.single { it.name == "state" }
+        assertEquals(null, state.default)
+        assertEquals(true, state.nullable)
+        assertEquals(
+            listOf(
+                "SCH2403 element 'status': default 'gone' is not a value of enum 'Status'; dropped",
+                "SCH2403 attribute 'state': default 'missing' is not a value of enum 'Status'; dropped",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `two inline choices in one record are named and numbered deterministically`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="CashType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="CheckType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="WireType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="RType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:choice>
+                        <xs:element name="card" type="tns:CardType"/>
+                        <xs:element name="cash" type="tns:CashType"/>
+                      </xs:choice>
+                      <xs:choice>
+                        <xs:element name="check" type="tns:CheckType"/>
+                        <xs:element name="wire" type="tns:WireType"/>
+                      </xs:choice>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
+            union(imported, "RChoice").members,
+        )
+        assertEquals(
+            listOf(UnitType.Ref("Check"), UnitType.Ref("Wire")),
+            union(imported, "RChoice2").members,
+        )
+        val r = record(imported, "R").fields
+        assertEquals(listOf("id", "choice", "choice_2"), r.map { it.name })
+        assertEquals(UnitType.Ref("RChoice"), r.single { it.name == "choice" }.type)
+        assertEquals(UnitType.Ref("RChoice2"), r.single { it.name == "choice_2" }.type)
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'RType': inline choice has no Schemata equivalent; imported " +
+                    "as union 'RChoice' in field 'choice'",
+                "SCH2403 complex type 'RType': inline choice has no Schemata equivalent; imported " +
+                    "as union 'RChoice2' in field 'choice_2'",
+            ),
+            messages(imported),
+        )
+    }
 }
