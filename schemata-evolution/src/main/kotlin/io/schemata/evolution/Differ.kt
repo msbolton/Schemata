@@ -147,7 +147,7 @@ object Differ {
             out += ReservedChanged(path(new), new.nameSpan, oldReserved, newReserved)
     }
 
-    private fun reservedOf(decl: TypeDecl): Reserved? =
+    internal fun reservedOf(decl: TypeDecl): Reserved? =
         when (decl) {
             is RecordType -> decl.reserved
             is EnumType -> decl.reserved
