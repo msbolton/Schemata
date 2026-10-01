@@ -20,5 +20,11 @@ object Version {
 
 fun main(args: Array<String>) =
     Schemata()
-        .subcommands(CompileCommand(), CheckCommand(), FmtCommand(), TargetsCommand())
+        .subcommands(
+            CompileCommand(),
+            CheckCommand(),
+            FmtCommand(),
+            TargetsCommand(),
+            ImportCommand(),
+        )
         .main(args)

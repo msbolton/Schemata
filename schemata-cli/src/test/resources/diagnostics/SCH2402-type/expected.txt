@@ -1,0 +1,6 @@
+# import=xsd
+warning[SCH2402] (lossy): complex type 'gpxType': complex type 'gpxType' is not a Schemata identifier; imported as 'Gpx' with @xsd(name)
+ --> s.xsd:3:1
+  = help: keep the annotation so the regenerated XSD uses the original name
+
+0 errors, 1 warning

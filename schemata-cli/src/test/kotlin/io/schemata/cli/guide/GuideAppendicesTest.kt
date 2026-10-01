@@ -3,6 +3,7 @@ package io.schemata.cli.guide
 import io.schemata.cli.Pipeline
 import io.schemata.cli.diagnostics.Fixture
 import io.schemata.core.CoreCodes
+import io.schemata.importer.xsd.ImportCodes
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.LangCodes
 import java.io.File
@@ -65,6 +66,7 @@ class GuideAppendicesTest {
                 Pipeline.targetNamed("jsonschema")!!.codes,
                 emptyList(),
             ),
+            Module("Import (SCH24xx)", "SCH24", ImportCodes.all, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {
@@ -108,17 +110,30 @@ class GuideAppendicesTest {
             .filter { headerCode(it) == id }
             .map { stripLocation(it.substringAfter("]").substringAfter(": ")) }
 
+    /** The quoted-name location prefixes (`record 'R' field 'x': `, `element 'x': `, …). */
+    private val quotedLocation =
+        Regex(
+            "^(record|field|enum value|enum|union|namespace|alias|complex type|simple type|" +
+                "element|attribute) '"
+        )
+
     /**
-     * Drops the `record 'R' field 'x': ` location prefix a target message carries so the shape
-     * reads generally.
+     * The bare `<file>: ` prefix an import-level diagnostic (not tied to one construct) carries.
+     */
+    private val fileLocation = Regex("^\\S+\\.xsd: ")
+
+    /**
+     * Drops a message's leading location — `record 'R' field 'x': `, `complex type 'X': `, `element
+     * 'x': `, `attribute 'x': `, `simple type 'X': `, `union 'X': `, `enum value 'X.v': `, or a
+     * bare `<file>: ` — so the shape reads generally.
      */
     private fun stripLocation(message: String): String =
-        if (
-            Regex("^(record|field|enum|union|namespace|alias) '").containsMatchIn(message) &&
-                message.contains("': ")
-        )
-            message.substringAfter("': ")
-        else message
+        when {
+            quotedLocation.containsMatchIn(message) && message.contains("': ") ->
+                message.substringAfter("': ")
+            fileLocation.containsMatchIn(message) -> message.substringAfter(": ")
+            else -> message
+        }
 
     /** The `= help: ` lines that follow an [id] header, up to the next blank line. */
     private fun helpsOf(expected: String, id: String): List<String> {

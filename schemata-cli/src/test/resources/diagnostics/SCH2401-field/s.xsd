@@ -1,0 +1,9 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="urn:schemata:s">
+  <xs:complexType name="PersonType">
+    <xs:sequence>
+      <xs:element name="full-name" type="xs:string"/>
+      <xs:element name="full_name" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

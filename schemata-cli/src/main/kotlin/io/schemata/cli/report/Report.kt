@@ -2,6 +2,7 @@ package io.schemata.cli.report
 
 import io.schemata.cli.PipelineResult
 import io.schemata.cli.TargetResult
+import io.schemata.importer.xsd.ImportResult
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Severity
 
@@ -77,10 +78,39 @@ data class Report(
             return Report(entries, written, skipped, checkOnly)
         }
 
+        /**
+         * A report built straight from a flat list of diagnostics (no per-target grouping), for a
+         * command, such as `import`, that is not the compile pipeline: [written] and [skipped] are
+         * supplied by the caller, already decided against the promoted error count.
+         */
+        fun of(
+            diagnostics: List<Diagnostic>,
+            written: List<Written>,
+            skipped: List<Skipped>,
+            strict: Boolean,
+        ): Report {
+            val entries = diagnostics.map { entry(it, null, strict) }.sortedWith(order)
+            return Report(entries, written, skipped, checkOnly = false)
+        }
+
         private fun entry(d: Diagnostic, target: String?, strict: Boolean) =
             Entry(d, target, promoted = strict && d.severity == Severity.WARNING)
 
         private fun errorsIn(target: TargetResult, strict: Boolean): Int =
             target.diagnostics.count { strict || it.severity == Severity.ERROR }
     }
+}
+
+/**
+ * The report for an `import` run: entries from [result]'s diagnostics; the imported files are
+ * written only when nothing promotes to an error, else the whole run is reported as skipped (there
+ * is only ever one "target", `import`).
+ */
+fun importReport(result: ImportResult, strict: Boolean): Report {
+    val errors = result.diagnostics.count { strict || it.severity == Severity.ERROR }
+    val written =
+        if (errors == 0) result.files.map { Written("import", "import/${it.path}") }
+        else emptyList()
+    val skipped = if (errors > 0) listOf(Skipped("import", errors)) else emptyList()
+    return Report.of(result.diagnostics, written, skipped, strict)
 }
