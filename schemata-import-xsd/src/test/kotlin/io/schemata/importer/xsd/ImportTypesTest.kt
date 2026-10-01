@@ -10,6 +10,9 @@ import kotlin.test.assertTrue
 class ImportTypesTest {
     private fun s(b: String, vararg r: Pair<String, String>) = UnitType.Scalar(b, r.toList())
 
+    private fun facets(base: UnitType.Scalar, facets: List<XFacet>) =
+        ImportTypes.facets(base, facets, 1)
+
     @Test
     fun `builtins map per the table`() {
         assertEquals(s("bool"), ImportTypes.builtin("boolean")!!.type)
@@ -36,20 +39,20 @@ class ImportTypesTest {
 
     @Test
     fun `decimal without both digit facets is approximated`() {
-        val (t, notes) = ImportTypes.facets(s("decimal"), emptyList())
+        val (t, notes) = ImportTypes.facets(s("decimal"), emptyList(), 12)
         assertEquals(s("decimal", "p" to "38", "s" to "9"), t)
         assertEquals(
             listOf(
                 Note(
-                    "SCH2403",
+                    ImportCodes.APPROXIMATED,
                     "decimal without totalDigits and fractionDigits imported as decimal(38, 9)",
-                    0,
+                    12,
                 )
             ),
             notes,
         )
         val (t2, notes2) =
-            ImportTypes.facets(
+            facets(
                 s("decimal"),
                 listOf(
                     XFacet("totalDigits", "19", null, 3),
@@ -64,7 +67,7 @@ class ImportTypesTest {
     @Test
     fun `lengths bounds patterns and exclusive bounds`() {
         val (str, n1) =
-            ImportTypes.facets(
+            facets(
                 s("string"),
                 listOf(
                     XFacet("minLength", "2", null, 1),
@@ -77,23 +80,21 @@ class ImportTypesTest {
             str,
         )
         assertEquals(emptyList(), n1)
-        val (len, _) = ImportTypes.facets(s("bytes"), listOf(XFacet("length", "16", null, 1)))
+        val (len, _) = facets(s("bytes"), listOf(XFacet("length", "16", null, 1)))
         assertEquals(s("bytes", "min" to "16", "max" to "16"), len)
         val (int, n2) =
-            ImportTypes.facets(
+            facets(
                 s("int32"),
                 listOf(XFacet("minExclusive", "0", null, 1), XFacet("maxExclusive", "10", null, 2)),
             )
         assertEquals(s("int32", "min" to "1", "max" to "9"), int)
         assertEquals(emptyList(), n2)
-        val (dbl, n3) =
-            ImportTypes.facets(s("float64"), listOf(XFacet("maxExclusive", "180", null, 7)))
+        val (dbl, n3) = facets(s("float64"), listOf(XFacet("maxExclusive", "180", null, 7)))
         assertEquals(s("float64"), dbl)
-        assertEquals(listOf(Note("SCH2404", "facet maxExclusive dropped", 7)), n3)
-        val (ws, n4) =
-            ImportTypes.facets(s("string"), listOf(XFacet("whiteSpace", "collapse", null, 9)))
+        assertEquals(listOf(Note(ImportCodes.WIDENED, "facet maxExclusive dropped", 7)), n3)
+        val (ws, n4) = facets(s("string"), listOf(XFacet("whiteSpace", "collapse", null, 9)))
         assertEquals(s("string"), ws)
-        assertEquals(listOf(Note("SCH2404", "facet whiteSpace dropped", 9)), n4)
+        assertEquals(listOf(Note(ImportCodes.WIDENED, "facet whiteSpace dropped", 9)), n4)
     }
 
     @Test
@@ -104,7 +105,7 @@ class ImportTypesTest {
             )
         )
         val (u, _) =
-            ImportTypes.facets(
+            facets(
                 s("string"),
                 listOf(
                     XFacet(
@@ -162,21 +163,66 @@ class ImportTypesTest {
 
     @Test
     fun `pattern literals escape backslashes and quotes`() {
-        val (backslash, _) =
-            ImportTypes.facets(s("string"), listOf(XFacet("pattern", "a\\\\b", null, 1)))
+        val (backslash, _) = facets(s("string"), listOf(XFacet("pattern", "a\\\\b", null, 1)))
         assertEquals(s("string", "pattern" to "\"^a\\\\\\\\b$\""), backslash)
-        val (quote, _) =
-            ImportTypes.facets(s("string"), listOf(XFacet("pattern", "[^\"]*", null, 1)))
+        val (quote, _) = facets(s("string"), listOf(XFacet("pattern", "[^\"]*", null, 1)))
         assertEquals(s("string", "pattern" to "\"^[^\\\"]*$\""), quote)
     }
 
     @Test
     fun `an escaped pattern literal formats as Schemata source`() {
-        val (email, _) =
-            ImportTypes.facets(s("string"), listOf(XFacet("pattern", "[^\"]+@[^\"]+", null, 1)))
+        val (email, _) = facets(s("string"), listOf(XFacet("pattern", "[^\"]+@[^\"]+", null, 1)))
         val literal = email.refinements.single().second
         val source = "namespace s\n\nalias Email = string(pattern = $literal)\n"
         val formatted = Formatter.format(source, "s.schemata") as FormatResult.Formatted
         assertTrue(formatted.text.contains("\"^[^\\\"]+@[^\\\"]+$\""), formatted.text)
+    }
+
+    @Test
+    fun `facet values that do not parse are dropped and noted`() {
+        val (int, intNotes) =
+            facets(
+                s("int32"),
+                listOf(
+                    XFacet("minInclusive", "low", null, 2),
+                    XFacet("maxExclusive", "1.5", null, 3),
+                    XFacet("maxInclusive", "1e2", null, 4),
+                ),
+            )
+        assertEquals(s("int32", "max" to "100"), int)
+        assertEquals(
+            listOf(
+                Note(ImportCodes.WIDENED, "facet minInclusive value 'low' dropped", 2),
+                Note(ImportCodes.WIDENED, "facet maxExclusive value '1.5' dropped", 3),
+            ),
+            intNotes,
+        )
+        val (str, strNotes) = facets(s("string"), listOf(XFacet("maxLength", "-1", null, 5)))
+        assertEquals(s("string"), str)
+        assertEquals(
+            listOf(Note(ImportCodes.WIDENED, "facet maxLength value '-1' dropped", 5)),
+            strNotes,
+        )
+        val (dec, decNotes) =
+            ImportTypes.facets(
+                s("decimal"),
+                listOf(
+                    XFacet("totalDigits", "many", null, 6),
+                    XFacet("fractionDigits", "2", null, 7),
+                ),
+                1,
+            )
+        assertEquals(s("decimal", "p" to "38", "s" to "9"), dec)
+        assertEquals(
+            listOf(
+                Note(ImportCodes.WIDENED, "facet totalDigits value 'many' dropped", 6),
+                Note(
+                    ImportCodes.APPROXIMATED,
+                    "decimal without totalDigits and fractionDigits imported as decimal(38, 9)",
+                    6,
+                ),
+            ),
+            decNotes,
+        )
     }
 }

@@ -32,7 +32,20 @@ object XsdImporter {
                 result.doc
             }
 
-        val merged = initial.map { mergeIncludes(it, byPath, locate, diagnostics) }
+        // A document another input includes is part of its includer, not a schema of its own:
+        // each input is merged with what it includes, and an input that another input took in is
+        // set aside. Two inputs that take each other in (an include cycle) keep the first.
+        val visits = initial.map { mergeIncludes(it, byPath, locate, diagnostics) }
+        val merged =
+            visits
+                .filterIndexed { i, (doc, visited) ->
+                    visits.withIndex().none { (j, other) ->
+                        j != i &&
+                            doc.path in other.second &&
+                            (other.first.path !in visited || j < i)
+                    }
+                }
+                .map { it.first }
 
         val known = merged.toMutableList()
         merged.forEach { doc ->
@@ -63,15 +76,16 @@ object XsdImporter {
 
     /**
      * Merges [doc]'s `xs:include`s into it, and those included documents' own includes in turn,
-     * until no new one appears. [visited] (seeded with [doc]'s own path) guards against a cycle: an
-     * include that resolves to an already-visited path is skipped rather than merged again.
+     * until no new one appears, returning the merged document and every path it took in (its own
+     * among them). That set of visited paths also guards against a cycle: an include that resolves
+     * to an already-visited path is skipped rather than merged again.
      */
     private fun mergeIncludes(
         doc: XsdDoc,
         byPath: Map<String, ImportInput>,
         locate: (String) -> ImportInput?,
         diagnostics: MutableList<Diagnostic>,
-    ): XsdDoc {
+    ): Pair<XsdDoc, Set<String>> {
         val visited = mutableSetOf(doc.path)
         var result = doc
         var frontier: List<Pair<String, String>> = doc.includes.map { doc.path to it }
@@ -86,7 +100,7 @@ object XsdImporter {
             }
             frontier = next
         }
-        return result
+        return result to visited
     }
 
     /** Folds [included]'s imports (deduplicated by namespace) and declarations into [into]. */

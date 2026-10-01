@@ -1,12 +1,15 @@
 package io.schemata.importer.xsd
 
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
+import java.io.IOException
 import java.io.StringReader
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
 import org.xml.sax.InputSource
 import org.xml.sax.Locator
+import org.xml.sax.SAXException
 import org.xml.sax.SAXParseException
 import org.xml.sax.helpers.DefaultHandler
 
@@ -20,11 +23,14 @@ object XsdReader {
         val tree =
             try {
                 parse(path, text)
-            } catch (e: SAXParseException) {
+            } catch (e: SAXException) {
+                val line = (e as? SAXParseException)?.lineNumber ?: 1
                 return ReadResult(
                     null,
-                    listOf(error(path, e.lineNumber.coerceAtLeast(1), "$path: ${e.message}")),
+                    listOf(error(path, line.coerceAtLeast(1), "$path: ${e.message}")),
                 )
+            } catch (e: IOException) {
+                return ReadResult(null, listOf(error(path, 1, "$path: ${e.message}")))
             }
         if (tree.ns != XS || tree.local != "schema") {
             return ReadResult(
@@ -32,7 +38,9 @@ object XsdReader {
                 listOf(error(path, tree.line, "$path: the root element is not xs:schema")),
             )
         }
-        return ReadResult(Builder(path, tree).doc(), emptyList())
+        val builder = Builder(path, tree)
+        val doc = builder.doc()
+        return ReadResult(doc, builder.diagnostics)
     }
 
     private fun error(path: String, line: Int, message: String) =
@@ -73,7 +81,15 @@ object XsdReader {
     }
 
     private fun parse(path: String, text: String): Node {
-        val factory = SAXParserFactory.newInstance().apply { isNamespaceAware = true }
+        // A schema never needs a document type declaration, and an external entity would read
+        // whatever file or URL it names, so both are refused outright.
+        val factory =
+            SAXParserFactory.newInstance().apply {
+                isNamespaceAware = true
+                setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                setFeature("http://xml.org/sax/features/external-general-entities", false)
+                setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+            }
         val handler =
             object : DefaultHandler() {
                 lateinit var locator: Locator
@@ -124,6 +140,8 @@ object XsdReader {
     }
 
     internal class Builder(private val path: String, private val root: Node) {
+        val diagnostics = mutableListOf<Diagnostic>()
+
         fun doc(): XsdDoc =
             XsdDoc(
                 path = path,
@@ -134,17 +152,26 @@ object XsdReader {
                         XImport(it.attr("namespace"), it.attr("schemaLocation"), it.line)
                     },
                 includes = root.children("include").mapNotNull { it.attr("schemaLocation") },
-                complexTypes = root.children("complexType").map { complexType(it) },
-                simpleTypes = root.children("simpleType").map { simpleType(it) },
-                elements = root.children("element").map { element(it) },
-                attributes = root.children("attribute").map { attribute(it) },
+                complexTypes =
+                    root.children("complexType").mapNotNull { n ->
+                        required(n, "name")?.let { complexType(n) }
+                    },
+                simpleTypes =
+                    root.children("simpleType").mapNotNull { n ->
+                        required(n, "name")?.let { simpleType(n) }
+                    },
+                elements = root.children("element").mapNotNull { element(it) },
+                attributes =
+                    root.children("attribute").mapNotNull { n ->
+                        required(n, "name")?.let { attribute(n) }
+                    },
                 groups =
-                    root.children("group").map {
-                        XGroup(it.attr("name")!!, modelGroup(it), it.line)
+                    root.children("group").mapNotNull { n ->
+                        required(n, "name")?.let { XGroup(it, modelGroup(n), n.line) }
                     },
                 attributeGroups =
-                    root.children("attributeGroup").map {
-                        XAttributeGroup(it.attr("name")!!, attributeUses(it), it.line)
+                    root.children("attributeGroup").mapNotNull { n ->
+                        required(n, "name")?.let { XAttributeGroup(it, attributeUses(n), n.line) }
                     },
                 dropped =
                     root.children
@@ -156,6 +183,24 @@ object XsdReader {
                         }
                         .map { "xs:${it.local}" to it.line },
             )
+
+        /**
+         * [n]'s [attribute], or `null`, reported, when it has none: the construct cannot be read
+         * without it, so the caller skips it.
+         */
+        private fun required(n: Node, attribute: String): String? {
+            val value = n.attr(attribute)
+            if (value == null) {
+                diagnostics +=
+                    error(path, n.line, "$path: xs:${n.local} at line ${n.line} has no $attribute")
+            }
+            return value
+        }
+
+        private fun warning(code: DiagnosticCode, line: Int, message: String) {
+            diagnostics +=
+                Diagnostic(code, message, Span(path, line, 1, line, 1), ImportCodes.helpFor(code))
+        }
 
         /**
          * The text of every `xs:documentation` under this node's `xs:annotation`, trimmed and
@@ -201,6 +246,7 @@ object XsdReader {
             val ext = content.child("extension")
             val res = content.child("restriction")
             val d = ext ?: res ?: return XContent.Empty
+            val base = required(d, "base") ?: return XContent.Empty
             attrs += attributeUses(d)
             val group = modelGroup(d)
             val particles =
@@ -209,9 +255,8 @@ object XsdReader {
                     XContent.Empty -> emptyList()
                     else -> listOf(XParticle.Nested(group, 1, 1, d.line))
                 }
-            return if (ext != null)
-                XContent.Extension(d.qname(d.attr("base")!!), particles, simple, d.line)
-            else XContent.Restriction(d.qname(d.attr("base")!!), particles, d.line)
+            return if (ext != null) XContent.Extension(d.qname(base), particles, simple, d.line)
+            else XContent.Restriction(d.qname(base), particles, simple, d.line)
         }
 
         /**
@@ -228,16 +273,8 @@ object XsdReader {
                 return XContent.All(particles(it))
             }
             n.child("group")?.let { g ->
-                return XContent.Sequence(
-                    listOf(
-                        XParticle.GroupRef(
-                            g.qname(g.attr("ref")!!),
-                            occurs(g).first,
-                            occurs(g).second,
-                            g.line,
-                        )
-                    )
-                )
+                val ref = groupRef(g) ?: return XContent.Empty
+                return XContent.Sequence(listOf(ref))
             }
             return XContent.Empty
         }
@@ -247,15 +284,9 @@ object XsdReader {
                 .filter { it.ns == XS }
                 .mapNotNull { c ->
                     when (c.local) {
-                        "element" -> XParticle.Element(element(c))
+                        "element" -> element(c)?.let { XParticle.Element(it) }
                         "any" -> XParticle.Any(c.line)
-                        "group" ->
-                            XParticle.GroupRef(
-                                c.qname(c.attr("ref")!!),
-                                occurs(c).first,
-                                occurs(c).second,
-                                c.line,
-                            )
+                        "group" -> groupRef(c)
                         "sequence",
                         "choice",
                         "all" ->
@@ -276,22 +307,66 @@ object XsdReader {
                 else -> XContent.All(particles(c))
             }
 
+        private fun groupRef(g: Node): XParticle.GroupRef? {
+            val ref = required(g, "ref") ?: return null
+            val (min, max) = occurs(g)
+            return XParticle.GroupRef(g.qname(ref), min, max, g.line)
+        }
+
+        /**
+         * [n]'s `minOccurs` and `maxOccurs` (`null` for `unbounded`); a value that is not a
+         * non-negative integer is reported and read as the default, `1`.
+         */
         private fun occurs(n: Node): Pair<Int, Int?> {
-            val min = n.attr("minOccurs")?.toInt() ?: 1
+            val min = n.attr("minOccurs")?.let { occurrence(n, "minOccurs", it) } ?: 1
             val maxAttr = n.attr("maxOccurs")
             val max =
-                if (maxAttr == null) 1 else if (maxAttr == "unbounded") null else maxAttr.toInt()
+                if (maxAttr == "unbounded") null
+                else maxAttr?.let { occurrence(n, "maxOccurs", it) } ?: 1
             return min to max
         }
 
-        private fun element(n: Node): XElement {
+        private fun occurrence(n: Node, attribute: String, value: String): Int? {
+            val parsed = value.trim().toIntOrNull()?.takeIf { it >= 0 }
+            if (parsed == null) {
+                warning(
+                    ImportCodes.WIDENED,
+                    n.line,
+                    "$path: facet $attribute value '$value' dropped",
+                )
+            }
+            return parsed
+        }
+
+        /**
+         * An element declaration or reference; `null`, reported, when it has neither a name nor a
+         * ref. One with both a `type` and an inline type keeps the `type`, as a validator would.
+         */
+        private fun element(n: Node): XElement? {
+            val name = n.attr("name")
+            val ref = n.attr("ref")?.let(n::qname)
+            if (name == null && ref == null) {
+                required(n, "name")
+                return null
+            }
+            val type = n.attr("type")?.let(n::qname)
+            val inline = n.child("complexType") ?: n.child("simpleType")
+            if (type != null && inline != null) {
+                warning(
+                    ImportCodes.APPROXIMATED,
+                    n.line,
+                    "element '$name': inline type ignored in favour of type '${type.local}'",
+                )
+            }
             val (min, max) = occurs(n)
             return XElement(
-                name = n.attr("name"),
-                ref = n.attr("ref")?.let(n::qname),
-                type = n.attr("type")?.let(n::qname),
-                inlineComplex = n.child("complexType")?.let { complexType(it) },
-                inlineSimple = n.child("simpleType")?.let { simpleType(it) },
+                name = name,
+                ref = ref,
+                type = type,
+                inlineComplex =
+                    n.child("complexType")?.takeIf { type == null }?.let { complexType(it) },
+                inlineSimple =
+                    n.child("simpleType")?.takeIf { type == null }?.let { simpleType(it) },
                 minOccurs = min,
                 maxOccurs = max,
                 nillable = n.attr("nillable") == "true",
@@ -301,13 +376,15 @@ object XsdReader {
                 abstract = n.attr("abstract") == "true",
                 doc = documentation(n),
                 uniques =
-                    n.children("unique").map { u ->
-                        XUnique(
-                            u.attr("name")!!,
-                            u.child("selector")?.attr("xpath") ?: "",
-                            u.children("field").mapNotNull { it.attr("xpath") },
-                            u.line,
-                        )
+                    n.children("unique").mapNotNull { u ->
+                        required(u, "name")?.let { uniqueName ->
+                            XUnique(
+                                uniqueName,
+                                u.child("selector")?.attr("xpath") ?: "",
+                                u.children("field").mapNotNull { it.attr("xpath") },
+                                u.line,
+                            )
+                        }
                     },
                 keys =
                     n.children("key").map { XIdentityConstraint(it.attr("name") ?: "", it.line) } +
@@ -324,7 +401,8 @@ object XsdReader {
                 .mapNotNull { c ->
                     when (c.local) {
                         "attribute" -> XAttributeUse.Attribute(attribute(c))
-                        "attributeGroup" -> XAttributeUse.GroupRef(c.qname(c.attr("ref")!!), c.line)
+                        "attributeGroup" ->
+                            required(c, "ref")?.let { XAttributeUse.GroupRef(c.qname(it), c.line) }
                         "anyAttribute" -> XAttributeUse.AnyAttribute(c.line)
                         else -> null
                     }

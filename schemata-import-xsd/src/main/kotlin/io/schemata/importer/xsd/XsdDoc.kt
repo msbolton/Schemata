@@ -53,8 +53,13 @@ sealed interface XContent {
         val line: Int,
     ) : XContent
 
-    data class Restriction(val base: QName, val particles: List<XParticle>, val line: Int) :
-        XContent
+    // complexContent or simpleContent restriction; attributes live on the type
+    data class Restriction(
+        val base: QName,
+        val particles: List<XParticle>,
+        val simple: Boolean,
+        val line: Int,
+    ) : XContent
 
     data object Empty : XContent
 }

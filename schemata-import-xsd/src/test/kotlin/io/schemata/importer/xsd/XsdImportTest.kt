@@ -1413,6 +1413,7 @@ class XsdImportTest {
                 "SCH2405 complex type 'ThingType': abstract dropped",
                 "SCH2405 complex type 'ThingType': xs:anyAttribute dropped",
                 "SCH2405 element 'extensions': xs:any dropped",
+                "SCH2405 element 'head': root element of simple type dropped",
             ),
             messages(imported),
         )
@@ -1436,7 +1437,12 @@ class XsdImportTest {
                 </xs:schema>
                 """
             )
-        assertEquals(emptyList(), imported.diagnostics)
+        // the global element itself is only a reference target here: no record carries it as a
+        // root, so it is reported as dropped while the reference still resolves to it
+        assertEquals(
+            listOf("SCH2405 element 'note': root element of simple type dropped"),
+            messages(imported),
+        )
         assertEquals(
             listOf(
                 UnitField(
@@ -1791,6 +1797,367 @@ class XsdImportTest {
                 "SCH2403 element 'anon': default 'z' has no Schemata literal; dropped",
                 "SCH2403 attribute 'w': default 'NaN' has no Schemata literal; dropped",
             ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a choice only type keeps its type name override`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="paymentType">
+                    <xs:choice><xs:element name="card" type="tns:CardType"/></xs:choice>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(listOf(xsd("name", "\"payment\"")), union(imported, "Payment").annotations)
+    }
+
+    @Test
+    fun `a choice only type reports the attributes mixed content and abstractness it drops`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="PaymentType" mixed="true" abstract="true">
+                    <xs:choice><xs:element name="card" type="tns:CardType"/></xs:choice>
+                    <xs:attribute name="id" type="xs:string"/>
+                    <xs:anyAttribute/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(UnitType.Ref("Card")),
+            union(imported, "Payment").members.map { it.type },
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 union 'Payment': attribute 'id' dropped",
+                "SCH2405 union 'Payment': xs:anyAttribute dropped",
+                "SCH2405 union 'Payment': mixed content dropped",
+                "SCH2405 union 'Payment': abstract dropped",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a second global element of one type is dropped`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="OrderType"><xs:sequence/></xs:complexType>
+                  <xs:element name="order" type="tns:OrderType"/>
+                  <xs:element name="other" type="tns:OrderType"/>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), record(imported, "Order").annotations)
+        assertEquals(
+            listOf("SCH2405 element 'other': second root element for 'OrderType' dropped"),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a global element of a simple or foreign type is dropped`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" xmlns:o="urn:other" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="CodeType">
+                    <xs:restriction base="xs:string"><xs:maxLength value="4"/></xs:restriction>
+                  </xs:simpleType>
+                  <xs:element name="x" type="xs:string"/>
+                  <xs:element name="code" type="tns:CodeType"/>
+                  <xs:element name="ext" type="o:ThingType"/>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.units.single().declarations)
+        assertEquals(
+            listOf(
+                "SCH2405 element 'x': root element of simple type dropped",
+                "SCH2405 element 'code': root element of simple type dropped",
+                "SCH2405 element 'ext': root element of a type in another namespace dropped",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a global element whose record name does not regenerate it is reported`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:element name="myThing">
+                    <xs:complexType>
+                      <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                    </xs:complexType>
+                  </xs:element>
+                </xs:schema>
+                """
+            )
+        assertEquals("x", record(imported, "MyThing").fields.single().name)
+        assertEquals(
+            listOf(
+                "SCH2403 element 'myThing': the regenerated root element will be named 'my_thing'"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a global or hoisted element lowering to a named type's name is dropped`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="gpxType">
+                    <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="PaymentType">
+                    <xs:choice>
+                      <xs:element name="string" type="xs:string"/>
+                      <xs:element name="card">
+                        <xs:complexType><xs:sequence/></xs:complexType>
+                      </xs:element>
+                    </xs:choice>
+                  </xs:complexType>
+                  <xs:element name="gpx">
+                    <xs:complexType><xs:sequence/></xs:complexType>
+                  </xs:element>
+                </xs:schema>
+                """
+            )
+        val declarations = imported.units.single().declarations
+        assertEquals(listOf("Gpx", "Card", "Payment"), declarations.map { it.name })
+        assertEquals("x", record(imported, "Gpx").fields.single().name)
+        assertEquals(
+            listOf(UnitType.Scalar("string", emptyList())),
+            union(imported, "Payment").members.map { it.type },
+        )
+        assertEquals(
+            listOf(
+                "SCH2401 element 'card' and complex type 'CardType' both lower to type 'Card'",
+                "SCH2401 element 'gpx' and complex type 'gpxType' both lower to type 'Gpx'",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `self referencing simple types groups and attribute groups are reported as cyclic`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="LoopType">
+                    <xs:restriction base="tns:LoopType"><xs:maxLength value="3"/></xs:restriction>
+                  </xs:simpleType>
+                  <xs:group name="g">
+                    <xs:sequence>
+                      <xs:element name="a" type="xs:int"/>
+                      <xs:group ref="tns:g"/>
+                    </xs:sequence>
+                  </xs:group>
+                  <xs:attributeGroup name="ag">
+                    <xs:attribute name="b" type="xs:int"/>
+                    <xs:attributeGroup ref="tns:ag"/>
+                  </xs:attributeGroup>
+                  <xs:complexType name="TType">
+                    <xs:sequence>
+                      <xs:element name="s" type="tns:LoopType"/>
+                      <xs:group ref="tns:g"/>
+                    </xs:sequence>
+                    <xs:attributeGroup ref="tns:ag"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val t = record(imported, "T").fields.single()
+        assertEquals("s", t.name)
+        assertEquals(UnitType.Scalar("string", listOf("max" to "3")), t.type)
+        assertEquals(
+            listOf(
+                "SCH2401 s.xsd: group 'g' cannot be resolved; the reference chain is cyclic",
+                "SCH2401 element 's': simple type 'LoopType' cannot be resolved; the reference " +
+                    "chain is cyclic",
+                "SCH2401 s.xsd: attribute group 'ag' cannot be resolved; the reference chain is " +
+                    "cyclic",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `the decimal note points at the simple type that declares it`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="PriceType">
+                    <xs:restriction base="xs:decimal"><xs:minInclusive value="0"/></xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="ItemType">
+                    <xs:sequence><xs:element name="price" type="tns:PriceType"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val d = imported.diagnostics.single()
+        assertEquals(
+            "element 'price': decimal without totalDigits and fractionDigits imported as " +
+                "decimal(38, 9)",
+            d.message,
+        )
+        assertEquals("s.xsd", d.span.file)
+        assertEquals(3, d.span.startLine)
+    }
+
+    @Test
+    fun `an extension base in another document reports at its own path`() {
+        val base =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:a">
+                  <xs:complexType name="BaseType" mixed="true">
+                    <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "a.xsd",
+            )
+        val derived =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:a="urn:schemata:a" targetNamespace="urn:schemata:b">
+                  <xs:import namespace="urn:schemata:a" schemaLocation="a.xsd"/>
+                  <xs:complexType name="DerivedType">
+                    <xs:complexContent>
+                      <xs:extension base="a:BaseType">
+                        <xs:sequence><xs:element name="y" type="xs:int"/></xs:sequence>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "b.xsd",
+            )
+        val imported = XsdImport.lower(listOf(derived, base), null)
+        val spans =
+            imported.diagnostics
+                .filter { it.message.startsWith("complex type 'DerivedType'") }
+                .associate { it.message to (it.span.file to it.span.startLine) }
+        assertEquals(
+            mapOf(
+                "complex type 'DerivedType': mixed content dropped; elements kept" to
+                    ("a.xsd" to 3),
+                "complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; " +
+                    "base fields flattened into the record" to ("b.xsd" to 6),
+            ),
+            spans,
+        )
+    }
+
+    @Test
+    fun `an element with maxOccurs zero is dropped`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="TType">
+                    <xs:sequence>
+                      <xs:element name="kept" type="xs:int"/>
+                      <xs:element name="gone" type="xs:int" minOccurs="0" maxOccurs="0"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("kept"), record(imported, "T").fields.map { it.name })
+        assertEquals(listOf("SCH2405 element 'gone': maxOccurs 0 dropped"), messages(imported))
+    }
+
+    @Test
+    fun `simple content of a complex base keeps a string value and its attributes`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="BaseType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="ExtType">
+                    <xs:simpleContent>
+                      <xs:extension base="tns:BaseType">
+                        <xs:attribute name="unit" type="xs:string"/>
+                      </xs:extension>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                  <xs:complexType name="ResType">
+                    <xs:simpleContent>
+                      <xs:restriction base="tns:BaseType">
+                        <xs:attribute name="unit" type="xs:string"/>
+                      </xs:restriction>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        listOf("Ext", "Res").forEach { name ->
+            val fields = record(imported, name).fields
+            assertEquals(listOf("value", "unit"), fields.map { it.name }, name)
+            assertEquals(UnitType.Scalar("string", emptyList()), fields[0].type, name)
+        }
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'ExtType': simpleContent extension of 'BaseType' has no " +
+                    "Schemata equivalent; imported as a record with a 'value' field",
+                "SCH2403 complex type 'ExtType': simpleContent extension of complex type " +
+                    "'BaseType' imported as string",
+                "SCH2403 complex type 'ResType': simpleContent restriction of 'BaseType' has no " +
+                    "Schemata equivalent; imported as a record with a 'value' field",
+                "SCH2403 complex type 'ResType': simpleContent restriction of complex type " +
+                    "'BaseType' imported as string",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `an import with no namespace names itself when unresolved`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:s">
+                  <xs:import schemaLocation="x.xsd"/>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf("SCH2401 s.xsd: import with no namespace cannot be resolved"),
             messages(imported),
         )
     }

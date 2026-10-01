@@ -228,4 +228,205 @@ class XsdReaderTest {
             notSchema.diagnostics.single().message,
         )
     }
+
+    private fun messages(r: ReadResult) = r.diagnostics.map { "${it.code.id} ${it.message}" }
+
+    private fun schema(body: String) =
+        read(
+            "<xs:schema $xs xmlns:tns=\"urn:schemata:s\" targetNamespace=\"urn:schemata:s\">\n" +
+                body.trimIndent() +
+                "\n</xs:schema>"
+        )
+
+    @Test
+    fun `a document type declaration is reported rather than thrown`() {
+        val r =
+            read(
+                """
+                <?xml version="1.0"?>
+                <!DOCTYPE schema [<!ENTITY e SYSTEM "file:///etc/passwd">]>
+                <xs:schema $xs><xs:annotation><xs:documentation>&e;</xs:documentation></xs:annotation></xs:schema>
+                """
+                    .trimIndent()
+            )
+        assertNull(r.doc)
+        val d = r.diagnostics.single()
+        assertEquals("SCH2401", d.code.id)
+        assertTrue(d.message.startsWith("s.xsd: "), d.message)
+        assertTrue(d.message.contains("DOCTYPE"), d.message)
+    }
+
+    @Test
+    fun `a top level complex type with no name is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:complexType><xs:sequence/></xs:complexType>
+                """
+            )
+        assertEquals(listOf("SCH2401 s.xsd: xs:complexType at line 2 has no name"), messages(r))
+        assertEquals(emptyList(), r.doc!!.complexTypes)
+    }
+
+    @Test
+    fun `a group with no name is reported and skipped`() {
+        val r = schema("<xs:group><xs:sequence/></xs:group>")
+        assertEquals(listOf("SCH2401 s.xsd: xs:group at line 2 has no name"), messages(r))
+        assertEquals(emptyList(), r.doc!!.groups)
+    }
+
+    @Test
+    fun `an attribute group with no name is reported and skipped`() {
+        val r = schema("<xs:attributeGroup><xs:attribute name=\"a\"/></xs:attributeGroup>")
+        assertEquals(listOf("SCH2401 s.xsd: xs:attributeGroup at line 2 has no name"), messages(r))
+        assertEquals(emptyList(), r.doc!!.attributeGroups)
+    }
+
+    @Test
+    fun `an extension with no base is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:complexType name="DType">
+                  <xs:complexContent><xs:extension/></xs:complexContent>
+                </xs:complexType>
+                """
+            )
+        assertEquals(listOf("SCH2401 s.xsd: xs:extension at line 3 has no base"), messages(r))
+        assertEquals(XContent.Empty, r.doc!!.complexTypes.single().content)
+    }
+
+    @Test
+    fun `a restriction with no base is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:complexType name="DType">
+                  <xs:simpleContent><xs:restriction/></xs:simpleContent>
+                </xs:complexType>
+                """
+            )
+        assertEquals(listOf("SCH2401 s.xsd: xs:restriction at line 3 has no base"), messages(r))
+        assertEquals(XContent.Empty, r.doc!!.complexTypes.single().content)
+    }
+
+    @Test
+    fun `a group reference with no ref is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:complexType name="AType"><xs:group/></xs:complexType>
+                <xs:complexType name="BType">
+                  <xs:sequence><xs:group minOccurs="0"/><xs:element name="x" type="xs:int"/></xs:sequence>
+                </xs:complexType>
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 s.xsd: xs:group at line 2 has no ref",
+                "SCH2401 s.xsd: xs:group at line 4 has no ref",
+            ),
+            messages(r),
+        )
+        val (a, b) = r.doc!!.complexTypes
+        assertEquals(XContent.Empty, a.content)
+        assertEquals(1, (b.content as XContent.Sequence).particles.size)
+    }
+
+    @Test
+    fun `an attribute group reference with no ref is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:complexType name="AType"><xs:attributeGroup/></xs:complexType>
+                """
+            )
+        assertEquals(listOf("SCH2401 s.xsd: xs:attributeGroup at line 2 has no ref"), messages(r))
+        assertEquals(emptyList(), r.doc!!.complexTypes.single().attributes)
+    }
+
+    @Test
+    fun `a unique constraint with no name is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:element name="e" type="xs:string">
+                  <xs:unique><xs:selector xpath="a"/><xs:field xpath="@k"/></xs:unique>
+                </xs:element>
+                """
+            )
+        assertEquals(listOf("SCH2401 s.xsd: xs:unique at line 3 has no name"), messages(r))
+        assertEquals(emptyList(), r.doc!!.elements.single().uniques)
+    }
+
+    @Test
+    fun `an element with neither name nor ref is reported and skipped`() {
+        val r =
+            schema(
+                """
+                <xs:complexType name="AType">
+                  <xs:sequence><xs:element type="xs:int"/></xs:sequence>
+                </xs:complexType>
+                <xs:element type="xs:int"/>
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 s.xsd: xs:element at line 3 has no name",
+                "SCH2401 s.xsd: xs:element at line 5 has no name",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            emptyList(),
+            (r.doc!!.complexTypes.single().content as XContent.Sequence).particles,
+        )
+        assertEquals(emptyList(), r.doc!!.elements)
+    }
+
+    @Test
+    fun `occurrence values that do not parse fall back to one`() {
+        val r =
+            schema(
+                """
+                <xs:complexType name="AType">
+                  <xs:sequence>
+                    <xs:element name="x" type="xs:int" minOccurs="none" maxOccurs="many"/>
+                  </xs:sequence>
+                </xs:complexType>
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2404 s.xsd: facet minOccurs value 'none' dropped",
+                "SCH2404 s.xsd: facet maxOccurs value 'many' dropped",
+            ),
+            messages(r),
+        )
+        val x =
+            ((r.doc!!.complexTypes.single().content as XContent.Sequence).particles.single()
+                    as XParticle.Element)
+                .element
+        assertEquals(1, x.minOccurs)
+        assertEquals(1, x.maxOccurs)
+    }
+
+    @Test
+    fun `an element with both a type and an inline type keeps the type`() {
+        val r =
+            schema(
+                """
+                <xs:element name="e" type="tns:FooType">
+                  <xs:complexType><xs:sequence/></xs:complexType>
+                </xs:element>
+                """
+            )
+        assertEquals(
+            listOf("SCH2403 element 'e': inline type ignored in favour of type 'FooType'"),
+            messages(r),
+        )
+        val e = r.doc!!.elements.single()
+        assertEquals(QName("urn:schemata:s", "FooType"), e.type)
+        assertNull(e.inlineComplex)
+    }
 }

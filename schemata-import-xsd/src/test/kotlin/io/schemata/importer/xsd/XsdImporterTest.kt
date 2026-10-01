@@ -311,4 +311,65 @@ class XsdImporterTest {
             pos = idx + field.length
         }
     }
+
+    private val includerXsd =
+        """
+        <?xml version="1.0"?>
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:a">
+          <xs:include schemaLocation="b.xsd"/>
+          <xs:complexType name="AType">
+            <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+          </xs:complexType>
+        </xs:schema>
+        """
+            .trimIndent()
+
+    private val includedXsd =
+        """
+        <?xml version="1.0"?>
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:a">
+          <xs:complexType name="BType">
+            <xs:sequence><xs:element name="y" type="xs:int"/></xs:sequence>
+          </xs:complexType>
+        </xs:schema>
+        """
+            .trimIndent()
+
+    @Test
+    fun `an input another input includes is merged into it and not imported alone`() {
+        listOf(
+                listOf(ImportInput("a.xsd", includerXsd), ImportInput("b.xsd", includedXsd)),
+                listOf(ImportInput("b.xsd", includedXsd), ImportInput("a.xsd", includerXsd)),
+            )
+            .forEach { inputs ->
+                val result = XsdImporter.import(inputs)
+                assertEquals(emptyList(), result.diagnostics)
+                val file = result.files.single()
+                assertEquals("a.schemata", file.path)
+                assertTrue(file.content.contains("record A"), file.content)
+                assertTrue(file.content.contains("record B"), file.content)
+            }
+    }
+
+    @Test
+    fun `two unrelated inputs declaring one foreign namespace are an error`() {
+        val xsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://example.com/x">
+              <xs:complexType name="ThingType"><xs:sequence/></xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val result =
+            XsdImporter.import(listOf(ImportInput("a.xsd", xsd), ImportInput("b.xsd", xsd)))
+        assertEquals(
+            listOf(
+                "SCH2402 a.xsd: namespace 'a' was derived from the file name",
+                "SCH2401 b.xsd: namespace 'http://example.com/x' is also declared by a.xsd",
+            ),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+        assertEquals(listOf("a.schemata"), result.files.map { it.path })
+    }
 }

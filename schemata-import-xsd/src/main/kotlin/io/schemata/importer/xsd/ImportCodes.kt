@@ -38,4 +38,14 @@ object ImportCodes {
         DiagnosticCode("SCH2405", Severity.WARNING, Category.LOSSY, "an xsd construct was dropped")
 
     val all: List<DiagnosticCode> = listOf(UNRESOLVED, RENAMED, APPROXIMATED, WIDENED, DROPPED)
+
+    /** The one standard help text per `SCH24xx` code, shared across every lowering diagnostic. */
+    internal fun helpFor(code: DiagnosticCode): String =
+        when (code) {
+            UNRESOLVED -> "add the referenced schema to the inputs or fix schemaLocation"
+            RENAMED -> "set --namespace to choose it, or keep it and rename later"
+            APPROXIMATED -> "review the imported record; the regenerated XSD will differ here"
+            WIDENED -> "narrow the type by hand if the data needs it"
+            else -> "add the missing part by hand; Schemata cannot express it"
+        }
 }
