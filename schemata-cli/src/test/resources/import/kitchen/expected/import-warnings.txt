@@ -1,3 +1,4 @@
+SCH2402 kitchen.xsd: namespace 'kitchen' was derived from the file name
 SCH2404 element 'built': xs:gYear imported as string
 SCH2404 element 'code': facet whiteSpace dropped
 SCH2401 element 'widget': type 'Missing' cannot be resolved

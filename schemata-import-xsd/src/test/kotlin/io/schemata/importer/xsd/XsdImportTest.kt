@@ -566,6 +566,60 @@ class XsdImportTest {
     }
 
     @Test
+    fun `a type override is synthesised when it alone would reproduce the root element name`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="BetaType">
+                    <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                  <xs:element name="Beta" type="tns:BetaType"/>
+                </xs:schema>
+                """
+            )
+        // "BetaType" needs no override to regenerate exactly (its default name "Beta" already gives
+        // "BetaType" back), but the default root element name would be snake_case("Beta") = "beta",
+        // not "Beta". The override text is always original.removeSuffix("Type") = "Beta" here,
+        // which
+        // happens to match the actual root element exactly, so it's added anyway, at no cost to the
+        // type name, purely to make the element round trip too.
+        assertEquals(listOf(xsd("name", "\"Beta\"")), record(imported, "Beta").annotations)
+        assertEquals(emptyList(), imported.diagnostics)
+    }
+
+    @Test
+    fun `nested enums interleave with records in document order`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="AType">
+                    <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                  <xs:simpleType name="KindType">
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="one"/>
+                      <xs:enumeration value="two"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="BType">
+                    <xs:sequence><xs:element name="y" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        // Declarations are ordered by source line across complex types and enumerated simple types
+        // together, not complex types first and enums last: the xsd target interleaves a nested
+        // record's and a nested enum's flattened types as it writes them, so matching that order is
+        // what lets a reimported xsd come back out byte for byte the same.
+        assertEquals(listOf("A", "Kind", "B"), imported.units.single().declarations.map { it.name })
+        assertEquals(emptyList(), imported.diagnostics)
+    }
+
+    @Test
     fun `type names strip Type and keep originals`() {
         val orderType =
             lower(

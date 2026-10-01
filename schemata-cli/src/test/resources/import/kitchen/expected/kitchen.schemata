@@ -1,4 +1,5 @@
 /// A hand-written schema exercising every import diagnostic.
+@xsd(namespace = "http://example.com/kitchen")
 namespace kitchen
 
 /// The kitchen sink.

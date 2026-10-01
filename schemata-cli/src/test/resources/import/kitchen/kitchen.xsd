@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
-           xmlns:tns="urn:schemata:kitchen"
-           targetNamespace="urn:schemata:kitchen"
+           xmlns:tns="http://example.com/kitchen"
+           targetNamespace="http://example.com/kitchen"
            elementFormDefault="qualified">
 
   <xs:annotation>
