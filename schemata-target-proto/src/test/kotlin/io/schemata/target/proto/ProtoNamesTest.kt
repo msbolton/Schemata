@@ -2,14 +2,7 @@ package io.schemata.target.proto
 
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
-import io.schemata.core.ir.Builtin
-import io.schemata.core.ir.EnumType
-import io.schemata.core.ir.EnumValue
-import io.schemata.core.ir.Field
 import io.schemata.core.ir.Namespace
-import io.schemata.core.ir.QualifiedName
-import io.schemata.core.ir.Reserved
-import io.schemata.core.ir.Scalar
 import io.schemata.lang.Span
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,8 +14,6 @@ class ProtoNamesTest {
 
     private fun proto(vararg pairs: Pair<String, String>) =
         Annotations(mapOf("proto" to pairs.associate { (k, v) -> k to AnnotationValue.Str(v) }))
-
-    private val deprecated = Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Flag)))
 
     @Test
     fun `snake and upper snake follow camel boundaries`() {
@@ -38,57 +29,27 @@ class ProtoNamesTest {
     }
 
     @Test
-    fun `packages and declaration names honour proto overrides`() {
+    fun `packages honour the proto package override`() {
         val ns = Namespace("shop.orders", emptyList(), at)
         assertEquals("shop.orders", ProtoNames.packageOf(ns))
         assertEquals(
             "corp.v1",
             ProtoNames.packageOf(ns.copy(annotations = proto("package" to "corp.v1"))),
         )
-        val enum =
-            EnumType(
-                QualifiedName("a", listOf("Status")),
-                "Status",
-                emptyList(),
-                Reserved.NONE,
-                emptyList(),
-                null,
-                at,
-                at,
-            )
-        assertEquals("Status", ProtoNames.of(enum))
-        assertEquals("State", ProtoNames.of(enum.copy(annotations = proto("name" to "State"))))
-        val field = Field(1, "email", Scalar(Builtin.STRING), false, null, null, null, at, at)
-        assertEquals("email", ProtoNames.of(field))
-        assertEquals(
-            "email_address",
-            ProtoNames.of(field.copy(annotations = proto("name" to "email_address"))),
-        )
     }
 
     @Test
-    fun `enum values are prefixed with the proto enum name unless overridden`() {
-        val value = EnumValue(1, "pending", null, at, at)
-        assertEquals("ORDER_STATUS_PENDING", ProtoNames.of("OrderStatus", value))
-        assertEquals(
-            "CANCELLED_BY_USER",
-            ProtoNames.of(
-                "OrderStatus",
-                value.copy(annotations = proto("name" to "CANCELLED_BY_USER")),
-            ),
-        )
+    fun `enum values are prefixed with the proto enum name`() {
+        assertEquals("ORDER_STATUS_PENDING", ProtoNames.valueName("OrderStatus", "pending"))
         assertEquals("STATUS_OLD_STATUS", ProtoNames.valueName("Status", "old_status"))
         assertEquals("STATUS_UNSPECIFIED", ProtoNames.zeroValue("Status"))
     }
 
     @Test
-    fun `deprecation is the core flag`() {
-        assertTrue(ProtoNames.deprecated(deprecated))
-        assertTrue(
-            ProtoNames.deprecated(
-                Annotations(mapOf("" to mapOf("deprecated" to AnnotationValue.Str("why"))))
-            )
-        )
-        assertFalse(ProtoNames.deprecated(Annotations.NONE))
+    fun `identifiers and packages are what proto can spell`() {
+        assertTrue(ProtoNames.isIdentifier("_order2"))
+        assertFalse(ProtoNames.isIdentifier("1x"))
+        assertTrue(ProtoNames.isPackage("shop.orders.v1"))
+        assertFalse(ProtoNames.isPackage("shop..orders"))
     }
 }

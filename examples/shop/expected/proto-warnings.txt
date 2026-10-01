@@ -5,7 +5,7 @@ SCH2001 field 'Card.last4': refinements on string(max = 4) are not enforced by P
 SCH2001 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf
 SCH2001 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf
 SCH2001 field 'Order.id': uuid has no Protobuf representation; lowered to string
-SCH2001 field 'Order.status': default pending is not carried by proto3
+SCH2001 field 'Order.status': default STATUS_PENDING is not carried by proto3
 SCH2001 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
 SCH2001 field 'Order.total': decimal has no Protobuf representation; lowered to string
 SCH2001 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf

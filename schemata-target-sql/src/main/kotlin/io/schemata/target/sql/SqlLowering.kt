@@ -1,6 +1,7 @@
 package io.schemata.target.sql
 
 import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
@@ -20,7 +21,12 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.NameClaims
 import io.schemata.target.TypeText
+import io.schemata.target.collidingNamespaces
+import io.schemata.target.flag
+import io.schemata.target.string
+import io.schemata.target.unionMemberStem
 
 /**
  * Lowers records to tables. A record has a table exactly when it has a key; a keyless record is a
@@ -41,11 +47,26 @@ object SqlLowering {
         val diagnostics = mutableListOf<Diagnostic>()
         val schemaNames =
             schema.namespaces.associate {
-                it.name to identifier(Naming.schemaOf(it), it.span, diagnostics)
+                val override =
+                    validOverride(
+                        it.annotations,
+                        "schema",
+                        "namespace '${it.name}'",
+                        it.span,
+                        diagnostics,
+                    )
+                it.name to identifier(Naming.schemaOf(it, override), it.span, diagnostics)
             }
         schemaCollisions(schema.namespaces, schemaNames, diagnostics)
         val catalog =
-            Catalog(schema, schemaNames) { name, span -> identifier(name, span, diagnostics) }
+            Catalog(
+                schema,
+                schemaNames,
+                identifier = { name, span -> identifier(name, span, diagnostics) },
+                override = { annotations, key, where, span ->
+                    validOverride(annotations, key, where, span, diagnostics)
+                },
+            )
         val lowered =
             schema.namespaces.map {
                 NamespaceLowering(schema, catalog, it, schemaNames.getValue(it.name), diagnostics)
@@ -132,20 +153,21 @@ object SqlLowering {
 
         /**
          * Table collisions are reported over final (overridden) names, before any record lowers.
-         * Only keyed records have tables, nested ones included.
+         * Only keyed records have tables, nested ones included; the second record in source order
+         * is blamed.
          */
         private fun tableCollisions() {
             records
                 .filter { catalog[it.qualifiedName] != null }
-                .groupBy { Naming.tableOf(it) }
+                .groupBy { catalog[it.qualifiedName]!!.tableNameRaw }
                 .values
                 .filter { it.size > 1 }
                 .forEach { colliding ->
                     diagnostics +=
                         Diagnostic(
                             SqlCodes.TABLE_COLLISION,
-                            "records ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${Naming.tableOf(colliding.first())}'",
-                            colliding.first().span,
+                            "records ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${catalog[colliding.first().qualifiedName]!!.tableNameRaw}'",
+                            colliding[1].span,
                             help = "set `@sql(table = \"…\")` on one of them",
                         )
                 }
@@ -201,7 +223,6 @@ object SqlLowering {
                 parts.map { (field, part) ->
                     ColumnSource(
                         "field '${record.name}.${field.name}'",
-                        "field '${field.name}'",
                         field.nameSpan,
                         part.columns.map { it.name },
                     )
@@ -224,7 +245,7 @@ object SqlLowering {
             val indexes =
                 constraints(record, "index", owned(parts) { it.indexes }, primaryKey) { it.columns }
             claim(
-                TableClaim("table '$tableName'", record.nameSpan, Naming.tableOf(record)),
+                TableClaim("table '$tableName'", record.nameSpan, entry.tableNameRaw),
                 tableName,
                 primaryKeyName,
                 uniques,
@@ -265,16 +286,8 @@ object SqlLowering {
             of: (Contribution) -> List<T>,
         ): List<Pair<Field, T>> = parts.flatMap { (field, part) -> of(part).map { field to it } }
 
-        /**
-         * Something that puts [columns] on a table: [subject] names it when it is the later of two
-         * claimants of a column name, [holder] when it is the earlier, and [span] locates it.
-         */
-        private class ColumnSource(
-            val subject: String,
-            val holder: String,
-            val span: Span,
-            val columns: List<String>,
-        )
+        /** Something that puts [columns] on a table, described by [subject]; [span] locates it. */
+        private class ColumnSource(val subject: String, val span: Span, val columns: List<String>)
 
         /** The CHECK and foreign key names a contribution puts on its own table. */
         private fun constraintNames(part: Contribution): List<String> =
@@ -302,18 +315,15 @@ object SqlLowering {
 
         /** Two sources whose columns land on the same final name, reported at the later one. */
         private fun columnCollisions(sources: List<ColumnSource>) {
-            val seen = mutableMapOf<String, ColumnSource>()
+            val claims =
+                NameClaims(
+                    SqlCodes.NAME_COLLISION,
+                    "rename one of them, or set `@sql(column = \"…\")` on one",
+                    diagnostics,
+                )
             sources.forEach { source ->
                 source.columns.forEach { column ->
-                    val previous = seen.putIfAbsent(column, source)
-                    if (previous != null) {
-                        error(
-                            SqlCodes.NAME_COLLISION,
-                            "${source.subject} lowers to column '$column', already used by ${previous.holder} (${previous.span.file}:${previous.span.startLine})",
-                            source.span,
-                            help = "rename one of them, or set `@sql(column = \"…\")` on one",
-                        )
-                    }
+                    claims.claim(column, source.subject, source.span, kind = "column")
                 }
             }
         }
@@ -324,7 +334,7 @@ object SqlLowering {
          * itself comes from the [Catalog].
          */
         private fun keys(record: RecordType) {
-            val fieldKeys = record.fields.filter { "key" in it.annotations["sql"] }
+            val fieldKeys = record.fields.filter { it.annotations.flag("sql", "key") }
             val recordKeyNames =
                 (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
             if (fieldKeys.isNotEmpty() && recordKeyNames != null) {
@@ -385,14 +395,26 @@ object SqlLowering {
 
         /**
          * The column type a key field has, which a reference to its record copies; null when the
-         * field is not a single scalar column (a builtin or an enum).
+         * field is not a single scalar column (a builtin or an enum). A pattern Postgres cannot
+         * express is dropped here as the key's own column drops it, so every copy gets the same
+         * type; the key's own column is where that is reported.
          */
         private fun keyType(field: Field): ColumnType? {
-            val override = Naming.override(field.annotations, "type")
+            val override = field.annotations.string("sql", "type")
             return when (val type = field.type) {
-                is Scalar ->
+                is Scalar -> {
+                    val refinements =
+                        type.refinements.pattern
+                            ?.takeIf { PostgresPattern.firstUnsupported(it) != null }
+                            ?.let { type.refinements.copy(pattern = null) } ?: type.refinements
                     override?.let { ColumnType.RAW(it) }
-                        ?: SqlTypes.scalar(type, field.name, overridden = false).type
+                        ?: SqlTypes.scalar(
+                                type.copy(refinements = refinements),
+                                field.name,
+                                overridden = false,
+                            )
+                            .type
+                }
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
                         is EnumType ->
@@ -529,13 +551,13 @@ object SqlLowering {
                         "record",
                         "remove `strategy = json` to get the default mapping for this field",
                     )
-                "embed" -> embed(ctx, field, target, Naming.columnOf(field))
+                "embed" -> embed(ctx, field, target, columnOf(field, ctx.where))
                 "table" ->
                     if (entry != null) reference(ctx, field, entry)
                     else forbiddenStrategy(ctx, field, "table", "a keyless record", "embed or json")
                 else ->
                     if (entry != null) reference(ctx, field, entry)
-                    else embed(ctx, field, target, Naming.columnOf(field))
+                    else embed(ctx, field, target, columnOf(field, ctx.where))
             }
         }
 
@@ -680,7 +702,7 @@ object SqlLowering {
          */
         private fun collectionConstraints(ctx: FieldContext, field: Field) {
             listOf("unique", "index")
-                .filter { it in field.annotations["sql"] }
+                .filter { field.annotations.flag("sql", it) }
                 .forEach {
                     error(
                         SqlCodes.STRATEGY_NOT_ALLOWED,
@@ -772,19 +794,52 @@ object SqlLowering {
             return Contribution.NONE
         }
 
+        /** The validated `@sql(column)` override for [field], or its own name; reported once. */
+        private fun columnOf(field: Field, where: String): String =
+            Naming.columnOf(
+                field,
+                validOverride(field.annotations, "column", where, field.nameSpan, diagnostics),
+            )
+
         /**
-         * A field's final column name. The owning record's own key fields take the name the
-         * [Catalog] already derived, so a truncation is not reported twice; a child table's
+         * A field's final column name and its pre-truncation form, the latter used to name the
+         * checks it adds. The owning record's own key fields reuse the [Catalog]'s
+         * already-validated resolution of both, so an empty `@sql(column)` override is reported
+         * once even though a key field feeds both its own column and every check built from it, and
+         * so the owning table and every table that copies the key agree on the column's name (its
+         * type agrees because [keyType] screens the pattern as [column] does); a child table's
          * synthetic `value` field never matches, since its table is never the owner's own.
          */
-        private fun columnName(ctx: FieldContext, field: Field): String {
+        private fun columnNames(ctx: FieldContext, field: Field): Pair<String, String> {
             val owner =
                 if (ctx.prefix.isEmpty() && ctx.embedding.size == 1) {
                     catalog[ctx.embedding.single()]?.takeIf { it.tableName == ctx.table }
                 } else null
             val keyIndex = owner?.keyFields?.indexOf(field) ?: -1
-            return if (keyIndex >= 0) owner!!.keyColumns[keyIndex]
-            else identifier(ctx.prefix + Naming.columnOf(field), field.nameSpan)
+            if (keyIndex >= 0) return owner!!.keyColumns[keyIndex] to owner.keyColumnsRaw[keyIndex]
+            val raw = ctx.prefix + columnOf(field, ctx.where)
+            return identifier(raw, field.nameSpan) to raw
+        }
+
+        /**
+         * [refinements] with a pattern Postgres's ARE dialect cannot express replaced by null,
+         * reported once at [where]; refinements with no pattern, or one ARE accepts, pass through
+         * unchanged.
+         */
+        private fun screenPattern(
+            where: String,
+            span: Span,
+            refinements: Refinements,
+        ): Refinements {
+            val pattern = refinements.pattern ?: return refinements
+            val bad = PostgresPattern.firstUnsupported(pattern) ?: return refinements
+            error(
+                SqlCodes.LOSSY,
+                "$where: pattern uses $bad, which Postgres regexes cannot express; dropped",
+                span,
+                help = "rewrite the pattern without $bad, or enforce it in application code",
+            )
+            return refinements.copy(pattern = null)
         }
 
         /** One column for a scalar or enum field, with its checks, unique, and index. */
@@ -794,12 +849,12 @@ object SqlLowering {
             scalar: Scalar?,
             enum: EnumType?,
         ): Contribution {
-            val rawName = ctx.prefix + Naming.columnOf(field)
-            val name = columnName(ctx, field)
-            val override = Naming.override(field.annotations, "type")
+            val (name, rawName) = columnNames(ctx, field)
+            val override = field.annotations.string("sql", "type")
             val mapped =
                 if (scalar != null) {
-                    val precision = scalar.refinements.precision
+                    val refinements = screenPattern(ctx.where, field.nameSpan, scalar.refinements)
+                    val precision = refinements.precision
                     if (
                         override == null &&
                             precision != null &&
@@ -813,7 +868,11 @@ object SqlLowering {
                         )
                         return Contribution.NONE
                     }
-                    SqlTypes.scalar(scalar, name, overridden = override != null)
+                    SqlTypes.scalar(
+                        scalar.copy(refinements = refinements),
+                        name,
+                        overridden = override != null,
+                    )
                 } else {
                     SqlTypes.enum(enum!!.values.map { it.name }, name)
                 }
@@ -850,7 +909,7 @@ object SqlLowering {
          * set.
          */
         private fun reference(ctx: FieldContext, field: Field, entry: Catalog.Entry): Contribution {
-            val rawName = ctx.prefix + Naming.columnOf(field)
+            val rawName = ctx.prefix + columnOf(field, ctx.where)
             val columns =
                 entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
                     val type = keyType(key) ?: return@mapNotNull null
@@ -980,7 +1039,7 @@ object SqlLowering {
             if (hasUnionMember(type)) {
                 return noRelationalMapping(ctx, field, "a union whose member is a union")
             }
-            val bare = Naming.columnOf(field)
+            val bare = columnOf(field, ctx.where)
             val outerRaw = ctx.prefix + bare
             val kindName = identifier("${outerRaw}_kind", field.nameSpan)
             val literals = type.members.map { memberLiteral(it.type) }
@@ -1018,10 +1077,9 @@ object SqlLowering {
         /** The text a member compares the kind column to, and lists in its `IN (...)` check. */
         private fun memberLiteral(type: Type): String =
             when (type) {
-                is Scalar -> type.builtin.typeName
-                is Ref -> Naming.snakeCase(type.target.simpleName)
                 is ListOf,
                 is MapOf -> "member"
+                else -> unionMemberStem(type, schema) { null }
             }
 
         /** One union member's own columns, checks, and foreign keys, named from [literal]. */
@@ -1065,7 +1123,8 @@ object SqlLowering {
         ): Contribution {
             val rawName = "${ctx.prefix}${bare}_$literal"
             val name = identifier(rawName, field.nameSpan)
-            val precision = scalar.refinements.precision
+            val refinements = screenPattern(ctx.where, field.nameSpan, scalar.refinements)
+            val precision = refinements.precision
             if (precision != null && precision > SqlTypes.NUMERIC_PRECISION_LIMIT) {
                 error(
                     SqlCodes.TYPE_LIMIT,
@@ -1075,7 +1134,8 @@ object SqlLowering {
                 )
                 return Contribution.NONE
             }
-            val mapped = SqlTypes.scalar(scalar, name, overridden = false)
+            val mapped =
+                SqlTypes.scalar(scalar.copy(refinements = refinements), name, overridden = false)
             val column = Column(name = name, type = mapped.type, nullable = true)
             val checks =
                 mapped.checks.map { (suffix, expression) ->
@@ -1225,8 +1285,7 @@ object SqlLowering {
             scalar: Scalar?,
             enum: EnumType?,
         ): Contribution {
-            val rawName = ctx.prefix + Naming.columnOf(field)
-            val name = columnName(ctx, field)
+            val (name, rawName) = columnNames(ctx, field)
             // The element's own bounds are reported, not enforced, so they never reach its column
             // type either (a bounded string would otherwise narrow to varchar(n)); precision and
             // scale stay, since for a decimal they are the type, not a bound.
@@ -1283,8 +1342,7 @@ object SqlLowering {
             shape: String,
             help: String,
         ): Contribution {
-            val rawName = ctx.prefix + Naming.columnOf(field)
-            val name = columnName(ctx, field)
+            val (name, rawName) = columnNames(ctx, field)
             error(
                 SqlCodes.LOSSY,
                 "${ctx.where}: $shape contents are not typed by Postgres; lowered to jsonb",
@@ -1370,7 +1428,10 @@ object SqlLowering {
                 )
             }
             val childName =
-                identifier("${ctx.table}_${ctx.prefix}${Naming.columnOf(field)}", field.nameSpan)
+                identifier(
+                    "${ctx.table}_${ctx.prefix}${columnOf(field, ctx.where)}",
+                    field.nameSpan,
+                )
             val parentColumns =
                 ctx.parentKeys.map { (key, keyType) ->
                     Column(
@@ -1395,7 +1456,7 @@ object SqlLowering {
                     namespace.name,
                 )
             val discriminator =
-                mapKey?.let { keyColumn(it) }
+                mapKey?.let { keyColumn(ctx, field, it) }
                     ?: Column("position", ColumnType.INTEGER, nullable = false)
             val childKeys = (parentColumns + discriminator).map { it.name to it.type }
             val childCtx =
@@ -1444,20 +1505,18 @@ object SqlLowering {
             columnCollisions(
                 listOf(
                     ColumnSource(
-                        "",
                         "the child table's parent key column",
                         field.nameSpan,
                         parentColumns.map { it.name },
                     ),
                     ColumnSource(
-                        "",
                         "the child table's $position column",
                         field.nameSpan,
                         listOf(discriminator.name),
                     ),
                 ) +
                     parts.map { (where, span, part) ->
-                        ColumnSource(where, where, span, part.columns.map { it.name })
+                        ColumnSource(where, span, part.columns.map { it.name })
                     }
             )
             constraintCollisions(
@@ -1486,9 +1545,18 @@ object SqlLowering {
 
         /**
          * A map's `key` column, typed like [type] — always a bare scalar, so it carries no checks.
+         * An unsupported pattern is still screened, since it changes whether the type fits a plain
+         * `varchar(n)`.
          */
-        private fun keyColumn(type: Scalar): Column =
-            Column("key", SqlTypes.scalar(type, "key", overridden = false).type, nullable = false)
+        private fun keyColumn(ctx: FieldContext, field: Field, type: Scalar): Column {
+            val refinements = screenPattern(ctx.where, field.nameSpan, type.refinements)
+            return Column(
+                "key",
+                SqlTypes.scalar(type.copy(refinements = refinements), "key", overridden = false)
+                    .type,
+                nullable = false,
+            )
+        }
 
         /** Every list of a set of contributions, concatenated in order. */
         private fun merge(parts: List<Contribution>): Contribution =
@@ -1512,7 +1580,7 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if ("unique" in field.annotations["sql"] && constrainable(field, columns))
+            if (field.annotations.flag("sql", "unique") && constrainable(field, columns))
                 listOf(Unique(identifier("uq_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
@@ -1523,7 +1591,7 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if ("index" in field.annotations["sql"] && constrainable(field, columns))
+            if (field.annotations.flag("sql", "index") && constrainable(field, columns))
                 listOf(Index(identifier("ix_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
@@ -1562,19 +1630,36 @@ object SqlLowering {
         names: Map<String, String>,
         diagnostics: MutableList<Diagnostic>,
     ) {
-        namespaces
-            .groupBy { names.getValue(it.name) }
-            .values
-            .filter { it.size > 1 }
-            .forEach { colliding ->
+        collidingNamespaces(namespaces) { names.getValue(it.name) }
+            .forEach { group ->
                 diagnostics +=
                     Diagnostic(
                         SqlCodes.SCHEMA_COLLISION,
-                        "namespaces ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to schema '${names.getValue(colliding.first().name)}'",
-                        colliding.first().span,
+                        "namespaces ${englishList(group.map { it.name })} ${if (group.size > 2) "all" else "both"} lower to schema '${names.getValue(group.first().name)}'",
+                        group[1].span,
                         help = "set `@sql(schema = \"…\")` on one of them",
                     )
             }
+    }
+
+    /** The `@sql(<key>)` override when it is non-empty; an empty one is reported and ignored. */
+    private fun validOverride(
+        annotations: Annotations,
+        key: String,
+        where: String,
+        span: Span,
+        diagnostics: MutableList<Diagnostic>,
+    ): String? {
+        val value = annotations.string("sql", key) ?: return null
+        if (value.isNotEmpty()) return value
+        diagnostics +=
+            Diagnostic(
+                SqlCodes.INVALID_OVERRIDE,
+                "$where: @sql($key = \"\") is empty",
+                span,
+                help = "give the name at least one character",
+            )
+        return null
     }
 
     internal fun englishList(names: List<String>): String =

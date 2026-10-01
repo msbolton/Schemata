@@ -408,6 +408,21 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a union member honours the member type's name override`() {
+        val card =
+            record(
+                "a",
+                "Card",
+                field(1, "l", Scalar(Builtin.STRING)),
+                annotations = proto("name" to "CreditCard"),
+            )
+        val payment = union("a", "Payment", Ref(qn("a", "Card")))
+        val file = ProtoLowering.lower(schema(ns("a", card, payment))).model.files.single()
+        val oneof = message(file, "Payment").oneofs.single()
+        assertEquals("CreditCard", oneof.fields.single().name)
+    }
+
+    @Test
     fun `record reserved ordinals and names pass through`() {
         val r =
             record(
@@ -460,6 +475,38 @@ class ProtoLoweringTest {
         assertEquals(
             listOf("sku_code" to ProtoType.Scalar("string"), "s" to ProtoType.Named("State")),
             message(file, "Item").fields.map { it.name to it.type },
+        )
+    }
+
+    @Test
+    fun `an enum value override equal to its own name is used verbatim`() {
+        fun value(ordinal: Int, name: String, override: String, line: Int) =
+            EnumValue(ordinal, name, null, at(line), at(line), proto("name" to override))
+        fun enumOf(name: String, line: Int, vararg values: EnumValue) =
+            EnumType(
+                qn("a", name),
+                name,
+                values.toList(),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(line),
+                at(line),
+            )
+        val status = enumOf("Status", 30, value(1, "PENDING", "PENDING", 31))
+        val other =
+            enumOf("Other", 40, value(1, "a", "STATUS_PENDING", 41), value(2, "b", "PENDING", 42))
+        val lowered = ProtoLowering.lower(schema(ns("a", status, other)))
+        val file = lowered.model.files.single()
+        assertEquals(
+            listOf("STATUS_UNSPECIFIED", "PENDING"),
+            (file.declarations[0] as ProtoEnum).values.map { it.name },
+        )
+        assertEquals(
+            listOf(
+                "42 SCH2004 proto name 'PENDING' is already used by value 'PENDING' (orders.schemata:31)"
+            ),
+            messages(lowered).filter { "SCH2004" in it },
         )
     }
 
@@ -547,7 +594,7 @@ class ProtoLoweringTest {
                 listOf("list<string(max = 5)?>(max = 5)?"),
                 listOf("map<string, uuid?>?"),
                 listOf("decimal(5, 1, min = 1)", "default = 2"),
-                listOf("default = x"),
+                listOf("default = E_X"),
             ),
             fields.map { it.notes },
         )
@@ -566,7 +613,7 @@ class ProtoLoweringTest {
                 "15 SCH2001 field 'R.d': refinements on decimal(5, 1, min = 1) are not enforced by Protobuf",
                 "15 SCH2001 field 'R.d': decimal has no Protobuf representation; lowered to string",
                 "15 SCH2001 field 'R.d': default 2 is not carried by proto3",
-                "16 SCH2001 field 'R.e': default x is not carried by proto3",
+                "16 SCH2001 field 'R.e': default E_X is not carried by proto3",
             ),
             messages(lowered),
         )
@@ -844,7 +891,7 @@ class ProtoLoweringTest {
         assertEquals(
             listOf(
                 "1 SCH2007 namespace 'corp': @proto(package = \"corp v1\") is not a valid package name",
-                "31 SCH2007 value 'E.x': @proto(name = \"A-B\") is not a valid identifier",
+                "31 SCH2007 enum value 'E.x': @proto(name = \"A-B\") is not a valid identifier",
                 "3 SCH2007 record 'R': @proto(name = \"Bad Name\") is not a valid identifier",
                 "11 SCH2007 field 'R.sku': @proto(name = \"1x\") is not a valid identifier",
             ),
@@ -852,7 +899,26 @@ class ProtoLoweringTest {
         )
         val file = lowered.model.files.single()
         assertEquals("Pay", message(file, "Pay").name)
-        assertEquals(ProtoType.Named("Pay"), message(file, "Bad Name").fields[1].type)
+        val record = message(file, "R")
+        assertEquals(listOf("sku", "pay"), record.fields.map { it.name })
+        assertEquals(ProtoType.Named("Pay"), record.fields[1].type)
+    }
+
+    @Test
+    fun `an invalid name override is reported once and the declared name is used`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "x", Scalar(Builtin.BOOL), annotations = proto("name" to "1x")),
+                field(2, "y", Scalar(Builtin.BOOL)),
+            )
+        val lowered = ProtoLowering.lower(schema(ns("a", r)))
+        assertEquals(
+            listOf("11 SCH2007 field 'R.x': @proto(name = \"1x\") is not a valid identifier"),
+            messages(lowered),
+        )
+        assertEquals("x", message(lowered.model.files.single(), "R").fields.first().name)
     }
 
     @Test

@@ -1,9 +1,7 @@
 package io.schemata.target.jsonschema
 
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
-import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
@@ -20,11 +18,20 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
+import io.schemata.core.ir.declarationPath
+import io.schemata.core.ir.kindWord
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.NameClaims
+import io.schemata.target.OverrideNames
+import io.schemata.target.collidingNamespaces
+import io.schemata.target.deprecated
+import io.schemata.target.flag
 import io.schemata.target.json.JsonString
 import io.schemata.target.json.JsonValue
+import io.schemata.target.string
+import io.schemata.target.unionMemberStem
 import java.math.BigDecimal
 
 /** Lowers the IR to a [JsonSchemaModel]; every decision and every lossy report lives here. */
@@ -35,7 +42,7 @@ object JsonSchemaLowering {
         val diagnostics = mutableListOf<Diagnostic>()
         val ids = LinkedHashMap<String, String>()
         schema.namespaces.forEach { ns ->
-            val override = JsonSchemaNames.override(ns.annotations, "id")
+            val override = ns.annotations.string("jsonschema", "id")
             if (override != null && !JsonSchemaNames.isAbsoluteUri(override)) {
                 diagnostics +=
                     Diagnostic(
@@ -50,17 +57,13 @@ object JsonSchemaLowering {
                 ids[ns.name] = JsonSchemaNames.idOf(ns)
             }
         }
-        ids.entries
-            .groupBy({ it.value }, { it.key })
-            .values
-            .filter { it.size > 1 }
-            .forEach { names ->
-                val second = schema.namespaces.first { it.name == names[1] }
+        collidingNamespaces(schema.namespaces) { ids.getValue(it.name) }
+            .forEach { group ->
                 diagnostics +=
                     Diagnostic(
                         JsonSchemaCodes.ID_COLLISION,
-                        "namespaces ${names.joinToString(" and ")} both lower to \$id '${ids.getValue(names.first())}'",
-                        second.span,
+                        "namespaces ${group.joinToString(" and ") { it.name }} both lower to \$id '${ids.getValue(group.first().name)}'",
+                        group[1].span,
                         help = "set `@jsonschema(id = \"…\")` on one of them",
                     )
             }
@@ -74,76 +77,29 @@ object JsonSchemaLowering {
      * Names shared by every document: a declaration's `$defs` key and the validated
      * `@jsonschema(name)` overrides of declarations and enum values, each checked once.
      */
-    internal class SchemaNames(
-        private val schema: Schema,
-        private val diagnostics: MutableList<Diagnostic>,
-    ) {
-        private val declOverrides = mutableMapOf<QualifiedName, String?>()
-        private val valueOverrides = mutableMapOf<Pair<QualifiedName, String>, String?>()
-        private val keys = mutableMapOf<QualifiedName, String>()
+    internal class SchemaNames(private val schema: Schema, diagnostics: MutableList<Diagnostic>) {
+        val overrides =
+            OverrideNames(
+                "jsonschema",
+                JsonSchemaCodes.INVALID_OVERRIDE,
+                diagnostics,
+                { value ->
+                    if (value.isEmpty()) "is empty"
+                    else
+                        JsonSchemaNames.reservedIn(value)?.let {
+                            "contains '${shown(it)}', which a \$ref cannot carry"
+                        }
+                },
+            ) { tail ->
+                if (tail == "is empty") "give the name at least one character"
+                else "leave out whitespace and the characters / ~ # % ? \" \\"
+            }
 
         /** `Order.Line`, each segment its valid override when it has one. */
         fun defsKey(qn: QualifiedName): String =
-            keys.getOrPut(qn) {
-                JsonSchemaNames.defsKey(
-                    qn.path.indices.map { i ->
-                        val decl = schema.lookup(QualifiedName(qn.namespace, qn.path.take(i + 1)))
-                        nameOverride(decl) ?: decl.name
-                    }
-                )
-            }
-
-        fun nameOverride(decl: TypeDecl): String? =
-            declOverrides.memo(decl.qualifiedName) {
-                overrideName(decl.annotations, "${kindOf(decl)} '${decl.name}'", decl.nameSpan)
-            }
-
-        fun enumValueName(enum: EnumType, value: EnumValue): String =
-            valueOverrides.memo(enum.qualifiedName to value.name) {
-                overrideName(
-                    value.annotations,
-                    "enum value '${enum.name}.${value.name}'",
-                    value.nameSpan,
-                )
-            } ?: value.name
-
-        private fun <K> MutableMap<K, String?>.memo(key: K, compute: () -> String?): String? {
-            if (key !in this) this[key] = compute()
-            return getValue(key)
-        }
-
-        /**
-         * The `@jsonschema(name)` value, or null (with a diagnostic) when it is empty or holds a
-         * character a `$ref` cannot carry: names are used verbatim, never escaped.
-         */
-        fun overrideName(annotations: Annotations, where: String, span: Span): String? {
-            val value = JsonSchemaNames.override(annotations, "name") ?: return null
-            if (value.isEmpty()) {
-                diagnostics +=
-                    Diagnostic(
-                        JsonSchemaCodes.INVALID_OVERRIDE,
-                        "$where: @jsonschema(name = \"\") is empty",
-                        span,
-                        help = "give the name at least one character",
-                    )
-                return null
-            }
-            val reserved = JsonSchemaNames.reservedIn(value) ?: return value
-            diagnostics +=
-                Diagnostic(
-                    JsonSchemaCodes.INVALID_OVERRIDE,
-                    "$where: @jsonschema(name = \"$value\") contains '${shown(reserved)}', " +
-                        "which a \$ref cannot carry",
-                    span,
-                    help = "leave out whitespace and the characters / ~ # % ? \" \\",
-                )
-            return null
-        }
-
-        /** A space as itself; any other whitespace or control character as a `\u` escape. */
-        private fun shown(c: Char): String =
-            if (c != ' ' && (c.isWhitespace() || c < ' ')) "\\u%04X".format(c.code)
-            else c.toString()
+            JsonSchemaNames.defsKey(
+                schema.declarationPath(qn).map { overrides.nameOverride(it) ?: it.name }
+            )
 
         /** A default's JSON value; a decimal default is scaled to the field's scale. */
         fun defaultValue(value: Value, scalar: Scalar?): JsonValue {
@@ -161,17 +117,10 @@ object JsonSchemaLowering {
             }
             return JsonSchemaTypes.defaultValue(value, builtin) { ref ->
                 val enum = schema.lookup(ref.enum) as EnumType
-                enumValueName(enum, enum.values.first { it.name == ref.value })
+                overrides.enumValueName(enum, enum.values.first { it.name == ref.value })
             }
         }
     }
-
-    internal fun kindOf(decl: TypeDecl): String =
-        when (decl) {
-            is RecordType -> "record"
-            is EnumType -> "enum"
-            is UnionType -> "union"
-        }
 
     /**
      * One namespace's document. Every declaration, nested ones included, becomes a `$defs` entry
@@ -191,7 +140,12 @@ object JsonSchemaLowering {
          * member, `"value:<defs key>/<string>"` for an enum value, scoped so two records may share
          * a property name.
          */
-        private val claims = mutableMapOf<String, Pair<String, Span>>()
+        private val claims =
+            NameClaims(
+                JsonSchemaCodes.NAME_COLLISION,
+                "rename one of them, or set `@jsonschema(name = \"…\")` on one",
+                diagnostics,
+            )
 
         fun lower(): JsonSchemaDocument =
             JsonSchemaDocument(
@@ -206,14 +160,14 @@ object JsonSchemaLowering {
          * parent.
          */
         private fun defs(decl: TypeDecl, path: List<String>): List<JsonDef> {
-            val here = path + (names.nameOverride(decl) ?: decl.name)
+            val here = path + (names.overrides.nameOverride(decl) ?: decl.name)
             val key = names.defsKey(decl.qualifiedName)
-            claim(
-                "def",
-                key,
-                "${kindOf(decl)} '${decl.name}'",
-                decl.nameSpan,
-                displayKind = "\$defs key",
+            claims.claim(
+                key = "def:$key",
+                holder = "${decl.kindWord} '${decl.name}'",
+                span = decl.nameSpan,
+                display = key,
+                kind = "\$defs key",
             )
             val own =
                 when (decl) {
@@ -227,43 +181,33 @@ object JsonSchemaLowering {
         private fun record(record: RecordType, path: List<String>): ObjectSchema =
             ObjectSchema(
                 record.fields.map { property(record, it, path) },
-                closed = !JsonSchemaNames.flag(record.annotations, "open"),
+                closed = !record.annotations.flag("jsonschema", "open"),
                 common =
-                    Common(
-                        description = record.doc,
-                        deprecated = JsonSchemaNames.deprecated(record.annotations),
-                    ),
+                    Common(description = record.doc, deprecated = record.annotations.deprecated),
             )
 
         private fun enum(enum: EnumType): EnumSchema {
             val key = names.defsKey(enum.qualifiedName)
             return EnumSchema(
                 enum.values.map { value ->
-                    val string = names.enumValueName(enum, value)
-                    claim(
-                        "value",
-                        "$key/$string",
-                        "enum value '${enum.name}.${value.name}'",
-                        value.nameSpan,
-                        displayName = string,
-                        displayKind = "enum value",
+                    val string = names.overrides.enumValueName(enum, value)
+                    claims.claim(
+                        key = "value:$key/$string",
+                        holder = "enum value '${enum.name}.${value.name}'",
+                        span = value.nameSpan,
+                        display = string,
+                        kind = "enum value",
                     )
                     EnumEntry(string, value.doc)
                 },
-                Common(
-                    description = enum.doc,
-                    deprecated = JsonSchemaNames.deprecated(enum.annotations),
-                ),
+                Common(description = enum.doc, deprecated = enum.annotations.deprecated),
             )
         }
 
         private fun union(union: UnionType, path: List<String>): TaggedUnionSchema =
             TaggedUnionSchema(
                 union.members.map { unionMember(union, it, path) },
-                Common(
-                    description = union.doc,
-                    deprecated = JsonSchemaNames.deprecated(union.annotations),
-                ),
+                Common(description = union.doc, deprecated = union.annotations.deprecated),
             )
 
         /**
@@ -272,23 +216,16 @@ object JsonSchemaLowering {
          * member's doc becomes its schema's description.
          */
         private fun unionMember(union: UnionType, member: UnionMember, path: List<String>): Member {
-            val (tag, declName) =
-                when (val t = member.type) {
-                    is Ref -> {
-                        val target = schema.lookup(t.target)
-                        (names.nameOverride(target) ?: JsonSchemaNames.tag(target.name)) to
-                            target.name
-                    }
-                    is Scalar -> t.builtin.typeName to t.builtin.typeName
-                    is ListOf,
-                    is MapOf -> error("union member cannot be a collection")
-                }
-            claim(
-                "tag",
-                "${path.joinToString(".")}/$tag",
-                "union member '$declName'",
-                member.span,
-                displayName = tag,
+            val tag = unionMemberStem(member.type, schema) { names.overrides.nameOverride(it) }
+            val declName =
+                (member.type as? Ref)?.let { schema.lookup(it.target).name }
+                    ?: (member.type as Scalar).builtin.typeName
+            claims.claim(
+                key = "tag:${path.joinToString(".")}/$tag",
+                holder = "union member '$declName'",
+                span = member.span,
+                display = tag,
+                kind = "tag",
             )
             val schema =
                 typeSchema(
@@ -305,20 +242,21 @@ object JsonSchemaLowering {
 
         private fun property(record: RecordType, field: Field, path: List<String>): Property {
             val where = fieldWhere(record, field)
-            val name = names.overrideName(field.annotations, where, field.nameSpan) ?: field.name
-            claim(
-                "property",
-                "${path.joinToString(".")}/$name",
-                where,
-                field.nameSpan,
-                displayName = name,
+            val name =
+                names.overrides.overrideName(field.annotations, where, field.nameSpan) ?: field.name
+            claims.claim(
+                key = "property:${path.joinToString(".")}/$name",
+                holder = where,
+                span = field.nameSpan,
+                display = name,
+                kind = "property",
             )
             val schema = typeSchema(field.type, field.nullable, where, field.span)
             val common =
                 schema.common.copy(
                     description = field.doc,
                     default = field.default?.let { names.defaultValue(it, field.type as? Scalar) },
-                    deprecated = JsonSchemaNames.deprecated(field.annotations),
+                    deprecated = field.annotations.deprecated,
                 )
             return Property(
                 name,
@@ -381,30 +319,6 @@ object JsonSchemaLowering {
         /** Reports a construct JSON Schema cannot express at [where]. */
         private fun lossy(where: String, span: Span): (String, String) -> Unit = { message, help ->
             diagnostics += Diagnostic(JsonSchemaCodes.LOSSY, "$where: $message", span, help = help)
-        }
-
-        private fun claim(
-            kind: String,
-            key: String,
-            holder: String,
-            span: Span,
-            displayName: String = key,
-            displayKind: String = kind,
-        ) {
-            val fullKey = "$kind:$key"
-            val previous = claims[fullKey]
-            if (previous == null) {
-                claims[fullKey] = holder to span
-            } else {
-                diagnostics +=
-                    Diagnostic(
-                        JsonSchemaCodes.NAME_COLLISION,
-                        "$holder lowers to $displayKind '$displayName', already used by ${previous.first} " +
-                            "(${previous.second.file}:${previous.second.startLine})",
-                        span,
-                        help = "rename one of them, or set `@jsonschema(name = \"…\")` on one",
-                    )
-            }
         }
     }
 

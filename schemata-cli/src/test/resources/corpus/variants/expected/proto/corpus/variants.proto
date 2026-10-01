@@ -36,5 +36,5 @@ message Order {
   Payment payment = 1;
   Payment fallback = 2;
   repeated Payment history = 3;
-  Status status = 4;  // schemata: default = pending
+  Status status = 4;  // schemata: default = STATUS_PENDING
 }

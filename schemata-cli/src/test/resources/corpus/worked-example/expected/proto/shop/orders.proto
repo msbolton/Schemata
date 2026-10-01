@@ -36,7 +36,7 @@ message Payment {
 message Order {
   string id = 1;  // schemata: uuid
   .shop.customers.Customer customer = 2;
-  Status status = 3;  // schemata: default = pending
+  Status status = 3;  // schemata: default = STATUS_PENDING
   repeated Line lines = 4;  // schemata: list<Line>(min = 1)
   string total = 5;  // schemata: decimal(19, 4)
   Payment payment = 6;

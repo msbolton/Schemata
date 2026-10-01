@@ -1,11 +1,9 @@
 package io.schemata.target.jsonschema
 
-import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Namespace
-import io.schemata.target.Names
+import io.schemata.target.string
 
-/** The target's naming rules: paths, ids, `$defs` keys, union tags, and `@jsonschema` readers. */
+/** The target's naming rules: paths, ids, `$defs` keys, and what a `$ref` can carry. */
 object JsonSchemaNames {
     private val scheme = Regex("[A-Za-z][A-Za-z0-9+.\\-]*:[^\\s#]+")
     private const val REF_RESERVED = "/~#%?\"\\"
@@ -13,13 +11,10 @@ object JsonSchemaNames {
     fun pathOf(namespace: Namespace): String = namespace.name.replace('.', '/') + ".schema.json"
 
     fun idOf(namespace: Namespace): String =
-        override(namespace.annotations, "id") ?: "urn:schemata:${namespace.name}"
+        namespace.annotations.string("jsonschema", "id") ?: "urn:schemata:${namespace.name}"
 
     /** `["Order", "Line"]` → `Order.Line`; each segment is already its override when it has one. */
     fun defsKey(path: List<String>): String = path.joinToString(".")
-
-    /** Union member tags: `BankTransfer` → `bank_transfer`. */
-    fun tag(declName: String): String = Names.snakeCase(declName)
 
     /** A scheme, then no whitespace and no fragment: a `$id` must not carry one. */
     fun isAbsoluteUri(s: String): Boolean = scheme.matches(s)
@@ -30,12 +25,8 @@ object JsonSchemaNames {
      */
     fun reservedIn(name: String): Char? =
         name.firstOrNull { it.isWhitespace() || it < ' ' || it in REF_RESERVED }
-
-    fun override(annotations: Annotations, key: String): String? =
-        (annotations["jsonschema"][key] as? AnnotationValue.Str)?.value
-
-    fun flag(annotations: Annotations, key: String): Boolean =
-        annotations["jsonschema"][key] is AnnotationValue.Flag
-
-    fun deprecated(annotations: Annotations): Boolean = "deprecated" in annotations[""]
 }
+
+/** A space as itself; any other whitespace or control character as a `\u` escape. */
+internal fun shown(c: Char): String =
+    if (c != ' ' && (c.isWhitespace() || c < ' ')) "\\u%04X".format(c.code) else c.toString()

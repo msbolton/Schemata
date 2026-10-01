@@ -824,11 +824,119 @@ class SqlLoweringTest {
         assertEquals(
             listOf(
                 "1 SCH2102 namespaces a and b.x both lower to schema 'a'",
-                "3 SCH2101 records A and B both lower to table 'same'",
-                "12 SCH2111 field 'C.y' lowers to column 'x', already used by field 'x' (o.schemata:11)",
+                "6 SCH2101 records A and B both lower to table 'same'",
+                "12 SCH2111 field 'C.y' lowers to column 'x', already used by field 'C.x' (o.schemata:11)",
             ),
             messages(lowered),
         )
+    }
+
+    @Test
+    fun `a key with an unsupported pattern types every column that copies it like its own`() {
+        val key = sql("key" to AnnotationValue.Flag)
+        val line = record("a", "Line", field(1, "qty", Scalar(Builtin.INT32)), line = 20)
+        val code =
+            record(
+                "a",
+                "Code",
+                field(
+                    1,
+                    "code",
+                    Scalar(Builtin.STRING, Refinements(max = big(10), pattern = "\\bx")),
+                    annotations = key,
+                ),
+                field(2, "lines", ListOf(Ref(qn("a", "Line")), false)),
+            )
+        val holder =
+            record(
+                "a",
+                "Holder",
+                field(1, "id", Scalar(Builtin.UUID), line = 41, annotations = key),
+                field(2, "code", Ref(qn("a", "Code")), line = 42),
+                field(3, "codes", ListOf(Ref(qn("a", "Code")), false), line = 43),
+                line = 40,
+            )
+        val lowered = lower(namespace("a", line, code, holder))
+        assertEquals(
+            listOf("11"),
+            messages(lowered).filter { "SCH2105" in it }.map { it.substringBefore(' ') },
+        )
+        val varchar = ColumnType.VARCHAR(10)
+        assertEquals(varchar, table(lowered, "code").columns.single { it.name == "code" }.type)
+        assertEquals(
+            varchar,
+            table(lowered, "code_lines").columns.single { it.name == "code_code" }.type,
+        )
+        assertEquals(
+            varchar,
+            table(lowered, "holder").columns.single { it.name == "code_code" }.type,
+        )
+        assertEquals(
+            listOf("holder_id" to ColumnType.UUID, "value_code" to varchar),
+            table(lowered, "holder_codes")
+                .columns
+                .filter { it.name != "position" }
+                .map { it.name to it.type },
+        )
+    }
+
+    @Test
+    fun `an empty column override keeps the field name and is reported once`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
+                field(2, "x", Scalar(Builtin.BOOL), annotations = sql("column" to str(""))),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(listOf("id", "x"), table(lowered, "r").columns.map { it.name })
+        assertEquals(1, messages(lowered).count { "SCH2114" in it }, messages(lowered).toString())
+    }
+
+    @Test
+    fun `an unsupported pattern keeps the varchar and drops only the check`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
+                field(2, "x", Scalar(Builtin.STRING, Refinements(max = big(5), pattern = "\\bx"))),
+            )
+        val lowered = lower(namespace("a", r))
+        val t = table(lowered, "r")
+        assertEquals(ColumnType.VARCHAR(5), t.columns.single { it.name == "x" }.type)
+        assertTrue(t.checks.none { it.name.endsWith("_pattern") }, t.checks.toString())
+        assertEquals(1, messages(lowered).count { "SCH2105" in it }, messages(lowered).toString())
+    }
+
+    @Test
+    fun `an empty table override keeps the snake-cased record name`() {
+        val r =
+            record(
+                "a",
+                "OrderLine",
+                field(
+                    1,
+                    "id",
+                    Scalar(Builtin.UUID),
+                    annotations = sql("key" to AnnotationValue.Flag),
+                ),
+                annotations = sql("table" to str("")),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(listOf("order_line"), lowered.model.schemas.single().tables.map { it.name })
+        assertEquals(1, messages(lowered).count { "SCH2114" in it }, messages(lowered).toString())
     }
 }
 

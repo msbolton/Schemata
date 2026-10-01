@@ -27,6 +27,8 @@ class XsdNamesTest {
         assertTrue(XsdNames.isAbsoluteUri("http://example.com/orders"))
         assertFalse(XsdNames.isAbsoluteUri("orders"))
         assertFalse(XsdNames.isAbsoluteUri("/orders"))
+        assertFalse(XsdNames.isAbsoluteUri("urn:a#b"))
+        assertFalse(XsdNames.isAbsoluteUri("urn:a b"))
     }
 
     @Test

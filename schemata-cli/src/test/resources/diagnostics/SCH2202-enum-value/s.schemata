@@ -1,0 +1,2 @@
+namespace s
+enum Status { #1 paid @xsd(name = "paid") #2 settled }

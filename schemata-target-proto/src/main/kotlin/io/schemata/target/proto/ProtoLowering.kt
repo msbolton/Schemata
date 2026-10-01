@@ -1,8 +1,9 @@
 package io.schemata.target.proto
 
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
+import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.EnumType
+import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
@@ -15,9 +16,19 @@ import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.declarationPath
+import io.schemata.core.ir.kindWord
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.OverrideNames
+import io.schemata.target.collidingNamespaces
+import io.schemata.target.deprecated
+import io.schemata.target.string
+import io.schemata.target.unionMemberStem
+
+/** [decl]'s emitted name: its valid `@proto(name)` override, else its own name. */
+private fun OverrideNames.of(decl: TypeDecl): String = nameOverride(decl) ?: decl.name
 
 /**
  * Lowers every IR shape to a [ProtoModel]. Each decision that loses information is reported once as
@@ -36,24 +47,28 @@ object ProtoLowering {
 
     fun lower(schema: Schema): Lowered<ProtoModel> {
         val diagnostics = mutableListOf<Diagnostic>()
-        val packages = schema.namespaces.associate { it.name to ProtoNames.packageOf(it) }
-        packages.entries
-            .groupBy({ it.value }, { it.key })
-            .values
-            .filter { it.size > 1 }
-            .forEach { names ->
-                // The first namespace is blameless: the clash appears at the one that repeats it.
-                val second = schema.namespaces.first { it.name == names[1] }
-                diagnostics +=
-                    Diagnostic(
-                        ProtoCodes.NAME_COLLISION,
-                        "namespaces ${names.joinToString(" and ")} both lower to package '${packages.getValue(names.first())}'",
-                        second.span,
-                        help = "set `@proto(package = \"…\")` on one namespace",
-                    )
+        val names =
+            OverrideNames(
+                "proto",
+                ProtoCodes.INVALID_OVERRIDE,
+                diagnostics,
+                { if (ProtoNames.isIdentifier(it)) null else "is not a valid identifier" },
+            ) {
+                "use letters, digits, and underscores, starting with a letter"
             }
+        val packages = schema.namespaces.associate { it.name to ProtoNames.packageOf(it) }
+        collidingNamespaces(schema.namespaces, ProtoNames::packageOf).forEach { clashing ->
+            // The first namespace is blameless: the clash appears at the one that repeats it.
+            diagnostics +=
+                Diagnostic(
+                    ProtoCodes.NAME_COLLISION,
+                    "namespaces ${clashing.joinToString(" and ") { it.name }} both lower to package '${packages.getValue(clashing.first().name)}'",
+                    clashing[1].span,
+                    help = "set `@proto(package = \"…\")` on one namespace",
+                )
+        }
         val files =
-            schema.namespaces.map { FileLowering(schema, packages, it, diagnostics).lower() }
+            schema.namespaces.map { FileLowering(schema, names, packages, it, diagnostics).lower() }
         return Lowered(ProtoModel(files), diagnostics)
     }
 
@@ -61,6 +76,7 @@ object ProtoLowering {
 
     private class FileLowering(
         private val schema: Schema,
+        private val names: OverrideNames,
         private val packages: Map<String, String>,
         private val namespace: Namespace,
         private val diagnostics: MutableList<Diagnostic>,
@@ -68,7 +84,7 @@ object ProtoLowering {
         private val imports = sortedSetOf<String>()
 
         fun lower(): ProtoFile {
-            ProtoNames.override(namespace.annotations, "package")?.let {
+            namespace.annotations.string("proto", "package")?.let {
                 if (!ProtoNames.isPackage(it)) {
                     invalidOverride(
                         "namespace '${namespace.name}': @proto(package = \"$it\") is not a valid package name",
@@ -95,46 +111,59 @@ object ProtoLowering {
                 is UnionType -> union(decl, enclosing)
             }
 
-        private fun kindOf(decl: TypeDecl): String =
-            when (decl) {
-                is RecordType -> "record"
-                is EnumType -> "enum"
-                is UnionType -> "union"
-            }
-
         private fun record(record: RecordType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + record.name
             val where = "record '${record.name}'"
-            nameOverride(where, record.annotations, record.nameSpan)
+            val name = names.of(record)
+            val fieldNames =
+                record.fields.associateWith {
+                    names.overrideName(
+                        it.annotations,
+                        "field '${record.name}.${it.name}'",
+                        it.nameSpan,
+                    ) ?: it.name
+                }
             scope(
                 record.nested.flatMap { symbols(it) } +
                     record.fields.map {
-                        Symbol(ProtoNames.of(it), "field '${it.name}'", it.nameSpan)
+                        Symbol(fieldNames.getValue(it), "field '${it.name}'", it.nameSpan)
                     }
             )
-            val fields = record.fields.map { field(record, it, here) }
+            val fields = record.fields.map { field(record, it, here, fieldNames) }
             val nested = record.nested.map { decl(it, here) }
             reservedNumbers(where, record.reserved.ordinals, record.nameSpan, bounded = true)
             return ProtoMessage(
-                name = ProtoNames.of(record),
+                name = name,
                 doc = record.doc,
                 fields = fields,
                 oneofs = emptyList(),
                 nested = nested,
                 reserved = ProtoReserved(record.reserved.ordinals, record.reserved.names.sorted()),
-                deprecated = ProtoNames.deprecated(record.annotations),
+                deprecated = record.annotations.deprecated,
             )
         }
 
-        private fun field(record: RecordType, field: Field, here: List<String>): ProtoField {
+        private fun field(
+            record: RecordType,
+            field: Field,
+            here: List<String>,
+            fieldNames: Map<Field, String>,
+        ): ProtoField {
             val where = "field '${record.name}.${field.name}'"
-            nameOverride(where, field.annotations, field.nameSpan)
             fieldNumber(where, field.ordinal, field.span)
             val mapped = map(field.type, field.nullable, where, field.span, here)
             val notes = mutableListOf<String>()
             if (mapped.lossy) notes += ProtoTypes.text(field.type, field.nullable)
             field.default?.let {
-                val text = ProtoTypes.text(it)
+                val text =
+                    (it as? EnumRef)?.let { ref ->
+                        val enum = schema.lookup(ref.enum) as EnumType
+                        valueName(
+                            names.of(enum),
+                            enum,
+                            enum.values.first { v -> v.name == ref.value },
+                        )
+                    } ?: ProtoTypes.text(it)
                 lossy(
                     "$where: default $text is not carried by proto3",
                     field.span,
@@ -145,27 +174,24 @@ object ProtoLowering {
             }
             return ProtoField(
                 number = field.ordinal,
-                name = ProtoNames.of(field),
+                name = fieldNames.getValue(field),
                 type = mapped.type,
                 label = mapped.label,
                 doc = field.doc,
                 notes = notes,
-                deprecated = ProtoNames.deprecated(field.annotations),
+                deprecated = field.annotations.deprecated,
             )
         }
 
         private fun enum(enum: EnumType): ProtoEnum {
-            nameOverride("enum '${enum.name}'", enum.annotations, enum.nameSpan)
-            enum.values.forEach {
-                nameOverride("value '${enum.name}.${it.name}'", it.annotations, it.nameSpan)
-            }
+            val name = names.of(enum)
+            enum.values.forEach { names.enumValueName(enum, it) }
             reservedNumbers(
                 "enum '${enum.name}'",
                 enum.reserved.ordinals,
                 enum.nameSpan,
                 bounded = false,
             )
-            val name = ProtoNames.of(enum)
             val zero = ProtoNames.zeroValue(name)
             lossy(
                 "enum '${enum.name}': proto3 requires a zero value; synthesized $zero = 0",
@@ -176,10 +202,10 @@ object ProtoLowering {
                 listOf(ProtoEnumValue(zero, 0)) +
                     enum.values.map {
                         ProtoEnumValue(
-                            ProtoNames.of(name, it),
+                            valueName(name, enum, it),
                             it.ordinal,
                             it.doc,
-                            ProtoNames.deprecated(it.annotations),
+                            it.annotations.deprecated,
                         )
                     }
             return ProtoEnum(
@@ -191,13 +217,19 @@ object ProtoLowering {
                         enum.reserved.ordinals,
                         enum.reserved.names.sorted().map { ProtoNames.valueName(name, it) },
                     ),
-                deprecated = ProtoNames.deprecated(enum.annotations),
+                deprecated = enum.annotations.deprecated,
             )
         }
 
+        /**
+         * The emitted name of [value]: its valid `@proto(name)` override, else the prefixed form.
+         */
+        private fun valueName(enumName: String, enum: EnumType, value: EnumValue): String =
+            names.enumValueOverride(enum, value) ?: ProtoNames.valueName(enumName, value.name)
+
         private fun union(union: UnionType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + union.name
-            nameOverride("union '${union.name}'", union.annotations, union.nameSpan)
+            val name = names.of(union)
             scope(
                 listOf(Symbol("kind", "the oneof", union.nameSpan)) +
                     union.members.map { member ->
@@ -223,26 +255,18 @@ object ProtoLowering {
                     )
                 }
             return ProtoMessage(
-                name = ProtoNames.of(union),
+                name = name,
                 doc = union.doc,
                 fields = emptyList(),
                 oneofs = listOf(ProtoOneof("kind", null, members)),
                 nested = emptyList(),
                 reserved = ProtoReserved.NONE,
-                deprecated = ProtoNames.deprecated(union.annotations),
+                deprecated = union.annotations.deprecated,
             )
         }
 
         private fun memberName(type: Type): String =
-            when (type) {
-                is Scalar -> type.builtin.typeName
-                is Ref -> ProtoNames.snakeCase(type.target.simpleName)
-                is ListOf,
-                is MapOf ->
-                    error(
-                        "union members are named types or scalars; the analyzer rejects collections"
-                    )
-            }
+            unionMemberStem(type, schema) { names.nameOverride(it) }
 
         /** Maps a field's or member's type; [nullable] is the field's own `?`. */
         private fun map(
@@ -395,22 +419,13 @@ object ProtoLowering {
         private fun isEnum(target: QualifiedName): Boolean = schema.lookup(target) is EnumType
 
         /**
-         * Proto-named segments of a declaration's path: `Order.Line` with any `@proto(name)`
-         * applied.
-         */
-        private fun protoPath(target: QualifiedName): List<String> =
-            (1..target.path.size).map { n ->
-                ProtoNames.of(schema.lookup(QualifiedName(target.namespace, target.path.take(n))))
-            }
-
-        /**
          * Spells a reference as proto resolves it from a message at [here]: a nested type by its
          * remaining path, a type in another package package-qualified with a leading dot, which
          * proto resolves absolutely (and imported), and a relative name a closer declaration would
          * shadow by that same absolute form.
          */
         private fun reference(target: QualifiedName, here: List<String>): ProtoType.Named {
-            val path = protoPath(target)
+            val path = schema.declarationPath(target).map { names.of(it) }
             if (target.namespace != namespace.name) {
                 imports += target.namespace.replace('.', '/') + ".proto"
                 return ProtoType.Named(
@@ -423,7 +438,7 @@ object ProtoLowering {
             val shadowed =
                 (keep + 1..here.size).any { depth ->
                     val scope = schema.lookup(QualifiedName(namespace.name, here.take(depth)))
-                    scope.nested.any { ProtoNames.of(it) == relative.first() } &&
+                    scope.nested.any { names.of(it) == relative.first() } &&
                         here.take(depth) + target.path.getOrNull(keep) != target.path.take(keep + 1)
                 }
             return ProtoType.Named(
@@ -446,17 +461,6 @@ object ProtoLowering {
 
         private fun invalidOverride(message: String, span: Span, help: String) {
             diagnostics += Diagnostic(ProtoCodes.INVALID_OVERRIDE, message, span, help)
-        }
-
-        /** Checks a `@proto(name)` override as written, before anything is named from it. */
-        private fun nameOverride(where: String, annotations: Annotations, span: Span) {
-            val value = ProtoNames.override(annotations, "name") ?: return
-            if (ProtoNames.isIdentifier(value)) return
-            invalidOverride(
-                "$where: @proto(name = \"$value\") is not a valid identifier",
-                span,
-                help = "use letters, digits, and underscores, starting with a letter",
-            )
         }
 
         private fun invalidNumber(message: String, span: Span, help: String) {
@@ -552,15 +556,15 @@ object ProtoLowering {
          * scope: proto scopes enum values at the scope that holds the enum, not inside it.
          */
         private fun symbols(decl: TypeDecl): List<Symbol> {
-            val own = Symbol(ProtoNames.of(decl), "${kindOf(decl)} '${decl.name}'", decl.nameSpan)
+            val own = Symbol(names.of(decl), "${decl.kindWord} '${decl.name}'", decl.nameSpan)
             if (decl !is EnumType) return listOf(own)
-            val name = ProtoNames.of(decl)
+            val name = names.of(decl)
             return listOf(
                 own,
                 Symbol(ProtoNames.zeroValue(name), "the synthesized zero value", decl.nameSpan),
             ) +
                 decl.values.map {
-                    Symbol(ProtoNames.of(name, it), "value '${it.name}'", it.nameSpan)
+                    Symbol(valueName(name, decl, it), "value '${it.name}'", it.nameSpan)
                 }
         }
     }

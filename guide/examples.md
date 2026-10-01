@@ -67,7 +67,7 @@ SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED 
 SCH2001 field 'Contact.name': refinements on string(max = 100) are not enforced by Protobuf
 SCH2001 field 'Contact.email': refinements on string(max = 254, pattern = "^[^@]+@[^@]+$") are not enforced by Protobuf
 SCH2001 field 'Contact.age': refinements on int32(min = 0, max = 150) are not enforced by Protobuf
-SCH2001 field 'Contact.kind': default personal is not carried by proto3
+SCH2001 field 'Contact.kind': default KIND_PERSONAL is not carried by proto3
 SCH2001 field 'Contact.born': date has no Protobuf representation; lowered to string
 SCH2001 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Protobuf
 ```
@@ -195,7 +195,7 @@ SCH2001 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIF
 SCH2001 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf
 SCH2001 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf
 SCH2001 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf
-SCH2001 field 'Order.status': default pending is not carried by proto3
+SCH2001 field 'Order.status': default STATUS_PENDING is not carried by proto3
 SCH2001 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
 SCH2001 field 'Order.total': decimal has no Protobuf representation; lowered to string
 SCH2001 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf

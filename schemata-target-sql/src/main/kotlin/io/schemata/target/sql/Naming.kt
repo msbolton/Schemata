@@ -1,7 +1,5 @@
 package io.schemata.target.sql
 
-import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.Field
@@ -64,14 +62,11 @@ object Naming {
         return name.substring(0, end)
     }
 
-    fun override(annotations: Annotations, key: String): String? =
-        (annotations["sql"][key] as? AnnotationValue.Str)?.value
+    /** [override] is the already-validated `@sql(<key>)` text, or null to use the derived name. */
+    fun schemaOf(namespace: Namespace, override: String?): String =
+        override ?: namespace.name.substringAfterLast('.')
 
-    fun schemaOf(namespace: Namespace): String =
-        override(namespace.annotations, "schema") ?: namespace.name.substringAfterLast('.')
+    fun tableOf(record: RecordType, override: String?): String = override ?: snakeCase(record.name)
 
-    fun tableOf(record: RecordType): String =
-        override(record.annotations, "table") ?: snakeCase(record.name)
-
-    fun columnOf(field: Field): String = override(field.annotations, "column") ?: field.name
+    fun columnOf(field: Field, override: String?): String = override ?: field.name
 }
