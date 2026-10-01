@@ -23,6 +23,7 @@ include(":schemata-target-proto")
 include(":schemata-target-sql")
 include(":schemata-target-xsd")
 include(":schemata-target-jsonschema")
+include(":schemata-import-xsd")
 include(":schemata-cli")
 include(":schemata-testkit")
 
