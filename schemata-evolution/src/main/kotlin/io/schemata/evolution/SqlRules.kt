@@ -1,12 +1,19 @@
 package io.schemata.evolution
 
+import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
+import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
+import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
+import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.selfAndNested
+import io.schemata.target.Names
 import io.schemata.target.TypeText
 
 /**
@@ -21,11 +28,7 @@ object SqlRules : Rulebook {
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is NamespaceAdded -> Verdict.Compatible
-            is NamespaceRemoved ->
-                Verdict.Breaking(
-                    "${change.path}: the namespace was removed breaks tables backing its declarations",
-                    "keep the namespace, even if its declarations move",
-                )
+            is NamespaceRemoved -> namespaceRemoved(change, ctx)
             is DeclarationAdded -> Verdict.Compatible
             is DeclarationRemoved -> declarationRemoved(change, ctx)
             is DeclarationKindChanged ->
@@ -63,10 +66,21 @@ object SqlRules : Rulebook {
                     "add a new member instead of changing this one's type",
                 )
             is ReservedChanged -> Verdict.Compatible
-            is AnnotationChanged -> annotationChanged(change)
+            is AnnotationChanged -> annotationChanged(change, ctx)
             is DeprecationChanged -> Verdict.Compatible
             is DocChanged -> Verdict.Compatible
         }
+
+    private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict {
+        val removed = ctx.old.namespaces.firstOrNull { it.name == change.path }
+        val declarations = removed?.declarations.orEmpty().flatMap { it.selfAndNested() }
+        return if (declarations.any { ctx.hasTable(Side.OLD, it.qualifiedName) })
+            Verdict.Breaking(
+                "${change.path}: the namespace was removed breaks tables backing its declarations",
+                "keep the namespace, even if its declarations move",
+            )
+        else Verdict.Compatible
+    }
 
     private fun fieldAdded(change: FieldAdded): Verdict {
         val required = !change.field.nullable && change.field.default == null
@@ -198,7 +212,7 @@ object SqlRules : Rulebook {
             )
         else Verdict.Compatible
 
-    private fun annotationChanged(change: AnnotationChanged): Verdict {
+    private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         if (change.target != "sql") return Verdict.Compatible
         return when (change.key) {
             "key" ->
@@ -212,16 +226,64 @@ object SqlRules : Rulebook {
                     "${change.path}: @sql(strategy) changed breaks how existing rows map onto tables",
                     "avoid changing @sql(strategy) once the table holds data",
                 )
-            "table",
-            "column",
+            "column" -> columnRenamed(change, ctx)
+            "table" -> declRenamed(change, ctx) { Names.snakeCase(it.name) }
             "schema" ->
-                Verdict.Breaking(
-                    "${change.path}: @sql(${change.key}) changed breaks statements that reference " +
-                        "the old name",
-                    "migrate references to the new name, or keep @sql(${change.key}) pinned to the " +
-                        "old one",
-                )
+                declRenamed(change, ctx) { it.qualifiedName.namespace.substringAfterLast(".") }
             else -> Verdict.Compatible
         }
+    }
+
+    /**
+     * `@sql(column)` compared the way [fieldRenamed] compares names: a pin that still agrees with
+     * the field's emitted column, added, changed, or removed, is only breaking when the two sides'
+     * emitted names actually differ.
+     */
+    private fun columnRenamed(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        val field = fieldAt(ctx.new, change.path) ?: fieldAt(ctx.old, change.path)
+        val declaredName = field?.name
+        val fromName = (change.from as? AnnotationValue.Str)?.value ?: declaredName
+        val toName = (change.to as? AnnotationValue.Str)?.value ?: declaredName
+        return renameVerdict(change, fromName, toName)
+    }
+
+    /**
+     * `@sql(table)` or `@sql(schema)` compared against [default]'s derivation (the snake-cased
+     * record name, or the namespace's last segment) when the override is absent on that side.
+     */
+    private fun declRenamed(
+        change: AnnotationChanged,
+        ctx: ChangeContext,
+        default: (TypeDecl) -> String,
+    ): Verdict {
+        val decl = declAt(ctx.new, change.path) ?: declAt(ctx.old, change.path)
+        val fallback = decl?.let(default)
+        val fromName = (change.from as? AnnotationValue.Str)?.value ?: fallback
+        val toName = (change.to as? AnnotationValue.Str)?.value ?: fallback
+        return renameVerdict(change, fromName, toName)
+    }
+
+    private fun renameVerdict(
+        change: AnnotationChanged,
+        fromName: String?,
+        toName: String?,
+    ): Verdict =
+        if (fromName != null && fromName == toName) Verdict.Compatible
+        else
+            Verdict.Breaking(
+                "${change.path}: @sql(${change.key}) changed breaks statements that reference " +
+                    "the old name",
+                "migrate references to the new name, or keep @sql(${change.key}) pinned to the " +
+                    "old one",
+            )
+
+    private fun declAt(schema: Schema, path: String): TypeDecl? =
+        schema.namespaces
+            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
+            .firstOrNull { it.qualifiedName.toString() == path }
+
+    private fun fieldAt(schema: Schema, path: String): Field? {
+        val decl = declAt(schema, path.substringBeforeLast(".")) as? RecordType ?: return null
+        return decl.fields.firstOrNull { it.name == path.substringAfterLast(".") }
     }
 }

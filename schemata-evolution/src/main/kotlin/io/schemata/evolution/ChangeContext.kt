@@ -4,9 +4,12 @@ import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
+import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.selfAndNested
 import io.schemata.target.Names
 import io.schemata.target.bool
 import io.schemata.target.deprecated
@@ -95,10 +98,26 @@ class ChangeContext(val old: Schema, val new: Schema) {
     }
 
     /**
-     * Keyed only, for v0.7: no table strategy yet lets a list-of-record field grant its element a
-     * table of its own.
+     * [record] is backed by its own Postgres table: it is keyed directly, or it is the element type
+     * of some `list<Record>` field elsewhere on [side] whose `@sql(strategy)` is absent or `table`,
+     * which gives that field's elements a child table of their own.
      */
-    fun hasTable(side: Side, record: QualifiedName): Boolean = isKeyed(side, record)
+    fun hasTable(side: Side, record: QualifiedName): Boolean =
+        isKeyed(side, record) || isChildTable(side, record)
+
+    private fun isChildTable(side: Side, record: QualifiedName): Boolean =
+        schema(side)
+            .namespaces
+            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
+            .filterIsInstance<RecordType>()
+            .any { r -> r.fields.any { f -> listsTableOf(f, record) } }
+
+    private fun listsTableOf(field: Field, record: QualifiedName): Boolean {
+        val element = (field.type as? ListOf)?.element as? Ref ?: return false
+        if (element.target != record) return false
+        val strategy = (field.annotations["sql"]["strategy"] as? AnnotationValue.Name)?.value
+        return strategy == null || strategy == "table"
+    }
 
     private fun schema(side: Side): Schema = if (side == Side.OLD) old else new
 

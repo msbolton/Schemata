@@ -6,9 +6,11 @@ import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
+import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
@@ -232,6 +234,26 @@ class ChangeContextTest {
         val ctx = ChangeContext(schema, schema)
         assertTrue(ctx.isOpen(Side.NEW, qn("s", "A")))
         assertFalse(ctx.isOpen(Side.NEW, qn("s", "B")))
+    }
+
+    @Test
+    fun `hasTable also counts the element of a list of record field as a child table`() {
+        val line = record("s", "Line", field(1, "sku"))
+        val embedded = record("s", "Embedded", field(1, "sku"))
+        val embedStrategy =
+            Annotations(mapOf("sql" to mapOf("strategy" to AnnotationValue.Name("embed"))))
+        val order =
+            record(
+                "s",
+                "Order",
+                field(1, "lines", ListOf(Ref(qn("s", "Line")), false)),
+                field(2, "embedded", ListOf(Ref(qn("s", "Embedded")), false), embedStrategy),
+            )
+        val schema = Schema(listOf(namespace("s", line, embedded, order)))
+        val ctx = ChangeContext(schema, schema)
+        assertFalse(ctx.isKeyed(Side.NEW, qn("s", "Line")))
+        assertTrue(ctx.hasTable(Side.NEW, qn("s", "Line")))
+        assertFalse(ctx.hasTable(Side.NEW, qn("s", "Embedded")))
     }
 
     @Test

@@ -10,6 +10,7 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Schema
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -240,6 +241,39 @@ class SqlRulesTest {
     }
 
     @Test
+    fun `a declaration removed from an unkeyed record used by a list of record field is breaking`() {
+        val line = record("s", "Line", field(1, "sku"))
+        val order = record("s", "Order", field(1, "lines", ListOf(Ref(qn("s", "Line")), false)))
+        val old = namespace("s", listOf(line, order))
+        val new = namespace("s", listOf(order))
+        assertIs<Verdict.Breaking>(verdict(SqlRules, old, new))
+    }
+
+    @Test
+    fun `a namespace removed with no tables is compatible`() {
+        val removed = namespace("s", listOf(record("s", "R", field(1, "a"))))
+        val kept = namespace("other")
+        val oldSchema = Schema(listOf(removed, kept))
+        val newSchema = Schema(listOf(kept))
+        val change = Differ.diff(oldSchema, newSchema).single()
+        assertEquals(
+            Verdict.Compatible,
+            SqlRules.classify(change, ChangeContext(oldSchema, newSchema)),
+        )
+    }
+
+    @Test
+    fun `a namespace removed with a keyed table is breaking`() {
+        val keyed = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("a")))))
+        val removed = namespace("s", listOf(record("s", "R", field(1, "a"), annotations = keyed)))
+        val kept = namespace("other")
+        val oldSchema = Schema(listOf(removed, kept))
+        val newSchema = Schema(listOf(kept))
+        val change = Differ.diff(oldSchema, newSchema).single()
+        assertIs<Verdict.Breaking>(SqlRules.classify(change, ChangeContext(oldSchema, newSchema)))
+    }
+
+    @Test
     fun `a declaration added is compatible`() {
         val new = record("s", "R", field(1, "a"))
         assertEquals(Verdict.Compatible, verdict(SqlRules, namespace("s"), ns(new)))
@@ -325,6 +359,96 @@ class SqlRulesTest {
                     Annotations(mapOf("sql" to mapOf("schema" to AnnotationValue.Str("other")))),
             )
         assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a sql key flag added to a field is breaking`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag))),
+                ),
+            )
+        assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a sql column pin added with no name change is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(mapOf("sql" to mapOf("column" to AnnotationValue.Str("a")))),
+                ),
+            )
+        assertEquals(Verdict.Compatible, verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a sql column pin changed to a different name is breaking`() {
+        val pin = { name: String ->
+            Annotations(mapOf("sql" to mapOf("column" to AnnotationValue.Str(name))))
+        }
+        val old = record("s", "R", field(1, "a", annotations = pin("a")))
+        val new = record("s", "R", field(1, "a", annotations = pin("b")))
+        assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a sql column pin removed where the derived name differs is breaking`() {
+        val old =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "a",
+                    annotations =
+                        Annotations(
+                            mapOf("sql" to mapOf("column" to AnnotationValue.Str("custom")))
+                        ),
+                ),
+            )
+        val new = record("s", "R", field(1, "a"))
+        assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a sql table pin matching the derived name is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "a"),
+                annotations =
+                    Annotations(mapOf("sql" to mapOf("table" to AnnotationValue.Str("r")))),
+            )
+        assertEquals(Verdict.Compatible, verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `a sql schema pin matching the derived name is compatible`() {
+        val old = record("s", "R", field(1, "a"))
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "a"),
+                annotations =
+                    Annotations(mapOf("sql" to mapOf("schema" to AnnotationValue.Str("s")))),
+            )
+        assertEquals(Verdict.Compatible, verdict(SqlRules, ns(old), ns(new)))
     }
 
     @Test
