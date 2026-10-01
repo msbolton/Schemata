@@ -824,8 +824,8 @@ class SqlLoweringTest {
         assertEquals(
             listOf(
                 "1 SCH2102 namespaces a and b.x both lower to schema 'a'",
-                "3 SCH2101 records A and B both lower to table 'same'",
-                "12 SCH2111 field 'C.y' lowers to column 'x', already used by field 'x' (o.schemata:11)",
+                "6 SCH2101 records A and B both lower to table 'same'",
+                "12 SCH2111 field 'C.y' lowers to column 'x', already used by field 'C.x' (o.schemata:11)",
             ),
             messages(lowered),
         )

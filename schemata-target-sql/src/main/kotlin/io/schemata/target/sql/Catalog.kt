@@ -1,6 +1,7 @@
 package io.schemata.target.sql
 
 import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
@@ -14,6 +15,7 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Span
+import io.schemata.target.flag
 
 /**
  * Every keyed record's table, resolved before any field is lowered so references and child tables
@@ -27,14 +29,19 @@ class Catalog(
     schema: Schema,
     schemaNames: Map<String, String>,
     identifier: (String, Span) -> String,
+    override: (Annotations, String, String, Span) -> String?,
 ) {
     class Entry(
         val qualifiedName: QualifiedName,
         val namespace: String,
         val schemaName: String,
         val tableName: String,
+        /** [tableName] before [identifier] truncation; `tableCollisions` compares these. */
+        val tableNameRaw: String,
         val keyFields: List<Field>,
         val keyColumns: List<String>,
+        /** [keyColumns] before [identifier] truncation, parallel to [keyFields]. */
+        val keyColumnsRaw: List<String>,
     )
 
     private val entries = mutableMapOf<QualifiedName, Entry>()
@@ -52,15 +59,33 @@ class Catalog(
                 // keyed: it gets a table (with no primary key) and lowering reports the bad names,
                 // rather than the record silently falling back to a value type.
                 if (keyFields.isNotEmpty() || declaresKey(decl)) {
-                    val tableName = identifier(Naming.tableOf(decl), decl.nameSpan)
+                    val tableOverride =
+                        override(decl.annotations, "table", "record '${decl.name}'", decl.nameSpan)
+                    val tableNameRaw = Naming.tableOf(decl, tableOverride)
+                    val tableName = identifier(tableNameRaw, decl.nameSpan)
+                    val keyColumnsRaw =
+                        keyFields.map { f ->
+                            val columnOverride =
+                                override(
+                                    f.annotations,
+                                    "column",
+                                    "field '${decl.name}.${f.name}'",
+                                    f.nameSpan,
+                                )
+                            Naming.columnOf(f, columnOverride)
+                        }
                     entries[decl.qualifiedName] =
                         Entry(
                             decl.qualifiedName,
                             ns.name,
                             schemaNames.getValue(ns.name),
                             tableName,
+                            tableNameRaw,
                             keyFields,
-                            keyFields.map { identifier(Naming.columnOf(it), it.nameSpan) },
+                            keyFields.zip(keyColumnsRaw).map { (f, raw) ->
+                                identifier(raw, f.nameSpan)
+                            },
+                            keyColumnsRaw,
                         )
                 }
             }
@@ -80,7 +105,7 @@ class Catalog(
         if (recordKey != null) {
             return recordKey.mapNotNull { n -> record.fields.firstOrNull { it.name == n } }
         }
-        return record.fields.filter { "key" in it.annotations["sql"] }
+        return record.fields.filter { it.annotations.flag("sql", "key") }
     }
 
     /**
@@ -88,7 +113,7 @@ class Catalog(
      */
     private fun declaresKey(record: RecordType): Boolean =
         record.annotations["sql"]["key"] is AnnotationValue.Names ||
-            record.fields.any { "key" in it.annotations["sql"] }
+            record.fields.any { it.annotations.flag("sql", "key") }
 
     private fun targets(decl: TypeDecl): List<QualifiedName> =
         when (decl) {

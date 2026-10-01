@@ -1,0 +1,6 @@
+# targets=sql
+warning[SCH2105] (lossy) (sql): field 'R.x': pattern uses \b, which Postgres regexes cannot express; dropped
+ --> s.schemata:2:39
+  = help: rewrite the pattern without \b, or enforce it in application code
+
+0 errors, 1 warning

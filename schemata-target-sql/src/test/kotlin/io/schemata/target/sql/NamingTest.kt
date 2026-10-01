@@ -1,7 +1,5 @@
 package io.schemata.target.sql
 
-import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumRef
@@ -23,9 +21,6 @@ import kotlin.test.assertTrue
 
 class NamingTest {
     private val at = Span("t.schemata", 1, 1, 1, 1)
-
-    private fun sql(vararg pairs: Pair<String, String>) =
-        Annotations(mapOf("sql" to pairs.associate { (k, v) -> k to AnnotationValue.Str(v) }))
 
     @Test
     fun `converts UpperCamel to lower_snake with the shared rule`() {
@@ -82,8 +77,8 @@ class NamingTest {
     @Test
     fun `derived names honour sql overrides`() {
         val ns = Namespace("shop.orders", emptyList(), at)
-        assertEquals("orders", Naming.schemaOf(ns))
-        assertEquals("shop", Naming.schemaOf(ns.copy(annotations = sql("schema" to "shop"))))
+        assertEquals("orders", Naming.schemaOf(ns, null))
+        assertEquals("shop", Naming.schemaOf(ns, "shop"))
         val record =
             RecordType(
                 QualifiedName("a", listOf("HTTPStatus")),
@@ -96,15 +91,10 @@ class NamingTest {
                 at,
                 at,
             )
-        assertEquals("http_status", Naming.tableOf(record))
-        assertEquals("codes", Naming.tableOf(record.copy(annotations = sql("table" to "codes"))))
+        assertEquals("http_status", Naming.tableOf(record, null))
+        assertEquals("codes", Naming.tableOf(record, "codes"))
         val field = Field(1, "reason", Scalar(Builtin.STRING), false, null, null, null, at, at)
-        assertEquals("reason", Naming.columnOf(field))
-        assertEquals(
-            "reason_phrase",
-            Naming.columnOf(field.copy(annotations = sql("column" to "reason_phrase"))),
-        )
-        assertEquals("citext", Naming.override(sql("type" to "citext"), "type"))
-        assertEquals(null, Naming.override(Annotations.NONE, "type"))
+        assertEquals("reason", Naming.columnOf(field, null))
+        assertEquals("reason_phrase", Naming.columnOf(field, "reason_phrase"))
     }
 }

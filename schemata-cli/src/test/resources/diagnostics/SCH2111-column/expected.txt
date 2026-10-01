@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH2111] (sql): field 'R.y' lowers to column 'c', already used by field 'x' (s.schemata:2)
+error[SCH2111] (sql): field 'R.y' lowers to column 'c', already used by field 'R.x' (s.schemata:2)
  --> s.schemata:2:89
   = help: rename one of them, or set `@sql(column = "…")` on one
 

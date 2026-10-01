@@ -49,6 +49,7 @@ Codes:
 | SCH2111 | error | semantic | two relational names collide |
 | SCH2112 | error | semantic | a decimal precision exceeds Postgres's limit |
 | SCH2113 | warning | semantic | a unique or index duplicates the primary key |
+| SCH2114 | error | semantic | an @sql name override is empty |
 
 ## @xsd
 

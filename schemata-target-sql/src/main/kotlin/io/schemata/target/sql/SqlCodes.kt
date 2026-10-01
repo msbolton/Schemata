@@ -78,6 +78,13 @@ object SqlCodes {
             Category.SEMANTIC,
             "a unique or index duplicates the primary key",
         )
+    val INVALID_OVERRIDE =
+        DiagnosticCode(
+            "SCH2114",
+            Severity.ERROR,
+            Category.SEMANTIC,
+            "an @sql name override is empty",
+        )
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -92,5 +99,6 @@ object SqlCodes {
             NAME_COLLISION,
             TYPE_LIMIT,
             REDUNDANT_CONSTRAINT,
+            INVALID_OVERRIDE,
         )
 }

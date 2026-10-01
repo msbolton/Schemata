@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH2114] (sql): record 'R': @sql(table = "") is empty
+ --> s.schemata:2:25
+  = help: give the name at least one character
+
+1 error, 0 warnings
