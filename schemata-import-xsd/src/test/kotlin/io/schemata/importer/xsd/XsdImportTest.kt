@@ -23,6 +23,14 @@ class XsdImportTest {
             it.name == name
         }
 
+    private fun union(imported: Imported, name: String): UnitUnion =
+        imported.units.single().declarations.filterIsInstance<UnitUnion>().single {
+            it.name == name
+        }
+
+    private fun enum(imported: Imported, name: String): UnitEnum =
+        imported.units.single().declarations.filterIsInstance<UnitEnum>().single { it.name == name }
+
     private fun messages(imported: Imported): List<String> =
         imported.diagnostics.map { "${it.code.id} ${it.message}" }
 
@@ -155,7 +163,7 @@ class XsdImportTest {
                 <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
                   <xs:simpleType name="KindType">
                     <xs:restriction base="xs:string">
-                      <xs:enumeration value="Personal"/>
+                      <xs:enumeration value="personal"/>
                       <xs:enumeration value="work"/>
                     </xs:restriction>
                   </xs:simpleType>
@@ -165,7 +173,7 @@ class XsdImportTest {
                       <xs:element name="b" type="xs:string" default="pending"/>
                       <xs:element name="c" type="xs:string" nillable="true"/>
                       <xs:element name="d" type="xs:string" fixed="x"/>
-                      <xs:element name="kind" type="tns:KindType" default="Personal"/>
+                      <xs:element name="kind" type="tns:KindType" default="personal"/>
                     </xs:sequence>
                   </xs:complexType>
                 </xs:schema>
@@ -837,6 +845,511 @@ class XsdImportTest {
         assertEquals(
             listOf("SCH2401 element 'x': type 'Missing' cannot be resolved"),
             messages(imported),
+        )
+    }
+
+    @Test
+    fun `a named complex type holding only a choice is a union`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="CardType">
+                    <xs:sequence><xs:element name="number" type="xs:string"/></xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="BankTransferType">
+                    <xs:sequence><xs:element name="iban" type="xs:string"/></xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="CashType">
+                    <xs:sequence/>
+                  </xs:complexType>
+                  <xs:complexType name="PaymentType">
+                    <xs:choice>
+                      <xs:element name="creditCard" type="tns:CardType"/>
+                      <xs:element name="bank_transfer" type="tns:BankTransferType"/>
+                      <xs:element name="cash" type="tns:CashType"/>
+                      <xs:element name="int64" type="xs:long"/>
+                      <xs:element name="voucher">
+                        <xs:complexType>
+                          <xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence>
+                        </xs:complexType>
+                      </xs:element>
+                      <xs:element name="cash2" type="tns:CashType"/>
+                    </xs:choice>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(
+                UnitType.Ref("Card"),
+                UnitType.Ref("BankTransfer"),
+                UnitType.Ref("Cash"),
+                UnitType.Scalar("int64", emptyList()),
+                UnitType.Ref("Voucher"),
+            ),
+            union(imported, "Payment").members,
+        )
+        val voucher = record(imported, "Voucher")
+        assertEquals(listOf(xsd("root", "false")), voucher.annotations)
+        assertEquals("code", voucher.fields.single().name)
+        assertEquals(
+            listOf(
+                "SCH2403 union 'Payment': member element 'creditCard' has no Schemata equivalent; " +
+                    "the regenerated element will be named 'card'",
+                "SCH2401 union 'Payment': members 'cash' and 'cash2' both lower to member 'Cash'",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a choice with maxOccurs above one is a list of the union`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="CashType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="PaymentsType">
+                    <xs:choice maxOccurs="unbounded">
+                      <xs:element name="card" type="tns:CardType"/>
+                      <xs:element name="cash" type="tns:CashType"/>
+                    </xs:choice>
+                  </xs:complexType>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="payments" type="tns:PaymentsType"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
+            union(imported, "Payments").members,
+        )
+        assertEquals(
+            UnitType.ListOf(UnitType.Ref("Payments"), false, listOf("min" to "1")),
+            record(imported, "Order").fields.single().type,
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 element 'payments': type 'PaymentsType' is a repeated choice; imported " +
+                    "as list<Payments>"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a named simple type with enumerations is an enum`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="StatusType">
+                    <xs:annotation><xs:documentation>Order status.</xs:documentation></xs:annotation>
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="pending">
+                        <xs:annotation><xs:documentation>Not yet paid.</xs:documentation></xs:annotation>
+                      </xs:enumeration>
+                      <xs:enumeration value="Personal"/>
+                      <xs:enumeration value="shipped"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                  <xs:simpleType name="AddressType">
+                    <xs:restriction base="xs:string"><xs:maxLength value="10"/></xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="status" type="tns:StatusType"/>
+                      <xs:element name="kind">
+                        <xs:simpleType>
+                          <xs:restriction base="xs:string">
+                            <xs:enumeration value="work"/>
+                            <xs:enumeration value="home"/>
+                          </xs:restriction>
+                        </xs:simpleType>
+                      </xs:element>
+                      <xs:element name="billing" type="tns:AddressType"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val status = enum(imported, "Status")
+        assertEquals("Order status.", status.doc)
+        assertEquals(
+            listOf(
+                UnitEnumValue("pending", "Not yet paid.", emptyList()),
+                UnitEnumValue("personal", null, listOf(xsd("name", "\"Personal\""))),
+                UnitEnumValue("shipped", null, emptyList()),
+            ),
+            status.values,
+        )
+        val order = record(imported, "Order")
+        assertEquals(UnitType.Ref("Status"), order.fields.single { it.name == "status" }.type)
+        assertEquals(UnitType.Ref("Kind"), order.fields.single { it.name == "kind" }.type)
+        val kind = order.nested.filterIsInstance<UnitEnum>().single { it.name == "Kind" }
+        assertEquals(listOf("work", "home"), kind.values.map { it.name })
+        assertEquals(
+            UnitType.Scalar("string", listOf("max" to "10")),
+            order.fields.single { it.name == "billing" }.type,
+        )
+        assertEquals(
+            listOf(
+                "SCH2402 enum value 'Status.Personal': enum value 'Status.Personal' is not a " +
+                    "Schemata identifier; imported as 'personal' with @xsd(name)"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `list and union simple types import as string`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="TagsType"><xs:list itemType="xs:string"/></xs:simpleType>
+                  <xs:simpleType name="EitherType">
+                    <xs:union memberTypes="xs:int xs:string"/>
+                  </xs:simpleType>
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="tags" type="tns:TagsType"/>
+                      <xs:element name="either" type="tns:EitherType"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val string = UnitType.Scalar("string", emptyList())
+        val thing = record(imported, "Thing").fields
+        assertEquals(string, thing.single { it.name == "tags" }.type)
+        assertEquals(string, thing.single { it.name == "either" }.type)
+        assertEquals(
+            listOf(
+                "SCH2405 element 'tags': list simple type imported as string",
+                "SCH2405 element 'either': union simple type imported as string",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `extension flattens the base first`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="BaseType">
+                    <xs:sequence><xs:element name="id" type="xs:string"/></xs:sequence>
+                    <xs:attribute name="tag" type="xs:string"/>
+                  </xs:complexType>
+                  <xs:complexType name="DerivedType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:BaseType">
+                        <xs:sequence><xs:element name="name" type="xs:string"/></xs:sequence>
+                        <xs:attribute name="extra" type="xs:string"/>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                  <xs:complexType name="ValueType">
+                    <xs:simpleContent>
+                      <xs:extension base="xs:int">
+                        <xs:attribute name="unit" type="xs:string" use="required"/>
+                        <xs:attribute name="code" type="xs:string"/>
+                      </xs:extension>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val string = UnitType.Scalar("string", emptyList())
+        assertEquals(listOf("id", "tag"), record(imported, "Base").fields.map { it.name })
+        assertEquals(
+            listOf("id", "tag", "name", "extra"),
+            record(imported, "Derived").fields.map { it.name },
+        )
+        assertEquals(string, record(imported, "Derived").fields.single { it.name == "name" }.type)
+        val value = record(imported, "Value").fields
+        assertEquals(
+            UnitType.Scalar("int32", emptyList()),
+            value.single { it.name == "value" }.type,
+        )
+        assertEquals(false, value.single { it.name == "unit" }.nullable)
+        assertEquals(true, value.single { it.name == "code" }.nullable)
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'DerivedType': extension of 'BaseType' has no Schemata " +
+                    "equivalent; base fields flattened into the record",
+                "SCH2403 complex type 'ValueType': simpleContent extension of 'int' has no " +
+                    "Schemata equivalent; imported as a record with a 'value' field",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `restriction of a complex type imports its own content`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="BaseType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:element name="extra" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="NarrowType">
+                    <xs:complexContent>
+                      <xs:restriction base="tns:BaseType">
+                        <xs:sequence><xs:element name="id" type="xs:string"/></xs:sequence>
+                      </xs:restriction>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("id"), record(imported, "Narrow").fields.map { it.name })
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'NarrowType': restriction of 'BaseType' has no Schemata " +
+                    "equivalent; its own content is used"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `groups and attribute groups expand in place`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:group name="AddressGroup">
+                    <xs:sequence>
+                      <xs:element name="street" type="xs:string"/>
+                      <xs:element name="city" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:group>
+                  <xs:attributeGroup name="MetaGroup">
+                    <xs:attribute name="id" type="xs:string"/>
+                  </xs:attributeGroup>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="customer" type="xs:string"/>
+                      <xs:group ref="tns:AddressGroup"/>
+                    </xs:sequence>
+                    <xs:attributeGroup ref="tns:MetaGroup"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf("customer", "street", "city", "id"),
+            record(imported, "Order").fields.map { it.name },
+        )
+    }
+
+    @Test
+    fun `an inline choice of complex types becomes a synthesised union`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="CashType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:choice minOccurs="0">
+                        <xs:element name="card" type="tns:CardType"/>
+                        <xs:element name="cash" type="tns:CashType"/>
+                      </xs:choice>
+                    </xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="n" type="xs:string"/>
+                      <xs:choice minOccurs="0">
+                        <xs:element name="a" type="xs:int"/>
+                        <xs:element name="b" type="xs:string"/>
+                      </xs:choice>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
+            union(imported, "OrderChoice").members,
+        )
+        val order = record(imported, "Order").fields
+        assertEquals(
+            UnitField("id", UnitType.Scalar("string", emptyList()), false, null, null, emptyList()),
+            order[0],
+        )
+        assertEquals(
+            UnitField("choice", UnitType.Ref("OrderChoice"), true, null, null, emptyList()),
+            order[1],
+        )
+        val thing = record(imported, "Thing").fields
+        assertEquals(listOf("n", "a", "b"), thing.map { it.name })
+        assertEquals(true, thing.single { it.name == "a" }.nullable)
+        assertEquals(true, thing.single { it.name == "b" }.nullable)
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'OrderType': inline choice has no Schemata equivalent; " +
+                    "imported as union 'OrderChoice' in field 'choice'",
+                "SCH2403 complex type 'ThingType': inline choice has no Schemata equivalent; " +
+                    "members imported as optional fields",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `all and nested sequences flatten`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:all>
+                      <xs:element name="a" type="xs:string"/>
+                      <xs:element name="b" type="xs:string"/>
+                    </xs:all>
+                  </xs:complexType>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:sequence>
+                        <xs:element name="x" type="xs:string"/>
+                        <xs:element name="y" type="xs:string"/>
+                      </xs:sequence>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("a", "b"), record(imported, "Thing").fields.map { it.name })
+        assertEquals(listOf("id", "x", "y"), record(imported, "Order").fields.map { it.name })
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'ThingType': xs:all imported as a sequence",
+                "SCH2403 complex type 'OrderType': nested sequence flattened into the record",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `dropped constructs are reported`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:redefine schemaLocation="other.xsd"/>
+                  <xs:override schemaLocation="other2.xsd"/>
+                  <xs:notation name="n" public="x"/>
+                  <xs:element name="extensions">
+                    <xs:complexType><xs:sequence><xs:any/></xs:sequence></xs:complexType>
+                  </xs:element>
+                  <xs:complexType name="CatalogType">
+                    <xs:sequence>
+                      <xs:element name="special_offer" type="xs:string" substitutionGroup="tns:head"/>
+                      <xs:element name="counts">
+                        <xs:complexType>
+                          <xs:sequence>
+                            <xs:element name="entry" type="xs:int" maxOccurs="unbounded"/>
+                          </xs:sequence>
+                        </xs:complexType>
+                        <xs:unique name="k">
+                          <xs:selector xpath="tns:bogus"/>
+                          <xs:field xpath="x"/>
+                        </xs:unique>
+                        <xs:key name="k2">
+                          <xs:selector xpath="tns:entry"/>
+                          <xs:field xpath="@id"/>
+                        </xs:key>
+                      </xs:element>
+                    </xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="ThingType" mixed="true" abstract="true">
+                    <xs:sequence>
+                      <xs:element name="a" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:anyAttribute/>
+                  </xs:complexType>
+                  <xs:element name="head" type="xs:string"/>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), record(imported, "Extensions").fields)
+        assertEquals(
+            listOf(
+                "SCH2405 schema: xs:redefine dropped",
+                "SCH2405 schema: xs:override dropped",
+                "SCH2405 schema: xs:notation dropped",
+                "SCH2405 element 'special_offer': substitution group 'head' dropped; imported as " +
+                    "an independent element",
+                "SCH2405 element 'counts': identity constraint 'k' dropped",
+                "SCH2405 element 'counts': identity constraint 'k2' dropped",
+                "SCH2405 complex type 'ThingType': mixed content dropped; elements kept",
+                "SCH2405 complex type 'ThingType': abstract dropped",
+                "SCH2405 complex type 'ThingType': xs:anyAttribute dropped",
+                "SCH2405 element 'extensions': xs:any dropped",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `element references resolve to the global element`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:element name="note" type="xs:string">
+                    <xs:annotation><xs:documentation>A free-form note.</xs:documentation></xs:annotation>
+                  </xs:element>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element ref="tns:note" minOccurs="0"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf(
+                UnitField(
+                    "note",
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    "A free-form note.",
+                    emptyList(),
+                )
+            ),
+            record(imported, "Order").fields,
         )
     }
 }

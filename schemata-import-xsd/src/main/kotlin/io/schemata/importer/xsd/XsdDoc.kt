@@ -20,6 +20,9 @@ data class XsdDoc(
     val attributes: List<XAttribute>,
     val groups: List<XGroup>,
     val attributeGroups: List<XAttributeGroup>,
+    // a schema-level xs:redefine, xs:override, or xs:notation: its construct name and line, kept so
+    // the importer can report each as dropped
+    val dropped: List<Pair<String, Int>> = emptyList(),
 )
 
 data class XImport(val namespace: String?, val schemaLocation: String?, val line: Int)
@@ -88,11 +91,14 @@ data class XElement(
     val abstract: Boolean,
     val doc: String?,
     val uniques: List<XUnique>,
-    val keys: Int,
+    val keys: List<XIdentityConstraint>,
     val line: Int,
 )
 
 data class XUnique(val name: String, val selector: String, val fields: List<String>, val line: Int)
+
+/** An `xs:key` or `xs:keyref`, kept only so the importer can report it as dropped. */
+data class XIdentityConstraint(val name: String, val line: Int)
 
 sealed interface XAttributeUse {
     data class Attribute(val attribute: XAttribute) : XAttributeUse

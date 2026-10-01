@@ -146,6 +146,15 @@ object XsdReader {
                     root.children("attributeGroup").map {
                         XAttributeGroup(it.attr("name")!!, attributeUses(it), it.line)
                     },
+                dropped =
+                    root.children
+                        .filter {
+                            it.ns == XS &&
+                                (it.local == "redefine" ||
+                                    it.local == "override" ||
+                                    it.local == "notation")
+                        }
+                        .map { "xs:${it.local}" to it.line },
             )
 
         /**
@@ -300,7 +309,11 @@ object XsdReader {
                             u.line,
                         )
                     },
-                keys = n.children("key").size + n.children("keyref").size,
+                keys =
+                    n.children("key").map { XIdentityConstraint(it.attr("name") ?: "", it.line) } +
+                        n.children("keyref").map {
+                            XIdentityConstraint(it.attr("name") ?: "", it.line)
+                        },
                 line = n.line,
             )
         }

@@ -99,6 +99,7 @@ object XsdImporter {
             attributes = into.attributes + included.attributes,
             groups = into.groups + included.groups,
             attributeGroups = into.attributeGroups + included.attributeGroups,
+            dropped = into.dropped + included.dropped,
         )
 
     /**

@@ -271,16 +271,7 @@ class XsdImporterTest {
 
     @Test
     fun `round trips the shop orders and customers xsd into an Order record`() {
-        // Payment is a union; unions aren't imported until a later task. A plain string replacement
-        // drops PaymentType and its field so this slice can run against the real fixture today.
-        val ordersXml =
-            File("../examples/shop/expected/xsd/shop/orders.xsd")
-                .readText()
-                .replace(
-                    Regex("(?s) {2}<xs:complexType name=\"PaymentType\">.*?</xs:complexType>\n"),
-                    "",
-                )
-                .replace("  <xs:element name=\"payment\" type=\"tns:PaymentType\"/>\n", "")
+        val ordersXml = File("../examples/shop/expected/xsd/shop/orders.xsd").readText()
         val customersXml = File("../examples/shop/expected/xsd/shop/customers.xsd").readText()
 
         val result =
@@ -293,6 +284,8 @@ class XsdImporterTest {
         assertEquals(emptyList(), result.diagnostics)
 
         val orders = result.files.single { it.path == "shop/orders.schemata" }.content
+        assertTrue(orders.contains("union Payment = Card | BankTransfer | Cash"), orders)
+
         val order =
             orders
                 .substringAfter("record Order {")
@@ -305,6 +298,7 @@ class XsdImporterTest {
                 "status: Status = pending",
                 "lines: list<OrderLine>(min = 1)",
                 "total: decimal(19, 4)",
+                "payment: Payment",
                 "shipping: OrderAddress",
                 "placed_at: instant",
                 "note: string(max = 500)?",
