@@ -7,15 +7,12 @@ import io.schemata.target.Names
  */
 object ImportNames {
     private val lowerSnakePattern = Regex("^[a-z][a-z0-9_]*$")
-    private val upperCamelPattern = Regex("^[A-Z][A-Za-z0-9]*$")
     private val invalidRun = Regex("[^a-z0-9_]+")
     private val underscoreRun = Regex("_+")
     private val nonAlnumRun = Regex("[^A-Za-z0-9]+")
     private val camelBoundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
     fun isLowerSnake(s: String): Boolean = lowerSnakePattern.matches(s)
-
-    fun isUpperCamel(s: String): Boolean = upperCamelPattern.matches(s)
 
     fun isNamespaceSegment(s: String): Boolean = isLowerSnake(s)
 
@@ -34,13 +31,6 @@ object ImportNames {
             .flatMap { it.split(camelBoundary) }
             .filter { it.isNotEmpty() }
             .joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }
-
-    /** `OrderType` → `Order` when the remainder is UpperCamel; null otherwise. */
-    fun stripType(s: String): String? {
-        if (!s.endsWith("Type") || s.length <= 4) return null
-        val remainder = s.removeSuffix("Type")
-        return if (isUpperCamel(remainder)) remainder else null
-    }
 
     /**
      * The Schemata name for an XSD type named [xsdName], and, when regenerating that name exactly

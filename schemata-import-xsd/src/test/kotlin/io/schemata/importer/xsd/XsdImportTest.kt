@@ -393,6 +393,101 @@ class XsdImportTest {
     }
 
     @Test
+    fun `nested collections recognise the item wrapper shape`() {
+        // The exact shapes the XSD target writes for `list<list<int32>>`, `list<map<string,
+        // int32>>`, and `map<string, list<Item>>` (schemata-cli --target xsd on a .schemata file
+        // declaring those three fields, pasted in verbatim).
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ItemType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="nested_list" minOccurs="0" maxOccurs="unbounded">
+                        <xs:complexType>
+                          <xs:sequence>
+                            <xs:element name="item" type="xs:int" minOccurs="0" maxOccurs="unbounded"/>
+                          </xs:sequence>
+                        </xs:complexType>
+                      </xs:element>
+                      <xs:element name="list_of_maps" minOccurs="0" maxOccurs="unbounded">
+                        <xs:complexType>
+                          <xs:sequence>
+                            <xs:element name="item">
+                              <xs:complexType>
+                                <xs:sequence>
+                                  <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+                                    <xs:complexType>
+                                      <xs:simpleContent>
+                                        <xs:extension base="xs:int">
+                                          <xs:attribute name="key" type="xs:string" use="required"/>
+                                        </xs:extension>
+                                      </xs:simpleContent>
+                                    </xs:complexType>
+                                  </xs:element>
+                                </xs:sequence>
+                              </xs:complexType>
+                              <xs:unique name="ThingType_list_of_maps_item_key">
+                                <xs:selector xpath="tns:entry"/>
+                                <xs:field xpath="@key"/>
+                              </xs:unique>
+                            </xs:element>
+                          </xs:sequence>
+                        </xs:complexType>
+                      </xs:element>
+                      <xs:element name="map_of_lists">
+                        <xs:complexType>
+                          <xs:sequence>
+                            <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+                              <xs:complexType>
+                                <xs:sequence>
+                                  <xs:element name="item" type="tns:ItemType" minOccurs="0" maxOccurs="unbounded"/>
+                                </xs:sequence>
+                                <xs:attribute name="key" type="xs:string" use="required"/>
+                              </xs:complexType>
+                            </xs:element>
+                          </xs:sequence>
+                        </xs:complexType>
+                        <xs:unique name="ThingType_map_of_lists_key">
+                          <xs:selector xpath="tns:entry"/>
+                          <xs:field xpath="@key"/>
+                        </xs:unique>
+                      </xs:element>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        val thing = record(imported, "Thing").fields
+        val int32 = UnitType.Scalar("int32", emptyList())
+        val string = UnitType.Scalar("string", emptyList())
+        assertEquals(
+            UnitType.ListOf(UnitType.ListOf(int32, false, emptyList()), false, emptyList()),
+            thing.single { it.name == "nested_list" }.type,
+        )
+        assertEquals(
+            UnitType.ListOf(UnitType.MapOf(string, int32, false, emptyList()), false, emptyList()),
+            thing.single { it.name == "list_of_maps" }.type,
+        )
+        assertEquals(
+            UnitType.MapOf(
+                string,
+                UnitType.ListOf(UnitType.Ref("Item"), false, emptyList()),
+                false,
+                emptyList(),
+            ),
+            thing.single { it.name == "map_of_lists" }.type,
+        )
+    }
+
+    @Test
     fun `global elements mark roots and names`() {
         val imported =
             lower(
@@ -514,6 +609,29 @@ class XsdImportTest {
             ),
             messages(collision),
         )
+    }
+
+    @Test
+    fun `only complex types and enumerated simple types claim names`() {
+        // A plain-restriction simple type is inlined at every use and never becomes a declaration
+        // (an enumerated one, an enum, is Task 4's); it must not compete for a name against
+        // AddressType, which would otherwise wrongly collide with the name it strips to.
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="Address">
+                    <xs:restriction base="xs:string"><xs:maxLength value="10"/></xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="AddressType">
+                    <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals("x", record(imported, "Address").fields.single().name)
     }
 
     @Test

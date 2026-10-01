@@ -57,11 +57,16 @@ object XsdImport {
         }
 
         // Type names are resolved once for the whole document set, per namespace, before any field
-        // is lowered, so a cross-document reference always sees the final name.
+        // is lowered, so a cross-document reference always sees the final name. Only enumerated
+        // simple types (the only simple types that ever become declarations) claim a name here; a
+        // plain restriction, inlined at each use, never competes for one.
         val typeNames = mutableMapOf<QName, TypeNameInfo>()
         live.forEach { doc ->
             val originals =
-                doc.complexTypes.mapNotNull { it.name } + doc.simpleTypes.mapNotNull { it.name }
+                doc.complexTypes.mapNotNull { it.name } +
+                    doc.simpleTypes
+                        .filter { it.name != null && hasEnumeration(it) }
+                        .map { it.name!! }
             resolveNamespaceTypeNames(originals).forEach { (original, info) ->
                 typeNames[QName(doc.targetNamespace, original)] = info
             }
@@ -198,6 +203,13 @@ object XsdImport {
             max?.let { "max" to it.toString() },
         )
 
+    /**
+     * Only an enumerated simple type becomes a declaration (an enum, Task 4's); a plain restriction
+     * is inlined at each use, so it never claims a type name of its own.
+     */
+    private fun hasEnumeration(st: XSimpleType): Boolean =
+        (st.variety as? XVariety.Restriction)?.facets?.any { it.name == "enumeration" } == true
+
     private fun diagnostic(
         code: DiagnosticCode,
         path: String,
@@ -230,24 +242,33 @@ object XsdImport {
             "keep the annotation so the regenerated XSD uses the original name",
         )
 
+    /** The `SCH24xx` id a [Note] carries as a [DiagnosticCode], for [helpFor]'s shared table. */
+    private fun codeFor(id: String): DiagnosticCode =
+        when (id) {
+            "SCH2401" -> ImportCodes.UNRESOLVED
+            "SCH2402" -> ImportCodes.RENAMED
+            "SCH2403" -> ImportCodes.APPROXIMATED
+            "SCH2404" -> ImportCodes.WIDENED
+            else -> ImportCodes.DROPPED
+        }
+
+    /** The one standard help text per `SCH24xx` code, shared by [noteDiagnostic] and `lossy`. */
+    private fun helpFor(code: DiagnosticCode): String =
+        when (code) {
+            ImportCodes.UNRESOLVED ->
+                "add the referenced schema to the inputs or fix schemaLocation"
+            ImportCodes.RENAMED ->
+                "keep the annotation so the regenerated XSD uses the original name"
+            ImportCodes.APPROXIMATED ->
+                "review the imported record; the regenerated XSD will differ here"
+            ImportCodes.WIDENED -> "narrow the type by hand if the data needs it"
+            else -> "add the missing part by hand; Schemata cannot express it"
+        }
+
     private fun noteDiagnostic(path: String, where: String, note: Note): Diagnostic {
         val line = note.line.coerceAtLeast(1)
-        val span = Span(path, line, 1, line, 1)
-        val message = "$where: ${note.tail}"
-        val (code, help) =
-            when (note.code) {
-                "SCH2402" ->
-                    ImportCodes.RENAMED to
-                        "keep the annotation so the regenerated XSD uses the original name"
-                "SCH2403" ->
-                    ImportCodes.APPROXIMATED to
-                        "review the imported record; the regenerated XSD will differ here"
-                "SCH2404" -> ImportCodes.WIDENED to "narrow the type by hand if the data needs it"
-                else ->
-                    ImportCodes.DROPPED to
-                        "add the missing part by hand; Schemata cannot express it"
-            }
-        return Diagnostic(code, message, span, help)
+        val code = codeFor(note.code)
+        return Diagnostic(code, "$where: ${note.tail}", Span(path, line, 1, line, 1), helpFor(code))
     }
 
     /**
@@ -456,8 +477,11 @@ object XsdImport {
                         }
                     }
                     el.maxOccurs != 1 -> {
-                        val itemType = resolveElementItemType(el, where)
-                        if (itemType == null) {
+                        // resolveParticleType sees el's own maxOccurs != 1 and wraps the per-
+                        // occurrence type in the ListOf itself, recursing through a `item` wrapper
+                        // for a nested list or map (`list<list<T>>`, `list<map<K, V>>`, …).
+                        val type = resolveParticleType(el, where)
+                        if (type == null) {
                             diagnostics +=
                                 lossy(
                                     ImportCodes.UNRESOLVED,
@@ -476,12 +500,7 @@ object XsdImport {
                                         el.line,
                                     )
                             }
-                            val refinements = listRefinements(el.minOccurs, el.maxOccurs)
-                            Resolved(
-                                UnitType.ListOf(itemType, el.nillable, refinements),
-                                false,
-                                null,
-                            )
+                            Resolved(type, false, null)
                         }
                     }
                     else -> {
@@ -617,6 +636,57 @@ object XsdImport {
             error("not yet imported: list item without a declared type")
         }
 
+        /**
+         * An element's own type, treating any `maxOccurs != 1` on it as one level of `list<…>` (the
+         * most common case: a plain field, where `el` is the field's own element). Recurses through
+         * an anonymous complex type matching the `item`-wrapper shape the XSD target writes for a
+         * collection nested inside another (`list<list<T>>`, `list<map<K, V>>`); falls through to
+         * the `entry`/`@key` map-wrapper shape otherwise (`map<K, list<V>>`, `map<K, map<K2,
+         * V2>>`).
+         */
+        private fun resolveParticleType(el: XElement, where: String): UnitType? {
+            if (el.maxOccurs != 1) {
+                val itemType =
+                    resolveParticleType(el.copy(minOccurs = 1, maxOccurs = 1), where) ?: return null
+                return UnitType.ListOf(
+                    itemType,
+                    el.nillable,
+                    listRefinements(el.minOccurs, el.maxOccurs),
+                )
+            }
+            if (el.type != null || el.inlineSimple != null) return resolveElementItemType(el, where)
+            val ic =
+                el.inlineComplex ?: error("not yet imported: list item without a declared type")
+            singleItemElement(ic)?.let {
+                return resolveParticleType(it, "element 'item'")
+            }
+            val shape = recognizeMapShape(el) ?: error("not yet imported: nested particle")
+            val hasUnique =
+                el.uniques.any {
+                    it.fields == listOf("@key") && it.selector.substringAfterLast(':') == "entry"
+                }
+            // No missing-xs:unique fallback at this depth (only the top-level field gets the
+            // Counts/Entry nested-record treatment); an unverifiable map nested this deep is simply
+            // unresolved.
+            if (!hasUnique) return null
+            val keyType = resolveAttributeType(shape.keyAttribute, "attribute 'key'") ?: return null
+            val refinements = listRefinements(shape.entry.minOccurs, shape.entry.maxOccurs)
+            return UnitType.MapOf(keyType, shape.valueType, shape.entry.nillable, refinements)
+        }
+
+        /**
+         * The lone `item` particle of an otherwise-empty `item`-wrapper complex type: a sequence of
+         * exactly one element named `item`, no attributes. `null` when [ct] doesn't match (so the
+         * caller can try the `entry`/`@key` map-wrapper shape instead).
+         */
+        private fun singleItemElement(ct: XComplexType): XElement? {
+            if (ct.attributes.isNotEmpty()) return null
+            val seq = ct.content as? XContent.Sequence ?: return null
+            if (seq.particles.size != 1) return null
+            val particle = seq.particles[0] as? XParticle.Element ?: return null
+            return particle.element.takeIf { it.name == "item" && it.ref == null }
+        }
+
         private fun resolveAttributeType(a: XAttribute, where: String): UnitType? {
             if (a.inlineSimple != null)
                 return resolveNamedSimpleType(a.inlineSimple, doc.path, where)
@@ -644,9 +714,6 @@ object XsdImport {
             return if (targetDoc === doc) info.finalName
             else "${namespaceNames.getValue(targetDoc)}.${info.finalName}"
         }
-
-        private fun hasEnumeration(st: XSimpleType): Boolean =
-            (st.variety as? XVariety.Restriction)?.facets?.any { it.name == "enumeration" } == true
 
         private fun resolveNamedSimpleType(
             st: XSimpleType,
@@ -695,9 +762,9 @@ object XsdImport {
 
         /**
          * Recognises the `entry`/`@key` map wrapper shapes: a simpleContent or complexContent
-         * extension for a plain value, or a `value` child for a value with its own refinements.
-         * `null` when the shape doesn't match at all, in which case the caller falls back to an
-         * ordinary nested record.
+         * extension for a plain value, a `value` child for a value with its own refinements, or an
+         * `item` child for a value that is itself a nested list or map. `null` when the shape
+         * doesn't match at all, in which case the caller falls back to an ordinary nested record.
          */
         private fun recognizeMapShape(el: XElement): EntryShape? {
             val wrapper = el.inlineComplex ?: return null
@@ -720,10 +787,13 @@ object XsdImport {
                     if (content.particles.size != 1) return null
                     val valueParticle = content.particles[0] as? XParticle.Element ?: return null
                     val valueEl = valueParticle.element
-                    if (valueEl.name != "value") return null
                     val key = singleKeyAttribute(ec) ?: return null
                     val valueType =
-                        resolveElementScalarOrRef(valueEl, "element 'value'") ?: return null
+                        when (valueEl.name) {
+                            "value" -> resolveElementScalarOrRef(valueEl, "element 'value'")
+                            "item" -> resolveParticleType(valueEl, "element 'item'")
+                            else -> null
+                        } ?: return null
                     EntryShape(key, valueType, entry)
                 }
                 else -> null
@@ -775,21 +845,12 @@ object XsdImport {
             )
         }
 
-        /** `"$where: $tail"` with the standard help text for [code]. */
+        /**
+         * `"$where: $tail"` with the standard help text for [code] (shared with [noteDiagnostic]).
+         */
         fun lossy(code: DiagnosticCode, where: String, tail: String, line: Int): Diagnostic {
-            val help =
-                when (code) {
-                    ImportCodes.UNRESOLVED ->
-                        "add the referenced schema to the inputs or fix schemaLocation"
-                    ImportCodes.RENAMED ->
-                        "keep the annotation so the regenerated XSD uses the original name"
-                    ImportCodes.APPROXIMATED ->
-                        "review the imported record; the regenerated XSD will differ here"
-                    ImportCodes.WIDENED -> "narrow the type by hand if the data needs it"
-                    else -> "add the missing part by hand; Schemata cannot express it"
-                }
             val l = line.coerceAtLeast(1)
-            return Diagnostic(code, "$where: $tail", Span(doc.path, l, 1, l, 1), help)
+            return Diagnostic(code, "$where: $tail", Span(doc.path, l, 1, l, 1), helpFor(code))
         }
 
         /**
