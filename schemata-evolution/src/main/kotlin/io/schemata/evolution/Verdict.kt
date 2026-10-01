@@ -53,7 +53,7 @@ object EvolutionCodes {
 
 /** Every rulebook this build knows how to classify changes for; later targets append their own. */
 object Rulebooks {
-    val all: List<Rulebook> = listOf(ProtoRules, SqlRules)
+    val all: List<Rulebook> = listOf(ProtoRules, SqlRules, XsdRules, JsonSchemaRules)
 
     fun named(name: String): Rulebook? = all.firstOrNull { it.target == name }
 }
