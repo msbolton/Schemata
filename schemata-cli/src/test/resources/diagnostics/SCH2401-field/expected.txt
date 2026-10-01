@@ -1,10 +1,6 @@
 # import=xsd
-warning[SCH2402] (lossy): element 'full-name': element 'full-name' is not a Schemata identifier; imported as 'full_name' with @xsd(name)
- --> s.xsd:5:1
-  = help: keep the annotation so the regenerated XSD uses the original name
-
 error[SCH2401]: complex type 'PersonType': element 'full-name' and element 'full_name' both lower to field 'full_name'
  --> s.xsd:6:1
   = help: rename one of them
 
-1 error, 1 warning
+1 error, 0 warnings

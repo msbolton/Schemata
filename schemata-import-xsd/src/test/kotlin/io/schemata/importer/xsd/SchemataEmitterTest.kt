@@ -29,7 +29,10 @@ class SchemataEmitterTest {
                     ),
                     UnitUnion(
                         "Payment",
-                        listOf(UnitType.Ref("Card"), UnitType.Scalar("int64", emptyList())),
+                        listOf(
+                            UnionMember(UnitType.Ref("Card")),
+                            UnionMember(UnitType.Scalar("int64", emptyList())),
+                        ),
                         "How it was paid.",
                         emptyList(),
                     ),

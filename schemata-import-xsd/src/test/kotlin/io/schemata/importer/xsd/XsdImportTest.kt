@@ -93,6 +93,34 @@ class XsdImportTest {
     }
 
     @Test
+    fun `a bare xs decimal element defaults to precision and scale`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="amount" type="xs:decimal"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            UnitType.Scalar("decimal", listOf("p" to "38", "s" to "9")),
+            record(imported, "Thing").fields.single().type,
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 element 'amount': decimal without totalDigits and fractionDigits imported " +
+                    "as decimal(38, 9)"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
     fun `an element with maxOccurs above one is a list with bounds`() {
         val imported =
             lower(
@@ -670,12 +698,7 @@ class XsdImportTest {
             ),
             record(renamed, "A").fields,
         )
-        assertEquals(
-            listOf(
-                "SCH2402 element 'full-name': element 'full-name' is not a Schemata identifier; imported as 'full_name' with @xsd(name)"
-            ),
-            messages(renamed),
-        )
+        assertEquals(emptyList(), renamed.diagnostics)
 
         val collision =
             lower(
@@ -706,10 +729,43 @@ class XsdImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2402 element 'fullName': element 'fullName' is not a Schemata identifier; imported as 'full_name' with @xsd(name)",
-                "SCH2401 complex type 'BType': element 'full_name' and element 'fullName' both lower to field 'full_name'",
+                "SCH2401 complex type 'BType': element 'full_name' and element 'fullName' both lower to field 'full_name'"
             ),
             messages(collision),
+        )
+    }
+
+    @Test
+    fun `a name that is not a valid XML name gets no override`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="FixType">
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="2d"/>
+                      <xs:enumeration value="3d"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(
+                UnitEnumValue("v2d", null, emptyList()),
+                UnitEnumValue("v3d", null, emptyList()),
+            ),
+            enum(imported, "Fix").values,
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 enum value 'Fix.2d': enum value 'Fix.2d' has no Schemata equivalent; " +
+                    "imported as 'v2d'",
+                "SCH2403 enum value 'Fix.3d': enum value 'Fix.3d' has no Schemata equivalent; " +
+                    "imported as 'v3d'",
+            ),
+            messages(imported),
         )
     }
 
@@ -889,7 +945,7 @@ class XsdImportTest {
                 UnitType.Scalar("int64", emptyList()),
                 UnitType.Ref("Voucher"),
             ),
-            union(imported, "Payment").members,
+            union(imported, "Payment").members.map { it.type },
         )
         val voucher = record(imported, "Voucher")
         assertEquals(listOf(xsd("root", "false")), voucher.annotations)
@@ -929,7 +985,7 @@ class XsdImportTest {
             )
         assertEquals(
             listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
-            union(imported, "Payments").members,
+            union(imported, "Payments").members.map { it.type },
         )
         assertEquals(
             UnitType.ListOf(UnitType.Ref("Payments"), false, listOf("min" to "1")),
@@ -1000,13 +1056,7 @@ class XsdImportTest {
             UnitType.Scalar("string", listOf("max" to "10")),
             order.fields.single { it.name == "billing" }.type,
         )
-        assertEquals(
-            listOf(
-                "SCH2402 enum value 'Status.Personal': enum value 'Status.Personal' is not a " +
-                    "Schemata identifier; imported as 'personal' with @xsd(name)"
-            ),
-            messages(imported),
-        )
+        assertEquals(emptyList(), imported.diagnostics)
     }
 
     @Test
@@ -1195,7 +1245,7 @@ class XsdImportTest {
             )
         assertEquals(
             listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
-            union(imported, "OrderChoice").members,
+            union(imported, "OrderChoice").members.map { it.type },
         )
         val order = record(imported, "Order").fields
         assertEquals(
@@ -1523,11 +1573,11 @@ class XsdImportTest {
             )
         assertEquals(
             listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
-            union(imported, "RChoice").members,
+            union(imported, "RChoice").members.map { it.type },
         )
         assertEquals(
             listOf(UnitType.Ref("Check"), UnitType.Ref("Wire")),
-            union(imported, "RChoice2").members,
+            union(imported, "RChoice2").members.map { it.type },
         )
         val r = record(imported, "R").fields
         assertEquals(listOf("id", "choice", "choice_2"), r.map { it.name })

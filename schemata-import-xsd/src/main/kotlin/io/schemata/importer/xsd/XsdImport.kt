@@ -93,10 +93,16 @@ object XsdImport {
                 }
                 val lowering = NamespaceLowering(doc, live, names, typeNames, diagnostics)
                 val declarations = mutableListOf<UnitDecl>()
-                doc.complexTypes.forEach { declarations += lowering.declaration(it) }
-                doc.simpleTypes
-                    .filter { it.name != null && hasEnumeration(it) }
-                    .forEach { declarations += lowering.enumDeclaration(it) }
+                // Complex types and enumerated simple types are declared on one combined list,
+                // ordered by source line: the xsd target interleaves a nested record's and a nested
+                // enum's flattened types as it encounters them, so matching that order here is what
+                // lets a re-exported xsd come out byte for byte the same as the one that was read.
+                (doc.complexTypes.map { it.line to lowering.declaration(it) } +
+                        doc.simpleTypes
+                            .filter { it.name != null && hasEnumeration(it) }
+                            .map { it.line to listOf(lowering.enumDeclaration(it)) })
+                    .sortedBy { it.first }
+                    .forEach { (_, decls) -> declarations += decls }
                 doc.elements.forEach { el ->
                     if (el.ref == null && el.type == null && el.inlineComplex != null) {
                         declarations += lowering.topLevelRecord(el)
@@ -196,12 +202,28 @@ object XsdImport {
         return result
     }
 
-    /** `full-name` → `full_name` with `@xsd(name)`; a valid identifier is kept as-is. */
-    private fun fieldNameFor(original: String): Pair<String, UnitAnnotation?> {
-        if (ImportNames.isLowerSnake(original)) return original to null
+    /**
+     * [original]'s fixed Schemata identifier, the `@xsd(name)` override that regenerates [original]
+     * exactly (`full-name` → `full_name` with `@xsd(name = "full-name")`), and, when [original] is
+     * not even a valid XML name (a bare enumeration value may start with a digit, as `2d` does), no
+     * override at all: the xsd target rejects one that isn't a valid name, so offering it would
+     * only trade one way of failing to round trip for another. A valid identifier is kept as-is.
+     */
+    private fun fieldNameFor(original: String): FieldName {
+        if (ImportNames.isLowerSnake(original)) return FieldName(original, null, unfixable = false)
         val fixed = ImportNames.lowerSnake(original)
-        return fixed to UnitAnnotation("xsd", "name", "\"$original\"")
+        return if (ImportNames.isValidOverride(original)) {
+            FieldName(fixed, UnitAnnotation("xsd", "name", "\"$original\""), unfixable = false)
+        } else {
+            FieldName(fixed, null, unfixable = true)
+        }
     }
+
+    private data class FieldName(
+        val name: String,
+        val annotation: UnitAnnotation?,
+        val unfixable: Boolean,
+    )
 
     private fun listRefinements(min: Int, max: Int?): List<Pair<String, String>> =
         listOfNotNull(
@@ -352,30 +374,37 @@ object XsdImport {
                 doc.elements.firstOrNull {
                     it.ref == null && it.type == QName(doc.targetNamespace, original)
                 }
+            // The type override already serves double duty on the XSD target (it also names the
+            // global element): when the type didn't otherwise need one, but adding it would make
+            // the
+            // element name exact too, it's worth adding for that alone, since it still regenerates
+            // the same type name either way. Only a genuinely mismatched element name is unfixable.
+            var typeOverride = info.annotation
             val rootAnnotation =
                 if (rootElement == null) UnitAnnotation("xsd", "root", "false")
                 else {
-                    // The override already serves double duty on the XSD target (it also names the
-                    // global element), so a mismatched element name can only be reported, not fixed
-                    // by a second, conflicting use of the same annotation.
-                    val override =
-                        if (info.annotation != null) original.removeSuffix("Type") else null
-                    val regenerated = override ?: Names.snakeCase(info.finalName)
+                    val overrideText = original.removeSuffix("Type")
+                    val regenerated =
+                        if (typeOverride != null) overrideText else Names.snakeCase(info.finalName)
                     if (rootElement.name != regenerated) {
-                        diagnostics +=
-                            lossy(
-                                ImportCodes.APPROXIMATED,
-                                "element '${rootElement.name}'",
-                                "element '${rootElement.name}' has no Schemata equivalent; the " +
-                                    "regenerated root element will be named '$regenerated'",
-                                rootElement.line,
-                            )
+                        if (typeOverride == null && rootElement.name == overrideText) {
+                            typeOverride = UnitAnnotation("xsd", "name", "\"$overrideText\"")
+                        } else {
+                            diagnostics +=
+                                lossy(
+                                    ImportCodes.APPROXIMATED,
+                                    "element '${rootElement.name}'",
+                                    "element '${rootElement.name}' has no Schemata equivalent; the " +
+                                        "regenerated root element will be named '$regenerated'",
+                                    rootElement.line,
+                                )
+                        }
                     }
                     null
                 }
             val (fields, nested) =
                 fieldsAndNested(ct, "complex type '$original'", info.finalName, siblings)
-            val annotations = listOfNotNull(info.annotation, rootAnnotation)
+            val annotations = listOfNotNull(typeOverride, rootAnnotation)
             return listOf(UnitRecord(info.finalName, fields, nested, ct.doc, annotations)) +
                 siblings
         }
@@ -712,14 +741,8 @@ object XsdImport {
                         particle.line,
                     )
                 val claim =
-                    nameAndClaim(
-                        fieldName,
-                        "choice",
-                        whereCollision,
-                        claimed,
-                        whereCollision,
-                        particle.line,
-                    ) ?: return emptyList()
+                    nameAndClaim(fieldName, whereCollision, claimed, whereCollision, particle.line)
+                        ?: return emptyList()
                 val (name, annotations) = claim
                 val type: UnitType =
                     if (particle.maxOccurs != 1) {
@@ -774,14 +797,8 @@ object XsdImport {
                         ext.line,
                     )
                 val claim =
-                    nameAndClaim(
-                        "value",
-                        "field",
-                        whereCollision,
-                        claimed,
-                        whereCollision,
-                        ext.line,
-                    ) ?: return emptyList()
+                    nameAndClaim("value", whereCollision, claimed, whereCollision, ext.line)
+                        ?: return emptyList()
                 val (name, annotations) = claim
                 return listOf(UnitField(name, valueType, false, null, null, annotations))
             }
@@ -929,7 +946,7 @@ object XsdImport {
             siblings: MutableList<UnitDecl>,
             checkMismatch: Boolean,
         ): UnitUnion {
-            val members = mutableListOf<UnitType>()
+            val members = mutableListOf<UnionMember>()
             val seenStems = mutableMapOf<String, String>()
             expandParticles(choice.particles, unionWhere).forEach { particle ->
                 when (particle) {
@@ -967,7 +984,7 @@ object XsdImport {
                                     el.line,
                                 )
                         }
-                        members += type
+                        members += UnionMember(type, el.doc)
                     }
                     is XParticle.Any ->
                         diagnostics +=
@@ -1083,30 +1100,33 @@ object XsdImport {
             val values =
                 facets.mapNotNull { f ->
                     val valueWhere = "enum value '$name.${f.value}'"
-                    val (vname, nameAnnotation) = fieldNameFor(f.value)
-                    if (nameAnnotation != null) {
+                    // Unlike a type name, a value's @xsd(name) override, when the xsd target would
+                    // accept it, always regenerates the original xsd text exactly, so this is never
+                    // reported as lossy; a value that is not even a valid XML name gets no override
+                    // (one would only be rejected), and that is reported instead.
+                    val field = fieldNameFor(f.value)
+                    if (field.unfixable) {
                         diagnostics +=
                             lossy(
-                                ImportCodes.RENAMED,
+                                ImportCodes.APPROXIMATED,
                                 valueWhere,
-                                "$valueWhere is not a Schemata identifier; imported as '$vname' " +
-                                    "with @xsd(name)",
+                                "$valueWhere has no Schemata equivalent; imported as '${field.name}'",
                                 f.line,
                             )
                     }
-                    val existing = claimed[vname]
+                    val existing = claimed[field.name]
                     if (existing != null) {
                         diagnostics +=
                             lossy(
                                 ImportCodes.UNRESOLVED,
                                 where,
-                                "enum value '$existing' and '${f.value}' both lower to value '$vname'",
+                                "enum value '$existing' and '${f.value}' both lower to value '${field.name}'",
                                 f.line,
                             )
                         null
                     } else {
-                        claimed[vname] = f.value
-                        UnitEnumValue(vname, f.doc, listOfNotNull(nameAnnotation))
+                        claimed[field.name] = f.value
+                        UnitEnumValue(field.name, f.doc, listOfNotNull(field.annotation))
                     }
                 }
             return UnitEnum(name, values, st.doc, emptyList())
@@ -1414,8 +1434,7 @@ object XsdImport {
                 }
             if (resolved == null) return null
             val claim =
-                nameAndClaim(original, "element", where, claimed, whereCollision, el.line)
-                    ?: return null
+                nameAndClaim(original, where, claimed, whereCollision, el.line) ?: return null
             val (name, annotations) = claim
             return UnitField(
                 name,
@@ -1455,43 +1474,44 @@ object XsdImport {
             val default = rawDefault?.let { defaultLiteralFor(type, it, a.type, where, a.line) }
             val nullable = a.use != "required" && default == null
             val claim =
-                nameAndClaim(original, "attribute", where, claimed, whereCollision, a.line)
-                    ?: return null
+                nameAndClaim(original, where, claimed, whereCollision, a.line) ?: return null
             val (name, nameAnnotations) = claim
             val annotations = nameAnnotations + UnitAnnotation("xsd", "attribute", null)
             return UnitField(name, type, nullable, default, a.doc, annotations)
         }
 
         /**
-         * The field's final name, claimed against [claimed]: reports [ImportCodes.RENAMED] when
-         * [original] needed fixing, and [ImportCodes.UNRESOLVED] (dropping the field, returning
-         * `null`) when it collides with one already claimed in this record.
+         * The field's final name, claimed against [claimed]: [ImportCodes.UNRESOLVED] (dropping the
+         * field, returning `null`) when it collides with one already claimed in this record. Unlike
+         * a type name, a field or attribute's `@xsd(name)` override, when the xsd target would
+         * accept it, always regenerates the original xsd text exactly, so needing one is never
+         * reported as lossy; a name that is not even a valid XML name gets no override, and that is
+         * reported.
          */
         private fun nameAndClaim(
             original: String,
-            kind: String,
             whereConstruct: String,
             claimed: MutableMap<String, String>,
             whereCollision: String,
             line: Int,
         ): Pair<String, List<UnitAnnotation>>? {
-            val (name, nameAnnotation) = fieldNameFor(original)
-            if (nameAnnotation != null) {
+            val field = fieldNameFor(original)
+            if (field.unfixable) {
                 diagnostics +=
                     lossy(
-                        ImportCodes.RENAMED,
+                        ImportCodes.APPROXIMATED,
                         whereConstruct,
-                        "$kind '$original' is not a Schemata identifier; imported as '$name' with @xsd(name)",
+                        "$whereConstruct has no Schemata equivalent; imported as '${field.name}'",
                         line,
                     )
             }
-            val existing = claimed[name]
+            val existing = claimed[field.name]
             if (existing != null) {
-                diagnostics += collision(whereCollision, existing, whereConstruct, name, line)
+                diagnostics += collision(whereCollision, existing, whereConstruct, field.name, line)
                 return null
             }
-            claimed[name] = whereConstruct
-            return name to listOfNotNull(nameAnnotation)
+            claimed[field.name] = whereConstruct
+            return field.name to listOfNotNull(field.annotation)
         }
 
         /**
@@ -1540,7 +1560,7 @@ object XsdImport {
                     )
                 return null
             }
-            return fieldNameFor(facet.value).first
+            return fieldNameFor(facet.value).name
         }
 
         private fun implicitAnyType(where: String, line: Int): UnitType.Scalar {
@@ -1650,7 +1670,22 @@ object XsdImport {
             if (qname.namespace == ImportTypes.XS) {
                 val mapped = ImportTypes.builtin(qname.local) ?: return null
                 mapped.notes.forEach { diagnostics += lossy(ImportCodes.WIDENED, where, it, line) }
-                return mapped.type
+                val type = mapped.type
+                // A bare `xs:decimal` reference carries no facets at all, so, exactly like a
+                // restriction that omits totalDigits and fractionDigits, it needs the same
+                // precision-and-scale default Schemata requires.
+                if (
+                    type is UnitType.Scalar &&
+                        type.builtin == "decimal" &&
+                        type.refinements.isEmpty()
+                ) {
+                    val (refined, notes) = ImportTypes.facets(type, emptyList())
+                    notes.forEach {
+                        diagnostics += noteDiagnostic(doc.path, where, it.copy(line = line))
+                    }
+                    return refined
+                }
+                return type
             }
             val targetDoc =
                 allDocs.firstOrNull { it.targetNamespace == qname.namespace } ?: return null

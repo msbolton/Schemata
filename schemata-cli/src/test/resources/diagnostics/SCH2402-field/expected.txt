@@ -1,6 +1,0 @@
-# import=xsd
-warning[SCH2402] (lossy): element 'full-name': element 'full-name' is not a Schemata identifier; imported as 'full_name' with @xsd(name)
- --> s.xsd:5:1
-  = help: keep the annotation so the regenerated XSD uses the original name
-
-0 errors, 1 warning

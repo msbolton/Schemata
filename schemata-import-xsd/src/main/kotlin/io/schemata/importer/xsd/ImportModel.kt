@@ -44,10 +44,16 @@ data class UnitEnumValue(val name: String, val doc: String?, val annotations: Li
 
 data class UnitUnion(
     override val name: String,
-    val members: List<UnitType>,
+    val members: List<UnionMember>,
     override val doc: String?,
     override val annotations: List<UnitAnnotation>,
 ) : UnitDecl
+
+/**
+ * One union member: the XSD target writes a choice member's documentation on its element, not on
+ * the type it names, so it travels with the member here rather than with [UnitType].
+ */
+data class UnionMember(val type: UnitType, val doc: String? = null)
 
 /** [default] is the literal exactly as it is written in Schemata source, already escaped/quoted. */
 data class UnitField(

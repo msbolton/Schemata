@@ -12,15 +12,27 @@ object ImportNames {
     private val nonAlnumRun = Regex("[^A-Za-z0-9]+")
     private val camelBoundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
+    // Matches the xsd target's own NCName check: an `@xsd(name)` override it would reject as not a
+    // valid XML name (for example, one starting with a digit, as a bare enumeration value may) can
+    // never regenerate the original text, so the importer must not offer it as an override.
+    private val ncName = Regex("^[A-Za-z_][A-Za-z0-9_.\\-]*$")
+
     fun isLowerSnake(s: String): Boolean = lowerSnakePattern.matches(s)
 
     fun isNamespaceSegment(s: String): Boolean = isLowerSnake(s)
 
-    /** `full-name` → `full_name`, `fullName` → `full_name`, `1x` → `_1x`. */
+    fun isValidOverride(s: String): Boolean = ncName.matches(s)
+
+    /**
+     * `full-name` → `full_name`, `fullName` → `full_name`, `1x` → `v1x`. A result starting with a
+     * digit is prefixed with a letter rather than `_`: lower_snake, like every Schemata identifier,
+     * must start with a letter, so a leading underscore would only trade one invalid identifier for
+     * another.
+     */
     fun lowerSnake(s: String): String {
         var out = Names.snakeCase(s).replace(invalidRun, "_").replace(underscoreRun, "_").trim('_')
-        if (out.isEmpty()) out = "_"
-        if (out.first().isDigit()) out = "_$out"
+        if (out.isEmpty()) out = "v"
+        if (out.first().isDigit()) out = "v$out"
         return out
     }
 

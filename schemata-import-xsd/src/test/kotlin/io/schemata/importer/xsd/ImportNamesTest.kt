@@ -20,7 +20,7 @@ class ImportNamesTest {
         assertEquals("full_name", ImportNames.lowerSnake("full-name"))
         assertEquals("full_name", ImportNames.lowerSnake("fullName"))
         assertEquals("personal", ImportNames.lowerSnake("Personal"))
-        assertEquals("_1x", ImportNames.lowerSnake("1x"))
+        assertEquals("v1x", ImportNames.lowerSnake("1x"))
         assertEquals("GpxType", ImportNames.upperCamel("gpxType"))
         assertEquals("WptPoint", ImportNames.upperCamel("wpt-point"))
         assertEquals("gpx_1_1", ImportNames.namespaceStem("schemas/GPX-1.1.xsd"))

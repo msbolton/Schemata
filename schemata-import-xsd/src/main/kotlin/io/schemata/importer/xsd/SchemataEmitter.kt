@@ -67,8 +67,15 @@ object SchemataEmitter {
         appendLine(indent + "}")
     }
 
-    private fun union(d: UnitUnion, indent: String): String =
-        indent + "union ${d.name} = " + d.members.joinToString(" | ") { typeString(it) } + "\n"
+    private fun union(d: UnitUnion, indent: String): String = buildString {
+        val inner = indent + INDENT
+        appendLine(indent + "union ${d.name} =")
+        d.members.forEachIndexed { i, m ->
+            m.doc?.let { docLines(it, inner).forEach(::appendLine) }
+            val sep = if (i == d.members.lastIndex) "" else " |"
+            appendLine(inner + typeString(m.type) + sep)
+        }
+    }
 
     private fun refinementsString(r: List<Pair<String, String>>): String =
         if (r.isEmpty()) "" else "(" + r.joinToString(", ") { "${it.first} = ${it.second}" } + ")"
