@@ -57,7 +57,13 @@ class DiffCommand : CliktCommand(name = "diff") {
             Format.HUMAN -> {
                 val implicitOrdinals = oldSide.implicitOrdinals + newSide.implicitOrdinals
                 echo(
-                    DiffRenderer.changes(comparison, oldSchema, newSchema, implicitOrdinals),
+                    DiffRenderer.changes(
+                        comparison,
+                        rulebooks,
+                        oldSchema,
+                        newSchema,
+                        implicitOrdinals,
+                    ),
                     err = true,
                 )
                 emit(

@@ -46,12 +46,14 @@ import io.schemata.target.TypeText
 object DiffRenderer {
     /**
      * One block per changed declaration, in NEW's order (removals after); `no changes` when
-     * [comparison] found none. A trailer notes when a changed declaration has an implicit ordinal
-     * on either side, since the differ matches members by ordinal and an implicit one shifts with
+     * [comparison] found none. Then a trailer: the total change count, one `breaking`/`note` count
+     * line per selected rulebook, and, when a changed declaration has an implicit ordinal on either
+     * side, a note that the differ matches members by ordinal and an implicit one shifts with
      * declaration order.
      */
     fun changes(
         comparison: Comparison,
+        rulebooks: List<Rulebook>,
         old: Schema,
         new: Schema,
         implicitOrdinals: Set<QualifiedName>,
@@ -66,6 +68,15 @@ object DiffRenderer {
             lines += decl
             judged.forEach { j -> lines += "  ${describe(j.change)}    ${verdicts(j)}" }
         }
+        lines += ""
+        lines += plural(comparison.judged.size, "change")
+        rulebooks.forEach { rb ->
+            val verdicts =
+                comparison.judged.flatMap { it.verdicts }.filter { it.target == rb.target }
+            val breaking = verdicts.count { it.verdict is Verdict.Breaking }
+            val notes = verdicts.count { it.verdict is Verdict.Note }
+            lines += "${rb.target}: $breaking breaking, ${plural(notes, "note")}"
+        }
         val implicitNames = implicitOrdinals.map { it.toString() }.toSet()
         if (groups.keys.any { it in implicitNames }) {
             lines += ""
@@ -75,6 +86,8 @@ object DiffRenderer {
         }
         return lines.joinToString("\n") + "\n"
     }
+
+    private fun plural(n: Int, noun: String) = if (n == 1) "1 $noun" else "$n ${noun}s"
 
     /**
      * Every judged change, a per-target summary, and the report's exit code, as one JSON document.

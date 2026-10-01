@@ -42,6 +42,11 @@ class DiffCommandTest {
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(2, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("warning[SCH2502]"), r.stderr)
+        assertTrue(r.stderr.contains("1 change"), r.stderr)
+        assertTrue(r.stderr.contains("proto: 0 breaking, 1 note"), r.stderr)
+        assertTrue(r.stderr.contains("sql: 0 breaking, 0 notes"), r.stderr)
+        assertTrue(r.stderr.contains("xsd: 0 breaking, 0 notes"), r.stderr)
+        assertTrue(r.stderr.contains("jsonschema: 0 breaking, 0 notes"), r.stderr)
     }
 
     @Test
@@ -51,6 +56,11 @@ class DiffCommandTest {
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("error[SCH2501]"), r.stderr)
+        assertTrue(r.stderr.contains("1 change"), r.stderr)
+        assertTrue(r.stderr.contains("proto: 0 breaking, 1 note"), r.stderr)
+        assertTrue(r.stderr.contains("sql: 1 breaking, 0 notes"), r.stderr)
+        assertTrue(r.stderr.contains("xsd: 1 breaking, 0 notes"), r.stderr)
+        assertTrue(r.stderr.contains("jsonschema: 1 breaking, 0 notes"), r.stderr)
     }
 
     @Test

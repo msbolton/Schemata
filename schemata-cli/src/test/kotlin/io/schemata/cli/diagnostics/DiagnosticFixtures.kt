@@ -63,10 +63,16 @@ class Fixture(val dir: File) {
             .sortedBy { it.name }
             .map { SourceInput(it.name, it.readText()) }
 
-    /** The two sides of a diff fixture, loaded from its `old/` and `new/` subdirectories. */
-    val oldSources: List<SourceInput> = if (isDiff) schemataFiles(File(dir, "old")) else emptyList()
+    /**
+     * The two sides of a diff fixture, loaded from its `old/` and `new/` subdirectories. Paths keep
+     * that prefix (`old/s.schemata`, `new/s.schemata`) so same-named files on each side don't
+     * collide once both sides' sources share one [Sources] lookup.
+     */
+    val oldSources: List<SourceInput> =
+        if (isDiff) schemataFiles(File(dir, "old"), "old") else emptyList()
 
-    val newSources: List<SourceInput> = if (isDiff) schemataFiles(File(dir, "new")) else emptyList()
+    val newSources: List<SourceInput> =
+        if (isDiff) schemataFiles(File(dir, "new"), "new") else emptyList()
 
     val expected: String
         get() = expectedFile.readText().let { if (header != null) it.substringAfter('\n') else it }
@@ -141,10 +147,10 @@ class Fixture(val dir: File) {
     private fun importDiagnostics(): List<Diagnostic> =
         XsdImporter.import(xsd.map { ImportInput(it.path, it.content) }).diagnostics
 
-    private fun schemataFiles(d: File): List<SourceInput> =
+    private fun schemataFiles(d: File, prefix: String): List<SourceInput> =
         d.listFiles { f -> f.extension == "schemata" }!!
             .sortedBy { it.name }
-            .map { SourceInput(it.name, it.readText()) }
+            .map { SourceInput("$prefix/${it.name}", it.readText()) }
 
     fun write(text: String) {
         expectedFile.writeText((header?.let { "$it\n" } ?: "") + text)

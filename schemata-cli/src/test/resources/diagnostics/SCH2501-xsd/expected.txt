@@ -1,6 +1,6 @@
 # diff=old,new targets=xsd
 error[SCH2501]: xsd: s.R.y: the field was removed breaks old documents that still carry it
- --> s.schemata:2:28
+ --> old/s.schemata:2:28
   = help: keep the field; an XSD document always carries every element
 
 1 error, 0 warnings
