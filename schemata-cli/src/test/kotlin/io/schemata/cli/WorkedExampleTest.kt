@@ -194,7 +194,7 @@ class WorkedExampleTest {
                 "orders.schemata:12 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf",
                 "orders.schemata:13 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf",
                 "orders.schemata:20 field 'Order.id': uuid has no Protobuf representation; lowered to string",
-                "orders.schemata:23 field 'Order.status': default pending is not carried by proto3",
+                "orders.schemata:23 field 'Order.status': default STATUS_PENDING is not carried by proto3",
                 "orders.schemata:24 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf",
                 "orders.schemata:25 field 'Order.total': decimal has no Protobuf representation; lowered to string",
                 "orders.schemata:30 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf",

@@ -14,7 +14,7 @@ message Contact {
   string name = 2;  // schemata: string(max = 100)
   string email = 3;  // schemata: string(max = 254, pattern = "^[^@]+@[^@]+$")
   optional int32 age = 4;  // schemata: int32(min = 0, max = 150)?
-  Kind kind = 5;  // schemata: default = personal
+  Kind kind = 5;  // schemata: default = KIND_PERSONAL
   optional string born = 6;  // schemata: date?
   repeated string tags = 7;  // schemata: list<string(max = 20)>
 }
