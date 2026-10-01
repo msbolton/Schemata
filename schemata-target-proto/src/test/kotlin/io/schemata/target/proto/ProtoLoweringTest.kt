@@ -479,6 +479,38 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `an enum value override equal to its own name is used verbatim`() {
+        fun value(ordinal: Int, name: String, override: String, line: Int) =
+            EnumValue(ordinal, name, null, at(line), at(line), proto("name" to override))
+        fun enumOf(name: String, line: Int, vararg values: EnumValue) =
+            EnumType(
+                qn("a", name),
+                name,
+                values.toList(),
+                Reserved.NONE,
+                emptyList(),
+                null,
+                at(line),
+                at(line),
+            )
+        val status = enumOf("Status", 30, value(1, "PENDING", "PENDING", 31))
+        val other =
+            enumOf("Other", 40, value(1, "a", "STATUS_PENDING", 41), value(2, "b", "PENDING", 42))
+        val lowered = ProtoLowering.lower(schema(ns("a", status, other)))
+        val file = lowered.model.files.single()
+        assertEquals(
+            listOf("STATUS_UNSPECIFIED", "PENDING"),
+            (file.declarations[0] as ProtoEnum).values.map { it.name },
+        )
+        assertEquals(
+            listOf(
+                "42 SCH2004 proto name 'PENDING' is already used by value 'PENDING' (orders.schemata:31)"
+            ),
+            messages(lowered).filter { "SCH2004" in it },
+        )
+    }
+
+    @Test
     fun `lossy scalars are lowered to string, warned once, and noted with the type text`() {
         val r =
             record(

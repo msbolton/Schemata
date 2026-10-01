@@ -4,7 +4,6 @@ import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.QualifiedName
-import io.schemata.core.ir.Schema
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.kindWord
 import io.schemata.lang.Diagnostic
@@ -17,7 +16,6 @@ import io.schemata.lang.Span
  * tail; an invalid override is reported with [code] and ignored, so the declared name is used.
  */
 class OverrideNames(
-    private val schema: Schema,
     private val target: String,
     private val code: DiagnosticCode,
     private val sink: MutableList<Diagnostic>,
@@ -32,15 +30,19 @@ class OverrideNames(
             overrideName(decl.annotations, "${decl.kindWord} '${decl.name}'", decl.nameSpan)
         }
 
-    /** [value]'s emitted name: its valid override, else its own name. */
-    fun enumValueName(enum: EnumType, value: EnumValue): String =
+    /** [value]'s valid override, or null when it has none or an invalid one. */
+    fun enumValueOverride(enum: EnumType, value: EnumValue): String? =
         valueOverrides.memo(enum.qualifiedName to value.name) {
             overrideName(
                 value.annotations,
                 "enum value '${enum.name}.${value.name}'",
                 value.nameSpan,
             )
-        } ?: value.name
+        }
+
+    /** [value]'s emitted name: its valid override, else its own name. */
+    fun enumValueName(enum: EnumType, value: EnumValue): String =
+        enumValueOverride(enum, value) ?: value.name
 
     /** The valid override on [annotations], or null (reported once per call) for an invalid one. */
     fun overrideName(annotations: Annotations, where: String, span: Span): String? {

@@ -22,6 +22,7 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
 import io.schemata.target.OverrideNames
+import io.schemata.target.collidingNamespaces
 import io.schemata.target.deprecated
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
@@ -48,7 +49,6 @@ object ProtoLowering {
         val diagnostics = mutableListOf<Diagnostic>()
         val names =
             OverrideNames(
-                schema,
                 "proto",
                 ProtoCodes.INVALID_OVERRIDE,
                 diagnostics,
@@ -57,21 +57,16 @@ object ProtoLowering {
                 "use letters, digits, and underscores, starting with a letter"
             }
         val packages = schema.namespaces.associate { it.name to ProtoNames.packageOf(it) }
-        packages.entries
-            .groupBy({ it.value }, { it.key })
-            .values
-            .filter { it.size > 1 }
-            .forEach { clashing ->
-                // The first namespace is blameless: the clash appears at the one that repeats it.
-                val second = schema.namespaces.first { it.name == clashing[1] }
-                diagnostics +=
-                    Diagnostic(
-                        ProtoCodes.NAME_COLLISION,
-                        "namespaces ${clashing.joinToString(" and ")} both lower to package '${packages.getValue(clashing.first())}'",
-                        second.span,
-                        help = "set `@proto(package = \"…\")` on one namespace",
-                    )
-            }
+        collidingNamespaces(schema.namespaces, ProtoNames::packageOf).forEach { clashing ->
+            // The first namespace is blameless: the clash appears at the one that repeats it.
+            diagnostics +=
+                Diagnostic(
+                    ProtoCodes.NAME_COLLISION,
+                    "namespaces ${clashing.joinToString(" and ") { it.name }} both lower to package '${packages.getValue(clashing.first().name)}'",
+                    clashing[1].span,
+                    help = "set `@proto(package = \"…\")` on one namespace",
+                )
+        }
         val files =
             schema.namespaces.map { FileLowering(schema, names, packages, it, diagnostics).lower() }
         return Lowered(ProtoModel(files), diagnostics)
@@ -229,11 +224,8 @@ object ProtoLowering {
         /**
          * The emitted name of [value]: its valid `@proto(name)` override, else the prefixed form.
          */
-        private fun valueName(enumName: String, enum: EnumType, value: EnumValue): String {
-            val override = names.enumValueName(enum, value)
-            return if (override != value.name) override
-            else ProtoNames.valueName(enumName, value.name)
-        }
+        private fun valueName(enumName: String, enum: EnumType, value: EnumValue): String =
+            names.enumValueOverride(enum, value) ?: ProtoNames.valueName(enumName, value.name)
 
         private fun union(union: UnionType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + union.name

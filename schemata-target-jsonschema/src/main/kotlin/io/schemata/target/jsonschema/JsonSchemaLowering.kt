@@ -80,7 +80,6 @@ object JsonSchemaLowering {
     internal class SchemaNames(private val schema: Schema, diagnostics: MutableList<Diagnostic>) {
         val overrides =
             OverrideNames(
-                schema,
                 "jsonschema",
                 JsonSchemaCodes.INVALID_OVERRIDE,
                 diagnostics,

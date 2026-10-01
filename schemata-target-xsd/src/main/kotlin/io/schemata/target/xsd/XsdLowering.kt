@@ -75,7 +75,6 @@ object XsdLowering {
     internal class SchemaNames(private val schema: Schema, diagnostics: MutableList<Diagnostic>) {
         val overrides =
             OverrideNames(
-                schema,
                 "xsd",
                 XsdCodes.INVALID_OVERRIDE,
                 diagnostics,

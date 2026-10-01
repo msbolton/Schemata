@@ -148,11 +148,11 @@ class UtilitiesTest {
                 "E",
                 "x" to ann("t", "name" to AnnotationValue.Str("X")),
                 "y" to Annotations.NONE,
+                "z" to ann("t", "name" to AnnotationValue.Str("")),
             )
-        val schema = Schema(listOf(Namespace("s", listOf(bad, good, plain, e), at(1))))
         val sink = mutableListOf<Diagnostic>()
         val names =
-            OverrideNames(schema, "t", code, sink, { if (it.isEmpty()) "is empty" else null }) {
+            OverrideNames("t", code, sink, { if (it.isEmpty()) "is empty" else null }) {
                 "give it a name"
             }
         assertNull(names.nameOverride(bad))
@@ -161,17 +161,21 @@ class UtilitiesTest {
         assertNull(names.nameOverride(plain))
         assertEquals("X", names.enumValueName(e, e.values[0]))
         assertEquals("y", names.enumValueName(e, e.values[1]))
+        assertEquals("X", names.enumValueOverride(e, e.values[0]))
+        assertNull(names.enumValueOverride(e, e.values[1]))
+        assertNull(names.enumValueOverride(e, e.values[2]))
         assertNull(
             names.overrideName(ann("t", "name" to AnnotationValue.Str("")), "field 'A.f'", at(7))
         )
         assertEquals(
             listOf(
                 "SCH9999 record 'A': @t(name = \"\") is empty",
+                "SCH9999 enum value 'E.z': @t(name = \"\") is empty",
                 "SCH9999 field 'A.f': @t(name = \"\") is empty",
             ),
             sink.map { "${it.code.id} ${it.message}" },
         )
-        assertEquals(listOf("give it a name", "give it a name"), sink.map { it.help })
+        assertEquals(List(3) { "give it a name" }, sink.map { it.help })
     }
 
     @Test

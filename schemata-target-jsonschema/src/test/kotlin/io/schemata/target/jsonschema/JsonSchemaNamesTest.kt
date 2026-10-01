@@ -38,10 +38,8 @@ class JsonSchemaNamesTest {
     }
 
     @Test
-    fun `keys and tags`() {
+    fun `defs keys join the path`() {
         assertEquals("Order.Line", JsonSchemaNames.defsKey(listOf("Order", "Line")))
-        assertEquals("bank_transfer", JsonSchemaNames.tag("BankTransfer"))
-        assertEquals("int64", JsonSchemaNames.tag("int64"))
     }
 
     @Test

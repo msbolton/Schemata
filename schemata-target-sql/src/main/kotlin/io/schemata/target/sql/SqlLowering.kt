@@ -395,14 +395,26 @@ object SqlLowering {
 
         /**
          * The column type a key field has, which a reference to its record copies; null when the
-         * field is not a single scalar column (a builtin or an enum).
+         * field is not a single scalar column (a builtin or an enum). A pattern Postgres cannot
+         * express is dropped here as the key's own column drops it, so every copy gets the same
+         * type; the key's own column is where that is reported.
          */
         private fun keyType(field: Field): ColumnType? {
             val override = field.annotations.string("sql", "type")
             return when (val type = field.type) {
-                is Scalar ->
+                is Scalar -> {
+                    val refinements =
+                        type.refinements.pattern
+                            ?.takeIf { PostgresPattern.firstUnsupported(it) != null }
+                            ?.let { type.refinements.copy(pattern = null) } ?: type.refinements
                     override?.let { ColumnType.RAW(it) }
-                        ?: SqlTypes.scalar(type, field.name, overridden = false).type
+                        ?: SqlTypes.scalar(
+                                type.copy(refinements = refinements),
+                                field.name,
+                                overridden = false,
+                            )
+                            .type
+                }
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
                         is EnumType ->
@@ -794,9 +806,9 @@ object SqlLowering {
          * checks it adds. The owning record's own key fields reuse the [Catalog]'s
          * already-validated resolution of both, so an empty `@sql(column)` override is reported
          * once even though a key field feeds both its own column and every check built from it, and
-         * so the two tables agree on the column's type when a pattern override makes the type
-         * depend on it; a child table's synthetic `value` field never matches, since its table is
-         * never the owner's own.
+         * so the owning table and every table that copies the key agree on the column's name (its
+         * type agrees because [keyType] screens the pattern as [column] does); a child table's
+         * synthetic `value` field never matches, since its table is never the owner's own.
          */
         private fun columnNames(ctx: FieldContext, field: Field): Pair<String, String> {
             val owner =
