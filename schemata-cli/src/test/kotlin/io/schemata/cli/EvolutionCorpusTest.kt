@@ -33,8 +33,8 @@ class EvolutionCorpusTest {
     private fun check(case: File) {
         val oldSources = sources(File(case, "old"), "old")
         val newSources = sources(File(case, "new"), "new")
-        val oldSide = Pipeline.analyze(oldSources)
-        val newSide = Pipeline.analyze(newSources)
+        val oldSide = analyzeSide(oldSources)
+        val newSide = analyzeSide(newSources)
         val old = oldSide.schema
         val new = newSide.schema
         checkNotNull(old) { "${case.name}: OLD failed to analyze: ${oldSide.diagnostics}" }
@@ -42,7 +42,7 @@ class EvolutionCorpusTest {
         val rulebooks = Rulebooks.all
         val comparison = Evolution.compare(old, new, rulebooks)
         val implicitOrdinals = oldSide.implicitOrdinals + newSide.implicitOrdinals
-        val changes = DiffRenderer.changes(comparison, rulebooks, old, new, implicitOrdinals)
+        val changes = DiffRenderer.changes(comparison, rulebooks, implicitOrdinals)
         val report = Report.of(comparison.diagnostics, emptyList(), emptyList(), strict = false)
         val rendered =
             HumanRenderer.render(

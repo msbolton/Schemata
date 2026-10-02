@@ -2,7 +2,8 @@ package io.schemata.cli.diagnostics
 
 import io.schemata.cli.Pipeline
 import io.schemata.cli.SourceInput
-import io.schemata.cli.cannotDiffDiagnostic
+import io.schemata.cli.analyzeSide
+import io.schemata.cli.cannotDiff
 import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.Palette
 import io.schemata.cli.report.Report
@@ -128,18 +129,14 @@ class Fixture(val dir: File) {
         }
 
     /**
-     * A failure to analyze either side reports [io.schemata.evolution.EvolutionCodes.CANNOT_DIFF]
-     * instead of comparing: the underlying parse or analysis diagnostics are not re-emitted here,
-     * since `schemata check` already reports them.
+     * The diagnostics `schemata diff` reports for the two sides: [cannotDiff]'s when either side
+     * fails to load or the two share no namespace, else the comparison's. Both sides are analysed
+     * the way `diff` analyses them, so a `strict` header only promotes notes, as `--strict` does.
      */
     private fun diffDiagnostics(): List<Diagnostic> {
-        val old = Pipeline.analyze(oldSources, strict)
-        val new = Pipeline.analyze(newSources, strict)
-        val cannotDiff =
-            listOfNotNull(
-                if (old.schema == null) cannotDiffDiagnostic("OLD", old.diagnostics) else null,
-                if (new.schema == null) cannotDiffDiagnostic("NEW", new.diagnostics) else null,
-            )
+        val old = analyzeSide(oldSources)
+        val new = analyzeSide(newSources)
+        val cannotDiff = cannotDiff(old, new)
         if (cannotDiff.isNotEmpty()) return cannotDiff
         return Evolution.compare(old.schema!!, new.schema!!, rulebooks).diagnostics
     }

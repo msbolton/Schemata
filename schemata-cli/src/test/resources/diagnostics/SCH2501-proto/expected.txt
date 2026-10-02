@@ -1,5 +1,5 @@
 # diff=old,new targets=proto
-error[SCH2501]: proto: s.R.x: type changed from int32 to string breaks the wire types are incompatible
+error[SCH2501]: proto: s.R.x: type changed from int32 to string breaks decoding: the wire types differ
  --> new/s.schemata:2:12
   = help: add a new field instead of changing this one's type
 

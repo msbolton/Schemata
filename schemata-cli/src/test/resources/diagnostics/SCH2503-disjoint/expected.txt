@@ -1,0 +1,6 @@
+# diff=old,new
+error[SCH2503]: OLD and NEW share no namespace
+ --> new/b.schemata:1:1
+  = help: diff two versions of the same schema set
+
+1 error, 0 warnings

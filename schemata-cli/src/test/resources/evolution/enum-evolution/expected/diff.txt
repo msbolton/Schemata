@@ -1,7 +1,7 @@
 s.Status
   value 'paid' renamed to 'settled'    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible
-  @xsd(name) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
-  @jsonschema(name) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  value 'settled': @xsd(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  value 'settled': @jsonschema(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
   value 'refunded' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
   value 'cancelled' removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
   reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible

@@ -1,5 +1,5 @@
 # diff=old,new targets=jsonschema
-error[SCH2501]: jsonschema: s.R.x: the default was removed from a required field breaks old documents that omit it, which is now rejected by required
+error[SCH2501]: jsonschema: s.R.x: the default was removed from a non-null field breaks old documents that omit it: the property becomes required
  --> new/s.schemata:2:12
   = help: keep a default, or supply the field explicitly in every document
 
