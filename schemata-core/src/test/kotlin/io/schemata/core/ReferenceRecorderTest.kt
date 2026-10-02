@@ -124,4 +124,16 @@ class ReferenceRecorderTest {
         val events = record("a.schemata" to "namespace a\nrecord R { #1 a: Missing }")
         assertEquals(emptyList(), events)
     }
+
+    @Test
+    fun `the alias of a name whose type does not resolve is still recorded`() {
+        val events =
+            record(
+                customers,
+                "o.schemata" to
+                    "namespace shop.orders\nimport shop.customers as cust\n" +
+                        "record Order { #1 who: cust.Missing }",
+            )
+        assertEquals(listOf("alias o.schemata:3:24-27 -> shop.customers"), events)
+    }
 }
