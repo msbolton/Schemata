@@ -116,4 +116,10 @@ class NativeImageTest {
             )
         }
     }
+
+    @Test
+    fun `the language server serves a session from the native binary`() {
+        ready()
+        runLspSession(listOf(binary!!.path), examples)
+    }
 }

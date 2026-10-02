@@ -23,3 +23,24 @@ jobs:
           name: schemata-jar
           path: schemata-cli/build/libs/schemata-[0-9]*.jar
           if-no-files-found: error
+
+  native:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm'
+      - uses: gradle/actions/setup-gradle@v4
+      # The GraalVM plugin's resource-config task cannot be configuration-cached.
+      - name: Build the jar and the binary
+        run: ./gradlew :schemata-cli:shadowJar :schemata-cli:nativeCompile --no-daemon --no-configuration-cache
+      - name: Verify the binary against the jar
+        run: |
+          ./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' \
+            -Pschemata.nativeBinary=schemata-cli/build/native/nativeCompile/schemata \
+            --no-daemon --no-configuration-cache
