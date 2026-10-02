@@ -5,6 +5,7 @@ import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
@@ -166,6 +167,43 @@ class RulebookRowsTest {
             row("compatible", "compatible", "breaking", "compatible"),
             row(ns(old), ns(new)),
         )
+    }
+
+    @Test
+    fun `an xsd name override that keeps the root element's snake-case name is compatible`() {
+        val old = record("s", "OrderLine", field(1, "a"))
+        val same = record("s", "OrderLine", field(1, "a"), annotations = xsdName("order_line"))
+        val cased = record("s", "OrderLine", field(1, "a"), annotations = xsdName("OrderLine"))
+        assertEquals(
+            row("compatible", "compatible", "compatible", "compatible"),
+            row(ns(old), ns(same)),
+        )
+        assertEquals(
+            row("compatible", "compatible", "breaking", "compatible"),
+            row(ns(old), ns(cased)),
+        )
+    }
+
+    @Test
+    fun `a decimal widened inside a list or map value is compatible everywhere`() {
+        fun money(precision: Int) =
+            Scalar(Builtin.DECIMAL, Refinements(precision = precision, scale = 2))
+        val old =
+            record(
+                "s",
+                "R",
+                field(1, "amounts", ListOf(money(10), false)),
+                field(2, "byKey", MapOf(Scalar(Builtin.STRING), money(10), false)),
+            )
+        val new =
+            record(
+                "s",
+                "R",
+                field(1, "amounts", ListOf(money(12), false)),
+                field(2, "byKey", MapOf(Scalar(Builtin.STRING), money(12), false)),
+            )
+        val compatible = row("compatible", "compatible", "compatible", "compatible")
+        assertEquals(compatible.mapValues { listOf(it.value, it.value) }, judged(ns(old), ns(new)))
     }
 
     @Test

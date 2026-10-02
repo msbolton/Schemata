@@ -903,7 +903,8 @@ namespace at all, since that is two unrelated schema sets rather than two versio
   trailer says so (`note: ordinals are implicit in 2 declarations; run check --strict`).
 - A field, value, or member that keeps its name but moves to a new ordinal is a removal of the old
   ordinal and an addition of the new one, on every target — even Postgres, XSD, and JSON Schema,
-  which never emit ordinals, so the move reads as breaking there. Keep an ordinal once published.
+  which never emit ordinals and so judge the move by those two changes, not as a rename. Keep an
+  ordinal once published.
 - A rename is a change of name under the same ordinal. The name a target actually writes (its
   "emitted name") follows that target's own override — `@proto(name)`, `@sql(column | table |
   schema)`, `@xsd(name)`, or `@jsonschema(name)` — so a rename pinned by an override is compatible
@@ -1035,4 +1036,5 @@ change, and only as a note: proto keys the wire format by ordinal, so old and ne
 decode into each other, but the JSON mapping Protobuf derives from the field name moves. Pinning
 proto too (`@proto(name = "note")`, as the warning's help says) would make every target compatible.
 The pins need not predate the rename: added in the same change, each target still compares the
-name the old field emitted with the name the new one emits, and both are `note`.
+name the old field emitted with the name the new one emits, and both are the name `note`, so
+every target reads the rename as compatible.

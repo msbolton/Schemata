@@ -135,7 +135,7 @@ internal class StructuralTypeVerdict(
             from is Ref && to is Ref -> refVerdict(from, to)
             from is ListOf && to is ListOf ->
                 if (
-                    typeCore(from.element) == typeCore(to.element) &&
+                    elementCompatible(from.element, to.element) &&
                         (!from.nullableElement || to.nullableElement)
                 )
                     Verdict.Compatible
@@ -144,12 +144,16 @@ internal class StructuralTypeVerdict(
                 when {
                     typeCore(from.key) != typeCore(to.key) ->
                         Verdict.Breaking("$holders: entries are keyed by the old key type", help)
-                    typeCore(from.value) == typeCore(to.value) &&
+                    elementCompatible(from.value, to.value) &&
                         (!from.nullableValue || to.nullableValue) -> Verdict.Compatible
                     else -> Verdict.Breaking("$holders: $incompatible", help)
                 }
             else -> Verdict.Breaking("$holders: $incompatible", help)
         }
+
+    /** An element or value keeps its type, or widens by the same rules as a top-level field. */
+    private fun elementCompatible(from: Type, to: Type): Boolean =
+        typeCore(from) == typeCore(to) || shapeVerdict(from, to) is Verdict.Compatible
 }
 
 /**

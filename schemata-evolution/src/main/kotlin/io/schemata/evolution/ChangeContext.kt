@@ -88,10 +88,17 @@ class ChangeContext(val old: Schema, val new: Schema) {
                         ?: owner.namespace.name.substringAfterLast('.')
                 else owner.namespace.name
             is DeclarationOwner ->
-                if (target == "sql")
-                    owner.decl.annotations.string("sql", "table")
-                        ?: Names.snakeCase(owner.decl.name)
-                else owner.decl.annotations.string(target, "name") ?: owner.decl.name
+                when {
+                    target == "sql" ->
+                        owner.decl.annotations.string("sql", "table")
+                            ?: Names.snakeCase(owner.decl.name)
+                    // XSD names a record's global element in lower snake unless overridden,
+                    // and that element is what old root documents address.
+                    target == "xsd" && owner.decl is RecordType ->
+                        owner.decl.annotations.string("xsd", "name")
+                            ?: Names.snakeCase(owner.decl.name)
+                    else -> owner.decl.annotations.string(target, "name") ?: owner.decl.name
+                }
             is FieldOwner -> emittedFieldName(target, owner.field)
             is EnumValueOwner -> emittedValueName(target, owner.value)
             is UnionMemberOwner -> "#${owner.member.ordinal}"

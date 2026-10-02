@@ -299,7 +299,7 @@ class InstanceRules(
 
     /** `@xsd(attribute)` added or removed always changes how the element is serialized. */
     private fun attributeChanged(change: AnnotationChanged): Verdict {
-        val name = change.path.substringAfterLast(".")
+        val name = (change.newOwner as? FieldOwner)?.field?.name ?: change.path
         val becomesAttribute = change.to != null
         val what =
             if (becomesAttribute) "element '$name' becomes an attribute"
