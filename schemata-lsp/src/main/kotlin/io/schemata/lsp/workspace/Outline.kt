@@ -31,16 +31,23 @@ internal fun outline(snapshot: Snapshot): List<OutlineNode> {
     fun node(decl: Declaration): OutlineNode {
         val children =
             when (decl) {
-                is RecordDecl ->
-                    decl.fields.map {
-                        OutlineNode(
-                            it.name,
-                            OutlineKind.FIELD,
-                            lines.range(it.span),
-                            lines.range(it.nameSpan),
-                            emptyList(),
-                        )
-                    } + decl.nested.map(::node)
+                is RecordDecl -> {
+                    val fields =
+                        decl.fields.map {
+                            it.span to
+                                OutlineNode(
+                                    it.name,
+                                    OutlineKind.FIELD,
+                                    lines.range(it.span),
+                                    lines.range(it.nameSpan),
+                                    emptyList(),
+                                )
+                        }
+                    // Fields and nested declarations interleave in the source; keep that order.
+                    (fields + decl.nested.map { it.span to node(it) })
+                        .sortedWith(compareBy({ it.first.startLine }, { it.first.startColumn }))
+                        .map { it.second }
+                }
                 is EnumDecl ->
                     decl.values.map {
                         OutlineNode(

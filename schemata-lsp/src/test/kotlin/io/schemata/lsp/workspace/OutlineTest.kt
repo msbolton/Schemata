@@ -41,6 +41,21 @@ class OutlineTest {
     }
 
     @Test
+    fun `a record's fields and nested declarations appear in source order`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "namespace shop\nrecord Order {\n  record Line { #1 sku: string }\n" +
+                    "  #1 lines: list<Line>\n  enum Kind { #1 retail }\n  #2 kind: Kind\n}\n",
+            )
+        assertEquals(
+            listOf("Line", "lines", "Kind", "kind"),
+            f.queries.symbols(a).single().children.single().children.map { it.name },
+        )
+    }
+
+    @Test
     fun `every node's selection is its name and lies inside its range`() {
         val f = Fixture(dir)
         val a = f.open("shop/a.schemata", text)
