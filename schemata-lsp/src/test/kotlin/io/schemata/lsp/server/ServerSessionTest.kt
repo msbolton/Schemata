@@ -423,7 +423,7 @@ class ServerSessionTest {
     }
 
     @Test
-    fun `a request whose handler fails is logged with its stack and answered empty`() {
+    fun `a handler failure is logged with its stack and the server keeps answering`() {
         // Deep enough that parsing it overflows the stack: the server reads it from disk while it
         // analyses the set, inside the request.
         val depth = 20_000
@@ -438,16 +438,38 @@ class ServerSessionTest {
         val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
         session().use { session ->
             session.open(a, a.toFile().readText())
-            val hover =
+            // The failure surfaces in whichever analysis runs first: this request's, or the one
+            // the pause after didOpen schedules. Either way it is logged before the answer arrives.
+            wait(
+                session.server.textDocumentService.hover(
+                    HoverParams(id(session, a), Position(2, 8))
+                )
+            )
+            val logged = session.logged()
+            assertTrue(logged.isNotEmpty())
+            assertTrue(logged.all { it.contains("StackOverflowError") }, logged.first().take(200))
+            assertTrue(logged.all { it.contains("\tat ") }, logged.first().take(200))
+            val symbols =
                 wait(
-                    session.server.textDocumentService.hover(
-                        HoverParams(id(session, a), Position(2, 8))
+                    session.server.textDocumentService.documentSymbol(
+                        DocumentSymbolParams(id(session, a))
                     )
                 )
-            assertNull(hover)
-            val logged = session.logged().single()
-            assertTrue(logged.contains("StackOverflowError"), logged.take(200))
-            assertTrue(logged.contains("\tat "), logged.take(200))
+            assertEquals(listOf("m"), symbols.map { it.right.name })
+        }
+    }
+
+    @Test
+    fun `a reopened file is published again even when nothing changed`() {
+        val text = "namespace m\n\nrecord R { #1 x: Missing }\n"
+        val a = write("m/a.schemata", text)
+        session().use { session ->
+            session.open(a, text)
+            session.diagnostics(a) { it.isNotEmpty() }
+            val before = session.publishCount(a)
+            session.close(a)
+            session.open(a, text)
+            session.diagnostics(a) { session.publishCount(a) > before && it.isNotEmpty() }
         }
     }
 

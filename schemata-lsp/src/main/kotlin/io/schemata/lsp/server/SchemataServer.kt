@@ -192,7 +192,11 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
     private fun uriOf(path: String): String = uris[path] ?: Uris.toUri(path)
 
     override fun didOpen(params: DidOpenTextDocumentParams) = notify {
-        path(params.textDocument.uri)?.let { touch(workspace.open(it, params.textDocument.text)) }
+        path(params.textDocument.uri)?.let {
+            // An editor may have dropped a closed file's diagnostics; send them again on reopen.
+            published.remove(it)
+            touch(workspace.open(it, params.textDocument.text))
+        }
     }
 
     override fun didChange(params: DidChangeTextDocumentParams) = notify {
