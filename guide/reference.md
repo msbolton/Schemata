@@ -889,7 +889,8 @@ change. Exit codes match `compile` and `check`: `0` when no selected verdict is 
 (including when there are no changes at all, printed as `no changes`), `2` when there is a note and
 no break, `1` when any break. `--format json` prints one document on stdout, for CI; a human report
 goes to stderr, the same as `check`. When a side does not parse or analyze cleanly, `diff` reports
-`SCH2503` for that side instead of comparing anything.
+`SCH2503` for that side instead of comparing anything; it does the same when the two sides share no
+namespace at all, since that is two unrelated schema sets rather than two versions of one.
 
 ### Identity
 
@@ -899,7 +900,10 @@ goes to stderr, the same as `check`. When a side does not parse or analyze clean
   instead, so reordering a field, value, or member without numbering it reads as a rename and a
   type change; number a schema (`check --strict` reports every implicit ordinal) before relying on
   `diff`. When a compared declaration still carries an implicit ordinal on either side, the report's
-  trailer says so.
+  trailer says so (`note: ordinals are implicit in 2 declarations; run check --strict`).
+- A field, value, or member that keeps its name but moves to a new ordinal is a removal of the old
+  ordinal and an addition of the new one, on every target — even Postgres, XSD, and JSON Schema,
+  which never emit ordinals, so the move reads as breaking there. Keep an ordinal once published.
 - A rename is a change of name under the same ordinal. The name a target actually writes (its
   "emitted name") follows that target's own override — `@proto(name)`, `@sql(column | table |
   schema)`, `@xsd(name)`, or `@jsonschema(name)` — so a rename pinned by an override is compatible
@@ -921,14 +925,15 @@ override, so a pinned rename is a doc-level change only.
 | Field removed (any) | compatible on the wire; note when the ordinal or name is not reserved in NEW | breaking (data loss) | breaking (old instances carry an unknown element) | breaking on a closed record; compatible under `@jsonschema(open)` |
 | Field renamed, emitted name changes | compatible; note (the JSON mapping uses names) | breaking | breaking | breaking |
 | Field renamed, emitted name pinned | compatible | compatible | compatible | compatible |
-| Scalar type changed | compatible for `int32`↔`int64`, `string`↔`bytes`, enum↔`int32`; breaking otherwise | compatible for `int32`→`int64`, `float32`→`float64`, a wider `string(max)`, `decimal` to a wider precision at the same scale; breaking otherwise | compatible when every OLD value is valid for NEW (`int32`→`int64`, a wider length or range); breaking otherwise | as XSD, on the JSON forms (`decimal` scale change breaks the pattern) |
+| Scalar type changed | compatible for `int32`↔`int64`, `string`→`bytes`, enum↔`int32`; note for `bytes`→`string` (old values must be valid UTF-8); breaking otherwise | compatible for `int32`→`int64`, `float32`→`float64`, a wider `string(max)`, `decimal` to a wider precision at the same scale; breaking otherwise | compatible when every OLD value is valid for NEW (`int32`→`int64`, a wider length or range); breaking otherwise | as XSD, on the JSON forms (`decimal` scale change breaks the pattern) |
 | Scalar ↔ record, list, map, or union; record ↔ union; key type of a map | breaking | breaking | breaking | breaking |
 | Nullable → non-null, no default | compatible; note | breaking | breaking | breaking |
+| Nullable → non-null, with default | compatible; note (default not carried) | breaking (existing NULL rows) | compatible (the element keeps `minOccurs = 0`) | breaking (old documents may carry `null`) |
 | Non-null → nullable | compatible | compatible | compatible | compatible |
 | Refinement tightened (`max` lower, `min` higher, `pattern` changed, list bounds tightened) | note (not carried) | breaking | breaking | breaking |
 | Refinement loosened | compatible | compatible | compatible | compatible |
 | Default added or changed | note (not carried) | compatible | note (applied to empty elements only) | compatible |
-| Default removed from a non-null field | note | breaking (inserts omitting the column fail) | compatible | breaking (`required`) |
+| Default removed from a non-null field | note | breaking (inserts omitting the column fail) | breaking (the element becomes `minOccurs = 1`, or the attribute `required`) | breaking (`required`) |
 | Enum value added | compatible | compatible | compatible | compatible |
 | Enum value removed | breaking unless reserved, then note | breaking | breaking | breaking |
 | Enum value renamed, emitted name changes | compatible | breaking | breaking | breaking |
@@ -937,8 +942,13 @@ override, so a pinned rename is a doc-level change only.
 | Declaration removed | note | breaking when it had a table | breaking when it had a root element, else note | breaking (every def is addressable) |
 | Declaration added | compatible | compatible | compatible | compatible |
 | Declaration kind changed | breaking | breaking | breaking | breaking |
+| Namespace removed | as its declarations removed one by one: note | breaking when any had a table | breaking when any had a root element, else note | breaking when it had declarations |
+| `@xsd(name)` / `@jsonschema(name)` changed on a declaration | compatible | compatible | breaking when the record had a root element, else note / compatible | compatible / breaking (the `$defs` key changes) |
 | `@sql(key)` added, removed, or moved | compatible | breaking | compatible | compatible |
 | `@sql(strategy)` changed | compatible | breaking | compatible | compatible |
+| `@sql(unique)` added | compatible | breaking (existing duplicate rows) | compatible | compatible |
+| `@sql(unique)` removed, `@sql(index)` changed | compatible | compatible | compatible | compatible |
+| `@sql(type)` changed | compatible | breaking | compatible | compatible |
 | `@proto(package)` / `@xsd(namespace)` / `@jsonschema(id)` changed | breaking / compatible / compatible | compatible | compatible / breaking / compatible | compatible / compatible / breaking |
 | `@xsd(attribute)` added or removed on a field | compatible | compatible | breaking (an element becomes an attribute or back) | compatible |
 | `@xsd(root = false)` added to a record that had a root element | compatible | compatible | breaking (old root documents no longer validate) | compatible |
@@ -953,21 +963,27 @@ override, so a pinned rename is a doc-level change only.
 `list<T>` → `list<T?>` is compatible everywhere; the reverse is a nullability tightening on the
 element.
 
-`reserved` changes how a removal reads on proto only: removing a field or enum value is compatible
-on the wire regardless, but reported as a note unless the removed ordinal and name are both still
-`reserved` in NEW — reserve both to clear the note, since a reserved number or name can no longer be
-handed to something else by accident. `@deprecated` never changes a verdict on any target; the only
-place it shows up is the JSON report, as `deprecatedInOld` on the change.
+`reserved` changes how a removal reads on proto only. Removing a field is compatible on the wire
+regardless, but reported as a note unless the removed ordinal and name are both still `reserved` in
+NEW — reserve both to clear the note, since a reserved number or name can no longer be handed to
+something else by accident. Removing an enum value is breaking unless both are reserved, and then a
+note, since old senders can still send the value. `@deprecated` never changes a verdict on any
+target; it shapes the report instead: a change to something OLD had deprecated reads `deprecated
+field 'created' removed` (or renamed, retyped, and so on) in the human report, and carries
+`deprecatedInOld` in the JSON one.
 
 ### Reporting
 
-A human report groups changes under the declaration they belong to, one line per change, followed
-by a verdict per target (`proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking`);
-every note and break also renders as its own diagnostic, with the rulebook's message and help and
-the changed side's excerpt. A trailer gives the total change count and a `breaking`/`note` count per
-selected target. A JSON report holds one entry per change (`kind`, `path`, `old`, `new`, `file`,
-`line`, `deprecatedInOld`, and a `verdicts` object keyed by target), a `summary` per target, and the
-`exitCode`.
+A human report groups changes under the declaration (or namespace) they belong to, one line per
+change, followed by a verdict per target (`proto: compatible, sql: breaking, xsd: breaking,
+jsonschema: breaking`). An annotation, doc, or deprecation change on a member names the member
+first (`field 'id': @sql(key) removed`). Every note and break also renders as its own diagnostic,
+with the rulebook's message and help and the changed side's excerpt. A trailer gives the total
+change count and a `breaking`/`note` count per selected target. A JSON report holds one entry per
+change (`kind`, `path`, `old`, `new`, `file`, `line`, `deprecatedInOld`, and a `verdicts` object
+keyed by target), a `summary` per target, and the `exitCode`. When the sides cannot be compared
+(`SCH2503`), the JSON report keeps that shape — `changes` empty, every `summary` count zero,
+`exitCode` 1 — and adds an `errors` array, one `{code, message, help, file, line}` per reason.
 
 ### Worked example
 
@@ -1018,3 +1034,5 @@ what those three targets emit, so only proto — the one target left unpinned �
 change, and only as a note: proto keys the wire format by ordinal, so old and new messages still
 decode into each other, but the JSON mapping Protobuf derives from the field name moves. Pinning
 proto too (`@proto(name = "note")`, as the warning's help says) would make every target compatible.
+The pins need not predate the rename: added in the same change, each target still compares the
+name the old field emitted with the name the new one emits, and both are `note`.
