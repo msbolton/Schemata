@@ -11,11 +11,14 @@ import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.test.fail
+import org.eclipse.lsp4j.ClientCapabilities
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
+import org.eclipse.lsp4j.DidChangeWatchedFilesCapabilities
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
 import org.eclipse.lsp4j.DidCloseTextDocumentParams
 import org.eclipse.lsp4j.DidOpenTextDocumentParams
+import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.FileChangeType
 import org.eclipse.lsp4j.FileEvent
 import org.eclipse.lsp4j.InitializeParams
@@ -30,6 +33,7 @@ import org.eclipse.lsp4j.TextDocumentContentChangeEvent
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.TextDocumentItem
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
+import org.eclipse.lsp4j.WorkspaceClientCapabilities
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -50,6 +54,7 @@ private constructor(
         val changed: Condition = lock.newCondition()
         val published = mutableMapOf<String, MutableList<List<Diagnostic>>>()
         val logged = mutableListOf<String>()
+        val registered = mutableListOf<String>()
 
         override fun publishDiagnostics(params: PublishDiagnosticsParams) {
             lock.withLock {
@@ -70,8 +75,10 @@ private constructor(
             params: ShowMessageRequestParams
         ): CompletableFuture<MessageActionItem> = CompletableFuture.completedFuture(null)
 
-        override fun registerCapability(params: RegistrationParams): CompletableFuture<Void> =
-            CompletableFuture.completedFuture(null)
+        override fun registerCapability(params: RegistrationParams): CompletableFuture<Void> {
+            lock.withLock { registered += params.registrations.map { it.method } }
+            return CompletableFuture.completedFuture(null)
+        }
     }
 
     private val client = Client()
@@ -86,12 +93,22 @@ private constructor(
 
     fun uri(path: Path): String = path.toAbsolutePath().normalize().toUri().toString()
 
-    /** Sends initialize and initialized; [options] become the initialization options. */
+    /**
+     * Sends initialize and initialized; [options] become the initialization options. The session
+     * says it can register a file watcher, as VS Code does.
+     */
     fun initialize(root: Path, options: Map<String, Any?> = emptyMap()): InitializeResult {
         val params =
             InitializeParams().apply {
                 workspaceFolders = listOf(WorkspaceFolder(uri(root), root.fileName.toString()))
                 initializationOptions = options
+                capabilities =
+                    ClientCapabilities().apply {
+                        workspace =
+                            WorkspaceClientCapabilities().apply {
+                                didChangeWatchedFiles = DidChangeWatchedFilesCapabilities(true)
+                            }
+                    }
             }
         val result = server.initialize(params).get(30, TimeUnit.SECONDS)
         server.initialized(InitializedParams())
@@ -139,6 +156,24 @@ private constructor(
 
     /** Everything the server has logged to the client. */
     fun logged(): List<String> = client.lock.withLock { client.logged.toList() }
+
+    /** The method of every capability the server has registered, such as a file watcher. */
+    fun registrations(): List<String> = client.lock.withLock { client.registered.toList() }
+
+    /**
+     * Asks the server for [path]'s outline and waits for the answer. The server publishes whatever
+     * the file's set was waiting to publish before it answers, and the session reads messages in
+     * order, so afterwards the latest publish of every file in the set is the current one.
+     */
+    fun settle(path: Path) {
+        server.textDocumentService
+            .documentSymbol(DocumentSymbolParams(TextDocumentIdentifier(uri(path))))
+            .get(10, TimeUnit.SECONDS)
+    }
+
+    /** The latest diagnostics published for [path], or null if none have been. */
+    fun latest(path: Path): List<Diagnostic>? =
+        client.lock.withLock { client.published[uri(path)]?.lastOrNull() }
 
     /**
      * Waits until the latest publish for [path] satisfies [until] and returns it; fails after ten

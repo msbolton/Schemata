@@ -20,6 +20,7 @@ import java.util.concurrent.Future
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import org.eclipse.lsp4j.DefinitionParams
+import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
@@ -75,7 +76,7 @@ import org.eclipse.lsp4j.services.WorkspaceService
  * The protocol face of the workspace. Every notification and request runs on one thread, in arrival
  * order, so the workspace never sees two callers at once. An edit schedules its set's diagnostics
  * after a short pause; a request that arrives during the pause publishes first, so it answers from
- * the text the editor already holds.
+ * the text the editor already holds. Only files whose diagnostics changed are published again.
  */
 class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) -> Unit) :
     LanguageServer, LanguageClientAware, TextDocumentService, WorkspaceService {
@@ -89,10 +90,15 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
 
     /** The URI the editor used for each path, so publishes name files the way it does. */
     private val uris = mutableMapOf<String, String>()
+
+    /** What was last published for each path; a publish goes out only when it differs. */
+    private val published = mutableMapOf<String, List<Diagnostic>>()
     private var client: LanguageClient? = null
     private var folder: Path? = null
     private var watchFiles = false
-    private var shutdownRequested = false
+    private var roots: List<String> = emptyList()
+    private var strict = false
+    @Volatile private var shutdownRequested = false
 
     override fun connect(client: LanguageClient) {
         this.client = client
@@ -106,13 +112,12 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
 
     override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> =
         request(InitializeResult(ServerCapabilities())) {
-            folder =
-                params.workspaceFolders?.firstOrNull()?.uri?.let(Uris::toPath)?.let {
-                    Paths.get(it)
-                }
+            @Suppress("DEPRECATION")
+            val uri = params.workspaceFolders?.firstOrNull()?.uri ?: params.rootUri
+            folder = uri?.let(Uris::toPath)?.let { Paths.get(it) }
             watchFiles =
                 params.capabilities?.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
-            configure(params.initializationOptions)
+            configure(params.initializationOptions as? JsonObject)
             val capabilities =
                 ServerCapabilities().apply {
                     setTextDocumentSync(TextDocumentSyncKind.Full)
@@ -142,10 +147,11 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         }
     }
 
-    override fun shutdown(): CompletableFuture<Any> =
-        request<Any>(Unit) {
+    override fun shutdown(): CompletableFuture<Any?> =
+        request(null) {
+            cancelPending()
             shutdownRequested = true
-            Unit
+            null
         }
 
     override fun exit() {
@@ -153,19 +159,27 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         onExit(if (shutdownRequested) 0 else 1)
     }
 
-    /** `{"roots": ["model"], "strict": true}`; anything missing or of the wrong type is ignored. */
-    private fun configure(options: Any?) {
-        val json = options as? JsonObject
-        val roots =
-            json?.get("roots")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { text(it) }
-                ?: emptyList()
-        val strict =
-            json
-                ?.get("strict")
-                ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
-                ?.asBoolean ?: false
+    /**
+     * `{"roots": ["model"], "strict": true}`; a key that is missing or of the wrong type keeps its
+     * current value. A relative root resolves against the workspace folder, and is ignored when
+     * there is none.
+     */
+    private fun configure(options: JsonObject?) {
+        options
+            ?.get("roots")
+            ?.takeIf { it.isJsonArray }
+            ?.let { roots = it.asJsonArray.mapNotNull(::text) }
+        options
+            ?.get("strict")
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
+            ?.let { strict = it.asBoolean }
         val base = folder
-        workspace.configure(roots.map { base?.resolve(it) ?: Paths.get(it) }, strict)
+        val paths =
+            roots.mapNotNull { root ->
+                val path = Paths.get(root)
+                if (path.isAbsolute) path else base?.resolve(path)
+            }
+        workspace.configure(paths, strict)
     }
 
     private fun text(element: JsonElement): String? =
@@ -199,11 +213,22 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         }
     }
 
+    /**
+     * Settings without a `schemata` section change nothing. A file that was published with
+     * diagnostics and is in none of the sets published afterwards is cleared, since nothing would
+     * publish it again.
+     */
     override fun didChangeConfiguration(params: DidChangeConfigurationParams) = notify {
-        val settings = params.settings as? JsonObject
-        val section = settings?.get("schemata")?.takeIf { it.isJsonObject } ?: settings
+        val section =
+            (params.settings as? JsonObject)?.get("schemata") as? JsonObject ?: return@notify
+        cancelPending()
         configure(section)
-        workspace.openSets().forEach(::publish)
+        val members = workspace.openSets().flatMap(::publish).toSet()
+        published
+            .filter { (path, diagnostics) -> diagnostics.isNotEmpty() && path !in members }
+            .keys
+            .toList()
+            .forEach { send(it, emptyList()) }
     }
 
     // ---- diagnostics --------------------------------------------------------------------------
@@ -232,7 +257,13 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         }
     }
 
-    private fun publish(key: SetKey) {
+    private fun cancelPending() {
+        pending.values.forEach { it.cancel(false) }
+        pending.clear()
+    }
+
+    /** Publishes what changed in [key]'s diagnostics and returns the set's members. */
+    private fun publish(key: SetKey): List<String> {
         val analysis = workspace.analysis(key)
         analysis.members.forEach { document ->
             // Syntax errors point into the current text; everything else into the snapshot, which
@@ -241,13 +272,19 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
                 if (document.broken) LineIndex(document.text)
                 else document.snapshot?.lines ?: LineIndex(document.text)
             val diagnostics = analysis.diagnostics[document.path] ?: emptyList()
-            client?.publishDiagnostics(
-                PublishDiagnosticsParams(uriOf(document.path), diagnostics.map { it.toLsp(lines) })
-            )
+            send(document.path, diagnostics.map { it.toLsp(lines) })
         }
         analysis.gone.forEach {
+            published.remove(it)
             client?.publishDiagnostics(PublishDiagnosticsParams(uriOf(it), emptyList()))
         }
+        return analysis.members.map { it.path }
+    }
+
+    private fun send(path: String, diagnostics: List<Diagnostic>) {
+        if (published[path] == diagnostics) return
+        published[path] = diagnostics
+        client?.publishDiagnostics(PublishDiagnosticsParams(uriOf(path), diagnostics))
     }
 
     // ---- requests -----------------------------------------------------------------------------
@@ -328,10 +365,13 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         params: DocumentFormattingParams
     ): CompletableFuture<MutableList<out TextEdit>> =
         request(mutableListOf()) {
-            val document = current(params.textDocument.uri)?.let(workspace::document)
+            // The text alone decides the edit, so this does not wait for the set's diagnostics.
+            val document = path(params.textDocument.uri)?.let(workspace::document)
             val formatted =
                 document?.let { Formatter.format(it.text, it.path) as? FormatResult.Formatted }
-            if (document == null || formatted == null || formatted.text == document.text) {
+            // The formatter writes `\n`; line endings alone are left to the editor.
+            val same = formatted?.text == document?.text?.replace("\r\n", "\n")
+            if (document == null || formatted == null || same) {
                 mutableListOf()
             } else {
                 val whole = Range(Position(0, 0), LineIndex(document.text).end().toLsp())
@@ -344,15 +384,27 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
     private fun refuse(message: String): Nothing =
         throw ResponseErrorException(ResponseError(ResponseErrorCode.RequestFailed, message, null))
 
-    /** Runs [body] on the server's thread; a failure is logged and answered with [fallback]. */
+    /**
+     * Runs [body] on the server's thread; a failure is logged and answered with [fallback]. After
+     * shutdown every request is invalid.
+     */
     private fun <T> request(fallback: T, body: () -> T): CompletableFuture<T> =
         CompletableFuture.supplyAsync(
             {
+                if (shutdownRequested) {
+                    throw ResponseErrorException(
+                        ResponseError(
+                            ResponseErrorCode.InvalidRequest,
+                            "the server is shutting down",
+                            null,
+                        )
+                    )
+                }
                 try {
                     body()
                 } catch (e: ResponseErrorException) {
                     throw e
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     log(e)
                     fallback
                 }
@@ -360,22 +412,25 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
             executor,
         )
 
+    /** Runs [body] on the server's thread, unless the server is shutting down. */
     private fun notify(body: () -> Unit) {
-        executor.execute { guarded(body) }
+        executor.execute { if (!shutdownRequested) guarded(body) }
     }
 
+    /**
+     * A failure is logged, whatever it is: on the executor, an uncaught error such as a stack
+     * overflow would vanish into a future nobody reads.
+     */
     private fun guarded(body: () -> Unit) {
         try {
             body()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             log(e)
         }
     }
 
-    private fun log(e: Exception) {
-        client?.logMessage(
-            MessageParams(MessageType.Error, "schemata: ${e::class.simpleName}: ${e.message}")
-        )
+    private fun log(e: Throwable) {
+        client?.logMessage(MessageParams(MessageType.Error, "schemata: ${e.stackTraceToString()}"))
     }
 
     companion object {
@@ -390,11 +445,34 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
             output: OutputStream,
             annotations: AnnotationRegistry,
             onExit: (Int) -> Unit,
-        ): Future<Void> {
+        ): Future<Void> = start(input, output, annotations, onExit).second
+
+        /**
+         * Serves one client on the given streams until the input ends, and returns the exit code: 0
+         * when the client asked for shutdown first, 1 otherwise. [onExit] receives the same code
+         * when the client sends exit.
+         */
+        fun serve(
+            input: InputStream,
+            output: OutputStream,
+            annotations: AnnotationRegistry,
+            onExit: (Int) -> Unit,
+        ): Int {
+            val (server, listening) = start(input, output, annotations, onExit)
+            listening.get()
+            return if (server.shutdownRequested) 0 else 1
+        }
+
+        private fun start(
+            input: InputStream,
+            output: OutputStream,
+            annotations: AnnotationRegistry,
+            onExit: (Int) -> Unit,
+        ): Pair<SchemataServer, Future<Void>> {
             val server = SchemataServer(annotations, onExit)
             val launcher = LSPLauncher.createServerLauncher(server, input, output)
             server.connect(launcher.remoteProxy)
-            return launcher.startListening()
+            return server to launcher.startListening()
         }
     }
 }

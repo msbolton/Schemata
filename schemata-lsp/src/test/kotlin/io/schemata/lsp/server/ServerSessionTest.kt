@@ -1,10 +1,15 @@
 package io.schemata.lsp.server
 
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
 import io.schemata.testkit.LspSession
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
 import java.nio.file.Path
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.createDirectories
@@ -17,20 +22,30 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DiagnosticSeverity
+import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DocumentFormattingParams
 import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.FileChangeType
 import org.eclipse.lsp4j.FormattingOptions
 import org.eclipse.lsp4j.HoverParams
+import org.eclipse.lsp4j.InitializeParams
+import org.eclipse.lsp4j.InitializedParams
+import org.eclipse.lsp4j.MessageActionItem
+import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceContext
 import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.RenameParams
+import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode
+import org.eclipse.lsp4j.launch.LSPLauncher
+import org.eclipse.lsp4j.services.LanguageClient
 import org.junit.jupiter.api.io.TempDir
 
 class ServerSessionTest {
@@ -56,8 +71,7 @@ class ServerSessionTest {
         return session
     }
 
-    private fun <T> wait(future: java.util.concurrent.CompletableFuture<T>): T =
-        future.get(10, TimeUnit.SECONDS)
+    private fun <T> wait(future: CompletableFuture<T>): T = future.get(10, TimeUnit.SECONDS)
 
     private fun id(session: LspSession, path: Path) = TextDocumentIdentifier(session.uri(path))
 
@@ -115,10 +129,10 @@ class ServerSessionTest {
             session.open(c, customers)
             session.open(o, orders)
             session.diagnostics(o) { it.isEmpty() }
-            val before = session.publishCount(o)
             session.change(c, "namespace shop.customers\n\nrecord Customer {")
             session.diagnostics(c) { it.isNotEmpty() }
-            session.diagnostics(o) { session.publishCount(o) > before && it.isEmpty() }
+            session.settle(o)
+            assertEquals(emptyList(), session.latest(o))
         }
     }
 
@@ -212,6 +226,8 @@ class ServerSessionTest {
             assertEquals(emptyList(), wait(service.formatting(params)))
             session.change(a, "namespace m\nrecord R {")
             assertEquals(emptyList(), wait(service.formatting(params)))
+            session.change(a, formatted.replace("\n", "\r\n"))
+            assertEquals(emptyList(), wait(service.formatting(params)))
         }
     }
 
@@ -269,6 +285,210 @@ class ServerSessionTest {
             session.diagnostics(o) { it.isEmpty() }
             session.diagnostics(c) { it.isEmpty() }
         }
+    }
+
+    @Test
+    fun `the server registers a watcher for schema files`() {
+        session().use { session ->
+            val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+            session.open(a, a.toFile().readText())
+            session.settle(a)
+            assertEquals(listOf("workspace/didChangeWatchedFiles"), session.registrations())
+        }
+    }
+
+    @Test
+    fun `an edit that leaves the diagnostics as they were publishes nothing`() {
+        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
+        session().use { session ->
+            session.open(a, a.toFile().readText())
+            session.diagnostics(a) { it.isNotEmpty() }
+            val before = session.publishCount(a)
+            session.change(a, "namespace m\n\nrecord R { #1 x: Missing }\n\n")
+            session.settle(a)
+            assertEquals(before, session.publishCount(a))
+            session.change(a, "namespace m\n\nrecord R { #1 x: int32 }\n")
+            session.diagnostics(a) { it.isEmpty() }
+        }
+    }
+
+    @Test
+    fun `a file closed and then deleted has its diagnostics cleared`() {
+        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
+        val b = write("m/b.schemata", "namespace m\n\nrecord S { #1 x: int32 }\n")
+        session().use { session ->
+            session.open(b, b.toFile().readText())
+            session.open(a, a.toFile().readText())
+            session.diagnostics(a) { it.isNotEmpty() }
+            a.deleteExisting()
+            session.close(a)
+            session.diagnostics(a) { it.isEmpty() }
+        }
+    }
+
+    @Test
+    fun `a closed file that leaves its set when the roots change has its diagnostics cleared`() {
+        val c = write("model/customers/c.schemata", "namespace c\n\nrecord C { #1 x: Nope }\n")
+        val o = write("model/orders/o.schemata", "namespace o\n\nrecord O { #1 x: int32 }\n")
+        session(mapOf("roots" to listOf("model"))).use { session ->
+            session.open(o, o.toFile().readText())
+            session.diagnostics(c) { it.isNotEmpty() }
+            configure(session, JsonObject().apply { add("schemata", roots()) })
+            session.diagnostics(c) { it.isEmpty() }
+        }
+    }
+
+    private fun roots(vararg roots: String) =
+        JsonObject().apply { add("roots", JsonArray().apply { roots.forEach(::add) }) }
+
+    private fun configure(session: LspSession, settings: JsonObject) {
+        session.server.workspaceService.didChangeConfiguration(
+            DidChangeConfigurationParams(settings)
+        )
+    }
+
+    @Test
+    fun `settings with no schemata section and a section with no strict keep strict on`() {
+        val a = write("m/a.schemata", "namespace m\n\nrecord R { x: int32 }\n")
+        session(mapOf("strict" to true)).use { session ->
+            session.open(a, a.toFile().readText())
+            session.diagnostics(a) { it.isNotEmpty() }
+            configure(session, JsonObject())
+            configure(session, JsonObject().apply { add("schemata", roots()) })
+            session.change(a, "namespace m\n\nrecord R { y: int32 }\n")
+            session.diagnostics(a) { it.isNotEmpty() && "'y'" in it.single().message }
+        }
+    }
+
+    @Test
+    fun `roots resolve against the root uri when the client sends no folders`() {
+        val c = write("model/customers/c.schemata", "namespace c\n\nrecord C { #1 x: Nope }\n")
+        val o = write("model/orders/o.schemata", "namespace o\n\nrecord O { #1 x: int32 }\n")
+        bare().use { session ->
+            initializeWithout(session, rootUri = session.uri(dir))
+            session.open(o, o.toFile().readText())
+            session.diagnostics(c) { it.isNotEmpty() }
+        }
+    }
+
+    @Test
+    fun `relative roots are ignored when there is no folder at all`() {
+        val c = write("model/customers/c.schemata", "namespace c\n\nrecord C { #1 x: Nope }\n")
+        val o = write("model/orders/o.schemata", "namespace o\n\nrecord O { #1 x: int32 }\n")
+        bare().use { session ->
+            initializeWithout(session, rootUri = null)
+            session.open(o, o.toFile().readText())
+            session.diagnostics(o) { it.isEmpty() }
+            session.settle(o)
+            assertEquals(0, session.publishCount(c))
+        }
+    }
+
+    private fun bare() =
+        LspSession.inProcess { input, output ->
+            SchemataServer.launch(input, output, AnnotationRegistry.CORE) {}
+        }
+
+    /** Initializes with `roots: ["model"]` and no workspace folders. */
+    private fun initializeWithout(session: LspSession, rootUri: String?) {
+        val params =
+            InitializeParams().apply {
+                @Suppress("DEPRECATION")
+                this.rootUri = rootUri
+                initializationOptions = mapOf("roots" to listOf("model"))
+            }
+        wait(session.server.initialize(params))
+        session.server.initialized(InitializedParams())
+    }
+
+    @Test
+    fun `shutdown answers null and a request after it is invalid`() {
+        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+        val session = bare()
+        session.initialize(dir)
+        session.open(a, a.toFile().readText())
+        assertNull(wait(session.server.shutdown()))
+        val failure =
+            assertFailsWith<ExecutionException> {
+                wait(
+                    session.server.textDocumentService.hover(
+                        HoverParams(id(session, a), Position(2, 8))
+                    )
+                )
+            }
+        val cause = failure.cause as ResponseErrorException
+        assertEquals(ResponseErrorCode.InvalidRequest.value, cause.responseError.code)
+        // Closing the session asks for shutdown again, which is a request after shutdown too.
+        assertFailsWith<ExecutionException> { session.close() }
+    }
+
+    @Test
+    fun `a request whose handler fails is logged with its stack and answered empty`() {
+        // Deep enough that parsing it overflows the stack: the server reads it from disk while it
+        // analyses the set, inside the request.
+        val depth = 20_000
+        write(
+            "m/deep.schemata",
+            "namespace m\n\nrecord D { #1 x: " +
+                "list<".repeat(depth) +
+                "int32" +
+                ">".repeat(depth) +
+                " }\n",
+        )
+        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+        session().use { session ->
+            session.open(a, a.toFile().readText())
+            val hover =
+                wait(
+                    session.server.textDocumentService.hover(
+                        HoverParams(id(session, a), Position(2, 8))
+                    )
+                )
+            assertNull(hover)
+            val logged = session.logged().single()
+            assertTrue(logged.contains("StackOverflowError"), logged.take(200))
+            assertTrue(logged.contains("\tat "), logged.take(200))
+        }
+    }
+
+    @Test
+    fun `serving ends with 1 when the input closes before shutdown and 0 after it`() {
+        assertEquals(1, serveUntilClosed(shutdownFirst = false))
+        assertEquals(0, serveUntilClosed(shutdownFirst = true))
+    }
+
+    private fun serveUntilClosed(shutdownFirst: Boolean): Int {
+        val code = CompletableFuture<Int>()
+        val serverIn = PipedInputStream(1 shl 16)
+        val clientOut = PipedOutputStream(serverIn)
+        val clientIn = PipedInputStream(1 shl 16)
+        val serverOut = PipedOutputStream(clientIn)
+        Thread {
+                code.complete(SchemataServer.serve(serverIn, serverOut, AnnotationRegistry.CORE) {})
+            }
+            .start()
+        val client =
+            LSPLauncher.createClientLauncher(
+                object : LanguageClient {
+                    override fun telemetryEvent(value: Any?) = Unit
+
+                    override fun publishDiagnostics(params: PublishDiagnosticsParams) = Unit
+
+                    override fun showMessage(params: MessageParams) = Unit
+
+                    override fun showMessageRequest(params: ShowMessageRequestParams) =
+                        CompletableFuture.completedFuture<MessageActionItem>(null)
+
+                    override fun logMessage(params: MessageParams) = Unit
+                },
+                clientIn,
+                clientOut,
+            )
+        client.startListening()
+        wait(client.remoteProxy.initialize(InitializeParams()))
+        if (shutdownFirst) wait(client.remoteProxy.shutdown())
+        clientOut.close()
+        return code.get(10, TimeUnit.SECONDS)
     }
 
     @Test
