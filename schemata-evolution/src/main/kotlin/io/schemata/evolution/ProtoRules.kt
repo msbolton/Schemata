@@ -2,17 +2,10 @@ package io.schemata.evolution
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
-import io.schemata.core.ir.EnumValue
-import io.schemata.core.ir.Field
-import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
-import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
-import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.kindWord
-import io.schemata.core.ir.selfAndNested
-import io.schemata.target.TypeText
 
 /** What each kind of [Change] means for a Protobuf consumer reading data under the old schema. */
 object ProtoRules : Rulebook {
@@ -21,11 +14,7 @@ object ProtoRules : Rulebook {
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is NamespaceAdded -> Verdict.Compatible
-            is NamespaceRemoved ->
-                Verdict.Breaking(
-                    "${change.path}: the namespace was removed breaks consumers of its declarations",
-                    "keep the namespace, even if its declarations move",
-                )
+            is NamespaceRemoved -> namespaceRemoved(change, ctx)
             is DeclarationAdded -> Verdict.Compatible
             is DeclarationRemoved ->
                 Verdict.Note(
@@ -65,6 +54,15 @@ object ProtoRules : Rulebook {
             is DocChanged -> Verdict.Compatible
         }
 
+    /** Judged the way removing each of its declarations one by one would be: a note per type. */
+    private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =
+        if (ctx.declarationsOf(Side.OLD, change.path).isEmpty()) Verdict.Compatible
+        else
+            Verdict.Note(
+                "${change.path}: the namespace was removed; generated code loses its declarations",
+                "keep the types, or confirm nothing outside this schema still depends on them",
+            )
+
     private fun fieldRemoved(change: FieldRemoved, ctx: ChangeContext): Verdict {
         val ordinal = change.field.ordinal
         val name = change.field.name
@@ -100,17 +98,24 @@ object ProtoRules : Rulebook {
         )
     }
 
+    /**
+     * Judged on the wire alone, then, when the wire still agrees, noted if a bound or pattern was
+     * tightened anywhere in the type, since proto carries no refinements to reject old values.
+     */
     private fun fieldTypeChanged(change: FieldTypeChanged, ctx: ChangeContext): Verdict {
         val verdict = resolvedTypeVerdict(ctx, change.from.type, change.to.type)
-        val what =
-            "type changed from ${TypeText.of(change.from.type)} to ${TypeText.of(change.to.type)}"
-        return when (verdict) {
-            is Verdict.Compatible -> verdict
-            is Verdict.Note ->
-                Verdict.Note("${change.path}: $what; ${verdict.message}", verdict.help)
-            is Verdict.Breaking ->
-                Verdict.Breaking("${change.path}: $what breaks ${verdict.message}", verdict.help)
+        if (
+            verdict is Verdict.Compatible && refinementsTightened(change.from.type, change.to.type)
+        ) {
+            return wrapTypeVerdict(
+                change,
+                Verdict.Note(
+                    "the new bound is tighter, and proto does not enforce it",
+                    "validate incoming values separately; proto will not reject them",
+                ),
+            )
         }
+        return wrapTypeVerdict(change, verdict)
     }
 
     /**
@@ -146,13 +151,21 @@ object ProtoRules : Rulebook {
     }
 
     private fun fieldNullabilityChanged(change: FieldNullabilityChanged): Verdict =
-        if (change.from.nullable && !change.to.nullable)
-            Verdict.Note(
-                "${change.path}: the field became non-null; proto cannot tell an absent value " +
-                    "from the zero value",
-                "keep the field nullable",
-            )
-        else Verdict.Compatible
+        when {
+            !change.from.nullable || change.to.nullable -> Verdict.Compatible
+            change.to.default != null ->
+                Verdict.Note(
+                    "${change.path}: the field became non-null with a default; proto does not " +
+                        "carry the default, so an absent value still decodes as the zero value",
+                    "apply the default in application code, not the wire format",
+                )
+            else ->
+                Verdict.Note(
+                    "${change.path}: the field became non-null; proto cannot tell an absent " +
+                        "value from the zero value",
+                    "keep the field nullable",
+                )
+        }
 
     private fun fieldRefinementChanged(change: FieldRefinementChanged): Verdict =
         if (change.tightened)
@@ -220,49 +233,32 @@ object ProtoRules : Rulebook {
         }
 
     /**
-     * A `name` override changed without the field's declared name also changing (that case is
-     * [fieldRenamed] instead): noted only when the emitted field name actually differs, since proto
-     * does not care about an enum value's emitted name at all (see [EnumValueRenamed]'s handling),
-     * and a bare declaration name change (not a field or enum value) keeps its own unconditional
-     * note.
+     * A `@proto(name)` override added, changed, or removed, judged by the emitted name of the OLD
+     * element against the NEW one, so a pin added in the same step as a rename (which keeps the
+     * emitted name) is compatible. A field's emitted name moves the JSON mapping; a declaration's
+     * moves the type name reflection and `Any` use; an enum value's emitted name does not matter on
+     * the wire at all.
      */
     private fun nameAnnotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
-        val oldField = fieldAt(ctx.old, change.path)
-        val newField = fieldAt(ctx.new, change.path)
-        if (oldField != null && newField != null) {
-            val fromName = ctx.emittedFieldName(target, oldField)
-            val toName = ctx.emittedFieldName(target, newField)
-            if (fromName == toName) return Verdict.Compatible
-            return Verdict.Note(
-                "${change.path}: the emitted name changed from '$fromName' to '$toName'; this " +
-                    "changes the JSON mapping",
-                "pin the emitted name with @proto(name = \"$fromName\")",
-            )
+        val fromName = ctx.emittedName(target, change.oldOwner)
+        val toName = ctx.emittedName(target, change.newOwner)
+        if (fromName == toName) return Verdict.Compatible
+        return when (change.newOwner) {
+            is FieldOwner ->
+                Verdict.Note(
+                    "${change.path}: the emitted name changed from '$fromName' to '$toName'; " +
+                        "this changes the JSON mapping",
+                    "pin the emitted name with @proto(name = \"$fromName\")",
+                )
+            is DeclarationOwner ->
+                Verdict.Note(
+                    "${change.path}: the proto name changed from '$fromName' to '$toName'; this " +
+                        "changes the type name reflection and Any use",
+                    "keep @proto(name) stable once published",
+                )
+            is NamespaceOwner,
+            is EnumValueOwner,
+            is UnionMemberOwner -> Verdict.Compatible
         }
-        if (
-            enumValueAt(ctx.old, change.path) != null || enumValueAt(ctx.new, change.path) != null
-        ) {
-            return Verdict.Compatible
-        }
-        return Verdict.Note(
-            "${change.path}: the proto name changed; this changes the wire type's name used by " +
-                "reflection and Any",
-            "keep @proto(name) stable once published",
-        )
-    }
-
-    private fun declAt(schema: Schema, path: String): TypeDecl? =
-        schema.namespaces
-            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
-            .firstOrNull { it.qualifiedName.toString() == path }
-
-    private fun fieldAt(schema: Schema, path: String): Field? {
-        val decl = declAt(schema, path.substringBeforeLast(".")) as? RecordType ?: return null
-        return decl.fields.firstOrNull { it.name == path.substringAfterLast(".") }
-    }
-
-    private fun enumValueAt(schema: Schema, path: String): EnumValue? {
-        val decl = declAt(schema, path.substringBeforeLast(".")) as? EnumType ?: return null
-        return decl.values.firstOrNull { it.name == path.substringAfterLast(".") }
     }
 }

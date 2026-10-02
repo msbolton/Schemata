@@ -1,6 +1,5 @@
 package io.schemata.evolution
 
-import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Ref
@@ -10,42 +9,52 @@ import io.schemata.core.ir.Type
 import java.math.BigDecimal
 
 /**
- * A type stripped of its refinements, so a bound or pattern change alone does not look like a type
- * change.
+ * A type stripped of its bounds and patterns at every depth, so a bound or pattern change alone
+ * does not look like a type change. A decimal keeps its precision and scale: those are part of its
+ * type, not a bound, wherever the decimal sits (a field, a list element, a map key or value).
  */
 internal fun typeCore(type: Type): Type =
     when (type) {
-        is Scalar -> Scalar(type.builtin)
+        is Scalar ->
+            Scalar(
+                type.builtin,
+                Refinements(precision = type.refinements.precision, scale = type.refinements.scale),
+            )
         is ListOf -> ListOf(typeCore(type.element), type.nullableElement)
         is MapOf -> MapOf(typeCore(type.key), typeCore(type.value), type.nullableValue)
         is Ref -> type
     }
 
-internal fun refinementsOf(type: Type): Refinements =
-    when (type) {
-        is Scalar -> type.refinements
-        is ListOf -> type.refinements
-        is MapOf -> type.refinements
-        is Ref -> Refinements.NONE
+internal fun typeChanged(old: Type, new: Type): Boolean = typeCore(old) != typeCore(new)
+
+/**
+ * Each pair of refinements [old] and [new] hold at the same position: the type itself, then a
+ * list's element, then a map's key and value, recursively. A position whose shapes differ (a list
+ * against a scalar) ends the walk there, since it is a type change rather than a refinement change.
+ */
+private fun refinementPairs(old: Type, new: Type): List<Pair<Refinements, Refinements>> =
+    when {
+        old is Scalar && new is Scalar -> listOf(old.refinements to new.refinements)
+        old is ListOf && new is ListOf ->
+            listOf(old.refinements to new.refinements) + refinementPairs(old.element, new.element)
+        old is MapOf && new is MapOf ->
+            listOf(old.refinements to new.refinements) +
+                refinementPairs(old.key, new.key) +
+                refinementPairs(old.value, new.value)
+        else -> emptyList()
+    }
+
+/** Whether any bound or pattern differs at any position [refinementPairs] visits. */
+internal fun refinementsChanged(old: Type, new: Type): Boolean =
+    refinementPairs(old, new).any { (o, n) ->
+        o.min != n.min || o.max != n.max || o.pattern != n.pattern
     }
 
 /**
- * A decimal's precision or scale is part of its type, not a bound, so a change there is a type
- * change.
+ * Whether any position [refinementPairs] visits narrowed a bound or gained or changed a pattern.
  */
-internal fun typeChanged(old: Type, new: Type): Boolean {
-    if (typeCore(old) != typeCore(new)) return true
-    if (
-        old !is Scalar ||
-            new !is Scalar ||
-            old.builtin != Builtin.DECIMAL ||
-            new.builtin != Builtin.DECIMAL
-    ) {
-        return false
-    }
-    return old.refinements.precision != new.refinements.precision ||
-        old.refinements.scale != new.refinements.scale
-}
+internal fun refinementsTightened(old: Type, new: Type): Boolean =
+    refinementPairs(old, new).any { (o, n) -> tightened(o, n) }
 
 internal fun tightened(old: Refinements, new: Refinements): Boolean {
     val minTightened = boundTightened(old.min, new.min, widens = false)

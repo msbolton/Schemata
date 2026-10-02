@@ -32,9 +32,17 @@ class TypeCompatTest {
     }
 
     @Test
-    fun `proto notes a string becoming bytes`() {
+    fun `proto treats a string becoming bytes as compatible`() {
+        assertEquals(
+            Verdict.Compatible,
+            TypeCompat.proto(scalar(Builtin.STRING), scalar(Builtin.BYTES)),
+        )
+    }
+
+    @Test
+    fun `proto notes bytes becoming a string`() {
         val note =
-            assertIs<Verdict.Note>(TypeCompat.proto(scalar(Builtin.STRING), scalar(Builtin.BYTES)))
+            assertIs<Verdict.Note>(TypeCompat.proto(scalar(Builtin.BYTES), scalar(Builtin.STRING)))
         assertEquals("old values must be valid UTF-8", note.message)
     }
 
@@ -80,21 +88,11 @@ class TypeCompatTest {
     }
 
     @Test
-    fun `sql widens a shorter string into a longer one`() {
-        assertTrue(
+    fun `sql leaves a string bound change to the refinement rules`() {
+        assertFalse(
             TypeCompat.sqlWidening(
                 scalar(Builtin.STRING, max = BigDecimal(5)),
                 scalar(Builtin.STRING, max = BigDecimal(10)),
-            )
-        )
-    }
-
-    @Test
-    fun `sql widens a bounded string into an unbounded one`() {
-        assertTrue(
-            TypeCompat.sqlWidening(
-                scalar(Builtin.STRING, max = BigDecimal(10)),
-                scalar(Builtin.STRING),
             )
         )
     }

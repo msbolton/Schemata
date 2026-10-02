@@ -3,7 +3,6 @@ package io.schemata.evolution
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
-import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
@@ -131,20 +130,8 @@ class ChangeContextTest {
     }
 
     @Test
-    fun `emittedValueName derives the proto enum prefix or uses the override`() {
+    fun `emittedValueName uses the override or the declared name`() {
         val ctx = ChangeContext(Schema(emptyList()), Schema(emptyList()))
-        val enum =
-            EnumType(
-                qn("s", "OrderStatus"),
-                "OrderStatus",
-                emptyList(),
-                Reserved.NONE,
-                emptyList(),
-                null,
-                at(),
-                at(),
-                Annotations.NONE,
-            )
         val value = EnumValue(1, "pending", null, at(), at())
         val overridden =
             EnumValue(
@@ -153,11 +140,43 @@ class ChangeContextTest {
                 null,
                 at(),
                 at(),
-                Annotations(mapOf("proto" to mapOf("name" to AnnotationValue.Str("PENDING_STATE")))),
+                Annotations(mapOf("xsd" to mapOf("name" to AnnotationValue.Str("PENDING")))),
             )
-        assertEquals("ORDER_STATUS_PENDING", ctx.emittedValueName("proto", enum, value))
-        assertEquals("PENDING_STATE", ctx.emittedValueName("proto", enum, overridden))
-        assertEquals("pending", ctx.emittedValueName("xsd", enum, value))
+        assertEquals("PENDING", ctx.emittedValueName("xsd", overridden))
+        assertEquals("pending", ctx.emittedValueName("xsd", value))
+        assertEquals("pending", ctx.emittedValueName("jsonschema", overridden))
+    }
+
+    @Test
+    fun `emittedName derives a table, a schema, and a declaration's override`() {
+        val ctx = ChangeContext(Schema(emptyList()), Schema(emptyList()))
+        val plain = record("shop.orders", "OrderLine", field(1, "a"))
+        val pinned =
+            record(
+                "shop.orders",
+                "OrderLine",
+                field(1, "a"),
+                annotations =
+                    Annotations(
+                        mapOf(
+                            "sql" to mapOf("table" to AnnotationValue.Str("lines")),
+                            "xsd" to mapOf("name" to AnnotationValue.Str("Line")),
+                        )
+                    ),
+            )
+        val ns = namespace("shop.orders", listOf(plain))
+        val nsPinned =
+            namespace(
+                "shop.orders",
+                listOf(plain),
+                Annotations(mapOf("sql" to mapOf("schema" to AnnotationValue.Str("orders_v2")))),
+            )
+        assertEquals("order_line", ctx.emittedName("sql", DeclarationOwner(plain)))
+        assertEquals("lines", ctx.emittedName("sql", DeclarationOwner(pinned)))
+        assertEquals("Line", ctx.emittedName("xsd", DeclarationOwner(pinned)))
+        assertEquals("OrderLine", ctx.emittedName("jsonschema", DeclarationOwner(pinned)))
+        assertEquals("orders", ctx.emittedName("sql", NamespaceOwner(ns)))
+        assertEquals("orders_v2", ctx.emittedName("sql", NamespaceOwner(nsPinned)))
     }
 
     @Test

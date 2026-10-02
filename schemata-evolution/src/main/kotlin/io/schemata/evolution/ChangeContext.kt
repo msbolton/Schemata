@@ -1,7 +1,6 @@
 package io.schemata.evolution
 
 import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
@@ -9,6 +8,7 @@ import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.selfAndNested
 import io.schemata.target.Names
 import io.schemata.target.bool
@@ -30,7 +30,10 @@ enum class ReservedStatus {
  * `open`, `hasTable`) a target's own lowering would assign a record.
  */
 class ChangeContext(val old: Schema, val new: Schema) {
-    /** Both the ordinal and the name of a removed member are reserved in NEW's declaration. */
+    /**
+     * Which of a removed member's [ordinal] and [name] NEW's declaration at [declPath] still
+     * reserves: both, one, or neither.
+     */
     fun reservedInNew(declPath: QualifiedName, ordinal: Int, name: String): ReservedStatus {
         val reserved = Differ.reservedOf(new.lookup(declPath))
         val ordinalReserved = reserved != null && ordinal in reserved
@@ -67,17 +70,41 @@ class ChangeContext(val old: Schema, val new: Schema) {
     fun emittedFieldName(target: String, field: Field): String =
         field.annotations.string(target, overrideKey(target)) ?: field.name
 
+    /** The name [target] emits for [value]: its override on that side, else its declared name. */
+    fun emittedValueName(target: String, value: EnumValue): String =
+        value.annotations.string(target, overrideKey(target)) ?: value.name
+
     /**
-     * The name [target] emits for [value]: its override, else the declared name, decorated with
-     * [enum]'s emitted name the way Protobuf's generated enum constants are (`<ENUM>_<VALUE>`).
+     * The name [target] emits for [owner] as it stands on one side. A declaration is its
+     * `@<target>(name)` override, or for Postgres its `@sql(table)` override or snake-cased name; a
+     * namespace is, for Postgres, its `@sql(schema)` override or the last segment of its name, and
+     * its full name elsewhere; a union member has no name, so it is its ordinal.
      */
-    fun emittedValueName(target: String, enum: EnumType, value: EnumValue): String {
-        val override = value.annotations.string(target, overrideKey(target))
-        if (override != null) return override
-        if (target != "proto") return value.name
-        val enumName = enum.annotations.string(target, "name") ?: enum.name
-        return "${Names.snakeCase(enumName).uppercase()}_${value.name.uppercase()}"
-    }
+    fun emittedName(target: String, owner: Owner): String =
+        when (owner) {
+            is NamespaceOwner ->
+                if (target == "sql")
+                    owner.namespace.annotations.string("sql", "schema")
+                        ?: owner.namespace.name.substringAfterLast('.')
+                else owner.namespace.name
+            is DeclarationOwner ->
+                if (target == "sql")
+                    owner.decl.annotations.string("sql", "table")
+                        ?: Names.snakeCase(owner.decl.name)
+                else owner.decl.annotations.string(target, "name") ?: owner.decl.name
+            is FieldOwner -> emittedFieldName(target, owner.field)
+            is EnumValueOwner -> emittedValueName(target, owner.value)
+            is UnionMemberOwner -> "#${owner.member.ordinal}"
+        }
+
+    /** Every declaration, nested ones included, of the namespace named [namespace] on [side]. */
+    fun declarationsOf(side: Side, namespace: String): List<TypeDecl> =
+        schema(side)
+            .namespaces
+            .firstOrNull { it.name == namespace }
+            ?.declarations
+            .orEmpty()
+            .flatMap { it.selfAndNested() }
 
     /** `@sql(key)` on a field or the record itself, Catalog's rule for a table-backed record. */
     fun isKeyed(side: Side, record: QualifiedName): Boolean {

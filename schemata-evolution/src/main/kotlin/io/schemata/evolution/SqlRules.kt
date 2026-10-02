@@ -1,20 +1,7 @@
 package io.schemata.evolution
 
-import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
-import io.schemata.core.ir.Field
-import io.schemata.core.ir.ListOf
-import io.schemata.core.ir.MapOf
-import io.schemata.core.ir.RecordType
-import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Scalar
-import io.schemata.core.ir.Schema
-import io.schemata.core.ir.Type
-import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.kindWord
-import io.schemata.core.ir.selfAndNested
-import io.schemata.target.Names
-import io.schemata.target.TypeText
 
 /**
  * What each kind of [Change] means for Postgres: whether data already in a table survives the DDL
@@ -71,16 +58,18 @@ object SqlRules : Rulebook {
             is DocChanged -> Verdict.Compatible
         }
 
-    private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict {
-        val removed = ctx.old.namespaces.firstOrNull { it.name == change.path }
-        val declarations = removed?.declarations.orEmpty().flatMap { it.selfAndNested() }
-        return if (declarations.any { ctx.hasTable(Side.OLD, it.qualifiedName) })
+    private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =
+        if (
+            ctx.declarationsOf(Side.OLD, change.path).any {
+                ctx.hasTable(Side.OLD, it.qualifiedName)
+            }
+        )
             Verdict.Breaking(
-                "${change.path}: the namespace was removed breaks tables backing its declarations",
-                "keep the namespace, even if its declarations move",
+                "${change.path}: the namespace was removed breaks reads of the tables backing its " +
+                    "declarations",
+                "drop the tables only after migrating or archiving their data",
             )
         else Verdict.Compatible
-    }
 
     private fun fieldAdded(change: FieldAdded): Verdict {
         val required = !change.field.nullable && change.field.default == null
@@ -110,61 +99,36 @@ object SqlRules : Rulebook {
         )
     }
 
-    private fun fieldTypeChanged(change: FieldTypeChanged, ctx: ChangeContext): Verdict {
-        val verdict = resolvedTypeVerdict(ctx, change.from.type, change.to.type)
-        val what =
-            "type changed from ${TypeText.of(change.from.type)} to ${TypeText.of(change.to.type)}"
-        return when (verdict) {
-            is Verdict.Compatible -> verdict
-            is Verdict.Note ->
-                Verdict.Note("${change.path}: $what; ${verdict.message}", verdict.help)
-            is Verdict.Breaking ->
-                Verdict.Breaking("${change.path}: $what breaks ${verdict.message}", verdict.help)
-        }
-    }
+    private fun fieldTypeChanged(change: FieldTypeChanged, ctx: ChangeContext): Verdict =
+        wrapTypeVerdict(change, typeVerdict(ctx).of(change.from.type, change.to.type))
 
     /**
-     * A scalar change is judged by [TypeCompat.sqlWidening]; a reference change is compatible only
-     * when it still names the same declaration, breaking when both sides are enums (the CHECK's
-     * value set changes) or otherwise; a list or map keeps its element nullability check, and
-     * anything else mixing a scalar with a list, map, or reference is breaking outright.
+     * Scalars widen by [TypeCompat.sqlWidening]; a reference is compatible only while it names the
+     * same declaration, and two different enums change the CHECK constraint's value set.
      */
-    private fun resolvedTypeVerdict(ctx: ChangeContext, from: Type, to: Type): Verdict {
-        val help = "add a new column instead of changing this one's type"
-        return when {
-            from is Scalar && to is Scalar ->
-                if (TypeCompat.sqlWidening(from, to)) Verdict.Compatible
-                else Verdict.Breaking("existing values that no longer fit the narrower type", help)
-            from is Ref && to is Ref -> refTypeVerdict(ctx, from, to, help)
-            from is ListOf && to is ListOf -> listTypeVerdict(from, to, help)
-            from is MapOf && to is MapOf -> mapTypeVerdict(from, to, help)
-            else -> Verdict.Breaking("rows backed by an incompatible storage type", help)
+    private fun typeVerdict(ctx: ChangeContext) =
+        StructuralTypeVerdict(
+            TypeCompat::sqlWidening,
+            holders = "existing rows",
+            incompatible = "the column's storage type is incompatible",
+            help = "add a new column instead of changing this one's type",
+        ) { from, to ->
+            val fromEnum = ctx.old.lookupOrNull(from.target) is EnumType
+            val toEnum = ctx.new.lookupOrNull(to.target) is EnumType
+            when {
+                from.target == to.target -> Verdict.Compatible
+                fromEnum && toEnum ->
+                    Verdict.Breaking(
+                        "existing rows: the CHECK constraint's value set changes",
+                        "add a new column instead of changing this one's type",
+                    )
+                else ->
+                    Verdict.Breaking(
+                        "existing rows: the column's storage type is incompatible",
+                        "add a new column instead of changing this one's type",
+                    )
+            }
         }
-    }
-
-    private fun refTypeVerdict(ctx: ChangeContext, from: Ref, to: Ref, help: String): Verdict {
-        if (from.target == to.target) return Verdict.Compatible
-        val fromEnum = ctx.old.lookupOrNull(from.target) is EnumType
-        val toEnum = ctx.new.lookupOrNull(to.target) is EnumType
-        val why =
-            if (fromEnum && toEnum) "the CHECK constraint's value set"
-            else "rows backed by an incompatible storage type"
-        return Verdict.Breaking(why, help)
-    }
-
-    private fun listTypeVerdict(from: ListOf, to: ListOf, help: String): Verdict {
-        val sameElement = typeCore(from.element) == typeCore(to.element)
-        return if (sameElement && !from.nullableElement && to.nullableElement) Verdict.Compatible
-        else Verdict.Breaking("rows backed by an incompatible storage type", help)
-    }
-
-    private fun mapTypeVerdict(from: MapOf, to: MapOf, help: String): Verdict {
-        if (typeCore(from.key) != typeCore(to.key))
-            return Verdict.Breaking("existing entries keyed by the old type", help)
-        val sameValue = typeCore(from.value) == typeCore(to.value)
-        return if (sameValue && !from.nullableValue && to.nullableValue) Verdict.Compatible
-        else Verdict.Breaking("rows backed by an incompatible storage type", help)
-    }
 
     private fun fieldNullabilityChanged(change: FieldNullabilityChanged): Verdict =
         if (change.from.nullable && !change.to.nullable)
@@ -194,8 +158,8 @@ object SqlRules : Rulebook {
         else Verdict.Compatible
 
     private fun enumValueRenamed(change: EnumValueRenamed, ctx: ChangeContext): Verdict {
-        val fromName = ctx.emittedValueName(target, change.enum, change.from)
-        val toName = ctx.emittedValueName(target, change.enum, change.to)
+        val fromName = ctx.emittedValueName(target, change.from)
+        val toName = ctx.emittedValueName(target, change.to)
         if (fromName == toName) return Verdict.Compatible
         return Verdict.Breaking(
             "${change.path}: the enum value was renamed from '$fromName' to '$toName' breaks the " +
@@ -212,78 +176,71 @@ object SqlRules : Rulebook {
             )
         else Verdict.Compatible
 
+    /**
+     * Every `@sql` key, decided explicitly: a primary key, storage strategy, uniqueness added, or
+     * column type override changes the DDL existing rows live under; a name override is a rename
+     * only when the emitted name moves; uniqueness removed and an index only relax or speed up
+     * access. A key this rulebook does not know is treated as breaking, so a new DDL-shaping key is
+     * never waved through by default.
+     */
     private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         if (change.target != "sql") return Verdict.Compatible
         return when (change.key) {
             "key" ->
                 Verdict.Breaking(
-                    "${change.path}: @sql(key) changed breaks the primary key used to address " +
-                        "existing rows",
+                    "${change.path}: @sql(key) ${changeWord(change)} breaks the primary key used " +
+                        "to address existing rows",
                     "avoid changing @sql(key) once the table holds data",
                 )
             "strategy" ->
                 Verdict.Breaking(
-                    "${change.path}: @sql(strategy) changed breaks how existing rows map onto tables",
+                    "${change.path}: @sql(strategy) changed breaks how existing rows map onto " +
+                        "tables",
                     "avoid changing @sql(strategy) once the table holds data",
                 )
-            "column" -> columnRenamed(change, ctx)
-            "table" -> declRenamed(change, ctx) { Names.snakeCase(it.name) }
-            "schema" ->
-                declRenamed(change, ctx) { it.qualifiedName.namespace.substringAfterLast(".") }
-            else -> Verdict.Compatible
+            "unique" ->
+                if (change.to != null)
+                    Verdict.Breaking(
+                        "${change.path}: @sql(unique) added breaks tables that already hold " +
+                            "duplicate values",
+                        "remove duplicate rows before adding the constraint",
+                    )
+                else Verdict.Compatible
+            "type" ->
+                Verdict.Breaking(
+                    "${change.path}: @sql(type) ${changeWord(change)} breaks existing rows: the " +
+                        "column is retyped",
+                    "add a new column instead of retyping this one",
+                )
+            "column",
+            "table",
+            "schema" -> renamed(change, ctx)
+            in INERT_KEYS -> Verdict.Compatible
+            else ->
+                Verdict.Breaking(
+                    "${change.path}: @sql(${change.key}) ${changeWord(change)} has no known " +
+                        "effect on existing rows, so it is assumed to break them",
+                    "review the emitted DDL for this change by hand",
+                )
         }
     }
 
-    /**
-     * `@sql(column)` compared the way [fieldRenamed] compares names: a pin that still agrees with
-     * the field's emitted column, added, changed, or removed, is only breaking when the two sides'
-     * emitted names actually differ.
-     */
-    private fun columnRenamed(change: AnnotationChanged, ctx: ChangeContext): Verdict {
-        val field = fieldAt(ctx.new, change.path) ?: fieldAt(ctx.old, change.path)
-        val declaredName = field?.name
-        val fromName = (change.from as? AnnotationValue.Str)?.value ?: declaredName
-        val toName = (change.to as? AnnotationValue.Str)?.value ?: declaredName
-        return renameVerdict(change, fromName, toName)
-    }
+    /** `@sql` keys whose change never touches data already stored. */
+    private val INERT_KEYS = setOf("index")
 
     /**
-     * `@sql(table)` or `@sql(schema)` compared against [default]'s derivation (the snake-cased
-     * record name, or the namespace's last segment) when the override is absent on that side.
+     * `@sql(column)`, `@sql(table)`, or `@sql(schema)` added, changed, or removed: a rename of the
+     * column, table, or schema only when the OLD element's emitted name differs from the NEW one's.
      */
-    private fun declRenamed(
-        change: AnnotationChanged,
-        ctx: ChangeContext,
-        default: (TypeDecl) -> String,
-    ): Verdict {
-        val decl = declAt(ctx.new, change.path) ?: declAt(ctx.old, change.path)
-        val fallback = decl?.let(default)
-        val fromName = (change.from as? AnnotationValue.Str)?.value ?: fallback
-        val toName = (change.to as? AnnotationValue.Str)?.value ?: fallback
-        return renameVerdict(change, fromName, toName)
-    }
-
-    private fun renameVerdict(
-        change: AnnotationChanged,
-        fromName: String?,
-        toName: String?,
-    ): Verdict =
-        if (fromName != null && fromName == toName) Verdict.Compatible
-        else
-            Verdict.Breaking(
-                "${change.path}: @sql(${change.key}) changed breaks statements that reference " +
-                    "the old name",
-                "migrate references to the new name, or keep @sql(${change.key}) pinned to the " +
-                    "old one",
-            )
-
-    private fun declAt(schema: Schema, path: String): TypeDecl? =
-        schema.namespaces
-            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
-            .firstOrNull { it.qualifiedName.toString() == path }
-
-    private fun fieldAt(schema: Schema, path: String): Field? {
-        val decl = declAt(schema, path.substringBeforeLast(".")) as? RecordType ?: return null
-        return decl.fields.firstOrNull { it.name == path.substringAfterLast(".") }
+    private fun renamed(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        val fromName = ctx.emittedName(target, change.oldOwner)
+        val toName = ctx.emittedName(target, change.newOwner)
+        if (fromName == toName) return Verdict.Compatible
+        return Verdict.Breaking(
+            "${change.path}: @sql(${change.key}) ${changeWord(change)} renames '$fromName' to " +
+                "'$toName', which breaks statements that reference the old name",
+            "migrate references to the new name, or keep @sql(${change.key}) pinned to " +
+                "\"$fromName\"",
+        )
     }
 }

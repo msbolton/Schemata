@@ -169,10 +169,11 @@ class XsdRulesTest {
     }
 
     @Test
-    fun `a default removed from a non-null field is compatible`() {
+    fun `a default removed from a non-null field is breaking since the element becomes required`() {
         val old = record("s", "R", field(1, "a", Scalar(Builtin.INT32), default = IntValue(1)))
         val new = record("s", "R", field(1, "a", Scalar(Builtin.INT32)))
-        assertEquals(Verdict.Compatible, verdict(XsdRules, ns(old), ns(new)))
+        val breaking = assertIs<Verdict.Breaking>(verdict(XsdRules, ns(old), ns(new)))
+        assertTrue(breaking.message.contains("minOccurs = 1"))
     }
 
     @Test

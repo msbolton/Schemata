@@ -51,7 +51,7 @@ object EvolutionCodes {
     val all: List<DiagnosticCode> = listOf(BREAKING, NOTE, CANNOT_DIFF)
 }
 
-/** Every rulebook this build knows how to classify changes for; later targets append their own. */
+/** Every rulebook this build knows how to classify changes for, in the order reports list them. */
 object Rulebooks {
     val all: List<Rulebook> = listOf(ProtoRules, SqlRules, XsdRules, JsonSchemaRules)
 

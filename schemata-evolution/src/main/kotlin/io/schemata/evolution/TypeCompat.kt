@@ -7,6 +7,7 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Type
+import io.schemata.target.TypeText
 
 /**
  * Whether data shaped by one type can still be read once a field's type becomes another,
@@ -14,11 +15,13 @@ import io.schemata.core.ir.Type
  */
 object TypeCompat {
     /**
-     * Protobuf's own wire-compatibility rules: the same keyword, `int32` widened to `int64`, or a
-     * string-shaped keyword (`string`, `uuid`, `date`, `time`, `decimal`) becoming `bytes`. A bare
-     * reference is never compatible with a scalar here: only an enum reference is, and telling an
-     * enum from a record or union reference needs a schema, which this function does not have.
-     * [ProtoRules] resolves that case itself before falling back to this function.
+     * Protobuf's own wire-compatibility rules: the same keyword, `int32` and `int64` either way, or
+     * a string-shaped keyword (`string`, `uuid`, `date`, `time`, `decimal`) becoming `bytes`, which
+     * reads every old value. `bytes` becoming a string-shaped keyword is a note, since proto
+     * rejects a string that is not valid UTF-8 and old bytes need not be. A bare reference is never
+     * compatible with a scalar here: only an enum reference is, and telling an enum from a record
+     * or union reference needs a schema, which this function does not have. [ProtoRules] resolves
+     * that case itself before falling back to this function.
      */
     fun proto(from: Type, to: Type): Verdict {
         val fromKeyword = protoKeyword(from)
@@ -27,31 +30,32 @@ object TypeCompat {
         return when {
             fromKeyword == toKeyword -> Verdict.Compatible
             keywords == setOf("int32", "int64") -> Verdict.Compatible
-            keywords == setOf("string", "bytes") ->
+            fromKeyword == "string" && toKeyword == "bytes" -> Verdict.Compatible
+            fromKeyword == "bytes" && toKeyword == "string" ->
                 Verdict.Note(
                     "old values must be valid UTF-8",
-                    "store and validate the value as UTF-8 bytes",
+                    "confirm every old value is valid UTF-8 before reading it as a string",
                 )
             else ->
                 Verdict.Breaking(
-                    "the wire types are incompatible",
+                    "decoding: the wire types differ",
                     "add a new field instead of changing this one's type",
                 )
         }
     }
 
     /**
-     * The Postgres widenings: a wider integer or float, a string with the same or no bound becoming
-     * a longer or unbounded one, or a decimal keeping its scale while gaining precision.
+     * The Postgres widenings between two different scalar types: a wider integer or float, or a
+     * decimal keeping its scale while gaining precision. A bound change on the same keyword (a
+     * longer `string(max)`) is a refinement change, not a type change, so it never reaches here.
      */
     fun sqlWidening(from: Type, to: Type): Boolean {
         if (from !is Scalar || to !is Scalar) return false
         return when (from.builtin to to.builtin) {
             Builtin.INT32 to Builtin.INT64 -> true
             Builtin.FLOAT32 to Builtin.FLOAT64 -> true
-            Builtin.STRING to Builtin.STRING -> stringWidened(from.refinements, to.refinements)
             Builtin.DECIMAL to Builtin.DECIMAL -> decimalWidened(from.refinements, to.refinements)
-            else -> from.builtin == to.builtin && from.refinements == to.refinements
+            else -> false
         }
     }
 
@@ -93,15 +97,73 @@ object TypeCompat {
             Builtin.DURATION -> "google.protobuf.Duration"
         }
 
-    private fun stringWidened(from: Refinements, to: Refinements): Boolean {
-        val toMax = to.max ?: return true
-        val fromMax = from.max ?: return false
-        return toMax >= fromMax
-    }
-
     private fun decimalWidened(from: Refinements, to: Refinements): Boolean {
         val fromPrecision = from.precision ?: return false
         val toPrecision = to.precision ?: return false
         return from.scale == to.scale && toPrecision >= fromPrecision
+    }
+}
+
+/**
+ * The verdict a table- or document-shaped target gives a field whose type changed, shared by
+ * [SqlRules] and [InstanceRules]: two scalars are judged by [scalarWidening], two references by
+ * [refVerdict], a list or map keeps its element (or key and value) type and may only loosen its
+ * element nullability, and anything else is incompatible. Once the shapes agree, a bound or pattern
+ * tightened anywhere in the type still breaks, since a value valid for OLD may fall outside it.
+ * [holders] names what holds old values (`existing rows`, `old documents`).
+ */
+internal class StructuralTypeVerdict(
+    private val scalarWidening: (Type, Type) -> Boolean,
+    private val holders: String,
+    private val incompatible: String,
+    private val help: String,
+    private val refVerdict: (Ref, Ref) -> Verdict,
+) {
+    fun of(from: Type, to: Type): Verdict {
+        val shape = shapeVerdict(from, to)
+        if (shape !is Verdict.Compatible) return shape
+        return if (refinementsTightened(from, to))
+            Verdict.Breaking("$holders: old values can fall outside the new bound", help)
+        else Verdict.Compatible
+    }
+
+    private fun shapeVerdict(from: Type, to: Type): Verdict =
+        when {
+            from is Scalar && to is Scalar ->
+                if (scalarWidening(from, to)) Verdict.Compatible
+                else Verdict.Breaking("$holders: old values do not fit the new type", help)
+            from is Ref && to is Ref -> refVerdict(from, to)
+            from is ListOf && to is ListOf ->
+                if (
+                    typeCore(from.element) == typeCore(to.element) &&
+                        (!from.nullableElement || to.nullableElement)
+                )
+                    Verdict.Compatible
+                else Verdict.Breaking("$holders: $incompatible", help)
+            from is MapOf && to is MapOf ->
+                when {
+                    typeCore(from.key) != typeCore(to.key) ->
+                        Verdict.Breaking("$holders: entries are keyed by the old key type", help)
+                    typeCore(from.value) == typeCore(to.value) &&
+                        (!from.nullableValue || to.nullableValue) -> Verdict.Compatible
+                    else -> Verdict.Breaking("$holders: $incompatible", help)
+                }
+            else -> Verdict.Breaking("$holders: $incompatible", help)
+        }
+}
+
+/**
+ * [verdict], a judgement of [change]'s two types alone, restated for the field: a note reads
+ * `<path>: type changed from A to B; <caveat>`, a break `<path>: type changed from A to B breaks
+ * <reason>`.
+ */
+internal fun wrapTypeVerdict(change: FieldTypeChanged, verdict: Verdict): Verdict {
+    val what =
+        "type changed from ${TypeText.of(change.from.type)} to ${TypeText.of(change.to.type)}"
+    return when (verdict) {
+        is Verdict.Compatible -> verdict
+        is Verdict.Note -> Verdict.Note("${change.path}: $what; ${verdict.message}", verdict.help)
+        is Verdict.Breaking ->
+            Verdict.Breaking("${change.path}: $what breaks ${verdict.message}", verdict.help)
     }
 }

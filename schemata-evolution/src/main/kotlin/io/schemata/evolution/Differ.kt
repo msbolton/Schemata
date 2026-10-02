@@ -15,7 +15,8 @@ import io.schemata.lang.Span
 /**
  * Compares two analysed schemas into a target-neutral list of [Change]s: declarations are matched
  * by qualified name, members by ordinal. Changes are listed in NEW's namespace and declaration
- * order, then OLD-only removals; members within a declaration are listed in ordinal order.
+ * order, then OLD-only removals; members within a declaration follow NEW's source order, then the
+ * members only OLD has.
  */
 object Differ {
     fun diff(old: Schema, new: Schema): List<Change> {
@@ -26,7 +27,15 @@ object Differ {
             val o = oldNs[n.name]
             if (o == null) out += NamespaceAdded(n.name, n.span)
             else {
-                annotations(n.name, n.span, o.annotations, n.annotations, out)
+                annotations(
+                    n.name,
+                    n.span,
+                    NamespaceOwner(o),
+                    NamespaceOwner(n),
+                    o.annotations,
+                    n.annotations,
+                    out,
+                )
                 declarations(o, n, out)
             }
         }
@@ -61,8 +70,16 @@ object Differ {
             is UnionType -> members(new, old as UnionType, out)
         }
         reserved(old, new, out)
-        annotations(path(new), new.nameSpan, old.annotations, new.annotations, out)
-        if (old.doc != new.doc) out += DocChanged(path(new), new.nameSpan)
+        annotations(
+            path(new),
+            new.nameSpan,
+            DeclarationOwner(old),
+            DeclarationOwner(new),
+            old.annotations,
+            new.annotations,
+            out,
+        )
+        if (old.doc != new.doc) out += DocChanged(path(new), new.nameSpan, DeclarationOwner(new))
     }
 
     private fun fields(new: RecordType, old: RecordType, out: MutableList<Change>) {
@@ -71,20 +88,26 @@ object Differ {
         new.fields.forEach { nf ->
             val of = oldFields[nf.ordinal]
             if (of == null) out += FieldAdded(memberPath(new, nf.name), nf.nameSpan, new, nf)
-            else field(new, of, nf, out)
+            else field(old, new, of, nf, out)
         }
         old.fields
             .filter { it.ordinal !in newFields }
             .forEach { of -> out += FieldRemoved(memberPath(old, of.name), of.nameSpan, old, of) }
     }
 
-    private fun field(record: RecordType, old: Field, new: Field, out: MutableList<Change>) {
+    private fun field(
+        oldRecord: RecordType,
+        record: RecordType,
+        old: Field,
+        new: Field,
+        out: MutableList<Change>,
+    ) {
         val p = memberPath(record, new.name)
         if (old.name != new.name) out += FieldRenamed(p, new.nameSpan, record, old, new)
         when {
             typeChanged(old.type, new.type) ->
                 out += FieldTypeChanged(p, new.span, record, old, new)
-            refinementsOf(old.type) != refinementsOf(new.type) ->
+            refinementsChanged(old.type, new.type) ->
                 out +=
                     FieldRefinementChanged(
                         p,
@@ -92,14 +115,22 @@ object Differ {
                         record,
                         old,
                         new,
-                        tightened(refinementsOf(old.type), refinementsOf(new.type)),
+                        refinementsTightened(old.type, new.type),
                     )
         }
         if (old.nullable != new.nullable)
             out += FieldNullabilityChanged(p, new.span, record, old, new)
         if (old.default != new.default) out += FieldDefaultChanged(p, new.span, record, old, new)
-        annotations(p, new.nameSpan, old.annotations, new.annotations, out)
-        if (old.doc != new.doc) out += DocChanged(p, new.nameSpan)
+        annotations(
+            p,
+            new.nameSpan,
+            FieldOwner(oldRecord, old),
+            FieldOwner(record, new),
+            old.annotations,
+            new.annotations,
+            out,
+        )
+        if (old.doc != new.doc) out += DocChanged(p, new.nameSpan, FieldOwner(record, new))
     }
 
     private fun values(new: EnumType, old: EnumType, out: MutableList<Change>) {
@@ -112,8 +143,16 @@ object Differ {
                 out += EnumValueAdded(p, nv.nameSpan, new, nv)
             } else {
                 if (ov.name != nv.name) out += EnumValueRenamed(p, nv.nameSpan, new, ov, nv)
-                annotations(p, nv.nameSpan, ov.annotations, nv.annotations, out)
-                if (ov.doc != nv.doc) out += DocChanged(p, nv.nameSpan)
+                annotations(
+                    p,
+                    nv.nameSpan,
+                    EnumValueOwner(old, ov),
+                    EnumValueOwner(new, nv),
+                    ov.annotations,
+                    nv.annotations,
+                    out,
+                )
+                if (ov.doc != nv.doc) out += DocChanged(p, nv.nameSpan, EnumValueOwner(new, nv))
             }
         }
         old.values
@@ -134,7 +173,7 @@ object Differ {
                 out += UnionMemberAdded(p, nm.span, new, nm)
             } else {
                 if (om.type != nm.type) out += UnionMemberTypeChanged(p, nm.span, new, om, nm)
-                if (om.doc != nm.doc) out += DocChanged(p, nm.span)
+                if (om.doc != nm.doc) out += DocChanged(p, nm.span, UnionMemberOwner(new, nm))
             }
         }
         old.members
@@ -161,6 +200,8 @@ object Differ {
     private fun annotations(
         path: String,
         span: Span,
+        oldOwner: Owner,
+        newOwner: Owner,
         old: Annotations,
         new: Annotations,
         out: MutableList<Change>,
@@ -173,9 +214,9 @@ object Differ {
                 val to = newKeys[key]
                 if (from == to) return@forEach
                 if (target == "" && key == "deprecated" && (from == null) != (to == null)) {
-                    out += DeprecationChanged(path, span, to != null)
+                    out += DeprecationChanged(path, span, to != null, newOwner)
                 } else {
-                    out += AnnotationChanged(path, span, target, key, from, to)
+                    out += AnnotationChanged(path, span, target, key, from, to, oldOwner, newOwner)
                 }
             }
         }

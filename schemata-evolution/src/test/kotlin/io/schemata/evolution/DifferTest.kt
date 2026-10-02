@@ -7,6 +7,8 @@ import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.IntValue
+import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
@@ -191,6 +193,76 @@ class DifferTest {
         )
         assertTrue((diff(ns(old), ns(new))[1] as FieldRefinementChanged).tightened)
         assertFalse((diff(ns(new), ns(old))[1] as FieldRefinementChanged).tightened)
+    }
+
+    @Test
+    fun `a list element bound change is a refinement change`() {
+        fun list(max: Int) =
+            ListOf(Scalar(Builtin.STRING, Refinements(max = BigDecimal(max))), false)
+        val old = record("s", "R", field(1, "tags", list(20)))
+        val new = record("s", "R", field(1, "tags", list(10)))
+        val tightened = diff(ns(old), ns(new)).single() as FieldRefinementChanged
+        assertTrue(tightened.tightened)
+        assertFalse((diff(ns(new), ns(old)).single() as FieldRefinementChanged).tightened)
+    }
+
+    @Test
+    fun `a map key or value bound change is a refinement change`() {
+        fun map(keyMax: Int, valueMin: Int) =
+            MapOf(
+                Scalar(Builtin.STRING, Refinements(max = BigDecimal(keyMax))),
+                Scalar(Builtin.INT32, Refinements(min = BigDecimal(valueMin))),
+                false,
+            )
+        val old = record("s", "R", field(1, "m", map(16, 0)))
+        val keyTightened = record("s", "R", field(1, "m", map(8, 0)))
+        val valueLoosened = record("s", "R", field(1, "m", map(16, -5)))
+        assertTrue((diff(ns(old), ns(keyTightened)).single() as FieldRefinementChanged).tightened)
+        assertFalse((diff(ns(old), ns(valueLoosened)).single() as FieldRefinementChanged).tightened)
+    }
+
+    @Test
+    fun `a nested decimal precision or scale change is a type change`() {
+        fun decimals(precision: Int, scale: Int) =
+            MapOf(
+                Scalar(Builtin.STRING),
+                Scalar(Builtin.DECIMAL, Refinements(precision = precision, scale = scale)),
+                false,
+            )
+        val old = record("s", "R", field(1, "prices", decimals(19, 4)))
+        val scaled = record("s", "R", field(1, "prices", decimals(19, 2)))
+        val listed =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "prices",
+                    ListOf(Scalar(Builtin.DECIMAL, Refinements(precision = 10, scale = 2)), false),
+                ),
+            )
+        val listedWider =
+            record(
+                "s",
+                "R",
+                field(
+                    1,
+                    "prices",
+                    ListOf(Scalar(Builtin.DECIMAL, Refinements(precision = 12, scale = 2)), false),
+                ),
+            )
+        assertEquals(listOf("field.typeChanged"), diff(ns(old), ns(scaled)).map { it.kind })
+        assertEquals(listOf("field.typeChanged"), diff(ns(listed), ns(listedWider)).map { it.kind })
+    }
+
+    @Test
+    fun `an annotation change carries its owner on both sides`() {
+        val pin = Annotations(mapOf("sql" to mapOf("column" to AnnotationValue.Str("note"))))
+        val old = record("s", "R", field(9, "note", Scalar(Builtin.STRING)))
+        val new = record("s", "R", field(9, "comment", Scalar(Builtin.STRING), annotations = pin))
+        val change = diff(ns(old), ns(new)).filterIsInstance<AnnotationChanged>().single()
+        assertEquals("note", (change.oldOwner as FieldOwner).field.name)
+        assertEquals("comment", (change.newOwner as FieldOwner).field.name)
     }
 
     @Test

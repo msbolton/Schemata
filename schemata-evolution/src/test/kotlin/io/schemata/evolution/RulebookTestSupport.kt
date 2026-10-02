@@ -70,10 +70,14 @@ fun union(ns: String, name: String, vararg members: UnionMember) =
 
 fun ns(decl: TypeDecl) = namespace(decl.qualifiedName.namespace, listOf(decl))
 
-/** The single change between [old] and [new], classified by [rulebook]. */
-fun verdict(rulebook: Rulebook, old: Namespace, new: Namespace): Verdict {
-    val oldSchema = Schema(listOf(old))
-    val newSchema = Schema(listOf(new))
-    val change = Differ.diff(oldSchema, newSchema).single()
-    return rulebook.classify(change, ChangeContext(oldSchema, newSchema))
+/** Every change between [old] and [new] in the differ's order, each classified by [rulebook]. */
+fun verdicts(rulebook: Rulebook, old: List<Namespace>, new: List<Namespace>): List<Verdict> {
+    val oldSchema = Schema(old)
+    val newSchema = Schema(new)
+    val ctx = ChangeContext(oldSchema, newSchema)
+    return Differ.diff(oldSchema, newSchema).map { rulebook.classify(it, ctx) }
 }
+
+/** The one change between [old] and [new], classified by [rulebook]; fails on any other count. */
+fun verdict(rulebook: Rulebook, old: Namespace, new: Namespace): Verdict =
+    verdicts(rulebook, listOf(old), listOf(new)).single()

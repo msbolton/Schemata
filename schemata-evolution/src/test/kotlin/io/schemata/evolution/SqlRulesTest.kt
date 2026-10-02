@@ -348,18 +348,23 @@ class SqlRulesTest {
     }
 
     @Test
-    fun `a sql schema annotation change is breaking`() {
-        val old = record("s", "R", field(1, "a"))
-        val new =
-            record(
-                "s",
-                "R",
-                field(1, "a"),
-                annotations =
-                    Annotations(mapOf("sql" to mapOf("schema" to AnnotationValue.Str("other")))),
-            )
-        assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
+    fun `a sql schema pin on a namespace changed to a new name is breaking`() {
+        val decl = record("shop.orders", "R", field(1, "a"))
+        val old = namespace("shop.orders", listOf(decl))
+        val new = namespace("shop.orders", listOf(decl), schemaPin("orders_v2"))
+        assertIs<Verdict.Breaking>(verdict(SqlRules, old, new))
     }
+
+    @Test
+    fun `a sql schema pin on a namespace matching its last segment is compatible`() {
+        val decl = record("shop.orders", "R", field(1, "a"))
+        val old = namespace("shop.orders", listOf(decl))
+        val new = namespace("shop.orders", listOf(decl), schemaPin("orders"))
+        assertEquals(Verdict.Compatible, verdict(SqlRules, old, new))
+    }
+
+    private fun schemaPin(name: String) =
+        Annotations(mapOf("sql" to mapOf("schema" to AnnotationValue.Str(name))))
 
     @Test
     fun `a sql key flag added to a field is breaking`() {
@@ -433,20 +438,6 @@ class SqlRulesTest {
                 field(1, "a"),
                 annotations =
                     Annotations(mapOf("sql" to mapOf("table" to AnnotationValue.Str("r")))),
-            )
-        assertEquals(Verdict.Compatible, verdict(SqlRules, ns(old), ns(new)))
-    }
-
-    @Test
-    fun `a sql schema pin matching the derived name is compatible`() {
-        val old = record("s", "R", field(1, "a"))
-        val new =
-            record(
-                "s",
-                "R",
-                field(1, "a"),
-                annotations =
-                    Annotations(mapOf("sql" to mapOf("schema" to AnnotationValue.Str("s")))),
             )
         assertEquals(Verdict.Compatible, verdict(SqlRules, ns(old), ns(new)))
     }

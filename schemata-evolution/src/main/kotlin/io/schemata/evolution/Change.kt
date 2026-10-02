@@ -4,6 +4,7 @@ import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.TypeDecl
@@ -117,7 +118,11 @@ data class FieldDefaultChanged(
     override val kind = "field.defaultChanged"
 }
 
-/** [tightened] when any bound narrowed or a pattern was added or changed; loosened otherwise. */
+/**
+ * A bound or pattern changed somewhere in the field's type, at the top level or on a list element,
+ * map key, or map value. [tightened] when any of them narrowed or gained or changed a pattern;
+ * loosened otherwise.
+ */
 data class FieldRefinementChanged(
     override val path: String,
     override val span: Span,
@@ -194,6 +199,27 @@ data class ReservedChanged(
     override val kind = "reserved.changed"
 }
 
+/**
+ * The element an annotation, deprecation, or doc change belongs to, as it stands on one side, so a
+ * rulebook or renderer reads names off the element itself instead of re-resolving [Change.path].
+ */
+sealed interface Owner
+
+data class NamespaceOwner(val namespace: Namespace) : Owner
+
+data class DeclarationOwner(val decl: TypeDecl) : Owner
+
+data class FieldOwner(val record: RecordType, val field: Field) : Owner
+
+data class EnumValueOwner(val enum: EnumType, val value: EnumValue) : Owner
+
+data class UnionMemberOwner(val union: UnionType, val member: UnionMember) : Owner
+
+/**
+ * An annotation key added, removed, or changed on an element both sides share; [oldOwner] and
+ * [newOwner] are that element on each side, so a rename and a pin added in the same step compare
+ * the OLD element's emitted name with the NEW one's.
+ */
 data class AnnotationChanged(
     override val path: String,
     override val span: Span,
@@ -201,18 +227,32 @@ data class AnnotationChanged(
     val key: String,
     val from: AnnotationValue?,
     val to: AnnotationValue?,
+    val oldOwner: Owner,
+    val newOwner: Owner,
 ) : Change {
     override val kind = "annotation.changed"
 }
 
+/** `@deprecated` added to or removed from [owner], the element as it stands on NEW's side. */
 data class DeprecationChanged(
     override val path: String,
     override val span: Span,
     val deprecated: Boolean,
+    val owner: Owner,
 ) : Change {
     override val kind = "deprecation.changed"
 }
 
-data class DocChanged(override val path: String, override val span: Span) : Change {
+/** [owner] is the element whose doc changed, as it stands on NEW's side. */
+data class DocChanged(override val path: String, override val span: Span, val owner: Owner) :
+    Change {
     override val kind = "doc.changed"
 }
+
+/** `added`, `removed`, or `changed`, by which side of [change] holds a value. */
+fun changeWord(change: AnnotationChanged): String =
+    when {
+        change.from == null -> "added"
+        change.to == null -> "removed"
+        else -> "changed"
+    }
