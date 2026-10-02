@@ -1,0 +1,11 @@
+namespace s
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 lines: list<Line>
+}
+
+record Line {
+  #1 sku: string(max = 16)
+  #2 quantity: int32
+}

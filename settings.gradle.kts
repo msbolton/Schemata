@@ -24,6 +24,7 @@ include(":schemata-target-sql")
 include(":schemata-target-xsd")
 include(":schemata-target-jsonschema")
 include(":schemata-import-xsd")
+include(":schemata-evolution")
 include(":schemata-cli")
 include(":schemata-testkit")
 

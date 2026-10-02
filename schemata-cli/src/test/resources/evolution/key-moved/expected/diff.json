@@ -1,0 +1,5 @@
+{
+  "changes": [{"kind":"annotation.changed","path":"s.Customer.id","old":"true","new":null,"file":"new/s.schemata","line":4,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":{"verdict":"breaking","message":"s.Customer.id: @sql(key) removed breaks the primary key used to address existing rows","help":"avoid changing @sql(key) once the table holds data"},"xsd":"compatible","jsonschema":"compatible"}},{"kind":"annotation.changed","path":"s.Customer.code","old":null,"new":"true","file":"new/s.schemata","line":5,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":{"verdict":"breaking","message":"s.Customer.code: @sql(key) added breaks the primary key used to address existing rows","help":"avoid changing @sql(key) once the table holds data"},"xsd":"compatible","jsonschema":"compatible"}}],
+  "summary": {"proto":{"breaking":0,"notes":0},"sql":{"breaking":2,"notes":0},"xsd":{"breaking":0,"notes":0},"jsonschema":{"breaking":0,"notes":0}},
+  "exitCode": 1
+}

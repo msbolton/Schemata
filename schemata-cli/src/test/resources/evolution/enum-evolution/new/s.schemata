@@ -1,0 +1,8 @@
+namespace s
+
+enum Status {
+  #1 pending
+  @xsd(name = "paid") @jsonschema(name = "paid") #2 settled
+  #4 refunded
+  reserved #3, "cancelled"
+}

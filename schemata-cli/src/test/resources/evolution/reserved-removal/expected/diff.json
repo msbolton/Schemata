@@ -1,0 +1,5 @@
+{
+  "changes": [{"kind":"field.removed","path":"s.Customer.note","old":null,"new":null,"file":"old/s.schemata","line":5,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":{"verdict":"breaking","message":"s.Customer.note: the column was dropped breaks rows that still hold its data","help":"migrate the column's data elsewhere before dropping it"},"xsd":{"verdict":"breaking","message":"s.Customer.note: the field was removed breaks old documents that still carry it","help":"keep the field; an XSD document always carries every element"},"jsonschema":{"verdict":"breaking","message":"s.Customer.note: the field was removed breaks old documents that still carry it","help":"keep the field, or mark the record @jsonschema(open)"}}},{"kind":"reserved.changed","path":"s.Customer","old":"","new":"2; \"note\"","file":"new/s.schemata","line":3,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible"}}],
+  "summary": {"proto":{"breaking":0,"notes":0},"sql":{"breaking":1,"notes":0},"xsd":{"breaking":1,"notes":0},"jsonschema":{"breaking":1,"notes":0}},
+  "exitCode": 1
+}

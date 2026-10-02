@@ -1,0 +1,50 @@
+s.Status
+  value 'paid' renamed to 'settled'    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible
+  value 'settled': @xsd(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  value 'settled': @jsonschema(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  value 'refunded' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  value 'cancelled' removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+
+6 changes
+proto: 0 breaking, 1 note
+sql: 2 breaking, 0 notes
+xsd: 1 breaking, 0 notes
+jsonschema: 1 breaking, 0 notes
+
+error[SCH2501]: sql: s.Status.settled: the enum value was renamed from 'paid' to 'settled' breaks the CHECK constraint for rows that still store the old value
+ --> new/s.schemata:5:53
+  |
+5 |   @xsd(name = "paid") @jsonschema(name = "paid") #2 settled
+  |                                                     ^^^^^^
+  = help: add a new value instead of renaming this one
+
+error[SCH2501]: jsonschema: s.Status.cancelled: the enum value was removed breaks documents that still carry it
+ --> old/s.schemata:6:6
+  |
+6 |   #3 cancelled
+  |      ^^^^^^^^
+  = help: reserve the value instead of removing it
+
+error[SCH2501]: sql: s.Status.cancelled: the enum value was removed breaks the CHECK constraint for rows that still store it
+ --> old/s.schemata:6:6
+  |
+6 |   #3 cancelled
+  |      ^^^^^^^^
+  = help: reserve the value instead of removing it
+
+error[SCH2501]: xsd: s.Status.cancelled: the enum value was removed breaks documents that still carry it
+ --> old/s.schemata:6:6
+  |
+6 |   #3 cancelled
+  |      ^^^^^^^^
+  = help: reserve the value instead of removing it
+
+warning[SCH2502] (lossy): proto: s.Status.cancelled: enum value removed and reserved; old senders of this value become unrecognized
+ --> old/s.schemata:6:6
+  |
+6 |   #3 cancelled
+  |      ^^^^^^^^
+  = help: treat an unrecognized enum value as unknown in generated code
+
+4 errors, 1 warning

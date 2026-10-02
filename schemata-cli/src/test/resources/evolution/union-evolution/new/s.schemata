@@ -1,0 +1,13 @@
+namespace s
+
+record Card { #1 last4: string(max = 4) }
+
+record BankTransfer { #1 iban: string(max = 34) }
+
+record Cash {}
+
+record Wallet { #1 provider: string(max = 32) }
+
+record Voucher { #1 code: string(max = 16) }
+
+union Payment = #1 Card | #2 Wallet | #4 Voucher

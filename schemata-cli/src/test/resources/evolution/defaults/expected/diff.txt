@@ -1,0 +1,68 @@
+s.Settings
+  field 'retries' default added    proto: note, sql: compatible, xsd: note, jsonschema: compatible
+  field 'timeout' default changed    proto: note, sql: compatible, xsd: note, jsonschema: compatible
+  field 'region' default removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
+
+3 changes
+proto: 0 breaking, 3 notes
+sql: 1 breaking, 0 notes
+xsd: 1 breaking, 2 notes
+jsonschema: 1 breaking, 0 notes
+
+warning[SCH2502] (lossy): proto: s.Settings.retries: a default was added; proto does not transmit defaults, so only newly generated code applies it
+ --> new/s.schemata:4:3
+  |
+4 |   #1 retries: int32 = 3
+  |   ^^^^^^^^^^^^^^^^^^^^
+  = help: apply the new default in application code, not the wire format
+
+warning[SCH2502] (lossy): xsd: s.Settings.retries: a default was added or changed; it is applied to empty elements only, not omitted ones
+ --> new/s.schemata:4:3
+  |
+4 |   #1 retries: int32 = 3
+  |   ^^^^^^^^^^^^^^^^^^^^
+  = help: supply the value explicitly where an old document omitted the element
+
+warning[SCH2502] (lossy): proto: s.Settings.timeout: the default changed; proto does not transmit defaults, so only newly generated code applies it
+ --> new/s.schemata:5:3
+  |
+5 |   #2 timeout: int32 = 60
+  |   ^^^^^^^^^^^^^^^^^^^^^
+  = help: apply the new default in application code, not the wire format
+
+warning[SCH2502] (lossy): xsd: s.Settings.timeout: a default was added or changed; it is applied to empty elements only, not omitted ones
+ --> new/s.schemata:5:3
+  |
+5 |   #2 timeout: int32 = 60
+  |   ^^^^^^^^^^^^^^^^^^^^^
+  = help: supply the value explicitly where an old document omitted the element
+
+error[SCH2501]: jsonschema: s.Settings.region: the default was removed from a non-null field breaks old documents that omit it: the property becomes required
+ --> new/s.schemata:6:3
+  |
+6 |   #3 region: string(max = 16)
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = help: keep a default, or supply the field explicitly in every document
+
+error[SCH2501]: sql: s.Settings.region: the default was removed from a NOT NULL column breaks inserts that omit it
+ --> new/s.schemata:6:3
+  |
+6 |   #3 region: string(max = 16)
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = help: keep a default, or supply the column explicitly in every insert
+
+error[SCH2501]: xsd: s.Settings.region: the default was removed from a non-null field breaks old documents that omit it: the element becomes minOccurs = 1, or the attribute required
+ --> new/s.schemata:6:3
+  |
+6 |   #3 region: string(max = 16)
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = help: keep a default, or supply the field explicitly in every document
+
+warning[SCH2502] (lossy): proto: s.Settings.region: a default was removed; proto does not transmit defaults, so only newly generated code applies it
+ --> new/s.schemata:6:3
+  |
+6 |   #3 region: string(max = 16)
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = help: apply the new default in application code, not the wire format
+
+3 errors, 5 warnings

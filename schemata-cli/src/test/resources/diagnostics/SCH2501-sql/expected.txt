@@ -1,0 +1,6 @@
+# diff=old,new targets=sql
+error[SCH2501]: sql: s.R.y: a required column was added breaks existing rows, which have no value for it
+ --> new/s.schemata:2:28
+  = help: add the column as nullable or with a default
+
+1 error, 0 warnings

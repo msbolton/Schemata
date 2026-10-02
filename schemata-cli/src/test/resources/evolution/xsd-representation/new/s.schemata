@@ -1,0 +1,9 @@
+namespace s
+
+record Item {
+  @xsd(attribute) #1 sku: string(max = 16)
+  #2 quantity: int32
+}
+
+@xsd(root = false)
+record Batch { #1 id: uuid }

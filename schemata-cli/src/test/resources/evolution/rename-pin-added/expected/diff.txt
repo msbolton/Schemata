@@ -1,0 +1,14 @@
+s.Order
+  field 'note' renamed to 'comment'    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'comment': @proto(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'comment': @sql(column) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'comment': @xsd(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'comment': @jsonschema(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+
+5 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+
+no diagnostics

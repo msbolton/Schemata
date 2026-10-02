@@ -1,0 +1,2 @@
+namespace b
+record R { #1 x: int32 }

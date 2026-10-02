@@ -1,0 +1,6 @@
+# diff=old,new
+error[SCH2503]: NEW: the schema set has 1 error
+ --> new/s.schemata:2:18
+  = help: fix the schema with check before diffing
+
+1 error, 0 warnings

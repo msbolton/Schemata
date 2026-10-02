@@ -1,0 +1,10 @@
+# diff=old,new
+warning[SCH2502] (lossy): proto: s.R.x: a default was added; proto does not transmit defaults, so only newly generated code applies it
+ --> new/s.schemata:2:12
+  = help: apply the new default in application code, not the wire format
+
+warning[SCH2502] (lossy): xsd: s.R.x: a default was added or changed; it is applied to empty elements only, not omitted ones
+ --> new/s.schemata:2:12
+  = help: supply the value explicitly where an old document omitted the element
+
+0 errors, 2 warnings

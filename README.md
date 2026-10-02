@@ -123,12 +123,14 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
     schemata import  --from xsd [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
+    schemata diff    [--target proto,sql,xsd,jsonschema] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
 error, even when another target failed. `check` reports everything `compile` would and
 writes nothing. `import --from xsd` reads existing `.xsd` files and writes `--out/import/<file>`,
 one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
-codes.
+codes. `diff OLD NEW` judges every change between two schema versions against each target's
+compatibility rulebook, so a breaking change is caught before it ships.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.
@@ -181,6 +183,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-target-xsd` | XML Schema model, lowering, renderer |
 | `schemata-target-jsonschema` | JSON Schema model, lowering, renderer |
 | `schemata-import-xsd` | XSD reader, importer, Schemata emitter |
+| `schemata-evolution` | the differ and the per-target compatibility rulebooks |
 | `schemata-cli` | command surface |
 | `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator, a JSON Schema validator) |
 

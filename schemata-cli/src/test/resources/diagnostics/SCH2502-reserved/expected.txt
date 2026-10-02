@@ -1,0 +1,6 @@
+# diff=old,new targets=proto
+warning[SCH2502] (lossy): proto: s.R.y: field removed; number 2 and name 'y' are free to be reused
+ --> old/s.schemata:2:28
+  = help: reserve #2 and "y" so they are not reused
+
+0 errors, 1 warning

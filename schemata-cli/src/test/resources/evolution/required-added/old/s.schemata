@@ -1,0 +1,5 @@
+namespace s
+
+record Customer {
+  #1 id: uuid
+}
