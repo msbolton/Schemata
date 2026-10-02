@@ -39,7 +39,8 @@ class Recorded : ReferenceRecorder {
 /**
  * One analysis of one set. [diagnostics] has an entry for every member, empty when the file is
  * clean; [gone] lists files that were members last time and no longer exist, each reported once.
- * [files] are the snapshots that were analysed, and [recorded] what the resolver resolved in them.
+ * [files] are the snapshots that were analysed, and [recorded] what the resolver resolved in them,
+ * and [index] maps every name in them to what it refers to.
  */
 class SetAnalysis(
     val key: SetKey,
@@ -48,7 +49,13 @@ class SetAnalysis(
     val gone: Set<String>,
     val files: List<SourceFile>,
     val recorded: Recorded,
-)
+) {
+    /** Every definition and reference site of the set, built on first use. */
+    val index: ReferenceIndex by lazy { IndexBuilder.build(files, recorded) }
+
+    /** The snapshot the set analysed for [path], if that file has ever parsed. */
+    fun snapshot(path: String): Snapshot? = members.firstOrNull { it.path == path }?.snapshot
+}
 
 /**
  * The files the server knows and the analysis of each set, with no protocol types. Not thread-safe:
