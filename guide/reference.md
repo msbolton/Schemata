@@ -1057,8 +1057,9 @@ Install from VSIX..."). It needs `schemata` 0.8.0 or later on your `PATH`, or th
 
 In Zed, clone [zed-schemata](https://github.com/msbolton/zed-schemata) and run "zed: install dev
 extension" on the clone; building it needs Rust installed through rustup. It needs `schemata`
-0.8.0 or later too, and runs `schemata lsp` from your `PATH` or from the path you give it. It takes
-the same two options as the VS Code extension through Zed's settings:
+0.8.0 or later too, and runs `schemata lsp` from your `PATH` or from the path you give it under
+`binary.path`. The two options `roots` and `strict`, which the VS Code extension takes too, go under
+`initialization_options` in Zed's settings:
 
 ```json
 {
