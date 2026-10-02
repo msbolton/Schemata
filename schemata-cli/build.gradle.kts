@@ -18,6 +18,7 @@ dependencies {
     implementation(project(":schemata-target-jsonschema"))
     implementation(project(":schemata-import-xsd"))
     implementation(project(":schemata-evolution"))
+    implementation(project(":schemata-lsp"))
     implementation(libs.clikt)
     testImplementation(project(":schemata-testkit"))
     testImplementation(libs.testcontainersPostgres)
