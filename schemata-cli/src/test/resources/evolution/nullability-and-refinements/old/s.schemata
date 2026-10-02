@@ -1,0 +1,9 @@
+namespace s
+
+record Account {
+  #1 nickname: string(max = 40)?
+  #2 tier: int32?
+  #3 code: string(max = 10)
+  #4 score: int32(min = 0, max = 100)
+  #5 tags: list<string(max = 20)>
+}

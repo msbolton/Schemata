@@ -1,0 +1,6 @@
+namespace s
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 total: decimal(19, 4)
+}

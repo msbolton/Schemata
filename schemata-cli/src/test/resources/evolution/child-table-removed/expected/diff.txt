@@ -1,0 +1,62 @@
+s.Order
+  field 'lines' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+s.Line
+  declaration removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
+
+3 changes
+proto: 0 breaking, 1 note
+sql: 2 breaking, 0 notes
+xsd: 2 breaking, 0 notes
+jsonschema: 2 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Order.lines: the field was removed breaks old documents that still carry it
+ --> old/s.schemata:5:6
+  |
+5 |   #2 lines: list<Line>
+  |      ^^^^
+  = help: keep the field, or mark the record @jsonschema(open)
+
+error[SCH2501]: sql: s.Order.lines: the column was dropped breaks rows that still hold its data
+ --> old/s.schemata:5:6
+  |
+5 |   #2 lines: list<Line>
+  |      ^^^^
+  = help: migrate the column's data elsewhere before dropping it
+
+error[SCH2501]: xsd: s.Order.lines: the field was removed breaks old documents that still carry it
+ --> old/s.schemata:5:6
+  |
+5 |   #2 lines: list<Line>
+  |      ^^^^
+  = help: keep the field; an XSD document always carries every element
+
+error[SCH2501]: jsonschema: s.Line: the declaration was removed breaks documents validated against it
+ --> old/s.schemata:8:8
+  |
+8 | record Line {
+  |        ^^^
+  = help: keep the declaration, or confirm nothing outside this schema still depends on it
+
+error[SCH2501]: sql: s.Line: the declaration was removed breaks reads of the table backing it
+ --> old/s.schemata:8:8
+  |
+8 | record Line {
+  |        ^^^
+  = help: drop the table only after migrating or archiving its data
+
+error[SCH2501]: xsd: s.Line: the declaration was removed breaks documents validated against it
+ --> old/s.schemata:8:8
+  |
+8 | record Line {
+  |        ^^^
+  = help: keep the declaration, or confirm nothing outside this schema still depends on it
+
+warning[SCH2502] (lossy): proto: s.Line: the declaration was removed; generated code loses this type
+ --> old/s.schemata:8:8
+  |
+8 | record Line {
+  |        ^^^
+  = help: keep the type, or confirm nothing outside this schema still depends on it
+
+6 errors, 1 warning

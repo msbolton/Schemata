@@ -1,0 +1,6 @@
+namespace s
+
+record Order {
+  @sql(key) #1 id: uuid
+  reserved #2, "lines"
+}
