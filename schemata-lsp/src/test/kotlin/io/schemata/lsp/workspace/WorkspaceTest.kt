@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.io.TempDir
 
 class WorkspaceTest {
@@ -137,6 +138,64 @@ class WorkspaceTest {
         ws.open(o, "namespace a\nrecord R { #1 x: Missing }\n")
         val analysis = ws.analysis(ws.close(o))
         assertEquals(emptyList(), codes(analysis, o))
+    }
+
+    @Test
+    fun `a closed sibling edited on disk with no watcher event is read again`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        assertEquals(emptyList(), codes(ws.analysis(ws.open(o, orders)), o))
+        file("shop/customers.schemata", "namespace shop.customers\nrecord Client { #1 id: uuid }\n")
+        val analysis = ws.analysis(ws.change(o, orders))
+        assertEquals(listOf("SCH1006", "SCH1012"), codes(analysis, o).sorted())
+        assertEquals(emptyList(), codes(analysis, c))
+    }
+
+    @Test
+    fun `refresh makes the next analysis look at the disk again`() {
+        file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        val key = ws.open(o, orders)
+        assertEquals(emptyList(), codes(ws.analysis(key), o))
+        file("shop/customers.schemata", "namespace shop.customers\nrecord Client { #1 id: uuid }\n")
+        ws.refresh(key)
+        assertTrue("SCH1006" in codes(ws.analysis(key), o))
+    }
+
+    @Test
+    fun `a directory that cannot be read is skipped and the rest of the root analyses`() {
+        val a = file("model/a.schemata", "namespace a\nrecord R { #1 x: int32 }\n")
+        file("model/locked/b.schemata", "namespace b\nrecord S { #1 x: int32 }\n")
+        val locked = dir.resolve("model/locked")
+        assumeTrue(
+            Files.getFileStore(locked).supportsFileAttributeView("posix"),
+            "permissions cannot be removed here",
+        )
+        val permissions = Files.getPosixFilePermissions(locked)
+        Files.setPosixFilePermissions(locked, emptySet())
+        try {
+            assumeTrue(!Files.isReadable(locked), "this user reads every directory")
+            val ws = workspace()
+            ws.configure(listOf(dir.resolve("model")), strict = false)
+            val analysis = ws.analysis(ws.open(a, Files.readString(Path.of(a))))
+            assertEquals(setOf(a), analysis.diagnostics.keys)
+            assertEquals(emptyList(), codes(analysis, a))
+        } finally {
+            Files.setPosixFilePermissions(locked, permissions)
+        }
+    }
+
+    @Test
+    fun `a hidden directory under a root is not part of the set`() {
+        val a = file("model/a.schemata", "namespace a\nrecord R { #1 x: int32 }\n")
+        file("model/.cache/a.schemata", "namespace a\nrecord R { #1 x: int32 }\n")
+        val ws = workspace()
+        ws.configure(listOf(dir.resolve("model")), strict = false)
+        val analysis = ws.analysis(ws.open(a, Files.readString(Path.of(a))))
+        assertEquals(setOf(a), analysis.diagnostics.keys)
+        assertEquals(emptyList(), codes(analysis, a))
     }
 
     @Test

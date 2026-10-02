@@ -11,9 +11,12 @@ import io.schemata.lang.Span
 import io.schemata.lang.ast.ImportDecl
 import io.schemata.lang.ast.SourceFile
 import java.io.IOException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.extension
 import kotlin.io.path.isRegularFile
 
@@ -60,7 +63,8 @@ class SetAnalysis(
 /**
  * The files the server knows and the analysis of each set, with no protocol types. Not thread-safe:
  * the server calls it from one thread. A change marks the file's set stale; [analysis] recomputes a
- * stale set and otherwise returns what it computed last.
+ * stale set and otherwise returns what it computed last. Each analysis re-reads a closed file whose
+ * size or modification time changed since it was read.
  */
 class Workspace(private val annotations: AnnotationRegistry) {
     private var sets = SchemaSets(emptyList())
@@ -145,9 +149,15 @@ class Workspace(private val annotations: AnnotationRegistry) {
         val onDisk = listFiles(key)
         for (path in onDisk) {
             val document = documents[path]
-            if (document == null || (!document.open && path in stale)) {
+            if (document?.open == true) continue
+            // A watcher can miss a change, or not be registered at all, so the disk has the last
+            // word.
+            val stamp = stamp(path)
+            if (document == null || path in stale || stamp != document.stamp) {
                 val text = read(path) ?: continue
-                update(documents.getOrPut(path) { Document(path) }, text)
+                val read = documents.getOrPut(path) { Document(path) }
+                read.stamp = stamp
+                update(read, text)
             }
         }
         stale -= onDisk
@@ -169,23 +179,53 @@ class Workspace(private val annotations: AnnotationRegistry) {
         return SetAnalysis(key, members, diagnostics, gone, files, recorded)
     }
 
+    /**
+     * The set's files on disk. A directory that cannot be read is skipped, so one unreadable folder
+     * does not stop the rest of the set; so is every hidden directory (`.git`, `.cache`).
+     */
     private fun listFiles(key: SetKey): Set<String> {
         val directory = Paths.get(key.directory)
         if (!Files.isDirectory(directory)) return emptySet()
         val depth = if (key.recursive) Int.MAX_VALUE else 1
-        return try {
-            Files.walk(directory, depth).use { paths ->
-                paths
-                    .filter { it.isRegularFile() && it.extension == "schemata" }
-                    .map { it.toAbsolutePath().normalize().toString() }
-                    .filter { sets.contains(key, it) }
-                    .toList()
-                    .toSet()
+        val found = mutableSetOf<String>()
+        val visitor =
+            object : SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(
+                    dir: Path,
+                    attrs: BasicFileAttributes,
+                ): FileVisitResult =
+                    if (dir != directory && dir.fileName.toString().startsWith(".")) {
+                        FileVisitResult.SKIP_SUBTREE
+                    } else {
+                        FileVisitResult.CONTINUE
+                    }
+
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (file.extension == "schemata" && file.isRegularFile()) {
+                        val path = file.toAbsolutePath().normalize().toString()
+                        if (sets.contains(key, path)) found += path
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult =
+                    FileVisitResult.CONTINUE
             }
+        try {
+            Files.walkFileTree(directory, emptySet(), depth, visitor)
         } catch (e: IOException) {
-            emptySet()
+            // The root itself went away while it was being walked; what was found still counts.
         }
+        return found
     }
+
+    private fun stamp(path: String): DiskStamp? =
+        try {
+            val attributes = Files.readAttributes(Paths.get(path), BasicFileAttributes::class.java)
+            DiskStamp(attributes.size(), attributes.lastModifiedTime().toMillis())
+        } catch (e: IOException) {
+            null
+        }
 
     private fun read(path: String): String? =
         try {

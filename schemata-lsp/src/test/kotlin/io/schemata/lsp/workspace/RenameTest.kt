@@ -425,6 +425,21 @@ class RenameTest {
     }
 
     @Test
+    fun `a rename reads a closed file edited on disk before computing its edits`() {
+        val f = Fixture(dir)
+        val c = f.write("shop/customers.schemata", customers)
+        val o = f.open("shop/orders.schemata", orders)
+        f.workspace.analysis(f.workspace.keyOf(o))
+        val moved = "namespace shop.customers\n\n// moved down\nrecord Customer { #1 id: uuid }\n"
+        f.write("shop/customers.schemata", moved)
+        val edits = assertIs<RenameResult.Edits>(f.queries.rename(o, f.at(o, "Customer"), "Client"))
+        assertEquals(
+            "namespace shop.customers\n\n// moved down\nrecord Client { #1 id: uuid }\n",
+            apply(moved, edits.edits.getValue(c)),
+        )
+    }
+
+    @Test
     fun `a rename refuses when a closed file it edits no longer matches the disk`() {
         val f = Fixture(dir)
         val c = f.write("shop/customers.schemata", customers)
