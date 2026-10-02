@@ -13,6 +13,9 @@ class LspCommand : CliktCommand(name = "lsp") {
         // The protocol owns stdout; anything else that prints goes to stderr instead.
         val protocol = System.out
         System.setOut(System.err)
-        SchemataServer.launch(System.`in`, protocol, Pipeline.annotations) { exitProcess(it) }.get()
+        // Input that ends without `exit` is a clean stop only if the client asked for shutdown.
+        exitProcess(
+            SchemataServer.serve(System.`in`, protocol, Pipeline.annotations) { exitProcess(it) }
+        )
     }
 }

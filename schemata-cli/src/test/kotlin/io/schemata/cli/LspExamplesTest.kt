@@ -12,10 +12,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DocumentFormattingParams
+import org.eclipse.lsp4j.FileChangeType
 import org.eclipse.lsp4j.FormattingOptions
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.TextDocumentIdentifier
+import org.eclipse.lsp4j.TextEdit
 import org.junit.jupiter.api.io.TempDir
 
 /** The server on the three examples, with every target's annotation keys known. */
@@ -54,7 +56,7 @@ class LspExamplesTest {
             files.forEach { file ->
                 assertEquals(
                     emptyList(),
-                    session.diagnostics(file.toPath()) { true }.map { it.message },
+                    session.diagnostics(file.toPath()) { it.isEmpty() }.map { it.message },
                 )
             }
         }
@@ -100,14 +102,26 @@ class LspExamplesTest {
         }
     }
 
+    /** [edits] applied to [text], last first so the earlier positions stay valid. */
+    private fun apply(text: String, edits: List<TextEdit>): String {
+        val starts = listOf(0) + text.indices.filter { text[it] == '\n' }.map { it + 1 }
+        fun offset(p: Position) = starts[p.line] + p.character
+        return edits
+            .sortedByDescending { offset(it.range.start) }
+            .fold(text) { acc, edit ->
+                acc.replaceRange(offset(edit.range.start), offset(edit.range.end), edit.newText)
+            }
+    }
+
     @Test
-    fun `renaming Customer edits both shop files`() {
+    fun `renaming Customer edits both shop files and the result analyses cleanly`() {
         val examples = copyExamples()
         val orders = examples.resolve("shop/orders.schemata")
         val customers = examples.resolve("shop/customers.schemata")
         val text = orders.toFile().readText()
         session(examples).use { session ->
             session.open(orders, text)
+            session.diagnostics(orders) { it.isEmpty() }
             val at =
                 position(text, "customer:  Customer").let { Position(it.line, it.character + 12) }
             val edit =
@@ -116,6 +130,24 @@ class LspExamplesTest {
                     .get(10, TimeUnit.SECONDS)
             assertEquals(setOf(session.uri(orders), session.uri(customers)), edit.changes.keys)
             assertEquals(1, edit.changes.getValue(session.uri(customers)).size)
+
+            // The editor applies the edit: the open file through the buffer, the closed one on
+            // disk, which its file watcher reports.
+            val renamed = apply(text, edit.changes.getValue(session.uri(orders)))
+            assertTrue("customer:  Client" in renamed, renamed)
+            session.change(orders, renamed)
+            val file = customers.toFile()
+            file.writeText(apply(file.readText(), edit.changes.getValue(session.uri(customers))))
+            assertTrue("record Client {" in file.readText(), file.readText())
+            session.watched(customers, FileChangeType.Changed)
+            session.settle(orders)
+            assertEquals(emptyList(), session.diagnostics(orders) { it.isEmpty() })
+            assertEquals(emptyList(), session.diagnostics(customers) { it.isEmpty() })
+            val found =
+                session.server.textDocumentService
+                    .definition(DefinitionParams(TextDocumentIdentifier(session.uri(orders)), at))
+                    .get(10, TimeUnit.SECONDS)
+            assertEquals(position(file.readText(), "Client {"), found.left.single().range.start)
         }
     }
 
