@@ -1071,22 +1071,37 @@ What the server does:
 **Schema sets.** Imports name a namespace, not a file, so the server has to know which files belong
 together. By default a file's set is every `.schemata` file in its own directory. When one schema
 is spread over nested directories, list its top directory in `schemata.roots` (paths relative to
-the workspace folder); everything beneath a root is then one set, and a file under several roots
-belongs to the nearest. Two sets never see each other's declarations, so a repository can hold
-several schemas, or two versions of one, side by side.
+the first workspace folder); everything beneath a root is then one set, and a file under several
+roots belongs to the nearest. Two sets never see each other's declarations, so a repository can
+hold several schemas, or two versions of one, side by side.
+
+Make a root the directory that holds the schema, not the repository: every `.schemata` file
+beneath a root joins its set, copies in build output included, and a second copy of a namespace
+turns every declaration in it into a duplicate. Hidden directories such as `.git` are skipped.
 
 **While a file does not parse.** You spend most of your typing time with a file that is not yet
-valid. The file shows its syntax errors and nothing else. The rest of its set keeps using the last
-version of the file that did parse, so files that import it do not light up with errors that are
-not theirs. Go to definition, hover, references, the outline, and formatting pause for the broken
-file itself and resume when it parses again. Rename waits until every file of the set parses.
+valid. The file shows its syntax errors and nothing else. Once a file has parsed, the rest of its
+set keeps using the last version of it that did, so files that import it do not light up with
+errors that are not theirs; a file that has never parsed contributes nothing until it does. Go to
+definition, hover, references, the outline, and formatting pause for the broken file itself and
+resume when it parses again. A definition or reference that another file finds inside the broken
+one comes from that last parsed version, so its location can be off until the file parses again.
+Rename waits until every file of the set parses.
 
 **Rename.** Rename changes names in the schema and nothing else. It does not add `@proto(name)`,
 `@sql(column)`, or any other override, so the emitted names change with it; `schemata diff` tells
 you what that breaks on each target (section 19). A reserved name string and an existing override
 are text, not uses of the name, and stay as they are. A namespace cannot be renamed. Rename
 refuses a name that is not an identifier, is a keyword, or is already taken where the old name
-lives.
+lives, and a declaration may not take a builtin type name, `list`, or `map`. It also tries the
+rename before it answers, and refuses one that would:
+
+- change what another name refers to, as when a nested record renamed to `Item` would capture the
+  uses of a top-level `Item`;
+- add an error, as when an import without an alias makes the new name ambiguous;
+- leave a use behind, because a type that mentions the old name has an error of its own (as in
+  `map<Strng, Customer>`) and so was never looked up; fix that type first;
+- edit a file that is not open and has changed on disk since the server read it; try again.
 
 **Settings.** `schemata.path` is the `schemata` binary to run (default: the one on `PATH`).
 `schemata.roots` lists schema-set roots. `schemata.strict` reports every field, enum value, or
