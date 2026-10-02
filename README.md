@@ -132,8 +132,8 @@ writes nothing. `import --from xsd` reads existing `.xsd` files and writes `--ou
 one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
 codes. `diff OLD NEW` judges every change between two schema versions against each target's
 compatibility rulebook, so a breaking change is caught before it ships. `lsp` runs the language
-server an editor starts; the guide's Editor support section covers the VS Code extension and what
-the server does.
+server an editor starts; the guide's Editor support section covers the VS Code and Zed extensions
+and what the server does.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.

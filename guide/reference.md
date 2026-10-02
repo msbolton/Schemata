@@ -1053,8 +1053,29 @@ codes) stay with the command line; run `check` or `compile` for those.
 
 In VS Code, install the Schemata extension from its releases page (a `.vsix` file; "Extensions:
 Install from VSIX..."). It needs `schemata` 0.8.0 or later on your `PATH`, or the path to it in the
-`schemata.path` setting. Any other editor with a language-server client can run `schemata lsp`
-itself.
+`schemata.path` setting.
+
+In Zed, clone [zed-schemata](https://github.com/msbolton/zed-schemata) and run "zed: install dev
+extension" on the clone; building it needs Rust installed through rustup. It needs `schemata`
+0.8.0 or later too, and runs `schemata lsp` from your `PATH` or from the path you give it. It takes
+the same two options as the VS Code extension through Zed's settings:
+
+```json
+{
+  "lsp": {
+    "schemata": {
+      "binary": { "path": "/path/to/schemata" },
+      "initialization_options": { "roots": ["model"], "strict": true }
+    }
+  }
+}
+```
+
+Zed highlights with a tree-sitter grammar, which lives in
+[tree-sitter-schemata](https://github.com/msbolton/tree-sitter-schemata) and is checked against
+this repository's own schema files.
+
+Any other editor with a language-server client can run `schemata lsp` itself.
 
 What the server does:
 
@@ -1107,3 +1128,6 @@ rename before it answers, and refuses one that would:
 `schemata.roots` lists schema-set roots. `schemata.strict` reports every field, enum value, or
 union member left with an implicit ordinal as an error, as `--strict` does; unlike `--strict`, it
 does not turn other warnings into errors.
+
+In Zed the same options are `binary.path` and the `roots` and `strict` entries of
+`initialization_options`, as shown above.
