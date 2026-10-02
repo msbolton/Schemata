@@ -45,7 +45,7 @@ object Analyzer {
         val diagnostics = mutableListOf<Diagnostic>()
         val sorted = files.sortedBy { it.path }
         val index = DeclarationIndex(sorted, diagnostics)
-        val resolver = Resolver(index, sorted, diagnostics)
+        val resolver = Resolver(index, sorted, diagnostics, options.references)
         val annotations = AnnotationChecker(options.annotations, diagnostics)
         val namespaces =
             Recursion.mark(

@@ -33,6 +33,7 @@ class Resolver(
     private val index: DeclarationIndex,
     files: List<SourceFile>,
     private val diagnostics: MutableList<Diagnostic>,
+    private val references: ReferenceRecorder? = null,
 ) {
     private val mapKeyTypes = setOf(Builtin.STRING, Builtin.INT32, Builtin.INT64)
     private val imports: Map<String, List<ImportDecl>> = files.associate { it.path to it.imports }
@@ -122,7 +123,9 @@ class Resolver(
             )
             return null
         }
-        return when (val found = lookup(expr.name, expr.nameSpan, scope) ?: return null) {
+        return when (
+            val found = lookup(expr.name, expr.nameSpan, expr.nameSegments, scope) ?: return null
+        ) {
             is Found.Builtin -> {
                 val refinements =
                     RefinementChecker.scalar(found.builtin, expr, diagnostics) ?: return null
@@ -227,11 +230,11 @@ class Resolver(
         data class Decl(val entry: IndexedDecl) : Found
     }
 
-    private fun lookup(name: String, at: Span, scope: Scope): Found? {
+    private fun lookup(name: String, at: Span, sites: List<Span>, scope: Scope): Found? {
         val parts = name.split('.')
         val head = parts.first()
         enclosing(head, scope)?.let {
-            return descend(it, parts.drop(1), at)
+            return descend(it, parts.drop(1), at, sites)
         }
         val candidates =
             listOfNotNull(index.find(QualifiedName(scope.namespace, listOf(head)))) +
@@ -250,16 +253,16 @@ class Resolver(
             return null
         }
         candidates.singleOrNull()?.let {
-            return descend(it, parts.drop(1), at)
+            return descend(it, parts.drop(1), at, sites)
         }
         // a form that reported its own error must not fall through to "unknown type"
         val before = diagnostics.size
-        aliased(parts, scope, at)?.let {
+        aliased(parts, scope, at, sites)?.let {
             return it
         }
         if (diagnostics.size != before) return null
         val beforeQualified = diagnostics.size
-        qualified(parts, at)?.let {
+        qualified(parts, at, sites)?.let {
             return it
         }
         if (diagnostics.size != beforeQualified) return null
@@ -293,30 +296,52 @@ class Resolver(
                 index.find(QualifiedName(imp.namespace, listOf(head)))?.also { usedImports += imp }
             }
 
-    private fun aliased(parts: List<String>, scope: Scope, at: Span): Found? {
+    private fun aliased(parts: List<String>, scope: Scope, at: Span, sites: List<Span>): Found? {
         if (parts.size < 2) return null
         val imp =
             (imports[scope.file.path] ?: emptyList()).firstOrNull { it.alias == parts[0] }
                 ?: return null
         usedImports += imp
+        sites.firstOrNull()?.let { references?.alias(it, imp) }
         val base = index.find(QualifiedName(imp.namespace, listOf(parts[1]))) ?: return null
-        return descend(base, parts.drop(2), at)
+        return descend(base, parts.drop(2), at, sites.drop(1))
     }
 
     /** `shop.customers.Customer[.Nested…]`: the longest namespace prefix that exists wins. */
-    private fun qualified(parts: List<String>, at: Span): Found? {
+    private fun qualified(parts: List<String>, at: Span, sites: List<Span>): Found? {
         for (split in parts.size - 1 downTo 1) {
             val namespace = parts.take(split).joinToString(".")
             if (!index.namespaceExists(namespace)) continue
             val base = index.find(QualifiedName(namespace, listOf(parts[split]))) ?: continue
-            return descend(base, parts.drop(split + 1), at)
+            if (sites.size == parts.size) {
+                val first = sites.first()
+                val last = sites[split - 1]
+                references?.namespace(
+                    Span(
+                        first.file,
+                        first.startLine,
+                        first.startColumn,
+                        last.endLine,
+                        last.endColumn,
+                    ),
+                    namespace,
+                )
+            }
+            return descend(base, parts.drop(split + 1), at, sites.drop(split))
         }
         return null
     }
 
-    private fun descend(base: IndexedDecl, rest: List<String>, at: Span): Found? {
+    /** [sites] holds the span of [base]'s segment first, then one per segment of [rest]. */
+    private fun descend(
+        base: IndexedDecl,
+        rest: List<String>,
+        at: Span,
+        sites: List<Span>,
+    ): Found? {
+        sites.firstOrNull()?.let { references?.type(it, base) }
         var current = base
-        for (segment in rest) {
+        rest.forEachIndexed { i, segment ->
             val next =
                 index.find(
                     QualifiedName(
@@ -334,6 +359,7 @@ class Resolver(
                 )
                 return null
             }
+            sites.getOrNull(i + 1)?.let { references?.type(it, next) }
             current = next
         }
         return Found.Decl(current)

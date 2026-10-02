@@ -16,11 +16,20 @@ data class SourceFile(
     val span: Span,
 )
 
-/** `namespace shop.orders` — [name] keeps the dots. */
-data class NamespaceDecl(val name: String, val span: Span)
+/** `namespace shop.orders` — [name] keeps the dots; [nameSpan] covers the name alone. */
+data class NamespaceDecl(val name: String, val nameSpan: Span, val span: Span)
 
-/** `import shop.customers` or `import shop.customers as cust`. */
-data class ImportDecl(val namespace: String, val alias: String?, val span: Span)
+/**
+ * `import shop.customers` or `import shop.customers as cust`. [namespaceSpan] covers the namespace
+ * name, [aliasSpan] the alias when there is one.
+ */
+data class ImportDecl(
+    val namespace: String,
+    val alias: String?,
+    val namespaceSpan: Span,
+    val aliasSpan: Span?,
+    val span: Span,
+)
 
 sealed interface Declaration {
     val name: String
@@ -111,12 +120,14 @@ sealed interface ReservedItem {
 
 /**
  * A type as written: `list<string(max = 5)>?`. [name] is the qualified name verbatim (`Outer.Inner`
- * or `cust.Customer`). Whether it resolves, and whether the refinements are legal for it, is the
- * analyzer's business.
+ * or `cust.Customer`), and [nameSegments] holds one span per identifier of it, in order, since
+ * whitespace or a comment may sit between segments. Whether it resolves, and whether the
+ * refinements are legal for it, is the analyzer's business.
  */
 data class TypeExpr(
     val name: String,
     val nameSpan: Span,
+    val nameSegments: List<Span>,
     val args: List<TypeExpr>,
     val refinements: List<Refinement>,
     val nullable: Boolean,
@@ -150,8 +161,12 @@ sealed interface AnnotationValue {
 
     data class Lit(val literal: Literal, override val span: Span) : AnnotationValue
 
-    /** `(a, b)` — used by `@sql(key = (tenant_id, id))`. */
-    data class Tuple(val names: List<String>, override val span: Span) : AnnotationValue
+    /**
+     * `(a, b)` — used by `@sql(key = (tenant_id, id))`. [nameSpans] holds one span per name, in
+     * order.
+     */
+    data class Tuple(val names: List<String>, val nameSpans: List<Span>, override val span: Span) :
+        AnnotationValue
 }
 
 sealed interface Literal {
