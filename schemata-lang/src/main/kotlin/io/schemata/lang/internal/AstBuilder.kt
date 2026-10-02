@@ -40,10 +40,18 @@ internal class AstBuilder(
             doc = doc(ctx.doc()),
             annotations = ctx.annotation().map { build(it) },
             namespace =
-                NamespaceDecl(ctx.namespaceDecl().qualifiedName().text, ctx.namespaceDecl().span()),
+                ctx.namespaceDecl().let {
+                    NamespaceDecl(it.qualifiedName().text, it.qualifiedName().span(), it.span())
+                },
             imports =
                 ctx.importDecl().map {
-                    ImportDecl(it.qualifiedName().text, it.IDENT()?.text, it.span())
+                    ImportDecl(
+                        namespace = it.qualifiedName().text,
+                        alias = it.IDENT()?.text,
+                        namespaceSpan = it.qualifiedName().span(),
+                        aliasSpan = it.IDENT()?.symbol?.span(),
+                        span = it.span(),
+                    )
                 },
             declarations = ctx.topLevel().mapNotNull { build(it) },
             span = ctx.span(),
@@ -163,6 +171,7 @@ internal class AstBuilder(
         TypeExpr(
             name = ctx.qualifiedName().text,
             nameSpan = ctx.qualifiedName().span(),
+            nameSegments = ctx.qualifiedName().IDENT().map { it.symbol.span() },
             args = ctx.typeArgs()?.typeExpr()?.map { build(it) } ?: emptyList(),
             refinements =
                 ctx.refinements()?.refinement()?.map { r ->
@@ -193,7 +202,11 @@ internal class AstBuilder(
 
     private fun build(ctx: SchemataParser.AnnotationValueContext): AnnotationValue =
         ctx.literal()?.let { AnnotationValue.Lit(build(it), ctx.span()) }
-            ?: AnnotationValue.Tuple(ctx.IDENT().map { it.text }, ctx.span())
+            ?: AnnotationValue.Tuple(
+                ctx.IDENT().map { it.text },
+                ctx.IDENT().map { it.symbol.span() },
+                ctx.span(),
+            )
 
     private fun build(ctx: SchemataParser.LiteralContext): Literal {
         val span = ctx.span()

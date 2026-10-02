@@ -626,7 +626,9 @@ value is not carried.
 
 ## 17. The CLI
 
-`schemata` has four commands.
+`schemata` has seven commands: `compile`, `check`, `import`, `targets`, `fmt`, `diff`, and `lsp`.
+This section covers `compile`, `check`, `targets`, `fmt`, and `lsp`; `import` is section 18 and
+`diff` is section 19.
 
 `compile <paths>...` compiles to `--out` (default `out`), for `--target` (a comma-separated list;
 default `proto`, `sql`, `xsd`, and `jsonschema`), reporting diagnostics in `--format` (`human`, to
@@ -648,6 +650,9 @@ one on its own line stays above the element that follows it, and a comment at th
 stays on that line (after the element, or after the opening brace). Long lines are never wrapped.
 Doc-comment text keeps its indentation beyond one space after `///`. A file that does not parse is
 reported like `check` would and left untouched.
+
+`lsp` runs the language server for an editor; section 20 describes it. It takes no options and
+writes nothing but protocol messages to stdout.
 
 The exit code tells you what happened without reading the output: `0` when there is nothing to
 report, `2` when every diagnostic is a warning, and `1` when any diagnostic is an error, or the
@@ -1038,3 +1043,67 @@ proto too (`@proto(name = "note")`, as the warning's help says) would make every
 The pins need not predate the rename: added in the same change, each target still compares the
 name the old field emitted with the name the new one emits, and both are the name `note`, so
 every target reads the rename as compatible.
+
+## 20. Editor support
+
+`schemata lsp` is a language server: an editor starts it and talks to it over its standard input
+and output. It reports the diagnostics `schemata check` reports about the schemas themselves, with
+the same codes and help lines, as you type. It runs no target, so the target checks (the `SCH2...`
+codes) stay with the command line; run `check` or `compile` for those.
+
+In VS Code, install the Schemata extension from its releases page (a `.vsix` file; "Extensions:
+Install from VSIX..."). It needs `schemata` 0.8.0 or later on your `PATH`, or the path to it in the
+`schemata.path` setting. Any other editor with a language-server client can run `schemata lsp`
+itself.
+
+What the server does:
+
+| You do | You get |
+|---|---|
+| Open or edit a file | Diagnostics for every file of its schema set, open or not |
+| Go to definition | A type name goes to its declaration, across files; the alias in `cust.Customer` goes to the import; an import goes to the `namespace` line of each file that declares it; an enum default goes to the value |
+| Hover | The declaration's kind and qualified name, the rest of a field or alias as written, and the doc comment; on a builtin type name such as `int32` or `list`, a one-line description |
+| Find references | Every use of a declaration, field, enum value, namespace, or import alias in its set |
+| Rename | The declaration and every use, in one edit |
+| Format document | The same result as `schemata fmt` |
+| Outline | The namespace, its declarations, and their fields and values |
+
+**Schema sets.** Imports name a namespace, not a file, so the server has to know which files belong
+together. By default a file's set is every `.schemata` file in its own directory. When one schema
+is spread over nested directories, list its top directory in `schemata.roots` (paths relative to
+the first workspace folder); everything beneath a root is then one set, and a file under several
+roots belongs to the nearest. Two sets never see each other's declarations, so a repository can
+hold several schemas, or two versions of one, side by side.
+
+Make a root the directory that holds the schema, not the repository: every `.schemata` file
+beneath a root joins its set, copies in build output included, and a second copy of a namespace
+turns every declaration in it into a duplicate. Hidden directories such as `.git` are skipped.
+
+**While a file does not parse.** You spend most of your typing time with a file that is not yet
+valid. The file shows its syntax errors and nothing else. Once a file has parsed, the rest of its
+set keeps using the last version of it that did, so files that import it do not light up with
+errors that are not theirs; a file that has never parsed contributes nothing until it does. Go to
+definition, hover, references, the outline, and formatting pause for the broken file itself and
+resume when it parses again. A definition or reference that another file finds inside the broken
+one comes from that last parsed version, so its location can be off until the file parses again.
+Rename waits until every file of the set parses.
+
+**Rename.** Rename changes names in the schema and nothing else. It does not add `@proto(name)`,
+`@sql(column)`, or any other override, so the emitted names change with it; `schemata diff` tells
+you what that breaks on each target (section 19). A reserved name string and an existing override
+are text, not uses of the name, and stay as they are. A namespace cannot be renamed. Rename
+refuses a name that is not an identifier, is a keyword, or is already taken where the old name
+lives, and a declaration may not take a builtin type name, `list`, or `map`. It also tries the
+rename before it answers, and refuses one that would:
+
+- change what another name refers to, as when a nested record renamed to `Item` would capture the
+  uses of a top-level `Item`;
+- add an error, as when an import without an alias makes the new name ambiguous;
+- leave a use behind, because a type that mentions the old name has an error of its own (as in
+  `map<Strng, Customer>`) and so was never looked up; fix that type first;
+- edit a file that is not open and has changed on disk since the server read it; try again.
+
+**Settings.** `schemata.path` is the `schemata` binary to run (default: the one on `PATH`).
+`schemata.roots` lists schema-set roots. `schemata.strict` reports every field, enum value, or
+union member left with an implicit ordinal as an error, as `--strict` does; unlike `--strict`, it
+does not turn other warnings into errors.
