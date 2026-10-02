@@ -67,7 +67,8 @@ class LineIndex(private val text: String) {
         return TextPosition(last, text.length - starts[last])
     }
 
-    private fun offset(position: TextPosition): Int =
+    /** The index into the text of an editor position. */
+    internal fun offset(position: TextPosition): Int =
         (starts.getOrElse(position.line) { text.length } + position.character).coerceAtMost(
             text.length
         )

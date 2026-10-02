@@ -29,7 +29,7 @@ data class DeclaredAt(val decl: Declaration, val file: SourceFile)
 
 /** Every site of one schema set. */
 class ReferenceIndex(
-    private val sites: List<Site>,
+    internal val sites: List<Site>,
     private val builtins: List<BuiltinSite>,
     val declarations: Map<QualifiedName, DeclaredAt>,
 ) {

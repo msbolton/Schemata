@@ -176,6 +176,36 @@ class ReferenceIndexTest {
     }
 
     @Test
+    fun `a union member is a reference to its declaration`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "m/a.schemata",
+                "namespace m\nrecord Card {}\nrecord Cash {}\nunion Payment = #1 Card | #2 Cash\n",
+            )
+        assertEquals(listOf(f.location(a, "Card")), f.queries.definition(a, f.at(a, "Card |")))
+        assertEquals(
+            listOf(f.location(a, "Card", occurrence = 1)),
+            f.queries.references(a, f.at(a, "Card"), includeDeclaration = false),
+        )
+    }
+
+    @Test
+    fun `a cursor on the dot of a nested name belongs to the segment before it`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "m/a.schemata",
+                "namespace m\nrecord Outer { #1 x: int32\n  record Inner { #1 y: int32 } }\n" +
+                    "record Use { #1 i: Outer.Inner }\n",
+            )
+        assertEquals(
+            listOf(f.location(a, "Outer")),
+            f.queries.definition(a, f.at(a, "Outer.Inner", offset = 5)),
+        )
+    }
+
+    @Test
     fun `a builtin, a keyword, and blank space have no definition`() {
         val f = Fixture(dir)
         val a = f.open("m/a.schemata", "namespace m\nrecord R { #1 x: int32 }\n")

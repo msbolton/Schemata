@@ -1,40 +1,6 @@
 package io.schemata.lsp.workspace
 
-import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
-import io.schemata.lang.ast.EnumDecl
-import io.schemata.lang.ast.RecordDecl
-
-/** One replacement in a file, in editor coordinates. */
-data class TextEdit(val range: TextRange, val newText: String)
-
-sealed interface RenameResult {
-    /** Replacements per file path. */
-    data class Edits(val edits: Map<String, List<TextEdit>>) : RenameResult
-
-    /** Why the rename cannot be done, in words for the user. */
-    data class Refused(val message: String) : RenameResult
-}
-
-private val identifier = Regex("[A-Za-z_][A-Za-z0-9_]*")
-
-private val keywords =
-    setOf(
-        "namespace",
-        "import",
-        "as",
-        "record",
-        "enum",
-        "union",
-        "alias",
-        "reserved",
-        "true",
-        "false",
-        "null",
-        "service",
-        "operation",
-        "stream",
-    )
 
 /** A range in one file, in editor coordinates. */
 data class Location(val path: String, val range: TextRange)
@@ -48,10 +14,12 @@ class Queries(private val workspace: Workspace) {
     internal class Hit(val analysis: SetAnalysis, val snapshot: Snapshot, val site: Site)
 
     internal fun analysisOf(path: String): Pair<SetAnalysis, Snapshot>? {
+        // Analysis first: it can re-read a closed file and replace the snapshot read below.
+        val analysis = workspace.analysis(workspace.keyOf(path))
         val document = workspace.document(path) ?: return null
         if (document.broken) return null
         val snapshot = document.snapshot ?: return null
-        return workspace.analysis(workspace.keyOf(path)) to snapshot
+        return analysis to snapshot
     }
 
     internal fun hit(path: String, position: TextPosition): Hit? {
@@ -110,68 +78,12 @@ class Queries(private val workspace: Workspace) {
 
     /**
      * Replaces a symbol's definition and every reference in its set. Reserved name strings and
-     * target `name` overrides are plain strings, not references, and are left as they are.
+     * target `name` overrides are plain strings, not references, and are left as they are. The set
+     * is re-read from disk first, so the edits match the files they will be applied to.
      */
     fun rename(path: String, position: TextPosition, newName: String): RenameResult {
+        workspace.refresh(workspace.keyOf(path))
         val hit = hit(path, position) ?: return RenameResult.Refused("nothing to rename here")
-        val symbol = hit.site.symbol
-        if (symbol is Symbol.Namespace) {
-            return RenameResult.Refused(
-                "a namespace cannot be renamed; it is the name its files declare"
-            )
-        }
-        hit.analysis.members
-            .firstOrNull { it.broken }
-            ?.let {
-                val file = it.path.substringAfterLast('/').substringAfterLast('\\')
-                return RenameResult.Refused("fix the syntax errors in $file before renaming")
-            }
-        if (!identifier.matches(newName)) {
-            return RenameResult.Refused("'$newName' is not a valid name")
-        }
-        if (newName in keywords) return RenameResult.Refused("'$newName' is a keyword")
-        collision(hit.analysis, symbol, newName)?.let {
-            return RenameResult.Refused(it)
-        }
-        val index = hit.analysis.index
-        val edits =
-            (index.definitions(symbol) + index.references(symbol))
-                .mapNotNull { location(hit.analysis, it) }
-                .groupBy({ it.path }, { TextEdit(it.range, newName) })
-        return RenameResult.Edits(edits)
-    }
-
-    /** A message when [newName] is already taken where [symbol] lives. */
-    private fun collision(analysis: SetAnalysis, symbol: Symbol, newName: String): String? {
-        val declarations = analysis.index.declarations
-        return when (symbol) {
-            is Symbol.Declaration -> {
-                val parent = symbol.name.path.dropLast(1)
-                val sibling = QualifiedName(symbol.name.namespace, parent + newName)
-                val scope =
-                    if (parent.isEmpty()) symbol.name.namespace
-                    else QualifiedName(symbol.name.namespace, parent).toString()
-                if (sibling in declarations) "'$newName' is already declared in $scope" else null
-            }
-            is Symbol.Field -> {
-                val record = declarations[symbol.owner]?.decl as? RecordDecl
-                if (record?.fields?.any { it.name == newName } == true)
-                    "'$newName' is already a field of ${symbol.owner}"
-                else null
-            }
-            is Symbol.EnumValue -> {
-                val enum = declarations[symbol.owner]?.decl as? EnumDecl
-                if (enum?.values?.any { it.name == newName } == true)
-                    "'$newName' is already a value of ${symbol.owner}"
-                else null
-            }
-            is Symbol.ImportAlias -> {
-                val file = analysis.files.firstOrNull { it.path == symbol.file }
-                if (file?.imports?.any { it.alias == newName } == true)
-                    "'$newName' is already an import alias in this file"
-                else null
-            }
-            is Symbol.Namespace -> null
-        }
+        return Rename(workspace, hit.analysis, hit.site.symbol, newName).run()
     }
 }

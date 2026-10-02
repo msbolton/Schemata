@@ -107,6 +107,29 @@ class Workspace(private val annotations: AnnotationRegistry) {
 
     fun analysis(key: SetKey): SetAnalysis = analyses.getOrPut(key) { analyze(key) }
 
+    /** Drops [key]'s analysis, so the next [analysis] checks the disk again. */
+    fun refresh(key: SetKey) {
+        analyses.remove(key)
+    }
+
+    /**
+     * Analyses [files] with this workspace's options, apart from every set and its cache: the
+     * diagnostics, and what the resolver resolved. For trying out an edit before making it.
+     */
+    internal fun analyzeApart(files: List<SourceFile>): Pair<List<Diagnostic>, Recorded> {
+        val recorded = Recorded()
+        val result =
+            Analyzer.analyze(
+                files,
+                AnalysisOptions(
+                    strictOrdinals = strict,
+                    annotations = annotations,
+                    references = recorded,
+                ),
+            )
+        return result.diagnostics to recorded
+    }
+
     private fun update(document: Document, text: String): SetKey {
         document.text = text
         val parsed = Parser.parse(text, document.path)
@@ -135,17 +158,8 @@ class Workspace(private val annotations: AnnotationRegistry) {
         }
         val members = documents.values.filter { sets.contains(key, it.path) }
         val files = members.mapNotNull { it.snapshot?.file }
-        val recorded = Recorded()
-        val result =
-            Analyzer.analyze(
-                files,
-                AnalysisOptions(
-                    strictOrdinals = strict,
-                    annotations = annotations,
-                    references = recorded,
-                ),
-            )
-        val analysed = result.diagnostics.groupBy { it.span.file }
+        val (found, recorded) = analyzeApart(files)
+        val analysed = found.groupBy { it.span.file }
         val diagnostics =
             members.associate { document ->
                 document.path to

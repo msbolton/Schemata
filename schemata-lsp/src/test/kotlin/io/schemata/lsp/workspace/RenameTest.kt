@@ -1,5 +1,6 @@
 package io.schemata.lsp.workspace
 
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -179,6 +180,265 @@ class RenameTest {
         f.workspace.change(c, "namespace shop.customers\nrecord Customer {")
         val message = refusal(f, o, f.at(o, "Order"), "Purchase")
         assertTrue(message.startsWith("fix the syntax errors in customers.schemata"), message)
+    }
+
+    private val nested =
+        "namespace m\nrecord Item { #1 x: int32 }\n" +
+            "record Order {\n  record Line { #1 y: int32 }\n  #1 item: Item\n  #2 line: Line\n}\n"
+
+    @Test
+    fun `rename refuses a nested name that would capture a use of a top-level one`() {
+        val f = Fixture(dir)
+        val a = f.open("m/a.schemata", nested)
+        assertEquals(
+            "renaming to 'Item' would change what other names refer to",
+            refusal(f, a, f.at(a, "Line {"), "Item"),
+        )
+    }
+
+    @Test
+    fun `rename refuses a top-level name that a nested declaration would capture`() {
+        val f = Fixture(dir)
+        val a = f.open("m/a.schemata", nested)
+        assertEquals(
+            "renaming to 'Line' would change what other names refer to",
+            refusal(f, a, f.at(a, "Item {"), "Line"),
+        )
+    }
+
+    @Test
+    fun `rename refuses a name that an unaliased import makes ambiguous`() {
+        val f = Fixture(dir)
+        f.open("shop/customers.schemata", customers)
+        val o =
+            f.open(
+                "shop/orders.schemata",
+                "namespace shop.orders\nimport shop.customers\n" +
+                    "record Client { #1 id: uuid }\n" +
+                    "record Order { #1 who: Customer #2 by: Client }\n",
+            )
+        assertEquals(
+            "renaming to 'Customer' would introduce errors",
+            refusal(f, o, f.at(o, "Client {"), "Customer"),
+        )
+    }
+
+    @Test
+    fun `rename refuses an imported name that would make a local one ambiguous`() {
+        val f = Fixture(dir)
+        val c =
+            f.open(
+                "shop/customers.schemata",
+                "namespace shop.customers\nrecord Customer { #1 id: uuid }\n" +
+                    "record Foo { #1 id: uuid }\n",
+            )
+        f.open(
+            "shop/orders.schemata",
+            "namespace shop.orders\nimport shop.customers\n" +
+                "record Order { #1 who: Customer }\nrecord Book { #1 last: Order }\n",
+        )
+        assertEquals(
+            "renaming to 'Order' would introduce errors",
+            refusal(f, c, f.at(c, "Foo"), "Order"),
+        )
+    }
+
+    @Test
+    fun `rename refuses a builtin type name, list, and map for a declaration`() {
+        val f = Fixture(dir)
+        f.open("shop/customers.schemata", customers)
+        val o = f.open("shop/orders.schemata", orders)
+        val at = f.at(o, "Order")
+        assertEquals("'string' is a builtin type name", refusal(f, o, at, "string"))
+        assertEquals("'list' is a builtin type name", refusal(f, o, at, "list"))
+        assertEquals("'map' is a builtin type name", refusal(f, o, at, "map"))
+    }
+
+    @Test
+    fun `rename refuses an import alias that a visible type name would capture`() {
+        val f = Fixture(dir)
+        f.open("shop/customers.schemata", customers)
+        val o =
+            f.open(
+                "shop/orders.schemata",
+                "namespace shop.orders\nimport shop.customers as cust\n" +
+                    "record Order { #1 who: cust.Customer }\n",
+            )
+        assertEquals(
+            "renaming to 'Order' would introduce errors",
+            refusal(f, o, f.at(o, "cust.Customer"), "Order"),
+        )
+    }
+
+    private fun leftBehind(type: String): String {
+        val f = Fixture(dir)
+        val c = f.open("shop/customers.schemata", customers)
+        f.open(
+            "shop/orders.schemata",
+            "namespace shop.orders\nimport shop.customers\n" +
+                "record Order {\n  #1 who: Customer\n  #2 odd: $type\n}\n",
+        )
+        return refusal(f, c, f.at(c, "Customer"), "Client")
+    }
+
+    @Test
+    fun `rename refuses while a map type that fails to resolve still names the symbol`() {
+        assertEquals(
+            "fix the type at orders.schemata:5 before renaming",
+            leftBehind("map<Strng, Customer>"),
+        )
+    }
+
+    @Test
+    fun `rename refuses while a list with the wrong arity still names the symbol`() {
+        assertEquals(
+            "fix the type at orders.schemata:5 before renaming",
+            leftBehind("list<Customer, int32>"),
+        )
+    }
+
+    @Test
+    fun `rename refuses while a type with arguments it cannot take names the symbol`() {
+        assertEquals(
+            "fix the type at orders.schemata:5 before renaming",
+            leftBehind("Customer<int32>"),
+        )
+    }
+
+    @Test
+    fun `renaming an alias refuses while an unresolved type still starts with it`() {
+        val f = Fixture(dir)
+        f.open("shop/customers.schemata", customers)
+        val o =
+            f.open(
+                "shop/orders.schemata",
+                "namespace shop.orders\nimport shop.customers as cust\n" +
+                    "record Order {\n  #1 who: cust.Customer\n  #2 odd: list<cust.Customer, int32>\n}\n",
+            )
+        assertEquals(
+            "fix the type at orders.schemata:5 before renaming",
+            refusal(f, o, f.at(o, "cust.Customer"), "c"),
+        )
+    }
+
+    @Test
+    fun `renaming a union member rewrites the union`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "m/a.schemata",
+                "namespace m\nrecord Card { #1 n: string }\nrecord Cash {}\n" +
+                    "union Payment = #1 Card | #2 Cash\n",
+            )
+        val after = renameAndReanalyse(f, a, f.at(a, "Card |"), "CreditCard")
+        assertEquals(
+            "namespace m\nrecord CreditCard { #1 n: string }\nrecord Cash {}\n" +
+                "union Payment = #1 CreditCard | #2 Cash\n",
+            after[a],
+        )
+    }
+
+    @Test
+    fun `renaming a map value and a list element rewrites both`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "m/a.schemata",
+                "namespace m\nrecord Item { #1 n: string }\n" +
+                    "record Bag { #1 by_name: map<string, Item> #2 all: list<Item> }\n",
+            )
+        val after = renameAndReanalyse(f, a, f.at(a, "Item {"), "Thing")
+        assertEquals(
+            "namespace m\nrecord Thing { #1 n: string }\n" +
+                "record Bag { #1 by_name: map<string, Thing> #2 all: list<Thing> }\n",
+            after[a],
+        )
+    }
+
+    @Test
+    fun `renaming through an alias to an alias rewrites each link`() {
+        val f = Fixture(dir)
+        val text =
+            "namespace m\nrecord Item { #1 n: string }\nalias First = Item\nalias Second = First\n" +
+                "record Use { #1 a: First #2 b: Second }\n"
+        val a = f.open("m/a.schemata", text)
+        val once = renameAndReanalyse(f, a, f.at(a, "First ="), "Head").getValue(a)
+        assertEquals(
+            "namespace m\nrecord Item { #1 n: string }\nalias Head = Item\nalias Second = Head\n" +
+                "record Use { #1 a: Head #2 b: Second }\n",
+            once,
+        )
+        val g = Fixture(dir)
+        val b = g.open("m/a.schemata", once)
+        val twice = renameAndReanalyse(g, b, g.at(b, "Item {"), "Thing").getValue(b)
+        assertEquals(
+            "namespace m\nrecord Thing { #1 n: string }\nalias Head = Thing\nalias Second = Head\n" +
+                "record Use { #1 a: Head #2 b: Second }\n",
+            twice,
+        )
+    }
+
+    @Test
+    fun `renaming a declaration rewrites its fully qualified uses in another namespace`() {
+        val f = Fixture(dir)
+        val c = f.open("shop/customers.schemata", customers)
+        val o =
+            f.open(
+                "shop/orders.schemata",
+                "namespace shop.orders\nrecord Order { #1 who: shop.customers.Customer }\n",
+            )
+        val after = renameAndReanalyse(f, c, f.at(c, "Customer"), "Client")
+        assertEquals(
+            "namespace shop.orders\nrecord Order { #1 who: shop.customers.Client }\n",
+            after[o],
+        )
+    }
+
+    @Test
+    fun `renaming an outer and an inner declaration rewrites a qualified nested use`() {
+        val f = Fixture(dir)
+        val text =
+            "namespace shop.orders\nrecord Order {\n  record Line { #1 n: int32 }\n  #1 l: Line\n}\n"
+        val o = f.open("shop/orders.schemata", text)
+        val b =
+            f.open(
+                "shop/billing.schemata",
+                "namespace shop.billing\nrecord Bill { #1 line: shop.orders.Order.Line }\n",
+            )
+        val once = renameAndReanalyse(f, o, f.at(o, "Line {"), "Entry")
+        assertEquals(
+            "namespace shop.billing\nrecord Bill { #1 line: shop.orders.Order.Entry }\n",
+            once[b],
+        )
+        val g = Fixture(dir)
+        val o2 = g.open("shop/orders.schemata", once.getValue(o))
+        val b2 = g.open("shop/billing.schemata", once.getValue(b))
+        val twice = renameAndReanalyse(g, b2, g.at(b2, "Order."), "Purchase")
+        assertEquals(
+            "namespace shop.billing\nrecord Bill { #1 line: shop.orders.Purchase.Entry }\n",
+            twice[b2],
+        )
+        assertEquals(
+            "namespace shop.orders\nrecord Purchase {\n  record Entry { #1 n: int32 }\n  #1 l: Entry\n}\n",
+            twice[o2],
+        )
+    }
+
+    @Test
+    fun `a rename refuses when a closed file it edits no longer matches the disk`() {
+        val f = Fixture(dir)
+        val c = f.write("shop/customers.schemata", customers)
+        val o = f.open("shop/orders.schemata", orders)
+        f.workspace.analysis(f.workspace.keyOf(o))
+        // Same size and the same modification time: nothing short of reading it shows the edit.
+        val file = Path.of(c)
+        val stamp = Files.getLastModifiedTime(file)
+        Files.writeString(file, customers.replace("id: uuid", "ix: uuid"))
+        Files.setLastModifiedTime(file, stamp)
+        assertEquals(
+            "customers.schemata changed on disk; try again",
+            refusal(f, o, f.at(o, "Customer"), "Client"),
+        )
     }
 
     @Test
