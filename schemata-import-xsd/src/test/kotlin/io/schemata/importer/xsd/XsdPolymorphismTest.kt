@@ -133,7 +133,10 @@ class XsdPolymorphismTest {
               <xs:complexType name="OneType" abstract="true"><xs:sequence/></xs:complexType>
               <xs:complexType name="OnlyType"><xs:complexContent><xs:extension base="t:OneType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
               <xs:complexType name="NoneType" abstract="true"><xs:sequence/></xs:complexType>
-              <xs:complexType name="UseType"><xs:sequence><xs:element name="a" type="t:OneType"/><xs:element name="b" type="t:NoneType"/></xs:sequence></xs:complexType>
+              <xs:complexType name="ItemType"><xs:sequence/></xs:complexType>
+              <xs:element name="Thing" abstract="true"/>
+              <xs:element name="Item" type="t:ItemType" substitutionGroup="t:Thing"/>
+              <xs:complexType name="UseType"><xs:sequence><xs:element name="a" type="t:OneType"/><xs:element name="b" type="t:NoneType"/><xs:element ref="t:Thing"/></xs:sequence></xs:complexType>
               <xs:element name="use" type="t:UseType"/>
             </xs:schema>
             """
@@ -149,6 +152,13 @@ class XsdPolymorphismTest {
                 "type 'Only'" in messages(imported)
         )
         assertTrue("SCH2405 complex type 'NoneType': abstract dropped" in messages(imported))
+        assertEquals(UnitType.Ref("Item"), use.fields[2].type)
+        assertFalse(t.declarations.any { it.name == "Thing" })
+        assertTrue(
+            "SCH2403 element 'Thing': substitution group 'Thing' imported as its one member type " +
+                "'Item'" in messages(imported)
+        )
+        assertFalse(messages(imported).any { "'Thing'" in it && "abstract dropped" in it })
     }
 
     private fun shapes(substituting: List<String>): String =

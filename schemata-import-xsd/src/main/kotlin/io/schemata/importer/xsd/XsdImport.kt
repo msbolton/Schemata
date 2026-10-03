@@ -836,29 +836,50 @@ object XsdImport {
 
         /**
          * The unions this namespace's substitution-group heads declare: one per head with two or
-         * more member types, unless its type's own union already serves. A member declared with an
-         * inline type cannot be named in a union, so it is reported and left out.
+         * more member types, unless its type's own union already serves. A head with exactly one
+         * member type declares nothing (every use names that type) and is noted; a head with none
+         * stays its own element. A member declared with an inline type cannot be named in place of
+         * its head, so it is reported and left out.
          */
         fun headUnions(): List<UnitDecl> {
             val result = mutableListOf<UnitDecl>()
             heads.elements
-                .filter { it.key.namespace == doc.targetNamespace && it.value.members.size >= 2 }
+                .filter { it.key.namespace == doc.targetNamespace }
                 .forEach { (name, head) ->
                     val el = headElement(name) ?: return@forEach
                     val where = "element '${name.local}'"
-                    val unionName = elementUnionName(name)
                     val members = heads.memberElements[name].orEmpty()
-                    at(el.path) {
-                        diagnostics +=
-                            lossy(
-                                ImportCodes.APPROXIMATED,
-                                where,
-                                "substitution group '${name.local}' imported as union " +
-                                    "'$unionName' of ${head.members.size} member types; the " +
-                                    "regenerated XSD uses a choice",
-                                el.line,
-                            )
+                    val n = head.members.size
+                    val unionName = if (n >= 2) elementUnionName(name) else null
+                    when {
+                        unionName != null ->
+                            at(el.path) {
+                                diagnostics +=
+                                    lossy(
+                                        ImportCodes.APPROXIMATED,
+                                        where,
+                                        "substitution group '${name.local}' imported as union " +
+                                            "'$unionName' of $n member types; the regenerated " +
+                                            "XSD uses a choice",
+                                        el.line,
+                                    )
+                            }
+                        n == 1 -> {
+                            val only = typeNames.getValue(head.members[0]).finalName
+                            at(el.path) {
+                                diagnostics +=
+                                    lossy(
+                                        ImportCodes.APPROXIMATED,
+                                        where,
+                                        "substitution group '${name.local}' imported as its one " +
+                                            "member type '$only'",
+                                        el.line,
+                                    )
+                            }
+                        }
                     }
+                    val droppedFrom =
+                        unionName?.let { "union '$it'" } ?: "substitution group '${name.local}'"
                     members
                         .filter {
                             it.type == null && (it.inlineComplex != null || it.inlineSimple != null)
@@ -870,12 +891,12 @@ object XsdImport {
                                         ImportCodes.DROPPED,
                                         "element '${m.name}'",
                                         "substitution member with an inline type dropped from " +
-                                            "union '$unionName'",
+                                            droppedFrom,
                                         m.line,
                                     )
                             }
                         }
-                    if (sharesTypeUnion(name)) return@forEach
+                    if (unionName == null || sharesTypeUnion(name)) return@forEach
                     val claimed = at(el.path) { claimTopLevel(unionName, where, el.line) }
                     if (claimed) result += headUnion(unionName, head, where, members, el.doc)
                 }
