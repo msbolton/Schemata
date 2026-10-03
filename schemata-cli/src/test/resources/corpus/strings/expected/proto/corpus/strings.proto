@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package corpus.strings;
+
+// String values that need escapes in every target.
+message Strings {
+  string id = 1;  // schemata: uuid
+  string line_feed = 2;  // schemata: default = "a\nb"
+  string tab = 3;  // schemata: default = "t\tt"
+  string carriage_return = 4;  // schemata: default = "r\rr"
+  string quote = 5;  // schemata: default = "q\"q"
+  string emoji = 6;  // schemata: default = "😀"
+  string code = 7;  // schemata: string(pattern = "^\"[A-Z]{2}\d{4}\"$")
+}

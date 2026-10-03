@@ -15,6 +15,7 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.Value
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
+import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.Literal
@@ -195,7 +196,7 @@ object DefaultChecker {
                 when {
                     r.min != null && length < r.min ->
                         violates(
-                            "default \"${lit.value}\" is shorter than min ${r.min.toPlainString()}",
+                            "default ${SchemataText.string(lit.value)} is shorter than min ${r.min.toPlainString()}",
                             literal.span,
                             diagnostics,
                             help =
@@ -203,7 +204,7 @@ object DefaultChecker {
                         )
                     r.max != null && length > r.max ->
                         violates(
-                            "default \"${lit.value}\" is longer than max ${r.max.toPlainString()}",
+                            "default ${SchemataText.string(lit.value)} is longer than max ${r.max.toPlainString()}",
                             literal.span,
                             diagnostics,
                             help =
@@ -211,7 +212,7 @@ object DefaultChecker {
                         )
                     r.pattern != null && !Pattern.compile(r.pattern).matcher(lit.value).find() ->
                         violates(
-                            "default \"${lit.value}\" does not match pattern ${r.pattern}",
+                            "default ${SchemataText.string(lit.value)} does not match pattern ${r.pattern}",
                             literal.span,
                             diagnostics,
                             help = "use a default the pattern accepts, or change the pattern",

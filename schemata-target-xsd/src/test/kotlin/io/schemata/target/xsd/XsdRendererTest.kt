@@ -3,6 +3,7 @@ package io.schemata.target.xsd
 import io.schemata.testkit.Golden
 import io.schemata.testkit.Xsd
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
@@ -146,6 +147,19 @@ class XsdRendererTest {
                 it.path to it.content
             }
         assertNull(Xsd.validate(files))
+    }
+
+    @Test
+    fun `tab, newline, and carriage return in an attribute are character references`() {
+        assertEquals(
+            "a&#9;b&#10;c&#13;d &amp;&quot;",
+            XsdRenderer.escapeAttribute("a\tb\nc\rd &\""),
+        )
+    }
+
+    @Test
+    fun `documentation keeps its line breaks`() {
+        assertEquals("a\nb &lt;", XsdRenderer.escape("a\nb <"))
     }
 
     @Test

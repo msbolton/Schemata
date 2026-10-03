@@ -80,6 +80,7 @@ class DefaultsTest {
                 "  o: map<string, int32> = 1\n" +
                 "  p: U = 1\n" +
                 "  q: decimal(2, 0) = 100\n" +
+                "  r: string(max = 2) = \"a\\nb\\\"c\"\n" +
                 "}"
         val r = analyze(src)
         assertNull(r.schema)
@@ -102,6 +103,7 @@ class DefaultsTest {
                 "21:27 map fields cannot have a default",
                 "22:10 union fields cannot have a default",
                 "23:22 default 100 exceeds precision 2",
+                "24:24 default \"a\\nb\\\"c\" is longer than max 2",
             ),
             messages(r),
         )
