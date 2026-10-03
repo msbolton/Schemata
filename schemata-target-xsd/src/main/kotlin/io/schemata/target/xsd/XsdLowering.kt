@@ -237,12 +237,13 @@ object XsdLowering {
                     }
                 if (particle != null) {
                     sequence += particle
-                    if (all && repeated(particle)) {
+                    val misfit = if (all) notUnderAll(particle) else null
+                    if (misfit != null) {
                         diagnostics +=
                             Diagnostic(
                                 XsdCodes.ATTRIBUTE_NOT_ALLOWED,
                                 "record '${record.name}': @xsd(all) is on a record with a " +
-                                    "repeated field '${f.name}'",
+                                    "$misfit field '${f.name}'",
                                 f.span,
                                 help =
                                     "remove @xsd(all), or make '${f.name}' a single field; " +
@@ -266,11 +267,15 @@ object XsdLowering {
             )
         }
 
-        /** Whether [particle] may occur more than once. */
-        private fun repeated(particle: XsdParticle): Boolean =
+        /**
+         * Why [particle] cannot sit in an `xs:all`, which holds only element declarations, each at
+         * most once: `"wildcard"` for an element wildcard, `"repeated"` for a repeated element;
+         * `null` when it can.
+         */
+        private fun notUnderAll(particle: XsdParticle): String? =
             when (particle) {
-                is XsdElement -> particle.maxOccurs != 1
-                is XsdAny -> particle.maxOccurs != 1
+                is XsdAny -> "wildcard"
+                is XsdElement -> if (particle.maxOccurs != 1) "repeated" else null
             }
 
         /**

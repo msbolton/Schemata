@@ -1506,12 +1506,17 @@ object XsdImport {
             val base =
                 particle.name?.let(ImportNames::upperCamel)
                     ?: ((first?.let(ImportNames::upperCamel) ?: "") + "Group")
-            var recordName = base
-            var suffix = 2
-            while (nested.any { it.name == recordName }) recordName = "$base${suffix++}"
-            val original =
+            val stem =
                 particle.name?.let(ImportNames::lowerSnake)
                     ?: (ImportNames.lowerSnake(first ?: "group") + "_group")
+            // A second group of the same stem is numbered, record and field together.
+            var n = 1
+            while (
+                nested.any { it.name == numbered(base, n, "") } ||
+                    fieldNameFor(numbered(stem, n, "_")).name in claimed
+            ) n++
+            val recordName = numbered(base, n, "")
+            val original = numbered(stem, n, "_")
             val construct = particle.name?.let { "group '$it'" } ?: "nested sequence"
             val (name, annotations) =
                 nameAndClaim(original, "group", construct, claimed, whereCollision, particle.line)
@@ -1559,6 +1564,10 @@ object XsdImport {
                 )
             } else UnitField(name, ref, particle.minOccurs == 0, null, null, annotations)
         }
+
+        /** [base] for the first of a kind, then [base] numbered from 2 after [separator]. */
+        private fun numbered(base: String, n: Int, separator: String): String =
+            if (n == 1) base else "$base$separator$n"
 
         /**
          * A bare `xs:choice` found directly inside a sequence, with no wrapping element: a union
@@ -1976,7 +1985,11 @@ object XsdImport {
                 particles.firstNotNullOfOrNull {
                     (it as? XParticle.Element)?.element?.let { el -> el.name ?: el.ref?.local }
                 }
-            val name = (first?.let(ImportNames::upperCamel) ?: "") + "Group"
+            // A second branch record of the same name, in this union or another, is numbered.
+            val base = (first?.let(ImportNames::upperCamel) ?: "") + "Group"
+            var n = 1
+            while (numbered(base, n, "") in topLevelNames) n++
+            val name = numbered(base, n, "")
             if (!claimTopLevel(name, "choice branch of $unionWhere", particle.line)) return null
             diagnostics +=
                 lossy(

@@ -74,27 +74,56 @@ class XsdContentModelsTest {
     }
 
     @Test
-    fun `an optional nested sequence becomes a nullable group field`() {
+    fun `optional nested sequences starting alike get numbered group records`() {
         val xml =
             """
             <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:schemata:t" targetNamespace="urn:schemata:t">
               <xs:complexType name="PType"><xs:sequence>
-                <xs:sequence minOccurs="0"><xs:element name="x" type="xs:int"/></xs:sequence>
-                <xs:sequence minOccurs="0"><xs:element name="y" type="xs:int"/></xs:sequence>
-                <xs:sequence minOccurs="0"><xs:element name="x" type="xs:int"/></xs:sequence>
+                <xs:sequence minOccurs="0"><xs:element name="x" type="xs:int"/><xs:element name="a" type="xs:int"/></xs:sequence>
+                <xs:element name="b" type="xs:int"/>
+                <xs:sequence minOccurs="0"><xs:element name="x" type="xs:int"/><xs:element name="c" type="xs:int"/></xs:sequence>
               </xs:sequence></xs:complexType>
             </xs:schema>
             """
         val imported = lower(docs("t.xsd" to xml))
         val p = unit(imported, "t").declarations.filterIsInstance<UnitRecord>().single()
-        assertEquals(listOf("x_group", "y_group"), p.fields.map { it.name })
+        assertEquals(listOf("x_group", "b", "x_group_2"), p.fields.map { it.name })
         assertEquals(UnitType.Ref("XGroup"), p.fields[0].type)
         assertTrue(p.fields[0].nullable)
-        assertEquals(listOf("XGroup", "YGroup"), p.nested.map { it.name })
+        assertEquals(UnitType.Ref("XGroup2"), p.fields[2].type)
+        assertEquals(listOf("XGroup", "XGroup2"), p.nested.map { it.name })
+        assertFalse(messages(imported).any { it.startsWith("SCH2401") })
         assertTrue(
-            "SCH2401 complex type 'PType': nested sequence and nested sequence both lower to " +
-                "field 'x_group'" in messages(imported)
+            "SCH2403 complex type 'PType': nested sequence imported as record 'XGroup2' in " +
+                "field 'x_group_2'" in messages(imported)
         )
+    }
+
+    @Test
+    fun `branch records starting alike get numbered across unions`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="AType"><xs:choice>
+                <xs:element name="n" type="xs:int"/>
+                <xs:sequence><xs:element name="w" type="xs:int"/><xs:element name="h" type="xs:int"/></xs:sequence>
+              </xs:choice></xs:complexType>
+              <xs:complexType name="BType"><xs:choice>
+                <xs:element name="s" type="xs:string"/>
+                <xs:sequence><xs:element name="w" type="xs:int"/><xs:element name="d" type="xs:int"/></xs:sequence>
+              </xs:choice></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val t = unit(imported, "t")
+        val unions = t.declarations.filterIsInstance<UnitUnion>().associateBy { it.name }
+        assertEquals(UnitType.Ref("WGroup"), unions.getValue("A").members[1].type)
+        assertEquals(UnitType.Ref("WGroup2"), unions.getValue("B").members[1].type)
+        assertEquals(
+            listOf("WGroup", "WGroup2"),
+            t.declarations.filterIsInstance<UnitRecord>().map { it.name },
+        )
+        assertFalse(messages(imported).any { it.startsWith("SCH2401") })
     }
 
     @Test

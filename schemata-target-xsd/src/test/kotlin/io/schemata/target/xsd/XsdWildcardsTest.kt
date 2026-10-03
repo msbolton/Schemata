@@ -175,6 +175,19 @@ class XsdWildcardsTest {
     }
 
     @Test
+    fun `a wildcard under all is an error`() {
+        assertEquals(
+            listOf(
+                "SCH2204 record 'R': @xsd(all) is on a record with a wildcard field 'x'",
+                "SCH2204 record 'R': @xsd(all) is on a record with a wildcard field 'y'",
+            ),
+            diagnosticsOf(
+                "namespace t\n@xsd(all)\nrecord R { @xsd(any) x: string @xsd(any) y: list<string> }"
+            ),
+        )
+    }
+
+    @Test
     fun `an empty all record and a map under all render`() {
         val xsd =
             render(
