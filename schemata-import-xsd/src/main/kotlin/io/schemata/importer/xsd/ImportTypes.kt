@@ -196,7 +196,7 @@ object ImportTypes {
                         if (isUuidPattern(f.value)) {
                             return Pair(UnitType.Scalar("uuid", emptyList()), emptyList())
                         }
-                        refinements += "pattern" to quote(unanchor(f.value))
+                        refinements += "pattern" to quotePattern(unanchor(f.value))
                     }
                 else -> notes += dropped(f)
             }
@@ -226,6 +226,13 @@ object ImportTypes {
         val escaped = unescapedDollar.replace(core) { "\\$" }
         return (if (left) "^" else "") + escaped + (if (right) "$" else "")
     }
+
+    /**
+     * A pattern as a Schemata string literal: only a quote is escaped, every backslash stays. A
+     * line break is written as the regex escape for it, since a string literal cannot span lines.
+     */
+    fun quotePattern(pattern: String): String =
+        "\"" + pattern.replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
 
     /**
      * [text] as a Schemata string literal: quoted, with `\` and `"` escaped, and a line break or

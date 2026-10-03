@@ -23,5 +23,14 @@ object LangCodes {
             "an integer or ordinal literal is out of range",
         )
 
-    val all: List<DiagnosticCode> = listOf(SYNTAX, RESERVED_KEYWORD, NUMERIC_LITERAL_RANGE)
+    val BAD_ESCAPE =
+        DiagnosticCode(
+            "SCH0004",
+            Severity.ERROR,
+            Category.SYNTAX,
+            "a string holds an escape the language does not define",
+        )
+
+    val all: List<DiagnosticCode> =
+        listOf(SYNTAX, RESERVED_KEYWORD, NUMERIC_LITERAL_RANGE, BAD_ESCAPE)
 }

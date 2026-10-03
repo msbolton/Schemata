@@ -162,9 +162,9 @@ class ImportTypesTest {
     }
 
     @Test
-    fun `pattern literals escape backslashes and quotes`() {
+    fun `pattern literals keep backslashes and escape only quotes`() {
         val (backslash, _) = facets(s("string"), listOf(XFacet("pattern", "a\\\\b", null, 1)))
-        assertEquals(s("string", "pattern" to "\"^a\\\\\\\\b$\""), backslash)
+        assertEquals(s("string", "pattern" to "\"^a\\\\b$\""), backslash)
         val (quote, _) = facets(s("string"), listOf(XFacet("pattern", "[^\"]*", null, 1)))
         assertEquals(s("string", "pattern" to "\"^[^\\\"]*$\""), quote)
     }

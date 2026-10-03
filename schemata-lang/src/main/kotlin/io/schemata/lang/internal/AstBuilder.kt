@@ -160,7 +160,9 @@ internal class AstBuilder(
 
     private fun build(ctx: SchemataParser.ReservedStmtContext): List<ReservedItem> =
         ctx.reservedItem().map { item ->
-            item.STRING_LITERAL()?.let { ReservedItem.Name(unquote(it.text), item.span()) }
+            item.STRING_LITERAL()?.let {
+                ReservedItem.Name(string(it, it.symbol.span()), item.span())
+            }
                 ?: run {
                     val ordinals = item.ORDINAL().map { ordinal(it) }
                     ReservedItem.Ordinals(ordinals.first(), ordinals.last(), item.span())
@@ -176,7 +178,13 @@ internal class AstBuilder(
             refinements =
                 ctx.refinements()?.refinement()?.map { r ->
                     val ident = r.IDENT()
-                    if (ident != null) Refinement.Named(ident.text, build(r.literal()), r.span())
+                    if (ident != null)
+                        Refinement.Named(
+                            ident.text,
+                            if (ident.text == "pattern") patternLiteral(r.literal())
+                            else build(r.literal()),
+                            r.span(),
+                        )
                     else Refinement.Positional(build(r.literal()), r.span())
                 } ?: emptyList(),
             nullable = ctx.QUESTION() != null,
@@ -229,7 +237,7 @@ internal class AstBuilder(
             return Literal.FloatLit(it.text, span)
         }
         ctx.STRING_LITERAL()?.let {
-            return Literal.StringLit(unquote(it.text), span)
+            return Literal.StringLit(string(it, span), span)
         }
         ctx.TRUE()?.let {
             return Literal.BoolLit(true, span)
@@ -258,8 +266,32 @@ internal class AstBuilder(
                 0
             }
 
-    private fun unquote(text: String): String =
-        text.substring(1, text.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
+    /** A string token's value; each escape the language does not define is reported as SCH0004. */
+    private fun string(node: TerminalNode, span: Span): String {
+        val text = node.text
+        val result = Strings.unescape(text.substring(1, text.length - 1))
+        result.bad.forEach { escape ->
+            // A string cannot span lines, so the escape sits on the line the string starts on.
+            val start = span.startColumn + 1 + escape.offset
+            diagnostics +=
+                Diagnostic(
+                    LangCodes.BAD_ESCAPE,
+                    "unknown escape '${escape.text}' in a string",
+                    Span(file, span.startLine, start, span.startLine, start + escape.length - 1),
+                    help =
+                        "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}",
+                )
+        }
+        return result.value
+    }
+
+    /**
+     * The string of a `pattern` refinement is taken as written; any other literal is built as
+     * usual.
+     */
+    private fun patternLiteral(ctx: SchemataParser.LiteralContext): Literal =
+        ctx.STRING_LITERAL()?.let { Literal.StringLit(Strings.unquotePattern(it.text), ctx.span()) }
+            ?: build(ctx)
 
     private fun ParserRuleContext.span(): Span {
         val stop = stop ?: start

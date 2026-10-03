@@ -180,6 +180,13 @@ to its plain type and reports SCH2001. A pattern matches anywhere in the value u
 unanchored side in `.*`: `pattern = "abc"` becomes `.*(abc).*`. XSD's `.` does not match a newline,
 so a multi-line value can fail an XSD pattern that Java accepts.
 
+A string literal is written in double quotes on one line. It knows six escapes: `\"`, `\\`,
+`\n`, `\t`, `\r`, and `\u{…}` with one to six hex digits naming a Unicode character, as in
+`"caf\u{E9}"`. Any other character after a backslash is an error (SCH0004). The one exception is
+the string of a `pattern` refinement, which is taken exactly as written apart from `\"`: a regex
+is full of backslashes that mean something to the target, so `pattern = "\d+"` is the regex
+`\d+`, not an error.
+
 ```schemata
 namespace shop.orders
 

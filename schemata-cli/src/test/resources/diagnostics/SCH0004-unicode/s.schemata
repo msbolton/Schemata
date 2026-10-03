@@ -1,0 +1,2 @@
+namespace a
+record R { #1 x: string = "\u{41}\u{1F600}" #2 y: string = "\u{}" #3 z: string = "\u{110000}" }
