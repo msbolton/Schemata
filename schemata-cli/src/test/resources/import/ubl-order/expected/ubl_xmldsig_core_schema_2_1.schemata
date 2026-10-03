@@ -1,0 +1,233 @@
+@xsd(namespace = "http://www.w3.org/2000/09/xmldsig#")
+namespace ubl_xmldsig_core_schema_2_1
+
+@xsd(name = "Signature")
+record Signature {
+  @xsd(name = "SignedInfo") signed_info:     SignedInfo
+  @xsd(name = "SignatureValue") signature_value: SignatureValue
+  @xsd(name = "KeyInfo") key_info:        KeyInfo?
+  @xsd(name = "Object") object:          list<Object>
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:              string?
+}
+
+@xsd(name = "SignatureValue")
+record SignatureValue {
+  value: bytes
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:    string?
+}
+
+@xsd(name = "SignedInfo")
+record SignedInfo {
+  @xsd(name = "CanonicalizationMethod") canonicalization_method: CanonicalizationMethod
+  @xsd(name = "SignatureMethod") signature_method:        SignatureMethod
+  @xsd(name = "Reference") reference:               list<Reference>(min = 1)
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                      string?
+}
+
+@xsd(name = "CanonicalizationMethod")
+record CanonicalizationMethod {
+  @xsd(any)
+  @xsd(process = "strict")
+  any:       list<string>
+  @xsd(mixed) text:      string?
+  @xsd(name = "Algorithm")
+  @xsd(attribute)
+  algorithm: string
+}
+
+@xsd(name = "SignatureMethod")
+record SignatureMethod {
+  @xsd(name = "HMACOutputLength") hmac_output_length: int32?
+  @xsd(any)
+  @xsd(process = "strict")
+  @xsd(wildcard = "##other")
+  any:                list<string>
+  @xsd(mixed) text:               string?
+  @xsd(name = "Algorithm")
+  @xsd(attribute)
+  algorithm:          string
+}
+
+@xsd(name = "Reference")
+record Reference {
+  @xsd(name = "Transforms") transforms:    Transforms?
+  @xsd(name = "DigestMethod") digest_method: DigestMethod
+  @xsd(name = "DigestValue") digest_value:  bytes
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:            string?
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:           string?
+  @xsd(name = "Type")
+  @xsd(attribute)
+  type:          string?
+}
+
+@xsd(name = "Transforms")
+record Transforms { @xsd(name = "Transform") transform: list<Transform>(min = 1) }
+
+@xsd(name = "Transform")
+record Transform {
+  @xsd(name = "XPath") x_path:    string?
+  @xsd(mixed) text:      string?
+  @xsd(name = "Algorithm")
+  @xsd(attribute)
+  algorithm: string
+}
+
+@xsd(name = "DigestMethod")
+record DigestMethod {
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any:       list<string>
+  @xsd(mixed) text:      string?
+  @xsd(name = "Algorithm")
+  @xsd(attribute)
+  algorithm: string
+}
+
+@xsd(name = "KeyInfo")
+record KeyInfo {
+  @xsd(name = "KeyName") key_name:         string?
+  @xsd(name = "KeyValue") key_value:        KeyValue?
+  @xsd(name = "RetrievalMethod") retrieval_method: RetrievalMethod?
+  @xsd(name = "X509Data") x509_data:        X509Data?
+  @xsd(name = "PGPData") pgp_data:         PGPData?
+  @xsd(name = "SPKIData") spki_data:        SPKIData?
+  @xsd(name = "MgmtData") mgmt_data:        string?
+  @xsd(mixed) text:             string?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:               string?
+}
+
+@xsd(name = "KeyValue")
+record KeyValue {
+  @xsd(name = "DSAKeyValue") dsa_key_value: DSAKeyValue?
+  @xsd(name = "RSAKeyValue") rsa_key_value: RSAKeyValue?
+  @xsd(mixed) text:          string?
+}
+
+@xsd(name = "RetrievalMethod")
+record RetrievalMethod {
+  @xsd(name = "Transforms") transforms: Transforms?
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:        string?
+  @xsd(name = "Type")
+  @xsd(attribute)
+  type:       string?
+}
+
+@xsd(name = "X509Data")
+record X509Data {
+  @xsd(name = "X509IssuerSerial") x509_issuer_serial: X509IssuerSerial?
+  @xsd(name = "X509SKI") x509_ski:           bytes?
+  @xsd(name = "X509SubjectName") x509_subject_name:  string?
+  @xsd(name = "X509Certificate") x509_certificate:   bytes?
+  @xsd(name = "X509CRL") x509_crl:           bytes?
+}
+
+@xsd(root = false)
+record X509IssuerSerial {
+  @xsd(name = "X509IssuerName") x509_issuer_name:   string
+  @xsd(name = "X509SerialNumber") x509_serial_number: int32
+}
+
+union PGPData = PGPKeyIDGroup | PGPKeyPacketGroup
+
+@xsd(root = false)
+record PGPKeyIDGroup {
+  @xsd(name = "PGPKeyID") pgp_key_id:     bytes
+  @xsd(name = "PGPKeyPacket") pgp_key_packet: bytes?
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any:            list<string>
+}
+
+@xsd(root = false)
+record PGPKeyPacketGroup {
+  @xsd(name = "PGPKeyPacket") pgp_key_packet: bytes
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any:            list<string>
+}
+
+@xsd(name = "SPKIData")
+record SPKIData {
+  @xsd(name = "SPKISexp") spki_sexp: bytes
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any:       string?
+}
+
+@xsd(name = "Object")
+record Object {
+  @xsd(any) any:       string
+  @xsd(mixed) text:      string?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:        string?
+  @xsd(name = "MimeType")
+  @xsd(attribute)
+  mime_type: string?
+  @xsd(name = "Encoding")
+  @xsd(attribute)
+  encoding:  string?
+}
+
+@xsd(name = "Manifest")
+record Manifest {
+  @xsd(name = "Reference") reference: list<Reference>(min = 1)
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:        string?
+}
+
+@xsd(name = "SignatureProperties")
+record SignatureProperties {
+  @xsd(name = "SignatureProperty") signature_property: list<SignatureProperty>(min = 1)
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                 string?
+}
+
+@xsd(name = "SignatureProperty")
+record SignatureProperty {
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any:    list<string>(min = 1)
+  @xsd(mixed) text:   string?
+  @xsd(name = "Target")
+  @xsd(attribute)
+  target: string
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:     string?
+}
+
+@xsd(name = "DSAKeyValue")
+record DSAKeyValue {
+  p_group:    PGroup?
+  @xsd(name = "G") g:          bytes?
+  @xsd(name = "Y") y:          bytes
+  @xsd(name = "J") j:          bytes?
+  seed_group: SeedGroup?
+
+  record PGroup { @xsd(name = "P") p: bytes @xsd(name = "Q") q: bytes }
+
+  record SeedGroup {
+    @xsd(name = "Seed") seed:         bytes
+    @xsd(name = "PgenCounter") pgen_counter: bytes
+  }
+}
+
+@xsd(name = "RSAKeyValue")
+record RSAKeyValue { @xsd(name = "Modulus") modulus: bytes @xsd(name = "Exponent") exponent: bytes }

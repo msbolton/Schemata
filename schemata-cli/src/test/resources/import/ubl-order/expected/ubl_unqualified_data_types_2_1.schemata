@@ -1,0 +1,886 @@
+@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:UnqualifiedDataTypes-2")
+namespace ubl_unqualified_data_types_2_1
+
+import ccts_cct_schema_module_2_1
+
+/// UBLUDT000001
+/// UDT
+/// Amount. Type
+/// 1.0
+/// A number of monetary units specified using a given unit of currency.
+/// Amount
+@xsd(root = false)
+record Amount {
+  value:                         decimal(38, 9)
+  /// UNDT000001-SC2
+  /// SC
+  /// Amount. Currency. Identifier
+  /// The currency of the amount.
+  /// Amount Currency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Reference UNECE Rec 9, using 3-letter alphabetic codes.
+  @xsd(name = "currencyID")
+  @xsd(attribute)
+  currency_id:                   string
+  /// UNDT000001-SC3
+  /// SC
+  /// Amount Currency. Code List Version. Identifier
+  /// The VersionID of the UN/ECE Rec9 code list.
+  /// Amount Currency
+  /// Code List Version
+  /// Identifier
+  /// string
+  @xsd(name = "currencyCodeListVersionID")
+  @xsd(attribute)
+  currency_code_list_version_id: string?
+}
+
+/// UBLUDT000002
+/// UDT
+/// Binary Object. Type
+/// 1.0
+/// A set of finite-length sequences of binary octets.
+/// Binary Object
+/// binary
+@xsd(root = false)
+record BinaryObject {
+  value:              bytes
+  /// UNDT000002-SC3
+  /// SC
+  /// Binary Object. Mime. Code
+  /// The mime type of the binary object.
+  /// Binary Object
+  /// Mime
+  /// Code
+  /// string
+  @xsd(name = "mimeCode")
+  @xsd(attribute)
+  mime_code:          string
+  /// UNDT000002-SC2
+  /// SC
+  /// Binary Object. Format. Text
+  /// The format of the binary content.
+  /// Binary Object
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format:             string?
+  /// UNDT000002-SC4
+  /// SC
+  /// Binary Object. Encoding. Code
+  /// Specifies the decoding algorithm of the binary object.
+  /// Binary Object
+  /// Encoding
+  /// Code
+  /// string
+  @xsd(name = "encodingCode")
+  @xsd(attribute)
+  encoding_code:      string?
+  /// UNDT000002-SC5
+  /// SC
+  /// Binary Object. Character Set. Code
+  /// The character set of the binary object if the mime type is text.
+  /// Binary Object
+  /// Character Set
+  /// Code
+  /// string
+  @xsd(name = "characterSetCode")
+  @xsd(attribute)
+  character_set_code: string?
+  /// UNDT000002-SC6
+  /// SC
+  /// Binary Object. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the binary object is located.
+  /// Binary Object
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(attribute) uri:                string?
+  /// UNDT000002-SC7
+  /// SC
+  /// Binary Object. Filename.Text
+  /// The filename of the binary object.
+  /// Binary Object
+  /// Filename
+  /// Text
+  /// string
+  @xsd(attribute) filename:           string?
+}
+
+/// UBLUDT000003
+/// UDT
+/// Graphic. Type
+/// 1.0
+/// A diagram, graph, mathematical curve, or similar representation.
+/// Graphic
+/// binary
+@xsd(root = false)
+record Graphic {
+  value:              bytes
+  /// UNDT000003-SC3
+  /// SC
+  /// Graphic. Mime. Code
+  /// The mime type of the graphic object.
+  /// Graphic
+  /// Mime
+  /// Code
+  /// normalizedString
+  @xsd(name = "mimeCode")
+  @xsd(attribute)
+  mime_code:          string
+  /// UNDT000002-SC2
+  /// SC
+  /// Binary Object. Format. Text
+  /// The format of the binary content.
+  /// Binary Object
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format:             string?
+  /// UNDT000002-SC4
+  /// SC
+  /// Binary Object. Encoding. Code
+  /// Specifies the decoding algorithm of the binary object.
+  /// Binary Object
+  /// Encoding
+  /// Code
+  /// string
+  @xsd(name = "encodingCode")
+  @xsd(attribute)
+  encoding_code:      string?
+  /// UNDT000002-SC5
+  /// SC
+  /// Binary Object. Character Set. Code
+  /// The character set of the binary object if the mime type is text.
+  /// Binary Object
+  /// Character Set
+  /// Code
+  /// string
+  @xsd(name = "characterSetCode")
+  @xsd(attribute)
+  character_set_code: string?
+  /// UNDT000002-SC6
+  /// SC
+  /// Binary Object. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the binary object is located.
+  /// Binary Object
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(attribute) uri:                string?
+  /// UNDT000002-SC7
+  /// SC
+  /// Binary Object. Filename.Text
+  /// The filename of the binary object.
+  /// Binary Object
+  /// Filename
+  /// Text
+  /// string
+  @xsd(attribute) filename:           string?
+}
+
+/// UBLUDT000004
+/// UDT
+/// Picture. Type
+/// 1.0
+/// A diagram, graph, mathematical curve, or similar representation.
+/// Picture
+/// binary
+@xsd(root = false)
+record Picture {
+  value:              bytes
+  /// UNDT000004-SC3
+  /// SC
+  /// Picture. Mime. Code
+  /// The mime type of the picture object.
+  /// Picture
+  /// Mime
+  /// Code
+  /// normalizedString
+  @xsd(name = "mimeCode")
+  @xsd(attribute)
+  mime_code:          string
+  /// UNDT000002-SC2
+  /// SC
+  /// Binary Object. Format. Text
+  /// The format of the binary content.
+  /// Binary Object
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format:             string?
+  /// UNDT000002-SC4
+  /// SC
+  /// Binary Object. Encoding. Code
+  /// Specifies the decoding algorithm of the binary object.
+  /// Binary Object
+  /// Encoding
+  /// Code
+  /// string
+  @xsd(name = "encodingCode")
+  @xsd(attribute)
+  encoding_code:      string?
+  /// UNDT000002-SC5
+  /// SC
+  /// Binary Object. Character Set. Code
+  /// The character set of the binary object if the mime type is text.
+  /// Binary Object
+  /// Character Set
+  /// Code
+  /// string
+  @xsd(name = "characterSetCode")
+  @xsd(attribute)
+  character_set_code: string?
+  /// UNDT000002-SC6
+  /// SC
+  /// Binary Object. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the binary object is located.
+  /// Binary Object
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(attribute) uri:                string?
+  /// UNDT000002-SC7
+  /// SC
+  /// Binary Object. Filename.Text
+  /// The filename of the binary object.
+  /// Binary Object
+  /// Filename
+  /// Text
+  /// string
+  @xsd(attribute) filename:           string?
+}
+
+/// UBLUDT000005
+/// UDT
+/// Sound. Type
+/// 1.0
+/// An audio representation.
+/// Sound
+/// binary
+@xsd(root = false)
+record Sound {
+  value:              bytes
+  /// UNDT000005-SC3
+  /// SC
+  /// Sound. Mime. Code
+  /// The mime type of the sound object.
+  /// Sound
+  /// Mime
+  /// Code
+  /// normalizedString
+  @xsd(name = "mimeCode")
+  @xsd(attribute)
+  mime_code:          string
+  /// UNDT000002-SC2
+  /// SC
+  /// Binary Object. Format. Text
+  /// The format of the binary content.
+  /// Binary Object
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format:             string?
+  /// UNDT000002-SC4
+  /// SC
+  /// Binary Object. Encoding. Code
+  /// Specifies the decoding algorithm of the binary object.
+  /// Binary Object
+  /// Encoding
+  /// Code
+  /// string
+  @xsd(name = "encodingCode")
+  @xsd(attribute)
+  encoding_code:      string?
+  /// UNDT000002-SC5
+  /// SC
+  /// Binary Object. Character Set. Code
+  /// The character set of the binary object if the mime type is text.
+  /// Binary Object
+  /// Character Set
+  /// Code
+  /// string
+  @xsd(name = "characterSetCode")
+  @xsd(attribute)
+  character_set_code: string?
+  /// UNDT000002-SC6
+  /// SC
+  /// Binary Object. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the binary object is located.
+  /// Binary Object
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(attribute) uri:                string?
+  /// UNDT000002-SC7
+  /// SC
+  /// Binary Object. Filename.Text
+  /// The filename of the binary object.
+  /// Binary Object
+  /// Filename
+  /// Text
+  /// string
+  @xsd(attribute) filename:           string?
+}
+
+/// UBLUDT000006
+/// UDT
+/// Video. Type
+/// 1.0
+/// A video representation.
+/// Video
+/// binary
+@xsd(root = false)
+record Video {
+  value:              bytes
+  /// UNDT000006-SC3
+  /// SC
+  /// Video. Mime. Code
+  /// The mime type of the video object.
+  /// Video
+  /// Mime
+  /// Code
+  /// normalizedString
+  @xsd(name = "mimeCode")
+  @xsd(attribute)
+  mime_code:          string
+  /// UNDT000002-SC2
+  /// SC
+  /// Binary Object. Format. Text
+  /// The format of the binary content.
+  /// Binary Object
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format:             string?
+  /// UNDT000002-SC4
+  /// SC
+  /// Binary Object. Encoding. Code
+  /// Specifies the decoding algorithm of the binary object.
+  /// Binary Object
+  /// Encoding
+  /// Code
+  /// string
+  @xsd(name = "encodingCode")
+  @xsd(attribute)
+  encoding_code:      string?
+  /// UNDT000002-SC5
+  /// SC
+  /// Binary Object. Character Set. Code
+  /// The character set of the binary object if the mime type is text.
+  /// Binary Object
+  /// Character Set
+  /// Code
+  /// string
+  @xsd(name = "characterSetCode")
+  @xsd(attribute)
+  character_set_code: string?
+  /// UNDT000002-SC6
+  /// SC
+  /// Binary Object. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the binary object is located.
+  /// Binary Object
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(attribute) uri:                string?
+  /// UNDT000002-SC7
+  /// SC
+  /// Binary Object. Filename.Text
+  /// The filename of the binary object.
+  /// Binary Object
+  /// Filename
+  /// Text
+  /// string
+  @xsd(attribute) filename:           string?
+}
+
+/// UBLUDT000007
+/// UDT
+/// Code. Type
+/// 1.0
+/// A character string (letters, figures, or symbols) that for brevity and/or language independence may be used to represent or replace a definitive value or text of an attribute, together with relevant supplementary information.
+/// Code
+/// string
+/// Other supplementary components in the CCT are captured as part of the token and name for the schema module containing the code list and thus, are not declared as attributes.
+@xsd(root = false)
+record Code {
+  value:            string
+  /// UNDT000007-SC2
+  /// SC
+  /// Code List. Identifier
+  /// The identification of a list of codes.
+  /// Code List
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "listID")
+  @xsd(attribute)
+  list_id:          string?
+  /// UNDT000007-SC3
+  /// SC
+  /// Code List. Agency. Identifier
+  /// An agency that maintains one or more lists of codes.
+  /// Code List
+  /// Agency
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "listAgencyID")
+  @xsd(attribute)
+  list_agency_id:   string?
+  /// UNDT000007-SC4
+  /// SC
+  /// Code List. Agency Name. Text
+  /// The name of the agency that maintains the list of codes.
+  /// Code List
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "listAgencyName")
+  @xsd(attribute)
+  list_agency_name: string?
+  /// UNDT000007-SC5
+  /// SC
+  /// Code List. Name. Text
+  /// The name of a list of codes.
+  /// Code List
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "listName")
+  @xsd(attribute)
+  list_name:        string?
+  /// UNDT000007-SC6
+  /// SC
+  /// Code List. Version. Identifier
+  /// The version of the list of codes.
+  /// Code List
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "listVersionID")
+  @xsd(attribute)
+  list_version_id:  string?
+  /// UNDT000007-SC7
+  /// SC
+  /// Code. Name. Text
+  /// The textual equivalent of the code content component.
+  /// Code
+  /// Name
+  /// Text
+  /// string
+  @xsd(attribute) name:             string?
+  /// UNDT000007-SC8
+  /// SC
+  /// Language. Identifier
+  /// The identifier of the language used in the code name.
+  /// Language
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "languageID")
+  @xsd(attribute)
+  language_id:      string?
+  /// UNDT000007-SC9
+  /// SC
+  /// Code List. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the code list is located.
+  /// Code List
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "listURI")
+  @xsd(attribute)
+  list_uri:         string?
+  /// UNDT000007-SC10
+  /// SC
+  /// Code List Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the code list scheme is located.
+  /// Code List Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "listSchemeURI")
+  @xsd(attribute)
+  list_scheme_uri:  string?
+}
+
+/// UBLUDT000008
+/// UDT
+/// Date Time. Type
+/// 1.0
+/// A particular point in the progression of time, together with relevant supplementary information.
+/// Date Time
+/// string
+/// Can be used for a date and/or time.
+@xsd(root = false)
+record DateTime { value: instant }
+
+/// UBLUDT000009
+/// UDT
+/// Date. Type
+/// 1.0
+/// One calendar day according the Gregorian calendar.
+/// Date
+/// string
+@xsd(root = false)
+record Date { value: date }
+
+/// UBLUDT0000010
+/// UDT
+/// Time. Type
+/// 1.0
+/// An instance of time that occurs every day.
+/// Time
+/// string
+@xsd(root = false)
+record Time { value: time }
+
+/// UBLUDT0000011
+/// UDT
+/// Identifier. Type
+/// 1.0
+/// A character string to identify and uniquely distinguish one instance of an object in an identification scheme from all other objects in the same scheme, together with relevant supplementary information.
+/// Identifier
+/// string
+/// Other supplementary components in the CCT are captured as part of the token and name for the schema module containing the identifier list and thus, are not declared as attributes.
+@xsd(root = false)
+record Identifier {
+  value:              string
+  /// UNDT000011-SC2
+  /// SC
+  /// Identification Scheme. Identifier
+  /// The identification of the identification scheme.
+  /// Identification Scheme
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "schemeID")
+  @xsd(attribute)
+  scheme_id:          string?
+  /// UNDT000011-SC3
+  /// SC
+  /// Identification Scheme. Name. Text
+  /// The name of the identification scheme.
+  /// Identification Scheme
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "schemeName")
+  @xsd(attribute)
+  scheme_name:        string?
+  /// UNDT000011-SC4
+  /// SC
+  /// Identification Scheme Agency. Identifier
+  /// The identification of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "schemeAgencyID")
+  @xsd(attribute)
+  scheme_agency_id:   string?
+  /// UNDT000011-SC5
+  /// SC
+  /// Identification Scheme Agency. Name. Text
+  /// The name of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "schemeAgencyName")
+  @xsd(attribute)
+  scheme_agency_name: string?
+  /// UNDT000011-SC6
+  /// SC
+  /// Identification Scheme. Version. Identifier
+  /// The version of the identification scheme.
+  /// Identification Scheme
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "schemeVersionID")
+  @xsd(attribute)
+  scheme_version_id:  string?
+  /// UNDT000011-SC7
+  /// SC
+  /// Identification Scheme Data. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme data is located.
+  /// Identification Scheme Data
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeDataURI")
+  @xsd(attribute)
+  scheme_data_uri:    string?
+  /// UNDT000011-SC8
+  /// SC
+  /// Identification Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme is located.
+  /// Identification Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeURI")
+  @xsd(attribute)
+  scheme_uri:         string?
+}
+
+/// UBLUDT0000012
+/// UDT
+/// Indicator. Type
+/// 1.0
+/// A list of two mutually exclusive Boolean values that express the only possible states of a property.
+/// Indicator
+/// string
+@xsd(root = false)
+record Indicator { value: bool }
+
+/// UBLUDT0000013
+/// UDT
+/// Measure. Type
+/// 1.0
+/// A numeric value determined by measuring an object using a specified unit of measure.
+/// Measure
+/// Type
+/// decimal
+@xsd(root = false)
+record Measure {
+  value:                     decimal(38, 9)
+  /// UNDT000013-SC2
+  /// SC
+  /// Measure. Unit. Code
+  /// The type of unit of measure.
+  /// Measure Unit
+  /// Code
+  /// Code
+  /// normalizedString
+  /// Reference UNECE Rec. 20 and X12 355
+  @xsd(name = "unitCode")
+  @xsd(attribute)
+  unit_code:                 string
+  /// UNDT000013-SC3
+  /// SC
+  /// Measure Unit. Code List Version. Identifier
+  /// The version of the measure unit code list.
+  /// Measure Unit
+  /// Code List Version
+  /// Identifier
+  /// string
+  @xsd(name = "unitCodeListVersionID")
+  @xsd(attribute)
+  unit_code_list_version_id: string?
+}
+
+/// UBLUDT0000014
+/// UDT
+/// Numeric. Type
+/// 1.0
+/// Numeric information that is assigned or is determined by calculation, counting, or sequencing. It does not require a unit of quantity or unit of measure.
+/// Numeric
+/// string
+@xsd(root = false)
+record Numeric {
+  value:  decimal(38, 9)
+  /// UNDT000014-SC2
+  /// SC
+  /// Numeric. Format. Text
+  /// Whether the number is an integer, decimal, real number or percentage.
+  /// Numeric
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format: string?
+}
+
+/// UBLUDT0000015
+/// UDT
+/// 1.0
+/// Value. Type
+/// Numeric information that is assigned or is determined by calculation, counting, or sequencing. It does not require a unit of quantity or unit of measure.
+/// Value
+/// string
+@xsd(root = false)
+record Value {
+  value:  decimal(38, 9)
+  /// UNDT000014-SC2
+  /// SC
+  /// Numeric. Format. Text
+  /// Whether the number is an integer, decimal, real number or percentage.
+  /// Numeric
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format: string?
+}
+
+/// UBLUDT0000016
+/// UDT
+/// 1.0
+/// Percent. Type
+/// Numeric information that is assigned or is determined by calculation, counting, or sequencing and is expressed as a percentage. It does not require a unit of quantity or unit of measure.
+/// Percent
+/// string
+@xsd(root = false)
+record Percent {
+  value:  decimal(38, 9)
+  /// UNDT000014-SC2
+  /// SC
+  /// Numeric. Format. Text
+  /// Whether the number is an integer, decimal, real number or percentage.
+  /// Numeric
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format: string?
+}
+
+/// UBLUDT0000017
+/// UDT
+/// 1.0
+/// Rate. Type
+/// A numeric expression of a rate that is assigned or is determined by calculation, counting, or sequencing. It does not require a unit of quantity or unit of measure.
+/// Rate
+/// string
+@xsd(root = false)
+record Rate {
+  value:  decimal(38, 9)
+  /// UNDT000014-SC2
+  /// SC
+  /// Numeric. Format. Text
+  /// Whether the number is an integer, decimal, real number or percentage.
+  /// Numeric
+  /// Format
+  /// Text
+  /// string
+  @xsd(attribute) format: string?
+}
+
+/// UBLUDT0000018
+/// UDT
+/// Quantity. Type
+/// 1.0
+/// A counted number of non-monetary units, possibly including a fractional part.
+/// Quantity
+/// decimal
+@xsd(root = false)
+record Quantity {
+  value:                      decimal(38, 9)
+  /// UNDT000018-SC2
+  /// SC
+  /// Quantity. Unit. Code
+  /// The unit of the quantity
+  /// Quantity
+  /// Unit Code
+  /// Code
+  /// string
+  @xsd(name = "unitCode")
+  @xsd(attribute)
+  unit_code:                  string?
+  /// UNDT000018-SC3
+  /// SC
+  /// Quantity Unit. Code List. Identifier
+  /// The quantity unit code list.
+  /// Quantity Unit
+  /// Code List
+  /// Identifier
+  /// string
+  @xsd(name = "unitCodeListID")
+  @xsd(attribute)
+  unit_code_list_id:          string?
+  /// UNDT000018-SC4
+  /// SC
+  /// Quantity Unit. Code List Agency. Identifier
+  /// The identification of the agency that maintains the quantity unit code list
+  /// Quantity Unit
+  /// Code List Agency
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "unitCodeListAgencyID")
+  @xsd(attribute)
+  unit_code_list_agency_id:   string?
+  /// UNDT000018-SC5
+  /// SC
+  /// Quantity Unit. Code List Agency Name. Text
+  /// The name of the agency which maintains the quantity unit code list.
+  /// Quantity Unit
+  /// Code List Agency Name
+  /// Text
+  /// string
+  @xsd(name = "unitCodeListAgencyName")
+  @xsd(attribute)
+  unit_code_list_agency_name: string?
+}
+
+/// UBLUDT0000019
+/// UDT
+/// Text. Type
+/// 1.0
+/// A character string (i.e. a finite set of characters), generally in the form of words of a language.
+/// Text
+/// string
+@xsd(root = false)
+record Text {
+  value:              string
+  /// UNDT000019-SC2
+  /// SC
+  /// Language. Identifier
+  /// The identifier of the language used in the content component.
+  /// Language
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "languageID")
+  @xsd(attribute)
+  language_id:        string?
+  /// UNDT000019-SC3
+  /// SC
+  /// Language. Locale. Identifier
+  /// The identification of the locale of the language.
+  /// Language
+  /// Locale
+  /// Identifier
+  /// string
+  @xsd(name = "languageLocaleID")
+  @xsd(attribute)
+  language_locale_id: string?
+}
+
+/// UBLUDT0000020
+/// UDT
+/// Name. Type
+/// 1.0
+/// A character string that constitutes the distinctive designation of a person, place, thing or concept.
+/// Name
+/// string
+@xsd(root = false)
+record Name {
+  value:              string
+  /// UNDT000019-SC2
+  /// SC
+  /// Language. Identifier
+  /// The identifier of the language used in the content component.
+  /// Language
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "languageID")
+  @xsd(attribute)
+  language_id:        string?
+  /// UNDT000019-SC3
+  /// SC
+  /// Language. Locale. Identifier
+  /// The identification of the locale of the language.
+  /// Language
+  /// Locale
+  /// Identifier
+  /// string
+  @xsd(name = "languageLocaleID")
+  @xsd(attribute)
+  language_locale_id: string?
+}

@@ -1,0 +1,111 @@
+/// This schema document provides attribute declarations and
+/// attribute group, complex type and simple type definitions which can be used in
+/// the construction of user schemas to define the structure of particular linking
+/// constructs, e.g.
+///
+/// <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+/// xmlns:xl="http://www.w3.org/1999/xlink">
+///
+/// <xs:import namespace="http://www.w3.org/1999/xlink"
+/// location="http://www.w3.org/1999/xlink.xsd">
+///
+/// <xs:element name="mySimple">
+/// <xs:complexType>
+/// ...
+/// <xs:attributeGroup ref="xl:simpleAttrs"/>
+/// ...
+/// </xs:complexType>
+/// </xs:element>
+/// ...
+/// </xs:schema>
+@xsd(namespace = "http://www.w3.org/1999/xlink")
+@xsd(element_form = "unqualified")
+namespace xlink
+
+import xml
+
+@xsd(name = "type")
+enum Type { simple, extended, title, resource, locator, arc }
+
+@xsd(name = "show")
+enum Show { new, replace, embed, other, none }
+
+@xsd(name = "actuate")
+enum Actuate { @xsd(name = "onLoad") on_load, @xsd(name = "onRequest") on_request, other, none }
+
+/// Intended for use as the type of user-declared elements to make them
+/// simple links.
+@xsd(root = false)
+record Simple {
+  @xsd(any) any:     list<string>
+  @xsd(mixed) text:    string?
+  @xsd(attribute) type:    Type = simple
+  @xsd(attribute) href:    string?
+  @xsd(attribute) role:    string(min = 1)?
+  @xsd(attribute) arcrole: string(min = 1)?
+  @xsd(attribute) title:   string?
+  @xsd(attribute) show:    Show?
+  @xsd(attribute) actuate: Actuate?
+}
+
+/// Intended for use as the type of user-declared elements to make them
+/// extended links.
+/// Note that the elements referenced in the content model are all abstract.
+/// The intention is that by simply declaring elements with these as their
+/// substitutionGroup, all the right things will happen.
+@xsd(root = false)
+record Extended {
+  title:           TitleElt?
+  resource:        Resource?
+  locator:         Locator?
+  arc:             Arc?
+  @xsd(attribute) type:            Type = extended
+  @xsd(attribute) role:            string(min = 1)?
+  @xsd(attribute) title_attribute: string?
+}
+
+@xsd(name = "titleElt")
+record TitleElt {
+  @xsd(any) any:  list<string>
+  @xsd(mixed) text: string?
+  @xsd(attribute) type: Type = title
+  /// xml:lang is not required, but provides much of the
+  /// motivation for title elements in addition to attributes, and so
+  /// is provided here for convenience.
+  @xsd(attribute) lang: string?
+}
+
+@xsd(name = "resource")
+record Resource {
+  @xsd(any) any:   list<string>
+  @xsd(mixed) text:  string?
+  @xsd(attribute) type:  Type = resource
+  @xsd(attribute) role:  string(min = 1)?
+  @xsd(attribute) title: string?
+  @xsd(attribute) label: string?
+}
+
+@xsd(name = "locator")
+record Locator {
+  title:           list<TitleElt>
+  @xsd(attribute) type:            Type = locator
+  @xsd(attribute) href:            string
+  @xsd(attribute) role:            string(min = 1)?
+  @xsd(attribute) title_attribute: string?
+  /// label is not required, but locators have no particular
+  /// XLink function if they are not labeled.
+  @xsd(attribute) label:           string?
+}
+
+@xsd(name = "arc")
+record Arc {
+  title:           list<TitleElt>
+  @xsd(attribute) type:            Type = arc
+  @xsd(attribute) arcrole:         string(min = 1)?
+  @xsd(attribute) title_attribute: string?
+  @xsd(attribute) show:            Show?
+  @xsd(attribute) actuate:         Actuate?
+  @xsd(attribute) from:            string?
+  /// from and to have default behavior when values are missing
+  @xsd(attribute) to:              string?
+}

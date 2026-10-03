@@ -5,3 +5,6 @@
 # These goldens hold a raw carriage return inside a Postgres string literal; keep their bytes.
 schemata-cli/src/test/resources/corpus/strings/expected/sql/corpus/strings.sql -text
 schemata-cli/src/test/resources/corpus/strings/expected/sql-catalog.txt -text
+
+# The import corpora are third-party schemas kept byte for byte; xlink.xsd uses CRLF.
+schemata-cli/src/test/resources/import/** -text

@@ -1,0 +1,27 @@
+OGC Geography Markup Language (GML) 3.2.1 schemas, with the schemas they import, copied verbatim
+as test input for the XSD importer. Nothing in the copied files was changed; the one file not
+copied, iso19139-stub/gmd.xsd, is written for this corpus (see below).
+
+  *.xsd            https://schemas.opengis.net/gml/3.2.1/
+                   Copyright (c) 2007, 2010, 2016, 2018 Open Geospatial Consortium.
+                   OGC Software License, Version 1.0; see LICENSE.txt. OGC's terms:
+                   https://www.ogc.org/about-ogc/legal-notices-term-and-conditions/
+
+  xlink/xlink.xsd  https://www.w3.org/1999/xlink.xsd
+                   W3C XLink 1.1 schema, under the W3C Software and Document Notice and License,
+                   https://www.w3.org/copyright/software-license/
+
+  xml/xml.xsd      https://www.w3.org/2001/xml.xsd, imported by xlink.xsd and smil20.xsd
+                   W3C, under the W3C Software and Document Notice and License,
+                   https://www.w3.org/copyright/software-license/
+
+  smil/*.xsd       https://schemas.opengis.net/gml/3.1.1/smil/, imported by defaultStyle.xsd
+                   SMIL 2.0 schemas, Copyright 1998-2001 W3C (MIT, INRIA, Keio), as reorganised
+                   by OGC (see each file's header); W3C Software and Document Notice and License.
+
+  iso19139-stub/gmd.xsd
+                   Not a copy: a hand-written stub for the ISO/TS 19139:2007 gmd namespace that
+                   coordinateOperations.xsd and referenceSystems.xsd import, declaring only the
+                   three elements GML refers to (EX_Extent, CI_Citation,
+                   AbstractDQ_PositionalAccuracy) with empty content. The ISO 19139 schemas are
+                   not redistributable, so they are not included.

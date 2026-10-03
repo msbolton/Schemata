@@ -1,0 +1,28 @@
+/// About the XML namespace
+///
+///
+///
+/// This schema document describes the XML namespace, in a form
+/// suitable for import by other schema documents.
+///
+///
+/// See
+/// http://www.w3.org/XML/1998/namespace.html and
+///
+/// http://www.w3.org/TR/REC-xml for information
+/// about this namespace.
+///
+///
+/// Note that local names in this namespace are intended to be
+/// defined only by the World Wide Web Consortium or its subgroups.
+/// The names currently defined in this namespace are listed below.
+/// They should not be used with conflicting semantics by any Working
+/// Group, specification, or document instance.
+///
+///
+/// See further below in this document for more information about how to refer to this schema document from your own
+/// XSD schema documents and about the
+/// namespace-versioning policy governing this schema document.
+@xsd(namespace = "http://www.w3.org/XML/1998/namespace")
+@xsd(element_form = "unqualified")
+namespace xml
