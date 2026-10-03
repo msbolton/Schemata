@@ -1413,8 +1413,6 @@ class XsdImportTest {
                 "SCH2405 schema: xs:redefine dropped",
                 "SCH2405 schema: xs:override dropped",
                 "SCH2405 schema: xs:notation dropped",
-                "SCH2405 element 'special_offer': substitution group 'head' dropped; imported as " +
-                    "an independent element",
                 "SCH2405 element 'counts': identity constraint 'k' dropped",
                 "SCH2405 element 'counts': identity constraint 'k2' dropped",
                 "SCH2405 complex type 'ThingType': mixed content dropped; elements kept",
@@ -1889,6 +1887,58 @@ class XsdImportTest {
                 "SCH2405 union 'Payment': xs:anyAttribute dropped",
                 "SCH2405 union 'Payment': mixed content dropped",
                 "SCH2405 union 'Payment': abstract dropped",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `an anyType base is silent and a restriction keeps the attributes its bases declare`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="OpenType">
+                    <xs:complexContent>
+                      <xs:restriction base="xs:anyType">
+                        <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                      </xs:restriction>
+                    </xs:complexContent>
+                  </xs:complexType>
+                  <xs:complexType name="RootType">
+                    <xs:sequence/>
+                    <xs:attribute name="id" type="xs:string" use="required"/>
+                  </xs:complexType>
+                  <xs:complexType name="MidType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:RootType">
+                        <xs:sequence><xs:element name="a" type="xs:int"/></xs:sequence>
+                        <xs:attribute name="lang" type="xs:string"/>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                  <xs:complexType name="LeafType">
+                    <xs:complexContent>
+                      <xs:restriction base="tns:MidType">
+                        <xs:sequence><xs:element name="a" type="xs:int"/></xs:sequence>
+                        <xs:attribute name="lang" use="prohibited"/>
+                      </xs:restriction>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("x"), record(imported, "Open").fields.map { it.name })
+        val leaf = record(imported, "Leaf")
+        assertEquals(listOf("a", "id"), leaf.fields.map { it.name })
+        assertEquals(false, leaf.fields[1].nullable)
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'MidType': extension of 'RootType' has no Schemata " +
+                    "equivalent; base fields flattened into the record",
+                "SCH2403 complex type 'LeafType': restriction of 'MidType' has no Schemata " +
+                    "equivalent; its own content is used",
             ),
             messages(imported),
         )

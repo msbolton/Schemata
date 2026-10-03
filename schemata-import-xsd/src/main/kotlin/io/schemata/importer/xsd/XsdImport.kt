@@ -98,6 +98,7 @@ object XsdImport {
         val docsByNamespace = LinkedHashMap<String?, XsdDoc>()
         live.forEach { docsByNamespace.putIfAbsent(it.targetNamespace, it) }
         val cycles = Cycles(cyclicGroups(docsByNamespace), cyclicAttributeGroups(docsByNamespace))
+        val heads = Heads(live)
 
         val units =
             live.map { doc ->
@@ -114,6 +115,9 @@ object XsdImport {
                 }
                 doc.dropped.forEach { (construct, line) ->
                     diagnostics += dropped(doc.path, line, "schema", "$construct dropped")
+                }
+                blockOrFinal(doc)?.let { (path, line) ->
+                    diagnostics += dropped(path, line, "schema", "block and final dropped")
                 }
                 // Every top-level declaration name this namespace's named types already own, so a
                 // record lowered from a global element (or hoisted out of a union) can't take one.
@@ -136,6 +140,7 @@ object XsdImport {
                         typeNames,
                         topLevelNames,
                         cycles,
+                        heads,
                         diagnostics,
                     )
                 val declarations = mutableListOf<UnitDecl>()
@@ -157,6 +162,7 @@ object XsdImport {
                         lowering.checkRoot(el, roots)
                     }
                 }
+                declarations += lowering.headUnions()
                 SchemataUnit(
                     namespace = names.getValue(doc),
                     annotations =
@@ -166,12 +172,31 @@ object XsdImport {
                                 ?.let { UnitAnnotation("xsd", "namespace", "\"$it\"") }
                         ),
                     doc = doc.doc,
-                    imports = imports.distinct(),
+                    imports = (imports + lowering.extraImports).distinct(),
                     declarations = declarations,
                     sourcePath = doc.path,
                 )
             }
         return Imported(units, diagnostics)
+    }
+
+    /**
+     * The file and line where [doc] first restricts derivation or substitution (`block`, `final`,
+     * or their schema-wide defaults), which Schemata has no way to say; `null` when it never does.
+     * A default counts from the top of the document.
+     */
+    private fun blockOrFinal(doc: XsdDoc): Pair<String, Int>? {
+        if (doc.blockDefault != null || doc.finalDefault != null) return doc.path to 1
+        val sites =
+            doc.complexTypes
+                .filter { it.block != null || it.final != null }
+                .map { it.path to it.line } +
+                doc.elements
+                    .filter { it.block != null || it.final != null }
+                    .map { it.path to it.line }
+        return sites
+            .minByOrNull { it.second }
+            ?.let { (path, line) -> path.ifEmpty { doc.path } to line }
     }
 
     /**
@@ -444,8 +469,12 @@ object XsdImport {
         val typeNames: Map<QName, TypeNameInfo>,
         val topLevelNames: MutableMap<String, String>,
         val cycles: Cycles,
+        val heads: Heads,
         val diagnostics: MutableList<Diagnostic>,
     ) {
+        /** Namespaces a head union's members live in, which the unit must import. */
+        val extraImports = linkedSetOf<String>()
+
         /**
          * The document whose lines a diagnostic points at: [doc], except while a component an
          * include brought in is being lowered, or an extension base declared in another document is
@@ -482,6 +511,10 @@ object XsdImport {
                         )
                 is TypeNote.Blocked -> diagnostics += typeCollision(original, note.other, ct.line)
                 null -> Unit
+            }
+            val headQName = QName(doc.targetNamespace, original)
+            heads.types[headQName]?.let { head ->
+                return typeHeadDeclaration(ct, original, info, head)
             }
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
@@ -536,6 +569,51 @@ object XsdImport {
             val annotations = listOfNotNull(typeOverride, rootAnnotation)
             return listOf(UnitRecord(info.finalName, fields, nested, ct.doc, annotations)) +
                 siblings
+        }
+
+        /**
+         * An abstract complex type with concrete descendants: nothing when it has exactly one,
+         * which every use of it names instead; otherwise a union of them, under the type's own
+         * name, which also serves any substitution group headed by an element of this type with the
+         * same members.
+         */
+        private fun typeHeadDeclaration(
+            ct: XComplexType,
+            original: String,
+            info: TypeNameInfo,
+            head: HeadMembers,
+        ): List<UnitDecl> {
+            val where = "complex type '$original'"
+            val n = head.members.size
+            if (n == 1) {
+                val only = typeNames.getValue(head.members[0]).finalName
+                diagnostics +=
+                    lossy(
+                        ImportCodes.APPROXIMATED,
+                        where,
+                        "abstract type '$original' imported as its one concrete type '$only'",
+                        ct.line,
+                    )
+                return emptyList()
+            }
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    where,
+                    "abstract type '$original' imported as union '${info.finalName}' of $n " +
+                        "concrete types; the regenerated XSD uses a choice",
+                    ct.line,
+                )
+            val memberElements =
+                heads.memberElements
+                    .filterKeys {
+                        headElement(it)?.type == QName(doc.targetNamespace, original) &&
+                            sharesTypeUnion(it)
+                    }
+                    .values
+                    .flatten()
+            val union = headUnion(info.finalName, head, where, memberElements, ct.doc)
+            return listOf(union.copy(annotations = listOfNotNull(info.annotation)))
         }
 
         /** A named, enumerated simple type: an enum. */
@@ -670,6 +748,186 @@ object XsdImport {
             return true
         }
 
+        /** The global element [qname] names, in whichever document declares it. */
+        private fun headElement(qname: QName): XElement? =
+            docsByNamespace[qname.namespace]?.elements?.firstOrNull { it.name == qname.local }
+
+        /**
+         * Whether the substitution group headed by [head] is served by its type's own union: the
+         * head element's type is an abstract type of the same namespace whose union has exactly the
+         * group's members.
+         */
+        private fun sharesTypeUnion(head: QName): Boolean {
+            val members = heads.elements[head]?.members ?: return false
+            val type = headElement(head)?.type ?: return false
+            val typeHead = heads.types[type] ?: return false
+            return type.namespace == head.namespace &&
+                members.size >= 2 &&
+                typeHead.members == members
+        }
+
+        /**
+         * The union a substitution group headed by [head] lowers to, unqualified, in the head's own
+         * namespace: its type's union when [sharesTypeUnion]; otherwise the head's own name, or
+         * that name suffixed `Choice` when a type or a global element's record of that namespace
+         * already lowers to it. Decided from the namespace's type names alone, never from what has
+         * been claimed so far, so that every use site and the declaration agree whatever order they
+         * are lowered in.
+         */
+        private fun elementUnionName(head: QName): String {
+            if (sharesTypeUnion(head)) {
+                return typeNames.getValue(headElement(head)!!.type!!).finalName
+            }
+            val plain = ImportNames.upperCamel(head.local)
+            val typeTaken =
+                typeNames.any { (q, info) ->
+                    q.namespace == head.namespace && info.finalName == plain
+                }
+            val recordTaken =
+                docsByNamespace[head.namespace]?.elements.orEmpty().any {
+                    it.ref == null &&
+                        it.type == null &&
+                        it.inlineComplex != null &&
+                        it.name?.let(ImportNames::upperCamel) == plain
+                }
+            return if (typeTaken || recordTaken) "${plain}Choice" else plain
+        }
+
+        /**
+         * A reference to the type [name] declared in [targetDoc], qualified (and imported) when
+         * that is another namespace.
+         */
+        private fun headRef(targetDoc: XsdDoc, name: String): UnitType.Ref {
+            if (targetDoc === doc) return UnitType.Ref(name)
+            val namespace = namespaceNames.getValue(targetDoc)
+            extraImports += namespace
+            return UnitType.Ref("$namespace.$name")
+        }
+
+        /** What a reference to [member], one head's only member, lowers to. */
+        private fun memberRef(member: QName): UnitType.Ref =
+            headRef(
+                docsByNamespace.getValue(member.namespace),
+                typeNames.getValue(member).finalName,
+            )
+
+        /**
+         * What a use of the abstract complex type [qname] lowers to: its one concrete type, or its
+         * union; `null` when [qname] is not an abstract type with concrete descendants.
+         */
+        private fun headType(qname: QName): UnitType? {
+            val head = heads.types[qname] ?: return null
+            if (head.members.size == 1) return memberRef(head.members[0])
+            return headRef(
+                docsByNamespace.getValue(qname.namespace),
+                typeNames.getValue(qname).finalName,
+            )
+        }
+
+        /**
+         * What a reference to the substitution-group head element [ref] lowers to: its one member
+         * type, or its union; `null` when [ref] heads no group with a member type.
+         */
+        private fun elementHeadType(ref: QName): UnitType? {
+            val head = heads.elements[ref]?.takeIf { it.members.isNotEmpty() } ?: return null
+            if (head.members.size == 1) return memberRef(head.members[0])
+            return headRef(docsByNamespace.getValue(ref.namespace), elementUnionName(ref))
+        }
+
+        /**
+         * The unions this namespace's substitution-group heads declare: one per head with two or
+         * more member types, unless its type's own union already serves. A member declared with an
+         * inline type cannot be named in a union, so it is reported and left out.
+         */
+        fun headUnions(): List<UnitDecl> {
+            val result = mutableListOf<UnitDecl>()
+            heads.elements
+                .filter { it.key.namespace == doc.targetNamespace && it.value.members.size >= 2 }
+                .forEach { (name, head) ->
+                    val el = headElement(name) ?: return@forEach
+                    val where = "element '${name.local}'"
+                    val unionName = elementUnionName(name)
+                    val members = heads.memberElements[name].orEmpty()
+                    at(el.path) {
+                        diagnostics +=
+                            lossy(
+                                ImportCodes.APPROXIMATED,
+                                where,
+                                "substitution group '${name.local}' imported as union " +
+                                    "'$unionName' of ${head.members.size} member types; the " +
+                                    "regenerated XSD uses a choice",
+                                el.line,
+                            )
+                    }
+                    members
+                        .filter {
+                            it.type == null && (it.inlineComplex != null || it.inlineSimple != null)
+                        }
+                        .forEach { m ->
+                            at(m.path) {
+                                diagnostics +=
+                                    lossy(
+                                        ImportCodes.DROPPED,
+                                        "element '${m.name}'",
+                                        "substitution member with an inline type dropped from " +
+                                            "union '$unionName'",
+                                        m.line,
+                                    )
+                            }
+                        }
+                    if (sharesTypeUnion(name)) return@forEach
+                    val claimed = at(el.path) { claimTopLevel(unionName, where, el.line) }
+                    if (claimed) result += headUnion(unionName, head, where, members, el.doc)
+                }
+            return result
+        }
+
+        /**
+         * A head's union of its member types, reporting each member element whose name the
+         * regenerated choice will not reproduce.
+         */
+        private fun headUnion(
+            name: String,
+            head: HeadMembers,
+            where: String,
+            memberElements: List<XElement>,
+            unionDoc: String?,
+        ): UnitUnion {
+            val members = head.members.map { UnionMember(memberRef(it)) }
+            memberElements.forEach { el ->
+                val t = el.type?.takeIf { it in head.members } ?: return@forEach
+                val stem = memberStem(t, typeNames.getValue(t))
+                if (el.name != stem) {
+                    at(el.path) {
+                        diagnostics +=
+                            lossy(
+                                ImportCodes.APPROXIMATED,
+                                where,
+                                "member element '${el.name}' has no Schemata equivalent; the " +
+                                    "regenerated element will be named '$stem'",
+                                el.line,
+                            )
+                    }
+                }
+            }
+            return UnitUnion(name, members, unionDoc, emptyList())
+        }
+
+        /**
+         * The element name a union member of the named complex type [type] regenerates as: the
+         * type's override when it has one, or the one its root element earns it (see
+         * [declarationAt]); otherwise its snake_case name.
+         */
+        private fun memberStem(type: QName, info: TypeNameInfo): String {
+            val overrideText = type.local.removeSuffix("Type")
+            if (info.annotation != null) return overrideText
+            val root =
+                docsByNamespace[type.namespace]?.elements?.firstOrNull {
+                    it.ref == null && it.type == type
+                }
+            return if (root?.name == overrideText) overrideText else Names.snakeCase(info.finalName)
+        }
+
         /**
          * What a choice-only complex type carries that a union cannot: its attributes, mixed
          * content, and abstractness, each reported as dropped.
@@ -727,6 +985,7 @@ object XsdImport {
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
             visited: MutableSet<QName>,
+            namespace: String? = doc.targetNamespace,
         ): List<UnitField> {
             if (ct.mixed) {
                 diagnostics +=
@@ -737,7 +996,8 @@ object XsdImport {
                         ct.line,
                     )
             }
-            if (ct.abstract) {
+            // An abstract type with concrete descendants is not dropped: it is a union of them.
+            if (ct.abstract && ct.name?.let { heads.types[QName(namespace, it)] } == null) {
                 diagnostics +=
                     lossy(ImportCodes.DROPPED, whereCollision, "abstract dropped", ct.line)
             }
@@ -770,7 +1030,56 @@ object XsdImport {
                         }
                     }
                 }
-            return elementFields + attributeFields
+            val inheritedFields =
+                (ct.content as? XContent.Restriction)
+                    ?.takeIf { !it.simple }
+                    ?.let { inheritedAttributes(it.base, ct.attributes) }
+                    .orEmpty()
+                    .mapNotNull { (path, a) ->
+                        at(path) { attribute(a, claimed, whereCollision, nested) }
+                    }
+            return elementFields + attributeFields + inheritedFields
+        }
+
+        /**
+         * The attributes a complex restriction of [base] keeps without declaring them: every one
+         * [base] has, its own and those it derives, that [own] neither redeclares nor prohibits (a
+         * prohibition is itself a redeclaration), each with the file that declares it.
+         */
+        private fun inheritedAttributes(
+            base: QName,
+            own: List<XAttributeUse>,
+        ): List<Pair<String, XAttribute>> {
+            val redeclared =
+                expandAttributeUses(own).filterIsInstance<XAttributeUse.Attribute>().mapNotNull {
+                    it.attribute.name ?: it.attribute.ref?.local
+                }
+            val result = mutableListOf<Pair<String, XAttribute>>()
+            val seen = mutableSetOf<QName>()
+            var next: QName? = base
+            while (next != null && seen.add(next)) {
+                val targetDoc = docsByNamespace[next.namespace] ?: break
+                val ct = targetDoc.complexTypes.firstOrNull { it.name == next!!.local } ?: break
+                val path = ct.path.ifEmpty { targetDoc.path }
+                expandAttributeUses(ct.attributes)
+                    .filterIsInstance<XAttributeUse.Attribute>()
+                    .forEach {
+                        val name = it.attribute.name ?: it.attribute.ref?.local
+                        if (
+                            name !in redeclared &&
+                                result.none { (_, a) -> (a.name ?: a.ref?.local) == name }
+                        ) {
+                            result += path to it.attribute
+                        }
+                    }
+                next =
+                    when (val content = ct.content) {
+                        is XContent.Extension -> content.base.takeIf { !content.simple }
+                        is XContent.Restriction -> content.base.takeIf { !content.simple }
+                        else -> null
+                    }
+            }
+            return result
         }
 
         private fun contentFields(
@@ -1053,6 +1362,7 @@ object XsdImport {
                     siblings,
                 )
             }
+            val anyType = ext.base == QName(ImportTypes.XS, "anyType")
             val baseFields =
                 resolveExtensionBase(
                     ext.base,
@@ -1063,14 +1373,16 @@ object XsdImport {
                     siblings,
                     visited,
                 )
-            diagnostics +=
-                lossy(
-                    ImportCodes.APPROXIMATED,
-                    whereCollision,
-                    "extension of '${ext.base.local}' has no Schemata equivalent; base fields " +
-                        "flattened into the record",
-                    ext.line,
-                )
+            if (!anyType) {
+                diagnostics +=
+                    lossy(
+                        ImportCodes.APPROXIMATED,
+                        whereCollision,
+                        "extension of '${ext.base.local}' has no Schemata equivalent; base fields " +
+                            "flattened into the record",
+                        ext.line,
+                    )
+            }
             val ownFields =
                 sequenceFields(recordName, ext.particles, whereCollision, claimed, nested, siblings)
             return baseFields + ownFields
@@ -1126,6 +1438,8 @@ object XsdImport {
             siblings: MutableList<UnitDecl>,
             visited: MutableSet<QName>,
         ): List<UnitField> {
+            // xs:anyType, the root of every derivation, contributes no fields of its own.
+            if (baseQName == QName(ImportTypes.XS, "anyType")) return emptyList()
             val targetDoc = docsByNamespace[baseQName.namespace]
             val baseCt = targetDoc?.complexTypes?.firstOrNull { it.name == baseQName.local }
             if (baseCt == null) {
@@ -1150,6 +1464,7 @@ object XsdImport {
                     nested,
                     siblings,
                     visited,
+                    baseQName.namespace,
                 )
             } finally {
                 sourcePath = saved
@@ -1164,14 +1479,17 @@ object XsdImport {
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
         ): List<UnitField> {
-            diagnostics +=
-                lossy(
-                    ImportCodes.APPROXIMATED,
-                    whereCollision,
-                    "restriction of '${res.base.local}' has no Schemata equivalent; its own content " +
-                        "is used",
-                    res.line,
-                )
+            // A restriction of xs:anyType is exactly its own content.
+            if (res.base != QName(ImportTypes.XS, "anyType")) {
+                diagnostics +=
+                    lossy(
+                        ImportCodes.APPROXIMATED,
+                        whereCollision,
+                        "restriction of '${res.base.local}' has no Schemata equivalent; its own " +
+                            "content is used",
+                        res.line,
+                    )
+            }
             return sequenceFields(
                 recordName,
                 res.particles,
@@ -1237,7 +1555,8 @@ object XsdImport {
                         val elementName = el.name ?: "member"
                         val pair = memberTypeAndStem(el, unionWhere, siblings)
                         if (pair == null) return@forEach
-                        val (type, stem) = pair
+                        val (ownType, stem) = pair
+                        val type = particle.element.ref?.let(::elementHeadType) ?: ownType
                         val existing = seenStems[stem]
                         if (existing != null) {
                             if (checkMismatch) {
@@ -1315,8 +1634,9 @@ object XsdImport {
                 val ct = targetDoc.complexTypes.firstOrNull { it.name == qname.local }
                 if (ct != null) {
                     val info = typeNames.getValue(QName(targetDoc.targetNamespace, qname.local))
-                    return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local)) to
-                        regeneratedElementName(qname.local, info)
+                    val type =
+                        headType(qname) ?: UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
+                    return type to regeneratedElementName(qname.local, info)
                 }
                 val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local }
                 if (st != null && hasEnumeration(st)) {
@@ -1598,21 +1918,28 @@ object XsdImport {
                         it.line,
                     )
             }
-            el.substitutionGroup?.let {
-                diagnostics +=
-                    lossy(
-                        ImportCodes.DROPPED,
-                        where,
-                        "substitution group '${it.local}' dropped; imported as an independent element",
-                        el.line,
-                    )
-            }
-            if (el.abstract) {
+            // An abstract head of a substitution group is not dropped: it is a union of its
+            // members.
+            val elementQName = el0.ref ?: QName(doc.targetNamespace, original)
+            if (el.abstract && heads.elements[elementQName]?.members.isNullOrEmpty()) {
                 diagnostics += lossy(ImportCodes.DROPPED, where, "abstract dropped", el.line)
             }
+            val headType = el0.ref?.let(::elementHeadType)
 
             val resolved: Resolved? =
                 when {
+                    headType != null ->
+                        if (el.maxOccurs != 1) {
+                            Resolved(
+                                UnitType.ListOf(
+                                    headType,
+                                    el.nillable,
+                                    listRefinements(el.minOccurs, el.maxOccurs),
+                                ),
+                                false,
+                                null,
+                            )
+                        } else Resolved(headType, el.minOccurs == 0 || el.nillable, null)
                     el.maxOccurs == 1 && el.type == null && el.inlineComplex != null -> {
                         (el.fixed ?: el.default)?.let { noLiteral(it, where, el.line) }
                         val inlineContent = el.inlineComplex.content
@@ -1760,6 +2087,8 @@ object XsdImport {
             whereCollision: String,
             nested: MutableList<UnitDecl>,
         ): UnitField? {
+            // A prohibited attribute is one a restriction removes from its base.
+            if (a0.use == "prohibited") return null
             val a = resolveAttributeRef(a0, whereCollision) ?: return null
             val original = a.name ?: return null
             val where = "attribute '$original'"
@@ -2034,6 +2363,9 @@ object XsdImport {
                 return type
             }
             val targetDoc = docsByNamespace[qname.namespace] ?: return null
+            headType(qname)?.let {
+                return it
+            }
             val ct = targetDoc.complexTypes.firstOrNull { it.name == qname.local }
             if (ct != null) {
                 val name = qualifiedTypeName(targetDoc, qname.local)
