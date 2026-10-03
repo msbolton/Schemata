@@ -48,4 +48,13 @@ class DiagnosticTest {
         assertNull(Diagnostic(LangCodes.SYNTAX, "m", span).help)
         assertEquals("fix it", Diagnostic(LangCodes.SYNTAX, "m", span, help = "fix it").help)
     }
+
+    @Test
+    fun `an error at the end of input has a span of width one`() {
+        val result = Parser.parse("namespace a\nrecord R {", "a.schemata")
+        val error = result.diagnostics.single { it.code.id == "SCH0001" }
+        assertEquals(error.span.startLine, error.span.endLine)
+        assertEquals(error.span.startColumn, error.span.endColumn)
+        assertEquals(11, error.span.startColumn)
+    }
 }

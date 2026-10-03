@@ -246,8 +246,8 @@ class ParserTest {
     }
 
     @Test
-    fun `file span ends at the last real column`() {
-        assertEquals(Span("t", 1, 1, 1, 11), Parser.parse("namespace a", "t").file!!.span)
+    fun `file span ends one column past the last character`() {
+        assertEquals(Span("t", 1, 1, 1, 12), Parser.parse("namespace a", "t").file!!.span)
     }
 
     @Test

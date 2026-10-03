@@ -296,7 +296,7 @@ internal class AstBuilder(
     private fun ParserRuleContext.span(): Span {
         val stop = stop ?: start
         val endColumn =
-            if (stop.type == Token.EOF) stop.charPositionInLine
+            if (stop.type == Token.EOF) stop.charPositionInLine + 1
             else stop.charPositionInLine + stop.text.codePointLength()
         return Span(file, start.line, start.charPositionInLine + 1, stop.line, endColumn)
     }
