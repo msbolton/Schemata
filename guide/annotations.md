@@ -60,6 +60,14 @@ Codes:
 | `name` | record, enum, union, field, enum value | string |  |
 | `attribute` | field | flag |  |
 | `root` | record | bool |  |
+| `any` | field | flag |  |
+| `any_type` | field | flag |  |
+| `any_attribute` | field | flag |  |
+| `process` | field | string | lax, skip, strict |
+| `wildcard` | field | string |  |
+| `mixed` | field | flag |  |
+| `element_form` | namespace | string | qualified, unqualified |
+| `attribute_form` | namespace | string | qualified, unqualified |
 
 Codes:
 
@@ -68,7 +76,7 @@ Codes:
 | SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering |
 | SCH2202 | error | semantic | two constructs lower to the same XSD name |
 | SCH2203 | error | semantic | two namespaces lower to the same target namespace |
-| SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute |
+| SCH2204 | error | semantic | an @xsd representation key is on a field that cannot take it |
 | SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI |
 
 ## @jsonschema

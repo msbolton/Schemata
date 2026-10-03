@@ -1,8 +1,9 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
     targetNamespace="urn:schemata:s">
   <xs:complexType name="ThingType" mixed="true">
-    <xs:sequence>
-      <xs:element name="a" type="xs:string"/>
-    </xs:sequence>
+    <xs:choice>
+      <xs:element name="string" type="xs:string"/>
+      <xs:element name="int32" type="xs:int"/>
+    </xs:choice>
   </xs:complexType>
 </xs:schema>

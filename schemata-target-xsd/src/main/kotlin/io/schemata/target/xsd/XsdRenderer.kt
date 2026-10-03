@@ -15,8 +15,8 @@ object XsdRenderer {
             append("\n           xmlns:${it.prefix}=\"${escapeAttribute(it.namespace)}\"")
         }
         append("\n           targetNamespace=\"${escapeAttribute(file.targetNamespace)}\"")
-        append("\n           elementFormDefault=\"qualified\"")
-        appendLine("\n           attributeFormDefault=\"unqualified\">")
+        append("\n           elementFormDefault=\"${file.elementFormDefault}\"")
+        appendLine("\n           attributeFormDefault=\"${file.attributeFormDefault}\">")
         file.imports.forEach {
             appendLine(
                 "  <xs:import namespace=\"${escapeAttribute(it.namespace)}\" schemaLocation=\"${escapeAttribute(it.schemaLocation)}\"/>"
@@ -30,9 +30,10 @@ object XsdRenderer {
     private fun type(t: XsdType, indent: String): String = buildString {
         when (t) {
             is XsdComplex -> {
-                appendLine("$indent<xs:complexType name=\"${t.name}\">")
+                val mixed = if (t.mixed) " mixed=\"true\"" else ""
+                appendLine("$indent<xs:complexType name=\"${t.name}\"$mixed>")
                 doc(t.doc, "$indent  ")
-                append(sequence(t.sequence, t.attributes, "$indent  "))
+                append(sequence(t.sequence, t.attributes, t.anyAttribute, "$indent  "))
                 appendLine("$indent</xs:complexType>")
             }
             is XsdChoice -> {
@@ -67,21 +68,42 @@ object XsdRenderer {
     }
 
     /**
-     * `<xs:sequence>…</xs:sequence>` then attributes; an empty sequence still prints an empty
-     * `xs:sequence`.
+     * `<xs:sequence>…</xs:sequence>`, then attributes, then the attribute wildcard; an empty
+     * sequence still prints an empty `xs:sequence`.
      */
     private fun sequence(
-        elements: List<XsdElement>,
+        particles: List<XsdParticle>,
         attributes: List<XsdAttribute>,
+        anyAttribute: XsdAnyAttribute?,
         indent: String,
     ): String = buildString {
-        if (elements.isEmpty()) appendLine("$indent<xs:sequence/>")
+        if (particles.isEmpty()) appendLine("$indent<xs:sequence/>")
         else {
             appendLine("$indent<xs:sequence>")
-            elements.forEach { append(element(it, "$indent  ")) }
+            particles.forEach {
+                when (it) {
+                    is XsdElement -> append(element(it, "$indent  "))
+                    is XsdAny -> append(any(it, "$indent  "))
+                }
+            }
             appendLine("$indent</xs:sequence>")
         }
         attributes.forEach { append(attribute(it, indent)) }
+        anyAttribute?.let { a ->
+            val namespace = a.namespace?.let { " namespace=\"${escapeAttribute(it)}\"" } ?: ""
+            appendLine(
+                "$indent<xs:anyAttribute$namespace processContents=\"${a.processContents}\"/>"
+            )
+        }
+    }
+
+    /** `xs:any`, its occurrence bounds printed only when they are not XSD's default of 1. */
+    private fun any(a: XsdAny, indent: String): String = buildString {
+        append("$indent<xs:any")
+        if (a.minOccurs != 1) append(" minOccurs=\"${a.minOccurs}\"")
+        if (a.maxOccurs != 1) append(" maxOccurs=\"${a.maxOccurs ?: "unbounded"}\"")
+        a.namespace?.let { append(" namespace=\"${escapeAttribute(it)}\"") }
+        appendLine(" processContents=\"${a.processContents}\"/>")
     }
 
     private fun element(e: XsdElement, indent: String): String = buildString {
@@ -104,7 +126,7 @@ object XsdRenderer {
             is XsdTypeRef.Restricted -> append(restriction(t, "$indent  "))
             is XsdTypeRef.Anonymous -> {
                 appendLine("$indent  <xs:complexType>")
-                append(sequence(t.sequence, t.attributes, "$indent    "))
+                append(sequence(t.sequence, t.attributes, null, "$indent    "))
                 appendLine("$indent  </xs:complexType>")
             }
             is XsdTypeRef.Extension -> append(extension(t, "$indent  "))

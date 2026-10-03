@@ -11,7 +11,6 @@ SCH2403 element 'ageofdgpsdata': decimal without totalDigits and fractionDigits 
 SCH2403 attribute 'lat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'lon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 attribute 'lon': facet maxExclusive dropped
-SCH2405 complex type 'extensionsType': xs:any dropped
 SCH2404 element 'year': xs:gYear imported as string
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'lat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)

@@ -103,7 +103,7 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering | a nullable list has no XSD representation; lowered to an optional repeated element<br>pattern uses (?, which XSD 1.0 cannot express; dropped | declare the list as `list<T>`; an absent list already means empty<br>rewrite the pattern without (?, or enforce it in application code |
 | SCH2202 | error | semantic | two constructs lower to the same XSD name | enum value 'Status.settled' lowers to enumeration value 'paid', already used by enum value 'Status.paid' (s.schemata:2)<br>record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (s.schemata:2)<br>record 'HttpStatus' lowers to element 'http_status', already used by record 'HTTPStatus' (s.schemata:2) | rename one of them, or set `@xsd(name = "…")` on one |
 | SCH2203 | error | semantic | two namespaces lower to the same target namespace | namespaces a and b both lower to target namespace 'urn:x' | set `@xsd(namespace = "…")` on one of them |
-| SCH2204 | error | semantic | @xsd(attribute) is on a field that cannot be an attribute | @xsd(attribute) is not allowed on a list | remove the annotation; only scalar and enum fields lower to attributes |
+| SCH2204 | error | semantic | an @xsd representation key is on a field that cannot take it | @xsd(attribute) is not allowed on a list<br>@xsd(any) is not allowed on a int32; it takes a string, string?, or list<string><br>@xsd(process) needs @xsd(any) or @xsd(any_attribute) on the same field | remove the annotation; only scalar and enum fields lower to attributes<br>remove the annotation, or declare the field as a string, string?, or list<string><br>add @xsd(any) or @xsd(any_attribute), or remove @xsd(process) |
 | SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI | @xsd(name = "1bad") is not a valid XML name<br>@xsd(namespace = "orders") is not an absolute URI | use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore<br>use an absolute URI without a fragment, such as `urn:example:orders` |
 
 ## JSON Schema (SCH23xx)
@@ -123,7 +123,7 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2402 | warning | lossy | a namespace name was derived from a file name | namespace 's' was derived from the file name | set --namespace to choose it, or keep it and rename later |
 | SCH2403 | warning | lossy | a construct was approximated | xs:all imported as a sequence<br>extension of 'BaseType' has no Schemata equivalent; base fields flattened into the record | review the imported record; the regenerated XSD will differ here |
 | SCH2404 | warning | lossy | a type or facet was widened or dropped | facet whiteSpace dropped<br>xs:gYear imported as string | narrow the type by hand if the data needs it |
-| SCH2405 | warning | lossy | a construct was dropped | xs:any dropped<br>mixed content dropped; elements kept | add the missing part by hand; Schemata cannot express it |
+| SCH2405 | warning | lossy | a construct was dropped | xs:any dropped<br>mixed content dropped | add the missing part by hand; Schemata cannot express it |
 
 ## Evolution (SCH25xx)
 

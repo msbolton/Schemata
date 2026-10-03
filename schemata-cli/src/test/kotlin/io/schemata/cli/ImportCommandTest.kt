@@ -25,13 +25,13 @@ class ImportCommandTest {
         """
             .trimIndent()
 
-    private val withAny =
+    private val withDropped =
         """
         <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:s">
+          <xs:notation name="png" public="image/png"/>
           <xs:complexType name="ThingType">
             <xs:sequence>
               <xs:element name="name" type="xs:string"/>
-              <xs:any processContents="lax" minOccurs="0"/>
             </xs:sequence>
           </xs:complexType>
         </xs:schema>
@@ -71,7 +71,7 @@ class ImportCommandTest {
 
     @Test
     fun `a lossy warning exits 2 and still writes`() {
-        write("s.xsd", withAny)
+        write("s.xsd", withDropped)
         val out = File(dir, "out")
         val r = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
         assertEquals(2, r.statusCode, r.stderr)
@@ -81,7 +81,7 @@ class ImportCommandTest {
 
     @Test
     fun `--strict promotes the warning to an error and writes nothing`() {
-        write("s.xsd", withAny)
+        write("s.xsd", withDropped)
         val out = File(dir, "out")
         val r = ImportCommand().test("--from xsd --strict --out ${out.path} ${dir.path}")
         assertEquals(1, r.statusCode, r.stderr)

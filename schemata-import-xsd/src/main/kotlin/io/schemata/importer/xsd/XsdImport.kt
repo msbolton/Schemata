@@ -169,7 +169,15 @@ object XsdImport {
                         listOfNotNull(
                             doc.targetNamespace
                                 ?.takeIf { it != "urn:schemata:${names.getValue(doc)}" }
-                                ?.let { UnitAnnotation("xsd", "namespace", "\"$it\"") }
+                                ?.let { UnitAnnotation("xsd", "namespace", "\"$it\"") },
+                            // The xsd target writes qualified elements and unqualified attributes
+                            // unless told otherwise; XSD's own default for both is unqualified.
+                            elementForm(doc)
+                                .takeIf { it != "qualified" }
+                                ?.let { UnitAnnotation("xsd", "element_form", "\"$it\"") },
+                            attributeForm(doc)
+                                .takeIf { it != "unqualified" }
+                                ?.let { UnitAnnotation("xsd", "attribute_form", "\"$it\"") },
                         ),
                     doc = doc.doc,
                     imports = (imports + lowering.extraImports).distinct(),
@@ -221,6 +229,16 @@ object XsdImport {
     }
 
     private const val URN = "urn:schemata:"
+
+    /** How a record's mixed-content field and attribute-wildcard field are held in its claims. */
+    private const val MIXED_TEXT = "mixed content"
+    private const val ANY_ATTRIBUTE = "xs:anyAttribute"
+
+    /** [doc]'s effective `elementFormDefault`: `unqualified` when it does not say. */
+    internal fun elementForm(doc: XsdDoc): String = doc.elementFormDefault ?: "unqualified"
+
+    /** [doc]'s effective `attributeFormDefault`: `unqualified` when it does not say. */
+    internal fun attributeForm(doc: XsdDoc): String = doc.attributeFormDefault ?: "unqualified"
 
     /**
      * The Schemata namespace a `urn:schemata:<name>` URI names, or `null` when [uri] is any other
@@ -1008,15 +1026,6 @@ object XsdImport {
             visited: MutableSet<QName>,
             namespace: String? = doc.targetNamespace,
         ): List<UnitField> {
-            if (ct.mixed) {
-                diagnostics +=
-                    lossy(
-                        ImportCodes.DROPPED,
-                        whereCollision,
-                        "mixed content dropped; elements kept",
-                        ct.line,
-                    )
-            }
             // An abstract type with concrete descendants is not dropped: it is a union of them.
             if (ct.abstract && ct.name?.let { heads.types[QName(namespace, it)] } == null) {
                 diagnostics +=
@@ -1033,22 +1042,15 @@ object XsdImport {
                     siblings,
                     visited,
                 )
+            val mixedFields =
+                listOfNotNull(if (ct.mixed) mixedText(claimed, whereCollision, ct.line) else null)
             val attributeFields =
                 expandAttributeUses(ct.attributes).mapNotNull { use ->
                     when (use) {
                         is XAttributeUse.Attribute ->
                             attribute(use.attribute, claimed, whereCollision, nested)
                         is XAttributeUse.GroupRef -> null
-                        is XAttributeUse.AnyAttribute -> {
-                            diagnostics +=
-                                lossy(
-                                    ImportCodes.DROPPED,
-                                    whereCollision,
-                                    "xs:anyAttribute dropped",
-                                    use.line,
-                                )
-                            null
-                        }
+                        is XAttributeUse.AnyAttribute -> anyAttributes(use, claimed, whereCollision)
                     }
                 }
             val inheritedFields =
@@ -1059,7 +1061,103 @@ object XsdImport {
                     .mapNotNull { (path, a) ->
                         at(path) { attribute(a, claimed, whereCollision, nested) }
                     }
-            return elementFields + attributeFields + inheritedFields
+            return elementFields + mixedFields + attributeFields + inheritedFields
+        }
+
+        /**
+         * The character data of a mixed type as `text: string?` (`mixed_text` when `text` is
+         * taken), marked `@xsd(mixed)`. A record has one, however many types along its extension
+         * chain are mixed.
+         */
+        private fun mixedText(
+            claimed: MutableMap<String, String>,
+            whereCollision: String,
+            line: Int,
+        ): UnitField? {
+            if (MIXED_TEXT in claimed.values) return null
+            val name = if ("text" in claimed) "mixed_text" else "text"
+            val (fieldName, annotations) =
+                nameAndClaim(name, "mixed text", MIXED_TEXT, claimed, whereCollision, line)
+                    ?: return null
+            return UnitField(
+                fieldName,
+                UnitType.Scalar("string", emptyList()),
+                true,
+                null,
+                null,
+                annotations + UnitAnnotation("xsd", "mixed", null),
+            )
+        }
+
+        /**
+         * An attribute wildcard as `attributes: map<string, string>` (`any_attributes` when
+         * `attributes` is taken), marked `@xsd(any_attribute)`. A record has one, however many
+         * types along its extension chain declare a wildcard.
+         */
+        private fun anyAttributes(
+            use: XAttributeUse.AnyAttribute,
+            claimed: MutableMap<String, String>,
+            whereCollision: String,
+        ): UnitField? {
+            if (ANY_ATTRIBUTE in claimed.values) return null
+            val name = if ("attributes" in claimed) "any_attributes" else "attributes"
+            val (fieldName, annotations) =
+                nameAndClaim(
+                    name,
+                    "wildcard attribute",
+                    ANY_ATTRIBUTE,
+                    claimed,
+                    whereCollision,
+                    use.line,
+                ) ?: return null
+            val string = UnitType.Scalar("string", emptyList())
+            return UnitField(
+                fieldName,
+                UnitType.MapOf(string, string, false, emptyList()),
+                false,
+                null,
+                null,
+                annotations + XsdWildcards.anyAttribute(use),
+            )
+        }
+
+        /**
+         * An element wildcard as `any` (then `any_2`, `any_3`… past the first name still free in
+         * the record), marked `@xsd(any)`: `list<string>` when it repeats, else `string`, nullable
+         * when optional.
+         */
+        private fun anyField(
+            particle: XParticle.Any,
+            claimed: MutableMap<String, String>,
+            whereCollision: String,
+        ): UnitField? {
+            var index = 1
+            while (XsdWildcards.anyName(index) in claimed) index++
+            val (name, annotations) =
+                nameAndClaim(
+                    XsdWildcards.anyName(index),
+                    "wildcard",
+                    "xs:any",
+                    claimed,
+                    whereCollision,
+                    particle.line,
+                ) ?: return null
+            val string = UnitType.Scalar("string", emptyList())
+            val repeated = particle.maxOccurs != 1
+            return UnitField(
+                name,
+                if (repeated)
+                    UnitType.ListOf(
+                        string,
+                        false,
+                        listRefinements(particle.minOccurs, particle.maxOccurs),
+                    )
+                else string,
+                !repeated && particle.minOccurs == 0,
+                null,
+                null,
+                annotations + XsdWildcards.any(particle),
+            )
         }
 
         /**
@@ -1202,13 +1300,7 @@ object XsdImport {
                             result += it
                         }
                     is XParticle.Any ->
-                        diagnostics +=
-                            lossy(
-                                ImportCodes.DROPPED,
-                                whereCollision,
-                                "xs:any dropped",
-                                particle.line,
-                            )
+                        anyField(particle, claimed, whereCollision)?.let { result += it }
                     is XParticle.GroupRef -> Unit // only an unresolved ref survives expandParticles
                     is XParticle.Nested -> {
                         val content = particle.content
@@ -1946,6 +2038,13 @@ object XsdImport {
                 diagnostics += lossy(ImportCodes.DROPPED, where, "abstract dropped", el.line)
             }
             val headType = el0.ref?.let(::elementHeadType)
+            el.form?.let { checkForm(it, elementForm(formDoc()), where, el.line) }
+            // An element typed xs:anyType, or not typed at all, holds any content: a string the
+            // xsd target writes back as xs:anyType.
+            val anyType =
+                headType == null &&
+                    (el.type == QName(ImportTypes.XS, "anyType") ||
+                        (el.type == null && el.inlineComplex == null && el.inlineSimple == null))
 
             val resolved: Resolved? =
                 when {
@@ -2026,7 +2125,14 @@ object XsdImport {
                         // resolveParticleType sees el's own maxOccurs != 1 and wraps the per-
                         // occurrence type in the ListOf itself, recursing through an `item` wrapper
                         // for a nested list or map (`list<list<T>>`, `list<map<K, V>>`, …).
-                        val type = resolveParticleType(el, where, nested)
+                        val type =
+                            if (anyType)
+                                UnitType.ListOf(
+                                    UnitType.Scalar("string", emptyList()),
+                                    el.nillable,
+                                    listRefinements(el.minOccurs, el.maxOccurs),
+                                )
+                            else resolveParticleType(el, where, nested)
                         if (type == null) {
                             diagnostics +=
                                 lossy(
@@ -2050,7 +2156,9 @@ object XsdImport {
                         }
                     }
                     else -> {
-                        val type = resolveElementScalarOrRef(el, original, where, nested)
+                        val type =
+                            if (anyType) UnitType.Scalar("string", emptyList())
+                            else resolveElementScalarOrRef(el, original, where, nested)
                         if (type == null) {
                             diagnostics +=
                                 lossy(
@@ -2091,7 +2199,10 @@ object XsdImport {
             val claim =
                 nameAndClaim(original, "element", where, claimed, whereCollision, el.line)
                     ?: return null
-            val (name, annotations) = claim
+            val (name, nameAnnotations) = claim
+            val annotations =
+                if (anyType) nameAnnotations + UnitAnnotation("xsd", "any_type", null)
+                else nameAnnotations
             return UnitField(
                 name,
                 resolved.type,
@@ -2100,6 +2211,29 @@ object XsdImport {
                 el.doc,
                 annotations,
             )
+        }
+
+        /**
+         * The document whose form defaults govern what is being lowered: the one [sourcePath]
+         * names, or [doc] for a component an include brought in.
+         */
+        private fun formDoc(): XsdDoc =
+            docsByNamespace.values.firstOrNull { it.path == sourcePath } ?: doc
+
+        /**
+         * A local element's or attribute's own `form`, which Schemata cannot say per field: noted
+         * when it differs from [default], the document's.
+         */
+        private fun checkForm(form: String, default: String, where: String, line: Int) {
+            if (form != default) {
+                diagnostics +=
+                    lossy(
+                        ImportCodes.APPROXIMATED,
+                        where,
+                        "form '$form' differs from the schema default; dropped",
+                        line,
+                    )
+            }
         }
 
         private fun attribute(
@@ -2113,6 +2247,7 @@ object XsdImport {
             val a = resolveAttributeRef(a0, whereCollision) ?: return null
             val original = a.name ?: return null
             val where = "attribute '$original'"
+            a.form?.let { checkForm(it, attributeForm(formDoc()), where, a.line) }
             val type = resolveAttributeType(a, where, nested)
             if (type == null) {
                 diagnostics +=

@@ -68,7 +68,9 @@ object XsdImporter : Importer {
      * among them). That set of visited paths also guards against a cycle: an include that resolves
      * to an already-visited path is skipped rather than merged again. An include that names no
      * document, or one of another namespace, is an error and is left out; one that names a document
-     * the reader could not read is left out, the reader having reported why.
+     * the reader could not read is left out, the reader having reported why. An included document
+     * whose form defaults differ from the including one's is noted: the merge keeps only the
+     * including document's.
      */
     private fun mergeIncludes(
         doc: XsdDoc,
@@ -105,6 +107,21 @@ object XsdImporter : Importer {
                                 "'${adopted.targetNamespace}', not '$includerNamespace'",
                         )
                     return@forEach
+                }
+                // The included document's components keep its own form defaults in XSD, but the
+                // merged namespace has only the including document's.
+                if (
+                    XsdImport.elementForm(adopted) != XsdImport.elementForm(result) ||
+                        XsdImport.attributeForm(adopted) != XsdImport.attributeForm(result)
+                ) {
+                    diagnostics +=
+                        Diagnostic(
+                            ImportCodes.APPROXIMATED,
+                            "${adopted.path}: form defaults differ from the including document; " +
+                                "dropped",
+                            Span(adopted.path, 1, 1, 1, 1),
+                            ImportCodes.helpFor(ImportCodes.APPROXIMATED),
+                        )
                 }
                 result = merge(result, adopted)
                 next += adopted.includes.map { adopted.path to it }

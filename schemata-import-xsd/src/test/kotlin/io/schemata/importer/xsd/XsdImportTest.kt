@@ -1407,7 +1407,7 @@ class XsdImportTest {
                 </xs:schema>
                 """
             )
-        assertEquals(emptyList(), record(imported, "Extensions").fields)
+        assertEquals(listOf("any"), record(imported, "Extensions").fields.map { it.name })
         assertEquals(
             listOf(
                 "SCH2405 schema: xs:redefine dropped",
@@ -1415,10 +1415,7 @@ class XsdImportTest {
                 "SCH2405 schema: xs:notation dropped",
                 "SCH2405 element 'counts': identity constraint 'k' dropped",
                 "SCH2405 element 'counts': identity constraint 'k2' dropped",
-                "SCH2405 complex type 'ThingType': mixed content dropped; elements kept",
                 "SCH2405 complex type 'ThingType': abstract dropped",
-                "SCH2405 complex type 'ThingType': xs:anyAttribute dropped",
-                "SCH2405 element 'extensions': xs:any dropped",
                 "SCH2405 element 'head': root element of simple type dropped",
             ),
             messages(imported),
@@ -2134,8 +2131,8 @@ class XsdImportTest {
                 """
                 <?xml version="1.0"?>
                 <xs:schema $xs targetNamespace="urn:schemata:a">
-                  <xs:complexType name="BaseType" mixed="true">
-                    <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                  <xs:complexType name="BaseType">
+                    <xs:sequence><xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence></xs:sequence>
                   </xs:complexType>
                 </xs:schema>
                 """,
@@ -2165,8 +2162,8 @@ class XsdImportTest {
                 .associate { it.message to (it.span.file to it.span.startLine) }
         assertEquals(
             mapOf(
-                "complex type 'DerivedType': mixed content dropped; elements kept" to
-                    ("a.xsd" to 3),
+                "complex type 'DerivedType': nested sequence flattened into the record" to
+                    ("a.xsd" to 4),
                 "complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; " +
                     "base fields flattened into the record" to ("b.xsd" to 6),
             ),

@@ -26,7 +26,7 @@ class XsdImporterTest {
     private val ordersXsd =
         """
         <?xml version="1.0"?>
-        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:shop.orders" xmlns:c="urn:schemata:shop.customers" targetNamespace="urn:schemata:shop.orders">
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:shop.orders" xmlns:c="urn:schemata:shop.customers" targetNamespace="urn:schemata:shop.orders" elementFormDefault="qualified">
           <xs:annotation><xs:documentation>Orders.</xs:documentation></xs:annotation>
           <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
           <xs:complexType name="OrderType">
@@ -75,7 +75,7 @@ class XsdImporterTest {
         val gpxXsd =
             """
             <?xml version="1.0"?>
-            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://x/gpx">
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://x/gpx" elementFormDefault="qualified">
               <xs:complexType name="TrackType">
                 <xs:sequence>
                   <xs:element name="name" type="xs:string"/>
@@ -379,7 +379,7 @@ class XsdImporterTest {
     private fun schemaIn(uri: String) =
         """
         <?xml version="1.0"?>
-        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="$uri">
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="$uri" elementFormDefault="qualified">
           <xs:complexType name="ThingType">
             <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
           </xs:complexType>
