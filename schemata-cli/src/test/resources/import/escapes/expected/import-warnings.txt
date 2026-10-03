@@ -1,0 +1,1 @@
+SCH2404 element 'quoted': facet pattern value 'a\"b' dropped

@@ -18,9 +18,11 @@ object ImportNames {
     private val ncName = Regex("^[A-Za-z_][A-Za-z0-9_.\\-]*$")
 
     // Every Schemata keyword lexes as its own token, never as an identifier, so a name spelled like
-    // one would not parse where a declared name is expected.
+    // one would not parse where a declared name is expected; `null` is not a keyword, but the
+    // language reserves it as a field, enum value, and namespace segment name all the same.
     private val keywords =
         setOf(
+            "null",
             "namespace",
             "import",
             "as",

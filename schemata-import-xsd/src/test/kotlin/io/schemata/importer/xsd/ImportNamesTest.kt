@@ -36,9 +36,19 @@ class ImportNamesTest {
         assertEquals("false_value", ImportNames.lowerSnake("false"))
         assertEquals("stream_value", ImportNames.lowerSnake("stream"))
         assertEquals("record_value", ImportNames.lowerSnake("Record"))
+        assertEquals("true_value", ImportNames.lowerSnake("True"))
+        assertEquals("v2fa", ImportNames.lowerSnake("2fa"))
         assertTrue(ImportNames.isLowerSnake("true_value"))
         assertFalse(ImportNames.isLowerSnake("a__b"))
         assertFalse(ImportNames.isLowerSnake("a_"))
+    }
+
+    @Test
+    fun `null is reserved like a keyword`() {
+        assertFalse(ImportNames.isLowerSnake("null"))
+        assertFalse(ImportNames.isNamespaceSegment("null"))
+        assertEquals("null_value", ImportNames.lowerSnake("null"))
+        assertEquals("null_value", ImportNames.lowerSnake("NULL"))
     }
 
     @Test
