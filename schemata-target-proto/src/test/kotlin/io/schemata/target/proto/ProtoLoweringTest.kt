@@ -698,6 +698,29 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `fields whose JSON names collide are errors naming both`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "a_1", Scalar(Builtin.BOOL)),
+                field(2, "a1", Scalar(Builtin.BOOL)),
+                field(3, "placed_at", Scalar(Builtin.BOOL)),
+                field(4, "when", Scalar(Builtin.BOOL), annotations = proto("name" to "placedAt")),
+                field(5, "same", Scalar(Builtin.BOOL)),
+                field(6, "other", Scalar(Builtin.BOOL), annotations = proto("name" to "same")),
+            )
+        assertEquals(
+            listOf(
+                "16 SCH2004 proto name 'same' is already used by field 'same' (orders.schemata:15)",
+                "12 SCH2008 fields 'R.a_1' and 'R.a1' share the Protobuf JSON name 'a1'",
+                "14 SCH2008 fields 'R.placed_at' and 'R.when' share the Protobuf JSON name 'placedAt'",
+            ),
+            messages(ProtoLowering.lower(schema(ns("a", r)))),
+        )
+    }
+
+    @Test
     fun `names that collide after overrides are errors naming both`() {
         val a =
             record(

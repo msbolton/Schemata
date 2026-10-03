@@ -24,6 +24,24 @@ object ProtoNames {
 
     fun zeroValue(enumName: String): String = "${upperSnake(enumName)}_UNSPECIFIED"
 
+    /**
+     * The JSON name protoc derives for a field, the way protoc does it: each `_` is dropped and the
+     * character after it upper-cased, so `placed_at` → `placedAt` and `a_1` → `a1`.
+     */
+    fun jsonName(fieldName: String): String = buildString {
+        var upper = false
+        for (c in fieldName) {
+            when {
+                c == '_' -> upper = true
+                upper -> {
+                    append(if (c in 'a'..'z') c.uppercaseChar() else c)
+                    upper = false
+                }
+                else -> append(c)
+            }
+        }
+    }
+
     /** What proto accepts as a name: a letter or underscore, then letters, digits, underscores. */
     fun isIdentifier(s: String): Boolean = identifier.matches(s)
 

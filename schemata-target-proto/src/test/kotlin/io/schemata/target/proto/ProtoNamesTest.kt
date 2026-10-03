@@ -46,6 +46,16 @@ class ProtoNamesTest {
     }
 
     @Test
+    fun `the JSON name drops underscores and capitalises the letter after one`() {
+        assertEquals("a1", ProtoNames.jsonName("a_1"))
+        assertEquals("a1", ProtoNames.jsonName("a1"))
+        assertEquals("placedAt", ProtoNames.jsonName("placed_at"))
+        assertEquals("placedAt", ProtoNames.jsonName("placed__at"))
+        assertEquals("Name", ProtoNames.jsonName("_name"))
+        assertEquals("aB", ProtoNames.jsonName("aB"))
+    }
+
+    @Test
     fun `identifiers and packages are what proto can spell`() {
         assertTrue(ProtoNames.isIdentifier("_order2"))
         assertFalse(ProtoNames.isIdentifier("1x"))

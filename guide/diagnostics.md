@@ -73,6 +73,7 @@ Retired, never reused: SCH1007, SCH1008.
 | SCH2005 | error | semantic | a collection element is itself a collection | proto cannot nest collections; list<list<int32>> has a collection element | wrap the element in a record |
 | SCH2006 | error | semantic | a field number or reserved number breaks Protobuf's rules | field number 19500 is reserved for the Protobuf implementation (19000 to 19999)<br>field number 600000000 exceeds the Protobuf maximum 536870911<br>reserved range 3 to 5 overlaps 2 to 4<br>reserved number 600000000 exceeds the Protobuf maximum 536870911<br>reserved number 0 must be positive | use an ordinal outside 19000 to 19999<br>use an ordinal of at most 536870911<br>merge or separate the two ranges<br>reserve ordinals of at most 536870911<br>reserve ordinals from #1 upward |
 | SCH2007 | error | semantic | a @proto override is not a valid name | @proto(name = "1x") is not a valid identifier<br>@proto(package = "Bad Name") is not a valid package name | use letters, digits, and underscores, starting with a letter<br>use dotted lower-case identifiers, for example `shop.orders.v1` |
+| SCH2008 | error | semantic | two fields share a Protobuf JSON name | fields 'R.a_1' and 'R.a1' share the Protobuf JSON name 'a1' | rename one of them, or set `@proto(name = "…")` on one |
 
 Retired, never reused: SCH2002, SCH2003.
 
