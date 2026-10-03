@@ -11,20 +11,23 @@ import io.schemata.target.xsd.XsdTarget
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every `src/test/resources/import/<case>/` directory imports its `.xsd` files into exactly its
- * `expected/` tree, reports exactly the warnings in `expected/import-warnings.txt` (none when the
- * file is absent), and compiles under proto, xsd, and jsonschema without errors; the sql target
- * cannot carry a key the xsd never declared, so it is checked separately, only for errors other
- * than a missing key. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree and the warnings.
+ * Every `src/test/resources/import/<case>/` directory imports the `.xsd` files under it (named by
+ * their path relative to the case, `expected/` aside; an include or import outside the inputs is
+ * read from the case directory too) into exactly its `expected/` tree, reports exactly the warnings
+ * in `expected/import-warnings.txt` (none when the file is absent), and compiles under proto, xsd,
+ * and jsonschema without errors. The sql target cannot carry a key the xsd never declared, nor some
+ * shapes it documents as beyond it, so its errors other than a missing key are compared with
+ * `expected/sql-errors.txt` (none when absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the
+ * warnings, and the sql errors.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
     private val update = System.getenv("SCHEMATA_GOLDEN_UPDATE") == "1"
+    private val goldenTexts = setOf("import-warnings.txt", "sql-errors.txt")
 
     @TestFactory
     fun `import corpus cases render their expected tree and compile under every target`():
@@ -37,10 +40,24 @@ class ImportCorpusTest {
     private fun check(case: File) {
         val inputs =
             case
-                .listFiles { f -> f.extension == "xsd" }!!
-                .sortedBy { it.name }
-                .map { ImportInput(it.name, it.readText()) }
-        val result = XsdImporter.import(inputs)
+                .walkTopDown()
+                .filter {
+                    it.isFile &&
+                        it.extension == "xsd" &&
+                        !it.relativeTo(case).path.startsWith("expected")
+                }
+                .sortedBy { it.relativeTo(case).path }
+                .map {
+                    ImportInput(
+                        it.relativeTo(case).path.replace(File.separatorChar, '/'),
+                        it.readText(),
+                    )
+                }
+                .toList()
+        val result =
+            XsdImporter.import(inputs, null) { path ->
+                File(case, path).takeIf { it.isFile }?.let { ImportInput(path, it.readText()) }
+            }
         val actual = result.files.associate { it.path to it.content }
         val expectedDir = File(case, "expected")
         if (update) {
@@ -55,7 +72,7 @@ class ImportCorpusTest {
         val expected =
             expectedDir
                 .walkTopDown()
-                .filter { it.isFile && it.name != "import-warnings.txt" }
+                .filter { it.isFile && it.name !in goldenTexts }
                 .associate {
                     it.relativeTo(expectedDir).path.replace(File.separatorChar, '/') to
                         it.readText()
@@ -88,13 +105,19 @@ class ImportCorpusTest {
                     .joinToString("\n") { "${it.code.id} ${it.message}" },
         )
         val sqlErrors =
-            Pipeline.compile(sources, listOf(SqlTarget)).diagnostics.filter {
-                it.severity == Severity.ERROR
-            }
-        assertTrue(
-            sqlErrors.all { it.code == SqlCodes.MISSING_KEY },
-            "imported ${case.name} under sql had an error other than a missing key: " +
-                sqlErrors.joinToString("\n") { "${it.code.id} ${it.message}" },
+            Pipeline.compile(sources, listOf(SqlTarget))
+                .diagnostics
+                .filter { it.severity == Severity.ERROR && it.code != SqlCodes.MISSING_KEY }
+                .joinToString("") { "${it.code.id} ${it.message}\n" }
+        val sqlErrorsFile = File(expectedDir, "sql-errors.txt")
+        if (update) {
+            if (sqlErrors.isEmpty()) sqlErrorsFile.delete() else sqlErrorsFile.writeText(sqlErrors)
+        }
+        assertEquals(
+            if (sqlErrorsFile.isFile) sqlErrorsFile.readText() else "",
+            sqlErrors,
+            "sql errors other than a missing key for ${case.name}; " +
+                "run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
         )
     }
 }

@@ -491,6 +491,43 @@ class XsdImporterTest {
     }
 
     @Test
+    fun `an include that climbs out of its directory resolves among the inputs`() {
+        val main =
+            ImportInput(
+                "maindoc/a.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="../common/./b.xsd"/><xs:complexType name="AType"><xs:sequence><xs:element name="b" type="xs:int"/></xs:sequence></xs:complexType></xs:schema>""",
+            )
+        val common =
+            ImportInput(
+                "common/b.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:complexType name="BType"><xs:sequence><xs:element name="y" type="xs:int"/></xs:sequence></xs:complexType></xs:schema>""",
+            )
+        val result = XsdImporter.import(listOf(main, common))
+        assertEquals(emptyList(), result.diagnostics.map { "${it.code.id} ${it.message}" })
+        val text = result.files.single().content
+        assertTrue("record A {" in text, text)
+        assertTrue("record B {" in text, text)
+    }
+
+    @Test
+    fun `a located include is asked for by its normalised path`() {
+        val main =
+            ImportInput(
+                "maindoc/a.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="../common/b.xsd"/></xs:schema>""",
+            )
+        val asked = mutableListOf<String>()
+        XsdImporter.import(
+            listOf(main),
+            locate = {
+                asked += it
+                null
+            },
+        )
+        assertEquals(listOf("common/b.xsd"), asked)
+    }
+
+    @Test
     fun `an include of another namespace is an error`() {
         val main =
             ImportInput(
