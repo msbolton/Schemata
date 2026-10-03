@@ -1,10 +1,12 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportResult
 import io.schemata.importer.Importer
 import io.schemata.importer.emitUnits
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.Span
 
 /**
  * Runs the reader, the lowering, the emitter, and the formatter over a set of `.xsd` inputs.
@@ -64,7 +66,9 @@ object XsdImporter : Importer {
      * Merges [doc]'s `xs:include`s into it, and those included documents' own includes in turn,
      * until no new one appears, returning the merged document and every path it took in (its own
      * among them). That set of visited paths also guards against a cycle: an include that resolves
-     * to an already-visited path is skipped rather than merged again.
+     * to an already-visited path is skipped rather than merged again. An include that names no
+     * document, or one of another namespace, is an error and is left out; one that names a document
+     * the reader could not read is left out, the reader having reported why.
      */
     private fun mergeIncludes(
         doc: XsdDoc,
@@ -78,16 +82,46 @@ object XsdImporter : Importer {
         while (frontier.isNotEmpty()) {
             val next = mutableListOf<Pair<String, String>>()
             frontier.forEach { (basePath, include) ->
-                val includedDoc =
-                    fetch(basePath, include, byPath, locate, diagnostics) ?: return@forEach
+                val input = find(basePath, include, byPath, locate)
+                if (input == null) {
+                    diagnostics += includeError(basePath, "include '$include' cannot be resolved")
+                    return@forEach
+                }
+                val includedDoc = read(input, diagnostics) ?: return@forEach
                 if (!visited.add(includedDoc.path)) return@forEach
-                result = merge(result, includedDoc)
-                next += includedDoc.includes.map { includedDoc.path to it }
+                // A chameleon include has no namespace of its own: it takes the includer's,
+                // references and all, so that `type="Foo"` written inside it means the includer's
+                // Foo.
+                val includerNamespace = result.targetNamespace
+                val adopted =
+                    if (includedDoc.targetNamespace == null && includerNamespace != null)
+                        includedDoc.rebased(includerNamespace)
+                    else includedDoc
+                if (adopted.targetNamespace != includerNamespace) {
+                    diagnostics +=
+                        includeError(
+                            basePath,
+                            "include '$include' declares namespace " +
+                                "'${adopted.targetNamespace}', not '$includerNamespace'",
+                        )
+                    return@forEach
+                }
+                result = merge(result, adopted)
+                next += adopted.includes.map { adopted.path to it }
             }
             frontier = next
         }
         return result to visited
     }
+
+    /** An include of [path] that cannot be merged; the include's own line is not kept. */
+    private fun includeError(path: String, message: String) =
+        Diagnostic(
+            ImportCodes.UNRESOLVED,
+            "$path: $message",
+            Span(path, 1, 1, 1, 1),
+            ImportCodes.helpFor(ImportCodes.UNRESOLVED),
+        )
 
     /** Folds [included]'s imports (deduplicated by namespace) and declarations into [into]. */
     private fun merge(into: XsdDoc, included: XsdDoc): XsdDoc =
@@ -103,8 +137,8 @@ object XsdImporter : Importer {
         )
 
     /**
-     * Resolves [relative] against [basePath]'s directory: an already-read input first, else
-     * [locate].
+     * Resolves [relative] against [basePath]'s directory and reads it: an already-read input first,
+     * else [locate].
      */
     private fun fetch(
         basePath: String,
@@ -112,10 +146,21 @@ object XsdImporter : Importer {
         byPath: Map<String, ImportInput>,
         locate: (String) -> ImportInput?,
         diagnostics: MutableList<Diagnostic>,
-    ): XsdDoc? {
+    ): XsdDoc? = find(basePath, relative, byPath, locate)?.let { read(it, diagnostics) }
+
+    /** The input [relative] names from [basePath]'s directory, or `null` when there is none. */
+    private fun find(
+        basePath: String,
+        relative: String?,
+        byPath: Map<String, ImportInput>,
+        locate: (String) -> ImportInput?,
+    ): ImportInput? {
         if (relative == null) return null
         val resolved = resolvePath(basePath, relative)
-        val input = byPath[resolved] ?: byPath[relative] ?: locate(resolved) ?: return null
+        return byPath[resolved] ?: byPath[relative] ?: locate(resolved)
+    }
+
+    private fun read(input: ImportInput, diagnostics: MutableList<Diagnostic>): XsdDoc? {
         val result = XsdReader.read(input.path, input.content)
         diagnostics += result.diagnostics
         return result.doc

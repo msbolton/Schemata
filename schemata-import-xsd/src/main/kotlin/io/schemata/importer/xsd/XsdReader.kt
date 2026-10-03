@@ -143,6 +143,12 @@ object XsdReader {
     internal class Builder(private val path: String, private val root: Node) {
         val diagnostics = mutableListOf<Diagnostic>()
 
+        // the children of a restriction that are not facets
+        private val nonFacets = setOf("simpleType", "annotation")
+
+        // the children of a simpleContent derivation that declare attributes rather than facets
+        private val attributeChildren = setOf("attribute", "attributeGroup", "anyAttribute")
+
         fun doc(): XsdDoc =
             XsdDoc(
                 path = path,
@@ -168,11 +174,13 @@ object XsdReader {
                     },
                 groups =
                     root.children("group").mapNotNull { n ->
-                        required(n, "name")?.let { XGroup(it, modelGroup(n), n.line) }
+                        required(n, "name")?.let { XGroup(it, modelGroup(n), n.line, path) }
                     },
                 attributeGroups =
                     root.children("attributeGroup").mapNotNull { n ->
-                        required(n, "name")?.let { XAttributeGroup(it, attributeUses(n), n.line) }
+                        required(n, "name")?.let {
+                            XAttributeGroup(it, attributeUses(n), n.line, path)
+                        }
                     },
                 dropped =
                     root.children
@@ -183,6 +191,10 @@ object XsdReader {
                                     it.local == "notation")
                         }
                         .map { "xs:${it.local}" to it.line },
+                elementFormDefault = root.attr("elementFormDefault"),
+                attributeFormDefault = root.attr("attributeFormDefault"),
+                blockDefault = root.attr("blockDefault"),
+                finalDefault = root.attr("finalDefault"),
             )
 
         /**
@@ -236,9 +248,13 @@ object XsdReader {
                 documentation(n),
                 content,
                 attrs,
-                n.attr("mixed") == "true",
+                // mixed content may be declared on the type or on its complexContent
+                n.attr("mixed") == "true" || n.child("complexContent")?.attr("mixed") == "true",
                 n.attr("abstract") == "true",
                 n.line,
+                path = path,
+                block = n.attr("block"),
+                final = n.attr("final"),
             )
         }
 
@@ -259,8 +275,10 @@ object XsdReader {
                     XContent.Empty -> emptyList()
                     else -> listOf(XParticle.Nested(group, 1, 1, d.line))
                 }
-            return if (ext != null) XContent.Extension(d.qname(base), particles, simple, d.line)
-            else XContent.Restriction(d.qname(base), particles, simple, d.line)
+            val facets = if (simple) facets(d, nonFacets + attributeChildren) else emptyList()
+            return if (ext != null)
+                XContent.Extension(d.qname(base), particles, simple, d.line, facets)
+            else XContent.Restriction(d.qname(base), particles, simple, d.line, facets)
         }
 
         /**
@@ -289,7 +307,16 @@ object XsdReader {
                 .mapNotNull { c ->
                     when (c.local) {
                         "element" -> element(c)?.let { XParticle.Element(it) }
-                        "any" -> XParticle.Any(c.line)
+                        "any" -> {
+                            val (min, max) = occurs(c)
+                            XParticle.Any(
+                                c.line,
+                                min,
+                                max,
+                                c.attr("namespace"),
+                                c.attr("processContents"),
+                            )
+                        }
                         "group" -> groupRef(c)
                         "sequence",
                         "choice",
@@ -396,6 +423,10 @@ object XsdReader {
                             XIdentityConstraint(it.attr("name") ?: "", it.line)
                         },
                 line = n.line,
+                path = path,
+                form = n.attr("form"),
+                block = n.attr("block"),
+                final = n.attr("final"),
             )
         }
 
@@ -407,7 +438,12 @@ object XsdReader {
                         "attribute" -> XAttributeUse.Attribute(attribute(c))
                         "attributeGroup" ->
                             required(c, "ref")?.let { XAttributeUse.GroupRef(c.qname(it), c.line) }
-                        "anyAttribute" -> XAttributeUse.AnyAttribute(c.line)
+                        "anyAttribute" ->
+                            XAttributeUse.AnyAttribute(
+                                c.line,
+                                c.attr("namespace"),
+                                c.attr("processContents"),
+                            )
                         else -> null
                     }
                 }
@@ -423,7 +459,17 @@ object XsdReader {
                 n.attr("fixed"),
                 documentation(n),
                 n.line,
+                form = n.attr("form"),
             )
+
+        /**
+         * The facets under a restriction (or a simpleContent derivation) [d]: every XML Schema
+         * child except those named in [skip].
+         */
+        private fun facets(d: Node, skip: Set<String>): List<XFacet> =
+            d.children
+                .filter { it.ns == XS && it.local !in skip }
+                .map { f -> XFacet(f.local, f.attr("value") ?: "", documentation(f), f.line) }
 
         private fun simpleType(n: Node): XSimpleType {
             val variety: XVariety =
@@ -431,26 +477,26 @@ object XsdReader {
                     XVariety.Restriction(
                         r.attr("base")?.let(r::qname),
                         r.child("simpleType")?.let { simpleType(it) },
-                        r.children
-                            .filter {
-                                it.ns == XS && it.local != "simpleType" && it.local != "annotation"
-                            }
-                            .map { f ->
-                                XFacet(f.local, f.attr("value") ?: "", documentation(f), f.line)
-                            },
+                        facets(r, nonFacets),
                     )
                 }
-                    ?: n.child("list")?.let { XVariety.ListOf(it.attr("itemType")?.let(it::qname)) }
+                    ?: n.child("list")?.let {
+                        XVariety.ListOf(
+                            it.attr("itemType")?.let(it::qname),
+                            it.child("simpleType")?.let { s -> simpleType(s) },
+                        )
+                    }
                     ?: n.child("union")?.let { u ->
                         XVariety.Union(
                             (u.attr("memberTypes") ?: "")
                                 .split(' ')
                                 .filter { it.isNotEmpty() }
-                                .map(u::qname)
+                                .map(u::qname),
+                            u.children("simpleType").map { simpleType(it) },
                         )
                     }
                     ?: XVariety.Restriction(null, null, emptyList())
-            return XSimpleType(n.attr("name"), documentation(n), variety, n.line)
+            return XSimpleType(n.attr("name"), documentation(n), variety, n.line, path)
         }
     }
 }

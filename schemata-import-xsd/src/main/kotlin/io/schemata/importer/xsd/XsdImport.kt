@@ -447,13 +447,27 @@ object XsdImport {
         val diagnostics: MutableList<Diagnostic>,
     ) {
         /**
-         * The document whose lines a diagnostic points at: [doc], except while an extension base
-         * declared in another document is being flattened, when it is that document.
+         * The document whose lines a diagnostic points at: [doc], except while a component an
+         * include brought in is being lowered, or an extension base declared in another document is
+         * being flattened, when it is that component's document.
          */
         private var sourcePath = doc.path
 
+        /** Runs [block] with diagnostics pointing at [path], or where they were if it is empty. */
+        private inline fun <T> at(path: String, block: () -> T): T {
+            val saved = sourcePath
+            sourcePath = path.ifEmpty { saved }
+            try {
+                return block()
+            } finally {
+                sourcePath = saved
+            }
+        }
+
         /** A named complex type: a record, or, when its content is a bare choice, a union. */
-        fun declaration(ct: XComplexType): List<UnitDecl> {
+        fun declaration(ct: XComplexType): List<UnitDecl> = at(ct.path) { declarationAt(ct) }
+
+        private fun declarationAt(ct: XComplexType): List<UnitDecl> {
             val original = ct.name ?: return emptyList()
             val info = typeNames.getValue(QName(doc.targetNamespace, original))
             when (val note = info.note) {
@@ -525,7 +539,9 @@ object XsdImport {
         }
 
         /** A named, enumerated simple type: an enum. */
-        fun enumDeclaration(st: XSimpleType): UnitEnum {
+        fun enumDeclaration(st: XSimpleType): UnitEnum = at(st.path) { enumDeclarationAt(st) }
+
+        private fun enumDeclarationAt(st: XSimpleType): UnitEnum {
             val original = st.name ?: error("an enumerated top-level simple type always has a name")
             val info = typeNames.getValue(QName(doc.targetNamespace, original))
             when (val note = info.note) {
@@ -550,7 +566,9 @@ object XsdImport {
          * A global element with its own inline complex type: a top-level record, always a root;
          * dropped, as an error, when its name is already a top-level type's.
          */
-        fun topLevelRecord(el: XElement): List<UnitDecl> {
+        fun topLevelRecord(el: XElement): List<UnitDecl> = at(el.path) { topLevelRecordAt(el) }
+
+        private fun topLevelRecordAt(el: XElement): List<UnitDecl> {
             val original = el.name ?: return emptyList()
             val ct = el.inlineComplex ?: return emptyList()
             val name = ImportNames.upperCamel(original)
@@ -592,7 +610,10 @@ object XsdImport {
          * type, and one of a simple type or of a type in another namespace, are dropped, since the
          * xsd target writes a global element only for a record of its own namespace.
          */
-        fun checkRoot(el: XElement, roots: MutableSet<QName>) {
+        fun checkRoot(el: XElement, roots: MutableSet<QName>) =
+            at(el.path) { checkRootAt(el, roots) }
+
+        private fun checkRootAt(el: XElement, roots: MutableSet<QName>) {
             val name = el.name ?: return
             val where = "element '$name'"
             val type = el.type

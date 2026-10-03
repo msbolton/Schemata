@@ -2,6 +2,7 @@ package io.schemata.importer.xsd
 
 import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportInput
+import io.schemata.lang.Severity
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -421,5 +422,118 @@ class XsdImporterTest {
                 assertTrue(file.content.contains("namespace foo\n"), "$uri: ${file.content}")
                 assertTrue(file.content.contains("record Thing"), "$uri: ${file.content}")
             }
+    }
+
+    @Test
+    fun `a chameleon include takes the including namespace`() {
+        val main =
+            ImportInput(
+                "main.xsd",
+                """
+                <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:schemata:shop" targetNamespace="urn:schemata:shop" elementFormDefault="qualified">
+                  <xs:include schemaLocation="parts.xsd"/>
+                  <xs:complexType name="OrderType"><xs:sequence><xs:element name="line" type="LineType"/></xs:sequence></xs:complexType>
+                  <xs:element name="order" type="OrderType"/>
+                </xs:schema>
+                """
+                    .trimIndent(),
+            )
+        val parts =
+            ImportInput(
+                "parts.xsd",
+                """
+                <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+                  <xs:complexType name="LineType"><xs:sequence><xs:element name="sku" type="xs:string"/><xs:element name="qty" type="QtyType"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="QtyType"><xs:sequence><xs:element name="n" type="xs:int"/></xs:sequence></xs:complexType>
+                </xs:schema>
+                """
+                    .trimIndent(),
+            )
+        val result = XsdImporter.import(listOf(main, parts))
+        assertTrue("qty: Qty" in result.files.single().content, result.files.single().content)
+        assertEquals(
+            emptyList(),
+            result.diagnostics.filter { it.severity == Severity.ERROR }.map { it.message },
+        )
+        val text = result.files.single().content
+        assertTrue("record Line {" in text, text)
+        assertTrue("line: Line" in text, text)
+    }
+
+    @Test
+    fun `an include that cannot be read is an error`() {
+        val main =
+            ImportInput(
+                "main.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="missing.xsd"/></xs:schema>""",
+            )
+        val result = XsdImporter.import(listOf(main))
+        assertEquals(
+            listOf("SCH2401 main.xsd: include 'missing.xsd' cannot be resolved"),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `an include that is not well formed is reported once by the reader`() {
+        val main =
+            ImportInput(
+                "main.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="broken.xsd"/></xs:schema>""",
+            )
+        val result =
+            XsdImporter.import(
+                listOf(main),
+                locate = { if (it == "broken.xsd") ImportInput(it, "<xs:schema") else null },
+            )
+        assertEquals(1, result.diagnostics.size, result.diagnostics.toString())
+        assertEquals("broken.xsd", result.diagnostics.single().span.file)
+    }
+
+    @Test
+    fun `an include of another namespace is an error`() {
+        val main =
+            ImportInput(
+                "main.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="other.xsd"/></xs:schema>""",
+            )
+        val other =
+            ImportInput(
+                "other.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:other"/>""",
+            )
+        val result =
+            XsdImporter.import(listOf(main), locate = { if (it == "other.xsd") other else null })
+        assertEquals(
+            listOf(
+                "SCH2401 main.xsd: include 'other.xsd' declares namespace 'urn:schemata:other', " +
+                    "not 'urn:schemata:shop'"
+            ),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `a diagnostic in an included document names that document`() {
+        val main =
+            ImportInput(
+                "main.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="parts.xsd"/></xs:schema>""",
+            )
+        val parts =
+            ImportInput(
+                "parts.xsd",
+                """
+                <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+                  <xs:complexType name="Thing"><xs:sequence><xs:element name="when" type="xs:gYear"/></xs:sequence></xs:complexType>
+                </xs:schema>
+                """
+                    .trimIndent(),
+            )
+        val result = XsdImporter.import(listOf(main, parts))
+        val widened = result.diagnostics.single { it.code == ImportCodes.WIDENED }
+        assertEquals("parts.xsd", widened.span.file)
+        assertEquals(3, widened.span.startLine)
     }
 }
