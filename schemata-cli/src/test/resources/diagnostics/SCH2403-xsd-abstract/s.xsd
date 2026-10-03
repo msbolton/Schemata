@@ -1,0 +1,26 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:complexType name="ShapeType" abstract="true">
+    <xs:sequence>
+      <xs:element name="label" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CircleType">
+    <xs:complexContent>
+      <xs:extension base="ShapeType">
+        <xs:sequence>
+          <xs:element name="radius" type="xs:double"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="SquareType">
+    <xs:complexContent>
+      <xs:extension base="ShapeType">
+        <xs:sequence>
+          <xs:element name="side" type="xs:double"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+</xs:schema>

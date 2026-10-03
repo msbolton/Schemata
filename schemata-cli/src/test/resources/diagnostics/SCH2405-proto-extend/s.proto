@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package s;
+
+message Order {
+  optional string id = 1;
+  extensions 100 to 199;
+}
+
+extend Order {
+  optional string note = 100;
+}

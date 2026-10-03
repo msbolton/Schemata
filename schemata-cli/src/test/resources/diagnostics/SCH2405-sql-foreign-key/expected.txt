@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2405] (lossy): column 'Orders.customer_email': foreign key to 's.customer' dropped; it does not reference a record's primary key
+ --> s.sql:4:3
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

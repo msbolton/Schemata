@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2405] (lossy): message 'Order': extensions dropped
+ --> s.proto:7:3
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): s.proto: extend dropped
+  --> s.proto:10:1
+   = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 2 warnings

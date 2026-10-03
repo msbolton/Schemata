@@ -1,0 +1,6 @@
+# import=proto
+error[SCH2401]: enum value 'Status.PAID' and 'Status.STATUS_PAID' both lower to 'paid'
+ --> s.proto:8:3
+  = help: rename one of them
+
+1 error, 0 warnings

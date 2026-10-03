@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): field 'Order.quantity': google.protobuf.Int32Value imported as int32?; the regenerated field is optional, not a wrapper
+ --> s.proto:8:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

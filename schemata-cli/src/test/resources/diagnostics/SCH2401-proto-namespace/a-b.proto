@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package y;
+
+message Order {
+  string id = 1;
+}

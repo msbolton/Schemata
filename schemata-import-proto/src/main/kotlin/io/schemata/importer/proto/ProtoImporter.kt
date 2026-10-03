@@ -67,13 +67,19 @@ object ProtoImporter : Importer {
 
         val imports = LinkedHashMap<ProtoFile, MutableList<ProtoFile>>()
         val queue = ArrayDeque(files.values)
-        fun report(file: ProtoFile, code: DiagnosticCode, message: String, pos: Pos) {
+        fun report(
+            file: ProtoFile,
+            code: DiagnosticCode,
+            message: String,
+            pos: Pos,
+            help: String = ImportCodes.helpFor(code),
+        ) {
             diagnostics +=
                 Diagnostic(
                     code,
                     message,
                     Span(file.path, pos.line, pos.col, pos.line, pos.col),
-                    ImportCodes.helpFor(code),
+                    help,
                 )
         }
         fun found(input: ImportInput): ProtoFile? {
@@ -156,6 +162,7 @@ object ProtoImporter : Importer {
                             "${it.path}: ${packageText(it)} and ${first.path}'s " +
                                 "${packageText(first)} both lower to namespace '$name'",
                             Pos(1, 1),
+                            ImportCodes.RENAME_HELP,
                         )
                     }
             }

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package s;
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OPEN = 1;
+}
+
+message Order {
+  string id = 1; // schemata: uuid(
+  int64 qty = 2; // schemata: string
+  Status status = 3; // schemata: Status = closed
+}

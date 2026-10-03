@@ -90,6 +90,7 @@ object SqlImporter : Importer {
                     ImportCodes.UNRESOLVED,
                     "${file.path}: schema '$schema' and schema '$other' both lower to namespace '$name'",
                     SqlPos(1, 1),
+                    ImportCodes.RENAME_HELP,
                 )
             }
             val annotations =

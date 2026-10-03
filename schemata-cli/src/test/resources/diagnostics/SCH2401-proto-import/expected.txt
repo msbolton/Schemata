@@ -1,0 +1,6 @@
+# import=proto
+error[SCH2401]: s.proto: import 'missing.proto' cannot be resolved
+ --> s.proto:5:1
+  = help: add the schema that declares it to the inputs, or fix the reference
+
+1 error, 0 warnings

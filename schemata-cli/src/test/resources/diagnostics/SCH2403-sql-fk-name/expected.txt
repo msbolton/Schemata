@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2403] (lossy): column 'Orders.buyer': foreign key column is not named after the field and key; kept as the field name
+ --> s.sql:4:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

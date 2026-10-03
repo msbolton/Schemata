@@ -1,0 +1,14 @@
+# import=xsd
+warning[SCH2403] (lossy): element 'payment': substitution group 'payment' imported as union 'PaymentChoice' of 2 member types; the regenerated XSD uses a choice
+ --> s.xsd:3:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): complex type 'CardType': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the record
+  --> s.xsd:13:1
+   = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): complex type 'CashType': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the record
+  --> s.xsd:22:1
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 3 warnings

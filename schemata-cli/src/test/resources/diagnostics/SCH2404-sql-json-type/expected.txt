@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2404] (lossy): column 'Orders.tags': json imported as jsonb
+ --> s.sql:3:3
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 1 warning

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package s;
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PAID = 1;
+  PAID = 2;
+}

@@ -1,0 +1,14 @@
+# import=proto
+warning[SCH2403] (lossy): union 'Payment': oneof 'method' is named 'kind' in the regenerated message
+ --> s.proto:5:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): union 'Payment': member element 'card_number' has no Schemata equivalent; the regenerated oneof names it 'string'
+ --> s.proto:7:5
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): union 'Payment': member element 'cash' has no Schemata equivalent; the regenerated oneof names it 'int64'
+ --> s.proto:8:5
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 3 warnings

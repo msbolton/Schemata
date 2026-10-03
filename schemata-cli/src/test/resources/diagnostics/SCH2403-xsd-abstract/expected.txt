@@ -1,0 +1,14 @@
+# import=xsd
+warning[SCH2403] (lossy): complex type 'ShapeType': abstract type 'ShapeType' imported as union 'Shape' of 2 concrete types; the regenerated XSD uses a choice
+ --> s.xsd:3:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): complex type 'CircleType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the record
+  --> s.xsd:10:1
+   = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): complex type 'SquareType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the record
+  --> s.xsd:19:1
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 3 warnings

@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2405] (lossy): field 'Order.flags': map with a bool key dropped
+ --> s.proto:6:3
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

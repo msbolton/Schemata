@@ -116,13 +116,14 @@ class GuideAppendicesTest {
     private val quotedLocation =
         Regex(
             "^(record|field|enum value|enum|union|namespace|alias|complex type|simple type|" +
-                "element|attribute) '"
+                "element|attribute|message|service|table|column) '"
         )
 
     /**
-     * The bare `<file>: ` prefix an import-level diagnostic (not tied to one construct) carries.
+     * The bare `<file>: ` or `<file>:<line>:<col>: ` prefix an import-level diagnostic (not tied to
+     * one construct) carries.
      */
-    private val fileLocation = Regex("^\\S+\\.xsd: ")
+    private val fileLocation = Regex("^\\S+\\.(xsd|proto|sql)(:\\d+:\\d+)?: ")
 
     /** An evolution diagnostic's `<target>: <ns.Decl.member>: ` prefix. */
     private val evolutionLocation = Regex("^[a-z]+: [A-Za-z0-9_.#]+: ")
@@ -136,7 +137,7 @@ class GuideAppendicesTest {
         when {
             quotedLocation.containsMatchIn(message) && message.contains("': ") ->
                 message.substringAfter("': ")
-            fileLocation.containsMatchIn(message) -> message.substringAfter(": ")
+            fileLocation.containsMatchIn(message) -> message.replaceFirst(fileLocation, "")
             evolutionLocation.containsMatchIn(message) ->
                 message.replaceFirst(evolutionLocation, "")
             else -> message

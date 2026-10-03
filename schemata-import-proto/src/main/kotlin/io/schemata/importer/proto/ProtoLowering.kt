@@ -113,13 +113,13 @@ private class Context(val namespaces: Map<ProtoFile, String>, val symbols: Proto
         enums.getOrPut(symbol.fullName) { EnumLowering(symbol.enum!!, symbol.file) }
 }
 
-private fun diagnostic(file: ProtoFile, code: DiagnosticCode, message: String, pos: Pos) =
-    Diagnostic(
-        code,
-        message,
-        Span(file.path, pos.line, pos.col, pos.line, pos.col),
-        ImportCodes.helpFor(code),
-    )
+private fun diagnostic(
+    file: ProtoFile,
+    code: DiagnosticCode,
+    message: String,
+    pos: Pos,
+    help: String = ImportCodes.helpFor(code),
+) = Diagnostic(code, message, Span(file.path, pos.line, pos.col, pos.line, pos.col), help)
 
 /**
  * One proto enum as Schemata reads it. The target writes each value as `<UPPER_SNAKE(E)>_<VALUE>`
@@ -142,8 +142,13 @@ private class EnumLowering(e: ProtoEnum, file: ProtoFile) {
 
     init {
         val where = "enum '${e.name}'"
-        fun report(code: DiagnosticCode, message: String, pos: Pos) {
-            diagnostics += diagnostic(file, code, message, pos)
+        fun report(
+            code: DiagnosticCode,
+            message: String,
+            pos: Pos,
+            help: String = ImportCodes.helpFor(code),
+        ) {
+            diagnostics += diagnostic(file, code, message, pos, help)
         }
         val taken = mutableMapOf<Int, String>()
         val kept = mutableListOf<ProtoEnumValue>()
@@ -220,6 +225,7 @@ private class EnumLowering(e: ProtoEnum, file: ProtoFile) {
                     ImportCodes.UNRESOLVED,
                     "enum value '${e.name}.${v.name}' and '${e.name}.$other' both lower to '$name'",
                     v.pos,
+                    ImportCodes.RENAME_HELP,
                 )
                 return@forEach
             }
@@ -310,8 +316,13 @@ private class FileLowering(
     /** Namespaces other than this one that a reference named. */
     val referenced = LinkedHashSet<String>()
 
-    private fun report(code: DiagnosticCode, message: String, pos: Pos) {
-        diagnostics += diagnostic(file, code, message, pos)
+    private fun report(
+        code: DiagnosticCode,
+        message: String,
+        pos: Pos,
+        help: String = ImportCodes.helpFor(code),
+    ) {
+        diagnostics += diagnostic(file, code, message, pos, help)
     }
 
     /**
@@ -380,6 +391,7 @@ private class FileLowering(
             "${file.path}: $kind '$protoName' and ${previous.path}'s ${previous.kind} " +
                 "'${previous.protoName}' both lower to $lowered '$name'",
             pos,
+            ImportCodes.RENAME_HELP,
         )
         return false
     }
@@ -535,6 +547,7 @@ private class FileLowering(
                     "field '${m.name}.${f.name}' and field '${m.name}.$other' both lower to " +
                         "'$fieldName'",
                     f.pos,
+                    ImportCodes.RENAME_HELP,
                 )
                 return@forEach
             }

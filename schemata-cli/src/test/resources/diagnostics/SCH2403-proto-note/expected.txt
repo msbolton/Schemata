@@ -1,0 +1,14 @@
+# import=proto
+warning[SCH2403] (lossy): field 'Order.id': note 'uuid(' cannot be read; ignored
+  --> s.proto:11:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): field 'Order.qty': note 'string' does not fit int64; ignored
+  --> s.proto:12:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): field 'Order.status': default closed names no value of enum 'Status'; dropped
+  --> s.proto:13:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 3 warnings

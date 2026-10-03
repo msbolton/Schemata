@@ -1,0 +1,10 @@
+# import=xsd
+warning[SCH2403] (lossy): union 'Contact': member element 'email' has no Schemata equivalent; the regenerated element will be named 'string'
+ --> s.xsd:5:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): union 'Contact': choice branch imported as record 'StreetGroup'
+ --> s.xsd:6:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

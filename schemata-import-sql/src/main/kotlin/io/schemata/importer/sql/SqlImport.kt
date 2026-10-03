@@ -135,6 +135,7 @@ private class Catalog(files: List<SqlFile>, diagnostics: MutableList<Diagnostic>
                         ImportCodes.UNRESOLVED,
                         "${f.path}: table '${info.key}' is created twice; the second is ignored",
                         s.table.pos,
+                        "remove one of them",
                     )
                 }
             }

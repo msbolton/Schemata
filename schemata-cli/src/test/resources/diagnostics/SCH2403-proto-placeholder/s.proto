@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package s;
+
+enum Color {
+  COLOR_UNSET = 0;
+}

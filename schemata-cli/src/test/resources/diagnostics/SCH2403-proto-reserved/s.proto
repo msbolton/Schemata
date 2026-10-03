@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package s;
+
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  COLOR_RED = 1;
+  reserved 0, 2;
+  reserved "Blue";
+}
+
+message Paint {
+  Color color = 1;
+  reserved "oldName";
+}

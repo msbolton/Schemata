@@ -34,12 +34,16 @@ object ImportCodes {
 
     val all: List<DiagnosticCode> = listOf(UNRESOLVED, RENAMED, APPROXIMATED, WIDENED, DROPPED)
 
+    /** The help for two constructs that lower to one name. */
+    const val RENAME_HELP = "rename one of them"
+
     /** The one standard help text per `SCH24xx` code, shared across every lowering diagnostic. */
     fun helpFor(code: DiagnosticCode): String =
         when (code) {
-            UNRESOLVED -> "add the referenced schema to the inputs or fix schemaLocation"
+            UNRESOLVED -> "add the schema that declares it to the inputs, or fix the reference"
             RENAMED -> "set --namespace to choose it, or keep it and rename later"
-            APPROXIMATED -> "review the imported record; the regenerated XSD will differ here"
+            APPROXIMATED ->
+                "review the imported declaration; the regenerated schema will differ here"
             WIDENED -> "narrow the type by hand if the data needs it"
             else -> "add the missing part by hand; Schemata cannot express it"
         }

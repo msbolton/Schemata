@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2404] (lossy): field 'Order.notes': sint64 map key imported as int64
+ --> s.proto:6:3
+  = help: narrow the type by hand if the data needs it
+
+warning[SCH2404] (lossy): field 'Order.tags': uint32 map key imported as int64
+ --> s.proto:7:3
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 2 warnings

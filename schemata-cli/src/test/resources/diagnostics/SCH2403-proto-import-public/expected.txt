@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): s.proto: import public 't.proto' re-exports nothing in Schemata
+ --> s.proto:5:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

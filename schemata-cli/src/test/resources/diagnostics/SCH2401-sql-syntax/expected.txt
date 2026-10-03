@@ -1,0 +1,6 @@
+# import=sql
+error[SCH2401]: s.sql:4:1: cannot parse: expected NULL
+ --> s.sql:4:1
+  = help: give the importer a file Postgres accepts
+
+1 error, 0 warnings

@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2404] (lossy): field 'Event.payload': google.protobuf.Any imported as bytes
+ --> s.proto:9:3
+  = help: narrow the type by hand if the data needs it
+
+warning[SCH2404] (lossy): field 'Event.attributes': google.protobuf.Struct imported as string
+  --> s.proto:10:3
+   = help: narrow the type by hand if the data needs it
+
+0 errors, 2 warnings

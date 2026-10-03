@@ -1,0 +1,6 @@
+# import=sql
+error[SCH2401]: s.sql: table 's.orders' is created twice; the second is ignored
+ --> s.sql:2:1
+  = help: remove one of them
+
+1 error, 0 warnings

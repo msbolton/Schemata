@@ -1,0 +1,16 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:element name="payment" type="PaymentType"/>
+  <xs:element name="voucher" substitutionGroup="payment">
+    <xs:complexType>
+      <xs:complexContent>
+        <xs:extension base="PaymentType"/>
+      </xs:complexContent>
+    </xs:complexType>
+  </xs:element>
+  <xs:complexType name="PaymentType">
+    <xs:sequence>
+      <xs:element name="amount" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2403] (lossy): table 'profile': primary key over a reference column; add @sql(key) by hand
+ --> s.sql:2:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning
