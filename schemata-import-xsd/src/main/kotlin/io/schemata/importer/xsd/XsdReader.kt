@@ -6,13 +6,14 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import java.io.IOException
 import java.io.StringReader
+import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
 import org.xml.sax.InputSource
 import org.xml.sax.Locator
 import org.xml.sax.SAXException
 import org.xml.sax.SAXParseException
-import org.xml.sax.helpers.DefaultHandler
+import org.xml.sax.ext.DefaultHandler2
 
 data class ReadResult(val doc: XsdDoc?, val diagnostics: List<Diagnostic>)
 
@@ -102,18 +103,28 @@ object XsdReader {
     }
 
     private fun parse(path: String, text: String): Node {
-        // A schema never needs a document type declaration, and an external entity would read
-        // whatever file or URL it names, so both are refused outright.
+        // A document type declaration is read only for its internal subset (some published
+        // schemas carry one): nothing external is ever loaded, a DOCTYPE naming an external DTD is
+        // refused outright, and secure processing caps how far internal entities may expand.
         val factory =
             SAXParserFactory.newInstance().apply {
                 isNamespaceAware = true
-                setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+                setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+                setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
                 setFeature("http://xml.org/sax/features/external-general-entities", false)
                 setFeature("http://xml.org/sax/features/external-parameter-entities", false)
             }
         val handler =
-            object : DefaultHandler() {
+            object : DefaultHandler2() {
                 lateinit var locator: Locator
+
+                override fun startDTD(name: String?, publicId: String?, systemId: String?) {
+                    if (publicId != null || systemId != null) {
+                        throw SAXParseException("external DTD refused", locator)
+                    }
+                }
+
                 val stack = ArrayDeque<Node>()
                 var root: Node? = null
                 val scope =
@@ -160,7 +171,10 @@ object XsdReader {
                     stack.lastOrNull()?.text?.append(ch, start, length)
                 }
             }
-        factory.newSAXParser().parse(InputSource(StringReader(text)), handler)
+        factory
+            .newSAXParser()
+            .apply { setProperty("http://xml.org/sax/properties/lexical-handler", handler) }
+            .parse(InputSource(StringReader(text)), handler)
         return handler.root ?: error("no root element in $path")
     }
 

@@ -378,7 +378,41 @@ class XsdReaderTest {
         )
 
     @Test
-    fun `a document type declaration is reported rather than thrown`() {
+    fun `a document type declaration with only an internal subset is read`() {
+        val r =
+            read(
+                """
+                <?xml version="1.0"?>
+                <!DOCTYPE schema [
+                  <!ATTLIST schema xmlns:tns CDATA #FIXED "urn:schemata:s">
+                  <!ENTITY ns 'urn:schemata:s'>
+                ]>
+                <xs:schema $xs targetNamespace="&ns;"><xs:complexType name="A"/></xs:schema>
+                """
+                    .trimIndent()
+            )
+        assertEquals(emptyList(), r.diagnostics)
+        assertEquals("urn:schemata:s", r.doc!!.targetNamespace)
+        assertEquals("A", r.doc!!.complexTypes.single().name)
+    }
+
+    @Test
+    fun `a document type declaration naming an external dtd is refused`() {
+        listOf(
+                "<!DOCTYPE schema SYSTEM \"http://example.com/schema.dtd\">",
+                "<!DOCTYPE schema PUBLIC \"-//W3C//DTD XMLSchema 200102//EN\" \"XMLSchema.dtd\">",
+            )
+            .forEach { doctype ->
+                val r = read("<?xml version=\"1.0\"?>\n$doctype\n<xs:schema $xs/>")
+                assertNull(r.doc, doctype)
+                val d = r.diagnostics.single()
+                assertEquals("SCH2401", d.code.id)
+                assertEquals("s.xsd: external DTD refused", d.message)
+            }
+    }
+
+    @Test
+    fun `an external entity in an internal subset is never read`() {
         val r =
             read(
                 """
@@ -388,11 +422,8 @@ class XsdReaderTest {
                 """
                     .trimIndent()
             )
-        assertNull(r.doc)
-        val d = r.diagnostics.single()
-        assertEquals("SCH2401", d.code.id)
-        assertTrue(d.message.startsWith("s.xsd: "), d.message)
-        assertTrue(d.message.contains("DOCTYPE"), d.message)
+        assertEquals(emptyList(), r.diagnostics)
+        assertTrue(r.doc!!.doc.orEmpty().isEmpty(), r.doc!!.doc)
     }
 
     @Test
