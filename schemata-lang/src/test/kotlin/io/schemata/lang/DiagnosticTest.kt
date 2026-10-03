@@ -64,4 +64,26 @@ class DiagnosticTest {
         val error = result.diagnostics.single { it.code.id == "SCH0001" }
         assertEquals(Span("a.schemata", 3, 1, 3, 1), error.span)
     }
+
+    @Test
+    fun `a control character in a doc comment is reported on the character`() {
+        val result =
+            Parser.parse(
+                "namespace a\n/// bad \u0001 here\nrecord R {\n  ///\ttab \u001F\n  #1 x: bool\n}",
+                "a.schemata",
+            )
+        assertNull(result.file)
+        assertEquals(
+            listOf(
+                "SCH0005 2:9-2:9 control character U+0001 in a doc comment",
+                "SCH0005 4:11-4:11 control character U+001F in a doc comment",
+            ),
+            result.diagnostics
+                .map {
+                    "${it.code.id} ${it.span.startLine}:${it.span.startColumn}-" +
+                        "${it.span.endLine}:${it.span.endColumn} ${it.message}"
+                }
+                .sorted(),
+        )
+    }
 }

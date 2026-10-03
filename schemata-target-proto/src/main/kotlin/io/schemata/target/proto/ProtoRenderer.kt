@@ -1,5 +1,6 @@
 package io.schemata.target.proto
 
+import io.schemata.lang.SchemataText
 import io.schemata.target.OutputFile
 
 /** Prints a [ProtoModel]. No decisions are made here; anything lossy was decided in lowering. */
@@ -116,7 +117,10 @@ object ProtoRenderer {
                 appendLine("${indent}reserved $ranges;")
             }
             if (reserved.names.isNotEmpty()) {
-                appendLine("${indent}reserved ${reserved.names.joinToString(", ") { "\"$it\"" }};")
+                // protoc reads the escapes a Schemata string writes: \" \\ \n \t \r.
+                appendLine(
+                    "${indent}reserved ${reserved.names.joinToString(", ") { SchemataText.string(it) }};"
+                )
             }
         }
     }

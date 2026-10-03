@@ -32,8 +32,9 @@ internal data class Unescaped(val value: String, val bad: List<BadText>)
  * a regex is full of backslashes that mean something to the target, so it is taken as written and
  * only `\"` is read, since a quote cannot otherwise appear in it.
  *
- * Neither kind of string may hold a control character below U+0020 other than tab, newline, and
- * carriage return, nor U+FFFE or U+FFFF: XML cannot carry them, so no target could write the value.
+ * Neither kind of string, nor a doc comment, may hold a control character below U+0020 other than
+ * tab, newline, and carriage return, nor U+FFFE or U+FFFF: XML cannot carry them, so no target
+ * could write the text.
  */
 internal object Strings {
     private const val MAX_HEX = 6
@@ -127,8 +128,11 @@ internal object Strings {
     fun unquotePattern(text: String): String =
         text.substring(1, text.length - 1).replace("\\\"", "\"")
 
-    /** Every raw control character in a `pattern` body; its escapes are the regex's own. */
-    fun patternControls(body: String): List<BadText> {
+    /**
+     * Every raw control character in [body], read as written: a `pattern`'s escapes are the regex's
+     * own, and a doc comment has none.
+     */
+    fun rawControls(body: String): List<BadText> {
         val bad = mutableListOf<BadText>()
         var offset = 0
         body.codePoints().forEach { point ->

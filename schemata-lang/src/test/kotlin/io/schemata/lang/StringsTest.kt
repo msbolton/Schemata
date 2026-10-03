@@ -82,12 +82,10 @@ class StringsTest {
     }
 
     @Test
-    fun `a pattern reports only its raw control characters`() {
+    fun `raw controls ignore escapes, so a pattern reports only its raw control characters`() {
         assertEquals(
             listOf("2:1:\u0002"),
-            Strings.patternControls("\\d\u0002\\u{0}\t").map {
-                "${it.offset}:${it.length}:${it.text}"
-            },
+            Strings.rawControls("\\d\u0002\\u{0}\t").map { "${it.offset}:${it.length}:${it.text}" },
         )
     }
 

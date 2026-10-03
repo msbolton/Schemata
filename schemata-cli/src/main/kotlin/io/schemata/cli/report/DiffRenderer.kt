@@ -205,7 +205,7 @@ object DiffRenderer {
             r.ordinals.joinToString(", ") {
                 if (it.first == it.last) "${it.first}" else "${it.first}-${it.last}"
             }
-        val names = r.names.sorted().joinToString(", ") { "\"$it\"" }
+        val names = r.names.sorted().joinToString(", ") { SchemataText.string(it) }
         return listOf(ordinals, names).filter { it.isNotEmpty() }.joinToString("; ")
     }
 
@@ -213,7 +213,7 @@ object DiffRenderer {
         when (v) {
             null -> null
             is AnnotationValue.Flag -> "true"
-            is AnnotationValue.Str -> v.value
+            is AnnotationValue.Str -> SchemataText.string(v.value)
             is AnnotationValue.Num -> v.value.toString()
             is AnnotationValue.Bool -> v.value.toString()
             is AnnotationValue.Name -> v.value

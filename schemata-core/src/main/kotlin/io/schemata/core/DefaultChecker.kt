@@ -223,7 +223,7 @@ object DefaultChecker {
                         )
                     r.pattern != null && !Pattern.compile(r.pattern).matcher(lit.value).find() ->
                         violates(
-                            "default ${SchemataText.string(lit.value)} does not match pattern ${r.pattern}",
+                            "default ${SchemataText.string(lit.value)} does not match pattern ${SchemataText.pattern(r.pattern)}",
                             literal.span,
                             diagnostics,
                             help = "use a default the pattern accepts, or change the pattern",

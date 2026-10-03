@@ -86,15 +86,16 @@ Some behaviours are easy to miss. Each is part of the language as 1.0 defines it
 
 - A string may not hold a control character below U+0020 other than tab, newline, and carriage
   return, nor U+FFFE or U+FFFF, written as itself or as `\u{…}` (SCH0005); a tab typed between
-  the quotes means a tab.
+  the quotes means a tab. A doc comment follows the same rule.
 - `pattern` accepts whatever Java's `java.util.regex` compiles; the compiler never rejects a
   pattern Java accepts, and a target that cannot carry a construct warns (SCH2105, SCH2201,
   SCH2301).
 - A number keeps the scale it was written with: `= 1.50` stays `1.50` in every output.
 - Leading zeros are decimal, never octal: `= 007` and `#007` both mean 7.
 - Some spellings are accepted and rewritten by `fmt`: an ordinal written against its name (`#1x`),
-  spaces or comments inside a dotted name, enum values without commas, and positional
-  refinements after named ones.
+  spaces or comments inside a dotted name, and enum values without commas.
+- Positional refinements may follow named ones (`decimal(max = 5, 19, 4)`); they are accepted and
+  kept as written.
 - A line starting `////` is a doc comment whose text starts with `/`; a doc comment with no
   declaration after it is a syntax error (SCH0001).
 - A record may hold itself through a required field (`record A { a: A }`); no instance of it can
@@ -114,12 +115,12 @@ before upgrading.
   tab, and a carriage return: `"C:\temp\new"` no longer means a path.
 - In a `pattern`, `\\` was one backslash and is now two, since a pattern is taken as written:
   `pattern = "^\\d+$"` was the regex `^\d+$` and now matches a backslash followed by `d`s. Every
-  pattern the 0.6 to 0.8 importer wrote is like this.
+  pattern the 0.6 to 0.8 importer wrote that holds a backslash is like this.
 
-This finds the strings and patterns to look at:
+This finds the strings and patterns to look at. It over-matches, so read each line it prints:
 
 ```sh
-grep -nE '\\[ntr]|pattern *= *"[^"]*\\\\' -r --include='*.schemata' .
+grep -nE '\\[ntr]|pattern *= *".*\\\\' -r --include='*.schemata' .
 ```
 
 Re-import a schema that came from XSD with the new version, or halve the doubled backslashes in
@@ -130,7 +131,9 @@ trailing underscore (`true_`), which is no longer lower_snake, and kept an eleme
 which is now reserved; the importer now writes `true_value` and `null_value`, and the help on the
 old names suggests the same. The other tightenings of 0.9 also report themselves as errors: an
 unknown escape (SCH0004), a control character (SCH0005), a doubled or trailing underscore in a
-name, and an alias or import the rules above forbid.
+name, an alias or import the rules above forbid, a `float32` or `float64` default or bound beyond
+the type's finite range (SCH1042, SCH1038), and two fields of a record whose Protobuf JSON names
+collide (SCH2008).
 
 ## Retiring something
 

@@ -36,7 +36,7 @@ object LangCodes {
             "SCH0005",
             Severity.ERROR,
             Category.SYNTAX,
-            "a string holds a control character XML cannot carry",
+            "a string or doc comment holds a control character XML cannot carry",
         )
 
     val all: List<DiagnosticCode> =

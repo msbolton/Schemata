@@ -111,7 +111,8 @@ record Order {
 a block comment, closed by the next `*/`. `///` starts a doc comment; it attaches to the
 declaration or field that follows and is carried into the generated Protobuf and SQL as a comment
 and into the XSD as `xs:documentation`. A doc comment before the `namespace` line is the exception:
-the parser keeps it, but none of the outputs carries it.
+the parser keeps it, but none of the outputs carries it. Like a string, a doc comment may hold a tab
+but no other control character below U+0020 (SCH0005).
 
 ```schemata
 namespace shop.orders
@@ -695,9 +696,9 @@ warning[SCH2001] (lossy) (proto): enum 'Kind': proto3 requires a zero value; syn
   = help: keep the synthesized zero value; proto3 reads an unset enum as 0
 
 warning[SCH2105] (lossy) (sql): field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Postgres
-  --> contacts.schemata:15:3
+  --> contacts.schemata:14:3
    |
-15 |   #7 tags:  list<string(max = 20)>
+14 |   #7 tags:  list<string(max = 20)>
    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: use `@sql(strategy = table)` so the elements become rows with their own constraints
 
@@ -1020,7 +1021,8 @@ first (`field 'id': @sql(key) removed`). Every note and break also renders as it
 with the rulebook's message and help and the changed side's excerpt. A trailer gives the total
 change count and a `breaking`/`note` count per selected target. A JSON report holds one entry per
 change (`kind`, `path`, `old`, `new`, `file`, `line`, `deprecatedInOld`, and a `verdicts` object
-keyed by target), a `summary` per target, and the `exitCode`. When the sides cannot be compared
+keyed by target), a `summary` per target, and the `exitCode`. `old` and `new` are the values as
+Schemata source, so a string reads `"eu"` with its quotes. When the sides cannot be compared
 (`SCH2503`), the JSON report keeps that shape — `changes` empty, every `summary` count zero,
 `exitCode` 1 — and adds an `errors` array, one `{code, message, help, file, line}` per reason.
 

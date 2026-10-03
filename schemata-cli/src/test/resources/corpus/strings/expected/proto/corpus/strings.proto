@@ -11,4 +11,6 @@ message Strings {
   string quote = 5;  // schemata: default = "q\"q"
   string emoji = 6;  // schemata: default = "😀"
   string code = 7;  // schemata: string(pattern = "^\"[A-Z]{2}\d{4}\"$")
+
+  reserved "a\nb", "q\"q";
 }

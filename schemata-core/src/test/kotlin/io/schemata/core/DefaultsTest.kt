@@ -92,7 +92,7 @@ class DefaultsTest {
                 "10:20 list fields cannot have a default",
                 "11:23 default 3 is below min 5",
                 "12:24 default \"abc\" is longer than max 2",
-                "13:31 default \"y\" does not match pattern ^x",
+                "13:31 default \"y\" does not match pattern \"^x\"",
                 "14:22 default 1.25 exceeds scale 1",
                 "15:13 uuid fields cannot have a default",
                 "16:14 default for int32 must be an integer literal",

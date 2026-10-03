@@ -9,4 +9,5 @@ record Strings {
   #5 quote:           string = "q\"q"
   #6 emoji:           string = "\u{1F600}"
   #7 code:            string(pattern = "^\"[A-Z]{2}\d{4}\"$")
+  reserved "q\"q", "a\nb"
 }

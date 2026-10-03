@@ -248,9 +248,17 @@ internal class AstBuilder(
         return Literal.NameLit(ctx.IDENT().text, span)
     }
 
+    /**
+     * The text of a doc comment, which every target writes out; each control character XML cannot
+     * carry is reported as SCH0005, as in a string.
+     */
     private fun doc(ctx: SchemataParser.DocContext?): String? =
-        ctx?.DOC_COMMENT()?.joinToString("\n") {
-            it.text.removePrefix("///").removePrefix(" ").trimEnd()
+        ctx?.DOC_COMMENT()?.joinToString("\n") { node ->
+            val token = node.symbol
+            Strings.rawControls(token.text).forEach {
+                report(it, token.line, token.charPositionInLine + 1, "a doc comment")
+            }
+            node.text.removePrefix("///").removePrefix(" ").trimEnd()
         }
 
     private fun ordinal(node: TerminalNode): Int =
@@ -284,16 +292,22 @@ internal class AstBuilder(
     private fun patternLiteral(ctx: SchemataParser.LiteralContext): Literal =
         ctx.STRING_LITERAL()?.let {
             val span = ctx.span()
-            Strings.patternControls(it.text.substring(1, it.text.length - 1)).forEach { bad ->
+            Strings.rawControls(it.text.substring(1, it.text.length - 1)).forEach { bad ->
                 report(bad, span)
             }
             Literal.StringLit(Strings.unquotePattern(it.text), span)
         } ?: build(ctx)
 
+    /** [span] is a string literal's; its body starts one column in, after the quote. */
     private fun report(bad: BadText, span: Span) {
         // A string cannot span lines, so the bad text sits on the line the string starts on.
-        val start = span.startColumn + 1 + bad.offset
-        val where = Span(file, span.startLine, start, span.startLine, start + bad.length - 1)
+        report(bad, span.startLine, span.startColumn + 1, "a string")
+    }
+
+    /** [column] is where offset 0 of the text [bad] was found in sits; [what] names that text. */
+    private fun report(bad: BadText, line: Int, column: Int, what: String) {
+        val start = column + bad.offset
+        val where = Span(file, line, start, line, start + bad.length - 1)
         diagnostics +=
             when (val reason = bad.reason) {
                 BadText.UnknownEscape ->
@@ -313,7 +327,7 @@ internal class AstBuilder(
                 is BadText.Control ->
                     Diagnostic(
                         LangCodes.CONTROL_CHARACTER,
-                        "control character U+%04X in a string".format(reason.point),
+                        "control character U+%04X in %s".format(reason.point, what),
                         where,
                         help =
                             "write text; only tab, newline, and carriage return are allowed as control characters",
