@@ -13,21 +13,21 @@ error[SCH2501]: jsonschema: s: @jsonschema(id) changed breaks documents that ref
  --> new/s.schemata:4:1
   |
 4 | namespace s
-  | ^^^^^^^^^^
+  | ^^^^^^^^^^^
   = help: avoid changing @jsonschema(id) once published
 
 error[SCH2501]: proto: s: the proto package changed breaks consumers that pin the fully-qualified message name
  --> new/s.schemata:4:1
   |
 4 | namespace s
-  | ^^^^^^^^^^
+  | ^^^^^^^^^^^
   = help: avoid changing @proto(package) once published
 
 error[SCH2501]: xsd: s: @xsd(namespace) changed breaks documents that reference the old identifier
  --> new/s.schemata:4:1
   |
 4 | namespace s
-  | ^^^^^^^^^^
+  | ^^^^^^^^^^^
   = help: avoid changing @xsd(namespace) once published
 
 3 errors, 0 warnings

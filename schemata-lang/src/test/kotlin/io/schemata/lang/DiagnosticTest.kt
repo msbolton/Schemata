@@ -57,4 +57,11 @@ class DiagnosticTest {
         assertEquals(error.span.startColumn, error.span.endColumn)
         assertEquals(11, error.span.startColumn)
     }
+
+    @Test
+    fun `an error at the end of a file that ends in a newline sits on the line after it`() {
+        val result = Parser.parse("namespace a\nrecord R {\n", "a.schemata")
+        val error = result.diagnostics.single { it.code.id == "SCH0001" }
+        assertEquals(Span("a.schemata", 3, 1, 3, 1), error.span)
+    }
 }

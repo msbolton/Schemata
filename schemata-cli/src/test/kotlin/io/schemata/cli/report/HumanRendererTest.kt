@@ -1,11 +1,13 @@
 package io.schemata.cli.report
 
+import io.schemata.cli.Pipeline
 import io.schemata.cli.PipelineResult
 import io.schemata.cli.SourceInput
 import io.schemata.cli.TargetResult
 import io.schemata.core.CoreCodes
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.LangCodes
+import io.schemata.lang.Parser
 import io.schemata.lang.Span
 import io.schemata.target.OutputFile
 import io.schemata.target.proto.ProtoCodes
@@ -13,6 +15,9 @@ import io.schemata.target.sql.SqlCodes
 import io.schemata.testkit.Golden
 import kotlin.test.Test
 
+/**
+ * Spans are inclusive: `Span(f, 3, 8, 3, 12)` covers columns 8 to 12, the five letters of `Order`.
+ */
 class HumanRendererTest {
     private val orders =
         SourceInput(
@@ -37,7 +42,7 @@ class HumanRendererTest {
             Diagnostic(
                 CoreCodes.NULL_DEFAULT,
                 "a default may not be null; declare the field as nullable with '?'",
-                Span("shop/orders.schemata", 4, 20, 4, 24),
+                Span("shop/orders.schemata", 4, 20, 4, 23),
                 help = "declare the field as `Status?`",
             )
         Golden.assertMatches("report/single-line.txt", render(report(core = listOf(d))))
@@ -60,14 +65,14 @@ class HumanRendererTest {
             Diagnostic(
                 CoreCodes.FIELD_NAMING,
                 "field name",
-                Span("shop/orders.schemata", 5, 2, 5, 6),
+                Span("shop/orders.schemata", 5, 2, 5, 5),
             )
         Golden.assertMatches("report/tabs.txt", render(report(core = listOf(d))))
     }
 
     @Test
     fun `a diagnostic on an unknown file prints header and location only`() {
-        val d = Diagnostic(SqlCodes.LOSSY, "lost", Span("elsewhere.schemata", 9, 1, 9, 2))
+        val d = Diagnostic(SqlCodes.LOSSY, "lost", Span("elsewhere.schemata", 9, 1, 9, 1))
         Golden.assertMatches(
             "report/missing-source.txt",
             render(report(TargetResult("sql", emptyList(), listOf(d)))),
@@ -80,7 +85,7 @@ class HumanRendererTest {
             Diagnostic(
                 ProtoCodes.LOSSY,
                 "proto3 requires a zero value",
-                Span("shop/orders.schemata", 3, 8, 3, 13),
+                Span("shop/orders.schemata", 3, 8, 3, 12),
             )
         Golden.assertMatches(
             "report/promoted.txt",
@@ -94,7 +99,7 @@ class HumanRendererTest {
             Diagnostic(
                 ProtoCodes.LOSSY,
                 "proto3 requires a zero value",
-                Span("shop/orders.schemata", 3, 8, 3, 13),
+                Span("shop/orders.schemata", 3, 8, 3, 12),
             )
         Golden.assertMatches(
             "report/color.txt",
@@ -114,6 +119,37 @@ class HumanRendererTest {
     }
 
     @Test
+    fun `a diagnostic from the compiler underlines exactly its token`() {
+        val source =
+            SourceInput("s.schemata", "namespace a\nenum E { #1 p }\nrecord R { #1 x: E = null }\n")
+        val result = Pipeline.check(listOf(source), emptyList(), strict = false)
+        Golden.assertMatches(
+            "report/compiler-span.txt",
+            HumanRenderer.render(
+                Report.of(result, strict = false, checkOnly = true),
+                Sources.of(listOf(source)),
+                Palette.NONE,
+                out = "out",
+            ),
+        )
+    }
+
+    @Test
+    fun `the end of a file that ends in a newline is one caret on the line after it`() {
+        val source = SourceInput("s.schemata", "namespace a\nrecord R {\n")
+        val parsed = Parser.parse(source.content, source.path)
+        Golden.assertMatches(
+            "report/compiler-end-of-input.txt",
+            HumanRenderer.render(
+                Report.of(PipelineResult(parsed.diagnostics, emptyList()), false, true),
+                Sources.of(listOf(source)),
+                Palette.NONE,
+                out = "out",
+            ),
+        )
+    }
+
+    @Test
     fun `an empty report prints only the trailer`() {
         Golden.assertMatches("report/empty.txt", render(report()))
     }
@@ -124,7 +160,7 @@ class HumanRendererTest {
             Diagnostic(
                 SqlCodes.MISSING_KEY,
                 "record 'Order' has no key",
-                Span("shop/orders.schemata", 3, 8, 3, 13),
+                Span("shop/orders.schemata", 3, 8, 3, 12),
             )
         val r =
             report(

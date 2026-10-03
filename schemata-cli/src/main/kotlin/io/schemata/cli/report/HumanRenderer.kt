@@ -34,11 +34,13 @@ object HumanRenderer {
         val source = sources.line(span.file, span.startLine)
         if (source != null) {
             val expanded = source.replace("\t", TAB)
+            // A span's end column is its last character, so the run is end - start + 1 wide; a
+            // span that goes on to another line is underlined to the end of its first line.
             val start = column(source, span.startColumn)
             val end =
                 if (span.endLine == span.startLine) column(source, span.endColumn)
-                else expanded.length + 1
-            val carets = "^".repeat(maxOf(1, end - start))
+                else expanded.length
+            val carets = "^".repeat(maxOf(1, end - start + 1))
             val bar = "${palette.accent}|${palette.reset}"
             lines += "$gutter $bar"
             lines += "${palette.accent}$number${palette.reset} $bar $expanded"

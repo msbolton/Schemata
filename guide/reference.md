@@ -678,14 +678,14 @@ warning[SCH2001] (lossy) (proto): enum 'Kind': proto3 requires a zero value; syn
  --> contacts.schemata:4:6
   |
 4 | enum Kind { #1 personal, #2 work }
-  |      ^^^
+  |      ^^^^
   = help: keep the synthesized zero value; proto3 reads an unset enum as 0
 
 warning[SCH2105] (lossy) (sql): field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Postgres
   --> contacts.schemata:15:3
    |
 15 |   #7 tags:  list<string(max = 20)>
-   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: use `@sql(strategy = table)` so the elements become rows with their own constraints
 
 0 errors, 8 warnings
@@ -1040,7 +1040,7 @@ warning[SCH2502] (lossy): proto: s.Order.comment: field renamed from 'note' to '
  --> new/s.schemata:5:75
   |
 5 |   @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
-  |                                                                           ^^^^^^
+  |                                                                           ^^^^^^^
   = help: pin the emitted name with @proto(name = "note")
 
 0 errors, 1 warning

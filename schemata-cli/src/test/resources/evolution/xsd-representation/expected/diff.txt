@@ -14,21 +14,21 @@ error[SCH2501]: xsd: s.Item.sku: element 'sku' becomes an attribute breaks old d
  --> new/s.schemata:4:22
   |
 4 |   @xsd(attribute) #1 sku: string(max = 16)
-  |                      ^^
+  |                      ^^^
   = help: avoid changing @xsd(attribute) once published
 
 error[SCH2501]: xsd: s.Item.quantity: attribute 'quantity' becomes an element breaks old documents that carry it the old way
  --> new/s.schemata:5:6
   |
 5 |   #2 quantity: int32
-  |      ^^^^^^^
+  |      ^^^^^^^^
   = help: avoid changing @xsd(attribute) once published
 
 error[SCH2501]: xsd: s.Batch: @xsd(root = false) was added breaks validation against the old root element
  --> new/s.schemata:9:8
   |
 9 | record Batch { #1 id: uuid }
-  |        ^^^^
+  |        ^^^^^
   = help: keep the declaration reachable as a root element, or confirm nothing validates against it
           directly
 

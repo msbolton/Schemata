@@ -11,7 +11,7 @@ warning[SCH2502] (lossy): proto: s.Order.comment: field renamed from 'note' to '
  --> new/s.schemata:5:75
   |
 5 |   @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
-  |                                                                           ^^^^^^
+  |                                                                           ^^^^^^^
   = help: pin the emitted name with @proto(name = "note")
 
 0 errors, 1 warning

@@ -11,21 +11,21 @@ error[SCH2501]: jsonschema: s.Customer.age: a required field was added breaks ol
  --> new/s.schemata:5:6
   |
 5 |   #2 age: int32
-  |      ^^
+  |      ^^^
   = help: add the field as nullable or with a default
 
 error[SCH2501]: sql: s.Customer.age: a required column was added breaks existing rows, which have no value for it
  --> new/s.schemata:5:6
   |
 5 |   #2 age: int32
-  |      ^^
+  |      ^^^
   = help: add the column as nullable or with a default
 
 error[SCH2501]: xsd: s.Customer.age: a required field was added breaks old documents, which have no value for it
  --> new/s.schemata:5:6
   |
 5 |   #2 age: int32
-  |      ^^
+  |      ^^^
   = help: add the field as nullable or with a default
 
 3 errors, 0 warnings

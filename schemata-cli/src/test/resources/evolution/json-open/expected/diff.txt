@@ -14,21 +14,21 @@ error[SCH2501]: jsonschema: s.Event: @jsonschema(open) was removed breaks old do
  --> new/s.schemata:3:8
   |
 3 | record Event {
-  |        ^^^^
+  |        ^^^^^
   = help: keep the record open, or confirm no old document carries extra properties
 
 error[SCH2501]: sql: s.Audit.actor: the column was dropped breaks rows that still hold its data
   --> old/s.schemata:12:6
    |
 12 |   #2 actor: string?
-   |      ^^^^
+   |      ^^^^^
    = help: migrate the column's data elsewhere before dropping it
 
 error[SCH2501]: xsd: s.Audit.actor: the field was removed breaks old documents that still carry it
   --> old/s.schemata:12:6
    |
 12 |   #2 actor: string?
-   |      ^^^^
+   |      ^^^^^
    = help: keep the field; an XSD document always carries every element
 
 3 errors, 0 warnings
