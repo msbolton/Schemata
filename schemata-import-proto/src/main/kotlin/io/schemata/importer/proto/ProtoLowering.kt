@@ -813,7 +813,10 @@ private class FileLowering(
         )
     }
 
-    /** A scalar, a well-known type, or a message or enum the symbol table resolves. */
+    /**
+     * A scalar, a well-known type, or a message or enum the symbol table resolves; any other
+     * `google.protobuf` type, whose file need not be among the inputs, is a string.
+     */
     private fun single(
         name: String,
         scope: List<String>,
@@ -829,6 +832,11 @@ private class FileLowering(
         }
         val symbol = context.symbols.resolve(name, scope)
         if (symbol == null) {
+            val full = name.removePrefix(".")
+            if (full.startsWith("google.protobuf.")) {
+                note(ImportCodes.WIDENED, "$where: $full imported as string")
+                return Single(UnitType.Scalar("string", emptyList()), false, null)
+            }
             note(ImportCodes.UNRESOLVED, "$where: type '$name' cannot be resolved")
             return null
         }

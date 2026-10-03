@@ -458,6 +458,46 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `any google protobuf import needs no file`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "google/protobuf/descriptor.proto";
+                    extend google.protobuf.FieldOptions { string label = 50000; }
+                    message M { string s = 1; }
+                    """
+            )
+        assertEquals(listOf("SCH2405 t.proto: extend dropped"), messages(r))
+        assertEquals("namespace t\n\nrecord M { #1 s: string }\n", text(r, "t.schemata"))
+    }
+
+    @Test
+    fun `a google protobuf type outside the mapped ones is a string`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "google/protobuf/api.proto";
+                    message M { google.protobuf.Api f = 1; repeated .google.protobuf.Method g = 2; }
+                    """
+            )
+        assertEquals(
+            listOf(
+                "SCH2404 field 'M.f': google.protobuf.Api imported as string",
+                "SCH2404 field 'M.g': google.protobuf.Method imported as string",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 f: string #2 g: list<string> }\n",
+            text(r, "t.schemata"),
+        )
+    }
+
+    @Test
     fun `services and extend are dropped`() {
         val r =
             importText(

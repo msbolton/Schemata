@@ -1243,12 +1243,11 @@ missing an attribute it cannot be read without (a `group` with no `name`, an `ex
 
 `import --from proto` reads proto2, proto3, and editions files. An `import` resolves among the
 inputs by its path under their roots (the directories named on the command line), then beside the
-importing file, then under each root on disk; a file found that way is read and imported too. The
-well-known files `google/protobuf/timestamp.proto`, `duration.proto`, `wrappers.proto`,
-`any.proto`, `struct.proto`, `field_mask.proto`, and `empty.proto` need no file at all, since their
-types are known by name. Files under one root that declare one package are one package to
-`protoc`, so they import as one namespace, the package's, with each segment lower-snaked if need be
-(SCH2402). Two files whose namespaces coincide but whose packages differ are an error (SCH2401).
+importing file, then under each root on disk; a file found that way is read and imported too. An
+import of protoc's own files under `google/protobuf/`, `timestamp.proto` and `descriptor.proto`
+alike, needs no file at all, since their types are known by name. Files under one root that
+declare one package are one package to `protoc`, so they import as one namespace, the package's,
+with each segment lower-snaked if need be (SCH2402). Two files whose namespaces coincide but whose packages differ are an error (SCH2401).
 
 | Protobuf type | Schemata type | Notes |
 |---|---|---|
@@ -1263,6 +1262,7 @@ types are known by name. Files under one root that declare one package are one p
 | a wrapper, such as `google.protobuf.StringValue` | its scalar, `?` | SCH2403: the regenerated field is `optional`, not a wrapper |
 | `google.protobuf.Any` | `bytes` | SCH2404 |
 | `google.protobuf.Struct`, `Value`, `ListValue`, `FieldMask`, `Empty` | `string` | SCH2404 |
+| any other `google.protobuf` type, such as `Api` | `string` | SCH2404 |
 
 A proto3 field with no label is required, `T`; an `optional` one is `T?`; a `repeated` one is
 `list<T>`. A proto2 `required` field is `T`, and an `optional` one `T?` unless it has a

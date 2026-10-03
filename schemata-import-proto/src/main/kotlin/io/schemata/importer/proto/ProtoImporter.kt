@@ -20,11 +20,11 @@ import io.schemata.lang.Span
  * lowered too.
  */
 object ProtoImporter : Importer {
-    /** Files whose types the lowering knows by name; importing them needs no file. */
-    private val WELL_KNOWN =
-        setOf("timestamp", "duration", "wrappers", "any", "struct", "field_mask", "empty")
-            .map { "google/protobuf/$it.proto" }
-            .toSet()
+    /**
+     * Where protoc's own files live: the lowering knows their types by name, mapping some and
+     * reading the rest as strings, so importing one needs no file.
+     */
+    private const val WELL_KNOWN = "google/protobuf/"
 
     override fun import(
         inputs: List<ImportInput>,
@@ -97,7 +97,7 @@ object ProtoImporter : Importer {
                         imp.pos,
                     )
                 }
-                if (imp.path in WELL_KNOWN) return@forEach
+                if (imp.path.startsWith(WELL_KNOWN)) return@forEach
                 val listed = byRelative[imp.path]
                 if (listed != null && slashed(listed.path) in unreadable) return@forEach
                 val beside = resolvePath(f.path, imp.path)
