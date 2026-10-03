@@ -422,6 +422,27 @@ object XsdImport {
         val path: String,
     )
 
+    /**
+     * An enumeration value with its signs spelled out, so that values told apart only by them stay
+     * apart: `+` is always `plus`, and `-` is `minus` unless it sits between two letters or digits,
+     * where it only separates words (`paid-out` stays `paid_out`). `+x-y` gives `plus_x_y`, `-x-y`
+     * gives `minus_x_y`.
+     */
+    private fun spellSigns(value: String): String = buildString {
+        value.forEachIndexed { i, c ->
+            val between =
+                i > 0 &&
+                    i < value.length - 1 &&
+                    value[i - 1].isLetterOrDigit() &&
+                    value[i + 1].isLetterOrDigit()
+            when {
+                c == '+' -> append("_plus_")
+                c == '-' && !between -> append("_minus_")
+                else -> append(c)
+            }
+        }
+    }
+
     private data class FieldName(
         val name: String,
         val annotation: UnitAnnotation?,
@@ -590,7 +611,7 @@ object XsdImport {
             }
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
-            if (content is XContent.Choice) {
+            if (content is XContent.Choice && isUnionChoice(content)) {
                 val unionWhere = "union '${info.finalName}'"
                 unionExtras(ct, unionWhere)
                 val union =
@@ -724,11 +745,11 @@ object XsdImport {
             val original = el.name ?: return emptyList()
             val ct = el.inlineComplex ?: return emptyList()
             reportIdentityConstraints(el, "element '$original'")
-            val name = ImportNames.upperCamel(original)
+            val name = elementRecordName(original, el.line)
             if (!claimTopLevel(name, "element '$original'", el.line)) return emptyList()
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
-            if (content is XContent.Choice) {
+            if (content is XContent.Choice && isUnionChoice(content)) {
                 val unionWhere = "union '$name'"
                 unionExtras(ct, unionWhere)
                 val union =
@@ -756,6 +777,28 @@ object XsdImport {
                 fieldsAndNested(ct, "element '$original'", name, siblings)
             return listOf(UnitRecord(name, fields, nested, ct.doc ?: el.doc, annotations)) +
                 siblings
+        }
+
+        /**
+         * The record name for the global element [original]'s own type: its UpperCamel name, or,
+         * when another element's record already took that, the name numbered from 2 and noted. A
+         * named type owning the name is left to [claimTopLevel] to report.
+         */
+        private fun elementRecordName(original: String, line: Int): String {
+            val base = ImportNames.upperCamel(original)
+            val owner = topLevelNames[base]
+            if (owner == null || !owner.startsWith("element '")) return base
+            var n = 2
+            while (numbered(base, n, "") in topLevelNames) n++
+            val name = numbered(base, n, "")
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    "element '$original'",
+                    "$owner already lowers to record '$base'; imported as '$name'",
+                    line,
+                )
+            return name
         }
 
         /**
@@ -1081,7 +1124,8 @@ object XsdImport {
                     visited,
                     recordAnnotations = recordAnnotations,
                 )
-            return Triple(settleNames(fields, claimed), nested, recordAnnotations)
+            val settled = renameAttributesBesideElements(settleNames(fields, claimed), claimed)
+            return Triple(settled, nested, recordAnnotations)
         }
 
         /**
@@ -1184,10 +1228,18 @@ object XsdImport {
                         is XAttributeUse.AnyAttribute -> anyAttributes(use, claimed, whereCollision)
                     }
                 }
+            // A complex restriction keeps the base's attributes it does not redeclare, and so
+            // does simple content derived from a complex type, whose base declares attributes too.
+            val inheritedFrom =
+                when (val c = ct.content) {
+                    is XContent.Restriction ->
+                        c.base.takeIf { !c.simple || isComplexTypeRef(c.base) }
+                    is XContent.Extension -> c.base.takeIf { c.simple && isComplexTypeRef(c.base) }
+                    else -> null
+                }
             val inheritedFields =
-                (ct.content as? XContent.Restriction)
-                    ?.takeIf { !it.simple }
-                    ?.let { inheritedAttributes(it.base, ct.attributes) }
+                inheritedFrom
+                    ?.let { inheritedAttributes(it, ct.attributes) }
                     .orEmpty()
                     .mapNotNull { (path, a) ->
                         at(path) { attribute(a, claimed, whereCollision, nested) }
@@ -1267,9 +1319,10 @@ object XsdImport {
         }
 
         /**
-         * The attributes a complex restriction of [base] keeps without declaring them: every one
-         * [base] has, its own and those it derives, that [own] neither redeclares nor prohibits (a
-         * prohibition is itself a redeclaration), each with the file that declares it.
+         * The attributes a type derived from the complex type [base] (a complex restriction, or
+         * simple content) keeps without declaring them: every one [base] has, its own and those it
+         * derives, that [own] neither redeclares nor prohibits (a prohibition is itself a
+         * redeclaration), each with the file that declares it.
          */
         private fun inheritedAttributes(
             base: QName,
@@ -1299,8 +1352,8 @@ object XsdImport {
                     }
                 next =
                     when (val content = ct.content) {
-                        is XContent.Extension -> content.base.takeIf { !content.simple }
-                        is XContent.Restriction -> content.base.takeIf { !content.simple }
+                        is XContent.Extension -> content.base
+                        is XContent.Restriction -> content.base
                         else -> null
                     }
             }
@@ -1359,18 +1412,21 @@ object XsdImport {
                     sequenceFields(recordName, particles, whereCollision, claimed, nested, siblings)
                 }
                 is XContent.Empty -> emptyList()
-                is XContent.Choice -> {
-                    // An extension base that is itself choice-shaped (a union): not supported, so
-                    // its own content is simply dropped rather than flattened.
-                    diagnostics +=
-                        lossy(
-                            ImportCodes.DROPPED,
-                            whereCollision,
-                            "extension of a choice-shaped type dropped",
-                            ct.line,
-                        )
-                    emptyList()
-                }
+                is XContent.Choice ->
+                    if (!isUnionChoice(content)) {
+                        wildcardChoiceFields(content, claimed, whereCollision)
+                    } else {
+                        // An extension base that is itself choice-shaped (a union): not supported,
+                        // so its own content is simply dropped rather than flattened.
+                        diagnostics +=
+                            lossy(
+                                ImportCodes.DROPPED,
+                                whereCollision,
+                                "extension of a choice-shaped type dropped",
+                                ct.line,
+                            )
+                        emptyList()
+                    }
                 is XContent.Extension ->
                     extensionFields(
                         ct,
@@ -1739,7 +1795,9 @@ object XsdImport {
         /**
          * A `simpleContent` [kind] (`extension` or `restriction`) of [base]: a record with one
          * `value` field of the base's simple type narrowed by [facets], beside the type's own
-         * attributes. A complex base's own value type is not followed: the field is a string.
+         * attributes (and, for a complex base, those it inherits; see [allFieldsOf]). A complex
+         * base is followed down its own simple content to the simple type at the root of the chain,
+         * see [simpleContentValue].
          */
         private fun simpleContentFields(
             kind: String,
@@ -1757,8 +1815,45 @@ object XsdImport {
                         "imported as a record with a 'value' field",
                     line,
                 )
-            val valueType =
-                if (isComplexTypeRef(base)) {
+            val refined = simpleContentValue(kind, base, facets, line, whereCollision)
+            val claim =
+                nameAndClaim("value", "field", whereCollision, claimed, whereCollision, line)
+                    ?: return emptyList()
+            val (name, annotations) = claim
+            val list = listOfNotNull(listAnnotation(refined))
+            return listOf(UnitField(name, refined, false, null, null, annotations + list))
+        }
+
+        /**
+         * The `value` type of a simple content [kind] of [base] narrowed by [facets]. A complex
+         * [base] with simple content of its own is followed, through as many types as the chain
+         * has, to the simple type at its root; the facets along the way all apply, the nearest
+         * type's winning where two levels set the same one. A chain that reaches a complex type
+         * with element content, or a cycle, is noted and imported as a string.
+         */
+        private fun simpleContentValue(
+            kind: String,
+            base: QName,
+            facets: List<XFacet>,
+            line: Int,
+            whereCollision: String,
+        ): UnitType {
+            val string = UnitType.Scalar("string", emptyList())
+            val levels = mutableListOf(facets)
+            val seen = mutableSetOf<QName>()
+            var next = base
+            while (isComplexTypeRef(next)) {
+                val ct =
+                    docsByNamespace.getValue(next.namespace).complexTypes.first {
+                        it.name == next.local
+                    }
+                val (nextBase, nextFacets) =
+                    when (val c = ct.content) {
+                        is XContent.Extension -> if (c.simple) c.base to c.facets else null
+                        is XContent.Restriction -> if (c.simple) c.base to c.facets else null
+                        else -> null
+                    } ?: (null to emptyList())
+                if (nextBase == null || !seen.add(next)) {
                     diagnostics +=
                         lossy(
                             ImportCodes.APPROXIMATED,
@@ -1766,18 +1861,19 @@ object XsdImport {
                             "simpleContent $kind of complex type '${base.local}' imported as string",
                             line,
                         )
-                    UnitType.Scalar("string", emptyList())
-                } else {
-                    resolveSimpleTypeByQName(base, whereCollision, line)
-                        ?: UnitType.Scalar("string", emptyList())
+                    return restrict(string, facets, line, sourcePath, whereCollision)
                 }
-            val refined = restrict(valueType, facets, line, sourcePath, whereCollision)
-            val claim =
-                nameAndClaim("value", "field", whereCollision, claimed, whereCollision, line)
-                    ?: return emptyList()
-            val (name, annotations) = claim
-            val list = listOfNotNull(listAnnotation(refined))
-            return listOf(UnitField(name, refined, false, null, null, annotations + list))
+                levels += nextFacets
+                next = nextBase
+            }
+            val root = resolveSimpleTypeByQName(next, whereCollision, line) ?: string
+            // Each facet kind from the nearest level that sets it.
+            val combined =
+                levels
+                    .flatMap { level -> level.map { it.name }.distinct().map { it to level } }
+                    .distinctBy { it.first }
+                    .flatMap { (name, level) -> level.filter { it.name == name } }
+            return restrict(root, combined, line, sourcePath, whereCollision)
         }
 
         /** `@xsd(list)` for a field whose value is a list simple type's; `null` otherwise. */
@@ -1878,7 +1974,7 @@ object XsdImport {
         ): UnitType.Ref {
             val name = ImportNames.upperCamel(elementName)
             val content = ct.content
-            if (content is XContent.Choice) {
+            if (content is XContent.Choice && isUnionChoice(content)) {
                 unionExtras(ct, "union '$name'")
                 nested +=
                     unionFromChoice(
@@ -1915,11 +2011,54 @@ object XsdImport {
         }
 
         /**
+         * Whether [choice] has a branch that can be a union member. A choice of nothing but
+         * wildcards has none (a union member carries no `@xsd(any)`), so its type is a record whose
+         * wildcards are fields, see [wildcardChoiceFields].
+         */
+        private fun isUnionChoice(choice: XContent.Choice): Boolean =
+            choice.particles.any { it !is XParticle.Any }
+
+        /**
+         * The fields of a choice of nothing but wildcards: one `@xsd(any)` field per wildcard, its
+         * occurrence the wildcard's times the choice's, as the sequence it amounts to.
+         */
+        private fun wildcardChoiceFields(
+            choice: XContent.Choice,
+            claimed: MutableMap<String, String>,
+            whereCollision: String,
+        ): List<UnitField> =
+            choice.particles.filterIsInstance<XParticle.Any>().mapNotNull { any ->
+                val max =
+                    if (any.maxOccurs == null || choice.maxOccurs == null) null
+                    else any.maxOccurs * choice.maxOccurs
+                anyField(
+                    any.copy(minOccurs = any.minOccurs * choice.minOccurs, maxOccurs = max),
+                    claimed,
+                    whereCollision,
+                )
+            }
+
+        /** A choice's branch on its way to a union member. */
+        private sealed interface ChoiceEntry
+
+        /** An element branch: the element, the type it lowers to, and its stem. */
+        private class Branch(
+            val el: XElement,
+            val name: String,
+            val type: UnitType,
+            val stem: String,
+        ) : ChoiceEntry
+
+        /** A branch whose member is already settled, such as a sequence branch's record. */
+        private class Settled(val member: UnionMember) : ChoiceEntry
+
+        /**
          * A union from [choice]'s members, in order. [checkMismatch] reports a member element whose
-         * name doesn't match what the XSD target would regenerate (SCH2403) and two members
-         * colliding on the same regenerated name (SCH2401); turned off for a synthesised,
-         * never-named inline choice, where there is nothing for a member name to round-trip
-         * against.
+         * name doesn't match what the XSD target would regenerate (SCH2403); turned off for a
+         * synthesised, never-named inline choice, where there is nothing for a member name to
+         * round-trip against. Two or more element branches lowering to one member (the same type)
+         * cannot be told apart by type, so each of them is wrapped in a record of its own (see
+         * [sharedBranchRecord]) and the union lists those.
          */
         private fun unionFromChoice(
             choice: XContent.Choice,
@@ -1929,8 +2068,7 @@ object XsdImport {
             siblings: MutableList<UnitDecl>,
             checkMismatch: Boolean,
         ): UnitUnion {
-            val members = mutableListOf<UnionMember>()
-            val seenStems = mutableMapOf<String, String>()
+            val entries = mutableListOf<ChoiceEntry>()
             fun member(particle: XParticle) {
                 when (particle) {
                     is XParticle.Element -> {
@@ -1941,35 +2079,9 @@ object XsdImport {
                                 } else particle.element
                             )
                         val elementName = el.name ?: "member"
-                        val pair = memberTypeAndStem(el, unionWhere, siblings) ?: return
-                        val (ownType, stem) = pair
+                        val (ownType, stem) = memberTypeAndStem(el, unionWhere, siblings) ?: return
                         val type = particle.element.ref?.let(::elementHeadType) ?: ownType
-                        val existing = seenStems[stem]
-                        if (existing != null) {
-                            if (checkMismatch) {
-                                diagnostics +=
-                                    lossy(
-                                        ImportCodes.UNRESOLVED,
-                                        unionWhere,
-                                        "members '$existing' and '$elementName' both lower to " +
-                                            "member '${ImportNames.upperCamel(stem)}'",
-                                        el.line,
-                                    )
-                            }
-                            return
-                        }
-                        seenStems[stem] = elementName
-                        if (checkMismatch && elementName != stem) {
-                            diagnostics +=
-                                lossy(
-                                    ImportCodes.APPROXIMATED,
-                                    unionWhere,
-                                    "member element '$elementName' has no Schemata equivalent; the " +
-                                        "regenerated element will be named '$stem'",
-                                    el.line,
-                                )
-                        }
-                        members += UnionMember(type, el.doc)
+                        entries += Branch(el, elementName, type, stem)
                     }
                     is XParticle.Any ->
                         diagnostics +=
@@ -1983,8 +2095,7 @@ object XsdImport {
                             is XContent.All -> {
                                 val ref =
                                     branchRecord(content, particle, unionWhere, siblings) ?: return
-                                seenStems.putIfAbsent(Names.snakeCase(ref.name), ref.name)
-                                members += UnionMember(ref, null)
+                                entries += Settled(UnionMember(ref, null))
                             }
                             else -> Unit
                         }
@@ -1992,7 +2103,73 @@ object XsdImport {
                 }
             }
             expandParticles(choice.particles, unionWhere).forEach(::member)
+            val shared =
+                entries.filterIsInstance<Branch>().groupBy { it.stem }.filterValues { it.size > 1 }
+            val members =
+                entries.map { e ->
+                    if (e !is Branch) return@map (e as Settled).member
+                    val group = shared[e.stem]
+                    val (type, stem) =
+                        if (group == null) e.type to e.stem
+                        else {
+                            val ref = sharedBranchRecord(e, group, unionWhere, siblings)
+                            ref to Names.snakeCase(ref.name)
+                        }
+                    if (checkMismatch && e.name != stem) {
+                        diagnostics +=
+                            lossy(
+                                ImportCodes.APPROXIMATED,
+                                unionWhere,
+                                "member element '${e.name}' has no Schemata equivalent; the " +
+                                    "regenerated element will be named '$stem'",
+                                e.el.line,
+                            )
+                    }
+                    UnionMember(type, e.el.doc)
+                }
             return UnitUnion(name, members, unionDoc, emptyList())
+        }
+
+        /**
+         * [branch], one of the [group] of a choice's branches sharing a member type, as a
+         * top-level, non-root record named after its element (numbered past a name already taken,
+         * as a branch record is) holding the type in a `value` field, and noted.
+         */
+        private fun sharedBranchRecord(
+            branch: Branch,
+            group: List<Branch>,
+            unionWhere: String,
+            siblings: MutableList<UnitDecl>,
+        ): UnitType.Ref {
+            val base = ImportNames.upperCamel(branch.name)
+            var n = 1
+            while (numbered(base, n, "") in topLevelNames) n++
+            val name = numbered(base, n, "")
+            claimTopLevel(name, "element '${branch.name}'", branch.el.line)
+            val other = if (branch === group[0]) group[1] else branch
+            val typeName =
+                when (val t = branch.type) {
+                    is UnitType.Ref -> t.name
+                    is UnitType.Scalar -> t.builtin
+                    else -> branch.stem
+                }
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    unionWhere,
+                    "members '${group[0].name}' and '${other.name}' share type '$typeName'; each " +
+                        "imported as a record holding it",
+                    branch.el.line,
+                )
+            siblings +=
+                UnitRecord(
+                    name,
+                    listOf(UnitField("value", branch.type, false, null, null, emptyList())),
+                    emptyList(),
+                    null,
+                    listOf(UnitAnnotation("xsd", "root", "false")),
+                )
+            return UnitType.Ref(name)
         }
 
         /**
@@ -2170,16 +2347,13 @@ object XsdImport {
          * [enumFacets]), in order, with per-value naming and docs.
          */
         private fun buildInlineEnum(st: XSimpleType, name: String, where: String): UnitEnum {
-            val facets = enumFacets(st).orEmpty()
-            val claimed = mutableMapOf<String, String>()
             val values =
-                facets.mapNotNull { f ->
+                enumValueNames(st).map { (f, field) ->
                     val valueWhere = "enum value '$name.${f.value}'"
                     // A value's @xsd(name) override, when the xsd target would accept it, always
                     // regenerates the original xsd text exactly, so this is never reported; a value
                     // that is not even a valid XML name gets no override (one would only be
                     // rejected), and that is reported instead.
-                    val field = fieldNameFor(f.value)
                     if (field.unfixable) {
                         diagnostics +=
                             lossy(
@@ -2189,22 +2363,34 @@ object XsdImport {
                                 f.line,
                             )
                     }
-                    val existing = claimed[field.name]
-                    if (existing != null) {
-                        diagnostics +=
-                            lossy(
-                                ImportCodes.UNRESOLVED,
-                                where,
-                                "enum value '$existing' and '${f.value}' both lower to value '${field.name}'",
-                                f.line,
-                            )
-                        null
-                    } else {
-                        claimed[field.name] = f.value
-                        UnitEnumValue(field.name, f.doc, listOfNotNull(field.annotation))
-                    }
+                    UnitEnumValue(field.name, f.doc, listOfNotNull(field.annotation))
                 }
             return UnitEnum(name, values, st.doc, emptyList())
+        }
+
+        /**
+         * [st]'s enumeration values with the names they import as, in order: each lowered as a
+         * field name is, its signs spelled first (see [spellSigns]); a value whose name an earlier
+         * one already took is numbered (`v_2`), with an override back to its text when that is a
+         * valid name.
+         */
+        private fun enumValueNames(st: XSimpleType): List<Pair<XFacet, FieldName>> {
+            val taken = mutableSetOf<String>()
+            return enumFacets(st).orEmpty().map { f ->
+                val own = fieldNameFor(f.value)
+                val spelled = spellSigns(f.value)
+                val base =
+                    if (spelled == f.value) own else own.copy(name = fieldNameFor(spelled).name)
+                var name = base.name
+                var n = 2
+                while (name in taken) name = "${base.name}_${n++}"
+                taken += name
+                f to
+                    if (name == base.name) base
+                    else if (XsdNames.isValidOverride(f.value))
+                        FieldName(name, UnitAnnotation("xsd", "name", "\"${f.value}\""), false)
+                    else FieldName(name, null, unfixable = true)
+            }
         }
 
         /**
@@ -2443,7 +2629,10 @@ object XsdImport {
                         } else Resolved(headType, el.minOccurs == 0 || el.nillable, null)
                     el.maxOccurs == 1 && el.type == null && el.inlineComplex != null -> {
                         (el.fixed ?: el.default)?.let { noLiteral(it, where, el.line) }
-                        if (el.inlineComplex.content is XContent.Choice) {
+                        if (
+                            (el.inlineComplex.content as? XContent.Choice)?.let(::isUnionChoice) ==
+                                true
+                        ) {
                             val ref =
                                 inlineDeclaration(el.inlineComplex, original, nested, siblings)
                             Resolved(ref, el.minOccurs == 0, null)
@@ -2734,12 +2923,82 @@ object XsdImport {
             }
             val existing = claimed[field.name]
             if (existing != null) {
+                attributeBeside(
+                        field.name,
+                        field.annotation,
+                        kind,
+                        whereConstruct,
+                        existing,
+                        claimed,
+                        whereCollision,
+                        line,
+                    )
+                    ?.let {
+                        return it
+                    }
                 diagnostics += collision(whereCollision, existing, whereConstruct, field.name, line)
                 return null
             }
             claimed[field.name] = whereConstruct
             return field.name to listOfNotNull(field.annotation)
         }
+
+        /**
+         * An element and an attribute lowering to one field [name]: XML keeps the two apart, so the
+         * element keeps [name] and the attribute takes `<name>_attribute`, with no override (the
+         * xsd target names a record's elements and attributes in one scope, where the original name
+         * would collide again), and that is noted. When the attribute claimed [name] first, its
+         * field is renamed once the record is complete (see [renameAttributesBesideElements]).
+         * `null` when the pair is not an element and an attribute, or the renamed field is taken.
+         */
+        private fun attributeBeside(
+            name: String,
+            override: UnitAnnotation?,
+            kind: String,
+            whereConstruct: String,
+            existing: String,
+            claimed: MutableMap<String, String>,
+            whereCollision: String,
+            line: Int,
+        ): Pair<String, List<UnitAnnotation>>? {
+            val attributeFirst = kind == "element" && existing.startsWith("attribute '")
+            val attributeSecond = kind == "attribute" && existing.startsWith("element '")
+            val renamed = "${name}_attribute"
+            if (!(attributeFirst || attributeSecond) || renamed in claimed) return null
+            val (attribute, element) =
+                if (attributeFirst) existing to whereConstruct else whereConstruct to existing
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    whereCollision,
+                    "$attribute and $element both lower to field '$name'; the attribute is " +
+                        "imported as '$renamed' and the regenerated attribute will be named so",
+                    line,
+                )
+            claimed[renamed] = attribute
+            if (attributeSecond) return renamed to emptyList()
+            claimed[name] = element
+            return name to listOfNotNull(override)
+        }
+
+        /**
+         * [fields] with every attribute field whose name an element took from it (see
+         * [attributeBeside]) renamed `<name>_attribute`, without its name override.
+         */
+        private fun renameAttributesBesideElements(
+            fields: List<UnitField>,
+            claimed: Map<String, String>,
+        ): List<UnitField> =
+            fields.map { f ->
+                val isAttribute = f.annotations.any { it.target == "xsd" && it.key == "attribute" }
+                val owner = claimed[f.name]
+                if (isAttribute && owner != null && !owner.startsWith("attribute '")) {
+                    f.copy(
+                        name = "${f.name}_attribute",
+                        annotations = f.annotations.filterNot { it.key == "name" },
+                    )
+                } else f
+            }
 
         /**
          * [raw] as the default literal for a field of [type]: a scalar's own literal; for an enum,
@@ -2789,7 +3048,7 @@ object XsdImport {
 
         /** The imported name of [st]'s enumeration value [raw], or `null` when it has none. */
         private fun enumValueName(st: XSimpleType, raw: String): String? =
-            enumFacets(st)?.firstOrNull { it.value == raw }?.let { fieldNameFor(it.value).name }
+            enumValueNames(st).firstOrNull { it.first.value == raw }?.second?.name
 
         /** The enumerated simple type [qname] names, with its declaring document. */
         private fun namedEnum(qname: QName): Pair<XsdDoc, XSimpleType>? {
@@ -2954,7 +3213,7 @@ object XsdImport {
             val ct = targetDoc.complexTypes.firstOrNull { it.name == qname.local }
             if (ct != null) {
                 val name = qualifiedTypeName(targetDoc, qname.local)
-                val choice = ct.content as? XContent.Choice
+                val choice = (ct.content as? XContent.Choice)?.takeIf(::isUnionChoice)
                 if (choice != null && choice.maxOccurs != 1) {
                     diagnostics +=
                         lossy(

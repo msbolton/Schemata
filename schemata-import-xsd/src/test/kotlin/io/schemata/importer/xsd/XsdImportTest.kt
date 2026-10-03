@@ -962,7 +962,7 @@ class XsdImportTest {
     }
 
     @Test
-    fun `a named complex type holding only a choice is a union`() {
+    fun `a named complex type holding only a choice is a union and shared types are wrapped`() {
         val imported =
             lower(
                 """
@@ -988,7 +988,7 @@ class XsdImportTest {
                           <xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence>
                         </xs:complexType>
                       </xs:element>
-                      <xs:element name="cash2" type="tns:CashType"/>
+                      <xs:element name="coins" type="tns:CashType"/>
                     </xs:choice>
                   </xs:complexType>
                 </xs:schema>
@@ -998,12 +998,21 @@ class XsdImportTest {
             listOf(
                 UnitType.Ref("Card"),
                 UnitType.Ref("BankTransfer"),
-                UnitType.Ref("Cash"),
+                UnitType.Ref("Cash2"),
                 UnitType.Scalar("int64", emptyList()),
                 UnitType.Ref("Voucher"),
+                UnitType.Ref("Coins"),
             ),
             union(imported, "Payment").members.map { it.type },
         )
+        listOf("Cash2", "Coins").forEach { wrapper ->
+            val r = record(imported, wrapper)
+            assertEquals(listOf(xsd("root", "false")), r.annotations)
+            assertEquals(
+                listOf("value" to UnitType.Ref("Cash")),
+                r.fields.map { it.name to it.type },
+            )
+        }
         val voucher = record(imported, "Voucher")
         assertEquals(listOf(xsd("root", "false")), voucher.annotations)
         assertEquals("code", voucher.fields.single().name)
@@ -1011,7 +1020,12 @@ class XsdImportTest {
             listOf(
                 "SCH2403 union 'Payment': member element 'creditCard' has no Schemata equivalent; " +
                     "the regenerated element will be named 'card'",
-                "SCH2401 union 'Payment': members 'cash' and 'cash2' both lower to member 'Cash'",
+                "SCH2403 union 'Payment': members 'cash' and 'coins' share type 'Cash'; each " +
+                    "imported as a record holding it",
+                "SCH2403 union 'Payment': member element 'cash' has no Schemata equivalent; the " +
+                    "regenerated element will be named 'cash2'",
+                "SCH2403 union 'Payment': members 'cash' and 'coins' share type 'Cash'; each " +
+                    "imported as a record holding it",
             ),
             messages(imported),
         )
@@ -1148,6 +1162,265 @@ class XsdImportTest {
             ),
             messages(imported),
         )
+    }
+
+    @Test
+    fun `simple content derived from a complex type follows the chain to its simple root`() {
+        val ccts =
+            doc(
+                """
+                <xs:schema $xs targetNamespace="urn:schemata:ccts">
+                  <xs:complexType name="AmountType">
+                    <xs:simpleContent>
+                      <xs:extension base="xs:decimal">
+                        <xs:attribute name="currencyID" type="xs:normalizedString"/>
+                        <xs:attribute name="currencyCodeListVersionID" type="xs:normalizedString"/>
+                      </xs:extension>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "ccts.xsd",
+            )
+        val udt =
+            doc(
+                """
+                <xs:schema $xs xmlns:c="urn:schemata:ccts" targetNamespace="urn:schemata:udt">
+                  <xs:import namespace="urn:schemata:ccts"/>
+                  <xs:complexType name="AmountType">
+                    <xs:simpleContent>
+                      <xs:restriction base="c:AmountType">
+                        <xs:attribute name="currencyID" type="xs:normalizedString" use="required"/>
+                      </xs:restriction>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "udt.xsd",
+            )
+        val cbc =
+            doc(
+                """
+                <xs:schema $xs xmlns:u="urn:schemata:udt" targetNamespace="urn:schemata:cbc">
+                  <xs:import namespace="urn:schemata:udt"/>
+                  <xs:complexType name="AmountType">
+                    <xs:simpleContent><xs:extension base="u:AmountType"/></xs:simpleContent>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "cbc.xsd",
+            )
+        val imported = XsdImport.lower(listOf(ccts, udt, cbc), null)
+        val amount =
+            imported.units
+                .single { it.namespace == "cbc" }
+                .declarations
+                .filterIsInstance<UnitRecord>()
+                .single()
+        assertEquals(
+            listOf(
+                Triple("value", UnitType.Scalar("decimal", listOf("p" to "38", "s" to "9")), false),
+                Triple("currency_id", UnitType.Scalar("string", emptyList()), false),
+                Triple(
+                    "currency_code_list_version_id",
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                ),
+            ),
+            amount.fields.map { Triple(it.name, it.type, it.nullable) },
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'AmountType': simpleContent extension of 'AmountType' has " +
+                    "no Schemata equivalent; imported as a record with a 'value' field",
+                "SCH2403 complex type 'AmountType': decimal without totalDigits and " +
+                    "fractionDigits imported as decimal(38, 9)",
+            ),
+            imported.diagnostics
+                .filter { it.span.file == "cbc.xsd" }
+                .map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `an attribute named like an element takes an attribute suffix`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ArcType">
+                    <xs:sequence><xs:element name="title" type="xs:string"/></xs:sequence>
+                    <xs:attribute name="title" type="xs:string"/>
+                  </xs:complexType>
+                  <xs:complexType name="BaseType">
+                    <xs:sequence/>
+                    <xs:attribute name="axisLabels" type="xs:string"/>
+                  </xs:complexType>
+                  <xs:complexType name="GridType">
+                    <xs:complexContent>
+                      <xs:extension base="tns:BaseType">
+                        <xs:sequence><xs:element name="axisLabels" type="xs:string"/></xs:sequence>
+                      </xs:extension>
+                    </xs:complexContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val arc = record(imported, "Arc")
+        assertEquals(listOf("title", "title_attribute"), arc.fields.map { it.name })
+        assertEquals(listOf(xsd("attribute")), arc.fields[1].annotations)
+        val grid = record(imported, "Grid")
+        assertEquals(listOf("axis_labels_attribute", "axis_labels"), grid.fields.map { it.name })
+        assertEquals(listOf(xsd("attribute")), grid.fields[0].annotations)
+        assertEquals(listOf(xsd("name", "\"axisLabels\"")), grid.fields[1].annotations)
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'ArcType': attribute 'title' and element 'title' both " +
+                    "lower to field 'title'; the attribute is imported as 'title_attribute' and " +
+                    "the regenerated attribute will be named so",
+                "SCH2403 complex type 'GridType': extension of 'BaseType' has no Schemata " +
+                    "equivalent; base fields flattened into the record",
+                "SCH2403 complex type 'GridType': attribute 'axisLabels' and element " +
+                    "'axisLabels' both lower to field 'axis_labels'; the attribute is imported " +
+                    "as 'axis_labels_attribute' and the regenerated attribute will be named so",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `enumeration signs are spelled and a value still colliding is numbered`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="SignType">
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="+"/>
+                      <xs:enumeration value="-"/>
+                      <xs:enumeration value="+x+y"/>
+                      <xs:enumeration value="+x-y"/>
+                      <xs:enumeration value="-x-y"/>
+                      <xs:enumeration value="paid-out"/>
+                      <xs:enumeration value="paid_out"/>
+                      <xs:enumeration value="x y"/>
+                      <xs:enumeration value="x.y"/>
+                      <xs:enumeration value="x/y"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:schema>
+                """
+            )
+        val sign = enum(imported, "Sign")
+        assertEquals(
+            listOf(
+                "plus",
+                "minus",
+                "plus_x_plus_y",
+                "plus_x_y",
+                "minus_x_y",
+                "paid_out",
+                "paid_out_2",
+                "x_y",
+                "x_y_2",
+                "x_y_3",
+            ),
+            sign.values.map { it.name },
+        )
+        assertEquals(listOf(xsd("name", "\"paid-out\"")), sign.values[5].annotations)
+        assertEquals(listOf(xsd("name", "\"paid_out\"")), sign.values[6].annotations)
+        assertEquals(emptyList(), sign.values[7].annotations)
+        assertEquals(listOf(xsd("name", "\"x.y\"")), sign.values[8].annotations)
+        assertEquals(
+            listOf(
+                "SCH2403 enum value 'Sign.+': enum value 'Sign.+' has no Schemata equivalent; " +
+                    "imported as 'plus'",
+                "SCH2403 enum value 'Sign.-': enum value 'Sign.-' has no Schemata equivalent; " +
+                    "imported as 'minus'",
+                "SCH2403 enum value 'Sign.+x+y': enum value 'Sign.+x+y' has no Schemata " +
+                    "equivalent; imported as 'plus_x_plus_y'",
+                "SCH2403 enum value 'Sign.+x-y': enum value 'Sign.+x-y' has no Schemata " +
+                    "equivalent; imported as 'plus_x_y'",
+                "SCH2403 enum value 'Sign.-x-y': enum value 'Sign.-x-y' has no Schemata " +
+                    "equivalent; imported as 'minus_x_y'",
+                "SCH2403 enum value 'Sign.x y': enum value 'Sign.x y' has no Schemata " +
+                    "equivalent; imported as 'x_y'",
+                "SCH2403 enum value 'Sign.x/y': enum value 'Sign.x/y' has no Schemata " +
+                    "equivalent; imported as 'x_y_3'",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a second global element whose record name is taken is numbered`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:s">
+                  <xs:element name="secondParameter">
+                    <xs:complexType><xs:sequence/></xs:complexType>
+                  </xs:element>
+                  <xs:element name="SecondParameter">
+                    <xs:complexType>
+                      <xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence>
+                    </xs:complexType>
+                  </xs:element>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), record(imported, "SecondParameter").fields)
+        assertEquals("x", record(imported, "SecondParameter2").fields.single().name)
+        assertEquals(
+            listOf(
+                "SCH2403 element 'secondParameter': the regenerated root element will be named " +
+                    "'second_parameter'",
+                "SCH2403 element 'SecondParameter': element 'secondParameter' already lowers to " +
+                    "record 'SecondParameter'; imported as 'SecondParameter2'",
+                "SCH2403 element 'SecondParameter': the regenerated root element will be named " +
+                    "'second_parameter2'",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a choice of nothing but wildcards is a record holding them`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:s">
+                  <xs:complexType name="PropertyType">
+                    <xs:choice maxOccurs="unbounded">
+                      <xs:any namespace="##other"/>
+                    </xs:choice>
+                    <xs:attribute name="target" type="xs:anyURI" use="required"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val property = record(imported, "Property")
+        assertEquals(
+            listOf(
+                "any" to
+                    UnitType.ListOf(
+                        UnitType.Scalar("string", emptyList()),
+                        false,
+                        listOf("min" to "1"),
+                    ),
+                "target" to UnitType.Scalar("string", emptyList()),
+            ),
+            property.fields.map { it.name to it.type },
+        )
+        assertEquals(
+            listOf(xsd("any"), xsd("process", "\"strict\""), xsd("wildcard", "\"##other\"")),
+            property.fields[0].annotations,
+        )
+        assertEquals(emptyList(), messages(imported))
     }
 
     @Test

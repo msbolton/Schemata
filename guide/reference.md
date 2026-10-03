@@ -816,15 +816,21 @@ element is named otherwise, the override is added if it alone makes the name exa
 the mismatch is reported (SCH2403) with the name it will regenerate as. A global element with its
 own anonymous complex type becomes a top-level record named after it, reported the same way when
 that name will not regenerate (`myThing` will regenerate as `my_thing`); one whose record name a
-named type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped. The xsd
+named type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped, while one
+whose record name another global element's record already took, such as `SecondDefiningParameter`
+after `secondDefiningParameter`, is numbered (`SecondDefiningParameter2`, SCH2403). The xsd
 target writes one global element per record of its own namespace, so a second global element of the
 same type, and one of a simple type or of a type in another namespace, are dropped (SCH2405).
 
 A `sequence`'s children become fields in order; `xs:all` and a nested `sequence` are flattened into
 the same list of fields (SCH2403). A complex type whose whole content model is a `choice` becomes a
 `union` instead of a record, one member per branch's type; the branch elements' own names are not
-kept, which is reported (SCH2403) when one differs from what its type's name would lower to. A union
-has nowhere to put attributes, mixed content, or `abstract`, so a choice-only type's are dropped
+kept, which is reported (SCH2403) when one differs from what its type's name would lower to. Two or
+more branches of one type could not be told apart, so each of them becomes a record of its own,
+named after its element, non-root, holding the type in a `value` field (`record ArchiveTimeStamp {
+value: XAdESTimeStamp }`), and the union lists those records (SCH2403). A choice of nothing but
+wildcards has no branch a union could list, so its type is a record whose wildcards are `@xsd(any)`
+fields, as in a sequence. A union has nowhere to put attributes, mixed content, or `abstract`, so a choice-only type's are dropped
 (SCH2405). An element whose type is such a choice with `maxOccurs` greater than one becomes
 `list<Union>`, with `min`/`max` from the choice's own occurrences (SCH2403). An inline `choice`
 nested inside a `sequence` becomes, when every branch is a complex type, a synthesized union named
@@ -851,8 +857,11 @@ becomes `@xsd(root = false)`, for one meant to appear only nested inside another
 An `extension` flattens the base type's fields in first, ahead of its own (SCH2403), since Schemata
 has no base-record relationship to preserve. A `restriction` of a complex type keeps only its own
 content (SCH2403). A `simpleContent` extension or restriction becomes a record with a `value` field
-of the base's simple type, beside the type's attributes (SCH2403); when the base is itself a complex
-type, `value` imports as `string` (SCH2403). A named `group` or `attributeGroup` expands in place
+of the base's simple type, beside the type's attributes (SCH2403). When the base is itself a complex
+type with simple content, the chain is followed to the simple type at its root, whose type `value`
+takes with every facet along the way, and the attributes declared along the chain are inherited, as
+a complex restriction inherits its base's; only a chain that reaches a type with element content
+imports `value` as `string` (SCH2403). A named `group` or `attributeGroup` expands in place
 wherever it is referenced. `xs:documentation` becomes a `///` doc comment, each line without the
 indentation the schema gave it; `xs:appinfo` is dropped silently.
 
@@ -862,7 +871,12 @@ name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403). A name th
 keyword, such as `true`, `stream`, or `import`, or the reserved name `null`, takes a `_value` suffix
 the same way: an enumeration value `true` becomes `true_value` with `@xsd(name = "true")`, and a
 default naming it follows. A record named after an element whose name starts with a digit is
-prefixed with `V`, so `3d` gives `record V3d`.
+prefixed with `V`, so `3d` gives `record V3d`. In an enumeration value, `+` is spelled `plus` and a
+`-` that does not join two letters or digits is spelled `minus` (`+x-y` gives `plus_x_y`, `-x-y`
+gives `minus_x_y`, while `paid-out` stays `paid_out`), and a value whose name an earlier value already
+took is numbered (`v_2`). An element and an attribute of one record with the same name keep apart
+as they do in XML: the element keeps the name and the attribute takes `<name>_attribute`, which the
+regenerated attribute is then named too (SCH2403).
 
 ### What is dropped
 
@@ -871,11 +885,11 @@ the map form above, `redefine`, `override`, `notation`, and `abstract` all have 
 equivalent and are dropped, reported SCH2405.
 
 An unresolved import, include, or type reference is an error (SCH2401), as are two inputs declaring
-the same namespace without one including the other, two elements lowering to the same field, and two
-union members of the same type. So is a simple type, group, or attribute group whose references lead
-back to itself, a construct missing an attribute it cannot be read without (a `group` with no
-`name`, an `extension` with no `base`), and a document with a `DOCTYPE`, which the importer refuses
-to read.
+the same namespace without one including the other, and two elements lowering to the same field. So
+is a simple type, group, or attribute group whose references lead back to itself, a construct
+missing an attribute it cannot be read without (a `group` with no `name`, an `extension` with no
+`base`), and a document whose `DOCTYPE` names an external DTD, which the importer refuses to read. A
+`DOCTYPE` with only an internal subset is read, and nothing external it names is ever loaded.
 
 ### Codes
 
