@@ -111,6 +111,12 @@ record Order {
 }
 
 @sql(table = "Order_audit")
-record OrderAudit { @sql(column = "Order") order: Order position: int32 note: string? }
+record OrderAudit {
+  @sql(key)
+  @sql(column = "Order_id")
+  order_id: uuid
+  @sql(key) position: int32
+  note:     string?
+}
 
 record Booking { @sql(key) id: uuid @sql(type = "tstzrange") during: string }

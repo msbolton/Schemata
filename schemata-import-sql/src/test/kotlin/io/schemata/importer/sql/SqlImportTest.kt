@@ -738,7 +738,7 @@ class SqlImportTest {
 
                 record Order { @sql(key) id: uuid }
 
-                record OrderLines { order: Order position: int32 }
+                record OrderLines { @sql(key) order_id: uuid @sql(key) position: int32 }
 
                 record OrderNotes { @sql(key) order_id: uuid @sql(key) position: int32 owner: Order }
                 """
@@ -747,8 +747,123 @@ class SqlImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 table 'order_lines': primary key over a reference column; add @sql(key) by hand",
+                "SCH2405 table 'order_lines': foreign key over (order_id) dropped; a key field cannot be a reference",
                 "SCH2403 column 'OrderNotes.owner_id': ON DELETE CASCADE dropped",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a join table keeps its key columns as plain key fields`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.orders (id uuid PRIMARY KEY);
+                    CREATE TABLE t.products (id uuid PRIMARY KEY);
+                    CREATE TABLE t.order_products (
+                      order_id uuid REFERENCES t.orders (id) ON DELETE CASCADE,
+                      product_id uuid REFERENCES t.products (id),
+                      qty integer NOT NULL,
+                      PRIMARY KEY (order_id, product_id)
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                namespace t
+
+                record Orders { @sql(key) id: uuid }
+
+                record Products { @sql(key) id: uuid }
+
+                record OrderProducts { @sql(key) order_id: uuid @sql(key) product_id: uuid qty: int32 }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 table 'order_products': foreign key over (order_id) dropped; a key field cannot be a reference",
+                "SCH2405 table 'order_products': foreign key over (product_id) dropped; a key field cannot be a reference",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a key that is also a reference stays a plain key field`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.customer (id uuid PRIMARY KEY);
+                    CREATE TABLE t.profile (
+                      customer_id uuid PRIMARY KEY REFERENCES t.customer (id),
+                      bio text
+                    );
+                    CREATE TABLE t.badge (
+                      tenant_id uuid NOT NULL,
+                      code text NOT NULL,
+                      owner_tenant_id uuid NOT NULL,
+                      PRIMARY KEY (tenant_id, code)
+                    );
+                    CREATE TABLE t.award (
+                      badge_tenant_id uuid NOT NULL,
+                      badge_code text NOT NULL,
+                      PRIMARY KEY (badge_code),
+                      FOREIGN KEY (badge_tenant_id, badge_code) REFERENCES t.badge (tenant_id, code)
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                namespace t
+
+                record Customer { @sql(key) id: uuid }
+
+                record Profile { @sql(key) customer_id: uuid bio: string? }
+
+                record Badge { @sql(key) tenant_id: uuid @sql(key) code: string owner_tenant_id: uuid }
+
+                record Award { badge_tenant_id: uuid @sql(key) badge_code: string }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 table 'profile': foreign key over (customer_id) dropped; a key field cannot be a reference",
+                "SCH2405 table 'award': foreign key over (badge_tenant_id, badge_code) dropped; a key field cannot be a reference",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a key column is never part of an embedded record`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.spot (
+                      pos_x integer,
+                      pos_y integer,
+                      PRIMARY KEY (pos_x),
+                      CHECK ((pos_x IS NULL AND pos_y IS NULL) OR (pos_x IS NOT NULL AND pos_y IS NOT NULL))
+                    );
+                    """
+            )
+        assertEquals(
+            schemata("namespace t\n\nrecord Spot { @sql(key) pos_x: int32 pos_y: int32? }"),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 table 'spot': check constraint dropped: ((pos_x is null and pos_y is null) or (pos_x is not null and pos_y is not null))"
             ),
             messages(r),
         )
@@ -1005,7 +1120,7 @@ class SqlImportTest {
     }
 
     @Test
-    fun `the review focus dump`() {
+    fun `a hand written schema and its dump import alike`() {
         val hand = importText("shop.sql" to HAND)
         val dump = importText("shop.sql" to DUMP)
         assertEquals(

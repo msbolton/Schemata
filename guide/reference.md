@@ -1571,11 +1571,12 @@ same as the target's own output, and a table with none of these shapes is a plai
 
 Keys. A primary key flags its fields `@sql(key)` when they are in key order among the fields, and
 is written on the record otherwise, `@sql(key = (code, tenant_id))`. A table with no primary key
-imports without one (SCH2403), and so does one whose key includes a reference column (SCH2403); add
-`@sql(key)` by hand before compiling to SQL. A `UNIQUE` constraint or a plain index over exactly one
-field's columns becomes `@sql(unique)` or `@sql(index)`; one over the primary key adds nothing; one
-over several fields, a partial index, and an index using another method than `btree` are dropped
-(SCH2405).
+imports without one (SCH2403); add `@sql(key)` by hand before compiling to SQL. A key field cannot
+be a reference, so a key column a foreign key also covers, as in a join table, stays a plain key
+field typed and named as its column, and the foreign key is dropped (SCH2405). A `UNIQUE`
+constraint or a plain index over exactly one field's columns becomes `@sql(unique)` or
+`@sql(index)`; one over the primary key adds nothing; one over several fields, a partial index, and
+an index using another method than `btree` are dropped (SCH2405).
 
 ```sql
 CREATE TABLE shop.plan (
@@ -1755,7 +1756,8 @@ imports as the DDL it was made from does.
 | `IN` check on a `text` column | a nested enum | SCH2403 when a value is renamed |
 | any other check | nothing | SCH2405 |
 | `PRIMARY KEY` | `@sql(key)` | |
-| no primary key, or one over a reference | no key | SCH2403 |
+| no primary key | no key | SCH2403 |
+| a foreign key over a primary key column | nothing; the column is a plain key field | SCH2405 |
 | `UNIQUE` or an index over one field | `@sql(unique)` or `@sql(index)` | |
 | `UNIQUE` or an index over several fields, partial, or not `btree` | nothing | SCH2405 |
 | a foreign key to a primary key | a reference field | |

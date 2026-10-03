@@ -37,7 +37,7 @@ SCH2405 table 'Order': unique constraint over (status, home_zip) dropped; Schema
 SCH2405 table 'Order': partial unique index over (status) dropped
 SCH2405 table 'Order': index using hash over (home_zip) dropped
 SCH2405 table 'Order': index over (away_street, away_zip) dropped; Schemata indexes one field
-SCH2403 table 'Order_audit': primary key over a reference column; add @sql(key) by hand
+SCH2405 table 'Order_audit': foreign key over (Order_id) dropped; a key field cannot be a reference
 SCH2405 table 'booking': EXCLUDE constraint dropped
 SCH2405 table 'booking': INHERITS dropped
 SCH2404 column 'Booking.during': tstzrange imported as string with @sql(type)

@@ -430,8 +430,9 @@ private class Lowering(
         val ctx = TableCtx(info, name, run)
         reportDropped(ctx)
         val pk = info.pk.orEmpty().toSet()
+        dropKeyReferences(ctx, pk)
         val cols = info.table.columns.map { Col(it, it.name, !it.notNull && it.name !in pk) }
-        spec.slots += lowerColumns(ctx, spec, cols, "")
+        spec.slots += lowerColumns(ctx, spec, cols, "", keyColumns = pk)
         spec.slots += childSlots(ctx, spec)
         keys(ctx, spec)
         constraints(ctx, spec)
@@ -456,18 +457,39 @@ private class Lowering(
     }
 
     /**
+     * A foreign key over any of the primary key's columns [pk] cannot be a reference, since a key
+     * field cannot be one: its columns stay plain key fields and the foreign key is dropped. One
+     * that would not have been a reference anyway is reported as such.
+     */
+    private fun dropKeyReferences(ctx: TableCtx, pk: Set<String>) {
+        for (fk in ctx.info.fks) {
+            if (fk.consumed || fk.columns.none { it in pk }) continue
+            val first = ctx.info.column(fk.columns.first()) ?: continue
+            if (refTarget(ctx, fk, first) == null) continue
+            fk.consumed = true
+            sayTable(
+                ctx.info,
+                ImportCodes.DROPPED,
+                "foreign key over (${fk.columns.joinToString(", ")}) dropped; a key field cannot be a reference",
+            )
+        }
+    }
+
+    /**
      * The fields [cols] lower to, one level of a record: unions first, then embedded records, then
      * references, then scalars, each claiming its columns, in the order of each field's first
-     * column. [prefix] is what [cols]' names carry beyond their [Col.local] names.
+     * column. [prefix] is what [cols]' names carry beyond their [Col.local] names. A column of
+     * [keyColumns] is always a plain scalar, since a key field can be nothing else.
      */
     private fun lowerColumns(
         ctx: TableCtx,
         spec: RecordSpec,
         cols: List<Col>,
         prefix: String,
+        keyColumns: Set<String> = emptySet(),
     ): List<Slot> {
-        val claimed = mutableSetOf<String>()
         val index = cols.withIndex().associate { it.value.name to it.index }
+        val claimed = keyColumns.filterTo(mutableSetOf()) { it in index }
         val slots = mutableListOf<Slot>()
         val notes = mutableListOf<Pair<Int, List<Diagnostic>>>()
         fun step(anchor: Int, block: () -> Slot?) {
@@ -497,10 +519,10 @@ private class Lowering(
                 }
             }
         for (c in cols) {
-            if (c.name !in claimed) {
+            if (c.name !in claimed || c.name in keyColumns) {
                 step(index.getValue(c.name)) {
                     claimed += c.name
-                    scalarSlot(ctx, spec, c)
+                    scalarSlot(ctx, spec, c, key = c.name in keyColumns)
                 }
             }
         }
@@ -854,8 +876,9 @@ private class Lowering(
 
     // ---- scalars ----
 
-    private fun scalarSlot(ctx: TableCtx, spec: RecordSpec, c: Col): Slot {
-        val out = scalarType(ctx, spec, c, ImportNames.upperCamel(c.local), overridable = true)
+    private fun scalarSlot(ctx: TableCtx, spec: RecordSpec, c: Col, key: Boolean): Slot {
+        val out =
+            scalarType(ctx, spec, c, ImportNames.upperCamel(c.local), overridable = true, key = key)
         val (name, column) = spec.fieldName(c.local)
         val slot =
             Slot(
@@ -877,7 +900,8 @@ private class Lowering(
     /**
      * The type of one column, from its spelling, its note, and the checks on it alone. An
      * `@sql(type)` keeps a spelling the SQL target would not write, when [overridable]; a spelling
-     * outside the target's own is reported as widened unless a note says what the column holds.
+     * outside the target's own is reported as widened unless a note says what the column holds. A
+     * [key] column is read as a plain scalar whatever its spelling, an array or json one included.
      */
     private fun scalarType(
         ctx: TableCtx,
@@ -885,6 +909,7 @@ private class Lowering(
         c: Col,
         enumBase: String,
         overridable: Boolean,
+        key: Boolean = false,
     ): ScalarOut {
         val column = c.column
         val note =
@@ -901,6 +926,7 @@ private class Lowering(
             }
         val written = column.type
         return when {
+            key -> plain(ctx, spec, c, note, enumBase, overridable)
             written.endsWith("[]") && !written.endsWith("[][]") -> array(ctx, c, note)
             written == "jsonb" || written == "json" -> json(ctx, spec, c, note, overridable)
             else -> plain(ctx, spec, c, note, enumBase, overridable)
@@ -1284,7 +1310,7 @@ private class Lowering(
             sayTable(
                 ctx.info,
                 ImportCodes.APPROXIMATED,
-                "primary key over a reference column; add @sql(key) by hand",
+                "primary key names a column not in the table; add @sql(key) before compiling to SQL",
             )
             return
         }
