@@ -19,6 +19,7 @@ data class ReadResult(val doc: XsdDoc?, val diagnostics: List<Diagnostic>)
 /** Reads one `.xsd` into an [XsdDoc]; only the XML Schema vocabulary is kept, with line numbers. */
 object XsdReader {
     const val XS = "http://www.w3.org/2001/XMLSchema"
+    private const val XML = "http://www.w3.org/XML/1998/namespace"
 
     fun read(path: String, text: String): ReadResult {
         val tree =
@@ -89,11 +90,13 @@ object XsdReader {
 
         /**
          * `tns:Foo` → QName(uri of tns, Foo); an unprefixed name takes the default namespace, or
-         * null when there is none or `xmlns=""` undeclared it.
+         * null when there is none or `xmlns=""` undeclared it. The `xml` prefix is bound in every
+         * document without a declaration, so `xml:lang` names the XML namespace's `lang`.
          */
         fun qname(value: String): QName {
             val i = value.indexOf(':')
-            val uri = if (i < 0) prefixes[""] else prefixes[value.substring(0, i)]
+            val prefix = if (i < 0) "" else value.substring(0, i)
+            val uri = prefixes[prefix] ?: if (prefix == "xml") XML else null
             return QName(uri?.ifEmpty { null }, if (i < 0) value else value.substring(i + 1))
         }
     }

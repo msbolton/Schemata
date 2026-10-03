@@ -30,11 +30,12 @@ interface Importer {
 }
 
 /**
- * Every unit as formatted source, one file per namespace. The formatter proves the emitted text
- * parses; its rejection is an emitter bug, not a user error.
+ * Every unit as formatted source, one file per namespace, with references that would be ambiguous
+ * written in full (see [qualifyAmbiguousRefs]). The formatter proves the emitted text parses; its
+ * rejection is an emitter bug, not a user error.
  */
 fun emitUnits(units: List<SchemataUnit>): List<ImportedFile> =
-    units.map { unit ->
+    qualifyAmbiguousRefs(units).map { unit ->
         val text = SchemataEmitter.emit(unit)
         val path = unit.namespace.replace('.', '/') + ".schemata"
         val formatted = Formatter.format(text, path)

@@ -1867,6 +1867,35 @@ object XsdImport {
         }
 
         /**
+         * An element's anonymous complex type, nested in the enclosing record under the element's
+         * UpperCamel name: a union when its content is a bare choice, a record otherwise.
+         */
+        private fun inlineDeclaration(
+            ct: XComplexType,
+            elementName: String,
+            nested: MutableList<UnitDecl>,
+            siblings: MutableList<UnitDecl>,
+        ): UnitType.Ref {
+            val name = ImportNames.upperCamel(elementName)
+            val content = ct.content
+            if (content is XContent.Choice) {
+                unionExtras(ct, "union '$name'")
+                nested +=
+                    unionFromChoice(
+                        content,
+                        name,
+                        "union '$name'",
+                        ct.doc,
+                        siblings,
+                        checkMismatch = true,
+                    )
+            } else {
+                nested += buildNestedRecord(ct, name, siblings)
+            }
+            return UnitType.Ref(name)
+        }
+
+        /**
          * An anonymous complex type hoisted out of a union member, as a top-level, non-root record.
          */
         private fun buildHoistedRecord(
@@ -1906,9 +1935,11 @@ object XsdImport {
                 when (particle) {
                     is XParticle.Element -> {
                         val el =
-                            if (particle.element.ref != null) {
-                                resolveElementRef(particle.element, unionWhere) ?: return
-                            } else particle.element
+                            withHeadType(
+                                if (particle.element.ref != null) {
+                                    resolveElementRef(particle.element, unionWhere) ?: return
+                                } else particle.element
+                            )
                         val elementName = el.name ?: "member"
                         val pair = memberTypeAndStem(el, unionWhere, siblings) ?: return
                         val (ownType, stem) = pair
@@ -2023,8 +2054,10 @@ object XsdImport {
             if (el.type != null) {
                 val qname = el.type
                 if (qname.namespace == ImportTypes.XS) {
-                    val mapped = ImportTypes.builtin(qname.local)
-                    if (mapped == null) {
+                    // A builtin member is typed as a field of it would be, a bare decimal taking
+                    // the default precision and scale.
+                    val type = resolveTypeRef(qname, unionWhere, el.line) as? UnitType.Scalar
+                    if (type == null) {
                         diagnostics +=
                             lossy(
                                 ImportCodes.UNRESOLVED,
@@ -2034,10 +2067,7 @@ object XsdImport {
                             )
                         return null
                     }
-                    mapped.notes.forEach {
-                        diagnostics += lossy(ImportCodes.WIDENED, unionWhere, it, el.line)
-                    }
-                    return mapped.type to mapped.type.builtin
+                    return type to type.builtin
                 }
                 val targetDoc = docsByNamespace[qname.namespace]
                 if (targetDoc == null) {
@@ -2097,14 +2127,10 @@ object XsdImport {
                 val type = resolveNamedSimpleType(el.inlineSimple, doc.path, unionWhere)
                 return simpleMember(type, unionWhere, el.line)
             }
-            diagnostics +=
-                lossy(
-                    ImportCodes.UNRESOLVED,
-                    unionWhere,
-                    "union member has no declared type",
-                    el.line,
-                )
-            return null
+            // An element with no type holds anything, as one typed xs:anyType does; a union
+            // member has nowhere to carry the field's `@xsd(any_type)`, so it is a plain string.
+            val string = implicitAnyType(unionWhere, el.line)
+            return string to string.builtin
         }
 
         /**
@@ -2417,21 +2443,10 @@ object XsdImport {
                         } else Resolved(headType, el.minOccurs == 0 || el.nillable, null)
                     el.maxOccurs == 1 && el.type == null && el.inlineComplex != null -> {
                         (el.fixed ?: el.default)?.let { noLiteral(it, where, el.line) }
-                        val inlineContent = el.inlineComplex.content
-                        if (inlineContent is XContent.Choice) {
-                            val name = ImportNames.upperCamel(original)
-                            unionExtras(el.inlineComplex, "union '$name'")
-                            val union =
-                                unionFromChoice(
-                                    inlineContent,
-                                    name,
-                                    "union '$name'",
-                                    el.inlineComplex.doc,
-                                    siblings,
-                                    checkMismatch = true,
-                                )
-                            nested += union
-                            Resolved(UnitType.Ref(name), el.minOccurs == 0, null)
+                        if (el.inlineComplex.content is XContent.Choice) {
+                            val ref =
+                                inlineDeclaration(el.inlineComplex, original, nested, siblings)
+                            Resolved(ref, el.minOccurs == 0, null)
                         } else {
                             when (val m = mapWrapper(el, where, nested)) {
                                 is MapResult.AsMap -> Resolved(m.type, el.minOccurs == 0, null)
@@ -2469,9 +2484,14 @@ object XsdImport {
                                     Resolved(UnitType.Ref(wrapperName), el.minOccurs == 0, null)
                                 }
                                 MapResult.NotAMap -> {
-                                    val name = ImportNames.upperCamel(original)
-                                    nested += buildNestedRecord(el.inlineComplex, name, siblings)
-                                    Resolved(UnitType.Ref(name), el.minOccurs == 0, null)
+                                    val ref =
+                                        inlineDeclaration(
+                                            el.inlineComplex,
+                                            original,
+                                            nested,
+                                            siblings,
+                                        )
+                                    Resolved(ref, el.minOccurs == 0, null)
                                 }
                             }
                         }
@@ -2480,6 +2500,9 @@ object XsdImport {
                         // resolveParticleType sees el's own maxOccurs != 1 and wraps the per-
                         // occurrence type in the ListOf itself, recursing through an `item` wrapper
                         // for a nested list or map (`list<list<T>>`, `list<map<K, V>>`, …).
+                        // A repeated element of an anonymous complex type that is neither the
+                        // `item` nor the map wrapper the xsd target writes is a list of the record
+                        // (or union) nested under the element's name, as a single one would be.
                         val type =
                             if (anyType)
                                 UnitType.ListOf(
@@ -2487,7 +2510,17 @@ object XsdImport {
                                     el.nillable,
                                     listRefinements(el.minOccurs, el.maxOccurs),
                                 )
-                            else resolveParticleType(el, where, nested)
+                            else
+                                resolveParticleType(el, where, nested)
+                                    ?: el.inlineComplex
+                                        ?.takeIf { el.type == null }
+                                        ?.let { ic ->
+                                            UnitType.ListOf(
+                                                inlineDeclaration(ic, original, nested, siblings),
+                                                el.nillable,
+                                                listRefinements(el.minOccurs, el.maxOccurs),
+                                            )
+                                        }
                         if (type == null) {
                             diagnostics +=
                                 lossy(
@@ -3150,8 +3183,9 @@ object XsdImport {
             }
             val targetDoc = docsByNamespace[qname.namespace] ?: return null
             val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local } ?: return null
-            // A union of enumerations is an enum declaration of its own.
-            if (st.variety is XVariety.Union && isEnum(st)) {
+            // An enumeration, or a union of them, is an enum declaration of its own: a simple
+            // content value or a restriction based on one names the enum.
+            if (isEnum(st)) {
                 return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
             }
             return resolveNamedSimpleType(st, targetDoc.path, where, visiting + qname)

@@ -190,6 +190,21 @@ class XsdReaderTest {
     }
 
     @Test
+    fun `the xml prefix is bound without a declaration`() {
+        val r =
+            read(
+                """
+                <xs:schema $xs targetNamespace="urn:x">
+                  <xs:complexType name="A"><xs:attribute ref="xml:lang"/></xs:complexType>
+                </xs:schema>
+                """
+                    .trimIndent()
+            )
+        val use = r.doc!!.complexTypes.single().attributes.single() as XAttributeUse.Attribute
+        assertEquals(QName("http://www.w3.org/XML/1998/namespace", "lang"), use.attribute.ref)
+    }
+
+    @Test
     fun `keeps extension content that is a choice as one nested particle`() {
         val r =
             read(
