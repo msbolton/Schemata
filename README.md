@@ -4,7 +4,8 @@
 
 Schemata is a schema language and compiler. You describe a data model once in
 `.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, with every
-lossy decision reported as a warning, or import one from an existing XML Schema.
+lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf, or
+Postgres DDL schema.
 
 ## Install
 
@@ -120,7 +121,7 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
     schemata compile [--target proto,sql,xsd,jsonschema] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata check   [--target proto,sql,xsd,jsonschema]             [--strict] [--format human|json] [--color auto|always|never] PATHS...
-    schemata import  --from xsd [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
     schemata diff    [--target proto,sql,xsd,jsonschema] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
@@ -128,8 +129,8 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
 error, even when another target failed. `check` reports everything `compile` would and
-writes nothing. `import --from xsd` reads existing `.xsd` files and writes `--out/import/<file>`,
-one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
+writes nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql`
+files and writes `--out/import/<file>`, one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
 codes. `diff OLD NEW` judges every change between two schema versions against each target's
 compatibility rulebook, so a breaking change is caught before it ships. `lsp` runs the language
 server an editor starts; the guide's Editor support section covers the VS Code and Zed extensions
@@ -189,7 +190,10 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-target-sql` | relational model, lowering, renderer |
 | `schemata-target-xsd` | XML Schema model, lowering, renderer |
 | `schemata-target-jsonschema` | JSON Schema model, lowering, renderer |
-| `schemata-import-xsd` | XSD reader, importer, Schemata emitter |
+| `schemata-import-api` | the importer interface, the shared model and `SCH24` codes, the Schemata emitter |
+| `schemata-import-xsd` | XSD reader and importer |
+| `schemata-import-proto` | Protobuf reader and importer |
+| `schemata-import-sql` | Postgres DDL reader and importer |
 | `schemata-evolution` | the differ and the per-target compatibility rulebooks |
 | `schemata-lsp` | the language server: workspace model, reference index, lsp4j protocol layer |
 | `schemata-cli` | command surface |

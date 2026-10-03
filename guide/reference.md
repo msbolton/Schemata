@@ -540,7 +540,14 @@ to `urn:schemata:<namespace>`. `@xsd(name = "…")` renames a record, an enum, a
 an enum value. `@xsd(attribute)` on a field lowers it to an XML attribute instead of a child
 element; only a scalar or enum field can be one (SCH2204 otherwise). `@xsd(root = false)` on a
 record keeps it from getting the global element every record gets by default, for a record meant
-to appear only nested inside another.
+to appear only nested inside another. The remaining `@xsd` keys write XML Schema constructs
+Schemata has no type for, and are what `import --from xsd` uses to carry them (section 18):
+`@xsd(any)`, `@xsd(any_attribute)`, `@xsd(any_type)`, and `@xsd(mixed)` on a string, list, or map
+field write a wildcard, an attribute wildcard, an `xs:anyType` element, or mixed content, with
+`@xsd(process)` and `@xsd(wildcard)` giving a wildcard's `processContents` and namespace
+constraint; `@xsd(all)` on a record writes `xs:all` instead of a sequence; `@xsd(list)` on a list
+field writes a list simple type instead of a repeated element; and `@xsd(element_form)` and
+`@xsd(attribute_form)` on a namespace set the schema's form defaults.
 
 `@jsonschema(id = "…")` sets a document's `$id`; without it, the namespace lowers to
 `urn:schemata:<namespace>`. `@jsonschema(name = "…")` renames a record, an enum, a union, a field,
@@ -739,22 +746,72 @@ past the last character.
 
 `schemata --version` prints the compiler's version and exits.
 
-## 18. Importing an XSD
+## 18. Importing
 
-    schemata import --from xsd [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
 
-`import --from xsd` reads existing XML Schema and lowers it to `.schemata` source: one output file
-per namespace, written to `--out/import/<namespace as a path>.schemata`, so a schema whose namespace
-lowers to `shop.orders` writes `out/import/shop/orders.schemata`. A path may be a file or a
-directory, walked recursively for `.xsd` files, the same as `compile`. An `xs:import` or
-`xs:include` target is resolved by its own `schemaLocation` against the importing file's own
-directory; an input itself never needs naming twice just because another input imports it, and an
-input that another input includes is merged into that one rather than imported on its own.
-`--namespace NAME` renames the single output file's namespace and only applies when exactly one
-input file is given; more than one is a usage error, as is a name that is not dotted lower_snake
-segments. Exit codes match `compile`: `0` when nothing is reported, `2` when every diagnostic is a
-warning, `1` when any is an error, or the command line itself was wrong. `--strict` promotes every
-warning below to an error, the same as it does for `compile`.
+`import` reads a schema that already exists, as XML Schema, Protobuf, or Postgres DDL, and writes
+the `.schemata` source that describes the same data, reporting everything it could not carry over
+exactly. What the three formats share comes first; each has its own subsection after it.
+
+### The command
+
+`--from` names the format: `xsd` reads `.xsd` files, `proto` reads `.proto` files, and `sql` reads
+`.sql` files of Postgres DDL. A path may be a file or a directory, walked recursively for files of
+that format, the same as `compile`. The files found are imported together, so a reference from one
+to a declaration in another resolves wherever that declaration is. The output is one file per
+namespace, written to `--out/import/<namespace as a path>.schemata`: namespace `shop.orders` writes
+`out/import/shop/orders.schemata`. Nothing is written when any error is reported. Exit codes match
+`compile`: `0` when nothing is reported, `2` when every diagnostic is a warning, `1` when any is an
+error, or the command line itself was wrong. `--strict` promotes every warning to an error, as it
+does for `compile`, and so keeps the import from writing anything. `--format` and `--color` work
+as they do for `compile`.
+
+Each format names its namespaces from what it has:
+
+- An XML Schema's `targetNamespace` names it, as the XSD subsection describes.
+- A `.proto` or `.sql` file found by walking a directory takes its path under that directory, the
+  way `protoc` addresses a file and the way `compile` lays its output out:
+  `protos/shop/orders.proto`, found by walking `protos`, is `namespace shop.orders`. A segment that is not lower_snake is
+  lower-snaked and the change reported (SCH2402), so `k8s.io/api/core/v1/generated.proto` becomes
+  `k8s_io.api.core.v1.generated`. Importing a directory `compile` wrote, such as `out/proto` or
+  `out/sql`, gets every namespace back under its own name. Proto files that share a package, and a
+  DDL file with tables in several schemas, are named as their subsections describe.
+- A `.proto` or `.sql` file named on its own has no such path. It takes the name it declares, its
+  `package` or the one schema it puts its tables in, when that is already a namespace name, and
+  otherwise its file stem, lower-snaked, reporting the name it derived (SCH2402).
+- A declared name the namespace does not already say is kept: `@proto(package = "…")` when the
+  package differs from the namespace, `@sql(schema = "…")` when the schema is not the namespace's
+  last segment, which is the schema the sql target would otherwise use (section 1).
+
+`--namespace NAME` names the namespace of a single input file and silences that note. It applies
+only when exactly one input file is given; more than one is a usage error, as is a name that is not
+dotted lower_snake segments.
+
+Every import reports in one family:
+
+| Code | Meaning |
+|---|---|
+| SCH2401 | error: a file cannot be read, a reference, import, or include cannot be resolved, or two constructs lower to one name |
+| SCH2402 | warning: a namespace name was derived rather than taken as written |
+| SCH2403 | warning: a construct was approximated; it is kept, but the regenerated schema will differ |
+| SCH2404 | warning: a type or facet was widened or dropped |
+| SCH2405 | warning: a construct was dropped |
+
+The diagnostics appendix lists each message and its help. Each subsection below ends with a table
+of the constructs its format can hold, what each becomes, and the code it reports: none when it
+lowers exactly, SCH2403 or SCH2404 when it is approximated, and SCH2405 when it is dropped.
+
+An import from XSD or Protobuf never carries `@sql(key)`, since neither format declares a key, so
+compiling the result under the sql target reports SCH2106 for every record until you add one by
+hand; the proto, xsd, and jsonschema targets compile it straight away. An import from SQL carries
+the keys its tables declare.
+
+### From XSD
+
+`import --from xsd` resolves an `xs:import` or `xs:include` by its own `schemaLocation` against the
+importing file's directory, so an input never needs naming twice because another input imports it,
+and an input that another input includes is merged into that one rather than imported on its own.
 
 A schema's `targetNamespace` becomes the output's `namespace`. `urn:schemata:<name>` becomes
 `namespace <name>`, matching what the xsd target itself writes for a Schemata namespace. Any other
@@ -763,7 +820,7 @@ real one and a note, SCH2402, naming the namespace it derived; pass `--namespace
 yourself and silence the note. A schema with no `targetNamespace` uses the file stem alone, without
 the annotation; the note still appears, and `--namespace` silences it.
 
-### Types and facets
+#### Types and facets
 
 | XSD type(s) | Schemata type | Notes |
 |---|---|---|
@@ -782,6 +839,7 @@ the annotation; the note still appears, and `--namespace` silences it.
 | `base64Binary` | `bytes` | |
 | `hexBinary` | `bytes` | SCH2404 |
 | `date`, `time`, `dateTime`, `duration` | `date`, `time`, `instant`, `duration` | |
+| `anyType` | `string` with `@xsd(any_type)` | see Wildcards, open content, and mixed |
 | any other builtin | `string` | SCH2404 |
 
 `minInclusive`/`maxInclusive` and `minLength`/`maxLength`/`length` become `min`/`max`.
@@ -796,10 +854,9 @@ backslash before a quote, which no valid XSD regex does, has no literal and is d
 `enumeration` becomes an `enum`. `whiteSpace` and any other facet the table does not name are
 dropped (SCH2404); a lone `totalDigits` or `fractionDigits` falls under the `decimal(38, 9)` note
 above. A named simple type with none of this, just a restriction of a builtin, is inlined at its
-use. A `list` or `union` simple type has no Schemata equivalent and imports as plain `string`
-(SCH2405).
+use. List and union simple types have a subsection of their own below.
 
-### Records, unions, and enums
+#### Names
 
 A named complex type becomes a `record`. A trailing `Type` is stripped when what is left is
 UpperCamel (`OrderType` becomes `Order`); a name without that suffix, such as `Address`, imports as
@@ -820,52 +877,9 @@ named type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) a
 whose record name another global element's record already took, such as `SecondDefiningParameter`
 after `secondDefiningParameter`, is numbered (`SecondDefiningParameter2`, SCH2403). The xsd
 target writes one global element per record of its own namespace, so a second global element of the
-same type, and one of a simple type or of a type in another namespace, are dropped (SCH2405).
-
-A `sequence`'s children become fields in order; `xs:all` and a nested `sequence` are flattened into
-the same list of fields (SCH2403). A complex type whose whole content model is a `choice` becomes a
-`union` instead of a record, one member per branch's type; the branch elements' own names are not
-kept, which is reported (SCH2403) when one differs from what its type's name would lower to. Two or
-more branches of one type could not be told apart, so each of them becomes a record of its own,
-named after its element, non-root, holding the type in a `value` field (`record ArchiveTimeStamp {
-value: XAdESTimeStamp }`), and the union lists those records (SCH2403). A choice of nothing but
-wildcards has no branch a union could list, so its type is a record whose wildcards are `@xsd(any)`
-fields, as in a sequence. Only a choice that occurs once, in a type with no attributes, attribute
-wildcard, or mixed content, makes a union; a choice that repeats, or a type carrying any of those, is
-a record instead, holding the choice as a sequence would (below) beside its attribute and text
-fields. A union has nowhere to put `abstract`, so a choice-only type's is dropped (SCH2405). An
-inline `choice` nested inside a `sequence` becomes, when every branch is a complex type, a
-synthesized union named `<Record>Choice` held in a field called `choice` (SCH2403); otherwise each
-branch, a wildcard among them, becomes its own optional field (SCH2403), a list when the choice
-repeats. An element with `maxOccurs` greater than one becomes `list<T>`, with
-`min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the element type, giving
-`list<T?>`; a `default` on a repeated element is dropped (SCH2403), since a list has no default. An
-element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A single element with
-`minOccurs="0"` becomes `T?`, unless it carries a `default`, which already implies optional
-presence. An element with both a `type` and an inline type keeps the `type` (SCH2403).
-
-An attribute becomes an `@xsd(attribute)` field, placed after the element fields; a required
-attribute (`use="required"`) is non-nullable, any other is `?`. A `fixed` value is imported as a
-Schemata default (SCH2405), since Schemata has no equivalent of a value XML forces on every
-instance. A default carries over only when Schemata can write it as a literal: a number as a plain
-decimal (`.5` becomes `0.5`, `1e5` becomes `100000`), a boolean's `1` and `0` as `true` and `false`,
-a string quoted, and an enum value by its imported name. One with no Schemata literal, such as
-`INF`, a `dateTime`, a value of a complex type, or a value its enum does not have, is dropped
-(SCH2403). The xsd target's own rendering of `map<K, V>` is recognized on the way back in and
-becomes `map<K, V>` again, not a record. An anonymous complex type becomes a record nested under the
-element that uses it, named after that element. A complex type never used as a global element
-becomes `@xsd(root = false)`, for one meant to appear only nested inside another.
-
-An `extension` flattens the base type's fields in first, ahead of its own (SCH2403), since Schemata
-has no base-record relationship to preserve. A `restriction` of a complex type keeps only its own
-content (SCH2403). A `simpleContent` extension or restriction becomes a record with a `value` field
-of the base's simple type, beside the type's attributes (SCH2403). When the base is itself a complex
-type with simple content, the chain is followed to the simple type at its root, whose type `value`
-takes with every facet along the way, and the attributes declared along the chain are inherited, as
-a complex restriction inherits its base's; only a chain that reaches a type with element content
-imports `value` as `string` (SCH2403). A named `group` or `attributeGroup` expands in place
-wherever it is referenced. `xs:documentation` becomes a `///` doc comment, each line without the
-indentation the schema gave it; `xs:appinfo` is dropped silently.
+same type, and one of a simple type or of a type in another namespace, are dropped (SCH2405). A
+complex type never used as a global element becomes `@xsd(root = false)`. An anonymous complex type
+becomes a record nested under the element that uses it, named after that element.
 
 An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
 lower_snake with `@xsd(name = "…")` restoring the original, silently; a value that cannot be an XML
@@ -880,11 +894,278 @@ took is numbered (`v_2`). An element and an attribute of one record with the sam
 as they do in XML: the element keeps the name and the attribute takes `<name>_attribute`, which the
 regenerated attribute is then named too (SCH2403).
 
-### What is dropped
+An attribute becomes an `@xsd(attribute)` field, placed after the element fields; a required
+attribute (`use="required"`) is non-nullable, any other is `?`. A `fixed` value is imported as a
+Schemata default (SCH2405), since Schemata has no equivalent of a value XML forces on every
+instance; on a repeated element, which has no default, it is dropped (SCH2405). A default carries
+over only when Schemata can write it as a literal: a number as a plain decimal (`.5` becomes `0.5`,
+`1e5` becomes `100000`), a boolean's `1` and `0` as `true` and `false`, a string quoted, and an enum
+value by its imported name. One with no Schemata literal, such as `INF`, a `dateTime`, a value of a
+complex type, or a value its enum does not have, is dropped (SCH2403). `xs:documentation` becomes a
+`///` doc comment, each line without the indentation the schema gave it; `xs:appinfo` is dropped
+silently.
 
-`xs:any`, `xs:anyAttribute`, mixed content, a substitution group, an identity constraint other than
-the map form above, `redefine`, `override`, `notation`, and `abstract` all have no Schemata
-equivalent and are dropped, reported SCH2405.
+#### Derivation and polymorphism
+
+Schemata has no base-record relationship, so an `extension` flattens the base type's fields in
+first, ahead of its own (SCH2403). A `restriction` of a complex type keeps only its own content and
+inherits the base's attributes, less any it prohibits (SCH2403). An extension of `xs:anyType` has
+an empty base. A `simpleContent` extension or restriction becomes a record with a `value` field of
+the base's simple type, beside the type's attributes (SCH2403). When the base is itself a complex
+type with simple content, the chain is followed to the simple type at its root, whose type `value`
+takes with every facet along the way, and the attributes declared along the chain are inherited;
+only a chain that reaches a type with element content imports `value` as `string` (SCH2403).
+
+What XSD expresses through derivation, a value that is one of several types, Schemata expresses as
+a union, and the importer makes that union. A polymorphic head is either of two things:
+
+- An abstract complex type. Its members are the non-abstract complex types that derive from it, at
+  any depth and in any input; an abstract type in between stands for its own members.
+- A substitution group's head element. Its members are the types of the global elements whose
+  `substitutionGroup` chain reaches it, plus the head's own type when the head is not abstract.
+
+A head with two or more members becomes a union of them, declared in the head's namespace and
+importing the namespaces its members live in, and every element of the abstract type, and every
+reference to the head element, holds that union (SCH2403; the regenerated XSD writes it as a
+choice):
+
+```xml
+<xs:complexType name="ShapeType" abstract="true">
+  <xs:sequence><xs:element name="label" type="xs:string"/></xs:sequence>
+</xs:complexType>
+<xs:complexType name="CircleType">
+  <xs:complexContent><xs:extension base="ShapeType">
+    <xs:sequence><xs:element name="radius" type="xs:double"/></xs:sequence>
+  </xs:extension></xs:complexContent>
+</xs:complexType>
+<xs:complexType name="SquareType">
+  <xs:complexContent><xs:extension base="ShapeType">
+    <xs:sequence><xs:element name="side" type="xs:double"/></xs:sequence>
+  </xs:extension></xs:complexContent>
+</xs:complexType>
+<xs:complexType name="DrawingType">
+  <xs:sequence><xs:element name="shape" type="ShapeType" maxOccurs="unbounded"/></xs:sequence>
+</xs:complexType>
+<xs:element name="drawing" type="DrawingType"/>
+```
+
+imports as
+
+```
+union Shape = Circle | Square
+
+@xsd(root = false)
+record Circle { label: string radius: float64 }
+
+@xsd(root = false)
+record Square { label: string side: float64 }
+
+record Drawing { shape: list<Shape>(min = 1) }
+```
+
+A substitution group's union is named after its head element, or `<Head>Choice` when a type or
+another record of that namespace already has that name; when the head element's type is an
+abstract type with exactly the same members, the type's union serves both. A head with one member
+lowers to that member's type wherever it is used, with no union (SCH2403). An abstract type with
+no members stays a record, its `abstract` dropped (SCH2405), and a head element with no members
+stays an element of its own type. A member element declared with an inline type has no type a
+union could name, so it is left out of the union (SCH2405); a member element with no type at all
+takes its head's. `block`, `final`, `blockDefault`, and `finalDefault` have no Schemata
+equivalent and are dropped, once per document (SCH2405).
+
+Only an abstract type or a substitution group makes a union. A concrete base type stays a record
+of its own fields, and each type derived from it a separate record with the base's fields flattened
+in. An instance that uses `xsi:type` to put a derived type where the concrete base is declared is
+therefore not valid against the regenerated XSD, and the derived type's extra fields have no place
+in the base's record. If such variants matter, make the base abstract, or list the variants as a
+substitution group or a choice, before importing.
+
+#### Wildcards, open content, and mixed
+
+Open content becomes a field that holds the open part as text, with an `@xsd` key the xsd target
+reads to write the same construct back:
+
+- An `xs:any` becomes a field named `any` (`any_2`, `any_3` for a record's later wildcards) with
+  `@xsd(any)`: `string`, `string?` with `minOccurs="0"`, or `list<string>` when it repeats.
+- An `xs:anyAttribute` becomes `attributes: map<string, string>` with `@xsd(any_attribute)`.
+- `mixed="true"` adds `text: string?` with `@xsd(mixed)`, placed after the element fields.
+- An element of type `xs:anyType`, or one declared with no type at all, becomes a `string` field
+  with `@xsd(any_type)`.
+
+A wildcard's `processContents` is kept as `@xsd(process = "strict")` or `@xsd(process = "skip")`.
+The xsd target writes `lax` when the key is absent, so `lax` needs no key; XSD's own default when
+the attribute is missing is `strict`, so a wildcard that says nothing gets
+`@xsd(process = "strict")`. A namespace constraint other than `##any` is kept as
+`@xsd(wildcard = "##other")`, or whatever list it names. When a declared element or attribute
+already takes one of these names, the synthesized field gives way: `any_2`, `mixed_text`,
+`any_attributes`.
+
+```xml
+<xs:complexType name="ParaType" mixed="true">
+  <xs:sequence>
+    <xs:element name="bold" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+    <xs:any namespace="##other" minOccurs="0" maxOccurs="unbounded"/>
+    <xs:element name="extra" type="xs:anyType" minOccurs="0"/>
+  </xs:sequence>
+  <xs:attribute name="lang" type="xs:string"/>
+  <xs:anyAttribute processContents="lax"/>
+</xs:complexType>
+```
+
+imports, with no diagnostics, as
+
+```
+record Para {
+  bold:       list<string>
+  @xsd(any)
+  @xsd(process = "strict")
+  @xsd(wildcard = "##other")
+  any:        list<string>
+  @xsd(any_type) extra:      string?
+  @xsd(mixed) text:       string?
+  @xsd(attribute) lang:       string?
+  @xsd(any_attribute) attributes: map<string, string>
+}
+```
+
+A wildcard that is a branch of a choice the importer makes a union has no type to be a member, so
+it is dropped (SCH2405); a choice of nothing but wildcards makes a record of `@xsd(any)` fields
+instead of a union.
+
+#### Content models
+
+A `sequence`'s children become fields in order. An element with `maxOccurs` greater than one
+becomes `list<T>`, with `min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to
+the element type, giving `list<T?>`; a `default` on a repeated element is dropped (SCH2403), since a
+list has no default. An element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A
+single element with `minOccurs="0"` becomes `T?`, unless it carries a `default`, which already
+implies optional presence. An element with both a `type` and an inline type keeps the `type`
+(SCH2403).
+
+An `xs:all` that is a type's content becomes a record with `@xsd(all)`, which the xsd target
+writes back as `xs:all`; each element is required or, with `minOccurs="0"`, `?`, since `xs:all`
+holds an element at most once. One reached through an extension's base is read as a sequence
+(SCH2403), and one inside a group inside a sequence is flattened into the record (SCH2403).
+
+A `sequence` nested inside another that occurs exactly once adds nothing, and its elements are
+flattened in place, silently. One that is optional or repeats becomes a record nested in the type,
+named after its first element (`<First>Group`), held by a field `<first>_group` that is `?` or a
+list to match (SCH2403); a second one starting with the same element is numbered (`XGroup2`).
+
+A complex type whose whole content model is a `choice` becomes a `union`, one member per branch:
+
+- An element branch is its type. The branch element's own name is not kept, which is reported
+  (SCH2403) when it differs from what its type's name would lower to.
+- A `sequence` or `xs:all` branch becomes a top-level record with `@xsd(root = false)`, named after
+  its first element (`<First>Group`), and the union lists it (SCH2403).
+- A `choice` nested in the choice adds its branches to the union's own.
+- An element branch of a list type cannot be a union member and imports as `string` (SCH2405); one
+  with no type has nowhere to carry `@xsd(any_type)` and is a plain `string` (SCH2404).
+- Two or more branches of one type could not be told apart, so each becomes a record of its own,
+  named after its element, non-root, holding the type in a `value` field (`record ArchiveTimeStamp
+  { value: XAdESTimeStamp }`), and the union lists those records (SCH2403).
+
+Only a choice that occurs once, in a type with no attributes, attribute wildcard, or mixed content,
+makes a union; a choice that repeats, or a type carrying any of those, is a record instead,
+holding the choice as an inline one (below) beside its attribute and text fields. A union has
+nowhere to put `abstract`, so a choice-only type's is dropped (SCH2405). An inline `choice` nested
+inside a `sequence` becomes, when every branch is a complex type, a synthesized union named
+`<Record>Choice` held in a field called `choice` (SCH2403); otherwise each branch, a wildcard among
+them, becomes its own optional field (SCH2403), a list when the choice repeats.
+
+```xml
+<xs:complexType name="SettingsType">
+  <xs:all>
+    <xs:element name="units" type="xs:string"/>
+    <xs:element name="zoom" type="xs:int" minOccurs="0"/>
+  </xs:all>
+</xs:complexType>
+<xs:complexType name="TrackType">
+  <xs:sequence>
+    <xs:element name="name" type="xs:string"/>
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="lat" type="xs:double"/>
+      <xs:element name="lon" type="xs:double"/>
+    </xs:sequence>
+  </xs:sequence>
+</xs:complexType>
+<xs:complexType name="PlaceType">
+  <xs:choice>
+    <xs:element name="code" type="xs:string"/>
+    <xs:sequence>
+      <xs:element name="street" type="xs:string"/>
+      <xs:element name="city" type="xs:string"/>
+    </xs:sequence>
+  </xs:choice>
+</xs:complexType>
+```
+
+imports as
+
+```
+@xsd(all)
+record Settings { units: string zoom: int32? }
+
+record Track {
+  name:      string
+  lat_group: list<LatGroup>
+
+  record LatGroup { lat: float64 lon: float64 }
+}
+
+union Place = string | StreetGroup
+
+@xsd(root = false)
+record StreetGroup { street: string city: string }
+```
+
+reporting the `lat`/`lon` sequence, the `code` branch's name, and the `street` branch's record
+(SCH2403 each). A named `group` or `attributeGroup` expands in place wherever it is referenced; a
+group reference that repeats becomes a record named after the group, held by a field of the same
+name (SCH2403). The xsd target's own rendering of `map<K, V>` is recognized on the way back in and
+becomes `map<K, V>` again, not a record.
+
+#### Simple types
+
+An `xs:list` simple type becomes `list<T>` of its item type, with `@xsd(list)` so the xsd target
+writes it back as a whitespace-separated list rather than a repeated element; `length`,
+`minLength`, and `maxLength` on a restricted list become the list's `min` and `max`, and any other
+facet on it is dropped (SCH2404). An item type that is itself a list imports as `string` (SCH2403),
+and a repeated element of a list type becomes a list of lists (SCH2403).
+
+An `xs:union` simple type becomes what its members have in common, reported (SCH2403) either way:
+the one builtin they all lower to (`xs:int xs:short` gives `int32`), or, when every member is an
+enumeration, one enum of all their values in order, each value once. A named union of enumerations
+is a top-level enum of that name; an inline one is nested in the record that uses it. Any other
+union imports as `string`.
+
+```xml
+<xs:simpleType name="Ints"><xs:list itemType="xs:int"/></xs:simpleType>
+<xs:simpleType name="AnySize"><xs:union memberTypes="Size Extra"/></xs:simpleType>
+```
+
+given `Size` with the values `s` and `m` and `Extra` with `xl`, a field of `AnySize` holds
+`enum AnySize { s, m, xl }` and a field of `Ints` is `@xsd(list) chest: list<int32>`.
+
+#### Forms and includes
+
+The xsd target writes elements qualified and attributes unqualified. A schema whose
+`elementFormDefault` or `attributeFormDefault` says otherwise carries
+`@xsd(element_form = "unqualified")` or `@xsd(attribute_form = "qualified")` on its namespace, which
+the xsd target writes back. `elementFormDefault` is `unqualified` when a schema does not set it, so
+a schema that says nothing gets `@xsd(element_form = "unqualified")`. A `form` on one element or
+attribute that differs from its schema's default has no Schemata equivalent and is dropped
+(SCH2403), as are an included document's own form defaults when they differ from the including
+document's (SCH2403).
+
+An `xs:include` merges the included document into the including one, and includes of includes in
+turn; an include cycle stops at the first document it would visit twice. An included document with
+no `targetNamespace` is a chameleon: it takes the including document's namespace, references and
+all, so `type="Foo"` written inside it means the includer's `Foo`. An included document that
+declares another namespace is an error (SCH2401), and so is one that declares a namespace when the
+including document has none. `xs:redefine` and `xs:override` are read as includes of the documents
+they name, and the redefinitions themselves are dropped (SCH2405). A `schemaLocation` with `..`
+segments is normalized, so one that climbs out of its directory still finds an input.
 
 An unresolved import, include, or type reference is an error (SCH2401), as are two inputs declaring
 the same namespace without one including the other, and two elements lowering to the same field. So
@@ -893,46 +1174,626 @@ missing an attribute it cannot be read without (a `group` with no `name`, an `ex
 `base`), and a document whose `DOCTYPE` names an external DTD, which the importer refuses to read. A
 `DOCTYPE` with only an internal subset is read, and nothing external it names is ever loaded.
 
-### Codes
+#### What each construct becomes
 
-| Code | Meaning |
-|---|---|
-| SCH2401 | error: an xsd reference, import, or include cannot be resolved, or two constructs lower to one name |
-| SCH2402 | warning: a namespace name was derived from the file name |
-| SCH2403 | warning: an xsd construct was approximated |
-| SCH2404 | warning: an xsd type or facet was widened or dropped |
-| SCH2405 | warning: an xsd construct was dropped |
+| XSD construct | Imported as | Code |
+|---|---|---|
+| a named complex type | a record | SCH2403 when its name will not regenerate |
+| a global element of a named type | the type's record, marked as a root | SCH2403 when its name will not regenerate |
+| a global element with an anonymous type | a top-level record | SCH2403 when its name will not regenerate |
+| a second global element of one type, one of a simple type, one of another namespace's type | nothing | SCH2405 |
+| an anonymous complex type | a record nested under the element | |
+| an element | a field; `T?` when optional, `list<T>` when repeated | |
+| an element with both a `type` and an inline type | a field of the `type` | SCH2403 |
+| `maxOccurs="0"` | nothing | SCH2405 |
+| an attribute | an `@xsd(attribute)` field | |
+| a `default` with a Schemata literal | a default | |
+| a `default` without one, or on a repeated element | nothing | SCH2403 |
+| `fixed` | a default; nothing on a repeated element | SCH2405 |
+| an enumeration | an enum | |
+| a facet | a refinement, per the type table | SCH2404 when dropped |
+| `xs:documentation` | a doc comment | |
+| `xs:appinfo` | nothing, silently | |
+| a nested sequence occurring once | its elements, flattened | |
+| an optional or repeated nested sequence | a nested `<First>Group` record | SCH2403 |
+| `xs:all` as a type's content | an `@xsd(all)` record | |
+| `xs:all` through an extension base, or in a group in a sequence | a sequence, flattened | SCH2403 |
+| a choice as a type's whole content | a union | SCH2403 when a branch name differs |
+| a sequence or `xs:all` branch of a choice | a top-level `<First>Group` record the union lists | SCH2403 |
+| two branches of one type | a record per branch holding `value` | SCH2403 |
+| an inline choice in a sequence | a `<Record>Choice` union, or one optional field per branch | SCH2403 |
+| a group or attribute group reference | its content, in place | |
+| a repeated group reference | a record named after the group | SCH2403 |
+| an extension | the base's fields flattened in | SCH2403 |
+| a complex restriction | its own content and the base's attributes | SCH2403 |
+| simple content | a record with a `value` field | SCH2403 |
+| an abstract type with members | a union of them | SCH2403 |
+| a substitution group with members | a union of them | SCH2403 |
+| a head with one member | that member's type | SCH2403 |
+| an abstract type with no members | a record | SCH2405 |
+| a substitution member with an inline type | nothing | SCH2405 |
+| `abstract` on a choice-only type | nothing | SCH2405 |
+| `block`, `final`, `blockDefault`, `finalDefault` | nothing | SCH2405 |
+| `xs:any` | an `@xsd(any)` string field | |
+| `xs:any` as a branch of a union | nothing | SCH2405 |
+| `xs:anyAttribute` | an `@xsd(any_attribute)` map field | |
+| `mixed="true"` | an `@xsd(mixed)` text field | |
+| `xs:anyType`, or an element with no type | an `@xsd(any_type)` string field | |
+| a list simple type | an `@xsd(list)` list | |
+| a list of lists | `string` | SCH2403 |
+| a union simple type | its shared builtin, an enum of its values, or `string` | SCH2403 |
+| a choice branch of a list type | a `string` member | SCH2405 |
+| a choice branch with no type | a `string` member | SCH2404 |
+| `elementFormDefault`, `attributeFormDefault` | `@xsd(element_form)`, `@xsd(attribute_form)` | |
+| a `form` that differs from the default | nothing | SCH2403 |
+| `xs:import` | an `import` of the namespace | |
+| `xs:include` | the included declarations, merged | |
+| `xs:redefine`, `xs:override` | the named document, merged; the redefinitions dropped | SCH2405 |
+| `xs:notation` | nothing | SCH2405 |
+| an identity constraint, other than the map form | nothing | SCH2405 |
 
-The diagnostics appendix lists the exact message and help text for each.
+### From Protobuf
 
-An imported record never carries `@sql(key)`, so compiling the result under the sql target reports
-SCH2106 for every record until you add one by hand; the proto, xsd, and jsonschema targets compile
-the import straight away. Importing the xsd target's own output regenerates it byte for byte, with
-no diagnostics at all, which is how the round trip is tested.
+`import --from proto` reads proto2, proto3, and editions files. An `import` resolves among the
+inputs by its path under their roots (the directories named on the command line), then beside the
+importing file, then under each root on disk; a file found that way is read and imported too. The
+well-known files `google/protobuf/timestamp.proto`, `duration.proto`, `wrappers.proto`,
+`any.proto`, `struct.proto`, `field_mask.proto`, and `empty.proto` need no file at all, since their
+types are known by name. Files under one root that declare one package are one package to
+`protoc`, so they import as one namespace, the package's, with each segment lower-snaked if need be
+(SCH2402). Two files whose namespaces coincide but whose packages differ are an error (SCH2401).
 
-From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
+| Protobuf type | Schemata type | Notes |
+|---|---|---|
+| `double`, `float` | `float64`, `float32` | |
+| `int32`, `int64`, `bool`, `string`, `bytes` | the same | |
+| `sint32`, `sfixed32` | `int32` | SCH2404 |
+| `sint64`, `sfixed64` | `int64` | SCH2404 |
+| `uint32`, `fixed32` | `int64(min = 0, max = 4294967295)` | SCH2404 |
+| `uint64`, `fixed64` | `int64(min = 0)` | SCH2404: values above `int64`'s range are lost |
+| a message or enum | a reference, spelled as Schemata resolves it from the field | |
+| `google.protobuf.Timestamp`, `Duration` | `instant`, `duration` | |
+| a wrapper, such as `google.protobuf.StringValue` | its scalar, `?` | SCH2403: the regenerated field is `optional`, not a wrapper |
+| `google.protobuf.Any` | `bytes` | SCH2404 |
+| `google.protobuf.Struct`, `Value`, `ListValue`, `FieldMask`, `Empty` | `string` | SCH2404 |
+
+A proto3 field with no label is required, `T`; an `optional` one is `T?`; a `repeated` one is
+`list<T>`. A proto2 `required` field is `T`, and an `optional` one `T?` unless it has a
+`[default]`. A message-typed field has presence on the wire whatever its label, so Protobuf alone
+cannot say whether a Schemata field of a record type was `T` or `T?`: it imports as `T`, unless a
+note says `T?` (below). Field numbers become ordinals, and names that are not lower_snake are
+lower-snaked with `@proto(name = "…")` restoring them; a message or enum name that is not
+UpperCamel gets the same treatment, and a field named after a keyword takes a `_value` suffix.
+Two fields, values, or declarations that lower to one name are an error (SCH2401). Leading comments become doc comments,
+with a trailing comment on the same line added after a blank line; a comment separated from its
+declaration by a blank line is not a doc and is dropped silently.
+
+A `map<K, V>` becomes `map<K, V>`. A `string`, `int32`, or `int64` key carries over; a `sint` or
+`sfixed` key becomes `int32` or `int64`, and a `uint` or `fixed` key `int64` (SCH2404). Schemata has
+no `bool` map key, so a map with one is dropped, field and all (SCH2405).
+
+An enum loses what the Protobuf target adds to it. The target writes each value as
+`<UPPER_SNAKE(Enum)>_<VALUE>` after a synthesized `<UPPER_SNAKE(Enum)>_UNSPECIFIED = 0`, so the
+prefix comes off (`STATUS_PENDING` in `Status` becomes `pending`) and that zero value is dropped
+silently. A zero value spelled another way that means "not set", such as `UNKNOWN`, `UNSET`, or
+`LEVEL_UNKNOWN`, is dropped too, reported because the regenerated enum names it
+`<PREFIX>_UNSPECIFIED` (SCH2403). A value the target would spell differently, such as `RED` in
+`Color`, keeps its spelling in `@proto(name = "…")`. Value numbers become ordinals, unless one is
+zero or negative after the zero value is set aside: then the values are renumbered in order and
+carry no ordinals (SCH2403). A Schemata enum needs a value, so when the zero value is the only one,
+it stays, under a spelling the target can write beside the zero value it synthesizes (SCH2403). An
+alias, a second name for a number, is dropped (SCH2405).
+
+A message that is exactly one `oneof`, with nothing else in it and members of distinct types, is
+how the Protobuf target writes a union, and imports as one, its field numbers becoming the members'
+ordinals. A `oneof` not named `kind` (SCH2403), or a member field named other than the target
+would name it (SCH2403), is reported, since the regenerated message will differ; a member's
+`deprecated` and default are dropped (SCH2405). Any other `oneof` becomes one nullable field per
+member (SCH2403): at most one of them is set, which Schemata cannot say.
+
+`reserved` numbers and ranges become `reserved` ordinals and reserved names become reserved names,
+lower-snaked when need be (SCH2403). An enum's reserved numbers below 1 are dropped (SCH2403),
+since Schemata ordinals start at 1.
+
+Options steer how code is generated and how fields are encoded, not what the data is, so they are
+ignored silently: file options such as `java_package` and `go_package`, message and enum options,
+`packed`, editions `features`, and custom options in parentheses. One is read: `deprecated`, on a
+message, enum, field, or value, becomes `@deprecated`. `json_name` is dropped (SCH2405), since
+Schemata derives every JSON name itself.
+
+The Protobuf target's `// schemata:` comments are read back; a hand-written file may use them too.
+A trailing `// schemata: <type>` after a field gives the Schemata type the proto type stands for,
+with its refinements and nullability, and `; default = <literal>` after it, or
+`// schemata: default = <literal>` alone, the default. The note applies only when it fits the field:
+a proto `string` may carry `string`, `uuid`, `decimal`, `date`, or `time`; every other scalar only
+itself; a message or enum field only that type's name; a list or map element by element. A note
+that does not fit, or does not read as a type, is ignored (SCH2403), and so is a default that names
+no value of its enum.
+
+```proto
+message Order {
+  string id = 1;  // schemata: uuid
+  Payment payment = 2;  // schemata: Payment?
+  int64 points = 3;  // schemata: int64(min = 0, max = 4294967295)
+}
 ```
-/// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
-///
-/// GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
-@xsd(namespace = "http://www.topografix.com/GPX/1/1")
-namespace gpx
 
-/// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
-/// to the extensions section of the GPX document.
-@xsd(name = "gpx")
-record Gpx {
-  /// Metadata about the file.
-  metadata:   Metadata?
-  /// A list of waypoints.
-  wpt:        list<Wpt>
-  /// A list of routes.
-  rte:        list<Rte>
-  /// A list of tracks.
-  trk:        list<Trk>
-  /// You can add extend GPX by adding your own elements from another schema here.
-  extensions: Extensions?
+gives `#1 id: uuid`, `#2 payment: Payment?`, and `#3 points: int64(min = 0, max = 4294967295)`,
+with no diagnostics.
+
+A proto2 file is read the same way, with `[default = …]` carried when Schemata can write it as a
+literal (a string, a boolean, a decimal or hex or octal integer, a decimal number, or an enum value
+by its imported name) and dropped otherwise (SCH2403). Groups, `extensions` ranges, and `extend`
+blocks are dropped (SCH2405). An editions file (`edition = "2023"`) is read as proto3, reported
+once (SCH2403): a field is `T?` only when it says `optional`, whatever its features say.
+`import public` re-exports nothing in Schemata (SCH2403); the importing file imports the namespace
+directly. A service has no place in the data language yet, so each `rpc` is dropped (SCH2405).
+
+Most of the above, in one file, `protos/shop/orders.proto`:
+
+```proto
+syntax = "proto3";
+
+package shop.orders;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option java_package = "com.example.shop";
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PENDING = 1;
+  STATUS_PAID = 2;
+}
+
+// One checkout.
+message Order {
+  string id = 1;  // schemata: uuid
+  Status status = 2;
+  repeated Line lines = 3;
+  map<string, string> labels = 4;
+  google.protobuf.Timestamp placed_at = 5;
+  google.protobuf.StringValue note = 6;
+  optional int32 priority = 7;
+  Payment payment = 8;  // schemata: Payment?
+  uint32 points = 9;
+  reserved 10, 12 to 14;
+  reserved "coupon";
+
+  message Line {
+    string sku = 1;
+    int64 quantity = 2;
+  }
+}
+
+message Payment {
+  oneof kind {
+    Card card = 1;
+    string voucher = 2;
+  }
+}
+
+message Card {
+  string last4 = 1;
+}
 ```
+
+`schemata import --from proto protos` writes `out/import/shop/orders.schemata`:
+
+```
+namespace shop.orders
+
+enum Status { #1 pending, #2 paid }
+
+/// One checkout.
+record Order {
+  #1 id:        uuid
+  #2 status:    Status
+  #3 lines:     list<Line>
+  #4 labels:    map<string, string>
+  #5 placed_at: instant
+  #6 note:      string?
+  #7 priority:  int32?
+  #8 payment:   Payment?
+  #9 points:    int64(min = 0, max = 4294967295)
+
+  record Line { #1 sku: string #2 quantity: int64 }
+
+  reserved #10, #12..#14, "coupon"
+}
+
+union Payment = #1 Card | #2 string
+
+record Card { #1 last4: string }
+```
+
+and reports the wrapper (SCH2403), the `uint32` (SCH2404), and the `voucher` member, which the
+regenerated `oneof` will name `string` (SCH2403).
+
+#### What each construct becomes
+
+| Protobuf construct | Imported as | Code |
+|---|---|---|
+| `syntax = "proto2"` or `"proto3"` | read | |
+| `edition = "…"` | read as proto3 | SCH2403 |
+| `package` | the namespace, or `@proto(package)` beside a path's | SCH2402 when derived |
+| `import` | an `import` of the namespace the file lowers to | SCH2401 when unresolved |
+| `import public` | an `import`; nothing re-exported | SCH2403 |
+| a message | a record, nested messages and enums nested in it | |
+| a message that is exactly one `oneof` of distinct types | a union | SCH2403 when its names differ from the target's |
+| any other `oneof` | one nullable field per member | SCH2403 |
+| a field | a field with its number as its ordinal | |
+| a field of a widened scalar or well-known type | per the type table | SCH2403, SCH2404 |
+| a map with a `bool` key | nothing | SCH2405 |
+| a map with another integer key | `map<int32, V>` or `map<int64, V>` | SCH2404 |
+| an enum | an enum without the prefix and the synthesized zero value | |
+| a zero value spelled another way | nothing | SCH2403 |
+| an enum value numbered 0 or below | values renumbered without ordinals | SCH2403 |
+| an alias | nothing | SCH2405 |
+| `reserved` | `reserved` | SCH2403 when a name is renamed or a number is below 1 |
+| `// schemata:` note | the type and default it gives | SCH2403 when ignored |
+| a proto2 `[default]` | a default | SCH2403 when it has no Schemata literal |
+| `[deprecated = true]`, `option deprecated = true` | `@deprecated` | SCH2405 on a union member |
+| `json_name` | nothing | SCH2405 |
+| any other option | nothing, silently | |
+| a group | nothing | SCH2405 |
+| `extensions`, `extend` | nothing | SCH2405 |
+| a service | nothing, per `rpc` | SCH2405 |
+| a doc comment | a doc comment | |
+
+### From SQL
+
+`import --from sql` reads Postgres DDL, hand-written or as `pg_dump` writes it. Every input is read
+into one catalog, so a constraint, index, or comment may name a table another file creates, as the
+sql target itself writes a foreign key between two files into the later one. A statement the reader
+cannot parse is an error (SCH2401), and reading resumes after the next `;`.
+
+The statements read are `CREATE SCHEMA`, `CREATE TABLE`, `CREATE [UNIQUE] INDEX`,
+`ALTER TABLE … ADD` of a constraint, and `COMMENT ON TABLE` and `COMMENT ON COLUMN`. Statements with
+no bearing on the shape of the data are ignored silently: `SET`, `SELECT`, `GRANT`, `REVOKE`,
+transactions, `DROP`, every other `ALTER`, `CREATE SEQUENCE`, `EXTENSION`, `ROLE`, and the like,
+and a comment on anything but a table or a column. Statements that define something Schemata has
+no place for, or carry data, are dropped (SCH2405): views, types, domains, functions, procedures,
+triggers, rules, policies, and the rest of `CREATE`'s forms, `CREATE TEMP TABLE`,
+`CREATE TABLE … AS`, `OF`, and `PARTITION OF`, `ALTER TABLE … ADD COLUMN`, `DO`, `INSERT`, `UPDATE`,
+`DELETE`, `COPY`, and an index on an expression. On a table, `INHERITS`, `PARTITION BY`, `WITH`,
+`TABLESPACE`, `USING`, `ON COMMIT`, `UNLOGGED`, `LIKE`, and an `EXCLUDE` constraint are dropped
+(SCH2405), and a `GENERATED … STORED` column imports as a plain column (SCH2405).
+
+Each schema becomes one namespace, named as the command section describes; a schema sharing its
+file with others takes its own name, or the stem when its name is not a namespace name. Tables
+created without a schema are in `public`, which is never a namespace's name. Every table becomes a
+record named after it in UpperCamel, with `@sql(table = "…")` when the name will not regenerate,
+and each column becomes a field, lower-snaked with `@sql(column = "…")` when need be, `?` when the
+column allows `NULL` and is not in the primary key. A table created twice is an error, the second
+ignored (SCH2401).
+
+| Postgres type | Schemata type | Notes |
+|---|---|---|
+| `boolean` | `bool` | |
+| `integer`, `bigint` | `int32`, `int64` | |
+| `real`, `double precision` | `float32`, `float64` | |
+| `numeric(p, s)`, `numeric(p)` | `decimal(p, s)`, `decimal(p, 0)` | |
+| `numeric` | `decimal(38, 9)` | SCH2403 |
+| `text` | `string` | |
+| `varchar(n)` | `string(max = n)` | |
+| `bytea`, `uuid`, `date`, `time` | `bytes`, `uuid`, `date`, `time` | |
+| `timestamptz`, `interval` | `instant`, `duration` | |
+| `smallint`, `serial`, `smallserial` | `int32` with `@sql(type)` | SCH2404; a serial's generation SCH2403 |
+| `bigserial` | `int64` with `@sql(type)` | SCH2404; its generation SCH2403 |
+| `char(n)` | `string(min = n, max = n)` with `@sql(type)` | SCH2404 |
+| `timestamp`, `timetz`, `interval` with fields | `instant`, `time`, `duration` with `@sql(type)` | SCH2404 |
+| `money` | `decimal(19, 4)` with `@sql(type)` | SCH2404 |
+| any other type, such as `citext`, `inet`, or `jsonb` with no note | `string` with `@sql(type)` | SCH2404 |
+| `T[]` | `list<T>` | SCH2404 when `T` is not a type the sql target writes |
+| `json` with a note | as `jsonb` | SCH2404 |
+
+Spellings are read as Postgres reads them: `character varying(n)` is `varchar(n)`, `int4` is
+`integer`, `timestamp with time zone` is `timestamptz`, and so on. A type the sql target would not
+write for the field keeps its spelling in `@sql(type = "…")`, so the regenerated column is the same.
+An identity column keeps its type, its generation dropped (SCH2403). A `DEFAULT` carries over when
+it is a literal of the field's type, and is dropped otherwise, `now()` among them (SCH2403).
+
+A `jsonb` column whose note names a record, a list, or a map holds that type, stored as json:
+`@sql(strategy = json)`, which a map needs no key for since json is a map's default. A record the
+note names that no table defines, which is every record the sql target stores as json, becomes an
+empty record nested beside the field, reported (SCH2403), since the DDL never held its fields. A
+note naming a type in another namespace (`other.ns.Address`) imports that namespace instead.
+
+```sql
+CREATE TABLE shop.customer (
+  id uuid PRIMARY KEY,
+  address jsonb NOT NULL,  -- schemata: Address
+  prefs jsonb,  -- schemata: map<string, string>
+  extra jsonb
+);
+```
+
+```schemata
+namespace shop
+
+record Customer {
+  @sql(key) id:      uuid
+  @sql(strategy = json) address: Address
+  prefs:   map<string, string>?
+  @sql(type = "jsonb") extra:   string?
+
+  record Address {}
+}
+```
+
+#### Checks
+
+A `CHECK` on one column becomes refinements on its field when every part of it says one:
+`c >= n`, `c <= n`, `c BETWEEN a AND b`, `c > n` and `c < n` on an integer (shifted by one), the
+same on `char_length(c)`, `length(c)`, or `octet_length(c)` for a string's or bytes' length, and
+`c ~ '…'` for a pattern. `c ~* '…'` becomes a pattern too, its case-insensitivity dropped (SCH2404). A
+`c IN ('a', 'b')` check on a `text` column makes the column an enum. The all-or-none and presence
+checks the structures below use are read by those structures. Any other check is dropped
+(SCH2405), quoted in the message.
+
+```sql
+CREATE TABLE shop."order" (
+  id uuid PRIMARY KEY,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
+  qty integer NOT NULL CHECK (qty BETWEEN 1 AND 99),
+  code text CHECK (code ~ '^[A-Z]{3}$')
+);
+```
+
+```schemata
+namespace shop
+
+record Order {
+  @sql(key) id:     uuid
+  status: Status = pending
+  qty:    int32(min = 1, max = 99)
+  code:   string(pattern = "^[A-Z]{3}$")?
+
+  enum Status { pending, paid }
+}
+```
+
+An enum is nested in its record and named after its column, with a value that is not lower_snake
+lower-snaked and reported (SCH2403), since the regenerated check will list it that way. A note
+naming a type on an `IN`-checked column names the enum.
+
+#### Structures
+
+The sql target spreads one record over columns, constraints, and other tables. The importer reads
+each structure back by its shape, never by a constraint's name, so a hand-written file reads the
+same as the target's own output, and a table with none of these shapes is a plain record.
+
+Keys. A primary key flags its fields `@sql(key)` when they are in key order among the fields, and
+is written on the record otherwise, `@sql(key = (code, tenant_id))`. A table with no primary key
+imports without one (SCH2403), and so does one whose key includes a reference column (SCH2403); add
+`@sql(key)` by hand before compiling to SQL. A `UNIQUE` constraint or a plain index over exactly one
+field's columns becomes `@sql(unique)` or `@sql(index)`; one over the primary key adds nothing; one
+over several fields, a partial index, and an index using another method than `btree` are dropped
+(SCH2405).
+
+```sql
+CREATE TABLE shop.plan (
+  tenant_id uuid NOT NULL,
+  code varchar(8) NOT NULL,
+  name text NOT NULL,
+  PRIMARY KEY (code, tenant_id)
+);
+```
+
+```schemata
+namespace shop
+
+@sql(key = (code, tenant_id))
+record Plan { tenant_id: uuid code: string(max = 8) name: string }
+```
+
+References. A foreign key to the whole primary key of another table's record is a field of that
+record's type, `?` when its columns allow `NULL`, named `f` when its columns are `<f>_<key column>`,
+and otherwise after its first column, kept with `@sql(column)` (SCH2403). `ON DELETE`, `ON UPDATE`,
+`DEFERRABLE`, `INITIALLY DEFERRED`, and `MATCH FULL` have no Schemata equivalent and are dropped
+(SCH2403). A foreign key to anything but a primary key is dropped (SCH2405), and one to a table not
+among the inputs is an error (SCH2401), its column kept as a plain field.
+
+```sql
+CREATE TABLE shop.customer (id uuid PRIMARY KEY);
+CREATE TABLE shop."order" (
+  id uuid PRIMARY KEY,
+  customer_id uuid NOT NULL REFERENCES shop.customer (id),
+  referrer_id uuid REFERENCES shop.customer (id)
+);
+```
+
+```schemata
+namespace shop
+
+record Customer { @sql(key) id: uuid }
+
+record Order { @sql(key) id: uuid customer: Customer referrer: Customer? }
+```
+
+Child tables. A table named `<parent>_<field>`, keyed by the parent's key columns, each prefixed
+`<parent>_`, plus `position integer` or `key`, with a cascading foreign key to the parent, is a list
+(`position`) or map (`key`) field of the parent, not a record of its own. Its other columns are the
+element: one `value` column a scalar or an enum, `value_…` columns under a foreign key a reference,
+and any other columns a record nested in the parent and named after the field in the singular
+(`lines` gives `Line`), with the child's own child tables as its fields.
+
+```sql
+CREATE TABLE shop."order" (id uuid PRIMARY KEY);
+CREATE TABLE shop.order_lines (
+  order_id uuid NOT NULL REFERENCES shop."order" (id) ON DELETE CASCADE,
+  position integer NOT NULL,
+  sku text NOT NULL,
+  quantity integer NOT NULL,
+  PRIMARY KEY (order_id, position)
+);
+CREATE TABLE shop.order_tags (
+  order_id uuid NOT NULL REFERENCES shop."order" (id) ON DELETE CASCADE,
+  position integer NOT NULL,
+  value text NOT NULL,
+  PRIMARY KEY (order_id, position)
+);
+CREATE TABLE shop.order_prices (
+  order_id uuid NOT NULL REFERENCES shop."order" (id) ON DELETE CASCADE,
+  key text NOT NULL,
+  value numeric(10, 2) NOT NULL,
+  PRIMARY KEY (order_id, key)
+);
+```
+
+```schemata
+namespace shop
+
+record Order {
+  @sql(key) id:     uuid
+  lines:  list<Line>
+  @sql(strategy = table) tags:   list<string>
+  @sql(strategy = table) prices: map<string, decimal(10, 2)>
+
+  record Line { sku: string quantity: int32 }
+}
+```
+
+Unions. A `<f>_kind` text column whose `IN` check lists member names, beside columns named
+`<f>_<member>` or `<f>_<member>_…`, is a union field `f`, its union nested in the record. A member
+named after a builtin with no columns of its own is that builtin; a member with one `<f>_<member>`
+column is that column's type; one whose columns a foreign key covers is a reference; any other is a
+record of its columns, nested beside the union, each field required when the member's presence
+check, `(<f>_kind <> 'm') OR (… IS NOT NULL …)`, names it. A member record that would take a name
+another declaration in the record already has is numbered, reported because the regenerated kind
+literal follows the new name (SCH2403).
+
+```sql
+CREATE TABLE shop."order" (
+  id uuid PRIMARY KEY,
+  payment_kind text NOT NULL CHECK (payment_kind IN ('card', 'cash', 'uuid')),
+  payment_card_last4 varchar(4),
+  payment_card_brand text,
+  payment_uuid uuid,
+  CHECK ((payment_kind <> 'card') OR (payment_card_last4 IS NOT NULL)),
+  CHECK ((payment_kind <> 'uuid') OR (payment_uuid IS NOT NULL))
+);
+```
+
+```schemata
+namespace shop
+
+record Order {
+  @sql(key) id:      uuid
+  payment: Payment
+
+  union Payment = Card | Cash | uuid
+
+  record Card { last4: string(max = 4) brand: string? }
+
+  record Cash {}
+}
+```
+
+Embedded records. Two or more columns under one prefix `<f>_` with an all-or-none check,
+`(a IS NULL AND b IS NULL) OR (a IS NOT NULL AND b IS NOT NULL)`, are a nullable field `f` of a
+record nested in the table's, its fields the columns without the prefix, required when the check
+names them.
+
+```sql
+CREATE TABLE shop.site (
+  id uuid PRIMARY KEY,
+  home_street text,
+  home_zip varchar(10),
+  CHECK ((home_street IS NULL AND home_zip IS NULL)
+      OR (home_street IS NOT NULL AND home_zip IS NOT NULL))
+);
+```
+
+```schemata
+namespace shop
+
+record Site {
+  @sql(key) id:   uuid
+  home: Home?
+
+  record Home { street: string zip: string(max = 10) }
+}
+```
+
+#### Comments and dumps
+
+`COMMENT ON TABLE` becomes the record's doc comment and `COMMENT ON COLUMN` the field's. A
+`-- schemata:` comment on a column's line, or alone on the next line when the column's line has
+none, is the column's note, read as the Protobuf section describes and applied when it fits the
+column; one that does not fit or does not read is ignored (SCH2403). Every other SQL comment is
+ignored.
+
+`pg_dump` splits a table across statements, and the reader puts it back together: constraints
+added by `ALTER TABLE ONLY … ADD CONSTRAINT` attach to their table, an
+`ALTER COLUMN … ADD GENERATED … AS IDENTITY` marks the column an identity, a
+`SET DEFAULT nextval(…)` on an `integer`, `bigint`, or `smallint` column reads as the `serial` it
+expanded from, casts such as `'pending'::text` are read through, and `= ANY (ARRAY[…])` reads as
+`IN (…)`. The settings, ownership, and sequence statements around them are ignored, so a dump
+imports as the DDL it was made from does.
+
+#### What each construct becomes
+
+| Postgres construct | Imported as | Code |
+|---|---|---|
+| `CREATE SCHEMA` | a namespace, or `@sql(schema)` beside a path's | SCH2402 when derived |
+| `CREATE TABLE` | a record | |
+| a table created twice | the first | SCH2401 |
+| a column | a field of the type in the type table | SCH2404 when widened |
+| `NOT NULL` | a required field | |
+| `DEFAULT` with a literal of the field's type | a default | |
+| any other `DEFAULT` | nothing | SCH2403 |
+| an identity or serial column | its integer type | SCH2403 |
+| `GENERATED … STORED` | a plain column | SCH2405 |
+| a single-column check of a refinement's shape | refinements | SCH2404 for `~*` |
+| `IN` check on a `text` column | a nested enum | SCH2403 when a value is renamed |
+| any other check | nothing | SCH2405 |
+| `PRIMARY KEY` | `@sql(key)` | |
+| no primary key, or one over a reference | no key | SCH2403 |
+| `UNIQUE` or an index over one field | `@sql(unique)` or `@sql(index)` | |
+| `UNIQUE` or an index over several fields, partial, or not `btree` | nothing | SCH2405 |
+| a foreign key to a primary key | a reference field | |
+| `ON DELETE`, `ON UPDATE`, deferral, `MATCH FULL` | nothing | SCH2403 |
+| a foreign key column not named `<field>_<key>` | a field named after the column | SCH2403 |
+| a foreign key to anything else | nothing | SCH2405 |
+| a foreign key to a table not in the inputs | a plain field | SCH2401 |
+| a child table | a list or map field | |
+| `<f>_kind` with member columns | a union field | SCH2403 when a member record is numbered |
+| a column group with an all-or-none check | a nullable embedded record | |
+| `jsonb` with a note | the noted type, stored as json | SCH2403 for a record the DDL does not define |
+| `COMMENT ON TABLE`, `COMMENT ON COLUMN` | doc comments | |
+| `-- schemata:` note | the type and default it gives | SCH2403 when ignored |
+| a view, type, function, or other `CREATE` form | nothing | SCH2405 |
+| a data statement (`INSERT`, `UPDATE`, `DELETE`, `COPY`) | nothing | SCH2405 |
+| a table option or `LIKE`, `EXCLUDE` | nothing | SCH2405 |
+| a setting, grant, ownership, or sequence statement | nothing, silently | |
+
+### Round trips
+
+Compiling a schema under one target, importing that output, and compiling the import again under
+the same target gives back that target's output byte for byte, for each of the three formats; the
+corpus and the examples are tested that way. What the `.schemata` source keeps along the way
+depends on the format.
+
+XSD: names, docs, nullability, defaults, refinements, and the `@xsd` keys come back, and importing
+the xsd target's own output reports nothing. Ordinals, `reserved`, `@deprecated`, and the other
+targets' annotations do not, since an XML Schema holds none of them.
+
+Protobuf: names, ordinals, docs, `@deprecated`, and `reserved` come back from the proto itself, and
+every refinement, default, and type Protobuf cannot say rides on the `// schemata:` note the target
+writes, so importing the proto target's own output reports nothing. Nullability of a message-typed
+field rides on the note too: a field of a nullable record, union, `instant`, or `duration` is
+written with `// schemata: T?`. A `.proto` written by a compiler before 1.1, which did not write
+that note, imports such a field as required.
+
+SQL: tables, keys, references, child tables, unions, embedded records, enums, refinements, and
+docs come back from the DDL, but ordinals do not, since a column has none; fields keep column
+order, with child tables last. A record stored as json comes back empty, `record Address {}`,
+reported (SCH2403), since the DDL holds a `jsonb` column and not the record's fields; that note is
+the only one importing the sql target's own output reports. Restore the fields by hand, or import
+the same schema from another format.
 
 ## 19. Evolving a schema
 

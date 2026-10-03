@@ -105,6 +105,10 @@ Some behaviours are easy to miss. Each is part of the language as 1.0 defines it
   `= null` always means the literal.
 - An import alias is lower_snake (SCH1045), and a file imports a namespace once and gives an alias
   to one import only (SCH1046).
+- Since 1.1, the Protobuf target ends a nullable message-typed field, a nullable record, union,
+  `instant`, or `duration`, with a `// schemata: T?` comment, which is what lets
+  `import --from proto` read the field back as nullable. It is a comment only: the field, its
+  number, and the wire format are what 1.0 wrote.
 
 ## Upgrading from 0.x
 
