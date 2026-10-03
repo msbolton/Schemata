@@ -68,4 +68,18 @@ class NoteTextTest {
     fun `garbage is null`() {
         assertNull(NoteText.parse("not a type ("))
     }
+
+    @Test
+    fun `the separator inside a pattern or a default string is not the separator`() {
+        val p =
+            NoteText.parse("""string(pattern = "x; default = y"); default = "a; default = b"""")!!
+        assertEquals(UnitType.Scalar("string", listOf("pattern" to "\"x; default = y\"")), p.type)
+        assertEquals("\"a; default = b\"", p.default)
+        val alone = NoteText.parse("""string(pattern = "x\"; default = y")""")!!
+        assertEquals(
+            UnitType.Scalar("string", listOf("pattern" to "\"x\\\"; default = y\"")),
+            alone.type,
+        )
+        assertNull(alone.default)
+    }
 }

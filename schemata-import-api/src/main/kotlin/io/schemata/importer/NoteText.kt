@@ -9,9 +9,9 @@ import io.schemata.lang.ast.TypeExpr
 
 /**
  * Reads a `schemata:` note back: the type as a user would write it, optionally followed by `;
- * default = <literal>`, or the default alone. The language's own parser does the reading, inside a
- * one-field record made up around the note, so a `"; "` inside a pattern or a default string cannot
- * mislead it.
+ * default = <literal>`, or the default alone. The separator is found outside string literals and
+ * the language's own parser reads the parts, inside a one-field record made up around the note, so
+ * a `"; default = "` inside a pattern or a default string cannot mislead it.
  */
 object NoteText {
     /**
@@ -28,7 +28,10 @@ object NoteText {
         val defaultOnly = text.startsWith(DEFAULT)
         val field =
             if (defaultOnly) "f: int32 = ${text.removePrefix(DEFAULT)}"
-            else "f: ${text.replaceFirst("; $DEFAULT", " = ")}"
+            else
+                separator(text)?.let {
+                    "f: ${text.substring(0, it)} = ${text.substring(it + SEPARATOR.length)}"
+                } ?: "f: $text"
         val file = Parser.parse("namespace n\nrecord R { $field }\n", "note").file ?: return null
         val record = file.declarations.singleOrNull() as? RecordDecl ?: return null
         val decl = record.fields.singleOrNull() ?: return null
@@ -36,6 +39,29 @@ object NoteText {
         val default = decl.default?.let(::literalText)
         if (defaultOnly) return if (default == null) null else Parsed(null, false, default)
         return Parsed(unitType(decl.type), decl.type.nullable, default)
+    }
+
+    private const val SEPARATOR = "; $DEFAULT"
+
+    /**
+     * Where the last `; default = ` outside a string literal starts in [text], or null. A `\` in a
+     * string escapes the character after it, so an escaped quote does not end the string; a pattern
+     * never ends in an odd run of backslashes, so its literal reads the same way.
+     */
+    private fun separator(text: String): Int? {
+        var found: Int? = null
+        var inString = false
+        var i = 0
+        while (i < text.length) {
+            val c = text[i]
+            when {
+                inString && c == '\\' -> i++
+                c == '"' -> inString = !inString
+                !inString && text.startsWith(SEPARATOR, i) -> found = i
+            }
+            i++
+        }
+        return found
     }
 
     private fun unitType(t: TypeExpr): UnitType =

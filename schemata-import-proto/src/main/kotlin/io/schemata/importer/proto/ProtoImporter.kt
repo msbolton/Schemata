@@ -32,21 +32,24 @@ object ProtoImporter : Importer {
         locate: (String) -> ImportInput?,
     ): ImportResult {
         val diagnostics = mutableListOf<Diagnostic>()
+        // Keyed by the path with `/` separators, so a path the platform spells with `\` still
+        // matches one joined from an import.
         val files = LinkedHashMap<String, ProtoFile>()
         val sources = LinkedHashMap<ProtoFile, ImportInput>()
         val unreadable = mutableSetOf<String>()
         fun read(input: ImportInput): ProtoFile? {
-            files[input.path]?.let {
+            val key = slashed(input.path)
+            files[key]?.let {
                 return it
             }
-            if (input.path in unreadable) return null
+            if (key in unreadable) return null
             return try {
                 ProtoReader.read(input.path, input.content).also {
-                    files[input.path] = it
+                    files[key] = it
                     sources[it] = input
                 }
             } catch (e: ProtoSyntaxError) {
-                unreadable += input.path
+                unreadable += key
                 diagnostics +=
                     Diagnostic(
                         ImportCodes.UNRESOLVED,
@@ -58,7 +61,8 @@ object ProtoImporter : Importer {
             }
         }
         inputs.forEach { read(it) }
-        val byRelative = inputs.filter { it.relative != null }.associateBy { it.relative!! }
+        val byRelative =
+            inputs.filter { it.relative != null }.associateBy { slashed(it.relative!!) }
         val roots = inputs.mapNotNull { root(it) }.distinct()
 
         val imports = LinkedHashMap<ProtoFile, MutableList<ProtoFile>>()
@@ -73,7 +77,7 @@ object ProtoImporter : Importer {
                 )
         }
         fun found(input: ImportInput): ProtoFile? {
-            val known = input.path in files
+            val known = slashed(input.path) in files
             return read(input)?.also { if (!known) queue += it }
         }
         while (queue.isNotEmpty()) {
@@ -89,10 +93,10 @@ object ProtoImporter : Importer {
                 }
                 if (imp.path in WELL_KNOWN) return@forEach
                 val listed = byRelative[imp.path]
-                if (listed != null && listed.path in unreadable) return@forEach
+                if (listed != null && slashed(listed.path) in unreadable) return@forEach
                 val beside = resolvePath(f.path, imp.path)
                 val target =
-                    listed?.let { files[it.path] }
+                    listed?.let { files[slashed(it.path)] }
                         ?: (files[beside] ?: locate(beside)?.let(::found))
                         ?: roots.firstNotNullOfOrNull { root ->
                             val path = if (root.isEmpty()) imp.path else "$root/${imp.path}"
@@ -121,7 +125,8 @@ object ProtoImporter : Importer {
                 when {
                     index == 0 && namespace != null -> namespace to false
                     f in shared -> packageNamespace(f.pkg!!)
-                    else -> Roots.namespaceFor(input, f.pkg, f.path.substringAfterLast('/'))
+                    else ->
+                        Roots.namespaceFor(input, f.pkg, slashed(f.path).substringAfterLast('/'))
                 }
             if (derived) {
                 val from = if (f in shared) "the package '${f.pkg}'" else "the file name"
@@ -187,17 +192,23 @@ object ProtoImporter : Importer {
         return fixed.joinToString(".") to (fixed != segments)
     }
 
-    /** The directory an input was found under: its path without its relative part. */
-    private fun root(input: ImportInput): String? =
-        input.relative?.let { input.path.removeSuffix(it).trimEnd('/', '\\') }
+    /** [path] with `/` for every separator, which every platform's paths accept. */
+    internal fun slashed(path: String): String = path.replace('\\', '/')
 
     /**
-     * [relative] joined to [basePath]'s directory, with `.` segments dropped and each `..` taking
-     * back the segment before it.
+     * The directory an input was found under, `/`-separated: its path without its relative part,
+     * whichever separator either is spelled with.
      */
-    private fun resolvePath(basePath: String, relative: String): String {
-        val dir = basePath.substringBeforeLast('/', "")
-        val joined = if (dir.isEmpty()) relative else "$dir/$relative"
+    internal fun root(input: ImportInput): String? =
+        input.relative?.let { slashed(input.path).removeSuffix(slashed(it)).trimEnd('/') }
+
+    /**
+     * [relative] joined to [basePath]'s directory, `/`-separated, with `.` segments dropped and
+     * each `..` taking back the segment before it.
+     */
+    internal fun resolvePath(basePath: String, relative: String): String {
+        val dir = slashed(basePath).substringBeforeLast('/', "")
+        val joined = if (dir.isEmpty()) slashed(relative) else "$dir/${slashed(relative)}"
         val out = ArrayDeque<String>()
         joined.split('/').forEach { seg ->
             when (seg) {
