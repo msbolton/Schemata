@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":schemata-import-api"))
     implementation(project(":schemata-import-xsd"))
     implementation(project(":schemata-import-proto"))
+    implementation(project(":schemata-import-sql"))
     implementation(project(":schemata-evolution"))
     implementation(project(":schemata-lsp"))
     implementation(libs.clikt)

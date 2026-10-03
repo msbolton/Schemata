@@ -3,6 +3,7 @@ package io.schemata.cli
 import io.schemata.importer.ImportInput
 import io.schemata.importer.Importer
 import io.schemata.importer.proto.ProtoImporter
+import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
 import io.schemata.target.Target
@@ -20,19 +21,29 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every corpus and example case with an `expected/xsd` or `expected/proto` tree round trips through
- * that format: compiling it under the format's target, importing that output back (each file named
- * by its output path, which is also its path under the output root), and compiling the import
- * regenerates the same files byte for byte, with no import diagnostics, and the import compiles
- * cleanly under proto, xsd, and jsonschema; the sql target cannot carry a key the format never
- * declared, so it is checked separately, only for errors other than a missing key.
+ * Every corpus and example case with an `expected/xsd`, `expected/proto`, or `expected/sql` tree
+ * round trips through that format: compiling it under the format's target, importing that output
+ * back (each file named by its output path, which is also its path under the output root), and
+ * compiling the import regenerates the same files byte for byte, with no import diagnostics, and
+ * the import compiles cleanly under proto, xsd, and jsonschema; the sql target cannot carry a key
+ * the format never declared, so it is checked separately, only for errors other than a missing key.
+ * The one diagnostic a round trip may report is SQL's for a record or union stored as json, whose
+ * fields the DDL never held.
  */
 class ImportRoundTripTest {
     private val corpus = File("src/test/resources/corpus")
     private val examples = File("../examples")
 
     private val formats: List<Triple<String, Target<*>, Importer>> =
-        listOf(Triple("xsd", XsdTarget, XsdImporter), Triple("proto", ProtoTarget, ProtoImporter))
+        listOf(
+            Triple("xsd", XsdTarget, XsdImporter),
+            Triple("proto", ProtoTarget, ProtoImporter),
+            Triple("sql", SqlTarget, SqlImporter),
+        )
+
+    /** The import diagnostics a format's round trip may report, by format. */
+    private val tolerated: Map<String, Regex> =
+        mapOf("sql" to Regex("SCH2403 .*: '.*' is stored as json; its fields are not in the DDL"))
 
     @TestFactory
     fun `importing a target's output regenerates it byte for byte`(): List<DynamicTest> =
@@ -91,9 +102,12 @@ class ImportRoundTripTest {
         assertFalse(original.hasErrors)
         val output = original.files.map { ImportInput(it.file.path, it.file.content, it.file.path) }
         val imported = importer.import(output)
+        val allowed = tolerated[format]
         assertEquals(
             emptyList(),
-            imported.diagnostics.map { "${it.code.id} ${it.message}" },
+            imported.diagnostics
+                .map { "${it.code.id} ${it.message}" }
+                .filterNot { allowed?.matches(it) == true },
             "import of ${case.name}",
         )
         val again =

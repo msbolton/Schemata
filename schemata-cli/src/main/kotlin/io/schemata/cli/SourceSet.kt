@@ -38,6 +38,14 @@ object ProtoSet {
     fun load(paths: List<Path>): List<SourceInput> = loadByExtension(paths, "proto")
 }
 
+/**
+ * Like [SourceSet], but for the `.sql` files `schemata import --from sql` reads; a file found under
+ * a directory argument carries its path relative to it, which names its namespace.
+ */
+object SqlSet {
+    fun load(paths: List<Path>): List<SourceInput> = loadByExtension(paths, "sql")
+}
+
 private fun loadByExtension(paths: List<Path>, extension: String): List<SourceInput> =
     paths
         .flatMap { expand(it, extension) }

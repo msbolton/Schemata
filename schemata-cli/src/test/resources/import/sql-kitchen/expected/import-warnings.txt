@@ -1,0 +1,43 @@
+SCH2405 store.sql: CREATE TYPE dropped
+SCH2405 store.sql: CREATE INDEX on an expression dropped
+SCH2405 store.sql: CREATE VIEW dropped
+SCH2405 store.sql: CREATE FUNCTION dropped
+SCH2405 store.sql: CREATE TRIGGER dropped
+SCH2402 several.sql: namespace 'several' was derived from the file name
+SCH2403 table 'loose': no primary key; add @sql(key) before compiling to SQL
+SCH2405 column 'Everything.doubled': GENERATED … STORED dropped; imported as a plain column
+SCH2403 column 'Everything.id': default gen_random_uuid() dropped
+SCH2404 column 'Everything.small': smallint imported as int32 with @sql(type)
+SCH2403 column 'Everything.amount': numeric without precision imported as decimal(38, 9)
+SCH2404 column 'Everything.cash': money imported as decimal with @sql(type)
+SCH2404 column 'Everything.code': char(3) imported as string with @sql(type)
+SCH2404 column 'Everything.handle': ~* imported as pattern; case-insensitivity dropped
+SCH2404 column 'Everything.nick': citext imported as string with @sql(type)
+SCH2404 column 'Everything.addr': inet imported as string with @sql(type)
+SCH2404 column 'Everything.spot': point imported as string with @sql(type)
+SCH2404 column 'Everything.zoned': timetz imported as time with @sql(type)
+SCH2403 column 'Everything.at': default now() dropped
+SCH2404 column 'Everything.stamp': timestamp imported as instant with @sql(type)
+SCH2404 column 'Everything.seq': serial imported as int32 with @sql(type)
+SCH2403 column 'Everything.seq': serial generation dropped
+SCH2404 column 'Everything.ticket': bigserial imported as int64 with @sql(type)
+SCH2403 column 'Everything.ticket': bigserial generation dropped
+SCH2403 column 'Everything.n': identity generation dropped
+SCH2404 column 'Everything.raw': json imported as string with @sql(type)
+SCH2404 column 'Everything.doc': jsonb imported as string with @sql(type)
+SCH2405 table 'everything': check constraint dropped: (count <> 13)
+SCH2403 column 'Everything.history': 'Visit' is stored as json; its fields are not in the DDL
+SCH2403 column 'Order.status': enum value 'Paid-Out' imported as 'paid_out'; the regenerated check uses it
+SCH2403 column 'Order.backup_code': DEFERRABLE dropped
+SCH2403 column 'Order.backup_code': INITIALLY DEFERRED dropped
+SCH2403 column 'Order.parent_id': ON DELETE SET NULL dropped
+SCH2403 column 'Order.origin': foreign key column is not named after the field and key; kept as the field name
+SCH2401 column 'Order.warehouse_id': foreign key references 'elsewhere.warehouse', which is not in the inputs
+SCH2405 table 'Order': unique constraint over (status, home_zip) dropped; Schemata keys one field
+SCH2405 table 'Order': partial unique index over (status) dropped
+SCH2405 table 'Order': index using hash over (home_zip) dropped
+SCH2405 table 'Order': index over (away_street, away_zip) dropped; Schemata indexes one field
+SCH2403 table 'Order_audit': primary key over a reference column; add @sql(key) by hand
+SCH2405 table 'booking': EXCLUDE constraint dropped
+SCH2405 table 'booking': INHERITS dropped
+SCH2404 column 'Booking.during': tstzrange imported as string with @sql(type)

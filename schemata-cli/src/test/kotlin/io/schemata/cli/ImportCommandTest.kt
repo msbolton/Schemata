@@ -191,6 +191,41 @@ class ImportCommandTest {
     }
 
     @Test
+    fun `a sql import names each schema's namespace by its file's path under the directory`() {
+        File(dir, "src/shop").mkdirs()
+        write(
+            "src/shop/customers.sql",
+            "CREATE SCHEMA customers;\nCREATE TABLE customers.customer (id uuid PRIMARY KEY);\n",
+        )
+        write(
+            "src/shop/orders.sql",
+            """
+            CREATE SCHEMA shop;
+            CREATE TABLE shop."order" (
+              id uuid PRIMARY KEY,
+              customer_id uuid NOT NULL REFERENCES customers.customer (id)
+            );
+            """
+                .trimIndent(),
+        )
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--from sql --out ${out.path} ${dir.path}/src")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/shop/customers.schemata").isFile, r.stderr)
+        val orders = out.resolve("import/shop/orders.schemata").readText()
+        assertTrue(orders.contains("@sql(schema = \"shop\")"), orders)
+        assertTrue(orders.contains("customer: shop.customers.Customer"), orders)
+    }
+
+    @Test
+    fun `--from sql on a directory with no sql files is a usage error`() {
+        write("s.xsd", clean)
+        val r = ImportCommand().test("--from sql --out ${File(dir, "out").path} ${dir.path}")
+        assertEquals(1, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("no .sql files found under"), r.stderr)
+    }
+
+    @Test
     fun `--from proto on a directory with no proto files is a usage error`() {
         write("s.xsd", clean)
         val r = ImportCommand().test("--from proto --out ${File(dir, "out").path} ${dir.path}")
