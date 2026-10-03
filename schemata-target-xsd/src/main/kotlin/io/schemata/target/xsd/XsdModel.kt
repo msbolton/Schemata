@@ -25,8 +25,8 @@ sealed interface XsdType {
 }
 
 /**
- * `xs:complexType` with an `xs:sequence`, then attributes, then [anyAttribute]; [mixed] lets
- * character data appear between the sequence's elements.
+ * `xs:complexType` with an `xs:sequence` (an `xs:all` when [all]), then attributes, then
+ * [anyAttribute]; [mixed] lets character data appear between the sequence's elements.
  */
 data class XsdComplex(
     override val name: String,
@@ -35,6 +35,7 @@ data class XsdComplex(
     val attributes: List<XsdAttribute> = emptyList(),
     val anyAttribute: XsdAnyAttribute? = null,
     val mixed: Boolean = false,
+    val all: Boolean = false,
 ) : XsdType
 
 /** `xs:complexType` holding an `xs:choice`. */
@@ -117,6 +118,16 @@ sealed interface XsdTypeRef {
      * complexContent otherwise.
      */
     data class Extension(val base: XsdTypeRef, val attributes: List<XsdAttribute>) : XsdTypeRef
+
+    /**
+     * An anonymous `xs:simpleType` list of [item] (a builtin, a named simple type, or a restricted
+     * builtin), its length bounded by [minLength] and [maxLength] when they are set.
+     */
+    data class ListOf(
+        val item: XsdTypeRef,
+        val minLength: Int? = null,
+        val maxLength: Int? = null,
+    ) : XsdTypeRef
 }
 
 /** A facet element `<xs:NAME value="VALUE"/>`, printed in list order. */

@@ -33,7 +33,7 @@ object XsdRenderer {
                 val mixed = if (t.mixed) " mixed=\"true\"" else ""
                 appendLine("$indent<xs:complexType name=\"${t.name}\"$mixed>")
                 doc(t.doc, "$indent  ")
-                append(sequence(t.sequence, t.attributes, t.anyAttribute, "$indent  "))
+                append(sequence(t.sequence, t.attributes, t.anyAttribute, "$indent  ", t.all))
                 appendLine("$indent</xs:complexType>")
             }
             is XsdChoice -> {
@@ -68,25 +68,27 @@ object XsdRenderer {
     }
 
     /**
-     * `<xs:sequence>…</xs:sequence>`, then attributes, then the attribute wildcard; an empty
-     * sequence still prints an empty `xs:sequence`.
+     * `<xs:sequence>…</xs:sequence>` (`xs:all` when [all]), then attributes, then the attribute
+     * wildcard; an empty group still prints as an empty element.
      */
     private fun sequence(
         particles: List<XsdParticle>,
         attributes: List<XsdAttribute>,
         anyAttribute: XsdAnyAttribute?,
         indent: String,
+        all: Boolean = false,
     ): String = buildString {
-        if (particles.isEmpty()) appendLine("$indent<xs:sequence/>")
+        val group = if (all) "xs:all" else "xs:sequence"
+        if (particles.isEmpty()) appendLine("$indent<$group/>")
         else {
-            appendLine("$indent<xs:sequence>")
+            appendLine("$indent<$group>")
             particles.forEach {
                 when (it) {
                     is XsdElement -> append(element(it, "$indent  "))
                     is XsdAny -> append(any(it, "$indent  "))
                 }
             }
-            appendLine("$indent</xs:sequence>")
+            appendLine("$indent</$group>")
         }
         attributes.forEach { append(attribute(it, indent)) }
         anyAttribute?.let { a ->
@@ -130,6 +132,7 @@ object XsdRenderer {
                 appendLine("$indent  </xs:complexType>")
             }
             is XsdTypeRef.Extension -> append(extension(t, "$indent  "))
+            is XsdTypeRef.ListOf -> append(list(t, "$indent  "))
             is XsdTypeRef.Builtin,
             is XsdTypeRef.Named -> Unit
         }
@@ -149,14 +152,18 @@ object XsdRenderer {
             if (a.required) append(" use=\"required\"")
             a.default?.let { append(" default=\"${escapeAttribute(it)}\"") }
         }
-        val restricted = a.type as? XsdTypeRef.Restricted
-        if (a.doc == null && restricted == null) {
+        val inline = a.type is XsdTypeRef.Restricted || a.type is XsdTypeRef.ListOf
+        if (a.doc == null && !inline) {
             appendLine("$indent<xs:attribute$attrs/>")
             return@buildString
         }
         appendLine("$indent<xs:attribute$attrs>")
         doc(a.doc, "$indent  ")
-        restricted?.let { append(restriction(it, "$indent  ")) }
+        when (val t = a.type) {
+            is XsdTypeRef.Restricted -> append(restriction(t, "$indent  "))
+            is XsdTypeRef.ListOf -> append(list(t, "$indent  "))
+            else -> Unit
+        }
         appendLine("$indent</xs:attribute>")
     }
 
@@ -177,6 +184,43 @@ object XsdRenderer {
         appendLine("$indent  </xs:restriction>")
         appendLine("$indent</xs:simpleType>")
     }
+
+    /**
+     * An anonymous list type: `itemType` names a builtin or named item, a restricted item is
+     * declared inline, and a length bound wraps the list in a restriction of it.
+     */
+    private fun list(t: XsdTypeRef.ListOf, indent: String): String = buildString {
+        val bounded = t.minLength != null || t.maxLength != null
+        val inner = if (bounded) "$indent    " else indent
+        appendLine("$indent<xs:simpleType>")
+        if (bounded) {
+            appendLine("$indent  <xs:restriction>")
+            appendLine("$inner<xs:simpleType>")
+        }
+        when (val item = t.item) {
+            is XsdTypeRef.Restricted -> {
+                appendLine("$inner  <xs:list>")
+                append(restriction(item, "$inner    "))
+                appendLine("$inner  </xs:list>")
+            }
+            else -> appendLine("$inner  <xs:list itemType=\"${typeName(item)}\"/>")
+        }
+        if (bounded) {
+            appendLine("$inner</xs:simpleType>")
+            t.minLength?.let { appendLine("$indent    <xs:minLength value=\"$it\"/>") }
+            t.maxLength?.let { appendLine("$indent    <xs:maxLength value=\"$it\"/>") }
+            appendLine("$indent  </xs:restriction>")
+        }
+        appendLine("$indent</xs:simpleType>")
+    }
+
+    /** A builtin's or named type's qualified name. */
+    private fun typeName(ref: XsdTypeRef): String =
+        when (ref) {
+            is XsdTypeRef.Builtin -> ref.xsName
+            is XsdTypeRef.Named -> "${ref.prefix}:${ref.name}"
+            else -> error("only a builtin or a named type has a name")
+        }
 
     /** simpleContent when the base is a builtin or simple named type; complexContent otherwise. */
     private fun extension(t: XsdTypeRef.Extension, indent: String): String = buildString {

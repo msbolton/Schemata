@@ -66,6 +66,8 @@ Codes:
 | `process` | field | string | lax, skip, strict |
 | `wildcard` | field | string |  |
 | `mixed` | field | flag |  |
+| `all` | record | flag |  |
+| `list` | field | flag |  |
 | `element_form` | namespace | string | qualified, unqualified |
 | `attribute_form` | namespace | string | qualified, unqualified |
 

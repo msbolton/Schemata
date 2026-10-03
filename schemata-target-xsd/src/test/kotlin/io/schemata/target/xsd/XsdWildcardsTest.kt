@@ -140,4 +140,120 @@ class XsdWildcardsTest {
             diagnostics,
         )
     }
+
+    @Test
+    fun `all and list render`() {
+        val xsd =
+            render(
+                """
+                namespace t
+                @xsd(all)
+                record Cfg {
+                  a: int32
+                  b: string?
+                  @xsd(list)
+                  tags: list<string>
+                }
+                """
+            )
+        assertTrue("<xs:all>" in xsd)
+        assertFalse("<xs:sequence" in xsd)
+        assertTrue("""<xs:element name="b" type="xs:string" minOccurs="0"/>""" in xsd)
+        assertTrue(
+            """<xs:element name="tags">""" in xsd && """<xs:list itemType="xs:string"/>""" in xsd
+        )
+    }
+
+    @Test
+    fun `a repeated field under all is an error`() {
+        assertEquals(
+            listOf("SCH2204 record 'Cfg': @xsd(all) is on a record with a repeated field 'items'"),
+            diagnosticsOf(
+                "namespace t\n@xsd(all)\nrecord Cfg { items: list<Item> record Item { x: int32 } }"
+            ),
+        )
+    }
+
+    @Test
+    fun `an empty all record and a map under all render`() {
+        val xsd =
+            render(
+                """
+                namespace t
+                @xsd(all)
+                record Empty {}
+                @xsd(all)
+                record Bag { counts: map<string, int32> }
+                """
+            )
+        assertTrue("<xs:all/>" in xsd)
+        assertTrue("""<xs:unique name="BagType_counts_key">""" in xsd)
+    }
+
+    @Test
+    fun `a list attribute renders an inline list type`() {
+        val xsd =
+            render(
+                """
+                namespace t
+                record R {
+                  @xsd(list) @xsd(attribute) sizes: list<int32>?
+                  @xsd(list) opt: list<int64>?
+                }
+                """
+            )
+        assertTrue(
+            """
+            |    <xs:attribute name="sizes">
+            |      <xs:simpleType>
+            |        <xs:list itemType="xs:int"/>
+            |      </xs:simpleType>
+            |    </xs:attribute>
+            """
+                .trimMargin() in xsd
+        )
+        assertTrue("""<xs:element name="opt" minOccurs="0">""" in xsd)
+        assertTrue("""<xs:list itemType="xs:long"/>""" in xsd)
+    }
+
+    @Test
+    fun `list on another shape is an error`() {
+        assertEquals(
+            listOf(
+                "SCH2204 field 'R.a': @xsd(list) is not allowed on a list<Item>; it takes a list of scalars or enums",
+                "SCH2204 field 'R.b': @xsd(list) is not allowed on a string; it takes a list of scalars or enums",
+            ),
+            diagnosticsOf(
+                """
+                namespace t
+                record R {
+                  @xsd(list) a: list<Item>
+                  @xsd(list) b: string
+                  record Item { x: int32 }
+                }
+                """
+            ),
+        )
+    }
+
+    @Test
+    fun `a second any attribute or mixed field is an error`() {
+        assertEquals(
+            listOf(
+                "SCH2204 field 'R.t2': a record takes one @xsd(mixed) field; 't1' already has it",
+                "SCH2204 field 'R.a2': a record takes one @xsd(any_attribute) field; 'a1' already has it",
+            ),
+            diagnosticsOf(
+                """
+                namespace t
+                record R {
+                  @xsd(mixed) t1: string?
+                  @xsd(mixed) t2: string?
+                  @xsd(any_attribute) a1: map<string, string>
+                  @xsd(any_attribute) a2: map<string, string>
+                }
+                """
+            ),
+        )
+    }
 }

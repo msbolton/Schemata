@@ -82,6 +82,20 @@ object XsdAnnotations {
             ),
             AnnotationSpec(
                 "xsd",
+                "all",
+                setOf(Element.RECORD),
+                ValueKind.FLAG,
+                Role.REPRESENTATION,
+            ),
+            AnnotationSpec(
+                "xsd",
+                "list",
+                setOf(Element.FIELD),
+                ValueKind.FLAG,
+                Role.REPRESENTATION,
+            ),
+            AnnotationSpec(
+                "xsd",
                 "element_form",
                 setOf(Element.NAMESPACE),
                 ValueKind.STRING,

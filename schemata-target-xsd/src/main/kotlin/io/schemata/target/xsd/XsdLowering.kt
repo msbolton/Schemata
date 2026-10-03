@@ -202,27 +202,59 @@ object XsdLowering {
          * A record's fields in order: `@xsd(mixed)` makes the type mixed and adds nothing to the
          * sequence, `@xsd(any_attribute)` becomes the type's attribute wildcard, `@xsd(any)` an
          * element wildcard in place, `@xsd(attribute)` an attribute, and every other field an
-         * element.
+         * element. A record takes one mixed field and one attribute wildcard; a second of either is
+         * reported. `@xsd(all)` on the record makes the sequence an `xs:all`, which holds each
+         * element at most once, so a field lowering to a repeated element or wildcard is reported.
          */
         private fun record(record: RecordType, path: List<String>): XsdComplex {
             val sequence = mutableListOf<XsdParticle>()
             val attributes = mutableListOf<XsdAttribute>()
             var anyAttribute: XsdAnyAttribute? = null
             var mixed = false
+            val all = record.annotations.flag("xsd", "all")
+            val single = mutableMapOf<String, Field>()
             record.fields.forEach { f ->
-                when {
-                    f.annotations.flag("xsd", "mixed") -> if (checkMixed(record, f)) mixed = true
-                    f.annotations.flag("xsd", "any_attribute") ->
-                        anyAttribute(record, f)?.let { anyAttribute = it }
-                    f.annotations.flag("xsd", "any") -> any(record, f)?.let { sequence += it }
-                    f.annotations.flag("xsd", "attribute") ->
-                        attribute(record, f, path)?.let { attributes += it }
-                    f.annotations.flag("xsd", "any_type") ->
-                        anyTypeField(record, f, path)?.let { sequence += it }
-                    else -> sequence += field(record, f, path)
+                val particle: XsdParticle? =
+                    when {
+                        f.annotations.flag("xsd", "mixed") -> {
+                            if (checkMixed(record, f) && once(record, f, "mixed", single))
+                                mixed = true
+                            null
+                        }
+                        f.annotations.flag("xsd", "any_attribute") -> {
+                            val wildcard = anyAttribute(record, f)
+                            if (wildcard != null && once(record, f, "any_attribute", single))
+                                anyAttribute = wildcard
+                            null
+                        }
+                        f.annotations.flag("xsd", "any") -> any(record, f)
+                        f.annotations.flag("xsd", "attribute") -> {
+                            attribute(record, f, path)?.let { attributes += it }
+                            null
+                        }
+                        f.annotations.flag("xsd", "any_type") -> anyTypeField(record, f, path)
+                        else -> field(record, f, path)
+                    }
+                if (particle != null) {
+                    sequence += particle
+                    if (all && repeated(particle)) {
+                        diagnostics +=
+                            Diagnostic(
+                                XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                                "record '${record.name}': @xsd(all) is on a record with a " +
+                                    "repeated field '${f.name}'",
+                                f.span,
+                                help =
+                                    "remove @xsd(all), or make '${f.name}' a single field; " +
+                                        "xs:all holds each element at most once",
+                            )
+                    }
                 }
             }
-            record.fields.forEach { checkWildcardKeys(record, it) }
+            record.fields.forEach {
+                checkWildcardKeys(record, it)
+                checkListKey(record, it)
+            }
             return XsdComplex(
                 names.xsdTypeName(record.qualifiedName),
                 record.doc,
@@ -230,7 +262,38 @@ object XsdLowering {
                 attributes,
                 anyAttribute,
                 mixed,
+                all,
             )
+        }
+
+        /** Whether [particle] may occur more than once. */
+        private fun repeated(particle: XsdParticle): Boolean =
+            when (particle) {
+                is XsdElement -> particle.maxOccurs != 1
+                is XsdAny -> particle.maxOccurs != 1
+            }
+
+        /**
+         * True when [field] is the record's first with `@xsd([key])`; otherwise reports it, since a
+         * complex type has one mixed flag and one attribute wildcard. [seen] holds the first field
+         * per key.
+         */
+        private fun once(
+            record: RecordType,
+            field: Field,
+            key: String,
+            seen: MutableMap<String, Field>,
+        ): Boolean {
+            val first = seen.putIfAbsent(key, field) ?: return true
+            diagnostics +=
+                Diagnostic(
+                    XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                    "${fieldWhere(record, field)}: a record takes one @xsd($key) field; " +
+                        "'${first.name}' already has it",
+                    field.span,
+                    help = "remove @xsd($key) from one of them",
+                )
+            return false
         }
 
         /** A `string` with no refinements. */
@@ -368,6 +431,15 @@ object XsdLowering {
          */
         private fun attribute(record: RecordType, field: Field, path: List<String>): XsdAttribute? {
             val where = fieldWhere(record, field)
+            if (field.annotations.flag("xsd", "list")) {
+                val list = listRef(record, field, where) ?: return null
+                return XsdAttribute(
+                    name = claimFieldName(field, path, where, "attribute"),
+                    type = list,
+                    required = !field.nullable,
+                    doc = field.doc,
+                )
+            }
             val shape = attributeShape(field.type)
             if (shape != null) {
                 diagnostics +=
@@ -491,6 +563,16 @@ object XsdLowering {
         private fun field(record: RecordType, field: Field, path: List<String>): XsdElement {
             val where = fieldWhere(record, field)
             val name = claimFieldName(field, path, where, "element")
+            if (field.annotations.flag("xsd", "list")) {
+                listRef(record, field, where)?.let {
+                    return XsdElement(
+                        name = name,
+                        type = it,
+                        minOccurs = if (field.nullable) 0 else 1,
+                        doc = field.doc,
+                    )
+                }
+            }
             return when (val t = field.type) {
                 is Scalar,
                 is Ref ->
@@ -523,6 +605,46 @@ object XsdLowering {
                     mapElement(name, t, uniqueBase(record, name), where, field.span)
                         .copy(minOccurs = if (field.nullable) 0 else 1, doc = field.doc)
             }
+        }
+
+        /**
+         * [field]'s `@xsd(list)` type: one element or attribute whose value is a
+         * whitespace-separated list of its items, so only a list of scalars or enums with
+         * non-nullable items can take it; the list's bounds become length facets. `null`, reported,
+         * for any other shape.
+         */
+        private fun listRef(record: RecordType, field: Field, where: String): XsdTypeRef.ListOf? {
+            val t = field.type
+            val item = (t as? ListOf)?.element
+            val itemOk = item is Scalar || (item is Ref && schema.lookup(item.target) is EnumType)
+            if (t !is ListOf || t.nullableElement || !itemOk) {
+                notAllowed(record, field, "list", "a list of scalars or enums")
+                return null
+            }
+            return XsdTypeRef.ListOf(
+                typeRef(t.element, where, field.span),
+                t.refinements.min?.toInt(),
+                t.refinements.max?.toInt(),
+            )
+        }
+
+        /**
+         * `@xsd(list)` describes an element's or attribute's value, so it cannot go with a key that
+         * makes the field a wildcard, mixed text, or `xs:anyType`.
+         */
+        private fun checkListKey(record: RecordType, field: Field) {
+            if (!field.annotations.flag("xsd", "list")) return
+            listOf("any", "any_attribute", "any_type", "mixed")
+                .filter { field.annotations.flag("xsd", it) }
+                .forEach { key ->
+                    diagnostics +=
+                        Diagnostic(
+                            XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                            "${fieldWhere(record, field)}: @xsd(list) cannot go with @xsd($key)",
+                            field.span,
+                            help = "remove one of the two keys",
+                        )
+                }
         }
 
         /**
