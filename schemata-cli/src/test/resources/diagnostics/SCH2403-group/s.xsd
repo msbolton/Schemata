@@ -1,0 +1,11 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="urn:schemata:s">
+  <xs:complexType name="TrackType">
+    <xs:sequence>
+      <xs:sequence maxOccurs="unbounded">
+        <xs:element name="lat" type="xs:double"/>
+        <xs:element name="lon" type="xs:double"/>
+      </xs:sequence>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

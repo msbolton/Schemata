@@ -1,6 +1,0 @@
-# import=xsd
-warning[SCH2403] (lossy): complex type 'ThingType': xs:all imported as a sequence
- --> s.xsd:3:1
-  = help: review the imported record; the regenerated XSD will differ here
-
-0 errors, 1 warning

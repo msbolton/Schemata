@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 
 /**
@@ -32,6 +33,45 @@ class ImportRoundTripTest {
                 examples.listFiles { f -> File(f, "expected/xsd").isDirectory }!!)
             .sortedBy { it.name }
             .map { case -> DynamicTest.dynamicTest(case.name) { check(case) } }
+
+    @Test
+    fun `all records and list fields round trip`() {
+        val source =
+            """
+            namespace shop
+
+            @xsd(all)
+            record Cfg {
+              a: int32
+              b: string?
+              @xsd(list)
+              tags: list<string>
+              @xsd(list)
+              @xsd(attribute)
+              sizes: list<int32>(min = 1, max = 4)?
+              @xsd(list)
+              kinds: list<Kind>?
+            }
+
+            enum Kind { small large }
+            """
+                .trimIndent()
+        val original =
+            Pipeline.compile(listOf(SourceInput("shop.schemata", source)), listOf(XsdTarget))
+        assertFalse(original.hasErrors, original.diagnostics.joinToString("\n") { it.message })
+        val xsd = original.files.map { ImportInput(it.file.path, it.file.content) }
+        val imported = XsdImporter.import(xsd)
+        assertEquals(emptyList(), imported.diagnostics.map { "${it.code.id} ${it.message}" })
+        val again =
+            Pipeline.compile(
+                imported.files.map { SourceInput(it.path, it.content) },
+                listOf(XsdTarget),
+            )
+        assertEquals(
+            original.files.associate { it.file.path to it.file.content },
+            again.files.associate { it.file.path to it.file.content },
+        )
+    }
 
     private fun check(case: File) {
         val original = Pipeline.compile(TestSources.of(case), listOf(XsdTarget))

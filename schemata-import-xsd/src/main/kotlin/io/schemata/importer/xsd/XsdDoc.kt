@@ -92,12 +92,14 @@ sealed interface XParticle {
     data class GroupRef(val ref: QName, val minOccurs: Int, val maxOccurs: Int?, val line: Int) :
         XParticle
 
-    // a sequence/choice/all inside another
+    // a sequence/choice/all inside another; [name] is the group's when it came from a repeated
+    // reference to a named group
     data class Nested(
         val content: XContent,
         val minOccurs: Int,
         val maxOccurs: Int?,
         val line: Int,
+        val name: String? = null,
     ) : XParticle
 }
 

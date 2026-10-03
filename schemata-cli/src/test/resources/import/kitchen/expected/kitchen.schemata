@@ -26,6 +26,7 @@ record Dish { name: string @xsd(mixed) text: string? }
 
 @xsd(name = "baseDish")
 @xsd(root = false)
+@xsd(all)
 record BaseDish { garnish: string }
 
 @xsd(name = "specialDish")

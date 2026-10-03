@@ -63,6 +63,23 @@ object XsdReader {
         val children = mutableListOf<Node>()
         val text = StringBuilder()
 
+        /** How much of its parent's [text] had been read when this node began. */
+        var offset = 0
+
+        /**
+         * All the character data under this node in document order, its own and its descendants',
+         * as an XPath string value: markup inside a documentation node keeps its words.
+         */
+        fun deepText(): String = buildString {
+            var at = 0
+            children.forEach { c ->
+                append(text, at, c.offset)
+                append(c.deepText())
+                at = c.offset
+            }
+            append(text, at, text.length)
+        }
+
         fun attr(name: String): String? = attrs[name]
 
         fun child(local: String): Node? = children.firstOrNull { it.ns == XS && it.local == local }
@@ -122,7 +139,11 @@ object XsdReader {
                     pending.clear()
                     val node =
                         Node(uri.ifEmpty { null }, localName, attrs, locator.lineNumber, prefixes)
-                    if (stack.isEmpty()) root = node else stack.last().children += node
+                    if (stack.isEmpty()) root = node
+                    else {
+                        node.offset = stack.last().text.length
+                        stack.last().children += node
+                    }
                     stack.addLast(node)
                     scope.addLast(HashMap(prefixes))
                 }
@@ -158,7 +179,17 @@ object XsdReader {
                     root.children("import").map {
                         XImport(it.attr("namespace"), it.attr("schemaLocation"), it.line)
                     },
-                includes = root.children("include").mapNotNull { it.attr("schemaLocation") },
+                // A redefine or override also brings in the document it names; what it changes in
+                // that document is dropped (and reported) by the importer.
+                includes =
+                    root.children
+                        .filter {
+                            it.ns == XS &&
+                                (it.local == "include" ||
+                                    it.local == "redefine" ||
+                                    it.local == "override")
+                        }
+                        .mapNotNull { it.attr("schemaLocation") },
                 complexTypes =
                     root.children("complexType").mapNotNull { n ->
                         required(n, "name")?.let { complexType(n) }
@@ -217,15 +248,14 @@ object XsdReader {
 
         /**
          * The text of every `xs:documentation` under this node's `xs:annotation`, trimmed and
-         * joined by blank lines. Each line loses its leading whitespace: a schema indents its
-         * documentation to suit its own layout, which means nothing once it is a doc comment.
+         * joined by blank lines; markup inside one (XHTML, say) gives up its text in place. Each
+         * line loses its leading whitespace: a schema indents its documentation to suit its own
+         * layout, which means nothing once it is a doc comment.
          */
         private fun documentation(n: Node): String? =
             n.child("annotation")
                 ?.children("documentation")
-                ?.map { d ->
-                    d.text.toString().trim().lines().joinToString("\n") { it.trimStart() }
-                }
+                ?.map { d -> d.deepText().trim().lines().joinToString("\n") { it.trimStart() } }
                 ?.filter { it.isNotEmpty() }
                 ?.takeIf { it.isNotEmpty() }
                 ?.joinToString("\n\n")

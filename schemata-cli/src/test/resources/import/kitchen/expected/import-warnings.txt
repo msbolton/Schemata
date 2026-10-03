@@ -2,6 +2,5 @@ SCH2402 kitchen.xsd: namespace 'kitchen' was derived from the file name
 SCH2404 element 'built': xs:gYear imported as string
 SCH2404 element 'code': facet whiteSpace dropped
 SCH2401 element 'widget': type 'Missing' cannot be resolved
-SCH2403 complex type 'baseDishType': xs:all imported as a sequence
 SCH2403 complex type 'specialDishType': xs:all imported as a sequence
 SCH2403 complex type 'specialDishType': extension of 'baseDishType' has no Schemata equivalent; base fields flattened into the record

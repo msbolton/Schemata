@@ -1,0 +1,6 @@
+# import=xsd
+warning[SCH2403] (lossy): complex type 'TrackType': nested sequence imported as record 'LatGroup' in field 'lat_group'
+ --> s.xsd:5:1
+  = help: review the imported record; the regenerated XSD will differ here
+
+0 errors, 1 warning

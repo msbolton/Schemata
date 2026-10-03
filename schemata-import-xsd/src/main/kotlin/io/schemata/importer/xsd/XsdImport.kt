@@ -81,6 +81,10 @@ object XsdImport {
             live += doc
         }
 
+        val docsByNamespace = LinkedHashMap<String?, XsdDoc>()
+        live.forEach { docsByNamespace.putIfAbsent(it.targetNamespace, it) }
+        val isEnum = { st: XSimpleType -> enumFacets(st, docsByNamespace) != null }
+
         // Type names are resolved once for the whole document set, per namespace, before any field
         // is lowered, so a cross-document reference always sees the final name. Only enumerated
         // simple types (the only simple types that ever become declarations) claim a name here; a
@@ -89,14 +93,11 @@ object XsdImport {
         live.forEach { doc ->
             val originals =
                 doc.complexTypes.mapNotNull { it.name } +
-                    doc.simpleTypes.mapNotNull { st -> st.name?.takeIf { hasEnumeration(st) } }
+                    doc.simpleTypes.mapNotNull { st -> st.name?.takeIf { isEnum(st) } }
             resolveNamespaceTypeNames(originals).forEach { (original, info) ->
                 typeNames[QName(doc.targetNamespace, original)] = info
             }
         }
-
-        val docsByNamespace = LinkedHashMap<String?, XsdDoc>()
-        live.forEach { docsByNamespace.putIfAbsent(it.targetNamespace, it) }
         val cycles = Cycles(cyclicGroups(docsByNamespace), cyclicAttributeGroups(docsByNamespace))
         val heads = Heads(live)
 
@@ -128,7 +129,7 @@ object XsdImport {
                     topLevelNames.putIfAbsent(info.finalName, "complex type '$original'")
                 }
                 doc.simpleTypes.forEach { st ->
-                    val original = st.name?.takeIf { hasEnumeration(st) } ?: return@forEach
+                    val original = st.name?.takeIf { isEnum(st) } ?: return@forEach
                     val info = typeNames.getValue(QName(doc.targetNamespace, original))
                     topLevelNames.putIfAbsent(info.finalName, "simple type '$original'")
                 }
@@ -150,7 +151,7 @@ object XsdImport {
                 // lets a re-exported xsd come out byte for byte the same as the one that was read.
                 (doc.complexTypes.map { it.line to lowering.declaration(it) } +
                         doc.simpleTypes
-                            .filter { it.name != null && hasEnumeration(it) }
+                            .filter { it.name != null && isEnum(it) }
                             .map { it.line to listOf(lowering.enumDeclaration(it)) })
                     .sortedBy { it.first }
                     .forEach { (_, decls) -> declarations += decls }
@@ -409,6 +410,18 @@ object XsdImport {
         }
     }
 
+    /**
+     * A field whose synthesised name waits for its record's named fields: the [kind] and
+     * [construct] its claim reports, and where.
+     */
+    private data class PendingName(
+        val kind: String,
+        val construct: String,
+        val whereCollision: String,
+        val line: Int,
+        val path: String,
+    )
+
     private data class FieldName(
         val name: String,
         val annotation: UnitAnnotation?,
@@ -422,11 +435,35 @@ object XsdImport {
         )
 
     /**
-     * Only an enumerated simple type becomes a declaration (an enum); a plain restriction is
-     * inlined at each use, so it never claims a type name of its own.
+     * The values of [st] when it is enumerated, and so becomes a declaration (an enum); `null` for
+     * a plain restriction, list, or union, which is inlined at each use and never claims a type
+     * name of its own. A union is enumerated when every member is, named or inline, a union of
+     * enumerations among them: its values are all of theirs in member order, each kept once.
      */
-    private fun hasEnumeration(st: XSimpleType): Boolean =
-        (st.variety as? XVariety.Restriction)?.facets?.any { it.name == "enumeration" } == true
+    private fun enumFacets(
+        st: XSimpleType,
+        docsByNamespace: Map<String?, XsdDoc>,
+        visiting: Set<QName> = emptySet(),
+    ): List<XFacet>? =
+        when (val v = st.variety) {
+            is XVariety.Restriction ->
+                v.facets.filter { it.name == "enumeration" }.takeIf { it.isNotEmpty() }
+            is XVariety.ListOf -> null
+            is XVariety.Union -> {
+                val named =
+                    v.memberTypes.map { q ->
+                        val member =
+                            docsByNamespace[q.namespace]?.simpleTypes?.firstOrNull {
+                                it.name == q.local
+                            }
+                        if (member == null || q in visiting) return null
+                        enumFacets(member, docsByNamespace, visiting + q) ?: return null
+                    }
+                val inline =
+                    v.inlineMembers.map { enumFacets(it, docsByNamespace, visiting) ?: return null }
+                (named + inline).flatten().distinctBy { it.value }.takeIf { it.isNotEmpty() }
+            }
+        }
 
     /** A diagnostic at [line] of [path], with the standard help text for [code]. */
     private fun diagnostic(code: DiagnosticCode, path: String, line: Int, message: String) =
@@ -492,6 +529,23 @@ object XsdImport {
     ) {
         /** Namespaces a head union's members live in, which the unit must import. */
         val extraImports = linkedSetOf<String>()
+
+        /** How many inline choices each record has had so far, which numbers the next one. */
+        private val choiceCounts = mutableMapOf<String, Int>()
+
+        /**
+         * Fields whose names are synthesised (a wildcard's, mixed text's, an attribute wildcard's),
+         * by the placeholder each holds until its record's named fields have claimed theirs.
+         */
+        private val pendingNames = mutableMapOf<String, PendingName>()
+        private var pendingCount = 0
+
+        /**
+         * [st]'s enumeration values, its members' for a union of enumerations; see [enumFacets].
+         */
+        private fun enumFacets(st: XSimpleType): List<XFacet>? = enumFacets(st, docsByNamespace)
+
+        private fun isEnum(st: XSimpleType): Boolean = enumFacets(st) != null
 
         /**
          * The document whose lines a diagnostic points at: [doc], except while a component an
@@ -582,9 +636,9 @@ object XsdImport {
                     }
                     null
                 }
-            val (fields, nested) =
+            val (fields, nested, recordAnnotations) =
                 fieldsAndNested(ct, "complex type '$original'", info.finalName, siblings)
-            val annotations = listOfNotNull(typeOverride, rootAnnotation)
+            val annotations = listOfNotNull(typeOverride, rootAnnotation) + recordAnnotations
             return listOf(UnitRecord(info.finalName, fields, nested, ct.doc, annotations)) +
                 siblings
         }
@@ -654,7 +708,9 @@ object XsdImport {
                     diagnostics += typeCollision(original, note.other, st.line, "simple type")
                 null -> Unit
             }
-            val built = buildInlineEnum(st, info.finalName, "simple type '$original'")
+            val where = "simple type '$original'"
+            if (st.variety is XVariety.Union) unionNote(where, "enum '${info.finalName}'", st.line)
+            val built = buildInlineEnum(st, info.finalName, where)
             return built.copy(annotations = listOfNotNull(info.annotation))
         }
 
@@ -667,6 +723,7 @@ object XsdImport {
         private fun topLevelRecordAt(el: XElement): List<UnitDecl> {
             val original = el.name ?: return emptyList()
             val ct = el.inlineComplex ?: return emptyList()
+            reportIdentityConstraints(el, "element '$original'")
             val name = ImportNames.upperCamel(original)
             if (!claimTopLevel(name, "element '$original'", el.line)) return emptyList()
             val siblings = mutableListOf<UnitDecl>()
@@ -695,8 +752,9 @@ object XsdImport {
                         el.line,
                     )
             }
-            val (fields, nested) = fieldsAndNested(ct, "element '$original'", name, siblings)
-            return listOf(UnitRecord(name, fields, nested, ct.doc ?: el.doc, emptyList())) +
+            val (fields, nested, annotations) =
+                fieldsAndNested(ct, "element '$original'", name, siblings)
+            return listOf(UnitRecord(name, fields, nested, ct.doc ?: el.doc, annotations)) +
                 siblings
         }
 
@@ -712,6 +770,7 @@ object XsdImport {
         private fun checkRootAt(el: XElement, roots: MutableSet<QName>) {
             val name = el.name ?: return
             val where = "element '$name'"
+            reportIdentityConstraints(el, where)
             val type = el.type
             val simple = "root element of simple type dropped"
             when {
@@ -994,21 +1053,91 @@ object XsdImport {
             }
         }
 
+        /**
+         * [ct]'s fields, the declarations nested in its record, and the annotations the record
+         * itself takes from its content (`@xsd(all)`).
+         */
         private fun fieldsAndNested(
             ct: XComplexType,
             whereCollision: String,
             recordName: String,
             siblings: MutableList<UnitDecl>,
-        ): Pair<List<UnitField>, List<UnitDecl>> {
+        ): Triple<List<UnitField>, List<UnitDecl>, List<UnitAnnotation>> {
             val nested = mutableListOf<UnitDecl>()
             val claimed = mutableMapOf<String, String>()
+            val recordAnnotations = mutableListOf<UnitAnnotation>()
             // Seeds the cycle guard with this type's own identity (when it has one), so a direct
             // self-extension is caught on the first hop, not just a longer cycle back to it.
             val visited = mutableSetOf<QName>()
             if (ct.name != null) visited += QName(doc.targetNamespace, ct.name)
             val fields =
-                allFieldsOf(ct, whereCollision, recordName, claimed, nested, siblings, visited)
-            return fields to nested
+                allFieldsOf(
+                    ct,
+                    whereCollision,
+                    recordName,
+                    claimed,
+                    nested,
+                    siblings,
+                    visited,
+                    recordAnnotations = recordAnnotations,
+                )
+            return Triple(settleNames(fields, claimed), nested, recordAnnotations)
+        }
+
+        /**
+         * [fields] with each synthesised name settled, in order, now that every named field of the
+         * record has claimed its own: `any`, `any_2`… for wildcards, `text` (else `mixed_text`) for
+         * mixed text, `attributes` (else `any_attributes`) for an attribute wildcard, each the
+         * first still free. One that still collides is reported and dropped.
+         */
+        private fun settleNames(
+            fields: List<UnitField>,
+            claimed: MutableMap<String, String>,
+        ): List<UnitField> =
+            fields.mapNotNull { f ->
+                val pending = pendingNames.remove(f.name) ?: return@mapNotNull f
+                claimed.remove(f.name)
+                val name =
+                    when (pending.construct) {
+                        MIXED_TEXT -> if ("text" in claimed) "mixed_text" else "text"
+                        ANY_ATTRIBUTE ->
+                            if ("attributes" in claimed) "any_attributes" else "attributes"
+                        else -> {
+                            var index = 1
+                            while (XsdWildcards.anyName(index) in claimed) index++
+                            XsdWildcards.anyName(index)
+                        }
+                    }
+                val (fieldName, annotations) =
+                    at(pending.path) {
+                        nameAndClaim(
+                            name,
+                            pending.kind,
+                            pending.construct,
+                            claimed,
+                            pending.whereCollision,
+                            pending.line,
+                        )
+                    } ?: return@mapNotNull null
+                f.copy(name = fieldName, annotations = annotations + f.annotations)
+            }
+
+        /**
+         * A placeholder name for a field whose real name is settled by [settleNames], claimed in
+         * [claimed] under [construct] meanwhile.
+         */
+        private fun pendingName(
+            kind: String,
+            construct: String,
+            claimed: MutableMap<String, String>,
+            whereCollision: String,
+            line: Int,
+        ): String {
+            val placeholder = "\u0000${pendingCount++}"
+            pendingNames[placeholder] =
+                PendingName(kind, construct, whereCollision, line, sourcePath)
+            claimed[placeholder] = construct
+            return placeholder
         }
 
         /**
@@ -1025,6 +1154,7 @@ object XsdImport {
             siblings: MutableList<UnitDecl>,
             visited: MutableSet<QName>,
             namespace: String? = doc.targetNamespace,
+            recordAnnotations: MutableList<UnitAnnotation>? = null,
         ): List<UnitField> {
             // An abstract type with concrete descendants is not dropped: it is a union of them.
             if (ct.abstract && ct.name?.let { heads.types[QName(namespace, it)] } == null) {
@@ -1041,6 +1171,7 @@ object XsdImport {
                     nested,
                     siblings,
                     visited,
+                    recordAnnotations,
                 )
             val mixedFields =
                 listOfNotNull(if (ct.mixed) mixedText(claimed, whereCollision, ct.line) else null)
@@ -1065,9 +1196,9 @@ object XsdImport {
         }
 
         /**
-         * The character data of a mixed type as `text: string?` (`mixed_text` when `text` is
-         * taken), marked `@xsd(mixed)`. A record has one, however many types along its extension
-         * chain are mixed.
+         * The character data of a mixed type as `text: string?` (`mixed_text` when a named field
+         * takes `text`, see [settleNames]), marked `@xsd(mixed)`. A record has one, however many
+         * types along its extension chain are mixed.
          */
         private fun mixedText(
             claimed: MutableMap<String, String>,
@@ -1075,24 +1206,20 @@ object XsdImport {
             line: Int,
         ): UnitField? {
             if (MIXED_TEXT in claimed.values) return null
-            val name = if ("text" in claimed) "mixed_text" else "text"
-            val (fieldName, annotations) =
-                nameAndClaim(name, "mixed text", MIXED_TEXT, claimed, whereCollision, line)
-                    ?: return null
             return UnitField(
-                fieldName,
+                pendingName("mixed text", MIXED_TEXT, claimed, whereCollision, line),
                 UnitType.Scalar("string", emptyList()),
                 true,
                 null,
                 null,
-                annotations + UnitAnnotation("xsd", "mixed", null),
+                listOf(UnitAnnotation("xsd", "mixed", null)),
             )
         }
 
         /**
-         * An attribute wildcard as `attributes: map<string, string>` (`any_attributes` when
-         * `attributes` is taken), marked `@xsd(any_attribute)`. A record has one, however many
-         * types along its extension chain declare a wildcard.
+         * An attribute wildcard as `attributes: map<string, string>` (`any_attributes` when a named
+         * field takes `attributes`, see [settleNames]), marked `@xsd(any_attribute)`. A record has
+         * one, however many types along its extension chain declare a wildcard.
          */
         private fun anyAttributes(
             use: XAttributeUse.AnyAttribute,
@@ -1100,52 +1227,31 @@ object XsdImport {
             whereCollision: String,
         ): UnitField? {
             if (ANY_ATTRIBUTE in claimed.values) return null
-            val name = if ("attributes" in claimed) "any_attributes" else "attributes"
-            val (fieldName, annotations) =
-                nameAndClaim(
-                    name,
-                    "wildcard attribute",
-                    ANY_ATTRIBUTE,
-                    claimed,
-                    whereCollision,
-                    use.line,
-                ) ?: return null
             val string = UnitType.Scalar("string", emptyList())
             return UnitField(
-                fieldName,
+                pendingName("wildcard attribute", ANY_ATTRIBUTE, claimed, whereCollision, use.line),
                 UnitType.MapOf(string, string, false, emptyList()),
                 false,
                 null,
                 null,
-                annotations + XsdWildcards.anyAttribute(use),
+                XsdWildcards.anyAttribute(use),
             )
         }
 
         /**
-         * An element wildcard as `any` (then `any_2`, `any_3`… past the first name still free in
-         * the record), marked `@xsd(any)`: `list<string>` when it repeats, else `string`, nullable
-         * when optional.
+         * An element wildcard as `any` (then `any_2`, `any_3`… past the first name the record's
+         * named fields leave free, see [settleNames]), marked `@xsd(any)`: `list<string>` when it
+         * repeats, else `string`, nullable when optional.
          */
         private fun anyField(
             particle: XParticle.Any,
             claimed: MutableMap<String, String>,
             whereCollision: String,
         ): UnitField? {
-            var index = 1
-            while (XsdWildcards.anyName(index) in claimed) index++
-            val (name, annotations) =
-                nameAndClaim(
-                    XsdWildcards.anyName(index),
-                    "wildcard",
-                    "xs:any",
-                    claimed,
-                    whereCollision,
-                    particle.line,
-                ) ?: return null
             val string = UnitType.Scalar("string", emptyList())
             val repeated = particle.maxOccurs != 1
             return UnitField(
-                name,
+                pendingName("wildcard", "xs:any", claimed, whereCollision, particle.line),
                 if (repeated)
                     UnitType.ListOf(
                         string,
@@ -1156,7 +1262,7 @@ object XsdImport {
                 !repeated && particle.minOccurs == 0,
                 null,
                 null,
-                annotations + XsdWildcards.any(particle),
+                XsdWildcards.any(particle),
             )
         }
 
@@ -1201,6 +1307,11 @@ object XsdImport {
             return result
         }
 
+        /**
+         * The fields [content] declares. An `xs:all` that is the record's own content (when
+         * [recordAnnotations] collects the record's annotations) gives the record `@xsd(all)`; one
+         * reached through an extension base is imported as a sequence and noted.
+         */
         private fun contentFields(
             ct: XComplexType,
             content: XContent,
@@ -1210,6 +1321,7 @@ object XsdImport {
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
             visited: MutableSet<QName>,
+            recordAnnotations: MutableList<UnitAnnotation>?,
         ): List<UnitField> =
             when (content) {
                 is XContent.Sequence ->
@@ -1222,21 +1334,29 @@ object XsdImport {
                         siblings,
                     )
                 is XContent.All -> {
-                    diagnostics +=
-                        lossy(
-                            ImportCodes.APPROXIMATED,
-                            whereCollision,
-                            "xs:all imported as a sequence",
-                            ct.line,
-                        )
-                    sequenceFields(
-                        recordName,
-                        content.particles,
-                        whereCollision,
-                        claimed,
-                        nested,
-                        siblings,
-                    )
+                    if (recordAnnotations != null) {
+                        recordAnnotations += UnitAnnotation("xsd", "all", null)
+                    } else {
+                        diagnostics +=
+                            lossy(
+                                ImportCodes.APPROXIMATED,
+                                whereCollision,
+                                "xs:all imported as a sequence",
+                                ct.line,
+                            )
+                    }
+                    // xs:all holds each element at most once, so an element is required or not.
+                    val particles =
+                        content.particles.map { p ->
+                            if (p !is XParticle.Element) p
+                            else
+                                XParticle.Element(
+                                    p.element.copy(
+                                        minOccurs = if (p.element.minOccurs == 0) 0 else 1
+                                    )
+                                )
+                        }
+                    sequenceFields(recordName, particles, whereCollision, claimed, nested, siblings)
                 }
                 is XContent.Empty -> emptyList()
                 is XContent.Choice -> {
@@ -1267,6 +1387,7 @@ object XsdImport {
                         simpleContentFields(
                             "restriction",
                             content.base,
+                            content.facets,
                             content.line,
                             whereCollision,
                             claimed,
@@ -1291,7 +1412,6 @@ object XsdImport {
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
         ): List<UnitField> {
-            var choiceCount = 0
             val result = mutableListOf<UnitField>()
             expandParticles(particles, whereCollision).forEach { particle ->
                 when (particle) {
@@ -1305,38 +1425,39 @@ object XsdImport {
                     is XParticle.Nested -> {
                         val content = particle.content
                         when (content) {
-                            is XContent.Choice -> {
-                                choiceCount++
+                            is XContent.Choice ->
                                 result +=
                                     inlineChoiceFields(
                                         recordName,
                                         content,
                                         particle,
-                                        choiceCount,
                                         whereCollision,
                                         claimed,
                                         nested,
                                         siblings,
                                     )
-                            }
-                            is XContent.Sequence -> {
-                                diagnostics +=
-                                    lossy(
-                                        ImportCodes.APPROXIMATED,
-                                        whereCollision,
-                                        "nested sequence flattened into the record",
-                                        particle.line,
-                                    )
-                                result +=
-                                    sequenceFields(
-                                        recordName,
-                                        content.particles,
-                                        whereCollision,
-                                        claimed,
-                                        nested,
-                                        siblings,
-                                    )
-                            }
+                            is XContent.Sequence ->
+                                if (particle.minOccurs == 1 && particle.maxOccurs == 1) {
+                                    result +=
+                                        sequenceFields(
+                                            recordName,
+                                            content.particles,
+                                            whereCollision,
+                                            claimed,
+                                            nested,
+                                            siblings,
+                                        )
+                                } else {
+                                    groupField(
+                                            content,
+                                            particle,
+                                            whereCollision,
+                                            claimed,
+                                            nested,
+                                            siblings,
+                                        )
+                                        ?.let { result += it }
+                                }
                             is XContent.All -> {
                                 diagnostics +=
                                     lossy(
@@ -1364,45 +1485,112 @@ object XsdImport {
         }
 
         /**
+         * A sequence nested in another that occurs other than exactly once, or a repeated reference
+         * to a sequence group: a record nested in the enclosing one, named for the group or for the
+         * sequence's first element (`LatGroup`), held by a field of the same stem (`lat_group`)
+         * that is a list, optional, or plain as the sequence occurs. `null` when the field's name
+         * is already taken, which is reported.
+         */
+        private fun groupField(
+            content: XContent.Sequence,
+            particle: XParticle.Nested,
+            whereCollision: String,
+            claimed: MutableMap<String, String>,
+            nested: MutableList<UnitDecl>,
+            siblings: MutableList<UnitDecl>,
+        ): UnitField? {
+            val first =
+                content.particles.firstNotNullOfOrNull {
+                    (it as? XParticle.Element)?.element?.let { el -> el.name ?: el.ref?.local }
+                }
+            val base =
+                particle.name?.let(ImportNames::upperCamel)
+                    ?: ((first?.let(ImportNames::upperCamel) ?: "") + "Group")
+            var recordName = base
+            var suffix = 2
+            while (nested.any { it.name == recordName }) recordName = "$base${suffix++}"
+            val original =
+                particle.name?.let(ImportNames::lowerSnake)
+                    ?: (ImportNames.lowerSnake(first ?: "group") + "_group")
+            val construct = particle.name?.let { "group '$it'" } ?: "nested sequence"
+            val (name, annotations) =
+                nameAndClaim(original, "group", construct, claimed, whereCollision, particle.line)
+                    ?: return null
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    whereCollision,
+                    (particle.name?.let { "repeated group '$it'" } ?: "nested sequence") +
+                        " imported as record '$recordName' in field '$name'",
+                    particle.line,
+                )
+            val ownClaimed = mutableMapOf<String, String>()
+            val ownNested = mutableListOf<UnitDecl>()
+            val fields =
+                sequenceFields(
+                    recordName,
+                    content.particles,
+                    whereCollision,
+                    ownClaimed,
+                    ownNested,
+                    siblings,
+                )
+            nested +=
+                UnitRecord(
+                    recordName,
+                    settleNames(fields, ownClaimed),
+                    ownNested,
+                    null,
+                    emptyList(),
+                )
+            val ref = UnitType.Ref(recordName)
+            return if (particle.maxOccurs != 1) {
+                UnitField(
+                    name,
+                    UnitType.ListOf(
+                        ref,
+                        false,
+                        listRefinements(particle.minOccurs, particle.maxOccurs),
+                    ),
+                    false,
+                    null,
+                    null,
+                    annotations,
+                )
+            } else UnitField(name, ref, particle.minOccurs == 0, null, null, annotations)
+        }
+
+        /**
          * A bare `xs:choice` found directly inside a sequence, with no wrapping element: a union
-         * synthesised as a top-level sibling when every member has a complex type, named
-         * `[recordName]Choice` (suffixed by [index] past the first); otherwise every member is
-         * flattened to an optional field of the enclosing record.
+         * synthesised as a top-level sibling when every member has a complex type or is itself a
+         * model group, named `[recordName]Choice` (numbered past the record's first inline choice,
+         * however deeply nested); otherwise every member is flattened to an optional field of the
+         * enclosing record.
          */
         private fun inlineChoiceFields(
             recordName: String,
             choice: XContent.Choice,
             particle: XParticle.Nested,
-            index: Int,
             whereCollision: String,
             claimed: MutableMap<String, String>,
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
         ): List<UnitField> {
+            val index = choiceCounts.merge(recordName, 1, Int::plus)!!
             val members =
-                expandParticles(choice.particles, whereCollision)
-                    .filterIsInstance<XParticle.Element>()
+                expandParticles(choice.particles, whereCollision).filter {
+                    it is XParticle.Element || it is XParticle.Nested
+                }
             val allComplex =
                 members.isNotEmpty() &&
                     members.all { p ->
-                        val el = p.element
+                        val el = (p as? XParticle.Element)?.element ?: return@all true
                         el.inlineComplex != null || (el.type != null && isComplexTypeRef(el.type))
                     }
             val fieldName = if (index == 1) "choice" else "choice_$index"
             if (allComplex) {
                 val unionName =
                     if (index == 1) "${recordName}Choice" else "${recordName}Choice$index"
-                val union =
-                    unionFromChoice(choice, unionName, "union '$unionName'", null, siblings, false)
-                siblings += union
-                diagnostics +=
-                    lossy(
-                        ImportCodes.APPROXIMATED,
-                        whereCollision,
-                        "inline choice has no Schemata equivalent; imported as union '$unionName' " +
-                            "in field '$fieldName'",
-                        particle.line,
-                    )
                 val claim =
                     nameAndClaim(
                         fieldName,
@@ -1412,6 +1600,17 @@ object XsdImport {
                         whereCollision,
                         particle.line,
                     ) ?: return emptyList()
+                diagnostics +=
+                    lossy(
+                        ImportCodes.APPROXIMATED,
+                        whereCollision,
+                        "inline choice has no Schemata equivalent; imported as union '$unionName' " +
+                            "in field '$fieldName'",
+                        particle.line,
+                    )
+                val union =
+                    unionFromChoice(choice, unionName, "union '$unionName'", null, siblings, false)
+                siblings += union
                 val (name, annotations) = claim
                 val type: UnitType =
                     if (particle.maxOccurs != 1) {
@@ -1431,8 +1630,28 @@ object XsdImport {
                     "inline choice has no Schemata equivalent; members imported as optional fields",
                     particle.line,
                 )
-            return members.mapNotNull {
-                field(it.element.copy(minOccurs = 0), claimed, whereCollision, nested, siblings)
+            return members.flatMap {
+                when (it) {
+                    is XParticle.Element ->
+                        listOfNotNull(
+                            field(
+                                it.element.copy(minOccurs = 0),
+                                claimed,
+                                whereCollision,
+                                nested,
+                                siblings,
+                            )
+                        )
+                    else ->
+                        sequenceFields(
+                            recordName,
+                            listOf((it as XParticle.Nested).copy(minOccurs = 0)),
+                            whereCollision,
+                            claimed,
+                            nested,
+                            siblings,
+                        )
+                }
             }
         }
 
@@ -1453,7 +1672,14 @@ object XsdImport {
             visited: MutableSet<QName>,
         ): List<UnitField> {
             if (ext.simple) {
-                return simpleContentFields("extension", ext.base, ext.line, whereCollision, claimed)
+                return simpleContentFields(
+                    "extension",
+                    ext.base,
+                    ext.facets,
+                    ext.line,
+                    whereCollision,
+                    claimed,
+                )
             }
             // A base already on the chain (a direct self-extension, or a longer cycle back to it):
             // reported once, here, where the cycle closes; the type still imports with its own
@@ -1503,12 +1729,13 @@ object XsdImport {
 
         /**
          * A `simpleContent` [kind] (`extension` or `restriction`) of [base]: a record with one
-         * `value` field of the base's simple type, beside the type's own attributes. A complex
-         * base's own value type is not followed: the field is a string.
+         * `value` field of the base's simple type narrowed by [facets], beside the type's own
+         * attributes. A complex base's own value type is not followed: the field is a string.
          */
         private fun simpleContentFields(
             kind: String,
             base: QName,
+            facets: List<XFacet>,
             line: Int,
             whereCollision: String,
             claimed: MutableMap<String, String>,
@@ -1535,12 +1762,18 @@ object XsdImport {
                     resolveSimpleTypeByQName(base, whereCollision, line)
                         ?: UnitType.Scalar("string", emptyList())
                 }
+            val refined = restrict(valueType, facets, line, sourcePath, whereCollision)
             val claim =
                 nameAndClaim("value", "field", whereCollision, claimed, whereCollision, line)
                     ?: return emptyList()
             val (name, annotations) = claim
-            return listOf(UnitField(name, valueType, false, null, null, annotations))
+            val list = listOfNotNull(listAnnotation(refined))
+            return listOf(UnitField(name, refined, false, null, null, annotations + list))
         }
+
+        /** `@xsd(list)` for a field whose value is a list simple type's; `null` otherwise. */
+        private fun listAnnotation(type: UnitType): UnitAnnotation? =
+            if (type is UnitType.ListOf) UnitAnnotation("xsd", "list", null) else null
 
         private fun resolveExtensionBase(
             baseQName: QName,
@@ -1619,8 +1852,9 @@ object XsdImport {
             name: String,
             siblings: MutableList<UnitDecl>,
         ): UnitRecord {
-            val (fields, nested) = fieldsAndNested(ct, "complex type '$name'", name, siblings)
-            return UnitRecord(name, fields, nested, ct.doc, emptyList())
+            val (fields, nested, annotations) =
+                fieldsAndNested(ct, "complex type '$name'", name, siblings)
+            return UnitRecord(name, fields, nested, ct.doc, annotations)
         }
 
         /**
@@ -1631,13 +1865,14 @@ object XsdImport {
             name: String,
             siblings: MutableList<UnitDecl>,
         ): UnitRecord {
-            val (fields, nested) = fieldsAndNested(ct, "complex type '$name'", name, siblings)
+            val (fields, nested, annotations) =
+                fieldsAndNested(ct, "complex type '$name'", name, siblings)
             return UnitRecord(
                 name,
                 fields,
                 nested,
                 ct.doc,
-                listOf(UnitAnnotation("xsd", "root", "false")),
+                listOf(UnitAnnotation("xsd", "root", "false")) + annotations,
             )
         }
 
@@ -1658,16 +1893,15 @@ object XsdImport {
         ): UnitUnion {
             val members = mutableListOf<UnionMember>()
             val seenStems = mutableMapOf<String, String>()
-            expandParticles(choice.particles, unionWhere).forEach { particle ->
+            fun member(particle: XParticle) {
                 when (particle) {
                     is XParticle.Element -> {
                         val el =
                             if (particle.element.ref != null) {
-                                resolveElementRef(particle.element, unionWhere) ?: return@forEach
+                                resolveElementRef(particle.element, unionWhere) ?: return
                             } else particle.element
                         val elementName = el.name ?: "member"
-                        val pair = memberTypeAndStem(el, unionWhere, siblings)
-                        if (pair == null) return@forEach
+                        val pair = memberTypeAndStem(el, unionWhere, siblings) ?: return
                         val (ownType, stem) = pair
                         val type = particle.element.ref?.let(::elementHeadType) ?: ownType
                         val existing = seenStems[stem]
@@ -1682,7 +1916,7 @@ object XsdImport {
                                         el.line,
                                     )
                             }
-                            return@forEach
+                            return
                         }
                         seenStems[stem] = elementName
                         if (checkMismatch && elementName != stem) {
@@ -1700,10 +1934,69 @@ object XsdImport {
                     is XParticle.Any ->
                         diagnostics +=
                             lossy(ImportCodes.DROPPED, unionWhere, "xs:any dropped", particle.line)
-                    else -> Unit
+                    is XParticle.Nested ->
+                        when (val content = particle.content) {
+                            // A choice inside a choice offers its branches as the outer one's.
+                            is XContent.Choice ->
+                                expandParticles(content.particles, unionWhere).forEach(::member)
+                            is XContent.Sequence,
+                            is XContent.All -> {
+                                val ref =
+                                    branchRecord(content, particle, unionWhere, siblings) ?: return
+                                seenStems.putIfAbsent(Names.snakeCase(ref.name), ref.name)
+                                members += UnionMember(ref, null)
+                            }
+                            else -> Unit
+                        }
+                    is XParticle.GroupRef -> Unit // only an unresolved ref survives expansion
                 }
             }
+            expandParticles(choice.particles, unionWhere).forEach(::member)
             return UnitUnion(name, members, unionDoc, emptyList())
+        }
+
+        /**
+         * A choice branch that is a sequence or an `xs:all`: a top-level, non-root record named for
+         * its first element (`WGroup`), referenced as the union's member. `null` when that name is
+         * already a top-level declaration's, which is reported.
+         */
+        private fun branchRecord(
+            content: XContent,
+            particle: XParticle.Nested,
+            unionWhere: String,
+            siblings: MutableList<UnitDecl>,
+        ): UnitType.Ref? {
+            val particles =
+                when (content) {
+                    is XContent.Sequence -> content.particles
+                    is XContent.All -> content.particles
+                    else -> return null
+                }
+            val first =
+                particles.firstNotNullOfOrNull {
+                    (it as? XParticle.Element)?.element?.let { el -> el.name ?: el.ref?.local }
+                }
+            val name = (first?.let(ImportNames::upperCamel) ?: "") + "Group"
+            if (!claimTopLevel(name, "choice branch of $unionWhere", particle.line)) return null
+            diagnostics +=
+                lossy(
+                    ImportCodes.APPROXIMATED,
+                    unionWhere,
+                    "choice branch imported as record '$name'",
+                    particle.line,
+                )
+            val ct =
+                XComplexType(
+                    name = null,
+                    doc = null,
+                    content = content,
+                    attributes = emptyList(),
+                    mixed = false,
+                    abstract = false,
+                    line = particle.line,
+                )
+            siblings += buildHoistedRecord(ct, name, siblings)
+            return UnitType.Ref(name)
         }
 
         /**
@@ -1752,14 +2045,14 @@ object XsdImport {
                     return type to regeneratedElementName(qname.local, info)
                 }
                 val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local }
-                if (st != null && hasEnumeration(st)) {
+                if (st != null && isEnum(st)) {
                     val info = typeNames.getValue(QName(targetDoc.targetNamespace, qname.local))
                     return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local)) to
                         regeneratedElementName(qname.local, info)
                 }
                 if (st != null) {
-                    val scalar = resolveNamedSimpleType(st, targetDoc.path, unionWhere)
-                    return scalar to scalar.builtin
+                    val type = resolveNamedSimpleType(st, targetDoc.path, unionWhere, setOf(qname))
+                    return simpleMember(type, unionWhere, el.line)
                 }
                 diagnostics +=
                     lossy(
@@ -1778,15 +2071,18 @@ object XsdImport {
                 return UnitType.Ref(hoistedName) to ImportNames.lowerSnake(elementName)
             }
             if (el.inlineSimple != null) {
-                if (hasEnumeration(el.inlineSimple)) {
+                if (isEnum(el.inlineSimple)) {
                     val elementName = el.name ?: "member"
                     val hoistedName = ImportNames.upperCamel(elementName)
                     if (!claimTopLevel(hoistedName, "element '$elementName'", el.line)) return null
+                    if (el.inlineSimple.variety is XVariety.Union) {
+                        unionNote(unionWhere, "enum '$hoistedName'", el.line)
+                    }
                     siblings += buildInlineEnum(el.inlineSimple, hoistedName, unionWhere)
                     return UnitType.Ref(hoistedName) to ImportNames.lowerSnake(elementName)
                 }
-                val scalar = resolveNamedSimpleType(el.inlineSimple, doc.path, unionWhere)
-                return scalar to scalar.builtin
+                val type = resolveNamedSimpleType(el.inlineSimple, doc.path, unionWhere)
+                return simpleMember(type, unionWhere, el.line)
             }
             diagnostics +=
                 lossy(
@@ -1799,6 +2095,30 @@ object XsdImport {
         }
 
         /**
+         * A union member of a simple type and its stem: a scalar is named for its builtin; a list,
+         * which a union member cannot be, is reported and imported as a string.
+         */
+        private fun simpleMember(
+            type: UnitType,
+            unionWhere: String,
+            line: Int,
+        ): Pair<UnitType, String> =
+            when (type) {
+                is UnitType.Scalar -> type to type.builtin
+                is UnitType.Ref -> type to Names.snakeCase(type.name.substringAfterLast('.'))
+                else -> {
+                    diagnostics +=
+                        lossy(
+                            ImportCodes.DROPPED,
+                            unionWhere,
+                            "list simple type imported as string",
+                            line,
+                        )
+                    UnitType.Scalar("string", emptyList()) to "string"
+                }
+            }
+
+        /**
          * [original]'s regenerated element or union-member name, exactly as the XSD target writes
          * it.
          */
@@ -1806,10 +2126,12 @@ object XsdImport {
             if (info.annotation != null) original.removeSuffix("Type")
             else Names.snakeCase(info.finalName)
 
-        /** An anonymous or named enumeration's values, in order, with per-value naming and docs. */
+        /**
+         * An anonymous or named enumeration's values (a union of enumerations' values, see
+         * [enumFacets]), in order, with per-value naming and docs.
+         */
         private fun buildInlineEnum(st: XSimpleType, name: String, where: String): UnitEnum {
-            val facets =
-                (st.variety as XVariety.Restriction).facets.filter { it.name == "enumeration" }
+            val facets = enumFacets(st).orEmpty()
             val claimed = mutableMapOf<String, String>()
             val values =
                 facets.mapNotNull { f ->
@@ -1848,11 +2170,10 @@ object XsdImport {
 
         /**
          * Groups referenced by `xs:group ref` expand into their own particles in place,
-         * recursively; an unresolved group is reported and dropped. A repeated reference
-         * (`minOccurs`/`maxOccurs` other than `1`) to a group whose own content is a sequence loses
-         * that repetition when spliced in directly (there is no particle left to carry it), so it
-         * is reported and expanded once; a repeated reference to a choice or `xs:all` group keeps
-         * its own repetition, carried on the `Nested` particle it becomes.
+         * recursively; an unresolved group is reported and dropped. A reference to a sequence group
+         * that occurs other than exactly once keeps its occurrence on the `Nested` particle it
+         * becomes, named for the group, which lowers to a record of its own; so does a reference to
+         * a choice or `xs:all` group, whatever its occurrence.
          */
         private fun expandParticles(particles: List<XParticle>, where: String): List<XParticle> =
             particles.flatMap { p ->
@@ -1881,19 +2202,20 @@ object XsdImport {
                             emptyList()
                         } else {
                             when (val c = group.content) {
-                                is XContent.Sequence -> {
-                                    if (p.minOccurs != 1 || p.maxOccurs != 1) {
-                                        diagnostics +=
-                                            lossy(
-                                                ImportCodes.APPROXIMATED,
-                                                where,
-                                                "repeated group '${p.ref.local}' has no Schemata " +
-                                                    "equivalent; expanded once",
+                                is XContent.Sequence ->
+                                    if (p.minOccurs == 1 && p.maxOccurs == 1) {
+                                        expandParticles(c.particles, where)
+                                    } else {
+                                        listOf(
+                                            XParticle.Nested(
+                                                c,
+                                                p.minOccurs,
+                                                p.maxOccurs,
                                                 p.line,
+                                                name = p.ref.local,
                                             )
+                                        )
                                     }
-                                    expandParticles(c.particles, where)
-                                }
                                 else ->
                                     listOf(XParticle.Nested(c, p.minOccurs, p.maxOccurs, p.line))
                             }
@@ -1994,6 +2316,47 @@ object XsdImport {
             val default: String?,
         )
 
+        /**
+         * Reports [el]'s identity constraints, which Schemata has no way to say: every `xs:key` and
+         * `xs:keyref`, and every `xs:unique` but the one a map wrapper would consume (whether or
+         * not [el] actually turns out to be a map).
+         */
+        private fun reportIdentityConstraints(el: XElement, where: String) {
+            val mapUnique = el.uniques.firstOrNull(::isMapUnique)
+            val constraints = (el.uniques - listOfNotNull(mapUnique)).map { it.name to it.line }
+            (constraints + el.keys.map { it.name to it.line }).forEach { (name, line) ->
+                diagnostics +=
+                    lossy(ImportCodes.DROPPED, where, "identity constraint '$name' dropped", line)
+            }
+        }
+
+        /**
+         * [el] with its substitution-group head's type when it declares none of its own, as XSD
+         * gives it, following the chain of heads until one has a type.
+         */
+        private fun withHeadType(el: XElement): XElement {
+            var head = el.substitutionGroup
+            val seen = mutableSetOf<QName>()
+            while (
+                el.type == null &&
+                    el.inlineComplex == null &&
+                    el.inlineSimple == null &&
+                    head != null &&
+                    seen.add(head)
+            ) {
+                val h = headElement(head) ?: return el
+                if (h.type != null || h.inlineComplex != null || h.inlineSimple != null) {
+                    return el.copy(
+                        type = h.type,
+                        inlineComplex = h.inlineComplex,
+                        inlineSimple = h.inlineSimple,
+                    )
+                }
+                head = h.substitutionGroup
+            }
+            return el
+        }
+
         private fun field(
             el0: XElement,
             claimed: MutableMap<String, String>,
@@ -2001,36 +2364,15 @@ object XsdImport {
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
         ): UnitField? {
-            val el = resolveElementRef(el0, whereCollision) ?: return null
+            val el = withHeadType(resolveElementRef(el0, whereCollision) ?: return null)
             val original = el.name ?: return null
             val where = "element '$original'"
             if (el.maxOccurs == 0) {
                 diagnostics += lossy(ImportCodes.DROPPED, where, "maxOccurs 0 dropped", el.line)
                 return null
             }
-
-            // The one xs:unique a map wrapper would consume (whether or not this field actually
-            // turns out to be a map) is excluded; every other identity constraint has no Schemata
-            // equivalent at all.
-            val mapUnique = el.uniques.firstOrNull(::isMapUnique)
-            (el.uniques - listOfNotNull(mapUnique)).forEach {
-                diagnostics +=
-                    lossy(
-                        ImportCodes.DROPPED,
-                        where,
-                        "identity constraint '${it.name}' dropped",
-                        it.line,
-                    )
-            }
-            el.keys.forEach {
-                diagnostics +=
-                    lossy(
-                        ImportCodes.DROPPED,
-                        where,
-                        "identity constraint '${it.name}' dropped",
-                        it.line,
-                    )
-            }
+            // A global element's constraints are reported once, where it is declared.
+            if (el0.ref == null) reportIdentityConstraints(el, where)
             // An abstract head of a substitution group is not dropped: it is a union of its
             // members.
             val elementQName = el0.ref ?: QName(doc.targetNamespace, original)
@@ -2152,6 +2494,29 @@ object XsdImport {
                                         el.line,
                                     )
                             }
+                            if (el.fixed != null) {
+                                diagnostics +=
+                                    lossy(
+                                        ImportCodes.DROPPED,
+                                        where,
+                                        "fixed value dropped",
+                                        el.line,
+                                    )
+                            }
+                            if (
+                                !anyType &&
+                                    (type as? UnitType.ListOf)?.element is UnitType.ListOf &&
+                                    isListValued(el)
+                            ) {
+                                diagnostics +=
+                                    lossy(
+                                        ImportCodes.APPROXIMATED,
+                                        where,
+                                        "repeated element of a list simple type imported as a " +
+                                            "list of lists",
+                                        el.line,
+                                    )
+                            }
                             Resolved(type, false, null)
                         }
                     }
@@ -2201,8 +2566,12 @@ object XsdImport {
                     ?: return null
             val (name, nameAnnotations) = claim
             val annotations =
-                if (anyType) nameAnnotations + UnitAnnotation("xsd", "any_type", null)
-                else nameAnnotations
+                when {
+                    anyType -> nameAnnotations + UnitAnnotation("xsd", "any_type", null)
+                    el.maxOccurs == 1 && isListValued(el) ->
+                        nameAnnotations + listOfNotNull(listAnnotation(resolved.type))
+                    else -> nameAnnotations
+                }
             return UnitField(
                 name,
                 resolved.type,
@@ -2211,6 +2580,18 @@ object XsdImport {
                 el.doc,
                 annotations,
             )
+        }
+
+        /**
+         * Whether [el]'s own type is a simple type that may be a list: an inline simple type, or a
+         * named one other than a builtin.
+         */
+        private fun isListValued(el: XElement): Boolean {
+            if (el.inlineSimple != null) return true
+            val type = el.type ?: return false
+            if (type.namespace == ImportTypes.XS) return false
+            return docsByNamespace[type.namespace]?.simpleTypes?.any { it.name == type.local } ==
+                true
         }
 
         /**
@@ -2273,7 +2654,10 @@ object XsdImport {
                 nameAndClaim(original, "attribute", where, claimed, whereCollision, a.line)
                     ?: return null
             val (name, nameAnnotations) = claim
-            val annotations = nameAnnotations + UnitAnnotation("xsd", "attribute", null)
+            val annotations =
+                nameAnnotations +
+                    listOfNotNull(listAnnotation(type)) +
+                    UnitAnnotation("xsd", "attribute", null)
             return UnitField(name, type, nullable, default, a.doc, annotations)
         }
 
@@ -2331,7 +2715,7 @@ object XsdImport {
                     is UnitType.Scalar -> ImportTypes.defaultLiteral(type.builtin, raw)
                     is UnitType.Ref ->
                         when {
-                            inlineSimple != null && hasEnumeration(inlineSimple) ->
+                            inlineSimple != null && isEnum(inlineSimple) ->
                                 enumValueName(inlineSimple, raw)
                             sourceType != null -> {
                                 val named = namedEnum(sourceType)
@@ -2359,17 +2743,14 @@ object XsdImport {
 
         /** The imported name of [st]'s enumeration value [raw], or `null` when it has none. */
         private fun enumValueName(st: XSimpleType, raw: String): String? =
-            (st.variety as XVariety.Restriction)
-                .facets
-                .firstOrNull { it.name == "enumeration" && it.value == raw }
-                ?.let { fieldNameFor(it.value).name }
+            enumFacets(st)?.firstOrNull { it.value == raw }?.let { fieldNameFor(it.value).name }
 
         /** The enumerated simple type [qname] names, with its declaring document. */
         private fun namedEnum(qname: QName): Pair<XsdDoc, XSimpleType>? {
             if (qname.namespace == ImportTypes.XS) return null
             val targetDoc = docsByNamespace[qname.namespace] ?: return null
             val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local } ?: return null
-            return if (hasEnumeration(st)) targetDoc to st else null
+            return if (isEnum(st)) targetDoc to st else null
         }
 
         /**
@@ -2470,7 +2851,9 @@ object XsdImport {
             // unresolved.
             if (!hasUnique) return null
             val keyType =
-                resolveAttributeType(shape.keyAttribute, "attribute 'key'", nested) ?: return null
+                resolveAttributeType(shape.keyAttribute, "attribute 'key'", nested)?.takeIf {
+                    it !is UnitType.ListOf
+                } ?: return null
             val refinements = listRefinements(shape.entry.minOccurs, shape.entry.maxOccurs)
             return UnitType.MapOf(keyType, shape.valueType, shape.entry.nillable, refinements)
         }
@@ -2543,7 +2926,7 @@ object XsdImport {
                 return UnitType.Ref(name)
             }
             val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local } ?: return null
-            if (hasEnumeration(st)) return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
+            if (isEnum(st)) return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
             return resolveNamedSimpleType(st, targetDoc.path, where, setOf(qname))
         }
 
@@ -2554,7 +2937,8 @@ object XsdImport {
         }
 
         /**
-         * An inline (anonymous) simple type: an enumeration becomes a nested enum; else a scalar.
+         * An inline (anonymous) simple type: an enumeration, or a union of them, becomes a nested
+         * enum; anything else is resolved in place.
          */
         private fun resolveInlineSimpleType(
             st: XSimpleType,
@@ -2562,8 +2946,9 @@ object XsdImport {
             where: String,
             nested: MutableList<UnitDecl>,
         ): UnitType {
-            if (hasEnumeration(st)) {
+            if (isEnum(st)) {
                 val name = ImportNames.upperCamel(elementOrAttributeName)
+                if (st.variety is XVariety.Union) unionNote(where, "enum '$name'", st.line)
                 nested += buildInlineEnum(st, name, where)
                 return UnitType.Ref(name)
             }
@@ -2571,15 +2956,16 @@ object XsdImport {
         }
 
         /**
-         * [st] as a scalar. [visiting] holds the named simple types already on the way here, so a
-         * restriction chain that reaches one of them again is reported rather than followed.
+         * [st] as a type: a restriction as its refined base, a list as `list<T>` of its item type,
+         * a union as described at [unionType]. [visiting] holds the named simple types already on
+         * the way here, so a chain that reaches one of them again is reported rather than followed.
          */
         private fun resolveNamedSimpleType(
             st: XSimpleType,
             path: String,
             where: String,
             visiting: Set<QName> = emptySet(),
-        ): UnitType.Scalar {
+        ): UnitType {
             return when (val variety = st.variety) {
                 is XVariety.Restriction -> {
                     val base =
@@ -2591,31 +2977,140 @@ object XsdImport {
                                 resolveNamedSimpleType(variety.inlineBase, path, where, visiting)
                             else -> UnitType.Scalar("string", emptyList())
                         }
-                    val (refined, notes) = ImportTypes.facets(base, variety.facets, st.line)
-                    notes.forEach { diagnostics += noteDiagnostic(path, where, it) }
-                    refined
+                    restrict(base, variety.facets, st.line, path, where)
                 }
-                is XVariety.ListOf -> {
+                is XVariety.ListOf ->
+                    UnitType.ListOf(
+                        listItem(variety, path, where, st.line, visiting),
+                        false,
+                        emptyList(),
+                    )
+                is XVariety.Union -> unionType(variety, path, where, st.line, visiting)
+            }
+        }
+
+        /**
+         * A list's item type: a builtin, an enum, or any other simple type resolved in place. An
+         * item that is itself a list has no Schemata equivalent and is imported as a string.
+         */
+        private fun listItem(
+            list: XVariety.ListOf,
+            path: String,
+            where: String,
+            line: Int,
+            visiting: Set<QName>,
+        ): UnitType {
+            val string = UnitType.Scalar("string", emptyList())
+            val q = list.itemType
+            val item =
+                when {
+                    q != null -> {
+                        val named = namedEnum(q)
+                        if (named != null) UnitType.Ref(qualifiedTypeName(named.first, q.local))
+                        else resolveSimpleTypeByQName(q, where, line, visiting) ?: string
+                    }
+                    list.inlineItem != null ->
+                        resolveNamedSimpleType(list.inlineItem, path, where, visiting)
+                    else -> string
+                }
+            return when {
+                item is UnitType.ListOf -> {
                     diagnostics +=
                         lossy(
-                            ImportCodes.DROPPED,
+                            ImportCodes.APPROXIMATED,
                             where,
-                            "list simple type imported as string",
-                            st.line,
+                            "list item that is itself a list imported as string",
+                            line,
                         )
-                    UnitType.Scalar("string", emptyList())
+                    string
                 }
-                is XVariety.Union -> {
+                // A bare xs:decimal carries no digits, which Schemata requires.
+                item is UnitType.Scalar &&
+                    item.builtin == "decimal" &&
+                    item.refinements.isEmpty() -> restrict(item, emptyList(), line, path, where)
+                else -> item
+            }
+        }
+
+        /**
+         * A union simple type that is not enumerated (an enumerated one is an enum declaration):
+         * the builtin its members share when they are all one scalar builtin, without their
+         * refinements; a string otherwise. Noted either way.
+         */
+        private fun unionType(
+            union: XVariety.Union,
+            path: String,
+            where: String,
+            line: Int,
+            visiting: Set<QName>,
+        ): UnitType {
+            val string = UnitType.Scalar("string", emptyList())
+            val members =
+                union.memberTypes.map { q ->
+                    if (namedEnum(q) != null) string
+                    else resolveSimpleTypeByQName(q, where, line, visiting) ?: string
+                } +
+                    union.inlineMembers.map {
+                        if (isEnum(it)) string
+                        else resolveNamedSimpleType(it, path, where, visiting)
+                    }
+            val builtins = members.map { (it as? UnitType.Scalar)?.builtin }.distinct()
+            val builtin = builtins.singleOrNull() ?: "string"
+            unionNote(where, builtin, line)
+            val type = UnitType.Scalar(builtin, emptyList())
+            return if (builtin == "decimal") restrict(type, emptyList(), line, path, where)
+            else type
+        }
+
+        /** Notes that a union simple type at [where] was imported as [what]. */
+        private fun unionNote(where: String, what: String, line: Int) {
+            diagnostics +=
+                lossy(ImportCodes.APPROXIMATED, where, "union simple type imported as $what", line)
+        }
+
+        /**
+         * [base] narrowed by [facets]: a scalar's as [ImportTypes.facets] reads them; a list's
+         * length facets bound the list, and any other facet on a list or an enum is dropped. Notes
+         * point into [path], the declaring document.
+         */
+        private fun restrict(
+            base: UnitType,
+            facets: List<XFacet>,
+            line: Int,
+            path: String,
+            where: String,
+        ): UnitType {
+            if (base is UnitType.Scalar) {
+                val (refined, notes) = ImportTypes.facets(base, facets, line)
+                notes.forEach { diagnostics += noteDiagnostic(path, where, it) }
+                return refined
+            }
+            val bounds = (base as? UnitType.ListOf)?.refinements.orEmpty().toMap(LinkedHashMap())
+            facets.forEach { f ->
+                val keys =
+                    when (f.name) {
+                        "length" -> listOf("min", "max")
+                        "minLength" -> listOf("min")
+                        "maxLength" -> listOf("max")
+                        else -> emptyList()
+                    }
+                val count = f.value.trim().takeIf { it.matches(Regex("[0-9]+")) }
+                val note =
+                    when {
+                        base !is UnitType.ListOf || keys.isEmpty() -> "facet ${f.name} dropped"
+                        count == null -> "facet ${f.name} value '${f.value}' dropped"
+                        else -> null
+                    }
+                if (note != null) {
                     diagnostics +=
-                        lossy(
-                            ImportCodes.DROPPED,
-                            where,
-                            "union simple type imported as string",
-                            st.line,
-                        )
-                    UnitType.Scalar("string", emptyList())
+                        noteDiagnostic(path, where, Note(ImportCodes.WIDENED, note, f.line))
+                } else {
+                    keys.forEach { bounds[it] = count!!.toBigInteger().toString() }
                 }
             }
+            if (base !is UnitType.ListOf) return base
+            val refinements = listOf("min", "max").mapNotNull { k -> bounds[k]?.let { k to it } }
+            return base.copy(refinements = refinements)
         }
 
         private fun resolveSimpleTypeByQName(
@@ -2623,7 +3118,7 @@ object XsdImport {
             where: String,
             line: Int,
             visiting: Set<QName> = emptySet(),
-        ): UnitType.Scalar? {
+        ): UnitType? {
             if (qname.namespace == ImportTypes.XS) {
                 val mapped = ImportTypes.builtin(qname.local) ?: return null
                 mapped.notes.forEach { diagnostics += lossy(ImportCodes.WIDENED, where, it, line) }
@@ -2642,6 +3137,10 @@ object XsdImport {
             }
             val targetDoc = docsByNamespace[qname.namespace] ?: return null
             val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local } ?: return null
+            // A union of enumerations is an enum declaration of its own.
+            if (st.variety is XVariety.Union && isEnum(st)) {
+                return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
+            }
             return resolveNamedSimpleType(st, targetDoc.path, where, visiting + qname)
         }
 
@@ -2703,8 +3202,9 @@ object XsdImport {
         ): MapResult {
             val shape = recognizeMapShape(el, nested) ?: return MapResult.NotAMap
             val keyType =
-                resolveAttributeType(shape.keyAttribute, "attribute 'key'", nested)
-                    ?: return MapResult.NotAMap
+                resolveAttributeType(shape.keyAttribute, "attribute 'key'", nested)?.takeIf {
+                    it !is UnitType.ListOf
+                } ?: return MapResult.NotAMap
             val hasUnique = el.uniques.any(::isMapUnique)
             val refinements = listRefinements(shape.entry.minOccurs, shape.entry.maxOccurs)
             if (!hasUnique) {

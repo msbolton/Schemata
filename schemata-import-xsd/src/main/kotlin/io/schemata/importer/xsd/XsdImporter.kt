@@ -21,18 +21,14 @@ object XsdImporter : Importer {
     ): ImportResult {
         val diagnostics = mutableListOf<Diagnostic>()
         val byPath = inputs.associateBy { it.path }
+        val reader = Reader(diagnostics)
 
-        val initial =
-            inputs.mapNotNull { input ->
-                val result = XsdReader.read(input.path, input.content)
-                diagnostics += result.diagnostics
-                result.doc
-            }
+        val initial = inputs.mapNotNull { reader.read(it) }
 
         // A document another input includes is part of its includer, not a schema of its own:
         // each input is merged with what it includes, and an input that another input took in is
         // set aside. Two inputs that take each other in (an include cycle) keep the first.
-        val visits = initial.map { mergeIncludes(it, byPath, locate, diagnostics) }
+        val visits = initial.map { mergeIncludes(it, byPath, locate, reader) }
         val merged =
             visits
                 .filterIndexed { i, (doc, visited) ->
@@ -49,7 +45,7 @@ object XsdImporter : Importer {
             doc.imports.forEach { imp ->
                 val ns = imp.namespace
                 if (ns != null && known.none { it.targetNamespace == ns }) {
-                    val located = fetch(doc.path, imp.schemaLocation, byPath, locate, diagnostics)
+                    val located = fetch(doc.path, imp.schemaLocation, byPath, locate, reader)
                     if (located != null) known += located
                 }
             }
@@ -63,21 +59,23 @@ object XsdImporter : Importer {
     }
 
     /**
-     * Merges [doc]'s `xs:include`s into it, and those included documents' own includes in turn,
-     * until no new one appears, returning the merged document and every path it took in (its own
-     * among them). That set of visited paths also guards against a cycle: an include that resolves
-     * to an already-visited path is skipped rather than merged again. An include that names no
-     * document, or one of another namespace, is an error and is left out; one that names a document
-     * the reader could not read is left out, the reader having reported why. An included document
-     * whose form defaults differ from the including one's is noted: the merge keeps only the
-     * including document's.
+     * Merges [doc]'s `xs:include`s (and the documents its `xs:redefine`s and `xs:override`s name)
+     * into it, and those included documents' own includes in turn, until no new one appears,
+     * returning the merged document and every path it took in (its own among them). That set of
+     * visited paths also guards against a cycle: an include that resolves to an already-visited
+     * path is skipped rather than merged again. An include that names no document, or one of
+     * another namespace, is an error and is left out; one that names a document the reader could
+     * not read is left out, the reader having reported why. An included document whose form
+     * defaults differ from the including one's is noted: the merge keeps only the including
+     * document's.
      */
     private fun mergeIncludes(
         doc: XsdDoc,
         byPath: Map<String, ImportInput>,
         locate: (String) -> ImportInput?,
-        diagnostics: MutableList<Diagnostic>,
+        reader: Reader,
     ): Pair<XsdDoc, Set<String>> {
+        val diagnostics = reader.diagnostics
         val visited = mutableSetOf(doc.path)
         var result = doc
         var frontier: List<Pair<String, String>> = doc.includes.map { doc.path to it }
@@ -89,7 +87,8 @@ object XsdImporter : Importer {
                     diagnostics += includeError(basePath, "include '$include' cannot be resolved")
                     return@forEach
                 }
-                val includedDoc = read(input, diagnostics) ?: return@forEach
+                if (input.path in visited) return@forEach
+                val includedDoc = reader.read(input) ?: return@forEach
                 if (!visited.add(includedDoc.path)) return@forEach
                 // A chameleon include has no namespace of its own: it takes the includer's,
                 // references and all, so that `type="Foo"` written inside it means the includer's
@@ -100,12 +99,13 @@ object XsdImporter : Importer {
                         includedDoc.rebased(includerNamespace)
                     else includedDoc
                 if (adopted.targetNamespace != includerNamespace) {
-                    diagnostics +=
-                        includeError(
-                            basePath,
-                            "include '$include' declares namespace " +
-                                "'${adopted.targetNamespace}', not '$includerNamespace'",
-                        )
+                    val declared =
+                        adopted.targetNamespace?.let { "declares namespace '$it'" }
+                            ?: "declares no namespace"
+                    val expected =
+                        includerNamespace?.let { "not '$it'" }
+                            ?: "but the including document has no namespace"
+                    diagnostics += includeError(basePath, "include '$include' $declared, $expected")
                     return@forEach
                 }
                 // The included document's components keep its own form defaults in XSD, but the
@@ -162,8 +162,8 @@ object XsdImporter : Importer {
         relative: String?,
         byPath: Map<String, ImportInput>,
         locate: (String) -> ImportInput?,
-        diagnostics: MutableList<Diagnostic>,
-    ): XsdDoc? = find(basePath, relative, byPath, locate)?.let { read(it, diagnostics) }
+        reader: Reader,
+    ): XsdDoc? = find(basePath, relative, byPath, locate)?.let { reader.read(it) }
 
     /** The input [relative] names from [basePath]'s directory, or `null` when there is none. */
     private fun find(
@@ -177,10 +177,20 @@ object XsdImporter : Importer {
         return byPath[resolved] ?: byPath[relative] ?: locate(resolved)
     }
 
-    private fun read(input: ImportInput, diagnostics: MutableList<Diagnostic>): XsdDoc? {
-        val result = XsdReader.read(input.path, input.content)
-        diagnostics += result.diagnostics
-        return result.doc
+    /**
+     * Reads each document once, by path, however many inputs and includes name it, so a problem the
+     * reader finds in it is reported once.
+     */
+    private class Reader(val diagnostics: MutableList<Diagnostic>) {
+        private val read = mutableMapOf<String, XsdDoc?>()
+
+        fun read(input: ImportInput): XsdDoc? {
+            if (input.path in read) return read[input.path]
+            val result = XsdReader.read(input.path, input.content)
+            diagnostics += result.diagnostics
+            read[input.path] = result.doc
+            return result.doc
+        }
     }
 
     private fun resolvePath(basePath: String, relative: String): String {

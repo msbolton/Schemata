@@ -1117,7 +1117,7 @@ class XsdImportTest {
     }
 
     @Test
-    fun `list and union simple types import as string`() {
+    fun `list and union simple types import as a list and a string`() {
         val imported =
             lower(
                 """
@@ -1138,13 +1138,17 @@ class XsdImportTest {
             )
         val string = UnitType.Scalar("string", emptyList())
         val thing = record(imported, "Thing").fields
-        assertEquals(string, thing.single { it.name == "tags" }.type)
+        assertEquals(
+            UnitType.ListOf(string, false, emptyList()),
+            thing.single { it.name == "tags" }.type,
+        )
+        assertEquals(
+            listOf(UnitAnnotation("xsd", "list", null)),
+            thing.single { it.name == "tags" }.annotations,
+        )
         assertEquals(string, thing.single { it.name == "either" }.type)
         assertEquals(
-            listOf(
-                "SCH2405 element 'tags': list simple type imported as string",
-                "SCH2405 element 'either': union simple type imported as string",
-            ),
+            listOf("SCH2403 element 'either': union simple type imported as string"),
             messages(imported),
         )
     }
@@ -1329,7 +1333,7 @@ class XsdImportTest {
     }
 
     @Test
-    fun `all and nested sequences flatten`() {
+    fun `all takes the all annotation and a single nested sequence flattens`() {
         val imported =
             lower(
                 """
@@ -1354,14 +1358,12 @@ class XsdImportTest {
                 """
             )
         assertEquals(listOf("a", "b"), record(imported, "Thing").fields.map { it.name })
-        assertEquals(listOf("id", "x", "y"), record(imported, "Order").fields.map { it.name })
         assertEquals(
-            listOf(
-                "SCH2403 complex type 'ThingType': xs:all imported as a sequence",
-                "SCH2403 complex type 'OrderType': nested sequence flattened into the record",
-            ),
-            messages(imported),
+            listOf(UnitAnnotation("xsd", "root", "false"), UnitAnnotation("xsd", "all", null)),
+            record(imported, "Thing").annotations,
         )
+        assertEquals(listOf("id", "x", "y"), record(imported, "Order").fields.map { it.name })
+        assertEquals(emptyList(), messages(imported))
     }
 
     @Test
@@ -1533,7 +1535,7 @@ class XsdImportTest {
     }
 
     @Test
-    fun `a repeated group reference expands once and is reported`() {
+    fun `a repeated group reference becomes a record of its own`() {
         val imported =
             lower(
                 """
@@ -1554,11 +1556,11 @@ class XsdImportTest {
                 </xs:schema>
                 """
             )
-        assertEquals(listOf("id", "x", "y"), record(imported, "Thing").fields.map { it.name })
+        assertEquals(listOf("id", "g"), record(imported, "Thing").fields.map { it.name })
         assertEquals(
             listOf(
-                "SCH2403 complex type 'ThingType': repeated group 'g' has no Schemata equivalent; " +
-                    "expanded once"
+                "SCH2403 complex type 'ThingType': repeated group 'g' imported as record 'G' in " +
+                    "field 'g'"
             ),
             messages(imported),
         )
@@ -2132,7 +2134,7 @@ class XsdImportTest {
                 <?xml version="1.0"?>
                 <xs:schema $xs targetNamespace="urn:schemata:a">
                   <xs:complexType name="BaseType">
-                    <xs:sequence><xs:sequence><xs:element name="x" type="xs:int"/></xs:sequence></xs:sequence>
+                    <xs:sequence><xs:sequence minOccurs="0"><xs:element name="x" type="xs:int"/></xs:sequence></xs:sequence>
                   </xs:complexType>
                 </xs:schema>
                 """,
@@ -2162,8 +2164,8 @@ class XsdImportTest {
                 .associate { it.message to (it.span.file to it.span.startLine) }
         assertEquals(
             mapOf(
-                "complex type 'DerivedType': nested sequence flattened into the record" to
-                    ("a.xsd" to 4),
+                "complex type 'DerivedType': nested sequence imported as record 'XGroup' in " +
+                    "field 'x_group'" to ("a.xsd" to 4),
                 "complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; " +
                     "base fields flattened into the record" to ("b.xsd" to 6),
             ),
