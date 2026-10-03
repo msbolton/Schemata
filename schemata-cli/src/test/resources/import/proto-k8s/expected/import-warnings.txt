@@ -1,0 +1,3 @@
+SCH2402 k8s.io/api/core/v1/generated.proto: namespace 'k8s_io.api.core.v1.generated' was derived from the file name
+SCH2403 enum 'URIScheme': values renumbered; 0 is not a Schemata ordinal
+SCH2403 record 'Probe': oneof 'handler' imported as nullable fields; at most one of them is set, which Schemata cannot say

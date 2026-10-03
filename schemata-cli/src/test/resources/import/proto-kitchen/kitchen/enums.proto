@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package kitchen.enums;
+
+// Order status, as the Protobuf target writes it.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  // Not yet paid.
+  STATUS_PENDING = 1;
+  STATUS_PAID = 2 [deprecated = true];
+  CANCELLED_BY_USER = 3;  // spelled without the prefix
+
+  reserved 5 to 6;
+  reserved "STATUS_OLD";
+}
+
+// A zero value spelled another way.
+enum Level {
+  LEVEL_UNKNOWN = 0;
+  LEVEL_LOW = 1;
+  LEVEL_HIGH = 2;
+}
+
+// No prefix, and a zero value that means something.
+enum Color {
+  RED = 0;
+  GREEN = 1;
+  BLUE = 2;
+}
+
+enum Mode {
+  option allow_alias = true;
+  MODE_UNSPECIFIED = 0;
+  MODE_FAST = 1;
+  MODE_QUICK = 1;
+  MODE_SLOW = 2;
+}
+
+enum Legacy {
+  option deprecated = true;
+  LEGACY_UNSPECIFIED = 0;
+  LEGACY_ON = 1;
+
+  reserved "OFF";
+}

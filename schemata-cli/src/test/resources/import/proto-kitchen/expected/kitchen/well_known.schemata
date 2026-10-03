@@ -1,0 +1,17 @@
+@proto(package = "kitchen.wkt.v1")
+namespace kitchen.well_known
+
+/// Every well-known type a field can name.
+record Event {
+  #1  at:         instant
+  #2  took:       duration
+  #3  ended:      instant?
+  #4  nickname:   string?
+  #5  count:      int64?
+  #6  small:      int64(min = 0, max = 4294967295)?
+  #7  payload:    bytes
+  #8  attributes: string
+  #9  mask:       string
+  #10 nothing:    string
+  #11 history:    list<instant>
+}

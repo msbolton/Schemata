@@ -1,0 +1,142 @@
+// A hand-written file in the style of Kubernetes' generated.proto files: proto2, optional fields
+// with +optional markers, defaults, maps, and one oneof.
+
+syntax = "proto2";
+
+package k8s.io.api.core.v1;
+
+option go_package = "k8s.io/api/core/v1";
+
+// ObjectMeta is metadata that all persisted resources must have.
+message ObjectMeta {
+  // Name must be unique within a namespace.
+  // +optional
+  optional string name = 1;
+
+  // Namespace defines the space within which each name must be unique.
+  // +optional
+  optional string namespace = 3;
+
+  // An opaque value that represents the internal version of this object.
+  // +optional
+  optional string resourceVersion = 6;
+
+  // A sequence number representing a specific generation of the desired state.
+  // +optional
+  optional int64 generation = 7;
+
+  // Map of string keys and values that can be used to organize and categorize objects.
+  // +optional
+  map<string, string> labels = 11;
+
+  // +optional
+  map<string, string> annotations = 12;
+}
+
+// URIScheme identifies the scheme used for connection to a host for Get actions.
+enum URIScheme {
+  HTTP = 0;
+  HTTPS = 1;
+}
+
+// ExecAction describes a "run in container" action.
+message ExecAction {
+  // Command is the command line to execute inside the container.
+  // +optional
+  repeated string command = 1;
+}
+
+// HTTPGetAction describes an action based on HTTP Get requests.
+message HTTPGetAction {
+  // Path to access on the HTTP server.
+  // +optional
+  optional string path = 1;
+
+  // Number of the port to access on the container.
+  optional int32 port = 2 [default = 80];
+
+  // Host name to connect to, defaults to the pod IP.
+  // +optional
+  optional string host = 3;
+
+  // Scheme to use for connecting to the host.
+  // +optional
+  optional URIScheme scheme = 4 [default = HTTP];
+}
+
+// TCPSocketAction describes an action based on opening a socket.
+message TCPSocketAction {
+  optional int32 port = 1;
+
+  // +optional
+  optional string host = 2;
+}
+
+// Probe describes a health check to be performed against a container.
+message Probe {
+  // The action taken to determine the health of a container.
+  oneof handler {
+    ExecAction exec = 1;
+    HTTPGetAction httpGet = 2;
+    TCPSocketAction tcpSocket = 3;
+  }
+
+  // Number of seconds after the container has started before probes are initiated.
+  // +optional
+  optional int32 initialDelaySeconds = 4;
+
+  // Minimum consecutive failures for the probe to be considered failed.
+  // +optional
+  optional int32 failureThreshold = 7 [default = 3];
+}
+
+// ContainerPort represents a network port in a single container.
+message ContainerPort {
+  // +optional
+  optional string name = 1;
+
+  // Number of port to expose on the host.
+  // +optional
+  optional int32 hostPort = 2;
+
+  // Number of port to expose on the pod's IP address.
+  optional int32 containerPort = 3;
+
+  // Protocol for port. Must be UDP, TCP, or SCTP.
+  // +optional
+  optional string protocol = 4 [default = "TCP"];
+}
+
+// A single application container that you want to run within a pod.
+message Container {
+  optional string name = 1;
+
+  // Container image name.
+  // +optional
+  optional string image = 2;
+
+  // Entrypoint array.
+  // +optional
+  repeated string command = 3;
+
+  // +optional
+  repeated ContainerPort ports = 6;
+
+  // Periodic probe of container liveness.
+  // +optional
+  optional Probe livenessProbe = 10;
+
+  // +optional
+  optional string imagePullPolicy = 14 [default = "IfNotPresent"];
+
+  // Whether this container should allocate a TTY for itself.
+  // +optional
+  optional bool tty = 18 [default = false];
+}
+
+// A pod's metadata and containers.
+message Pod {
+  optional ObjectMeta metadata = 1;
+
+  repeated Container containers = 2;
+}

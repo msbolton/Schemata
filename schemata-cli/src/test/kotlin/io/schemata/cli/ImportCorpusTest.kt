@@ -1,6 +1,7 @@
 package io.schemata.cli
 
 import io.schemata.importer.ImportInput
+import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
 import io.schemata.target.jsonschema.JsonSchemaTarget
@@ -15,14 +16,14 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every `src/test/resources/import/<case>/` directory imports the `.xsd` files under it (named by
- * their path relative to the case, `expected/` aside; an include or import outside the inputs is
- * read from the case directory too) into exactly its `expected/` tree, reports exactly the warnings
- * in `expected/import-warnings.txt` (none when the file is absent), and compiles under proto, xsd,
- * and jsonschema without errors. The sql target cannot carry a key the xsd never declared, nor some
- * shapes it documents as beyond it, so its errors other than a missing key are compared with
- * `expected/sql-errors.txt` (none when absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the
- * warnings, and the sql errors.
+ * Every `src/test/resources/import/<case>/` directory imports the `.xsd` or `.proto` files under it
+ * (named by their path relative to the case, `expected/` aside, which is also a proto file's path
+ * under its root; an include or import outside the inputs is read from the case directory too) into
+ * exactly its `expected/` tree, reports exactly the warnings in `expected/import-warnings.txt`
+ * (none when the file is absent), and compiles under proto, xsd, and jsonschema without errors. The
+ * sql target cannot carry a key the xsd never declared, nor some shapes it documents as beyond it,
+ * so its errors other than a missing key are compared with `expected/sql-errors.txt` (none when
+ * absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the warnings, and the sql errors.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
@@ -38,24 +39,29 @@ class ImportCorpusTest {
             .map { case -> DynamicTest.dynamicTest(case.name) { check(case) } }
 
     private fun check(case: File) {
-        val inputs =
+        val sources =
             case
                 .walkTopDown()
                 .filter {
                     it.isFile &&
-                        it.extension == "xsd" &&
+                        (it.extension == "xsd" || it.extension == "proto") &&
                         !it.relativeTo(case).path.startsWith("expected")
                 }
                 .sortedBy { it.relativeTo(case).path }
-                .map {
-                    ImportInput(
-                        it.relativeTo(case).path.replace(File.separatorChar, '/'),
-                        it.readText(),
-                    )
-                }
                 .toList()
+        val extensions = sources.map { it.extension }.toSet()
+        check(extensions.size == 1) {
+            "${case.name} must hold .xsd or .proto inputs, not both or neither: $extensions"
+        }
+        val proto = extensions.single() == "proto"
+        val inputs =
+            sources.map {
+                val path = it.relativeTo(case).path.replace(File.separatorChar, '/')
+                ImportInput(path, it.readText(), if (proto) path else null)
+            }
+        val importer = if (proto) ProtoImporter else XsdImporter
         val result =
-            XsdImporter.import(inputs, null) { path ->
+            importer.import(inputs, null) { path ->
                 File(case, path).takeIf { it.isFile }?.let { ImportInput(path, it.readText()) }
             }
         val actual = result.files.associate { it.path to it.content }
@@ -95,8 +101,8 @@ class ImportCorpusTest {
             warnings,
             "import warnings for ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
         )
-        val sources = result.files.map { SourceInput(it.path, it.content) }
-        val noSql = Pipeline.compile(sources, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
+        val imported = result.files.map { SourceInput(it.path, it.content) }
+        val noSql = Pipeline.compile(imported, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
         assertFalse(
             noSql.hasErrors,
             "imported ${case.name} under proto, xsd, and jsonschema: " +
@@ -105,7 +111,7 @@ class ImportCorpusTest {
                     .joinToString("\n") { "${it.code.id} ${it.message}" },
         )
         val sqlErrors =
-            Pipeline.compile(sources, listOf(SqlTarget))
+            Pipeline.compile(imported, listOf(SqlTarget))
                 .diagnostics
                 .filter { it.severity == Severity.ERROR && it.code != SqlCodes.MISSING_KEY }
                 .joinToString("") { "${it.code.id} ${it.message}\n" }

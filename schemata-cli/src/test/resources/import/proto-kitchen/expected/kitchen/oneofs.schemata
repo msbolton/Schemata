@@ -1,0 +1,24 @@
+namespace kitchen.oneofs
+
+import kitchen.enums
+
+record Card { #1 last4: string }
+
+record Cash {}
+
+/// How the customer paid.
+union Payment =
+  /// Paid by card.
+  #1 Card |
+  #2 Cash |
+  #3 uuid |
+  #4 kitchen.enums.Status
+
+/// A oneof whose names differ from the ones the target writes.
+union Tender = #1 Card | #2 Cash
+
+/// A oneof beside other fields.
+record Shipment { #1 id: string #2 address: string? #3 pickup_card: Card? }
+
+/// Two members of one type cannot be told apart in a union.
+record Contact { #1 email: string? #2 phone: string? }

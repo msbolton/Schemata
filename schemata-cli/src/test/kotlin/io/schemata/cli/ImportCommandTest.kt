@@ -153,4 +153,48 @@ class ImportCommandTest {
         assertEquals(0, ok.statusCode, ok.stderr)
         assertTrue(okOut.resolve("import/shop/tracks_1.schemata").isFile, ok.stderr)
     }
+
+    @Test
+    fun `a proto import names each file's namespace by its path under the directory`() {
+        File(dir, "src/shop").mkdirs()
+        write(
+            "src/shop/customers.proto",
+            "syntax = \"proto3\";\npackage shop.customers;\nmessage Customer { string id = 1; }\n",
+        )
+        write(
+            "src/shop/orders.proto",
+            """
+            syntax = "proto3";
+            package shop.orders.v1;
+            import "shop/customers.proto";
+            message Order { .shop.customers.Customer customer = 1; }
+            """
+                .trimIndent(),
+        )
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--from proto --out ${out.path} ${dir.path}/src")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/shop/customers.schemata").isFile, r.stderr)
+        val orders = out.resolve("import/shop/orders.schemata").readText()
+        assertTrue(orders.contains("@proto(package = \"shop.orders.v1\")"), orders)
+        assertTrue(orders.contains("customer: shop.customers.Customer"), orders)
+    }
+
+    @Test
+    fun `a proto file named on its own takes its package`() {
+        val money =
+            write("money.proto", "syntax = \"proto3\";\npackage google.type;\nmessage Money {}\n")
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--from proto --out ${out.path} ${money.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/google/type.schemata").isFile, r.stderr)
+    }
+
+    @Test
+    fun `--from proto on a directory with no proto files is a usage error`() {
+        write("s.xsd", clean)
+        val r = ImportCommand().test("--from proto --out ${File(dir, "out").path} ${dir.path}")
+        assertEquals(1, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("no .proto files found under"), r.stderr)
+    }
 }
