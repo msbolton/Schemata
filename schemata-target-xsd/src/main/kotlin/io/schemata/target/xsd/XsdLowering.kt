@@ -44,8 +44,7 @@ object XsdLowering {
                         XsdCodes.INVALID_OVERRIDE,
                         "namespace '${ns.name}': @xsd(namespace = \"$override\") is not an absolute URI",
                         ns.span,
-                        help =
-                            "use an absolute URI without a fragment, such as `urn:example:orders`",
+                        help = "use an absolute URI, such as `urn:example:orders`",
                     )
                 uris[ns.name] = "urn:schemata:${ns.name}"
             } else {

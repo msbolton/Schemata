@@ -194,7 +194,7 @@ class XsdLoweringTest {
             "namespace 'shop.orders': @xsd(namespace = \"orders\") is not an absolute URI",
             d.message,
         )
-        assertEquals("use an absolute URI without a fragment, such as `urn:example:orders`", d.help)
+        assertEquals("use an absolute URI, such as `urn:example:orders`", d.help)
     }
 
     @Test

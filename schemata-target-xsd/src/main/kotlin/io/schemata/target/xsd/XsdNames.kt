@@ -7,7 +7,7 @@ import io.schemata.target.string
 /** The XSD target's naming rules: `@xsd` overrides, type and element names, XML name checks. */
 object XsdNames {
     private val ncName = Regex("[A-Za-z_][A-Za-z0-9_.\\-]*")
-    private val scheme = Regex("[A-Za-z][A-Za-z0-9+.\\-]*:[^\\s#]+")
+    private val scheme = Regex("[A-Za-z][A-Za-z0-9+.\\-]*:\\S+")
 
     fun namespaceOf(namespace: Namespace): String =
         namespace.annotations.string("xsd", "namespace") ?: "urn:schemata:${namespace.name}"
@@ -41,5 +41,9 @@ object XsdNames {
 
     fun isNCName(s: String): Boolean = ncName.matches(s)
 
+    /**
+     * Whether [s] can name an XML namespace: a scheme, a colon, and no whitespace. A fragment is
+     * allowed, since a namespace name is any absolute URI and some end in `#` by convention.
+     */
     fun isAbsoluteUri(s: String): Boolean = scheme.matches(s)
 }
