@@ -343,6 +343,25 @@ class AnalyzerTest {
     }
 
     @Test
+    fun `a reserved name is a lower_snake name`() {
+        val result =
+            analyze(
+                "namespace a\nrecord R { #1 x: bool  reserved \"Bad Name\", \"old_x\" }\n" +
+                    "enum E { #1 p  reserved \"x_\" }"
+            )
+        assertNull(result.schema)
+        assertEquals(
+            listOf(
+                "SCH1003 2:33 reserved name 'Bad Name' must be lower_snake; help: rename it `bad_name`",
+                "SCH1028 3:25 reserved name 'x_' must be lower_snake; help: rename it `x`",
+            ),
+            result.diagnostics.map {
+                "${it.code.id} ${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
+            },
+        )
+    }
+
+    @Test
     fun `a naming help never suggests a keyword`() {
         val result = analyze("namespace a\nenum E { true_ }\nrecord R { _1x: bool }")
         assertEquals(

@@ -2,6 +2,7 @@ package io.schemata.core
 
 import io.schemata.core.ir.Reserved
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.lang.ast.ReservedItem
 
@@ -38,7 +39,15 @@ object Ordinals {
         }
     }
 
-    fun reserved(items: List<ReservedItem>, diagnostics: MutableList<Diagnostic>): Reserved {
+    /**
+     * A reserved name is a former field or enum value name, so it must be lower_snake too; [naming]
+     * is the code that reports one that is not (SCH1003 for a record, SCH1028 for an enum).
+     */
+    fun reserved(
+        items: List<ReservedItem>,
+        naming: DiagnosticCode,
+        diagnostics: MutableList<Diagnostic>,
+    ): Reserved {
         val ordinals = mutableListOf<IntRange>()
         val names = mutableSetOf<String>()
         items.forEach { item ->
@@ -56,7 +65,21 @@ object Ordinals {
                     } else {
                         ordinals += item.from..item.to
                     }
-                is ReservedItem.Name -> names += item.name
+                is ReservedItem.Name -> {
+                    if (!Analyzer.lowerSnake.matches(item.name)) {
+                        val suggestion = Suggest.example(item.name, Suggest.lowerSnake(item.name))
+                        diagnostics +=
+                            Diagnostic(
+                                naming,
+                                "reserved name '${item.name}' must be lower_snake",
+                                item.span,
+                                help =
+                                    suggestion?.let { "rename it `$it`" }
+                                        ?: "rename it in lower_snake",
+                            )
+                    }
+                    names += item.name
+                }
             }
         }
         return Reserved(ordinals, names)

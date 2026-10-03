@@ -459,7 +459,8 @@ record OrderLine {
 
 `reserved #11, "legacy_ref"` and `reserved #5..#9`, written inside a record or an enum, mark
 ordinals and names that may never be used again. A range is written low`..`high, inclusive on both
-ends. Reusing a reserved ordinal or name is an error.
+ends. Reusing a reserved ordinal or name is an error. A reserved name is a former field or enum
+value name, so it is lower_snake like one (SCH1003 in a record, SCH1028 in an enum).
 
 ```schemata
 namespace shop.orders

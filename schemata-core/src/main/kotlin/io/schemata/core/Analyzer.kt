@@ -36,7 +36,7 @@ data class AnalysisResult(val schema: Schema?, val diagnostics: List<Diagnostic>
  */
 object Analyzer {
     private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
-    private val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
+    internal val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
 
     // `null` lexes as a name so that `= null` can be read; it is reserved as a field, enum value,
     // and namespace segment name like `true` and `false`, since `= null` always means the literal
@@ -191,7 +191,7 @@ object Analyzer {
     ): RecordType {
         val recordAnnotations = annotations.check(record.annotations, Element.RECORD)
         val inner = scope.copy(enclosing = scope.enclosing + record.name)
-        val reserved = Ordinals.reserved(record.reserved, diagnostics)
+        val reserved = Ordinals.reserved(record.reserved, CoreCodes.FIELD_NAMING, diagnostics)
         val ordinals =
             Ordinals.assign(
                 "record",
@@ -287,7 +287,7 @@ object Analyzer {
                     decl.nameSpan,
                     help = "declare at least one value",
                 )
-        val reserved = Ordinals.reserved(decl.reserved, diagnostics)
+        val reserved = Ordinals.reserved(decl.reserved, CoreCodes.ENUM_VALUE_NAMING, diagnostics)
         val ordinals =
             Ordinals.assign(
                 "enum",
