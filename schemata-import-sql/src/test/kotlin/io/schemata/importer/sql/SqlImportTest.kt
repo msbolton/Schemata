@@ -455,6 +455,90 @@ class SqlImportTest {
             ),
             text(r, "t.schemata"),
         )
+        assertEquals(
+            listOf(
+                "SCH2403 column 'Order.refund_kind': member 'cash' imported as 'Cash2', another " +
+                    "declaration here being named 'Cash'; the regenerated literal will be 'cash2'"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a member record renamed past a taken name is reported`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.t (
+                      id uuid PRIMARY KEY,
+                      pay_kind text NOT NULL CHECK (pay_kind IN ('cash')),
+                      pay_cash_note text,
+                      back_kind text CHECK (back_kind IN ('cash')),
+                      back_cash_tip integer
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                namespace t
+
+                record T {
+                  @sql(key) id:   uuid
+                  pay:  Pay
+                  back: Back?
+
+                  union Pay = Cash
+
+                  record Cash { note: string? }
+
+                  union Back = Cash2
+
+                  record Cash2 { tip: int32? }
+                }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 column 'T.back_kind': member 'cash' imported as 'Cash2', another " +
+                    "declaration here being named 'Cash'; the regenerated literal will be 'cash2'"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a json note naming another namespace imports it`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.t (
+                      id uuid PRIMARY KEY,
+                      home jsonb NOT NULL,  -- schemata: other.ns.Address
+                      stops jsonb  -- schemata: list<other.ns.Address>
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                namespace t
+
+                import other.ns
+
+                record T {
+                  @sql(key) id:    uuid
+                  @sql(strategy = json) home:  other.ns.Address
+                  @sql(strategy = json) stops: list<other.ns.Address>?
+                }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
         assertEquals(emptyList(), messages(r))
     }
 

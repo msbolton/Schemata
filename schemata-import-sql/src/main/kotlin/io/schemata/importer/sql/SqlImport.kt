@@ -636,6 +636,15 @@ private class Lowering(
             }
         if (same != null) return UnitType.Ref(base) to (same as RecordSpec)
         record.name = spec.claim(base)
+        if (record.name != base) {
+            say(
+                ctx,
+                kind.column,
+                ImportCodes.APPROXIMATED,
+                "member '$m' imported as '${record.name}', another declaration here being named " +
+                    "'$base'; the regenerated literal will be '${Names.snakeCase(record.name)}'",
+            )
+        }
         spec.nested += record
         return UnitType.Ref(record.name) to record
     }
@@ -1374,12 +1383,21 @@ private class Lowering(
     /**
      * Each type a json field's note names, found among the declarations nested where the field is
      * or in the namespace; one the DDL does not define becomes an empty record nested beside the
-     * field, reported.
+     * field, reported. A name qualified by another namespace is that namespace's to define; the
+     * namespace is imported.
      */
     private fun resolveJson(run: Run) {
         for (use in run.json) {
             for (name in refs(use.slot.type)) {
-                if ('.' in name || use.owner.lookup(name) != null || name in run.topNames) continue
+                if ('.' in name) {
+                    val namespace =
+                        name.split('.').takeWhile { it.first().isLowerCase() }.joinToString(".")
+                    if (namespace.isNotEmpty() && namespace != run.namespace) {
+                        run.imports += namespace
+                    }
+                    continue
+                }
+                if (use.owner.lookup(name) != null || name in run.topNames) continue
                 use.owner.claim(name)
                 use.owner.nested += use.owner.child(name)
                 say(
