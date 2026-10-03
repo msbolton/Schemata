@@ -14,8 +14,8 @@ import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Sources
 import io.schemata.cli.report.importReport
-import io.schemata.importer.xsd.ImportInput
-import io.schemata.importer.xsd.ImportNames
+import io.schemata.importer.ImportInput
+import io.schemata.importer.ImportNames
 import io.schemata.importer.xsd.XsdImporter
 import java.io.IOException
 import java.nio.file.Path

@@ -1,26 +1,21 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportInput
+import io.schemata.importer.ImportResult
+import io.schemata.importer.Importer
+import io.schemata.importer.emitUnits
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.format.FormatResult
-import io.schemata.lang.format.Formatter
-
-data class ImportInput(val path: String, val content: String)
-
-/** [path] is `<namespace as path>.schemata`. */
-data class ImportedFile(val path: String, val content: String)
-
-data class ImportResult(val files: List<ImportedFile>, val diagnostics: List<Diagnostic>)
 
 /**
  * Runs the reader, the lowering, the emitter, and the formatter over a set of `.xsd` inputs.
  * [locate] reads an `xs:import`/`xs:include` target that is not among [inputs], resolved against
  * the importing file's directory; it is called only when the target is not already present.
  */
-object XsdImporter {
-    fun import(
+object XsdImporter : Importer {
+    override fun import(
         inputs: List<ImportInput>,
-        namespace: String? = null,
-        locate: (String) -> ImportInput? = { null },
+        namespace: String?,
+        locate: (String) -> ImportInput?,
     ): ImportResult {
         val diagnostics = mutableListOf<Diagnostic>()
         val byPath = inputs.associateBy { it.path }
@@ -61,16 +56,7 @@ object XsdImporter {
         val lowered = XsdImport.lower(known, namespace)
         diagnostics += lowered.diagnostics
 
-        val files =
-            lowered.units.map { unit ->
-                val text = SchemataEmitter.emit(unit)
-                val path = unit.namespace.replace('.', '/') + ".schemata"
-                val formatted = Formatter.format(text, path)
-                check(formatted is FormatResult.Formatted) {
-                    "the formatter rejected the emitted output for '${unit.namespace}': $formatted"
-                }
-                ImportedFile(path, formatted.text)
-            }
+        val files = emitUnits(lowered.units)
         return ImportResult(files, diagnostics)
     }
 

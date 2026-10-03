@@ -1,5 +1,18 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportCodes
+import io.schemata.importer.ImportNames
+import io.schemata.importer.Imported
+import io.schemata.importer.SchemataUnit
+import io.schemata.importer.UnionMember
+import io.schemata.importer.UnitAnnotation
+import io.schemata.importer.UnitDecl
+import io.schemata.importer.UnitEnum
+import io.schemata.importer.UnitEnumValue
+import io.schemata.importer.UnitField
+import io.schemata.importer.UnitRecord
+import io.schemata.importer.UnitType
+import io.schemata.importer.UnitUnion
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
@@ -284,7 +297,7 @@ object XsdImport {
         data class Candidate(val original: String, val hasTypeSuffix: Boolean, val name: String)
         val candidates =
             originals.distinct().map {
-                val (name, _) = ImportNames.typeOverride(it)
+                val (name, _) = XsdNames.typeOverride(it)
                 Candidate(it, it.length > 4 && it.endsWith("Type"), name)
             }
 
@@ -341,7 +354,7 @@ object XsdImport {
     private fun fieldNameFor(original: String): FieldName {
         if (ImportNames.isLowerSnake(original)) return FieldName(original, null, unfixable = false)
         val fixed = ImportNames.lowerSnake(original)
-        return if (ImportNames.isValidOverride(original)) {
+        return if (XsdNames.isValidOverride(original)) {
             FieldName(fixed, UnitAnnotation("xsd", "name", "\"$original\""), unfixable = false)
         } else {
             FieldName(fixed, null, unfixable = true)

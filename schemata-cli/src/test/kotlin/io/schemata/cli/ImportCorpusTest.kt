@@ -1,6 +1,6 @@
 package io.schemata.cli
 
-import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.ImportInput
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
 import io.schemata.target.jsonschema.JsonSchemaTarget

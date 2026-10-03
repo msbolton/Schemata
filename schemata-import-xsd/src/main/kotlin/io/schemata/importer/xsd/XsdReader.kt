@@ -1,5 +1,6 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportCodes
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span

@@ -1,4 +1,4 @@
-package io.schemata.importer.xsd
+package io.schemata.importer
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -65,12 +65,5 @@ class ImportNamesTest {
         assertEquals("V3d", ImportNames.upperCamel("3d"))
         assertEquals("V2dPoint", ImportNames.upperCamel("2d-point"))
         assertEquals("Import", ImportNames.upperCamel("import"))
-    }
-
-    @Test
-    fun `type override`() {
-        assertEquals("Order" to null, ImportNames.typeOverride("OrderType"))
-        assertEquals("Gpx" to "gpx", ImportNames.typeOverride("gpxType"))
-        assertEquals("Address" to null, ImportNames.typeOverride("Address"))
     }
 }

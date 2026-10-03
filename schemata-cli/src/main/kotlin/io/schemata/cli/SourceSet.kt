@@ -1,6 +1,6 @@
 package io.schemata.cli
 
-import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.ImportInput
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.Path

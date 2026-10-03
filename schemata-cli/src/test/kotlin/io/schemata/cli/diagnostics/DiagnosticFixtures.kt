@@ -11,7 +11,7 @@ import io.schemata.cli.report.Sources
 import io.schemata.evolution.Evolution
 import io.schemata.evolution.Rulebook
 import io.schemata.evolution.Rulebooks
-import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.ImportInput
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Diagnostic
 import io.schemata.target.Target

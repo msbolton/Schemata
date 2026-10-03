@@ -1,5 +1,7 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportCodes
+import io.schemata.importer.ImportInput
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

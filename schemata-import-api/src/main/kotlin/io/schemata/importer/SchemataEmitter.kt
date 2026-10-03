@@ -1,4 +1,4 @@
-package io.schemata.importer.xsd
+package io.schemata.importer
 
 /**
  * Prints a [SchemataUnit] as Schemata source text. The output need not be pretty: one construct per

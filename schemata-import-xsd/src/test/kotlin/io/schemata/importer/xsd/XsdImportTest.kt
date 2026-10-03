@@ -1,5 +1,13 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.Imported
+import io.schemata.importer.UnitAnnotation
+import io.schemata.importer.UnitEnum
+import io.schemata.importer.UnitEnumValue
+import io.schemata.importer.UnitField
+import io.schemata.importer.UnitRecord
+import io.schemata.importer.UnitType
+import io.schemata.importer.UnitUnion
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

@@ -1,4 +1,4 @@
-package io.schemata.importer.xsd
+package io.schemata.importer
 
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter

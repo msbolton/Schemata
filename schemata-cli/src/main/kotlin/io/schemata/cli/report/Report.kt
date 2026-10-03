@@ -2,7 +2,7 @@ package io.schemata.cli.report
 
 import io.schemata.cli.PipelineResult
 import io.schemata.cli.TargetResult
-import io.schemata.importer.xsd.ImportResult
+import io.schemata.importer.ImportResult
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Severity
 

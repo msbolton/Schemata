@@ -1,9 +1,11 @@
-package io.schemata.importer.xsd
+package io.schemata.importer
 
-import io.schemata.target.Names
+import io.schemata.lang.Names
+import io.schemata.target.Names as TargetNames
 
 /**
- * Converts XSD names to Schemata identifiers and back, and derives a namespace from a file path.
+ * Converts names read from an imported format to Schemata identifiers, and derives a namespace from
+ * a file path.
  */
 object ImportNames {
     private val lowerSnakePattern = Regex("^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
@@ -12,37 +14,14 @@ object ImportNames {
     private val nonAlnumRun = Regex("[^A-Za-z0-9]+")
     private val camelBoundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
-    // Matches the xsd target's own NCName check: an `@xsd(name)` override it would reject as not a
-    // valid XML name (for example, one starting with a digit, as a bare enumeration value may) can
-    // never regenerate the original text, so the importer must not offer it as an override.
-    private val ncName = Regex("^[A-Za-z_][A-Za-z0-9_.\\-]*$")
-
     // Every Schemata keyword lexes as its own token, never as an identifier, so a name spelled like
     // one would not parse where a declared name is expected; `null` is not a keyword, but the
     // language reserves it as a field, enum value, and namespace segment name all the same.
-    private val keywords =
-        setOf(
-            "null",
-            "namespace",
-            "import",
-            "as",
-            "record",
-            "enum",
-            "union",
-            "alias",
-            "reserved",
-            "true",
-            "false",
-            "service",
-            "operation",
-            "stream",
-        )
+    private val keywords: Set<String> = Names.keywords + "null"
 
     fun isLowerSnake(s: String): Boolean = lowerSnakePattern.matches(s) && s !in keywords
 
     fun isNamespaceSegment(s: String): Boolean = isLowerSnake(s)
-
-    fun isValidOverride(s: String): Boolean = ncName.matches(s)
 
     /**
      * `full-name` → `full_name`, `fullName` → `full_name`, `1x` → `v1x`, `true` → `true_value`. A
@@ -52,7 +31,8 @@ object ImportNames {
      * name and a trailing underscore is not a name either.
      */
     fun lowerSnake(s: String): String {
-        var out = Names.snakeCase(s).replace(invalidRun, "_").replace(underscoreRun, "_").trim('_')
+        var out =
+            TargetNames.snakeCase(s).replace(invalidRun, "_").replace(underscoreRun, "_").trim('_')
         if (out.isEmpty()) out = "v"
         if (out.first().isDigit()) out = "v$out"
         if (out in keywords) out += "_value"
@@ -72,24 +52,6 @@ object ImportNames {
                 .filter { it.isNotEmpty() }
                 .joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }
         return if (out.isEmpty() || out.first().isDigit()) "V$out" else out
-    }
-
-    /**
-     * The Schemata name for an XSD type named [xsdName], and, when regenerating that name exactly
-     * requires an `@xsd(name)` override, the override value: `OrderType` → (`Order`, `null`), since
-     * the default regeneration (`<name>Type`) already reproduces it; `gpxType` → (`Gpx`, `"gpx"`),
-     * since only `@xsd(name = "gpx")` regenerates `gpxType` exactly; `Address` → (`Address`,
-     * `null`), since there's no `Type` suffix to give back — `<name>Type` always ends in `Type`, so
-     * no override can ever make the regenerated type exactly `Address`. Collisions between two
-     * types that would otherwise land on the same Schemata name, or on the same regenerated type
-     * name, are the caller's job.
-     */
-    fun typeOverride(xsdName: String): Pair<String, String?> {
-        val hasTypeSuffix = xsdName.length > 4 && xsdName.endsWith("Type")
-        val remainder = if (hasTypeSuffix) xsdName.removeSuffix("Type") else xsdName
-        val name = upperCamel(remainder)
-        if (!hasTypeSuffix || name + "Type" == xsdName) return name to null
-        return name to remainder
     }
 
     /** `GPX-1.1.xsd` → `gpx_1_1`: the file stem, lower-snaked. */
