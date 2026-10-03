@@ -152,6 +152,7 @@ so stdout holds only JSON. The names of the files plain `fmt` rewrote go to stde
 
 ## Learn more
 
+- [What is stable](guide/stability.md)
 - [Language reference](guide/reference.md)
 - [Worked examples](guide/examples.md) and the [`examples/`](examples/) directory
 - [Diagnostics](guide/diagnostics.md) and [annotations](guide/annotations.md)

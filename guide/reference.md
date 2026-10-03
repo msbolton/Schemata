@@ -3,6 +3,8 @@
 A `.schemata` file declares records, enums, unions, and aliases in a namespace. You give the
 compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, a Postgres
 schema, an XML Schema, and a JSON Schema.
+What a 1.x release promises about this language, its output, and its diagnostics is on the
+[What is stable](stability.md) page.
 
 ## 1. Files and namespaces
 
