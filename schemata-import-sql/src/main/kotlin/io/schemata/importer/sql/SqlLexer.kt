@@ -292,8 +292,11 @@ object SqlLexer {
                         'U' -> {
                             val n = if (e == 'u') 4 else 8
                             val hex = run(text, j, n) { it.isHexDigit() }
-                            if (hex.length != n) throw SqlSyntaxError(start, "bad \\$e escape")
-                            sb.appendCodePoint(hex.toInt(16))
+                            val cp = if (hex.length == n) hex.toLongOrNull(16) else null
+                            if (cp == null || cp > Character.MAX_CODE_POINT) {
+                                throw SqlSyntaxError(start, "bad \\$e escape")
+                            }
+                            sb.appendCodePoint(cp.toInt())
                             j += n
                         }
                         in '0'..'7' -> {

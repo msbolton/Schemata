@@ -15,6 +15,8 @@ import java.util.IdentityHashMap
  * primary := '(' or ')' | literal | ARRAY '[' list ']' | name '(' list ')' | name ('.' name)*
  * ```
  *
+ * An unquoted `CURRENT_TIMESTAMP`, `CURRENT_DATE`, `CURRENT_TIME`, `LOCALTIME`, `LOCALTIMESTAMP`,
+ * `CURRENT_USER`, `SESSION_USER`, `CURRENT_ROLE` or `CURRENT_CATALOG` is a call with no arguments.
  * A `::type` after any primary is skipped, so casts vanish, as do redundant parentheses. `= ANY
  * (ARRAY[…])` reads as [SqlExpr.In] and `<> ALL (ARRAY[…])` as its negation, the forms pg_dump
  * writes for `IN` and `NOT IN`; an `ARRAY[…]` anywhere else is [SqlExpr.Raw]. A slice outside the
@@ -91,6 +93,20 @@ object SqlExprs {
             "distinct",
             "from",
             "collate",
+        )
+
+    /** Functions SQL calls without parentheses; written unquoted they are calls, never columns. */
+    private val VALUE_FUNCTIONS =
+        setOf(
+            "current_timestamp",
+            "current_date",
+            "current_time",
+            "localtime",
+            "localtimestamp",
+            "current_user",
+            "session_user",
+            "current_role",
+            "current_catalog",
         )
 
     /** Words that continue a cast's type name: `character varying`, `timestamp with time zone`. */
@@ -221,6 +237,13 @@ object SqlExprs {
                     isWord("null") -> {
                         i++
                         SqlExpr.Null
+                    }
+                    t.kind == SqlTokenKind.IDENT &&
+                        t.text in VALUE_FUNCTIONS &&
+                        !isSymbol("(", 1) &&
+                        !isSymbol(".", 1) -> {
+                        i++
+                        SqlExpr.Call(t.text, emptyList())
                     }
                     isWord("array") && isSymbol("[", 1) -> {
                         i += 2

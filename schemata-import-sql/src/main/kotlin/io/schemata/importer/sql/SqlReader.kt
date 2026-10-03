@@ -7,8 +7,9 @@ package io.schemata.importer.sql
  *
  * Statements read: `CREATE SCHEMA`, `CREATE TABLE`, `CREATE [UNIQUE] INDEX`, `ALTER TABLE … ADD` of
  * a constraint, and `COMMENT ON TABLE|COLUMN`. Statements that define something with no place in
- * the result (views, types, functions, triggers, …) are [SqlStatement.Dropped]; statements with no
- * bearing on the shape (`SET`, `GRANT`, `OWNER TO`, sequences, …) are [SqlStatement.Ignored].
+ * the result (views, types, functions, triggers, …) or carry data (`INSERT`, `UPDATE`, `DELETE`,
+ * `COPY`) are [SqlStatement.Dropped]; statements with no bearing on the shape (`SET`, `GRANT`,
+ * `OWNER TO`, sequences, …) are [SqlStatement.Ignored].
  *
  * A column's type is canonicalised to the spellings the SQL target writes: `character varying(n)`
  * is `varchar(n)`, `character(n)` is `char(n)`, `timestamp with time zone` is `timestamptz`,
@@ -18,6 +19,15 @@ package io.schemata.importer.sql
  * is `numeric`, modifiers are separated by `, `, a `pg_catalog.` qualifier is dropped, and array
  * suffixes (`[]`, `[3]`, `ARRAY`) are each `[]`. Anything else, `serial` and `bigserial` included,
  * is kept as written, quoted identifiers re-quoted.
+ *
+ * pg_dump splits two column forms out of `CREATE TABLE`, and the reader folds them back into the
+ * table they name in the same file (a name unqualified on either side matches by table name alone):
+ * `ALTER TABLE … ALTER COLUMN c ADD GENERATED … AS IDENTITY` marks `c` an identity, and `ALTER
+ * TABLE … ALTER COLUMN c SET DEFAULT nextval(…)` on an `integer`, `bigint` or `smallint` column
+ * makes it `serial`, `bigserial` or `smallserial` with no default, undoing the expansion of a
+ * serial into a sequence. An inline `DEFAULT nextval(…)` on such a column reads the same way. An
+ * `ALTER` folded into its table is not a statement of its own; one naming a table not in the file,
+ * or a column the table lacks, stays [SqlStatement.Ignored].
  *
  * A `schemata:` comment trailing a column on its line, or alone on the next line when the column's
  * line has none, is the column's note.
@@ -43,16 +53,13 @@ private val IGNORED =
         "checkpoint",
         "cluster",
         "commit",
-        "copy",
         "deallocate",
-        "delete",
         "discard",
         "drop",
         "end",
         "execute",
         "explain",
         "grant",
-        "insert",
         "listen",
         "load",
         "lock",
@@ -72,11 +79,13 @@ private val IGNORED =
         "start",
         "truncate",
         "unlisten",
-        "update",
         "vacuum",
         "values",
         "with",
     )
+
+/** First words of statements that carry data, which an importer does not read. */
+private val DATA = setOf("copy", "delete", "insert", "update")
 
 /** `CREATE` forms, by their words after `CREATE`, that define nothing an importer keeps. */
 private val CREATE_IGNORED =
@@ -144,6 +153,9 @@ private val COLUMN_CLAUSES =
         "storage",
     )
 
+private val SERIAL_OF =
+    mapOf("integer" to "serial", "bigint" to "bigserial", "smallint" to "smallserial")
+
 private val SERIALS = setOf("serial", "bigserial", "smallserial", "serial2", "serial4", "serial8")
 
 /** Clauses after a table's column list that change what the table is. */
@@ -178,6 +190,17 @@ private class Reader(private val all: List<SqlToken>) {
     private val fullIndex: IntArray
     private var i = 0
 
+    /** A column change from an `ALTER TABLE` to fold into its table; see [SqlReader]. */
+    private class ColumnFix(
+        val schema: String?,
+        val table: String,
+        val column: String,
+        val identity: Boolean,
+    )
+
+    /** Set by [alter] when the statement it read is a [ColumnFix]; [file] collects it. */
+    private var pendingFix: ColumnFix? = null
+
     init {
         val kept = all.withIndex().filter { it.value.kind != SqlTokenKind.COMMENT }
         toks = kept.map { it.value }
@@ -187,17 +210,75 @@ private class Reader(private val all: List<SqlToken>) {
     fun file(path: String): SqlFile {
         val statements = mutableListOf<SqlStatement>()
         val errors = mutableListOf<SqlParseError>()
+        val fixes = mutableListOf<Pair<Int, ColumnFix>>()
         while (peek().kind != SqlTokenKind.EOF) {
             if (symbol(";")) continue
+            pendingFix = null
             try {
                 statements += statement()
+                pendingFix?.let { fixes += statements.lastIndex to it }
                 if (!symbol(";") && peek().kind != SqlTokenKind.EOF) fail("expected ';'")
             } catch (e: SqlSyntaxError) {
                 errors += SqlParseError(e.pos, e.message ?: "")
                 while (peek().kind != SqlTokenKind.EOF && !isSymbol(";")) i++
             }
         }
-        return SqlFile(path, statements, errors)
+        return SqlFile(path, foldColumnFixes(statements, fixes), errors)
+    }
+
+    /** Applies each fix to its table, dropping the `ALTER` it came from; see [SqlReader]. */
+    private fun foldColumnFixes(
+        statements: List<SqlStatement>,
+        fixes: List<Pair<Int, ColumnFix>>,
+    ): List<SqlStatement> {
+        val out =
+            statements
+                .map { s ->
+                    if (s !is SqlStatement.CreateTable) s
+                    else
+                        SqlStatement.CreateTable(
+                            s.table.copy(
+                                columns =
+                                    s.table.columns.map { c ->
+                                        if (isNextval(c.default)) asSerial(c) ?: c else c
+                                    }
+                            )
+                        )
+                }
+                .toMutableList()
+        val folded = mutableSetOf<Int>()
+        for ((index, fix) in fixes) {
+            val at =
+                out.indexOfFirst {
+                    it is SqlStatement.CreateTable &&
+                        it.table.name == fix.table &&
+                        (fix.schema == null ||
+                            it.table.schema == null ||
+                            fix.schema == it.table.schema)
+                }
+            if (at < 0) continue
+            val table = (out[at] as SqlStatement.CreateTable).table
+            val c = table.columns.indexOfFirst { it.name == fix.column }
+            if (c < 0) continue
+            val column = table.columns[c]
+            val changed =
+                if (fix.identity) column.copy(identity = true, notNull = true)
+                else asSerial(column) ?: continue
+            out[at] =
+                SqlStatement.CreateTable(
+                    table.copy(columns = table.columns.toMutableList().also { it[c] = changed })
+                )
+            folded += index
+        }
+        return out.filterIndexed { k, _ -> k !in folded }
+    }
+
+    private fun isNextval(e: SqlExpr?) = e is SqlExpr.Call && e.name == "nextval"
+
+    /** The serial form of an integer [column], or null when its type has none. */
+    private fun asSerial(column: SqlColumn): SqlColumn? {
+        val serial = SERIAL_OF[column.type] ?: return null
+        return column.copy(type = serial, default = null, notNull = true)
     }
 
     // ---- statements ----
@@ -211,6 +292,10 @@ private class Reader(private val all: List<SqlToken>) {
             isWord("do") -> {
                 skipStatement()
                 listOf(SqlStatement.Dropped("DO", start.pos))
+            }
+            start.kind == SqlTokenKind.IDENT && start.text in DATA -> {
+                skipStatement()
+                listOf(SqlStatement.Dropped(start.text.uppercase(), start.pos))
             }
             start.kind == SqlTokenKind.IDENT && start.text in IGNORED -> {
                 skipStatement()
@@ -645,12 +730,38 @@ private class Reader(private val all: List<SqlToken>) {
         symbol("*")
         val out = mutableListOf<SqlStatement>()
         do {
-            if (!word("add")) {
-                val kind =
-                    if (isWord("alter") && !isWord("constraint", 1)) "ALTER COLUMN"
-                    else "ALTER TABLE"
+            if (isWord("alter") && !isWord("constraint", 1)) {
+                i++
+                word("column")
+                val column = ident("a column name")
+                val identity = isWord("add") && isWord("generated", 1)
+                if (identity) {
+                    i += 2
+                    if (!word("always")) {
+                        expectWord("by")
+                        expectWord("default")
+                    }
+                    expectWord("as")
+                    expectWord("identity")
+                    if (isSymbol("(")) skipParens()
+                }
+                val nextval =
+                    !identity &&
+                        isWord("set") &&
+                        isWord("default", 1) &&
+                        run {
+                            i += 2
+                            isNextval(defaultExpr())
+                        }
+                if (out.isEmpty() && (identity || nextval) && atStatementEnd()) {
+                    pendingFix = ColumnFix(schema, table, column, identity)
+                }
                 skipStatement()
-                return out + SqlStatement.Ignored(kind)
+                return out + SqlStatement.Ignored("ALTER COLUMN")
+            }
+            if (!word("add")) {
+                skipStatement()
+                return out + SqlStatement.Ignored("ALTER TABLE")
             }
             val constraintFollows =
                 listOf("constraint", "primary", "unique", "check", "foreign", "exclude").any {

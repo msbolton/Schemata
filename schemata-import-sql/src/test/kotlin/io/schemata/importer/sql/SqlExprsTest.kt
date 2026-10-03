@@ -88,6 +88,8 @@ class SqlExprsTest {
         assertEquals(Between(Col("n"), Num("-1"), Num("1.5")), parse("n BETWEEN -1 AND 1.5"))
         assertEquals(Not(Between(Col("n"), Num("0"), Num("1"))), parse("n NOT BETWEEN 0 AND 1"))
         assertEquals(Call("now", emptyList()), parse("now()"))
+        assertEquals(Call("current_timestamp", emptyList()), parse("CURRENT_TIMESTAMP"))
+        assertEquals(Col("current_date"), parse("\"current_date\""))
         assertEquals(Null, parse("NULL"))
         assertEquals(Bool(false), parse("false"))
         assertEquals(Bin("=", Col("x"), Raw("array[1]")), parse("x = ARRAY[1]"))
