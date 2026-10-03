@@ -511,6 +511,43 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a nullable message-typed field carries its type in the note without a diagnostic`() {
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "parent", Ref(qn("a", "Order")), nullable = true),
+                field(2, "at", Scalar(Builtin.INSTANT), nullable = true),
+                field(3, "took", Scalar(Builtin.DURATION), nullable = true),
+                field(4, "pay", Ref(qn("a", "Payment")), nullable = true),
+            )
+        val payment = union("a", "Payment", Scalar(Builtin.STRING), Scalar(Builtin.INT32))
+        val lowered = ProtoLowering.lower(schema(ns("a", order, payment)))
+        val fields = message(lowered.model.files.single(), "Order").fields
+        assertEquals(
+            listOf(listOf("Order?"), listOf("instant?"), listOf("duration?"), listOf("Payment?")),
+            fields.map { it.notes },
+        )
+        assertTrue(fields.all { it.label == Label.NONE })
+        assertEquals(emptyList(), messages(lowered))
+    }
+
+    @Test
+    fun `a required message-typed field carries no note`() {
+        val order =
+            record(
+                "a",
+                "Order",
+                field(1, "parent", Ref(qn("a", "Order"))),
+                field(2, "at", Scalar(Builtin.INSTANT)),
+            )
+        val fields =
+            message(ProtoLowering.lower(schema(ns("a", order))).model.files.single(), "Order")
+                .fields
+        assertEquals(listOf(emptyList(), emptyList()), fields.map { it.notes })
+    }
+
+    @Test
     fun `lossy scalars are lowered to string, warned once, and noted with the type text`() {
         val r =
             record(

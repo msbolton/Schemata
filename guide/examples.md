@@ -357,7 +357,7 @@ message Close {
   string id = 1;  // schemata: uuid
   string period = 2;  // schemata: string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
   .ledger.accounts.v1.Account account = 3;
-  .ledger.journal.v1.Entry last = 4;
+  .ledger.journal.v1.Entry last = 4;  // schemata: Entry?
 ```
 
 `reports.sql` carries that same reference as two foreign keys, one into each schema.

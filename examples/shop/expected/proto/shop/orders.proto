@@ -43,7 +43,7 @@ message Order {
   Address shipping = 7;
   .google.protobuf.Timestamp placed_at = 8;
   optional string note = 9;  // schemata: string(max = 500)?
-  .google.protobuf.Timestamp created = 10 [deprecated = true];
+  .google.protobuf.Timestamp created = 10 [deprecated = true];  // schemata: instant?
 
   // One purchasable item.
   message Line {
