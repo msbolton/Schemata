@@ -37,8 +37,13 @@ class GuideLinksTest {
         listOf("SCH0", "SCH1", "SCH20", "SCH21", "SCH22", "SCH23", "SCH24", "SCH25").forEach {
             assertTrue(text.contains(it), "$it is not mentioned")
         }
-        listOf("Protobuf", "Postgres", "XML Schema", "JSON Schema").forEach {
-            assertTrue(text.contains(it), "$it is not mentioned")
-        }
+        val families =
+            "Every family stays where it is: SCH0 for syntax, SCH1 for the language and core " +
+                "checks, SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, " +
+                "and JSON Schema targets, SCH24 for import, SCH25 for evolution."
+        assertTrue(
+            text.replace(Regex("\\s+"), " ").contains(families),
+            "the families sentence is missing or changed",
+        )
     }
 }

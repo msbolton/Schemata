@@ -14,7 +14,8 @@ command line, with any directories walked recursively. Output paths follow the n
 `namespace shop.orders` writes `shop/orders.proto`, `shop/orders.sql`, `shop/orders.xsd`, and
 `shop/orders.schema.json`. A doc comment and any annotations may precede the `namespace` line
 itself; section 15 shows
-annotations there, and `examples/shop/orders.schemata` shows a doc comment.
+annotations there, and `examples/shop/orders.schemata` shows a doc comment. A UTF-8 byte-order mark
+at the start of a file is skipped; `fmt` never writes one.
 
 By default, a namespace's Postgres schema is its last segment: `shop.orders` lowers to schema
 `"orders"`. Two namespaces with the same last segment collide (SCH2102) unless one sets
@@ -39,7 +40,9 @@ record OrderLine {
 `import shop.customers` brings that namespace's declarations into scope by their bare names.
 `import shop.customers as cust` makes them available only as `cust.Customer`, not by the bare name.
 When two unaliased imports both declare the same name, the bare name is ambiguous (SCH1009); the
-fully qualified name always works. An unused import is a warning (SCH1012).
+fully qualified name always works. An unused import is a warning (SCH1012). An alias is
+lower_snake, like a namespace segment (SCH1045). A file imports a namespace once and gives an alias
+to one import only; a repeat of either is an error (SCH1046).
 
 ```schemata
 --- customers.schemata
@@ -132,7 +135,10 @@ from what you wrote. No name in a `.schemata` file, whether a declaration, a fie
 value, may be one of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`,
 `union`, `alias`, `reserved`, `true`, `false`, `service`, `operation`, `stream`. `service`,
 `operation`, and `stream` are held for a future version of the language. An annotation key is
-exempt, so `@xsd(namespace = "…")` is legal.
+exempt, so `@xsd(namespace = "…")` is legal. `null` is not a keyword, since `= null` has to be
+read, but a field, an enum value, or a namespace segment may not be called `null` either:
+`= null` always means the literal, never an enum value of that name. Where a suggested name would
+be a reserved word, the help adds `_value` (`null_value`, `true_value`).
 
 ```schemata
 namespace shop.orders
@@ -182,14 +188,18 @@ subset Postgres also accepts is your job. `decimal` takes its precision and scal
 to its plain type and reports SCH2001. A pattern matches anywhere in the value unless anchored with
 `^` or `$`, but an XSD pattern always matches the whole value, so the XSD target wraps each
 unanchored side in `.*`: `pattern = "abc"` becomes `.*(abc).*`. XSD's `.` does not match a newline,
-so a multi-line value can fail an XSD pattern that Java accepts.
+so a multi-line value can fail an XSD pattern that Java accepts. A `float32` bound must lie within
+±3.4028235E38 and a `float64` bound within ±1.7976931348623157E308, the types' finite ranges
+(SCH1038); a default must too (SCH1042).
 
 A string literal is written in double quotes on one line. It knows six escapes: `\"`, `\\`,
 `\n`, `\t`, `\r`, and `\u{…}` with one to six hex digits naming a Unicode character, as in
 `"caf\u{E9}"`. Any other character after a backslash is an error (SCH0004). The one exception is
 the string of a `pattern` refinement, which is taken exactly as written apart from `\"`: a regex
 is full of backslashes that mean something to the target, so `pattern = "\d+"` is the regex
-`\d+`, not an error.
+`\d+`, not an error. No string, a pattern included, may hold a control character below U+0020
+other than tab, newline, and carriage return, nor U+FFFE or U+FFFF, whether typed as itself or
+written `\u{…}` (SCH0005): XML cannot carry them. A tab typed between the quotes is a tab.
 
 ```schemata
 namespace shop.orders
@@ -303,7 +313,9 @@ optional default after the type. Records nest: `record Order { record Line { …
 as `Order.Line`. A record is a value type unless it declares a key, either `@sql(key)` on a field or
 `@sql(key = (a, b))` on the record itself; section 15 shows both forms. A top-level record with no
 key that no field uses is an error for the Postgres target (SCH2106); this is why the records in
-this guide's examples all declare a key.
+this guide's examples all declare a key. Protobuf derives a JSON name from each field's name by
+dropping every underscore and capitalising the letter after it, so two fields of one record that
+derive the same one, such as `a_1` and `a1`, are an error for the Protobuf target (SCH2008).
 
 ```schemata
 namespace shop.orders
@@ -369,14 +381,15 @@ record OrderLine {
 ## 11. Unions
 
 `union Payment = #1 Card | #2 BankTransfer | #3 Cash` declares a union; each member carries an
-ordinal like a field does. A member must be a named type, meaning a record or an enum, or a scalar;
-it may not be nullable and may not be a collection. Nullability belongs on the field that holds the
-union, not on a member. Protobuf lowers a union to a message holding a `oneof`, and the field holds
-that message; a member named `Kind` would collide with the `oneof` itself, always named `kind`
-(SCH2004). Postgres lowers a union to a discriminator column plus each member's columns, with a
-CHECK tying the discriminator to the columns that member requires. A member named `Kind` collides
-on the Postgres side too: its own CHECK constraint takes the same name as the discriminator's
-(SCH2111).
+ordinal like a field does. A member must be a named type, meaning a record, an enum, or another
+union, or a scalar; it may not be nullable and may not be a collection. A union inside a union stays
+a nominal member: Protobuf nests the `oneof`, XSD and JSON Schema nest the choice, and Postgres
+reports it (SCH2110). Nullability belongs on the field that holds the union, not on a member.
+Protobuf lowers a union to a message holding a `oneof`, and the field holds that message; a member
+named `Kind` would collide with the `oneof` itself, always named `kind` (SCH2004). Postgres lowers a
+union to a discriminator column plus each member's columns, with a CHECK tying the discriminator to
+the columns that member requires. A member named `Kind` collides on the Postgres side too: its own
+CHECK constraint takes the same name as the discriminator's (SCH2111).
 
 ```schemata
 namespace shop.orders
@@ -716,6 +729,11 @@ reading here and with the diagnostics array shortened to its first entry:
 }
 ```
 
+A span's lines and columns count from 1 and its end is inclusive: `endColumn` is the column of the
+span's last character, so `Kind` above runs from column 6 to 9. Columns count Unicode code points,
+so an emoji is one column. A diagnostic at the end of input is one column wide and sits one column
+past the last character.
+
 `schemata --version` prints the compiler's version and exits.
 
 ## 18. Importing an XSD
@@ -769,11 +787,14 @@ the annotation; the note still appears, and `--namespace` silences it.
 (SCH2404). A facet whose value does not parse as the number or count it should be is dropped
 (SCH2404), and so is a `minOccurs` or `maxOccurs` that is not a count, which then reads as `1`.
 `pattern` carries over, with its anchoring reversed, since an XSD pattern always matches the whole
-value and a Schemata pattern matches anywhere unless anchored. `enumeration` becomes an `enum`.
-`whiteSpace` and any other facet the table does not name are dropped (SCH2404); a lone `totalDigits`
-or `fractionDigits` falls under the `decimal(38, 9)` note above. A named simple type with none of
-this, just a restriction of a builtin, is inlined at its use. A `list` or `union` simple type has no
-Schemata equivalent and imports as plain `string` (SCH2405).
+value and a Schemata pattern matches anywhere unless anchored. It is written as the regex it is,
+every backslash kept (`[A-Z]{2}\d{4}` becomes `pattern = "^[A-Z]{2}\d{4}$"`); one holding a lone
+backslash before a quote, which no valid XSD regex does, has no literal and is dropped (SCH2404).
+`enumeration` becomes an `enum`. `whiteSpace` and any other facet the table does not name are
+dropped (SCH2404); a lone `totalDigits` or `fractionDigits` falls under the `decimal(38, 9)` note
+above. A named simple type with none of this, just a restriction of a builtin, is inlined at its
+use. A `list` or `union` simple type has no Schemata equivalent and imports as plain `string`
+(SCH2405).
 
 ### Records, unions, and enums
 
@@ -835,9 +856,10 @@ indentation the schema gave it; `xs:appinfo` is dropped silently.
 An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
 lower_snake with `@xsd(name = "…")` restoring the original, silently; a value that cannot be an XML
 name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403). A name that is a Schemata
-keyword, such as `true`, `stream`, or `import`, takes a trailing underscore the same way: an
-enumeration value `true` becomes `true_` with `@xsd(name = "true")`. A record named after an element
-whose name starts with a digit is prefixed with `V`, so `3d` gives `record V3d`.
+keyword, such as `true`, `stream`, or `import`, or the reserved name `null`, takes a `_value` suffix
+the same way: an enumeration value `true` becomes `true_value` with `@xsd(name = "true")`, and a
+default naming it follows. A record named after an element whose name starts with a digit is
+prefixed with `V`, so `3d` gives `record V3d`.
 
 ### What is dropped
 
