@@ -126,7 +126,8 @@ private fun diagnostic(file: ProtoFile, code: DiagnosticCode, message: String, p
  * after a synthesised `<UPPER_SNAKE(E)>_UNSPECIFIED = 0`, so the prefix comes off and the zero
  * value goes when the target would write them back; a value the target would spell differently
  * keeps its proto name in `@proto(name)`. Numbers are ordinals unless one is not positive, when the
- * values are renumbered in order.
+ * values are renumbered in order. A Schemata enum needs a value, so when the zero value is the only
+ * one left it stays, spelled for the target beside the zero value it synthesises.
  */
 private class EnumLowering(e: ProtoEnum, file: ProtoFile) {
     private val prefix = Names.snakeCase(e.name).uppercase() + "_"
@@ -146,6 +147,9 @@ private class EnumLowering(e: ProtoEnum, file: ProtoFile) {
         }
         val taken = mutableMapOf<Int, String>()
         val kept = mutableListOf<ProtoEnumValue>()
+        // The zero value set aside, and where its note goes if it stays set aside.
+        var zero: ProtoEnumValue? = null
+        var zeroNote: Pair<Int, Diagnostic>? = null
         e.values.forEach { v ->
             val first = taken.putIfAbsent(v.number, v.name)
             if (first != null) {
@@ -156,17 +160,48 @@ private class EnumLowering(e: ProtoEnum, file: ProtoFile) {
                 )
                 return@forEach
             }
-            if (v.number == 0 && v.name == "${prefix}UNSPECIFIED") return@forEach
+            if (v.number == 0 && v.name == "${prefix}UNSPECIFIED") {
+                zero = v
+                return@forEach
+            }
             if (v.number == 0 && zeroLike.matches(v.name)) {
-                report(
-                    ImportCodes.APPROXIMATED,
-                    "$where: zero value '${v.name}' dropped; the regenerated enum names it " +
-                        "'${prefix}UNSPECIFIED'",
-                    v.pos,
-                )
+                zero = v
+                zeroNote =
+                    diagnostics.size to
+                        diagnostic(
+                            file,
+                            ImportCodes.APPROXIMATED,
+                            "$where: zero value '${v.name}' dropped; the regenerated enum names " +
+                                "it '${prefix}UNSPECIFIED'",
+                            v.pos,
+                        )
                 return@forEach
             }
             kept += v
+        }
+        val placeholder = zero.takeIf { kept.isEmpty() }
+        if (placeholder == null) {
+            zeroNote?.let { (at, note) -> diagnostics.add(at, note) }
+        } else {
+            val name = valueName(placeholder.name)
+            val spelled =
+                regenerated(name).let { if (it == "${prefix}UNSPECIFIED") "${it}_VALUE" else it }
+            report(
+                ImportCodes.APPROXIMATED,
+                "$where: only value '${placeholder.name}' kept, as '$name'; the regenerated enum " +
+                    "spells it $spelled beside the synthesized zero value",
+                placeholder.pos,
+            )
+            names[placeholder.name] = name
+            values +=
+                UnitEnumValue(
+                    name = name,
+                    doc = doc(placeholder.doc, placeholder.trailing),
+                    annotations =
+                        if (spelled != regenerated(name)) nameAnnotation(name, spelled)
+                        else nameAnnotation(spelled, placeholder.name),
+                    deprecated = placeholder.options.flag("deprecated"),
+                )
         }
         val notOrdinal = kept.firstOrNull { it.number <= 0 }
         if (notOrdinal != null) {

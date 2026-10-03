@@ -797,4 +797,40 @@ class ProtoImportTest {
             messages(r),
         )
     }
+
+    @Test
+    fun `a placeholder-only enum keeps its value under a spelling the target can write`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Placeholder { PLACEHOLDER_UNSPECIFIED = 0; }
+                    enum Aliased {
+                      option allow_alias = true;
+                      ALIASED_UNSPECIFIED = 0;
+                      ALIASED_NONE = 0;
+                    }
+                    """
+            )
+        assertEquals(
+            """
+            namespace t
+
+            enum Placeholder { @proto(name = "PLACEHOLDER_UNSPECIFIED_VALUE") unspecified }
+
+            enum Aliased { @proto(name = "ALIASED_UNSPECIFIED_VALUE") unspecified }
+            """
+                .trimIndent() + "\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 enum 'Placeholder': only value 'PLACEHOLDER_UNSPECIFIED' kept, as 'unspecified'; the regenerated enum spells it PLACEHOLDER_UNSPECIFIED_VALUE beside the synthesized zero value",
+                "SCH2405 enum value 'Aliased.ALIASED_NONE': alias of 'ALIASED_UNSPECIFIED' dropped",
+                "SCH2403 enum 'Aliased': only value 'ALIASED_UNSPECIFIED' kept, as 'unspecified'; the regenerated enum spells it ALIASED_UNSPECIFIED_VALUE beside the synthesized zero value",
+            ),
+            messages(r),
+        )
+    }
 }
