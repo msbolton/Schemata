@@ -31,6 +31,14 @@ object LangCodes {
             "a string holds an escape the language does not define",
         )
 
+    val CONTROL_CHARACTER =
+        DiagnosticCode(
+            "SCH0005",
+            Severity.ERROR,
+            Category.SYNTAX,
+            "a string holds a control character XML cannot carry",
+        )
+
     val all: List<DiagnosticCode> =
-        listOf(SYNTAX, RESERVED_KEYWORD, NUMERIC_LITERAL_RANGE, BAD_ESCAPE)
+        listOf(SYNTAX, RESERVED_KEYWORD, NUMERIC_LITERAL_RANGE, BAD_ESCAPE, CONTROL_CHARACTER)
 }

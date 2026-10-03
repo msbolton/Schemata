@@ -266,22 +266,14 @@ internal class AstBuilder(
                 0
             }
 
-    /** A string token's value; each escape the language does not define is reported as SCH0004. */
+    /**
+     * A string token's value; each escape the language does not define is reported as SCH0004, and
+     * each control character XML cannot carry as SCH0005.
+     */
     private fun string(node: TerminalNode, span: Span): String {
         val text = node.text
         val result = Strings.unescape(text.substring(1, text.length - 1))
-        result.bad.forEach { escape ->
-            // A string cannot span lines, so the escape sits on the line the string starts on.
-            val start = span.startColumn + 1 + escape.offset
-            diagnostics +=
-                Diagnostic(
-                    LangCodes.BAD_ESCAPE,
-                    "unknown escape '${escape.text}' in a string",
-                    Span(file, span.startLine, start, span.startLine, start + escape.length - 1),
-                    help =
-                        "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}",
-                )
-        }
+        result.bad.forEach { report(it, span) }
         return result.value
     }
 
@@ -290,8 +282,44 @@ internal class AstBuilder(
      * usual.
      */
     private fun patternLiteral(ctx: SchemataParser.LiteralContext): Literal =
-        ctx.STRING_LITERAL()?.let { Literal.StringLit(Strings.unquotePattern(it.text), ctx.span()) }
-            ?: build(ctx)
+        ctx.STRING_LITERAL()?.let {
+            val span = ctx.span()
+            Strings.patternControls(it.text.substring(1, it.text.length - 1)).forEach { bad ->
+                report(bad, span)
+            }
+            Literal.StringLit(Strings.unquotePattern(it.text), span)
+        } ?: build(ctx)
+
+    private fun report(bad: BadText, span: Span) {
+        // A string cannot span lines, so the bad text sits on the line the string starts on.
+        val start = span.startColumn + 1 + bad.offset
+        val where = Span(file, span.startLine, start, span.startLine, start + bad.length - 1)
+        diagnostics +=
+            when (val reason = bad.reason) {
+                BadText.UnknownEscape ->
+                    Diagnostic(
+                        LangCodes.BAD_ESCAPE,
+                        "unknown escape '${bad.text}' in a string",
+                        where,
+                        help = ESCAPE_HELP,
+                    )
+                BadText.NotScalar ->
+                    Diagnostic(
+                        LangCodes.BAD_ESCAPE,
+                        "'${bad.text}' is not a Unicode scalar value",
+                        where,
+                        help = ESCAPE_HELP,
+                    )
+                is BadText.Control ->
+                    Diagnostic(
+                        LangCodes.CONTROL_CHARACTER,
+                        "control character U+%04X in a string".format(reason.point),
+                        where,
+                        help =
+                            "write text; only tab, newline, and carriage return are allowed as control characters",
+                    )
+            }
+    }
 
     private fun ParserRuleContext.span(): Span {
         val stop = stop ?: start
@@ -303,6 +331,11 @@ internal class AstBuilder(
 
     private fun Token.span(): Span =
         Span(file, line, charPositionInLine + 1, line, charPositionInLine + text.codePointLength())
+
+    private companion object {
+        const val ESCAPE_HELP =
+            "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}"
+    }
 
     // ANTLR counts columns in Unicode code points; a token's own text is a normal UTF-16 Java
     // string, so an astral character inside it (an emoji, say) counts as one column here too,

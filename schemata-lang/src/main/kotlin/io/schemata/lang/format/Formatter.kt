@@ -29,9 +29,12 @@ object Formatter {
     const val LINE_WIDTH = 100
     internal const val INDENT = "  "
 
-    /** The output always ends its lines with `\n`, whatever the source used, comments included. */
+    /**
+     * The output always ends its lines with `\n`, whatever the source used, comments included, and
+     * never starts with a byte-order mark.
+     */
     fun format(input: String, path: String): FormatResult {
-        val source = input.replace("\r\n", "\n").replace('\r', '\n')
+        val source = input.removePrefix("\uFEFF").replace("\r\n", "\n").replace('\r', '\n')
         val parsed = Parser.parseForFormat(source, path)
         val file = parsed.file ?: return FormatResult.Failed(parsed.diagnostics)
         val text = Printer(source, parsed.comments).file(file)

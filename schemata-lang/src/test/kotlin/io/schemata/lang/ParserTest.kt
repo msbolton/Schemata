@@ -251,6 +251,14 @@ class ParserTest {
     }
 
     @Test
+    fun `a byte-order mark at the start of a file is skipped`() {
+        val result = Parser.parse("\uFEFFnamespace a\nrecord R { #1 x: bool }", "t")
+        assertEquals(emptyList(), result.diagnostics)
+        assertEquals(Span("t", 1, 1, 1, 11), result.file!!.namespace.span)
+        assertNotNull(Parser.parseForFormat("\uFEFFnamespace a", "t").file)
+    }
+
+    @Test
     fun `a future keyword is a reserved-keyword error and yields no file`() {
         val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
         assertNull(result.file)

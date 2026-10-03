@@ -22,10 +22,15 @@ data class FormatParse(
 
 /**
  * The only public entry point into the parser. [path] is recorded in every span and never read from
- * disk — loading files is the caller's job. Callers never see ANTLR types.
+ * disk — loading files is the caller's job. Callers never see ANTLR types. A UTF-8 byte-order mark
+ * at the start of the source is skipped, so columns on the first line count from the character
+ * after it.
  */
 object Parser {
-    fun parse(source: String, path: String): ParseResult {
+    private const val BYTE_ORDER_MARK = "\uFEFF"
+
+    fun parse(input: String, path: String): ParseResult {
+        val source = input.removePrefix(BYTE_ORDER_MARK)
         val listener = CollectingErrorListener(path)
         val (parser, _) = lexAndParse(source, listener)
         val tree = parser.file()
@@ -36,7 +41,8 @@ object Parser {
         return ParseResult(if (diagnostics.hasErrors) null else file, diagnostics)
     }
 
-    fun parseForFormat(source: String, path: String): FormatParse {
+    fun parseForFormat(input: String, path: String): FormatParse {
+        val source = input.removePrefix(BYTE_ORDER_MARK)
         val listener = CollectingErrorListener(path)
         val (parser, tokens) = lexAndParse(source, listener)
         val tree = parser.file()

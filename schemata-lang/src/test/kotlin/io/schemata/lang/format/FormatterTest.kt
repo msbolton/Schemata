@@ -8,6 +8,14 @@ class FormatterTest {
         (Formatter.format(text, "t.schemata") as FormatResult.Formatted).text
 
     @Test
+    fun `a byte-order mark is read and never written`() {
+        assertEquals(
+            "namespace a\n\nrecord R { #1 x: bool }\n",
+            fmt("\uFEFFnamespace a\nrecord R { #1 x: bool }"),
+        )
+    }
+
+    @Test
     fun `file layout namespace imports declarations one blank line between`() {
         val input =
             "namespace a.b\nimport x.y\nimport z as q\nrecord R { #1 a: bool }\nenum E { #1 v }\n"

@@ -10,7 +10,8 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH0001 | error | syntax | the parser cannot continue at this token | missing ':' at 'uuid'<br>mismatched input '<EOF>' expecting {'}', '@', 'record', 'enum', 'union', 'alias', 'reserved', ORDINAL, IDENT, DOC_COMMENT} | the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, or `union Name = A \| B` |
 | SCH0002 | error | syntax | a reserved keyword starts a declaration | 'service' is reserved for a future version of Schemata | rename the declaration; reserved words are listed in the language reference |
 | SCH0003 | error | syntax | an integer or ordinal literal is out of range | number '99999999999999999999' is out of range<br>ordinal '#99999999999' is out of range | use a value that fits in 64 bits<br>use an ordinal that fits in 32 bits |
-| SCH0004 | error | syntax | a string holds an escape the language does not define | unknown escape '\q' in a string<br>unknown escape '\u{}' in a string<br>unknown escape '\u{110000}' in a string | write \\ for a backslash; the escapes are \" \\ \n \t \r \u{…} |
+| SCH0004 | error | syntax | a string holds an escape the language does not define | unknown escape '\q' in a string<br>unknown escape '\u{}' in a string<br>'\u{110000}' is not a Unicode scalar value | write \\ for a backslash; the escapes are \" \\ \n \t \r \u{…} |
+| SCH0005 | error | syntax | a string holds a control character XML cannot carry | control character U+0000 in a string<br>control character U+FFFE in a string<br>control character U+0001 in a string<br>control character U+0002 in a string | write text; only tab, newline, and carriage return are allowed as control characters |
 
 ## Semantics (SCH1xxx)
 
