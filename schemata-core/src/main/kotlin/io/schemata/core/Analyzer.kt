@@ -38,6 +38,11 @@ object Analyzer {
     private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
     private val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
 
+    // `null` lexes as a name so that `= null` can be read; it is reserved as a field, enum value,
+    // and namespace segment name like `true` and `false`, since `= null` always means the literal
+    // and never an enum value of that name.
+    private const val NULL_NAME = "null"
+
     fun analyze(
         files: List<SourceFile>,
         options: AnalysisOptions = AnalysisOptions.DEFAULT,
@@ -80,7 +85,15 @@ object Analyzer {
     ): Namespace {
         val first = files.first()
         name.split(".").forEach { segment ->
-            if (!lowerSnake.matches(segment)) {
+            if (segment == NULL_NAME) {
+                diagnostics +=
+                    error(
+                        CoreCodes.NAMESPACE_SEGMENT_NAMING,
+                        "namespace segment '$segment' is reserved",
+                        first.namespace.span,
+                        help = "rename the segment, for example `${Suggest.lowerSnake(segment)}`",
+                    )
+            } else if (!lowerSnake.matches(segment)) {
                 val suggestion = Suggest.example(segment, Suggest.lowerSnake(segment))
                 diagnostics +=
                     error(
@@ -195,7 +208,15 @@ object Analyzer {
         val seenFields = mutableSetOf<String>()
         val fields =
             record.fields.mapIndexedNotNull { i, field ->
-                if (!lowerSnake.matches(field.name)) {
+                if (field.name == NULL_NAME) {
+                    diagnostics +=
+                        error(
+                            CoreCodes.FIELD_NAMING,
+                            "field name '${field.name}' is reserved",
+                            field.nameSpan,
+                            help = "rename it `${Suggest.lowerSnake(field.name)}`",
+                        )
+                } else if (!lowerSnake.matches(field.name)) {
                     val suggestion = Suggest.example(field.name, Suggest.lowerSnake(field.name))
                     diagnostics +=
                         error(
@@ -283,7 +304,15 @@ object Analyzer {
         val seen = mutableSetOf<String>()
         val values =
             decl.values.mapIndexed { index, value ->
-                if (!lowerSnake.matches(value.name)) {
+                if (value.name == NULL_NAME) {
+                    diagnostics +=
+                        error(
+                            CoreCodes.ENUM_VALUE_NAMING,
+                            "enum value '${value.name}' is reserved",
+                            value.nameSpan,
+                            help = "rename it `${Suggest.lowerSnake(value.name)}`",
+                        )
+                } else if (!lowerSnake.matches(value.name)) {
                     val suggestion = Suggest.example(value.name, Suggest.lowerSnake(value.name))
                     diagnostics +=
                         error(

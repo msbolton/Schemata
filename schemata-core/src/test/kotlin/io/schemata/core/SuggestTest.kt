@@ -22,7 +22,20 @@ class SuggestTest {
     }
 
     @Test
+    fun `a suggestion is never a reserved word and never starts with a digit`() {
+        assertEquals("true_value", Suggest.lowerSnake("true_"))
+        assertEquals("false_value", Suggest.lowerSnake("False"))
+        assertEquals("record_value", Suggest.lowerSnake("Record"))
+        assertEquals("null_value", Suggest.lowerSnake("null"))
+        assertEquals("null_value", Suggest.lowerSnake("NULL"))
+        assertEquals("v1x", Suggest.lowerSnake("_1x"))
+        assertEquals("v2_fa", Suggest.lowerSnake("2FA"))
+        assertEquals("true_value", Suggest.example("true_", Suggest.lowerSnake("true_")))
+    }
+
+    @Test
     fun `upper camel joins segments`() {
+        assertEquals("True", Suggest.upperCamel("true_"))
         assertEquals("OrderLine", Suggest.upperCamel("order_line"))
         assertEquals("OrderLine", Suggest.upperCamel("orderLine"))
         assertEquals("Order", Suggest.upperCamel("order"))

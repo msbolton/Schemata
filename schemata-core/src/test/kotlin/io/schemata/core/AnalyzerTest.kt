@@ -327,6 +327,31 @@ class AnalyzerTest {
     }
 
     @Test
+    fun `null is reserved as a field, enum value, and namespace segment name`() {
+        val result = analyze("namespace a.null\nenum E { null }\nrecord R { null: E }")
+        assertNull(result.schema)
+        assertEquals(
+            listOf(
+                "SCH1001 1:1 namespace segment 'null' is reserved; help: rename the segment, for example `null_value`",
+                "SCH1028 2:10 enum value 'null' is reserved; help: rename it `null_value`",
+                "SCH1003 3:12 field name 'null' is reserved; help: rename it `null_value`",
+            ),
+            result.diagnostics.map {
+                "${it.code.id} ${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
+            },
+        )
+    }
+
+    @Test
+    fun `a naming help never suggests a keyword`() {
+        val result = analyze("namespace a\nenum E { true_ }\nrecord R { _1x: bool }")
+        assertEquals(
+            listOf("rename it `true_value`", "rename it `v1x`"),
+            result.diagnostics.map { it.help },
+        )
+    }
+
+    @Test
     fun `carries docs and defaults through unchanged`() {
         val src = "namespace a\n/// about R\nrecord R {\n  /// about x\n  x: string = \"v\"\n}"
         val r = analyze(src).schema!!.lookup(qn("a", "R")) as RecordType

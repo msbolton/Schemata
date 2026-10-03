@@ -21,11 +21,16 @@ import java.util.regex.PatternSyntaxException
 object RefinementChecker {
     private val collectionKeys = setOf("min", "max")
 
-    /** How a `min`/`max` literal is read for a given type. */
-    private enum class Bound(val range: LongRange?) {
+    /**
+     * How a `min`/`max` literal is read for a given type: [range] bounds an integer type, [floats]
+     * a binary floating-point one.
+     */
+    private enum class Bound(val range: LongRange? = null, val floats: FloatRange? = null) {
         INT32(Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()),
         INT64(Long.MIN_VALUE..Long.MAX_VALUE),
-        REAL(null),
+        FLOAT32(floats = FloatRange.FLOAT32),
+        FLOAT64(floats = FloatRange.FLOAT64),
+        REAL,
         COUNT(0L..Long.MAX_VALUE),
     }
 
@@ -103,8 +108,8 @@ object RefinementChecker {
             when (builtin) {
                 Builtin.INT32 -> Bound.INT32
                 Builtin.INT64 -> Bound.INT64
-                Builtin.FLOAT32,
-                Builtin.FLOAT64,
+                Builtin.FLOAT32 -> Bound.FLOAT32
+                Builtin.FLOAT64 -> Bound.FLOAT64
                 Builtin.DECIMAL -> Bound.REAL
                 else -> Bound.COUNT
             }
@@ -266,21 +271,37 @@ object RefinementChecker {
                     }
                     else -> BigDecimal.valueOf(value.value)
                 }
-            Bound.REAL ->
-                when (value) {
-                    is Literal.IntLit -> BigDecimal.valueOf(value.value)
-                    is Literal.FloatLit -> BigDecimal(value.text)
-                    else -> {
-                        report(
-                            CoreCodes.INVALID_REFINEMENT,
-                            "${item.name} for $typeName must be a number",
-                            item.span,
-                            diagnostics,
-                            help = "write a number",
-                        )
-                        null
+            Bound.FLOAT32,
+            Bound.FLOAT64,
+            Bound.REAL -> {
+                val number =
+                    when (value) {
+                        is Literal.IntLit -> BigDecimal.valueOf(value.value)
+                        is Literal.FloatLit -> BigDecimal(value.text)
+                        else -> {
+                            report(
+                                CoreCodes.INVALID_REFINEMENT,
+                                "${item.name} for $typeName must be a number",
+                                item.span,
+                                diagnostics,
+                                help = "write a number",
+                            )
+                            return null
+                        }
                     }
+                val floats = bound.floats
+                if (floats != null && !floats.contains(number)) {
+                    report(
+                        CoreCodes.INVALID_REFINEMENT,
+                        "${item.name} ${number.toPlainString()} is outside the range of $typeName (${floats.shown})",
+                        item.span,
+                        diagnostics,
+                        help = "use a value between ${floats.between}",
+                    )
+                    return null
                 }
+                number
+            }
             Bound.COUNT ->
                 when {
                     value !is Literal.IntLit -> {

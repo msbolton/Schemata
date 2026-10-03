@@ -161,6 +161,17 @@ object DefaultChecker {
                                 help = "write a number",
                             )
                     }
+                val range = FloatRange.of(type.builtin)
+                if (range != null && !range.contains(value))
+                    return reject(
+                        "default ${value.toPlainString()} is outside the range of $name (${range.shown})",
+                        literal.span,
+                        diagnostics,
+                        help =
+                            "use a value between ${range.between}" +
+                                if (range == FloatRange.FLOAT32) ", or declare the field float64"
+                                else "",
+                    )
                 val scale = r.scale
                 if (scale != null && maxOf(value.stripTrailingZeros().scale(), 0) > scale)
                     return violates(

@@ -1,0 +1,2 @@
+namespace c
+record U { #1 y: bool }

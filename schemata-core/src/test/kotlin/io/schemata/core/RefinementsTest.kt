@@ -144,6 +144,35 @@ class RefinementsTest {
     }
 
     @Test
+    fun `a float bound must lie within the type's finite range`() {
+        val big39 = "1" + "0".repeat(39)
+        val big309 = "1" + "0".repeat(309)
+        val src =
+            "namespace a\n" +
+                "record R {\n" +
+                "  a: float32(max = $big39.0)\n" +
+                "  b: float32(min = -$big39.5)\n" +
+                "  c: float64(max = $big309.0)\n" +
+                "  d: float32(min = -340282350000000000000000000000000000000.0, max = 340282350000000000000000000000000000000.0)\n" +
+                "  e: float64(max = $big39.0)\n" +
+                "  f: decimal(400, 0, max = $big309.0)\n" +
+                "}"
+        val r = analyze(src)
+        assertEquals(
+            listOf(
+                "3:14 max $big39.0 is outside the range of float32 (±3.4028235E38)",
+                "4:14 min -$big39.5 is outside the range of float32 (±3.4028235E38)",
+                "5:14 max $big309.0 is outside the range of float64 (±1.7976931348623157E308)",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            listOf("use a value between -3.4028235E38 and 3.4028235E38"),
+            r.diagnostics.map { it.help }.take(1),
+        )
+    }
+
+    @Test
     fun `an alias is checked once, whether or not it is used`() {
         val used = analyze("namespace a\nalias Bad = string(max = -1)\nrecord R { x: Bad  y: Bad }")
         assertEquals(listOf("2:20 max must not be negative"), messages(used))

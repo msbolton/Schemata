@@ -1,0 +1,2 @@
+namespace s
+enum Flag { #1 on #2 null }

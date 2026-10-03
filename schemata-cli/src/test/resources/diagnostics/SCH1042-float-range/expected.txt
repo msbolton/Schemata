@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1042]: default 99999999999999999999999999999999999999999999999.0 is outside the range of float32 (±3.4028235E38)
+ --> s.schemata:2:28
+  = help: use a value between -3.4028235E38 and 3.4028235E38, or declare the field float64
+
+1 error, 0 warnings
