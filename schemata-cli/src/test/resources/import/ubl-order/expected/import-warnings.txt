@@ -1668,13 +1668,9 @@ SCH2403 element 'TimeStampValidationData': element 'TimeStampValidationData' has
 SCH2405 element 'ArchiveTimeStampV2': root element of a type in another namespace dropped
 SCH2403 complex type 'SignatureValueType': simpleContent extension of 'base64Binary' has no Schemata equivalent; imported as a record with a 'value' field
 SCH2403 complex type 'TransformType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2405 complex type 'TransformType': xs:any dropped
 SCH2403 complex type 'KeyInfoType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2405 complex type 'KeyInfoType': xs:any dropped
 SCH2403 complex type 'KeyValueType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2405 complex type 'KeyValueType': xs:any dropped
 SCH2403 complex type 'X509DataType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2405 complex type 'X509DataType': xs:any dropped
 SCH2403 union 'PGPData': choice branch imported as record 'PGPKeyIDGroup'
 SCH2403 union 'PGPData': choice branch imported as record 'PGPKeyPacketGroup'
 SCH2403 complex type 'DSAKeyValueType': nested sequence imported as record 'PGroup' in field 'p_group'

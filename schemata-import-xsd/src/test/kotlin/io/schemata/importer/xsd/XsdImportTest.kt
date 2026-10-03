@@ -2317,6 +2317,51 @@ class XsdImportTest {
     }
 
     @Test
+    fun `a repeated choice of simple branches repeats each branch`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:s">
+                  <xs:complexType name="TransformType" mixed="true">
+                    <xs:choice minOccurs="0" maxOccurs="unbounded">
+                      <xs:any namespace="##other" processContents="lax"/>
+                      <xs:element name="XPath" type="xs:string"/>
+                      <xs:element name="step" type="xs:int" maxOccurs="2"/>
+                    </xs:choice>
+                    <xs:attribute name="Algorithm" type="xs:anyURI" use="required"/>
+                  </xs:complexType>
+                  <xs:complexType name="PairType">
+                    <xs:choice maxOccurs="3">
+                      <xs:element name="a" type="xs:string" maxOccurs="2"/>
+                      <xs:element name="b" type="xs:int"/>
+                    </xs:choice>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val string = UnitType.Scalar("string", emptyList())
+        val int32 = UnitType.Scalar("int32", emptyList())
+        assertEquals(
+            listOf(
+                "any" to UnitType.ListOf(string, false, emptyList()),
+                "x_path" to UnitType.ListOf(string, false, emptyList()),
+                "step" to UnitType.ListOf(int32, false, emptyList()),
+                "text" to string,
+                "algorithm" to string,
+            ),
+            record(imported, "Transform").fields.map { it.name to it.type },
+        )
+        assertEquals(
+            listOf(
+                "a" to UnitType.ListOf(string, false, listOf("max" to "6")),
+                "b" to UnitType.ListOf(int32, false, listOf("max" to "3")),
+            ),
+            record(imported, "Pair").fields.map { it.name to it.type },
+        )
+    }
+
+    @Test
     fun `a plain choice type is a union and an attributed or mixed one a record`() {
         val imported =
             lower(

@@ -836,8 +836,8 @@ a record instead, holding the choice as a sequence would (below) beside its attr
 fields. A union has nowhere to put `abstract`, so a choice-only type's is dropped (SCH2405). An
 inline `choice` nested inside a `sequence` becomes, when every branch is a complex type, a
 synthesized union named `<Record>Choice` held in a field called `choice` (SCH2403); otherwise each
-branch becomes its own optional field (SCH2403), and a wildcard branch among them is dropped
-(SCH2405). An element with `maxOccurs` greater than one becomes `list<T>`, with
+branch, a wildcard among them, becomes its own optional field (SCH2403), a list when the choice
+repeats. An element with `maxOccurs` greater than one becomes `list<T>`, with
 `min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the element type, giving
 `list<T?>`; a `default` on a repeated element is dropped (SCH2403), since a list has no default. An
 element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A single element with

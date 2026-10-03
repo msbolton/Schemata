@@ -2357,10 +2357,10 @@ record LineStringSegment {
   @xsd(name = "numDerivativeInterior")
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   @xsd(attribute) interpolation:            CurveInterpolation = linear
@@ -2432,10 +2432,10 @@ record LinearRing {
   @xsd(list)
   @xsd(attribute)
   uom_labels:            list<string>?
-  pos:                   DirectPosition?
+  pos:                   list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:        PointProperty?
-  @xsd(name = "pointRep") point_rep:             PointProperty?
+  @xsd(name = "pointProperty") point_property:        list<PointProperty>
+  @xsd(name = "pointRep") point_rep:             list<PointProperty>
   @xsd(name = "posList") pos_list:              DirectPositionList?
   coordinates:           Coordinates?
 }
@@ -2864,10 +2864,10 @@ record ArcString {
   @xsd(name = "numDerivativeInterior")
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   @xsd(attribute) interpolation:            CurveInterpolation = circular_arc3_points
@@ -3257,10 +3257,10 @@ record File {
 
 @xsd(name = "Arc")
 record Arc {
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>(max = 3)
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>(max = 3)
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>(max = 3)
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   @xsd(name = "numArc")
@@ -3770,10 +3770,10 @@ record TimePosition {
 
 @xsd(name = "Circle")
 record Circle {
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>(max = 3)
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>(max = 3)
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>(max = 3)
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   @xsd(name = "numArc")
@@ -4012,10 +4012,10 @@ record ArcStringByBulge {
   @xsd(name = "numDerivativeInterior")
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   bulge:                    list<float64>(min = 1)
@@ -4528,10 +4528,10 @@ record UserDefinedCS {
 
 @xsd(name = "ArcByBulge")
 record ArcByBulge {
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>(max = 2)
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>(max = 2)
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>(max = 2)
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   bulge:                    float64
@@ -5189,10 +5189,10 @@ record LineString {
   @xsd(list)
   @xsd(attribute)
   uom_labels:            list<string>?
-  pos:                   DirectPosition?
+  pos:                   list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:        PointProperty?
-  @xsd(name = "pointRep") point_rep:             PointProperty?
+  @xsd(name = "pointProperty") point_property:        list<PointProperty>
+  @xsd(name = "pointRep") point_rep:             list<PointProperty>
   @xsd(name = "posList") pos_list:              DirectPositionList?
   coordinates:           Coordinates?
 }
@@ -5537,10 +5537,10 @@ record CubicSpline {
   @xsd(name = "numDerivativeInterior")
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   @xsd(name = "vectorAtStart") vector_at_start:          Vector
@@ -5748,10 +5748,10 @@ record BSpline {
   @xsd(name = "numDerivativeInterior")
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   degree:                   int64(min = 0)
@@ -5991,10 +5991,10 @@ record TopoComplexProperty {
 
 @xsd(name = "Bezier")
 record Bezier {
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
-  @xsd(name = "pointRep") point_rep:                PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
+  @xsd(name = "pointRep") point_rep:                list<PointProperty>
   @xsd(name = "posList") pos_list:                 DirectPositionList?
   coordinates:              Coordinates?
   degree:                   int64(min = 0)
@@ -6250,9 +6250,9 @@ record GeodesicString {
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
   @xsd(name = "posList") pos_list:                 DirectPositionList?
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
   @xsd(attribute) interpolation:            CurveInterpolation = geodesic
 }
 
@@ -6345,9 +6345,9 @@ record Geodesic {
   @xsd(attribute)
   num_derivative_interior:  int32 = 0
   @xsd(name = "posList") pos_list:                 DirectPositionList?
-  pos:                      DirectPosition?
+  pos:                      list<DirectPosition>
   /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-  @xsd(name = "pointProperty") point_property:           PointProperty?
+  @xsd(name = "pointProperty") point_property:           list<PointProperty>
   @xsd(attribute) interpolation:            CurveInterpolation = geodesic
 }
 
@@ -6655,9 +6655,9 @@ record Cone {
 
     record Row {
       @xsd(name = "posList") pos_list:       DirectPositionList?
-      pos:            DirectPosition?
+      pos:            list<DirectPosition>
       /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-      @xsd(name = "pointProperty") point_property: PointProperty?
+      @xsd(name = "pointProperty") point_property: list<PointProperty>
     }
   }
 }
@@ -6698,9 +6698,9 @@ record Cylinder {
 
     record Row {
       @xsd(name = "posList") pos_list:       DirectPositionList?
-      pos:            DirectPosition?
+      pos:            list<DirectPosition>
       /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-      @xsd(name = "pointProperty") point_property: PointProperty?
+      @xsd(name = "pointProperty") point_property: list<PointProperty>
     }
   }
 }
@@ -6743,9 +6743,9 @@ record Sphere {
 
     record Row {
       @xsd(name = "posList") pos_list:       DirectPositionList?
-      pos:            DirectPosition?
+      pos:            list<DirectPosition>
       /// This property element either references a point via the XLink-attributes or contains the point element. pointProperty is the predefined property which may be used by GML Application Schemas whenever a GML feature has a property with a value that is substitutable for Point.
-      @xsd(name = "pointProperty") point_property: PointProperty?
+      @xsd(name = "pointProperty") point_property: list<PointProperty>
     }
   }
 }

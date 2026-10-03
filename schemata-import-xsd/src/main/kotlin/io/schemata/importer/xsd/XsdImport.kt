@@ -1650,10 +1650,8 @@ object XsdImport {
                 )
             }
             val index = choiceCounts.merge(recordName, 1, Int::plus)!!
-            val members =
-                expandParticles(choice.particles, whereCollision).filter {
-                    it is XParticle.Element || it is XParticle.Nested
-                }
+            val branches = expandParticles(choice.particles, whereCollision)
+            val members = branches.filter { it is XParticle.Element || it is XParticle.Nested }
             val allComplex =
                 members.isNotEmpty() &&
                     members.all { p ->
@@ -1703,34 +1701,57 @@ object XsdImport {
                     "inline choice has no Schemata equivalent; members imported as optional fields",
                     particle.line,
                 )
-            // A wildcard branch beside other branches has no field of its own, as in a union.
-            choice.particles.filterIsInstance<XParticle.Any>().forEach {
-                diagnostics += lossy(ImportCodes.DROPPED, whereCollision, "xs:any dropped", it.line)
-            }
-            return members.flatMap {
+            // Each branch, a wildcard among them, is an optional field; a repeated choice repeats
+            // every branch, so a branch's occurrence is multiplied by the choice's and a branch
+            // that may repeat is a list.
+            return branches.flatMap {
                 when (it) {
                     is XParticle.Element ->
                         listOfNotNull(
                             field(
-                                it.element.copy(minOccurs = 0),
+                                it.element.copy(
+                                    minOccurs = 0,
+                                    maxOccurs = times(it.element.maxOccurs, particle.maxOccurs),
+                                ),
                                 claimed,
                                 whereCollision,
                                 nested,
                                 siblings,
                             )
                         )
-                    else ->
+                    is XParticle.Any ->
+                        listOfNotNull(
+                            anyField(
+                                it.copy(
+                                    minOccurs = 0,
+                                    maxOccurs = times(it.maxOccurs, particle.maxOccurs),
+                                ),
+                                claimed,
+                                whereCollision,
+                            )
+                        )
+                    is XParticle.Nested ->
                         sequenceFields(
                             recordName,
-                            listOf((it as XParticle.Nested).copy(minOccurs = 0)),
+                            listOf(
+                                it.copy(
+                                    minOccurs = 0,
+                                    maxOccurs = times(it.maxOccurs, particle.maxOccurs),
+                                )
+                            ),
                             whereCollision,
                             claimed,
                             nested,
                             siblings,
                         )
+                    is XParticle.GroupRef ->
+                        emptyList() // only an unresolved ref survives expansion
                 }
             }
         }
+
+        /** Two occurrence bounds multiplied, `null` (unbounded) when either is. */
+        private fun times(a: Int?, b: Int?): Int? = if (a == null || b == null) null else a * b
 
         private fun isComplexTypeRef(qname: QName): Boolean {
             if (qname.namespace == ImportTypes.XS) return false
@@ -2049,11 +2070,11 @@ object XsdImport {
             whereCollision: String,
         ): List<UnitField> =
             choice.particles.filterIsInstance<XParticle.Any>().mapNotNull { any ->
-                val max =
-                    if (any.maxOccurs == null || maxOccurs == null) null
-                    else any.maxOccurs * maxOccurs
                 anyField(
-                    any.copy(minOccurs = any.minOccurs * minOccurs, maxOccurs = max),
+                    any.copy(
+                        minOccurs = any.minOccurs * minOccurs,
+                        maxOccurs = times(any.maxOccurs, maxOccurs),
+                    ),
                     claimed,
                     whereCollision,
                 )

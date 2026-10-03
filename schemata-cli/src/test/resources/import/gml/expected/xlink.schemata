@@ -55,10 +55,10 @@ record Simple {
 /// substitutionGroup, all the right things will happen.
 @xsd(root = false)
 record Extended {
-  title:           TitleElt?
-  resource:        Resource?
-  locator:         Locator?
-  arc:             Arc?
+  title:           list<TitleElt>
+  resource:        list<Resource>
+  locator:         list<Locator>
+  arc:             list<Arc>
   @xsd(attribute) type:            Type = extended
   @xsd(attribute) role:            string(min = 1)?
   @xsd(attribute) title_attribute: string?
