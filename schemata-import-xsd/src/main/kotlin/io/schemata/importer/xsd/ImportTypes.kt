@@ -196,7 +196,9 @@ object ImportTypes {
                         if (isUuidPattern(f.value)) {
                             return Pair(UnitType.Scalar("uuid", emptyList()), emptyList())
                         }
-                        refinements += "pattern" to quote(unanchor(f.value))
+                        val literal = quotePattern(unanchor(f.value))
+                        if (literal == null) notes += unparsed(f)
+                        else refinements += "pattern" to literal
                     }
                 else -> notes += dropped(f)
             }
@@ -225,6 +227,22 @@ object ImportTypes {
                 ?: Triple(pattern, true, true)
         val escaped = unescapedDollar.replace(core) { "\\$" }
         return (if (left) "^" else "") + escaped + (if (right) "$" else "")
+    }
+
+    // An odd run of backslashes right before a quote or line break: once the quote or break is
+    // escaped, the run's last backslash would pair with the escape's and the literal would read
+    // differently or not at all. No valid XSD regex holds one.
+    private val loneBackslash = Regex("""(?<!\\)(\\\\)*\\["\n\r]""")
+
+    /**
+     * A pattern as a Schemata string literal: only a quote is escaped, every backslash stays. A
+     * line break is written as the regex escape for it, since a string literal cannot span lines.
+     * Null when the pattern holds a lone backslash before a quote or line break, which has no
+     * literal.
+     */
+    fun quotePattern(pattern: String): String? {
+        if (loneBackslash.containsMatchIn(pattern)) return null
+        return "\"" + pattern.replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
     }
 
     /**

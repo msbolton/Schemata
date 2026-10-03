@@ -20,11 +20,11 @@ class RecoveryTest {
     }
 
     @Test
-    fun `an error at end of input has a zero-width span at EOF`() {
+    fun `an error at end of input has a span of width one at EOF`() {
         val result = Parser.parse("namespace a\nrecord A {", "t.schemata")
         val span = result.diagnostics.single().span
         assertEquals(2, span.startLine)
-        assertEquals(span.startColumn, span.endColumn + 1)
+        assertEquals(span.startColumn, span.endColumn)
     }
 
     @Test

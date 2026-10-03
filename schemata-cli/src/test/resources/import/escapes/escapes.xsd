@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:escapes"
+           targetNamespace="urn:schemata:escapes"
+           elementFormDefault="qualified">
+
+  <xs:element name="parcel" type="tns:ParcelType"/>
+
+  <xs:simpleType name="FlagType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="on"/>
+      <xs:enumeration value="null"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="ParcelType">
+    <xs:sequence>
+      <xs:element name="code">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[A-Z]{2}\d{4}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="label">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[a-z]+&#10;[a-z]+"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="quoted">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="a\&quot;b"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="address" type="xs:string" minOccurs="0" default="line one&#10;line two&#9;end"/>
+      <xs:element name="flag" type="tns:FlagType" minOccurs="0" default="null"/>
+      <xs:element name="null" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

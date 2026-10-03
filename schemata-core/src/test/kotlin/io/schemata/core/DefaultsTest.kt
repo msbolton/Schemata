@@ -80,6 +80,7 @@ class DefaultsTest {
                 "  o: map<string, int32> = 1\n" +
                 "  p: U = 1\n" +
                 "  q: decimal(2, 0) = 100\n" +
+                "  r: string(max = 2) = \"a\\nb\\\"c\"\n" +
                 "}"
         val r = analyze(src)
         assertNull(r.schema)
@@ -91,7 +92,7 @@ class DefaultsTest {
                 "10:20 list fields cannot have a default",
                 "11:23 default 3 is below min 5",
                 "12:24 default \"abc\" is longer than max 2",
-                "13:31 default \"y\" does not match pattern ^x",
+                "13:31 default \"y\" does not match pattern \"^x\"",
                 "14:22 default 1.25 exceeds scale 1",
                 "15:13 uuid fields cannot have a default",
                 "16:14 default for int32 must be an integer literal",
@@ -102,8 +103,39 @@ class DefaultsTest {
                 "21:27 map fields cannot have a default",
                 "22:10 union fields cannot have a default",
                 "23:22 default 100 exceeds precision 2",
+                "24:24 default \"a\\nb\\\"c\" is longer than max 2",
             ),
             messages(r),
         )
+    }
+
+    @Test
+    fun `a float default must lie within the type's finite range`() {
+        val big39 = "1" + "0".repeat(39)
+        val big309 = "1" + "0".repeat(309)
+        val src =
+            "namespace a\n" +
+                "record R {\n" +
+                "  a: float32 = $big39.0\n" +
+                "  b: float64 = -$big309.5\n" +
+                "  c: float32 = -340282350000000000000000000000000000000.0\n" +
+                "  d: float64 = $big39.0\n" +
+                "}"
+        val r = analyze(src)
+        assertEquals(
+            listOf(
+                "3:16 default $big39.0 is outside the range of float32 (±3.4028235E38)",
+                "4:16 default -$big309.5 is outside the range of float64 (±1.7976931348623157E308)",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            listOf(
+                "use a value between -3.4028235E38 and 3.4028235E38, or declare the field float64",
+                "use a value between -1.7976931348623157E308 and 1.7976931348623157E308",
+            ),
+            r.diagnostics.map { it.help },
+        )
+        assertEquals(listOf("SCH1042", "SCH1042"), r.diagnostics.map { it.code.id })
     }
 }

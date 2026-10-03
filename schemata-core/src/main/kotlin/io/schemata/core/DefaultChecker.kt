@@ -15,6 +15,7 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.Value
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
+import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.Literal
@@ -160,6 +161,17 @@ object DefaultChecker {
                                 help = "write a number",
                             )
                     }
+                val range = FloatRange.of(type.builtin)
+                if (range != null && !range.contains(value))
+                    return reject(
+                        "default ${value.toPlainString()} is outside the range of $name (${range.shown})",
+                        literal.span,
+                        diagnostics,
+                        help =
+                            "use a value between ${range.between}" +
+                                if (range == FloatRange.FLOAT32) ", or declare the field float64"
+                                else "",
+                    )
                 val scale = r.scale
                 if (scale != null && maxOf(value.stripTrailingZeros().scale(), 0) > scale)
                     return violates(
@@ -195,7 +207,7 @@ object DefaultChecker {
                 when {
                     r.min != null && length < r.min ->
                         violates(
-                            "default \"${lit.value}\" is shorter than min ${r.min.toPlainString()}",
+                            "default ${SchemataText.string(lit.value)} is shorter than min ${r.min.toPlainString()}",
                             literal.span,
                             diagnostics,
                             help =
@@ -203,7 +215,7 @@ object DefaultChecker {
                         )
                     r.max != null && length > r.max ->
                         violates(
-                            "default \"${lit.value}\" is longer than max ${r.max.toPlainString()}",
+                            "default ${SchemataText.string(lit.value)} is longer than max ${r.max.toPlainString()}",
                             literal.span,
                             diagnostics,
                             help =
@@ -211,7 +223,7 @@ object DefaultChecker {
                         )
                     r.pattern != null && !Pattern.compile(r.pattern).matcher(lit.value).find() ->
                         violates(
-                            "default \"${lit.value}\" does not match pattern ${r.pattern}",
+                            "default ${SchemataText.string(lit.value)} does not match pattern ${SchemataText.pattern(r.pattern)}",
                             literal.span,
                             diagnostics,
                             help = "use a default the pattern accepts, or change the pattern",

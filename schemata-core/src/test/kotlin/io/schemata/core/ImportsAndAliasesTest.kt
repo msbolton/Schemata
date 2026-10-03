@@ -133,21 +133,40 @@ class ImportsAndAliasesTest {
     }
 
     @Test
-    fun `a local declaration wins over an import alias of the same name`() {
+    fun `an import alias is lower_snake`() {
         val legacy = "legacy.schemata" to "namespace shop.legacy\nrecord Address { old: bool }"
         val orders =
             "orders.schemata" to
-                "namespace shop.orders\nimport shop.legacy as Order\nrecord Order {\n  a: Order.Address\n  record Address { city: string }\n}\nrecord R { b: Order.Address }"
-        val r = analyze(legacy, orders)
-        assertEquals(listOf("orders.schemata:2:1 import 'shop.legacy' is unused"), messages(r))
-        val local = Ref(qn("shop.orders", "Order", "Address"))
+                "namespace shop.orders\nimport shop.legacy as Order\nimport shop.customers as Bad__x\nrecord R { a: Order.Address  b: Bad__x.Customer }"
+        val r = analyze(customers, legacy, orders)
+        assertNull(r.schema)
         assertEquals(
-            local,
-            (r.schema!!.lookup(qn("shop.orders", "Order")) as RecordType).fields.single().type,
+            listOf(
+                "SCH1045 orders.schemata:2:23 import alias 'Order' must be lower_snake; help: rename it `order`",
+                "SCH1045 orders.schemata:3:26 import alias 'Bad__x' must be lower_snake; help: rename it `bad_x`",
+            ),
+            r.diagnostics.map {
+                "${it.code.id} ${it.span.file}:${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
+            },
         )
+    }
+
+    @Test
+    fun `a repeated import or alias is an error`() {
+        val legacy = "legacy.schemata" to "namespace shop.legacy\nrecord Address { old: bool }"
+        val orders =
+            "orders.schemata" to
+                "namespace shop.orders\nimport shop.customers\nimport shop.customers as cust\nimport shop.legacy as cust\nrecord R { a: Customer  b: cust.Customer }"
+        val r = analyze(customers, legacy, orders)
+        assertNull(r.schema)
         assertEquals(
-            local,
-            (r.schema!!.lookup(qn("shop.orders", "R")) as RecordType).fields.single().type,
+            listOf(
+                "SCH1046 orders.schemata:3:1 namespace 'shop.customers' is imported more than once; help: keep one import of `shop.customers`",
+                "SCH1046 orders.schemata:4:23 alias 'cust' is given to more than one import; help: give each import its own alias",
+            ),
+            r.diagnostics.map {
+                "${it.code.id} ${it.span.file}:${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
+            },
         )
     }
 

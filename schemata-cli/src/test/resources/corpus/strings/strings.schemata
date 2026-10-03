@@ -1,0 +1,13 @@
+namespace corpus.strings
+
+/// String values that need escapes in every target.
+record Strings {
+  @sql(key) #1 id:              uuid
+  #2 line_feed:       string = "a\nb"
+  #3 tab:             string = "t\tt"
+  #4 carriage_return: string = "r\rr"
+  #5 quote:           string = "q\"q"
+  #6 emoji:           string = "\u{1F600}"
+  #7 code:            string(pattern = "^\"[A-Z]{2}\d{4}\"$")
+  reserved "old_note", "legacy"
+}

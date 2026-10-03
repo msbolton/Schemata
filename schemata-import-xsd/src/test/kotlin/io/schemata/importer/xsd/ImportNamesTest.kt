@@ -32,11 +32,32 @@ class ImportNamesTest {
         assertFalse(ImportNames.isLowerSnake("true"))
         assertFalse(ImportNames.isLowerSnake("stream"))
         assertFalse(ImportNames.isNamespaceSegment("import"))
-        assertEquals("true_", ImportNames.lowerSnake("true"))
-        assertEquals("false_", ImportNames.lowerSnake("false"))
-        assertEquals("stream_", ImportNames.lowerSnake("stream"))
-        assertEquals("record_", ImportNames.lowerSnake("Record"))
-        assertTrue(ImportNames.isLowerSnake("true_"))
+        assertEquals("true_value", ImportNames.lowerSnake("true"))
+        assertEquals("false_value", ImportNames.lowerSnake("false"))
+        assertEquals("stream_value", ImportNames.lowerSnake("stream"))
+        assertEquals("record_value", ImportNames.lowerSnake("Record"))
+        assertEquals("true_value", ImportNames.lowerSnake("True"))
+        assertEquals("v2fa", ImportNames.lowerSnake("2fa"))
+        assertTrue(ImportNames.isLowerSnake("true_value"))
+        assertFalse(ImportNames.isLowerSnake("a__b"))
+        assertFalse(ImportNames.isLowerSnake("a_"))
+    }
+
+    @Test
+    fun `null is reserved like a keyword`() {
+        assertFalse(ImportNames.isLowerSnake("null"))
+        assertFalse(ImportNames.isNamespaceSegment("null"))
+        assertEquals("null_value", ImportNames.lowerSnake("null"))
+        assertEquals("null_value", ImportNames.lowerSnake("NULL"))
+    }
+
+    @Test
+    fun `converted names never hold a doubled or trailing underscore`() {
+        for (input in listOf("a--b", "a-", "-a-", "a__b")) {
+            val out = ImportNames.lowerSnake(input)
+            assertTrue(ImportNames.isLowerSnake(out), "$input -> $out")
+            assertFalse("__" in out || out.endsWith("_"), "$input -> $out")
+        }
     }
 
     @Test

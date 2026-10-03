@@ -1,0 +1,9 @@
+error[SCH0005]: control character U+0000 in a string
+ --> s.schemata:2:29
+  = help: write text; only tab, newline, and carriage return are allowed as control characters
+
+error[SCH0005]: control character U+FFFE in a string
+ --> s.schemata:2:82
+  = help: write text; only tab, newline, and carriage return are allowed as control characters
+
+2 errors, 0 warnings

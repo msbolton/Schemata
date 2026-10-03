@@ -1650,7 +1650,7 @@ class XsdImportTest {
     }
 
     @Test
-    fun `keyword names take a trailing underscore and keep the original`() {
+    fun `keyword names take a value suffix and keep the original`() {
         val imported =
             lower(
                 """
@@ -1674,15 +1674,51 @@ class XsdImportTest {
         assertEquals(emptyList(), imported.diagnostics)
         assertEquals(
             listOf(
-                UnitEnumValue("true_", null, listOf(xsd("name", "\"true\""))),
-                UnitEnumValue("false_", null, listOf(xsd("name", "\"false\""))),
+                UnitEnumValue("true_value", null, listOf(xsd("name", "\"true\""))),
+                UnitEnumValue("false_value", null, listOf(xsd("name", "\"false\""))),
             ),
             enum(imported, "Flag").values,
         )
         val feed = record(imported, "Feed").fields
-        assertEquals(listOf("stream_", "import_"), feed.map { it.name })
+        assertEquals(listOf("stream_value", "import_value"), feed.map { it.name })
         assertEquals(listOf(xsd("name", "\"stream\"")), feed[0].annotations)
         assertEquals(listOf(xsd("name", "\"import\""), xsd("attribute")), feed[1].annotations)
+    }
+
+    @Test
+    fun `null is named like a keyword and a null default names the renamed value`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="FlagType">
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="on"/>
+                      <xs:enumeration value="null"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="FeedType">
+                    <xs:sequence>
+                      <xs:element name="flag" type="tns:FlagType" default="null"/>
+                      <xs:element name="null" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf(
+                UnitEnumValue("on", null, emptyList()),
+                UnitEnumValue("null_value", null, listOf(xsd("name", "\"null\""))),
+            ),
+            enum(imported, "Flag").values,
+        )
+        val feed = record(imported, "Feed").fields
+        assertEquals(listOf("flag", "null_value"), feed.map { it.name })
+        assertEquals("null_value", feed[0].default)
+        assertEquals(listOf(xsd("name", "\"null\"")), feed[1].annotations)
     }
 
     @Test
@@ -1778,7 +1814,7 @@ class XsdImportTest {
                 "pays" to null,
                 "mode" to null,
                 "speed" to "fast",
-                "flag" to "true_",
+                "flag" to "true_value",
                 "anon" to null,
                 "w" to null,
             ),

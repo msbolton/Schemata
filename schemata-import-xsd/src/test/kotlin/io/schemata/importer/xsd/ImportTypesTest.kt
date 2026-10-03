@@ -162,11 +162,39 @@ class ImportTypesTest {
     }
 
     @Test
-    fun `pattern literals escape backslashes and quotes`() {
+    fun `pattern literals keep backslashes and escape only quotes`() {
         val (backslash, _) = facets(s("string"), listOf(XFacet("pattern", "a\\\\b", null, 1)))
-        assertEquals(s("string", "pattern" to "\"^a\\\\\\\\b$\""), backslash)
+        assertEquals(s("string", "pattern" to "\"^a\\\\b$\""), backslash)
         val (quote, _) = facets(s("string"), listOf(XFacet("pattern", "[^\"]*", null, 1)))
         assertEquals(s("string", "pattern" to "\"^[^\\\"]*$\""), quote)
+    }
+
+    @Test
+    fun `a pattern is written as the regex it is, backslashes and all`() {
+        val (code, notes) =
+            facets(s("string"), listOf(XFacet("pattern", "[A-Z]{2}\\d{4}", null, 1)))
+        assertEquals(s("string", "pattern" to "\"^[A-Z]{2}\\d{4}$\""), code)
+        assertEquals(emptyList(), notes)
+    }
+
+    @Test
+    fun `a line break in a pattern is written as the regex escape for it`() {
+        val (lines, notes) = facets(s("string"), listOf(XFacet("pattern", "a\nb\rc", null, 1)))
+        assertEquals(s("string", "pattern" to "\"^a\\nb\\rc$\""), lines)
+        assertEquals(emptyList(), notes)
+    }
+
+    @Test
+    fun `a pattern with a lone backslash before a quote is dropped and noted`() {
+        val (odd, notes) = facets(s("string"), listOf(XFacet("pattern", "a\\\"b", null, 4)))
+        assertEquals(s("string"), odd)
+        assertEquals(
+            listOf(Note(ImportCodes.WIDENED, "facet pattern value 'a\\\"b' dropped", 4)),
+            notes,
+        )
+        val (even, evenNotes) = facets(s("string"), listOf(XFacet("pattern", "a\\\\\"b", null, 4)))
+        assertEquals(s("string", "pattern" to "\"^a\\\\\\\"b$\""), even)
+        assertEquals(emptyList(), evenNotes)
     }
 
     @Test

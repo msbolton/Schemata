@@ -8,6 +8,7 @@ import io.schemata.core.ir.RealValue
 import io.schemata.core.ir.StringValue
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.Value
+import io.schemata.lang.SchemataText
 import io.schemata.target.TypeText
 
 /** Text for lossy notes and the scalar keyword table. */
@@ -19,7 +20,7 @@ object ProtoTypes {
         when (value) {
             is IntValue -> value.value.toString()
             is RealValue -> value.value.toPlainString()
-            is StringValue -> "\"" + value.value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+            is StringValue -> SchemataText.string(value.value)
             is BoolValue -> value.value.toString()
             is EnumRef -> value.value
         }

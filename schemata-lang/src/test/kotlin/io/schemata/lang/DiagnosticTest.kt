@@ -48,4 +48,42 @@ class DiagnosticTest {
         assertNull(Diagnostic(LangCodes.SYNTAX, "m", span).help)
         assertEquals("fix it", Diagnostic(LangCodes.SYNTAX, "m", span, help = "fix it").help)
     }
+
+    @Test
+    fun `an error at the end of input has a span of width one`() {
+        val result = Parser.parse("namespace a\nrecord R {", "a.schemata")
+        val error = result.diagnostics.single { it.code.id == "SCH0001" }
+        assertEquals(error.span.startLine, error.span.endLine)
+        assertEquals(error.span.startColumn, error.span.endColumn)
+        assertEquals(11, error.span.startColumn)
+    }
+
+    @Test
+    fun `an error at the end of a file that ends in a newline sits on the line after it`() {
+        val result = Parser.parse("namespace a\nrecord R {\n", "a.schemata")
+        val error = result.diagnostics.single { it.code.id == "SCH0001" }
+        assertEquals(Span("a.schemata", 3, 1, 3, 1), error.span)
+    }
+
+    @Test
+    fun `a control character in a doc comment is reported on the character`() {
+        val result =
+            Parser.parse(
+                "namespace a\n/// bad \u0001 here\nrecord R {\n  ///\ttab \u001F\n  #1 x: bool\n}",
+                "a.schemata",
+            )
+        assertNull(result.file)
+        assertEquals(
+            listOf(
+                "SCH0005 2:9-2:9 control character U+0001 in a doc comment",
+                "SCH0005 4:11-4:11 control character U+001F in a doc comment",
+            ),
+            result.diagnostics
+                .map {
+                    "${it.code.id} ${it.span.startLine}:${it.span.startColumn}-" +
+                        "${it.span.endLine}:${it.span.endColumn} ${it.message}"
+                }
+                .sorted(),
+        )
+    }
 }

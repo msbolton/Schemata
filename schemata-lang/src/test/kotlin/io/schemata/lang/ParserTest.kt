@@ -246,8 +246,17 @@ class ParserTest {
     }
 
     @Test
-    fun `file span ends at the last real column`() {
-        assertEquals(Span("t", 1, 1, 1, 11), Parser.parse("namespace a", "t").file!!.span)
+    fun `file span ends one column past the last character`() {
+        assertEquals(Span("t", 1, 1, 1, 12), Parser.parse("namespace a", "t").file!!.span)
+        assertEquals(Span("t", 1, 1, 2, 1), Parser.parse("namespace a\n", "t").file!!.span)
+    }
+
+    @Test
+    fun `a byte-order mark at the start of a file is skipped`() {
+        val result = Parser.parse("\uFEFFnamespace a\nrecord R { #1 x: bool }", "t")
+        assertEquals(emptyList(), result.diagnostics)
+        assertEquals(Span("t", 1, 1, 1, 11), result.file!!.namespace.span)
+        assertNotNull(Parser.parseForFormat("\uFEFFnamespace a", "t").file)
     }
 
     @Test

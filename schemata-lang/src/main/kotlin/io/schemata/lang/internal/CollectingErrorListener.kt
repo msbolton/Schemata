@@ -27,7 +27,7 @@ internal class CollectingErrorListener(private val file: String) : BaseErrorList
         val width =
             when {
                 token == null -> 1
-                token.type == Token.EOF -> 0
+                token.type == Token.EOF -> 1
                 else -> token.stopIndex - token.startIndex + 1
             }
         collected +=

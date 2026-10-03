@@ -1,0 +1,10 @@
+# targets=proto
+error[SCH1003]: reserved name 'Bad Name' must be lower_snake
+ --> s.schemata:2:33
+  = help: rename it `bad_name`
+
+error[SCH1028]: reserved name 'x_' must be lower_snake
+ --> s.schemata:3:25
+  = help: rename it `x`
+
+2 errors, 0 warnings

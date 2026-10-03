@@ -19,6 +19,7 @@ Codes:
 | SCH2005 | error | semantic | a collection element is itself a collection |
 | SCH2006 | error | semantic | a field number or reserved number breaks Protobuf's rules |
 | SCH2007 | error | semantic | a @proto override is not a valid name |
+| SCH2008 | error | semantic | two fields share a Protobuf JSON name |
 
 ## @sql
 

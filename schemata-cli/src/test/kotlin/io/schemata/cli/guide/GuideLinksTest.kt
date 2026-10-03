@@ -1,6 +1,7 @@
 package io.schemata.cli.guide
 
 import java.io.File
+import kotlin.test.Test
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
@@ -21,4 +22,28 @@ class GuideLinksTest {
                 }
             }
         }
+
+    @Test
+    fun `the stability page is linked from the readme and the reference`() {
+        assertTrue(File(Guide.dir, "stability.md").isFile, "guide/stability.md is missing")
+        assertTrue(File(Guide.root, "README.md").readText().contains("](guide/stability.md)"))
+        val opening = File(Guide.dir, "reference.md").readLines().take(12).joinToString("\n")
+        assertTrue(opening.contains("](stability.md)"), "the reference's opening does not link it")
+    }
+
+    @Test
+    fun `the stability page names every code family and every target`() {
+        val text = File(Guide.dir, "stability.md").readText()
+        listOf("SCH0", "SCH1", "SCH20", "SCH21", "SCH22", "SCH23", "SCH24", "SCH25").forEach {
+            assertTrue(text.contains(it), "$it is not mentioned")
+        }
+        val families =
+            "Every family stays where it is: SCH0 for syntax, SCH1 for the language and core " +
+                "checks, SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, " +
+                "and JSON Schema targets, SCH24 for import, SCH25 for evolution."
+        assertTrue(
+            text.replace(Regex("\\s+"), " ").contains(families),
+            "the families sentence is missing or changed",
+        )
+    }
 }

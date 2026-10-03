@@ -1,0 +1,5 @@
+error[SCH0005]: control character U+0001 in a doc comment
+ --> s.schemata:2:9
+  = help: write text; only tab, newline, and carriage return are allowed as control characters
+
+1 error, 0 warnings

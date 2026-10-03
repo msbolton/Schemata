@@ -47,6 +47,31 @@ class AnalyzerTest {
     private fun qn(ns: String, vararg path: String) = QualifiedName(ns, path.toList())
 
     @Test
+    fun `lower_snake forbids a doubled or trailing underscore`() {
+        fun codes(field: String) =
+            analyze("namespace a\nrecord R { #1 $field: int32 }").diagnostics.map { it.code.id }
+        assertEquals(emptyList(), codes("a"))
+        assertEquals(emptyList(), codes("a1"))
+        assertEquals(emptyList(), codes("a_1"))
+        assertEquals(emptyList(), codes("a_b_c"))
+        assertEquals(listOf("SCH1003"), codes("a__b"))
+        assertEquals(listOf("SCH1003"), codes("a_"))
+        assertEquals(listOf("SCH1003"), codes("a_b_"))
+    }
+
+    @Test
+    fun `lower_snake applies to namespace segments and enum values`() {
+        assertEquals(
+            listOf("SCH1001"),
+            analyze("namespace a__b\nrecord R { x: bool }").diagnostics.map { it.code.id },
+        )
+        assertEquals(
+            listOf("SCH1028"),
+            analyze("namespace a\nenum E { a_ }").diagnostics.map { it.code.id },
+        )
+    }
+
+    @Test
     fun `lowers the fixture to IR with implicit ordinals and spans`() {
         val result = analyze(fixture)
         assertEquals(emptyList(), result.diagnostics)
@@ -298,6 +323,50 @@ class AnalyzerTest {
         assertEquals(
             listOf("2:21 field 'x' is declared more than once in record 'R'"),
             messages(analyze("namespace a\nrecord R { x: bool  x: bool }")),
+        )
+    }
+
+    @Test
+    fun `null is reserved as a field, enum value, and namespace segment name`() {
+        val result = analyze("namespace a.null\nenum E { null }\nrecord R { null: E }")
+        assertNull(result.schema)
+        assertEquals(
+            listOf(
+                "SCH1001 1:1 namespace segment 'null' is reserved; help: rename the segment, for example `null_value`",
+                "SCH1028 2:10 enum value 'null' is reserved; help: rename it `null_value`",
+                "SCH1003 3:12 field name 'null' is reserved; help: rename it `null_value`",
+            ),
+            result.diagnostics.map {
+                "${it.code.id} ${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
+            },
+        )
+    }
+
+    @Test
+    fun `a reserved name is a lower_snake name`() {
+        val result =
+            analyze(
+                "namespace a\nrecord R { #1 x: bool  reserved \"Bad Name\", \"old_x\" }\n" +
+                    "enum E { #1 p  reserved \"x_\" }"
+            )
+        assertNull(result.schema)
+        assertEquals(
+            listOf(
+                "SCH1003 2:33 reserved name 'Bad Name' must be lower_snake; help: rename it `bad_name`",
+                "SCH1028 3:25 reserved name 'x_' must be lower_snake; help: rename it `x`",
+            ),
+            result.diagnostics.map {
+                "${it.code.id} ${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
+            },
+        )
+    }
+
+    @Test
+    fun `a naming help never suggests a keyword`() {
+        val result = analyze("namespace a\nenum E { true_ }\nrecord R { _1x: bool }")
+        assertEquals(
+            listOf("rename it `true_value`", "rename it `v1x`"),
+            result.diagnostics.map { it.help },
         )
     }
 

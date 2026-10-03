@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:corpus.strings"
+           targetNamespace="urn:schemata:corpus.strings"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:complexType name="StringsType">
+    <xs:annotation>
+      <xs:documentation>String values that need escapes in every target.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="line_feed" type="xs:string" minOccurs="0" default="a&#10;b"/>
+      <xs:element name="tab" type="xs:string" minOccurs="0" default="t&#9;t"/>
+      <xs:element name="carriage_return" type="xs:string" minOccurs="0" default="r&#13;r"/>
+      <xs:element name="quote" type="xs:string" minOccurs="0" default="q&quot;q"/>
+      <xs:element name="emoji" type="xs:string" minOccurs="0" default="😀"/>
+      <xs:element name="code">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="&quot;[A-Z]{2}\d{4}&quot;"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="strings" type="tns:StringsType"/>
+</xs:schema>

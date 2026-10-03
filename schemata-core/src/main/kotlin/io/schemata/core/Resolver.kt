@@ -36,6 +36,7 @@ class Resolver(
     private val references: ReferenceRecorder? = null,
 ) {
     private val mapKeyTypes = setOf(Builtin.STRING, Builtin.INT32, Builtin.INT64)
+    private val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
     private val imports: Map<String, List<ImportDecl>> = files.associate { it.path to it.imports }
     private val usedImports = mutableSetOf<ImportDecl>()
     private val resolvingAliases = mutableSetOf<QualifiedName>()
@@ -45,7 +46,39 @@ class Resolver(
         files
             .sortedBy { it.path }
             .forEach { file ->
+                val namespaces = mutableSetOf<String>()
+                val aliases = mutableSetOf<String>()
                 file.imports.forEach { imp ->
+                    val alias = imp.alias
+                    if (alias != null && !lowerSnake.matches(alias)) {
+                        val suggestion = Suggest.example(alias, Suggest.lowerSnake(alias))
+                        error(
+                            CoreCodes.IMPORT_ALIAS_NAMING,
+                            "import alias '$alias' must be lower_snake",
+                            imp.aliasSpan ?: imp.span,
+                            help =
+                                suggestion?.let { "rename it `$it`" } ?: "rename it in lower_snake",
+                        )
+                    }
+                    val repeatedNamespace = !namespaces.add(imp.namespace)
+                    val repeatedAlias = alias != null && !aliases.add(alias)
+                    if (repeatedNamespace) {
+                        error(
+                            CoreCodes.REPEATED_IMPORT,
+                            "namespace '${imp.namespace}' is imported more than once",
+                            imp.span,
+                            help = "keep one import of `${imp.namespace}`",
+                        )
+                        usedImports += imp // never reported as unused as well
+                    } else if (repeatedAlias) {
+                        error(
+                            CoreCodes.REPEATED_IMPORT,
+                            "alias '$alias' is given to more than one import",
+                            imp.aliasSpan ?: imp.span,
+                            help = "give each import its own alias",
+                        )
+                        usedImports += imp // never reported as unused as well
+                    }
                     if (!index.namespaceExists(imp.namespace)) {
                         error(
                             CoreCodes.UNKNOWN_IMPORT,

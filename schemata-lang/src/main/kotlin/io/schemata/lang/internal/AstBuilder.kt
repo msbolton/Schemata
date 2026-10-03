@@ -160,7 +160,9 @@ internal class AstBuilder(
 
     private fun build(ctx: SchemataParser.ReservedStmtContext): List<ReservedItem> =
         ctx.reservedItem().map { item ->
-            item.STRING_LITERAL()?.let { ReservedItem.Name(unquote(it.text), item.span()) }
+            item.STRING_LITERAL()?.let {
+                ReservedItem.Name(string(it, it.symbol.span()), item.span())
+            }
                 ?: run {
                     val ordinals = item.ORDINAL().map { ordinal(it) }
                     ReservedItem.Ordinals(ordinals.first(), ordinals.last(), item.span())
@@ -176,7 +178,13 @@ internal class AstBuilder(
             refinements =
                 ctx.refinements()?.refinement()?.map { r ->
                     val ident = r.IDENT()
-                    if (ident != null) Refinement.Named(ident.text, build(r.literal()), r.span())
+                    if (ident != null)
+                        Refinement.Named(
+                            ident.text,
+                            if (ident.text == "pattern") patternLiteral(r.literal())
+                            else build(r.literal()),
+                            r.span(),
+                        )
                     else Refinement.Positional(build(r.literal()), r.span())
                 } ?: emptyList(),
             nullable = ctx.QUESTION() != null,
@@ -229,7 +237,7 @@ internal class AstBuilder(
             return Literal.FloatLit(it.text, span)
         }
         ctx.STRING_LITERAL()?.let {
-            return Literal.StringLit(unquote(it.text), span)
+            return Literal.StringLit(string(it, span), span)
         }
         ctx.TRUE()?.let {
             return Literal.BoolLit(true, span)
@@ -240,9 +248,17 @@ internal class AstBuilder(
         return Literal.NameLit(ctx.IDENT().text, span)
     }
 
+    /**
+     * The text of a doc comment, which every target writes out; each control character XML cannot
+     * carry is reported as SCH0005, as in a string.
+     */
     private fun doc(ctx: SchemataParser.DocContext?): String? =
-        ctx?.DOC_COMMENT()?.joinToString("\n") {
-            it.text.removePrefix("///").removePrefix(" ").trimEnd()
+        ctx?.DOC_COMMENT()?.joinToString("\n") { node ->
+            val token = node.symbol
+            Strings.rawControls(token.text).forEach {
+                report(it, token.line, token.charPositionInLine + 1, "a doc comment")
+            }
+            node.text.removePrefix("///").removePrefix(" ").trimEnd()
         }
 
     private fun ordinal(node: TerminalNode): Int =
@@ -258,19 +274,82 @@ internal class AstBuilder(
                 0
             }
 
-    private fun unquote(text: String): String =
-        text.substring(1, text.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
+    /**
+     * A string token's value; each escape the language does not define is reported as SCH0004, and
+     * each control character XML cannot carry as SCH0005.
+     */
+    private fun string(node: TerminalNode, span: Span): String {
+        val text = node.text
+        val result = Strings.unescape(text.substring(1, text.length - 1))
+        result.bad.forEach { report(it, span) }
+        return result.value
+    }
+
+    /**
+     * The string of a `pattern` refinement is taken as written; any other literal is built as
+     * usual.
+     */
+    private fun patternLiteral(ctx: SchemataParser.LiteralContext): Literal =
+        ctx.STRING_LITERAL()?.let {
+            val span = ctx.span()
+            Strings.rawControls(it.text.substring(1, it.text.length - 1)).forEach { bad ->
+                report(bad, span)
+            }
+            Literal.StringLit(Strings.unquotePattern(it.text), span)
+        } ?: build(ctx)
+
+    /** [span] is a string literal's; its body starts one column in, after the quote. */
+    private fun report(bad: BadText, span: Span) {
+        // A string cannot span lines, so the bad text sits on the line the string starts on.
+        report(bad, span.startLine, span.startColumn + 1, "a string")
+    }
+
+    /** [column] is where offset 0 of the text [bad] was found in sits; [what] names that text. */
+    private fun report(bad: BadText, line: Int, column: Int, what: String) {
+        val start = column + bad.offset
+        val where = Span(file, line, start, line, start + bad.length - 1)
+        diagnostics +=
+            when (val reason = bad.reason) {
+                BadText.UnknownEscape ->
+                    Diagnostic(
+                        LangCodes.BAD_ESCAPE,
+                        "unknown escape '${bad.text}' in a string",
+                        where,
+                        help = ESCAPE_HELP,
+                    )
+                BadText.NotScalar ->
+                    Diagnostic(
+                        LangCodes.BAD_ESCAPE,
+                        "'${bad.text}' is not a Unicode scalar value",
+                        where,
+                        help = ESCAPE_HELP,
+                    )
+                is BadText.Control ->
+                    Diagnostic(
+                        LangCodes.CONTROL_CHARACTER,
+                        "control character U+%04X in %s".format(reason.point, what),
+                        where,
+                        help =
+                            "write text; only tab, newline, and carriage return are allowed as control characters",
+                    )
+            }
+    }
 
     private fun ParserRuleContext.span(): Span {
         val stop = stop ?: start
         val endColumn =
-            if (stop.type == Token.EOF) stop.charPositionInLine
+            if (stop.type == Token.EOF) stop.charPositionInLine + 1
             else stop.charPositionInLine + stop.text.codePointLength()
         return Span(file, start.line, start.charPositionInLine + 1, stop.line, endColumn)
     }
 
     private fun Token.span(): Span =
         Span(file, line, charPositionInLine + 1, line, charPositionInLine + text.codePointLength())
+
+    private companion object {
+        const val ESCAPE_HELP =
+            "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}"
+    }
 
     // ANTLR counts columns in Unicode code points; a token's own text is a normal UTF-16 Java
     // string, so an astral character inside it (an emoji, say) counts as one column here too,

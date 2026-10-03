@@ -41,7 +41,21 @@ object ProtoCodes {
             Category.SEMANTIC,
             "a @proto override is not a valid name",
         )
+    val JSON_NAME_COLLISION =
+        DiagnosticCode(
+            "SCH2008",
+            Severity.ERROR,
+            Category.SEMANTIC,
+            "two fields share a Protobuf JSON name",
+        )
 
     val all: List<DiagnosticCode> =
-        listOf(LOSSY, NAME_COLLISION, UNSUPPORTED_NESTING, INVALID_FIELD_NUMBER, INVALID_OVERRIDE)
+        listOf(
+            LOSSY,
+            NAME_COLLISION,
+            UNSUPPORTED_NESTING,
+            INVALID_FIELD_NUMBER,
+            INVALID_OVERRIDE,
+            JSON_NAME_COLLISION,
+        )
 }

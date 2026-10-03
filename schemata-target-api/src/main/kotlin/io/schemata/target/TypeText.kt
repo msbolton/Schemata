@@ -7,6 +7,7 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Type
+import io.schemata.lang.SchemataText
 
 /** The type as a user would write it, shared by every target's diagnostics and lossy notes. */
 object TypeText {
@@ -33,7 +34,7 @@ object TypeText {
             parts += listOf("${r.precision}", "${r.scale}")
         r.min?.let { parts += "min = ${it.toPlainString()}" }
         r.max?.let { parts += "max = ${it.toPlainString()}" }
-        r.pattern?.let { parts += "pattern = \"$it\"" }
+        r.pattern?.let { parts += "pattern = ${SchemataText.pattern(it)}" }
         return if (parts.isEmpty()) "" else parts.joinToString(", ", "(", ")")
     }
 }

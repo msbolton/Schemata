@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:corpus.strings",
+  "title": "corpus.strings",
+  "$defs": {
+    "Strings": {
+      "description": "String values that need escapes in every target.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "line_feed": {
+          "type": "string",
+          "default": "a\nb"
+        },
+        "tab": {
+          "type": "string",
+          "default": "t\tt"
+        },
+        "carriage_return": {
+          "type": "string",
+          "default": "r\rr"
+        },
+        "quote": {
+          "type": "string",
+          "default": "q\"q"
+        },
+        "emoji": {
+          "type": "string",
+          "default": "😀"
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^\"[A-Z]{2}\\d{4}\"$"
+        }
+      },
+      "required": [
+        "id",
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

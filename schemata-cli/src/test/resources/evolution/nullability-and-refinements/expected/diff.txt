@@ -16,119 +16,119 @@ error[SCH2501]: jsonschema: s.Account.nickname: the field became non-null breaks
  --> new/s.schemata:4:3
   |
 4 |   #1 nickname: string(max = 40)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable, or backfill every old document first
 
 error[SCH2501]: sql: s.Account.nickname: the column became NOT NULL breaks existing rows that store a null value
  --> new/s.schemata:4:3
   |
 4 |   #1 nickname: string(max = 40)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: backfill the column before making it NOT NULL
 
 error[SCH2501]: xsd: s.Account.nickname: the field became required breaks old documents that omit it: the element becomes minOccurs = 1
  --> new/s.schemata:4:3
   |
 4 |   #1 nickname: string(max = 40)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable, give it a default, or backfill every old document
 
 warning[SCH2502] (lossy): proto: s.Account.nickname: the field became non-null; proto cannot tell an absent value from the zero value
  --> new/s.schemata:4:3
   |
 4 |   #1 nickname: string(max = 40)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable
 
 error[SCH2501]: jsonschema: s.Account.tier: the field became non-null breaks old documents that store a null value
  --> new/s.schemata:5:3
   |
 5 |   #2 tier: int32 = 1
-  |   ^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable, or backfill every old document first
 
 error[SCH2501]: sql: s.Account.tier: the column became NOT NULL breaks existing rows that store a null value
  --> new/s.schemata:5:3
   |
 5 |   #2 tier: int32 = 1
-  |   ^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^
   = help: backfill the column before making it NOT NULL
 
 warning[SCH2502] (lossy): proto: s.Account.tier: a default was added; proto does not transmit defaults, so only newly generated code applies it
  --> new/s.schemata:5:3
   |
 5 |   #2 tier: int32 = 1
-  |   ^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^
   = help: apply the new default in application code, not the wire format
 
 warning[SCH2502] (lossy): proto: s.Account.tier: the field became non-null with a default; proto does not carry the default, so an absent value still decodes as the zero value
  --> new/s.schemata:5:3
   |
 5 |   #2 tier: int32 = 1
-  |   ^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^
   = help: apply the default in application code, not the wire format
 
 warning[SCH2502] (lossy): xsd: s.Account.tier: a default was added or changed; it is applied to empty elements only, not omitted ones
  --> new/s.schemata:5:3
   |
 5 |   #2 tier: int32 = 1
-  |   ^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^
   = help: supply the value explicitly where an old document omitted the element
 
 error[SCH2501]: jsonschema: s.Account.code: the refinement was tightened breaks old documents whose value falls outside the new bound
  --> new/s.schemata:6:3
   |
 6 |   #3 code: string(max = 5)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing documents before tightening the constraint
 
 error[SCH2501]: sql: s.Account.code: the refinement was tightened breaks rows whose existing value falls outside the new CHECK
  --> new/s.schemata:6:3
   |
 6 |   #3 code: string(max = 5)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing values before tightening the constraint
 
 error[SCH2501]: xsd: s.Account.code: the refinement was tightened breaks old documents whose value falls outside the new bound
  --> new/s.schemata:6:3
   |
 6 |   #3 code: string(max = 5)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing documents before tightening the constraint
 
 warning[SCH2502] (lossy): proto: s.Account.code: the refinement was tightened; proto does not enforce refinements, so old values outside the new bound can still arrive
  --> new/s.schemata:6:3
   |
 6 |   #3 code: string(max = 5)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate incoming values separately; proto will not reject them
 
 error[SCH2501]: jsonschema: s.Account.tags: the refinement was tightened breaks old documents whose value falls outside the new bound
  --> new/s.schemata:8:3
   |
 8 |   #5 tags: list<string(max = 10)>
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing documents before tightening the constraint
 
 error[SCH2501]: sql: s.Account.tags: the refinement was tightened breaks rows whose existing value falls outside the new CHECK
  --> new/s.schemata:8:3
   |
 8 |   #5 tags: list<string(max = 10)>
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing values before tightening the constraint
 
 error[SCH2501]: xsd: s.Account.tags: the refinement was tightened breaks old documents whose value falls outside the new bound
  --> new/s.schemata:8:3
   |
 8 |   #5 tags: list<string(max = 10)>
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing documents before tightening the constraint
 
 warning[SCH2502] (lossy): proto: s.Account.tags: the refinement was tightened; proto does not enforce refinements, so old values outside the new bound can still arrive
  --> new/s.schemata:8:3
   |
 8 |   #5 tags: list<string(max = 10)>
-  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate incoming values separately; proto will not reject them
 
 11 errors, 6 warnings

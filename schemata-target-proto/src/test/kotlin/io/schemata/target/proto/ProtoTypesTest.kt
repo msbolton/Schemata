@@ -44,6 +44,10 @@ class ProtoTypesTest {
             ),
         )
         assertEquals(
+            "string(pattern = \"say \\\"\\d\\\"\")",
+            ProtoTypes.text(Scalar(Builtin.STRING, Refinements(pattern = "say \"\\d\""))),
+        )
+        assertEquals(
             "float64(min = -1.5)",
             ProtoTypes.text(Scalar(Builtin.FLOAT64, Refinements(min = BigDecimal("-1.5")))),
         )
@@ -75,6 +79,7 @@ class ProtoTypesTest {
         assertEquals("3", ProtoTypes.text(IntValue(3)))
         assertEquals("1.25", ProtoTypes.text(RealValue(BigDecimal("1.25"))))
         assertEquals("\"a\\\"b\"", ProtoTypes.text(StringValue("a\"b")))
+        assertEquals("\"a\\nb\\tc\\rd\\u{1}\"", ProtoTypes.text(StringValue("a\nb\tc\rd\u0001")))
         assertEquals("true", ProtoTypes.text(BoolValue(true)))
         assertEquals(
             "pending",

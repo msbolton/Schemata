@@ -1,0 +1,8 @@
+error[SCH1044]: default may not be null
+ --> s.schemata:3:22
+  |
+3 | record R { #1 x: E = null }
+  |                      ^^^^
+  = help: add `?` to the field's type and drop the default; a nullable field is null when absent
+
+1 error, 0 warnings

@@ -1,0 +1,12 @@
+schema strings
+table strings.strings -- String values that need escapes in every target.
+  column id uuid not null
+  column line_feed text not null default 'a
+b'::text
+  column tab text not null default 't	t'::text
+  column carriage_return text not null default 'rr'::text
+  column quote text not null default 'q"q'::text
+  column emoji text not null default '😀'::text
+  column code text not null
+  constraint ck_strings_code_pattern CHECK ((code ~ '^"[A-Z]{2}\d{4}"$'::text))
+  constraint pk_strings PRIMARY KEY (id)

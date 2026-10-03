@@ -34,11 +34,13 @@ object HumanRenderer {
         val source = sources.line(span.file, span.startLine)
         if (source != null) {
             val expanded = source.replace("\t", TAB)
+            // A span's end column is its last character, so the run is end - start + 1 wide; a
+            // span that goes on to another line is underlined to the end of its first line.
             val start = column(source, span.startColumn)
             val end =
                 if (span.endLine == span.startLine) column(source, span.endColumn)
-                else expanded.length + 1
-            val carets = "^".repeat(maxOf(1, end - start))
+                else expanded.length
+            val carets = "^".repeat(maxOf(1, end - start + 1))
             val bar = "${palette.accent}|${palette.reset}"
             lines += "$gutter $bar"
             lines += "${palette.accent}$number${palette.reset} $bar $expanded"
@@ -65,13 +67,13 @@ object HumanRenderer {
     }
 
     /**
-     * A 1-based column in the raw line, moved to the same character in the tab-expanded line.
-     * Clamped to at least 1: an EOF token has zero width, so its span's `endColumn` is one less
-     * than its `startColumn`, which is 0 when the token starts in column 1.
+     * A 1-based column in the raw line, moved to the same character in the tab-expanded line. A
+     * column one past the end of the line (a diagnostic at end of input) maps to one past the end
+     * of the expanded line.
      */
     private fun column(raw: String, column: Int): Int {
         var expanded = 0
-        raw.take(maxOf(1, column) - 1).forEach { expanded += if (it == '\t') TAB.length else 1 }
+        raw.take(column - 1).forEach { expanded += if (it == '\t') TAB.length else 1 }
         return expanded + 1
     }
 

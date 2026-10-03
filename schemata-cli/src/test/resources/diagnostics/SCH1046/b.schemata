@@ -1,0 +1,5 @@
+namespace b
+import a
+import a as base
+import c as base
+record R { #1 t: T #2 u: base.T }

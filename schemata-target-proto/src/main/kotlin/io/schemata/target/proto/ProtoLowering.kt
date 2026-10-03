@@ -129,6 +129,7 @@ object ProtoLowering {
                         Symbol(fieldNames.getValue(it), "field '${it.name}'", it.nameSpan)
                     }
             )
+            jsonNames(record, fieldNames)
             val fields = record.fields.map { field(record, it, here, fieldNames) }
             val nested = record.nested.map { decl(it, here) }
             reservedNumbers(where, record.reserved.ordinals, record.nameSpan, bounded = true)
@@ -546,6 +547,28 @@ object ProtoLowering {
                         ProtoCodes.NAME_COLLISION,
                         "proto name '${symbol.protoName}' is already used by ${previous.holder}$location",
                         symbol.span,
+                        help = "rename one of them, or set `@proto(name = \"…\")` on one",
+                    )
+            }
+        }
+
+        /**
+         * Reports [ProtoCodes.JSON_NAME_COLLISION] for every field whose protoc JSON name an
+         * earlier field of the record already has; protoc rejects the file. Two fields with one
+         * proto name are a [ProtoCodes.NAME_COLLISION] instead, reported by [scope].
+         */
+        private fun jsonNames(record: RecordType, fieldNames: Map<Field, String>) {
+            val first = mutableMapOf<String, Field>()
+            for (field in record.fields) {
+                val protoName = fieldNames.getValue(field)
+                val json = ProtoNames.jsonName(protoName)
+                val previous = first.putIfAbsent(json, field) ?: continue
+                if (fieldNames.getValue(previous) == protoName) continue
+                diagnostics +=
+                    Diagnostic(
+                        ProtoCodes.JSON_NAME_COLLISION,
+                        "fields '${record.name}.${previous.name}' and '${record.name}.${field.name}' share the Protobuf JSON name '$json'",
+                        field.nameSpan,
                         help = "rename one of them, or set `@proto(name = \"…\")` on one",
                     )
             }

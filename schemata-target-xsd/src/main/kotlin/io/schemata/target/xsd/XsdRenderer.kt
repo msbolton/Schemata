@@ -10,16 +10,16 @@ object XsdRenderer {
     internal fun text(file: XsdFile): String = buildString {
         appendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")
         append("<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\"")
-        append("\n           xmlns:tns=\"${escape(file.targetNamespace)}\"")
+        append("\n           xmlns:tns=\"${escapeAttribute(file.targetNamespace)}\"")
         file.imports.forEach {
-            append("\n           xmlns:${it.prefix}=\"${escape(it.namespace)}\"")
+            append("\n           xmlns:${it.prefix}=\"${escapeAttribute(it.namespace)}\"")
         }
-        append("\n           targetNamespace=\"${escape(file.targetNamespace)}\"")
+        append("\n           targetNamespace=\"${escapeAttribute(file.targetNamespace)}\"")
         append("\n           elementFormDefault=\"qualified\"")
         appendLine("\n           attributeFormDefault=\"unqualified\">")
         file.imports.forEach {
             appendLine(
-                "  <xs:import namespace=\"${escape(it.namespace)}\" schemaLocation=\"${escape(it.schemaLocation)}\"/>"
+                "  <xs:import namespace=\"${escapeAttribute(it.namespace)}\" schemaLocation=\"${escapeAttribute(it.schemaLocation)}\"/>"
             )
         }
         file.types.forEach { append(type(it, "  ")) }
@@ -49,9 +49,13 @@ object XsdRenderer {
                 appendLine("$indent  <xs:restriction base=\"xs:string\">")
                 t.values.forEach { v ->
                     if (v.doc == null)
-                        appendLine("$indent    <xs:enumeration value=\"${escape(v.value)}\"/>")
+                        appendLine(
+                            "$indent    <xs:enumeration value=\"${escapeAttribute(v.value)}\"/>"
+                        )
                     else {
-                        appendLine("$indent    <xs:enumeration value=\"${escape(v.value)}\">")
+                        appendLine(
+                            "$indent    <xs:enumeration value=\"${escapeAttribute(v.value)}\">"
+                        )
                         doc(v.doc, "$indent      ")
                         appendLine("$indent    </xs:enumeration>")
                     }
@@ -82,12 +86,12 @@ object XsdRenderer {
 
     private fun element(e: XsdElement, indent: String): String = buildString {
         val attrs = buildString {
-            append(" name=\"${escape(e.name)}\"")
+            append(" name=\"${escapeAttribute(e.name)}\"")
             append(typeAttr(e.type))
             if (e.minOccurs != 1) append(" minOccurs=\"${e.minOccurs}\"")
             if (e.maxOccurs != 1) append(" maxOccurs=\"${e.maxOccurs ?: "unbounded"}\"")
             if (e.nillable) append(" nillable=\"true\"")
-            e.default?.let { append(" default=\"${escape(it)}\"") }
+            e.default?.let { append(" default=\"${escapeAttribute(it)}\"") }
         }
         val inline = e.type !is XsdTypeRef.Builtin && e.type !is XsdTypeRef.Named
         if (e.doc == null && !inline && e.unique == null) {
@@ -108,7 +112,7 @@ object XsdRenderer {
             is XsdTypeRef.Named -> Unit
         }
         e.unique?.let {
-            appendLine("$indent  <xs:unique name=\"${escape(it)}\">")
+            appendLine("$indent  <xs:unique name=\"${escapeAttribute(it)}\">")
             appendLine("$indent    <xs:selector xpath=\"tns:entry\"/>")
             appendLine("$indent    <xs:field xpath=\"@key\"/>")
             appendLine("$indent  </xs:unique>")
@@ -118,10 +122,10 @@ object XsdRenderer {
 
     private fun attribute(a: XsdAttribute, indent: String): String = buildString {
         val attrs = buildString {
-            append(" name=\"${escape(a.name)}\"")
+            append(" name=\"${escapeAttribute(a.name)}\"")
             append(typeAttr(a.type))
             if (a.required) append(" use=\"required\"")
-            a.default?.let { append(" default=\"${escape(it)}\"") }
+            a.default?.let { append(" default=\"${escapeAttribute(it)}\"") }
         }
         val restricted = a.type as? XsdTypeRef.Restricted
         if (a.doc == null && restricted == null) {
@@ -145,7 +149,9 @@ object XsdRenderer {
     private fun restriction(t: XsdTypeRef.Restricted, indent: String): String = buildString {
         appendLine("$indent<xs:simpleType>")
         appendLine("$indent  <xs:restriction base=\"${t.base}\">")
-        t.facets.forEach { appendLine("$indent    <xs:${it.name} value=\"${escape(it.value)}\"/>") }
+        t.facets.forEach {
+            appendLine("$indent    <xs:${it.name} value=\"${escapeAttribute(it.value)}\"/>")
+        }
         appendLine("$indent  </xs:restriction>")
         appendLine("$indent</xs:simpleType>")
     }
@@ -176,6 +182,14 @@ object XsdRenderer {
         appendLine("$indent</xs:annotation>")
     }
 
+    /** Text for element content, where line breaks and tabs are kept as they are. */
     internal fun escape(s: String): String =
         s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+
+    /**
+     * Text for an attribute value. A parser normalises a literal tab, newline, or carriage return
+     * in an attribute to a space, so each is written as a character reference to keep its meaning.
+     */
+    internal fun escapeAttribute(s: String): String =
+        escape(s).replace("\t", "&#9;").replace("\n", "&#10;").replace("\r", "&#13;")
 }

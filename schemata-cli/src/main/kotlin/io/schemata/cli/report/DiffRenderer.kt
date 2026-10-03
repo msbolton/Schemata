@@ -45,6 +45,7 @@ import io.schemata.evolution.UnionMemberTypeChanged
 import io.schemata.evolution.Verdict
 import io.schemata.evolution.changeWord
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.SchemataText
 import io.schemata.target.TypeText
 
 /** `schemata diff`'s own output: the human change list, and the JSON comparison document. */
@@ -194,7 +195,7 @@ object DiffRenderer {
             null -> null
             is IntValue -> v.value.toString()
             is RealValue -> v.value.toPlainString()
-            is StringValue -> v.value
+            is StringValue -> SchemataText.string(v.value)
             is BoolValue -> v.value.toString()
             is EnumRef -> v.value
         }
@@ -204,7 +205,7 @@ object DiffRenderer {
             r.ordinals.joinToString(", ") {
                 if (it.first == it.last) "${it.first}" else "${it.first}-${it.last}"
             }
-        val names = r.names.sorted().joinToString(", ") { "\"$it\"" }
+        val names = r.names.sorted().joinToString(", ") { SchemataText.string(it) }
         return listOf(ordinals, names).filter { it.isNotEmpty() }.joinToString("; ")
     }
 
@@ -212,7 +213,7 @@ object DiffRenderer {
         when (v) {
             null -> null
             is AnnotationValue.Flag -> "true"
-            is AnnotationValue.Str -> v.value
+            is AnnotationValue.Str -> SchemataText.string(v.value)
             is AnnotationValue.Num -> v.value.toString()
             is AnnotationValue.Bool -> v.value.toString()
             is AnnotationValue.Name -> v.value

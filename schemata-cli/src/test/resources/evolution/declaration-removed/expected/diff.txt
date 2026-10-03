@@ -15,70 +15,70 @@ error[SCH2501]: jsonschema: s.Customer: the declaration was removed breaks docum
  --> old/s.schemata:3:8
   |
 3 | record Customer {
-  |        ^^^^^^^
+  |        ^^^^^^^^
   = help: keep the declaration, or confirm nothing outside this schema still depends on it
 
 error[SCH2501]: sql: s.Customer: the declaration was removed breaks reads of the table backing it
  --> old/s.schemata:3:8
   |
 3 | record Customer {
-  |        ^^^^^^^
+  |        ^^^^^^^^
   = help: drop the table only after migrating or archiving its data
 
 error[SCH2501]: xsd: s.Customer: the declaration was removed breaks documents validated against it
  --> old/s.schemata:3:8
   |
 3 | record Customer {
-  |        ^^^^^^^
+  |        ^^^^^^^^
   = help: keep the declaration, or confirm nothing outside this schema still depends on it
 
 warning[SCH2502] (lossy): proto: s.Customer: the declaration was removed; generated code loses this type
  --> old/s.schemata:3:8
   |
 3 | record Customer {
-  |        ^^^^^^^
+  |        ^^^^^^^^
   = help: keep the type, or confirm nothing outside this schema still depends on it
 
 error[SCH2501]: jsonschema: s.Order.Note: the declaration was removed breaks documents validated against it
   --> old/s.schemata:12:10
    |
 12 |   record Note { #1 text: string(max = 200) }
-   |          ^^^
+   |          ^^^^
    = help: keep the declaration, or confirm nothing outside this schema still depends on it
 
 warning[SCH2502] (lossy): proto: s.Order.Note: the declaration was removed; generated code loses this type
   --> old/s.schemata:12:10
    |
 12 |   record Note { #1 text: string(max = 200) }
-   |          ^^^
+   |          ^^^^
    = help: keep the type, or confirm nothing outside this schema still depends on it
 
 warning[SCH2502] (lossy): xsd: s.Order.Note: the declaration was removed; it was never reachable as a root element
   --> old/s.schemata:12:10
    |
 12 |   record Note { #1 text: string(max = 200) }
-   |          ^^^
+   |          ^^^^
    = help: confirm nothing outside this schema still depends on it
 
 error[SCH2501]: jsonschema: s.Status: the declaration was removed breaks documents validated against it
   --> old/s.schemata:15:6
    |
 15 | enum Status { #1 open, #2 closed }
-   |      ^^^^^
+   |      ^^^^^^
    = help: keep the declaration, or confirm nothing outside this schema still depends on it
 
 warning[SCH2502] (lossy): proto: s.Status: the declaration was removed; generated code loses this type
   --> old/s.schemata:15:6
    |
 15 | enum Status { #1 open, #2 closed }
-   |      ^^^^^
+   |      ^^^^^^
    = help: keep the type, or confirm nothing outside this schema still depends on it
 
 warning[SCH2502] (lossy): xsd: s.Status: the declaration was removed; it was never reachable as a root element
   --> old/s.schemata:15:6
    |
 15 | enum Status { #1 open, #2 closed }
-   |      ^^^^^
+   |      ^^^^^^
    = help: confirm nothing outside this schema still depends on it
 
 5 errors, 5 warnings

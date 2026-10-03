@@ -60,6 +60,8 @@ object CoreCodes {
     val DEFAULT_TYPE = error("SCH1042", "a default does not fit the field's type")
     val DEFAULT_VIOLATES_REFINEMENT = error("SCH1043", "a default violates a refinement")
     val NULL_DEFAULT = error("SCH1044", "a default is null")
+    val IMPORT_ALIAS_NAMING = error("SCH1045", "an import alias is not lower_snake")
+    val REPEATED_IMPORT = error("SCH1046", "an import is repeated")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -105,5 +107,7 @@ object CoreCodes {
             DEFAULT_TYPE,
             DEFAULT_VIOLATES_REFINEMENT,
             NULL_DEFAULT,
+            IMPORT_ALIAS_NAMING,
+            REPEATED_IMPORT,
         )
 }
