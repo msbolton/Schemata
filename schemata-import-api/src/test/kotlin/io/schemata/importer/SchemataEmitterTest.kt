@@ -5,6 +5,7 @@ import io.schemata.lang.format.Formatter
 import io.schemata.testkit.Golden
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class SchemataEmitterTest {
@@ -13,7 +14,7 @@ class SchemataEmitterTest {
     private val unit =
         SchemataUnit(
             namespace = "gpx",
-            xsdNamespace = "http://www.topografix.com/GPX/1/1",
+            annotations = listOf(xsd("namespace", "\"http://www.topografix.com/GPX/1/1\"")),
             doc = "GPX schema version 1.1.",
             imports = listOf("shop.customers"),
             declarations =
@@ -159,7 +160,7 @@ class SchemataEmitterTest {
             SchemataEmitter.emit(
                 SchemataUnit(
                     "s",
-                    null,
+                    emptyList(),
                     null,
                     emptyList(),
                     listOf(UnitRecord("R", emptyList(), emptyList(), null, emptyList())),
@@ -170,5 +171,121 @@ class SchemataEmitterTest {
             "namespace s\n\nrecord R {}\n",
             (Formatter.format(text, "s.schemata") as FormatResult.Formatted).text,
         )
+    }
+
+    @Test
+    fun `ordinals reserved deprecated and namespace annotations print and format`() {
+        val unit =
+            SchemataUnit(
+                namespace = "corp.orders",
+                annotations = listOf(UnitAnnotation("proto", "package", "\"corp.orders.v1\"")),
+                doc = null,
+                imports = emptyList(),
+                declarations =
+                    listOf(
+                        UnitRecord(
+                            name = "Order",
+                            fields =
+                                listOf(
+                                    UnitField(
+                                        "id",
+                                        UnitType.Scalar("uuid", emptyList()),
+                                        false,
+                                        null,
+                                        null,
+                                        emptyList(),
+                                        ordinal = 1,
+                                    ),
+                                    UnitField(
+                                        "legacy",
+                                        UnitType.Scalar("int32", emptyList()),
+                                        true,
+                                        null,
+                                        null,
+                                        emptyList(),
+                                        ordinal = 3,
+                                        deprecated = true,
+                                    ),
+                                ),
+                            nested =
+                                listOf(
+                                    UnitEnum(
+                                        "Status",
+                                        listOf(
+                                            UnitEnumValue(
+                                                "pending",
+                                                null,
+                                                emptyList(),
+                                                ordinal = 1,
+                                            ),
+                                            UnitEnumValue("paid", null, emptyList(), ordinal = 2),
+                                        ),
+                                        null,
+                                        emptyList(),
+                                        reserved = listOf(UnitReserved.Ordinals(5, 6)),
+                                    )
+                                ),
+                            doc = "An order.",
+                            annotations = emptyList(),
+                            reserved =
+                                listOf(
+                                    UnitReserved.Ordinals(2, 2),
+                                    UnitReserved.Ordinals(7, 9),
+                                    UnitReserved.Name("old_ref"),
+                                ),
+                            deprecated = true,
+                        ),
+                        UnitUnion(
+                            "Payment",
+                            listOf(
+                                UnionMember(UnitType.Ref("Order"), null, ordinal = 1),
+                                UnionMember(
+                                    UnitType.Scalar("string", emptyList()),
+                                    null,
+                                    ordinal = 2,
+                                ),
+                            ),
+                            null,
+                            emptyList(),
+                        ),
+                    ),
+                sourcePath = "orders.proto",
+            )
+        val text = SchemataEmitter.emit(unit)
+        val formatted = Formatter.format(text, "corp/orders.schemata")
+        assertTrue(formatted is FormatResult.Formatted, formatted.toString())
+        Golden.assertMatches("ordinals.schemata", (formatted as FormatResult.Formatted).text)
+    }
+
+    @Test
+    fun `an emitter refuses ordinals on some members but not all`() {
+        val record =
+            UnitRecord(
+                "R",
+                listOf(
+                    UnitField(
+                        "a",
+                        UnitType.Scalar("bool", emptyList()),
+                        false,
+                        null,
+                        null,
+                        emptyList(),
+                        1,
+                    ),
+                    UnitField(
+                        "b",
+                        UnitType.Scalar("bool", emptyList()),
+                        false,
+                        null,
+                        null,
+                        emptyList(),
+                    ),
+                ),
+                emptyList(),
+                null,
+                emptyList(),
+            )
+        val unit = SchemataUnit("x", emptyList(), null, emptyList(), listOf(record), "x")
+        assertFailsWith<IllegalStateException> { SchemataEmitter.emit(unit) }
     }
 }

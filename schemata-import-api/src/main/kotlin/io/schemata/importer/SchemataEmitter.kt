@@ -1,5 +1,7 @@
 package io.schemata.importer
 
+import io.schemata.lang.SchemataText
+
 /**
  * Prints a [SchemataUnit] as Schemata source text. The output need not be pretty: one construct per
  * line with simple indentation is enough, since [io.schemata.lang.format.Formatter] decides the
@@ -10,9 +12,7 @@ object SchemataEmitter {
 
     fun emit(unit: SchemataUnit): String = buildString {
         unit.doc?.let { docLines(it, "").forEach(::appendLine) }
-        if (unit.xsdNamespace != null && unit.xsdNamespace != "urn:schemata:${unit.namespace}") {
-            appendLine("@xsd(namespace = \"${unit.xsdNamespace}\")")
-        }
+        unit.annotations.forEach { appendLine(annotation(it)) }
         appendLine("namespace ${unit.namespace}")
         if (unit.imports.isNotEmpty()) {
             appendLine()
@@ -32,6 +32,7 @@ object SchemataEmitter {
 
     private fun declaration(d: UnitDecl, indent: String): String = buildString {
         d.doc?.let { docLines(it, indent).forEach(::appendLine) }
+        if (d.deprecated) appendLine("$indent@deprecated")
         d.annotations.forEach { appendLine(indent + annotation(it)) }
         when (d) {
             is UnitRecord -> append(record(d, indent))
@@ -42,39 +43,72 @@ object SchemataEmitter {
 
     private fun record(d: UnitRecord, indent: String): String = buildString {
         val inner = indent + INDENT
+        checkOrdinals(d.name, d.fields.map { it.ordinal })
         appendLine(indent + "record ${d.name} {")
         d.fields.forEach { f -> fieldLines(f, inner).forEach(::appendLine) }
         d.nested.forEach { append(declaration(it, inner)) }
+        reservedLine(d.reserved, inner)?.let(::appendLine)
         appendLine(indent + "}")
     }
 
     private fun fieldLines(f: UnitField, indent: String): List<String> = buildList {
         f.doc?.let { addAll(docLines(it, indent)) }
+        if (f.deprecated) add("$indent@deprecated")
         f.annotations.forEach { add(indent + annotation(it)) }
         val type = typeString(f.type) + (if (f.nullable) "?" else "")
         val default = f.default?.let { " = $it" } ?: ""
-        add("$indent${f.name}: $type$default")
+        add("$indent${ordinalPrefix(f.ordinal)}${f.name}: $type$default")
     }
 
     private fun enum(d: UnitEnum, indent: String): String = buildString {
         val inner = indent + INDENT
+        checkOrdinals(d.name, d.values.map { it.ordinal })
         appendLine(indent + "enum ${d.name} {")
         d.values.forEach { v ->
             v.doc?.let { docLines(it, inner).forEach(::appendLine) }
+            if (v.deprecated) appendLine("$inner@deprecated")
             v.annotations.forEach { appendLine(inner + annotation(it)) }
-            appendLine(inner + v.name)
+            appendLine(inner + ordinalPrefix(v.ordinal) + v.name)
         }
+        reservedLine(d.reserved, inner)?.let(::appendLine)
         appendLine(indent + "}")
     }
 
     private fun union(d: UnitUnion, indent: String): String = buildString {
         val inner = indent + INDENT
+        checkOrdinals(d.name, d.members.map { it.ordinal })
         appendLine(indent + "union ${d.name} =")
         d.members.forEachIndexed { i, m ->
             m.doc?.let { docLines(it, inner).forEach(::appendLine) }
             val sep = if (i == d.members.lastIndex) "" else " |"
-            appendLine(inner + typeString(m.type) + sep)
+            appendLine(inner + ordinalPrefix(m.ordinal) + typeString(m.type) + sep)
         }
+    }
+
+    private fun ordinalPrefix(ordinal: Int?): String = ordinal?.let { "#$it " } ?: ""
+
+    /**
+     * The language takes ordinals on every member of a declaration or on none; an importer that
+     * breaks that rule has a bug, which is better caught here than as an analysis error on output
+     * the user did not write.
+     */
+    private fun checkOrdinals(name: String, ordinals: List<Int?>) {
+        check(ordinals.all { it == null } || ordinals.all { it != null }) {
+            "declaration '$name' has ordinals on some members but not all"
+        }
+    }
+
+    private fun reservedLine(items: List<UnitReserved>, indent: String): String? {
+        if (items.isEmpty()) return null
+        val parts =
+            items.map {
+                when (it) {
+                    is UnitReserved.Ordinals ->
+                        if (it.from == it.to) "#${it.from}" else "#${it.from}..#${it.to}"
+                    is UnitReserved.Name -> SchemataText.string(it.name)
+                }
+            }
+        return indent + "reserved " + parts.joinToString(", ")
     }
 
     private fun refinementsString(r: List<Pair<String, String>>): String =

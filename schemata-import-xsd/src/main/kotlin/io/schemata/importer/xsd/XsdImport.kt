@@ -159,7 +159,12 @@ object XsdImport {
                 }
                 SchemataUnit(
                     namespace = names.getValue(doc),
-                    xsdNamespace = doc.targetNamespace,
+                    annotations =
+                        listOfNotNull(
+                            doc.targetNamespace
+                                ?.takeIf { it != "urn:schemata:${names.getValue(doc)}" }
+                                ?.let { UnitAnnotation("xsd", "namespace", "\"$it\"") }
+                        ),
                     doc = doc.doc,
                     imports = imports.distinct(),
                     declarations = declarations,
