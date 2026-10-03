@@ -60,4 +60,19 @@ class GitVersionTest {
     fun `no tag and no sha is unknown regardless of dirty`() {
         assertEquals("0.0.0-unknown", GitVersion.resolve(null, null, true))
     }
+
+    @Test
+    fun `on a tag push the pushed tag is matched first`() {
+        assertEquals(
+            listOf("v1.0.0-rc.1", "v[0-9]*"),
+            GitVersion.matchPatterns(refType = "tag", refName = "v1.0.0-rc.1"),
+        )
+    }
+
+    @Test
+    fun `anywhere else every version tag is matched`() {
+        assertEquals(listOf("v[0-9]*"), GitVersion.matchPatterns(refType = "branch", refName = "main"))
+        assertEquals(listOf("v[0-9]*"), GitVersion.matchPatterns(refType = "tag", refName = ""))
+        assertEquals(listOf("v[0-9]*"), GitVersion.matchPatterns(refType = null, refName = null))
+    }
 }
