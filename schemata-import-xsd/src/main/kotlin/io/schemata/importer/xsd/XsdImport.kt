@@ -622,8 +622,9 @@ object XsdImport {
                         ct.doc,
                         siblings,
                         checkMismatch = true,
+                        annotations = listOfNotNull(info.annotation),
                     )
-                return listOf(union.copy(annotations = listOfNotNull(info.annotation))) + siblings
+                return listOf(union) + siblings
             }
             val rootElement =
                 doc.elements.firstOrNull {
@@ -2118,7 +2119,9 @@ object XsdImport {
          * synthesised, never-named inline choice, where there is nothing for a member name to
          * round-trip against. Two or more element branches lowering to one member (the same type)
          * cannot be told apart by type, so each of them is wrapped in a record of its own (see
-         * [sharedBranchRecord]) and the union lists those.
+         * [sharedBranchRecord]) and the union lists those. A choice none of whose branches lowers
+         * to a member, each already reported, is an empty record under the same name, as a union
+         * must have a member.
          */
         private fun unionFromChoice(
             choice: XContent.Choice,
@@ -2127,7 +2130,8 @@ object XsdImport {
             unionDoc: String?,
             siblings: MutableList<UnitDecl>,
             checkMismatch: Boolean,
-        ): UnitUnion {
+            annotations: List<UnitAnnotation> = emptyList(),
+        ): UnitDecl {
             val entries = mutableListOf<ChoiceEntry>()
             fun member(particle: XParticle) {
                 when (particle) {
@@ -2187,7 +2191,10 @@ object XsdImport {
                     }
                     UnionMember(type, e.el.doc)
                 }
-            return UnitUnion(name, members, unionDoc, emptyList())
+            if (members.isEmpty()) {
+                return UnitRecord(name, emptyList(), emptyList(), unionDoc, annotations)
+            }
+            return UnitUnion(name, members, unionDoc, annotations)
         }
 
         /**

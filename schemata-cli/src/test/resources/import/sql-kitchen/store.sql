@@ -77,7 +77,6 @@ CREATE TABLE store."Order" (
   parent_id uuid REFERENCES store."Order" (id) ON DELETE SET NULL,
   origin uuid REFERENCES geo.region (id),
   region_id uuid REFERENCES geo.region (id),
-  warehouse_id uuid REFERENCES elsewhere.warehouse (id),
   payment_kind text NOT NULL,
   payment_card_last4 varchar(4),
   payment_card_brand varchar(32),

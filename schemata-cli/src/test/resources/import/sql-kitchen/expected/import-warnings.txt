@@ -32,7 +32,6 @@ SCH2403 column 'Order.backup_code': DEFERRABLE dropped
 SCH2403 column 'Order.backup_code': INITIALLY DEFERRED dropped
 SCH2403 column 'Order.parent_id': ON DELETE SET NULL dropped
 SCH2403 column 'Order.origin': foreign key column is not named after the field and key; kept as the field name
-SCH2401 column 'Order.warehouse_id': foreign key references 'elsewhere.warehouse', which is not in the inputs
 SCH2405 table 'Order': unique constraint over (status, home_zip) dropped; Schemata keys one field
 SCH2405 table 'Order': partial unique index over (status) dropped
 SCH2405 table 'Order': index using hash over (home_zip) dropped

@@ -495,7 +495,6 @@ class ProtoImportTest {
                     syntax = "proto3";
                     import "shop/customers.proto";
                     import public "x.proto";
-                    import "missing.proto";
                     import "google/protobuf/empty.proto";
                     import "google/protobuf/any.proto";
                     message M {
@@ -525,16 +524,29 @@ class ProtoImportTest {
         assertEquals(
             listOf(
                 "SCH2403 t.proto: import public 'x.proto' re-exports nothing in Schemata",
-                "SCH2401 t.proto: import 'missing.proto' cannot be resolved",
                 "SCH2404 field 'M.e': google.protobuf.Empty imported as string",
                 "SCH2404 field 'M.a': google.protobuf.Any imported as bytes",
             ),
             messages(r),
         )
+        val missing =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "missing.proto";
+                    message M {}
+                    """
+            )
+        assertEquals(
+            listOf("SCH2401 t.proto: import 'missing.proto' cannot be resolved"),
+            messages(missing),
+        )
+        assertEquals(emptyList(), missing.files)
     }
 
     @Test
-    fun `an unresolved type is an error and the field is left out`() {
+    fun `an unresolved type is an error and nothing is emitted`() {
         val r =
             importText(
                 "t.proto" to
@@ -544,15 +556,7 @@ class ProtoImportTest {
                     """
             )
         assertEquals(listOf("SCH2401 field 'M.m': type 'Missing' cannot be resolved"), messages(r))
-        assertEquals(
-            """
-            namespace t
-
-            record M { #2 s: string }
-            """
-                .trimIndent() + "\n",
-            text(r, "t.schemata"),
-        )
+        assertEquals(emptyList(), r.files)
     }
 
     @Test
@@ -687,7 +691,6 @@ class ProtoImportTest {
                     syntax = "proto3";
                     package corp;
                     message B { A a = 1; }
-                    message M { int32 y = 1; }
                     """,
             )
         assertEquals(listOf("corp.schemata"), r.files.map { it.path })
@@ -704,12 +707,19 @@ class ProtoImportTest {
                 .trimIndent() + "\n",
             text(r, "corp.schemata"),
         )
+        assertEquals(emptyList(), messages(r))
+        val clash =
+            importText(
+                "a.proto" to "syntax = \"proto3\";\npackage corp;\nmessage M { int32 x = 1; }\n",
+                "b.proto" to "syntax = \"proto3\";\npackage corp;\nmessage M { int32 y = 1; }\n",
+            )
         assertEquals(
             listOf(
                 "SCH2401 b.proto: message 'M' and a.proto's message 'M' both lower to record 'M'"
             ),
-            messages(r),
+            messages(clash),
         )
+        assertEquals(emptyList(), clash.files)
     }
 
     @Test

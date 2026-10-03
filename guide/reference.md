@@ -1066,6 +1066,8 @@ A complex type whose whole content model is a `choice` becomes a `union`, one me
 - Two or more branches of one type could not be told apart, so each becomes a record of its own,
   named after its element, non-root, holding the type in a `value` field (`record ArchiveTimeStamp
   { value: XAdESTimeStamp }`), and the union lists those records (SCH2403).
+- A branch whose element or type cannot be resolved is an error (SCH2401) and no member; a choice
+  left with no member at all is an empty record of the union's name, as a union needs one.
 
 Only a choice that occurs once, in a type with no attributes, attribute wildcard, or mixed content,
 makes a union; a choice that repeats, or a type carrying any of those, is a record instead,

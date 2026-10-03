@@ -314,7 +314,6 @@ class SqlImportTest {
                       backup_tenant_id uuid,
                       backup_code varchar(8),
                       buyer uuid REFERENCES refs.account (id) ON DELETE SET NULL,
-                      payee_id uuid REFERENCES other.payee (id),
                       ledger_id uuid NOT NULL REFERENCES books.ledger (id),
                       CONSTRAINT pk_account PRIMARY KEY (id),
                       CONSTRAINT ck_account_backup_present CHECK ((("backup_tenant_id" IS NULL AND "backup_code" IS NULL) OR ("backup_tenant_id" IS NOT NULL AND "backup_code" IS NOT NULL)))
@@ -343,13 +342,12 @@ class SqlImportTest {
                 import corp.books
 
                 record Account {
-                  @sql(key) id:       uuid
-                  owner:    Person
-                  parent:   Account?
-                  backup:   Person?
-                  @sql(column = "buyer") buyer:    Account?
-                  payee_id: uuid?
-                  ledger:   corp.books.Ledger
+                  @sql(key) id:     uuid
+                  owner:  Person
+                  parent: Account?
+                  backup: Person?
+                  @sql(column = "buyer") buyer:  Account?
+                  ledger: corp.books.Ledger
                 }
 
                 record Person { @sql(key) tenant_id: uuid @sql(key) code: string(max = 8) name: string }
@@ -361,10 +359,30 @@ class SqlImportTest {
             listOf(
                 "SCH2403 column 'Account.buyer': foreign key column is not named after the field and key; kept as the field name",
                 "SCH2403 column 'Account.buyer': ON DELETE SET NULL dropped",
-                "SCH2401 column 'Account.payee_id': foreign key references 'other.payee', which is not in the inputs",
             ),
             messages(r),
         )
+    }
+
+    @Test
+    fun `a foreign key to a table not in the inputs is an error and nothing is emitted`() {
+        val r =
+            importText(
+                "refs.sql" to
+                    """
+                    CREATE TABLE refs.account (
+                      id uuid PRIMARY KEY,
+                      payee_id uuid REFERENCES other.payee (id)
+                    );
+                    """
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 column 'Account.payee_id': foreign key references 'other.payee', which is not in the inputs"
+            ),
+            messages(r),
+        )
+        assertEquals(emptyList(), r.files)
     }
 
     @Test
@@ -1087,7 +1105,6 @@ class SqlImportTest {
                     GRANT SELECT ON x.t TO app;
                     CREATE VIEW x.v AS SELECT 1;
                     CREATE FUNCTION x.f() RETURNS integer AS $$ SELECT 1 $$ LANGUAGE sql;
-                    CREATE TABLE broken (;
                     """
             )
         assertEquals(
@@ -1102,7 +1119,6 @@ class SqlImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2401 x.sql:14:22: cannot parse: expected a column name",
                 "SCH2405 x.sql: CREATE TYPE dropped",
                 "SCH2405 x.sql: CREATE VIEW dropped",
                 "SCH2405 x.sql: CREATE FUNCTION dropped",
@@ -1117,6 +1133,17 @@ class SqlImportTest {
             ),
             messages(r),
         )
+    }
+
+    @Test
+    fun `a statement that does not parse is an error and nothing is emitted`() {
+        val r =
+            importText("x.sql" to "CREATE TABLE x.t (id uuid PRIMARY KEY);\nCREATE TABLE broken (;")
+        assertEquals(
+            listOf("SCH2401 x.sql:2:22: cannot parse: expected a column name"),
+            messages(r),
+        )
+        assertEquals(emptyList(), r.files)
     }
 
     @Test

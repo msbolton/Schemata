@@ -7,7 +7,7 @@ import io.schemata.importer.ImportResult
 import io.schemata.importer.Importer
 import io.schemata.importer.Roots
 import io.schemata.importer.UnitAnnotation
-import io.schemata.importer.emitUnits
+import io.schemata.importer.importResult
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
@@ -168,7 +168,7 @@ object ProtoImporter : Importer {
             }
 
         val lowered = ProtoLowering.lower(all, namespaces, ProtoSymbols(all), annotations, imports)
-        return ImportResult(emitUnits(lowered.units), diagnostics + lowered.diagnostics)
+        return importResult(lowered.units, diagnostics + lowered.diagnostics)
     }
 
     /**

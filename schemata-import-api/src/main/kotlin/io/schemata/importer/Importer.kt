@@ -1,6 +1,7 @@
 package io.schemata.importer
 
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.Severity
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
 
@@ -28,6 +29,17 @@ interface Importer {
         locate: (String) -> ImportInput? = { null },
     ): ImportResult
 }
+
+/**
+ * The result of an import: [units] emitted, or no files at all when [diagnostics] hold an error.
+ * Nothing is written then, and a lowering that met an error is not promised to emit source the
+ * formatter accepts.
+ */
+fun importResult(units: List<SchemataUnit>, diagnostics: List<Diagnostic>): ImportResult =
+    ImportResult(
+        if (diagnostics.any { it.severity == Severity.ERROR }) emptyList() else emitUnits(units),
+        diagnostics,
+    )
 
 /**
  * Every unit as formatted source, one file per namespace, with references that would be ambiguous

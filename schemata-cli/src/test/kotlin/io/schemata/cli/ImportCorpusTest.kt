@@ -23,11 +23,11 @@ import org.junit.jupiter.api.TestFactory
  * under it (named by their path relative to the case, `expected/` aside, which is also a proto or
  * sql file's path under its root; an include or import outside the inputs is read from the case
  * directory too) into exactly its `expected/` tree, reports exactly the warnings in
- * `expected/import-warnings.txt` (none when the file is absent), and compiles under proto, xsd, and
- * jsonschema without errors. The sql target cannot carry a key the xsd never declared, nor some
- * shapes it documents as beyond it, so its errors other than a missing key are compared with
- * `expected/sql-errors.txt` (none when absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the
- * warnings, and the sql errors.
+ * `expected/import-warnings.txt` (none when the file is absent) and no error, since an import that
+ * reports one writes nothing, and compiles under proto, xsd, and jsonschema without errors. The sql
+ * target cannot carry a key the xsd never declared, nor some shapes it documents as beyond it, so
+ * its errors other than a missing key are compared with `expected/sql-errors.txt` (none when
+ * absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the warnings, and the sql errors.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
@@ -73,6 +73,13 @@ class ImportCorpusTest {
             importer.import(inputs, null) { path ->
                 File(case, path).takeIf { it.isFile }?.let { ImportInput(path, it.readText()) }
             }
+        assertFalse(
+            result.diagnostics.any { it.severity == Severity.ERROR },
+            "${case.name} imports without errors: " +
+                result.diagnostics
+                    .filter { it.severity == Severity.ERROR }
+                    .joinToString("\n") { "${it.code.id} ${it.message}" },
+        )
         val actual = result.files.associate { it.path to it.content }
         val expectedDir = File(case, "expected")
         if (update) {

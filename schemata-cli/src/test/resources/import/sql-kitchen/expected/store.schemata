@@ -57,27 +57,26 @@ record Customer { tenant_id: uuid code: string(max = 16) name: string }
 /// An order.
 @sql(table = "Order")
 record Order {
-  @sql(key) id:           uuid
-  status:       Status = pending
+  @sql(key) id:          uuid
+  status:      Status = pending
   /// Who placed it.
-  @sql(unique) customer:     Customer
-  backup:       Customer?
-  parent:       Order?
-  @sql(column = "origin") origin:       ref.geo.Region?
-  region:       ref.geo.Region?
-  warehouse_id: uuid?
+  @sql(unique) customer:    Customer
+  backup:      Customer?
+  parent:      Order?
+  @sql(column = "origin") origin:      ref.geo.Region?
+  region:      ref.geo.Region?
   /// How it was paid.
-  @sql(index) payment:      Payment
-  refund:       Refund?
-  home:         Home?
-  away_street:  string?
-  away_zip:     string?
-  lines:        list<Line>
-  @sql(strategy = table) tags:         list<string(max = 16)>
-  @sql(strategy = table) statuses:     list<StatusEnum>
-  @sql(strategy = table) prices:       map<string, decimal(10, 2)>
-  regions:      list<ref.geo.Region?>
-  @sql(strategy = table) stops:        map<int32, Stop?>
+  @sql(index) payment:     Payment
+  refund:      Refund?
+  home:        Home?
+  away_street: string?
+  away_zip:    string?
+  lines:       list<Line>
+  @sql(strategy = table) tags:        list<string(max = 16)>
+  @sql(strategy = table) statuses:    list<StatusEnum>
+  @sql(strategy = table) prices:      map<string, decimal(10, 2)>
+  regions:     list<ref.geo.Region?>
+  @sql(strategy = table) stops:       map<int32, Stop?>
 
   union Payment = Card | Cash | uuid | Voucher | Customer
 

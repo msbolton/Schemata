@@ -2,6 +2,8 @@ package io.schemata.importer.xsd
 
 import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportInput
+import io.schemata.importer.UnitRecord
+import io.schemata.importer.emitUnits
 import io.schemata.lang.Severity
 import java.io.File
 import kotlin.test.Test
@@ -132,7 +134,7 @@ class XsdImporterTest {
                 listOf(ImportInput("a/orders.xsd", fooXsd), ImportInput("b/orders.xsd", fooXsd))
             )
         assertEquals(1, result.diagnostics.count { it.code == ImportCodes.UNRESOLVED })
-        assertEquals(1, result.files.size)
+        assertEquals(emptyList(), result.files)
     }
 
     @Test
@@ -354,6 +356,59 @@ class XsdImporterTest {
             }
     }
 
+    private val choiceOfMissing =
+        """
+        <?xml version="1.0"?>
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:t="urn:schemata:t" xmlns:cac="urn:schemata:cac" targetNamespace="urn:schemata:t">
+          <xs:import namespace="urn:schemata:cac" schemaLocation="common/cac.xsd"/>
+          <xs:complexType name="PartyType">
+            <xs:choice>
+              <xs:element ref="cac:Person"/>
+              <xs:element ref="cac:Organization"/>
+            </xs:choice>
+          </xs:complexType>
+          <xs:element name="Party" type="t:PartyType"/>
+          <xs:element name="Holder">
+            <xs:complexType>
+              <xs:choice><xs:element ref="cac:Person"/></xs:choice>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>
+        """
+            .trimIndent()
+
+    @Test
+    fun `a choice of unresolved elements is reported and nothing is emitted`() {
+        val result = XsdImporter.import(listOf(ImportInput("t.xsd", choiceOfMissing)))
+        assertEquals(
+            listOf(
+                "SCH2401 t.xsd: import 'urn:schemata:cac' cannot be resolved",
+                "SCH2401 union 'Party': element 'Person' cannot be resolved",
+                "SCH2401 union 'Party': element 'Organization' cannot be resolved",
+                "SCH2401 union 'Holder': element 'Person' cannot be resolved",
+            ),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+        assertEquals(emptyList(), result.files)
+    }
+
+    @Test
+    fun `a choice with no member left lowers to an empty record of its name`() {
+        val doc = XsdReader.read("t.xsd", choiceOfMissing).doc!!
+        val unit = XsdImport.lower(listOf(doc), null).units.single()
+        assertEquals(
+            listOf(
+                UnitRecord("Party", emptyList(), emptyList(), null, emptyList()),
+                UnitRecord("Holder", emptyList(), emptyList(), null, emptyList()),
+            ),
+            unit.declarations,
+        )
+        assertEquals(
+            "@xsd(element_form = \"unqualified\")\nnamespace t\n\nrecord Party {}\n\nrecord Holder {}\n",
+            emitUnits(listOf(unit)).single().content,
+        )
+    }
+
     @Test
     fun `two unrelated inputs declaring one foreign namespace are an error`() {
         val xsd =
@@ -373,7 +428,7 @@ class XsdImporterTest {
             ),
             result.diagnostics.map { "${it.code.id} ${it.message}" },
         )
-        assertEquals(listOf("a.schemata"), result.files.map { it.path })
+        assertEquals(emptyList(), result.files)
     }
 
     private fun schemaIn(uri: String) =

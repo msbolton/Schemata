@@ -6,7 +6,7 @@ import io.schemata.importer.ImportResult
 import io.schemata.importer.Importer
 import io.schemata.importer.Roots
 import io.schemata.importer.UnitAnnotation
-import io.schemata.importer.emitUnits
+import io.schemata.importer.importResult
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
@@ -100,7 +100,7 @@ object SqlImporter : Importer {
         }
 
         val units = SqlImport.lower(files, namespaces, diagnostics)
-        return ImportResult(emitUnits(units), diagnostics)
+        return importResult(units, diagnostics)
     }
 
     /** The schemas [file] creates or puts a table in, in the order it first names them. */

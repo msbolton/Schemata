@@ -4,7 +4,7 @@ import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportResult
 import io.schemata.importer.Importer
-import io.schemata.importer.emitUnits
+import io.schemata.importer.importResult
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 
@@ -54,8 +54,7 @@ object XsdImporter : Importer {
         val lowered = XsdImport.lower(known, namespace)
         diagnostics += lowered.diagnostics
 
-        val files = emitUnits(lowered.units)
-        return ImportResult(files, diagnostics)
+        return importResult(lowered.units, diagnostics)
     }
 
     /**
