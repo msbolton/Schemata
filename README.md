@@ -168,6 +168,7 @@ so stdout holds only JSON. The names of the files plain `fmt` rewrote go to stde
 
 Tag `main` with `vX.Y.Z` and push the tag. The release workflow builds, runs
 the full test suite, and attaches `schemata-X.Y.Z.jar` to a GitHub release.
+A tag of the form `vX.Y.Z-rc.N` publishes a prerelease with the same assets and leaves the Homebrew formula on the last stable release.
 `java -jar schemata-X.Y.Z.jar --version` prints the version; an untagged
 build prints `X.Y.Z-dev+<sha>`. The `native-image spike` workflow can be
 dispatched by hand from the Actions tab.

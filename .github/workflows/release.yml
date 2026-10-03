@@ -123,6 +123,7 @@ jobs:
           generate_release_notes: true
           files: assets/*
           draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}

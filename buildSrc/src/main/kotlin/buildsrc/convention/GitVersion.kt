@@ -5,12 +5,13 @@ import org.gradle.api.provider.ProviderFactory
 
 /**
  * The build's version, read from git once at configuration time. Exactly on a `vX.Y.Z` tag the
- * version is the tag without its `v`; after such a tag it is `<tag>-dev+<sha>`; with no matching
+ * version is the tag without its `v`; a `vX.Y.Z-rc.N` tag gives `X.Y.Z-rc.N`, the one prerelease
+ * form the project uses; after such a tag it is `<tag>-dev+<sha>`; with no matching
  * tag (including a tag that doesn't parse as `vX.Y.Z`) it is `0.0.0-dev+<sha>`; `-dirty` marks a
  * working tree with tracked changes; without git at all it is `0.0.0-unknown`.
  */
 object GitVersion {
-    private val describeRegex = Regex("""^v(\d+\.\d+\.\d+)-(\d+)-g([0-9a-f]{7,})$""")
+    private val describeRegex = Regex("""^v(\d+\.\d+\.\d+(?:-rc\.\d+)?)-(\d+)-g([0-9a-f]{7,})$""")
 
     fun resolve(described: String?, sha: String?, dirty: Boolean): String {
         val base = resolveBase(described, sha)

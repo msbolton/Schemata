@@ -39,6 +39,19 @@ class GitVersionTest {
     }
 
     @Test
+    fun `a release candidate tag is the version with its rc suffix`() {
+        assertEquals("1.0.0-rc.1", GitVersion.resolve("v1.0.0-rc.1-0-gabc1234", "abc1234", false))
+        assertEquals("1.0.0-rc.2-dev+abc1234", GitVersion.resolve("v1.0.0-rc.2-3-gabc1234", "abc1234", false))
+        assertEquals("1.0.0-rc.1-dirty", GitVersion.resolve("v1.0.0-rc.1-0-gabc1234", "abc1234", true))
+    }
+
+    @Test
+    fun `only the rc form of a prerelease is recognised`() {
+        assertEquals("0.0.0-dev+abc1234", GitVersion.resolve("v1.0.0-beta.1-0-gabc1234", "abc1234", false))
+        assertEquals("0.0.0-dev+abc1234", GitVersion.resolve("v1.0.0-rc-0-gabc1234", "abc1234", false))
+    }
+
+    @Test
     fun `dirty at zero distance from a tag still appends the suffix`() {
         assertEquals("0.1.0-dirty", GitVersion.resolve("v0.1.0-0-gabc1234", "abc1234", true))
     }
