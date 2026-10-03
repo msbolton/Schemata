@@ -959,7 +959,8 @@ object XsdImport {
          * more member types, unless its type's own union already serves. A head with exactly one
          * member type declares nothing (every use names that type) and is noted; a head with none
          * stays its own element. A member declared with an inline type cannot be named in place of
-         * its head, so it is reported and left out.
+         * its head, nor can one of a simple or unresolved type be a union member, so each is
+         * reported and left out.
          */
         fun headUnions(): List<UnitDecl> {
             val result = mutableListOf<UnitDecl>()
@@ -1000,28 +1001,45 @@ object XsdImport {
                     }
                     val droppedFrom =
                         unionName?.let { "union '$it'" } ?: "substitution group '${name.local}'"
-                    members
-                        .filter {
-                            it.type == null && (it.inlineComplex != null || it.inlineSimple != null)
-                        }
-                        .forEach { m ->
-                            at(m.path) {
-                                diagnostics +=
-                                    lossy(
-                                        ImportCodes.DROPPED,
-                                        "element '${m.name}'",
-                                        "substitution member with an inline type dropped from " +
-                                            droppedFrom,
-                                        m.line,
-                                    )
+                    members.forEach { m ->
+                        val what =
+                            when {
+                                m in head.dropped -> "of ${memberTypeKind(m.type!!)}"
+                                m.type == null &&
+                                    (m.inlineComplex != null || m.inlineSimple != null) ->
+                                    "with an inline type"
+                                else -> return@forEach
                             }
+                        at(m.path) {
+                            diagnostics +=
+                                lossy(
+                                    ImportCodes.DROPPED,
+                                    "element '${m.name}'",
+                                    "substitution member $what dropped from $droppedFrom",
+                                    m.line,
+                                )
                         }
+                    }
                     if (unionName == null || sharesTypeUnion(name)) return@forEach
                     val claimed = at(el.path) { claimTopLevel(unionName, where, el.line) }
                     if (claimed) result += headUnion(unionName, head, where, members, el.doc)
                 }
             return result
         }
+
+        /**
+         * What a substitution member's [type], not a complex type of the inputs, is: a simple type
+         * (an XSD builtin, `xs:anyType` read as a string, or a declared simple type) or else an
+         * unresolved one.
+         */
+        private fun memberTypeKind(type: QName): String =
+            if (
+                type.namespace == ImportTypes.XS ||
+                    docsByNamespace[type.namespace]?.simpleTypes?.any { it.name == type.local } ==
+                        true
+            )
+                "simple type"
+            else "unresolved type"
 
         /**
          * A head's union of its member types, reporting each member element whose name the

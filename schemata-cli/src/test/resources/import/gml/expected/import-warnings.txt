@@ -1506,6 +1506,9 @@ SCH2405 element 'Boolean': substitution member with an inline type dropped from 
 SCH2405 element 'Category': substitution member with an inline type dropped from union 'AbstractValue'
 SCH2405 element 'Count': substitution member with an inline type dropped from union 'AbstractValue'
 SCH2405 element 'Quantity': substitution member with an inline type dropped from union 'AbstractValue'
+SCH2405 element 'BooleanList': substitution member of simple type dropped from union 'AbstractValue'
+SCH2405 element 'CountList': substitution member of simple type dropped from union 'AbstractValue'
+SCH2405 element 'CountExtent': substitution member of simple type dropped from union 'AbstractValue'
 SCH2403 element 'AbstractValue': member element 'CategoryList' has no Schemata equivalent; the regenerated element will be named 'code_or_nil_reason_list'
 SCH2403 element 'AbstractValue': member element 'QuantityList' has no Schemata equivalent; the regenerated element will be named 'measure_or_nil_reason_list'
 SCH2405 element 'Boolean': substitution member with an inline type dropped from substitution group 'AbstractScalarValue'
@@ -1513,6 +1516,8 @@ SCH2405 element 'Category': substitution member with an inline type dropped from
 SCH2405 element 'Count': substitution member with an inline type dropped from substitution group 'AbstractScalarValue'
 SCH2405 element 'Quantity': substitution member with an inline type dropped from substitution group 'AbstractScalarValue'
 SCH2403 element 'AbstractScalarValueList': substitution group 'AbstractScalarValueList' imported as union 'AbstractScalarValueList' of 2 member types; the regenerated XSD uses a choice
+SCH2405 element 'BooleanList': substitution member of simple type dropped from union 'AbstractScalarValueList'
+SCH2405 element 'CountList': substitution member of simple type dropped from union 'AbstractScalarValueList'
 SCH2403 element 'AbstractScalarValueList': member element 'CategoryList' has no Schemata equivalent; the regenerated element will be named 'code_or_nil_reason_list'
 SCH2403 element 'AbstractScalarValueList': member element 'QuantityList' has no Schemata equivalent; the regenerated element will be named 'measure_or_nil_reason_list'
 SCH2403 element 'CompositeValue': substitution group 'CompositeValue' imported as union 'CompositeValueChoice' of 2 member types; the regenerated XSD uses a choice
@@ -1577,6 +1582,9 @@ SCH2405 element 'Boolean': substitution member with an inline type dropped from 
 SCH2405 element 'Category': substitution member with an inline type dropped from union 'AbstractObject'
 SCH2405 element 'Count': substitution member with an inline type dropped from union 'AbstractObject'
 SCH2405 element 'Quantity': substitution member with an inline type dropped from union 'AbstractObject'
+SCH2405 element 'BooleanList': substitution member of simple type dropped from union 'AbstractObject'
+SCH2405 element 'CountList': substitution member of simple type dropped from union 'AbstractObject'
+SCH2405 element 'CountExtent': substitution member of simple type dropped from union 'AbstractObject'
 SCH2403 element 'AbstractObject': member element 'coverageFunction' has no Schemata equivalent; the regenerated element will be named 'coverage_function'
 SCH2403 element 'AbstractObject': member element 'CoverageMappingRule' has no Schemata equivalent; the regenerated element will be named 'mapping_rule'
 SCH2403 element 'AbstractObject': member element 'CategoryList' has no Schemata equivalent; the regenerated element will be named 'code_or_nil_reason_list'

@@ -969,7 +969,8 @@ abstract type with exactly the same members, the type's union serves both. A hea
 lowers to that member's type wherever it is used, with no union (SCH2403). An abstract type with
 no members stays a record, its `abstract` dropped (SCH2405), and a head element with no members
 stays an element of its own type. A member element declared with an inline type has no type a
-union could name, so it is left out of the union (SCH2405); a member element with no type at all
+union could name, and one of a simple type or of a type that cannot be resolved has no record a
+union could hold, so each is left out of the union (SCH2405); a member element with no type at all
 takes its head's. `block`, `final`, `blockDefault`, and `finalDefault` have no Schemata
 equivalent and are dropped, once per document (SCH2405).
 
@@ -1215,7 +1216,7 @@ missing an attribute it cannot be read without (a `group` with no `name`, an `ex
 | a substitution group with members | a union of them | SCH2403 |
 | a head with one member | that member's type | SCH2403 |
 | an abstract type with no members | a record | SCH2405 |
-| a substitution member with an inline type | nothing | SCH2405 |
+| a substitution member with an inline, simple, or unresolved type | nothing | SCH2405 |
 | `abstract` on a choice-only type | nothing | SCH2405 |
 | `block`, `final`, `blockDefault`, `finalDefault` | nothing | SCH2405 |
 | `xs:any` | an `@xsd(any)` string field | |

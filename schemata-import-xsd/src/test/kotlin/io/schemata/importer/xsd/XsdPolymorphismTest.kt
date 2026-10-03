@@ -231,6 +231,51 @@ class XsdPolymorphismTest {
     }
 
     @Test
+    fun `a substitution member of a simple or unresolved type is dropped from the union`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:t="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="CountType"><xs:sequence><xs:element name="n" type="xs:int"/></xs:sequence></xs:complexType>
+              <xs:complexType name="TextType"><xs:sequence><xs:element name="s" type="xs:string"/></xs:sequence></xs:complexType>
+              <xs:simpleType name="LabelType"><xs:restriction base="xs:string"/></xs:simpleType>
+              <xs:element name="AbstractValue" abstract="true"/>
+              <xs:element name="count" type="t:CountType" substitutionGroup="t:AbstractValue"/>
+              <xs:element name="text" type="t:TextType" substitutionGroup="t:AbstractValue"/>
+              <xs:element name="code" type="xs:string" substitutionGroup="t:AbstractValue"/>
+              <xs:element name="label" type="t:LabelType" substitutionGroup="t:AbstractValue"/>
+              <xs:element name="AbstractOne" abstract="true"/>
+              <xs:element name="only" type="t:CountType" substitutionGroup="t:AbstractOne"/>
+              <xs:element name="ghost" type="t:Nowhere" substitutionGroup="t:AbstractOne"/>
+              <xs:complexType name="UseType"><xs:sequence><xs:element ref="t:AbstractValue"/><xs:element ref="t:AbstractOne"/></xs:sequence></xs:complexType>
+              <xs:element name="use" type="t:UseType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val t = unit(imported, "t")
+        val union =
+            t.declarations.filterIsInstance<UnitUnion>().single { it.name == "AbstractValue" }
+        assertEquals(
+            listOf(UnitType.Ref("Count"), UnitType.Ref("Text")),
+            union.members.map { it.type },
+        )
+        val use = t.declarations.filterIsInstance<UnitRecord>().single { it.name == "Use" }
+        assertEquals(UnitType.Ref("Count"), use.fields[1].type)
+        val messages = messages(imported)
+        assertTrue(
+            "SCH2405 element 'code': substitution member of simple type dropped from union " +
+                "'AbstractValue'" in messages
+        )
+        assertTrue(
+            "SCH2405 element 'label': substitution member of simple type dropped from union " +
+                "'AbstractValue'" in messages
+        )
+        assertTrue(
+            "SCH2405 element 'ghost': substitution member of unresolved type dropped from " +
+                "substitution group 'AbstractOne'" in messages
+        )
+    }
+
+    @Test
     fun `block and final are reported once per document and an inline member is dropped`() {
         val xml =
             """

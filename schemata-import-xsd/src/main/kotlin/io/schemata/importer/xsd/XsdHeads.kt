@@ -1,7 +1,16 @@
 package io.schemata.importer.xsd
 
-/** A head's concrete member types, in document order, and where the head itself is declared. */
-internal data class HeadMembers(val members: List<QName>, val line: Int, val doc: XsdDoc)
+/**
+ * A head's concrete member types, in document order, and where the head itself is declared.
+ * [dropped] are the member elements of a substitution group whose named type is not a complex type
+ * of the set (a simple type, or one that cannot be resolved), left out of [members].
+ */
+internal data class HeadMembers(
+    val members: List<QName>,
+    val line: Int,
+    val doc: XsdDoc,
+    val dropped: List<XElement> = emptyList(),
+)
 
 /**
  * Every polymorphic head in the input set and its closed set of concrete members, computed over all
@@ -10,7 +19,8 @@ internal data class HeadMembers(val members: List<QName>, val line: Int, val doc
  * element's members are the named complex types of the global elements whose substitution chain
  * reaches it, plus the head's own type when the head is concrete. An abstract member stands in for
  * its own members. A member whose type is not a named complex type of the set (an inline type, a
- * simple type) is left out. Order is document order (input order, then line).
+ * simple type, an unresolved one) is left out, a named one recorded as dropped. Order is document
+ * order (input order, then line).
  */
 internal class Heads(docs: List<XsdDoc>) {
     private val complexTypesByName: Map<QName, Pair<XComplexType, XsdDoc>> =
@@ -98,10 +108,15 @@ internal class Heads(docs: List<XsdDoc>) {
                     memberElementsByHead[name] = chainElements
                     val head = pair.first
                     val own = if (head.abstract) emptyList() else listOfNotNull(head.type)
-                    val raw = own + chainElements.filter { !it.abstract }.mapNotNull { it.type }
+                    val concreteElements = chainElements.filter { !it.abstract }
+                    val raw = own + concreteElements.mapNotNull { it.type }
                     val expanded = raw.flatMap { t -> types[t]?.members ?: listOf(t) }
                     val members = expanded.distinct().filter { it in complexTypesByName }
-                    name to HeadMembers(sorted(members), head.line, pair.second)
+                    val dropped =
+                        concreteElements.filter { el ->
+                            el.type.let { it != null && it !in complexTypesByName }
+                        }
+                    name to HeadMembers(sorted(members), head.line, pair.second, dropped)
                 }
                 .toMap()
         memberElements = memberElementsByHead
