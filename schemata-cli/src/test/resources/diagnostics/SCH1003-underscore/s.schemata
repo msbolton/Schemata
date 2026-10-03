@@ -1,0 +1,2 @@
+namespace a
+record R { #1 a__b: int32 #2 c_: int32 }

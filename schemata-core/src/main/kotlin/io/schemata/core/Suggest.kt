@@ -12,6 +12,7 @@ object Suggest {
                 if (g[1].isNotEmpty()) "${g[1]}_${g[2]}" else "${g[3]}_${g[4]}"
             }
             .replace(separators, "_")
+            .replace(Regex("_+"), "_")
             .lowercase()
             .trim('_')
 

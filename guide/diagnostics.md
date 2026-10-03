@@ -18,7 +18,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 |---|---|---|---|---|---|
 | SCH1001 | error | semantic | a namespace segment is not lower_snake | namespace segment 'Shop' must be lower_snake | write the segment in lower_snake, for example `shop` |
 | SCH1002 | error | semantic | a type name is not UpperCamel | record name 'order_line' must be UpperCamel | rename it `OrderLine` |
-| SCH1003 | error | semantic | a field name is not lower_snake | field name 'placedAt' must be lower_snake | rename it `placed_at` |
+| SCH1003 | error | semantic | a field name is not lower_snake | field name 'placedAt' must be lower_snake<br>field name 'a__b' must be lower_snake<br>field name 'c_' must be lower_snake | rename it `placed_at`<br>rename it `a_b`<br>rename it `c` |
 | SCH1004 | error | semantic | the same qualified name is declared twice | record 'R' is declared in both a.schemata:2 and b.schemata:2<br>record 'R' is declared more than once | rename or remove one of them |
 | SCH1005 | error | semantic | a record repeats a field name | field 'x' is declared more than once in record 'R' | rename or remove one of the two fields |
 | SCH1006 | error | semantic | a type name resolves to nothing | unknown type 'Missing' | declare `Missing`, import the namespace that declares it, or check the spelling against the builtin types |

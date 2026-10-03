@@ -6,7 +6,7 @@ import io.schemata.target.Names
  * Converts XSD names to Schemata identifiers and back, and derives a namespace from a file path.
  */
 object ImportNames {
-    private val lowerSnakePattern = Regex("^[a-z][a-z0-9_]*$")
+    private val lowerSnakePattern = Regex("^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
     private val invalidRun = Regex("[^a-z0-9_]+")
     private val underscoreRun = Regex("_+")
     private val nonAlnumRun = Regex("[^A-Za-z0-9]+")
@@ -43,16 +43,17 @@ object ImportNames {
     fun isValidOverride(s: String): Boolean = ncName.matches(s)
 
     /**
-     * `full-name` → `full_name`, `fullName` → `full_name`, `1x` → `v1x`, `true` → `true_`. A result
-     * starting with a digit is prefixed with a letter rather than `_`: lower_snake, like every
-     * Schemata identifier, must start with a letter, so a leading underscore would only trade one
-     * invalid identifier for another. A keyword takes a trailing `_`, since it cannot be a name.
+     * `full-name` → `full_name`, `fullName` → `full_name`, `1x` → `v1x`, `true` → `true_value`. A
+     * result starting with a digit is prefixed with a letter rather than `_`: lower_snake, like
+     * every Schemata identifier, must start with a letter, so a leading underscore would only trade
+     * one invalid identifier for another. A keyword takes a `_value` suffix, since it cannot be a
+     * name and a trailing underscore is not a name either.
      */
     fun lowerSnake(s: String): String {
         var out = Names.snakeCase(s).replace(invalidRun, "_").replace(underscoreRun, "_").trim('_')
         if (out.isEmpty()) out = "v"
         if (out.first().isDigit()) out = "v$out"
-        if (out in keywords) out += "_"
+        if (out in keywords) out += "_value"
         return out
     }
 

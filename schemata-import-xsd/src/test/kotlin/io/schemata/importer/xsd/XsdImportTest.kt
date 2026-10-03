@@ -1674,13 +1674,13 @@ class XsdImportTest {
         assertEquals(emptyList(), imported.diagnostics)
         assertEquals(
             listOf(
-                UnitEnumValue("true_", null, listOf(xsd("name", "\"true\""))),
-                UnitEnumValue("false_", null, listOf(xsd("name", "\"false\""))),
+                UnitEnumValue("true_value", null, listOf(xsd("name", "\"true\""))),
+                UnitEnumValue("false_value", null, listOf(xsd("name", "\"false\""))),
             ),
             enum(imported, "Flag").values,
         )
         val feed = record(imported, "Feed").fields
-        assertEquals(listOf("stream_", "import_"), feed.map { it.name })
+        assertEquals(listOf("stream_value", "import_value"), feed.map { it.name })
         assertEquals(listOf(xsd("name", "\"stream\"")), feed[0].annotations)
         assertEquals(listOf(xsd("name", "\"import\""), xsd("attribute")), feed[1].annotations)
     }
@@ -1778,7 +1778,7 @@ class XsdImportTest {
                 "pays" to null,
                 "mode" to null,
                 "speed" to "fast",
-                "flag" to "true_",
+                "flag" to "true_value",
                 "anon" to null,
                 "w" to null,
             ),

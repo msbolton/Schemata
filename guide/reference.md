@@ -122,7 +122,9 @@ record OrderLine {
 
 ## 4. Identifiers and naming
 
-Namespace segments and field names are lower_snake. Type names (record, enum, union, alias) are
+Namespace segments and field names are lower_snake: a lowercase letter, then lowercase letters and
+digits, with single underscores between runs and none at the start or the end (`order_line`, `line2`;
+not `order__line`, `line_`, or `_line`). Type names (record, enum, union, alias) are
 UpperCamel. Enum values are lower_snake. The help suggests a corrected name when it can derive one
 from what you wrote. No name in a `.schemata` file, whether a declaration, a field, or an enum
 value, may be one of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`,

@@ -36,7 +36,7 @@ data class AnalysisResult(val schema: Schema?, val diagnostics: List<Diagnostic>
  */
 object Analyzer {
     private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
-    private val lowerSnake = Regex("[a-z][a-z0-9_]*")
+    private val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
 
     fun analyze(
         files: List<SourceFile>,

@@ -47,6 +47,31 @@ class AnalyzerTest {
     private fun qn(ns: String, vararg path: String) = QualifiedName(ns, path.toList())
 
     @Test
+    fun `lower_snake forbids a doubled or trailing underscore`() {
+        fun codes(field: String) =
+            analyze("namespace a\nrecord R { #1 $field: int32 }").diagnostics.map { it.code.id }
+        assertEquals(emptyList(), codes("a"))
+        assertEquals(emptyList(), codes("a1"))
+        assertEquals(emptyList(), codes("a_1"))
+        assertEquals(emptyList(), codes("a_b_c"))
+        assertEquals(listOf("SCH1003"), codes("a__b"))
+        assertEquals(listOf("SCH1003"), codes("a_"))
+        assertEquals(listOf("SCH1003"), codes("a_b_"))
+    }
+
+    @Test
+    fun `lower_snake applies to namespace segments and enum values`() {
+        assertEquals(
+            listOf("SCH1001"),
+            analyze("namespace a__b\nrecord R { x: bool }").diagnostics.map { it.code.id },
+        )
+        assertEquals(
+            listOf("SCH1028"),
+            analyze("namespace a\nenum E { a_ }").diagnostics.map { it.code.id },
+        )
+    }
+
+    @Test
     fun `lowers the fixture to IR with implicit ordinals and spans`() {
         val result = analyze(fixture)
         assertEquals(emptyList(), result.diagnostics)

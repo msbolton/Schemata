@@ -14,6 +14,14 @@ class SuggestTest {
     }
 
     @Test
+    fun `the suggestion for a loose name satisfies the rule`() {
+        assertEquals("a_b", Suggest.lowerSnake("a__b"))
+        assertEquals("a_b", Suggest.lowerSnake("a_b_"))
+        assertEquals("a_b", Suggest.lowerSnake("__a__b__"))
+        assertEquals("abc", Suggest.lowerSnake("ABC"))
+    }
+
+    @Test
     fun `upper camel joins segments`() {
         assertEquals("OrderLine", Suggest.upperCamel("order_line"))
         assertEquals("OrderLine", Suggest.upperCamel("orderLine"))
