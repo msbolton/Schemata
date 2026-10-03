@@ -553,10 +553,11 @@ The field numbers are the ordinals and the comments are the docs. The `option` l
 generation in other languages and say nothing about the data, so they are ignored without a
 warning, and the license header, separated from the message by a blank line, is not a doc. The
 corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it: importing the
-`google` directory instead finds two files under one root that declare `package google.type`,
-which `protoc` reads as one package, so they import as one namespace, `google.type`, in one file.
-Had `money.proto` been the only file there, it would have taken its path under the directory,
-`google.type.money`, and kept its package as `@proto(package = "google.type")`.
+directory holding `google/` instead finds two files under one root that declare
+`package google.type`, which `protoc` reads as one package, so they import as one namespace,
+`google.type`, in one file. Had `money.proto` been the only file there, it would have taken its path
+under that directory, `google.type.money`, and kept its package as
+`@proto(package = "google.type")`.
 
 Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
 `google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and

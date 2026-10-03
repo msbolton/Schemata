@@ -1010,6 +1010,7 @@ already takes one of these names, the synthesized field gives way: `any_2`, `mix
   <xs:attribute name="lang" type="xs:string"/>
   <xs:anyAttribute processContents="lax"/>
 </xs:complexType>
+<xs:element name="para" type="ParaType"/>
 ```
 
 imports, with no diagnostics, as
@@ -1098,6 +1099,9 @@ them, becomes its own optional field (SCH2403), a list when the choice repeats.
     </xs:sequence>
   </xs:choice>
 </xs:complexType>
+<xs:element name="settings" type="SettingsType"/>
+<xs:element name="track" type="TrackType"/>
+<xs:element name="place" type="PlaceType"/>
 ```
 
 imports as
