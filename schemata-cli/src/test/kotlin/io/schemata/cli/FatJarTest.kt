@@ -48,7 +48,9 @@ class FatJarTest {
         val (code, out, _) = run("--version")
         assertEquals(0, code)
         assertTrue(
-            Regex("""schemata (\d+\.\d+\.\d+(-dev\+[0-9a-f]{7})?(-dirty)?|0\.0\.0-unknown)\n""")
+            Regex(
+                    """schemata (\d+\.\d+\.\d+(-rc\.\d+)?(-dev\+[0-9a-f]{7})?(-dirty)?|0\.0\.0-unknown)\n"""
+                )
                 .matches(out),
             out,
         )
