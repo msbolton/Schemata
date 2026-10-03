@@ -123,7 +123,7 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2402 | warning | lossy | a namespace name was derived from a file name | namespace 's' was derived from the file name | set --namespace to choose it, or keep it and rename later |
 | SCH2403 | warning | lossy | a construct was approximated | extension of 'BaseType' has no Schemata equivalent; base fields flattened into the record<br>nested sequence imported as record 'LatGroup' in field 'lat_group' | review the imported record; the regenerated XSD will differ here |
 | SCH2404 | warning | lossy | a type or facet was widened or dropped | facet whiteSpace dropped<br>xs:gYear imported as string | narrow the type by hand if the data needs it |
-| SCH2405 | warning | lossy | a construct was dropped | xs:any dropped<br>mixed content dropped | add the missing part by hand; Schemata cannot express it |
+| SCH2405 | warning | lossy | a construct was dropped | abstract dropped<br>xs:any dropped | add the missing part by hand; Schemata cannot express it |
 
 ## Evolution (SCH25xx)
 

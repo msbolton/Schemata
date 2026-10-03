@@ -611,7 +611,7 @@ object XsdImport {
             }
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
-            if (content is XContent.Choice && isUnionChoice(content)) {
+            if (content is XContent.Choice && isUnionType(ct)) {
                 val unionWhere = "union '${info.finalName}'"
                 unionExtras(ct, unionWhere)
                 val union =
@@ -749,7 +749,7 @@ object XsdImport {
             if (!claimTopLevel(name, "element '$original'", el.line)) return emptyList()
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
-            if (content is XContent.Choice && isUnionChoice(content)) {
+            if (content is XContent.Choice && isUnionType(ct)) {
                 val unionWhere = "union '$name'"
                 unionExtras(ct, unionWhere)
                 val union =
@@ -1070,27 +1070,11 @@ object XsdImport {
         }
 
         /**
-         * What a choice-only complex type carries that a union cannot: its attributes, mixed
-         * content, and abstractness, each reported as dropped.
+         * What a choice-only complex type lowering to a union carries that a union cannot: its
+         * abstractness, reported as dropped. (One with attributes or mixed content is a record, see
+         * [isUnionType].)
          */
         private fun unionExtras(ct: XComplexType, where: String) {
-            expandAttributeUses(ct.attributes).forEach { use ->
-                when (use) {
-                    is XAttributeUse.Attribute -> {
-                        val a = use.attribute
-                        val name = a.name ?: a.ref?.local
-                        diagnostics +=
-                            lossy(ImportCodes.DROPPED, where, "attribute '$name' dropped", a.line)
-                    }
-                    is XAttributeUse.AnyAttribute ->
-                        diagnostics +=
-                            lossy(ImportCodes.DROPPED, where, "xs:anyAttribute dropped", use.line)
-                    is XAttributeUse.GroupRef -> Unit // only an unresolved ref survives expansion
-                }
-            }
-            if (ct.mixed) {
-                diagnostics += lossy(ImportCodes.DROPPED, where, "mixed content dropped", ct.line)
-            }
             if (ct.abstract) {
                 diagnostics += lossy(ImportCodes.DROPPED, where, "abstract dropped", ct.line)
             }
@@ -1413,11 +1397,9 @@ object XsdImport {
                 }
                 is XContent.Empty -> emptyList()
                 is XContent.Choice ->
-                    if (!isUnionChoice(content)) {
-                        wildcardChoiceFields(content, claimed, whereCollision)
-                    } else {
-                        // An extension base that is itself choice-shaped (a union): not supported,
-                        // so its own content is simply dropped rather than flattened.
+                    if (isUnionType(ct)) {
+                        // An extension base that is itself a union: not supported, so its own
+                        // content is simply dropped rather than flattened.
                         diagnostics +=
                             lossy(
                                 ImportCodes.DROPPED,
@@ -1426,6 +1408,23 @@ object XsdImport {
                                 ct.line,
                             )
                         emptyList()
+                    } else {
+                        // A record whose content is a bare choice holds it as a sequence would.
+                        sequenceFields(
+                            recordName,
+                            listOf(
+                                XParticle.Nested(
+                                    content,
+                                    content.minOccurs,
+                                    content.maxOccurs,
+                                    ct.line,
+                                )
+                            ),
+                            whereCollision,
+                            claimed,
+                            nested,
+                            siblings,
+                        )
                     }
                 is XContent.Extension ->
                     extensionFields(
@@ -1641,6 +1640,15 @@ object XsdImport {
             nested: MutableList<UnitDecl>,
             siblings: MutableList<UnitDecl>,
         ): List<UnitField> {
+            if (choice.particles.all { it is XParticle.Any }) {
+                return wildcardChoiceFields(
+                    choice,
+                    particle.minOccurs,
+                    particle.maxOccurs,
+                    claimed,
+                    whereCollision,
+                )
+            }
             val index = choiceCounts.merge(recordName, 1, Int::plus)!!
             val members =
                 expandParticles(choice.particles, whereCollision).filter {
@@ -1695,6 +1703,10 @@ object XsdImport {
                     "inline choice has no Schemata equivalent; members imported as optional fields",
                     particle.line,
                 )
+            // A wildcard branch beside other branches has no field of its own, as in a union.
+            choice.particles.filterIsInstance<XParticle.Any>().forEach {
+                diagnostics += lossy(ImportCodes.DROPPED, whereCollision, "xs:any dropped", it.line)
+            }
             return members.flatMap {
                 when (it) {
                     is XParticle.Element ->
@@ -1974,7 +1986,7 @@ object XsdImport {
         ): UnitType.Ref {
             val name = ImportNames.upperCamel(elementName)
             val content = ct.content
-            if (content is XContent.Choice && isUnionChoice(content)) {
+            if (content is XContent.Choice && isUnionType(ct)) {
                 unionExtras(ct, "union '$name'")
                 nested +=
                     unionFromChoice(
@@ -2011,28 +2023,37 @@ object XsdImport {
         }
 
         /**
-         * Whether [choice] has a branch that can be a union member. A choice of nothing but
-         * wildcards has none (a union member carries no `@xsd(any)`), so its type is a record whose
-         * wildcards are fields, see [wildcardChoiceFields].
+         * Whether [ct], whose content is a bare choice, lowers to a union: only when the choice
+         * occurs once, has a branch that can be a member (a union member carries no `@xsd(any)`),
+         * and the type has no attributes, attribute wildcard, or mixed content for a union to lose.
+         * Otherwise the type is a record holding the choice as a sequence would.
          */
-        private fun isUnionChoice(choice: XContent.Choice): Boolean =
-            choice.particles.any { it !is XParticle.Any }
+        private fun isUnionType(ct: XComplexType): Boolean {
+            val choice = ct.content as? XContent.Choice ?: return false
+            return choice.maxOccurs == 1 &&
+                ct.attributes.isEmpty() &&
+                !ct.mixed &&
+                choice.particles.any { it !is XParticle.Any }
+        }
 
         /**
-         * The fields of a choice of nothing but wildcards: one `@xsd(any)` field per wildcard, its
-         * occurrence the wildcard's times the choice's, as the sequence it amounts to.
+         * The fields of a choice of nothing but wildcards occurring [minOccurs] to [maxOccurs]
+         * times: one `@xsd(any)` field per wildcard, its occurrence the wildcard's times the
+         * choice's, as the sequence it amounts to.
          */
         private fun wildcardChoiceFields(
             choice: XContent.Choice,
+            minOccurs: Int,
+            maxOccurs: Int?,
             claimed: MutableMap<String, String>,
             whereCollision: String,
         ): List<UnitField> =
             choice.particles.filterIsInstance<XParticle.Any>().mapNotNull { any ->
                 val max =
-                    if (any.maxOccurs == null || choice.maxOccurs == null) null
-                    else any.maxOccurs * choice.maxOccurs
+                    if (any.maxOccurs == null || maxOccurs == null) null
+                    else any.maxOccurs * maxOccurs
                 anyField(
-                    any.copy(minOccurs = any.minOccurs * choice.minOccurs, maxOccurs = max),
+                    any.copy(minOccurs = any.minOccurs * minOccurs, maxOccurs = max),
                     claimed,
                     whereCollision,
                 )
@@ -2630,8 +2651,9 @@ object XsdImport {
                     el.maxOccurs == 1 && el.type == null && el.inlineComplex != null -> {
                         (el.fixed ?: el.default)?.let { noLiteral(it, where, el.line) }
                         if (
-                            (el.inlineComplex.content as? XContent.Choice)?.let(::isUnionChoice) ==
-                                true
+                            (el.inlineComplex.content as? XContent.Choice)?.let {
+                                isUnionType(el.inlineComplex)
+                            } == true
                         ) {
                             val ref =
                                 inlineDeclaration(el.inlineComplex, original, nested, siblings)
@@ -3211,25 +3233,7 @@ object XsdImport {
                 return it
             }
             val ct = targetDoc.complexTypes.firstOrNull { it.name == qname.local }
-            if (ct != null) {
-                val name = qualifiedTypeName(targetDoc, qname.local)
-                val choice = (ct.content as? XContent.Choice)?.takeIf(::isUnionChoice)
-                if (choice != null && choice.maxOccurs != 1) {
-                    diagnostics +=
-                        lossy(
-                            ImportCodes.APPROXIMATED,
-                            where,
-                            "type '${ct.name}' is a repeated choice; imported as list<$name>",
-                            line,
-                        )
-                    return UnitType.ListOf(
-                        UnitType.Ref(name),
-                        false,
-                        listRefinements(choice.minOccurs, choice.maxOccurs),
-                    )
-                }
-                return UnitType.Ref(name)
-            }
+            if (ct != null) return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
             val st = targetDoc.simpleTypes.firstOrNull { it.name == qname.local } ?: return null
             if (isEnum(st)) return UnitType.Ref(qualifiedTypeName(targetDoc, qname.local))
             return resolveNamedSimpleType(st, targetDoc.path, where, setOf(qname))

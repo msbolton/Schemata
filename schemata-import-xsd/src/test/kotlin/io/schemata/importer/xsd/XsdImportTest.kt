@@ -1456,40 +1456,57 @@ class XsdImportTest {
     }
 
     @Test
-    fun `a choice with maxOccurs above one is a list of the union`() {
+    fun `a repeated choice type with an attribute is a record holding the choice`() {
         val imported =
             lower(
                 """
                 <?xml version="1.0"?>
                 <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
-                  <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
-                  <xs:complexType name="CashType"><xs:sequence/></xs:complexType>
-                  <xs:complexType name="PaymentsType">
+                  <xs:complexType name="XPathType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="StepType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="TransformType">
                     <xs:choice maxOccurs="unbounded">
-                      <xs:element name="card" type="tns:CardType"/>
-                      <xs:element name="cash" type="tns:CashType"/>
+                      <xs:element name="XPath" type="tns:XPathType"/>
+                      <xs:element name="step" type="tns:StepType"/>
                     </xs:choice>
+                    <xs:attribute name="algorithm" type="xs:anyURI"/>
                   </xs:complexType>
-                  <xs:complexType name="OrderType">
+                  <xs:complexType name="TransformsType">
                     <xs:sequence>
-                      <xs:element name="payments" type="tns:PaymentsType"/>
+                      <xs:element name="transform" type="tns:TransformType" maxOccurs="unbounded"/>
                     </xs:sequence>
                   </xs:complexType>
                 </xs:schema>
                 """
             )
+        val transform = record(imported, "Transform")
         assertEquals(
-            listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
-            union(imported, "Payments").members.map { it.type },
+            listOf(
+                Triple(
+                    "choice",
+                    UnitType.ListOf(UnitType.Ref("TransformChoice"), false, listOf("min" to "1")),
+                    emptyList(),
+                ),
+                Triple(
+                    "algorithm",
+                    UnitType.Scalar("string", emptyList()),
+                    listOf(xsd("attribute")),
+                ),
+            ),
+            transform.fields.map { Triple(it.name, it.type, it.annotations) },
         )
         assertEquals(
-            UnitType.ListOf(UnitType.Ref("Payments"), false, listOf("min" to "1")),
-            record(imported, "Order").fields.single().type,
+            listOf(UnitType.Ref("XPath"), UnitType.Ref("Step")),
+            union(imported, "TransformChoice").members.map { it.type },
+        )
+        assertEquals(
+            UnitType.ListOf(UnitType.Ref("Transform"), false, listOf("min" to "1")),
+            record(imported, "Transforms").fields.single().type,
         )
         assertEquals(
             listOf(
-                "SCH2403 element 'payments': type 'PaymentsType' is a repeated choice; imported " +
-                    "as list<Payments>"
+                "SCH2403 complex type 'TransformType': inline choice has no Schemata equivalent; " +
+                    "imported as union 'TransformChoice' in field 'choice'"
             ),
             messages(imported),
         )
@@ -2267,10 +2284,11 @@ class XsdImportTest {
         assertEquals(true, fields.getValue("w").nullable)
         assertEquals(
             listOf(
+                "SCH2403 complex type 'PayType': inline choice has no Schemata equivalent; " +
+                    "imported as union 'PayChoice' in field 'choice'",
                 "SCH2403 element 'x': default 'INF' has no Schemata literal; dropped",
                 "SCH2403 element 'at': default '2024-01-01T00:00:00Z' has no Schemata literal; dropped",
                 "SCH2403 element 'child': default 'x' has no Schemata literal; dropped",
-                "SCH2403 element 'pays': type 'PayType' is a repeated choice; imported as list<Pay>",
                 "SCH2403 element 'pays': default 'q' has no Schemata literal; dropped",
                 "SCH2403 element 'mode': default 'slow' has no Schemata literal; dropped",
                 "SCH2403 element 'anon': default 'z' has no Schemata literal; dropped",
@@ -2299,15 +2317,22 @@ class XsdImportTest {
     }
 
     @Test
-    fun `a choice only type reports the attributes mixed content and abstractness it drops`() {
+    fun `a plain choice type is a union and an attributed or mixed one a record`() {
         val imported =
             lower(
                 """
                 <?xml version="1.0"?>
                 <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
                   <xs:complexType name="CardType"><xs:sequence/></xs:complexType>
-                  <xs:complexType name="PaymentType" mixed="true" abstract="true">
-                    <xs:choice><xs:element name="card" type="tns:CardType"/></xs:choice>
+                  <xs:complexType name="CashType"><xs:sequence/></xs:complexType>
+                  <xs:complexType name="TenderType" abstract="true">
+                    <xs:choice minOccurs="0">
+                      <xs:element name="card" type="tns:CardType"/>
+                      <xs:element name="cash" type="tns:CashType"/>
+                    </xs:choice>
+                  </xs:complexType>
+                  <xs:complexType name="PaymentType" mixed="true">
+                    <xs:choice minOccurs="0"><xs:element name="card" type="tns:CardType"/></xs:choice>
                     <xs:attribute name="id" type="xs:string"/>
                     <xs:anyAttribute/>
                   </xs:complexType>
@@ -2315,15 +2340,30 @@ class XsdImportTest {
                 """
             )
         assertEquals(
-            listOf(UnitType.Ref("Card")),
-            union(imported, "Payment").members.map { it.type },
+            listOf(UnitType.Ref("Card"), UnitType.Ref("Cash")),
+            union(imported, "Tender").members.map { it.type },
         )
         assertEquals(
             listOf(
-                "SCH2405 union 'Payment': attribute 'id' dropped",
-                "SCH2405 union 'Payment': xs:anyAttribute dropped",
-                "SCH2405 union 'Payment': mixed content dropped",
-                "SCH2405 union 'Payment': abstract dropped",
+                "choice" to UnitType.Ref("PaymentChoice"),
+                "text" to UnitType.Scalar("string", emptyList()),
+                "id" to UnitType.Scalar("string", emptyList()),
+                "attributes" to
+                    UnitType.MapOf(
+                        UnitType.Scalar("string", emptyList()),
+                        UnitType.Scalar("string", emptyList()),
+                        false,
+                        emptyList(),
+                    ),
+            ),
+            record(imported, "Payment").fields.map { it.name to it.type },
+        )
+        assertEquals(true, record(imported, "Payment").fields.first().nullable)
+        assertEquals(
+            listOf(
+                "SCH2405 union 'Tender': abstract dropped",
+                "SCH2403 complex type 'PaymentType': inline choice has no Schemata equivalent; " +
+                    "imported as union 'PaymentChoice' in field 'choice'",
             ),
             messages(imported),
         )

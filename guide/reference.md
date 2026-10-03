@@ -830,12 +830,14 @@ more branches of one type could not be told apart, so each of them becomes a rec
 named after its element, non-root, holding the type in a `value` field (`record ArchiveTimeStamp {
 value: XAdESTimeStamp }`), and the union lists those records (SCH2403). A choice of nothing but
 wildcards has no branch a union could list, so its type is a record whose wildcards are `@xsd(any)`
-fields, as in a sequence. A union has nowhere to put attributes, mixed content, or `abstract`, so a choice-only type's are dropped
-(SCH2405). An element whose type is such a choice with `maxOccurs` greater than one becomes
-`list<Union>`, with `min`/`max` from the choice's own occurrences (SCH2403). An inline `choice`
-nested inside a `sequence` becomes, when every branch is a complex type, a synthesized union named
-`<Record>Choice` held in a field called `choice` (SCH2403); otherwise each branch becomes its own
-optional field (SCH2403). An element with `maxOccurs` greater than one becomes `list<T>`, with
+fields, as in a sequence. Only a choice that occurs once, in a type with no attributes, attribute
+wildcard, or mixed content, makes a union; a choice that repeats, or a type carrying any of those, is
+a record instead, holding the choice as a sequence would (below) beside its attribute and text
+fields. A union has nowhere to put `abstract`, so a choice-only type's is dropped (SCH2405). An
+inline `choice` nested inside a `sequence` becomes, when every branch is a complex type, a
+synthesized union named `<Record>Choice` held in a field called `choice` (SCH2403); otherwise each
+branch becomes its own optional field (SCH2403), and a wildcard branch among them is dropped
+(SCH2405). An element with `maxOccurs` greater than one becomes `list<T>`, with
 `min`/`max` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the element type, giving
 `list<T?>`; a `default` on a repeated element is dropped (SCH2403), since a list has no default. An
 element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A single element with
