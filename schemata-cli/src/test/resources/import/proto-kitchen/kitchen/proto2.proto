@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+package kitchen.legacy;
+
+// A proto2 message with defaults, a group, and extensions.
+message Widget {
+  required int32 id = 1;
+  optional string label = 2 [default = "none"];
+  optional double ratio = 3 [default = 0.5];
+  optional bool enabled = 4 [default = true];
+  optional float weight = 5 [default = inf];
+  optional int32 count = 6 [default = 0x10];
+  optional string note = 7;
+
+  optional group Extra = 8 {
+    optional int32 x = 1;
+  }
+
+  extensions 100 to 199;
+
+  repeated int32 values = 9 [packed = true];
+  optional string legacyName = 10 [json_name = "legacy", deprecated = true];
+
+  reserved 20 to 29, 40;
+  reserved "old_label";
+}
+
+extend Widget {
+  optional int32 extra = 100;
+}

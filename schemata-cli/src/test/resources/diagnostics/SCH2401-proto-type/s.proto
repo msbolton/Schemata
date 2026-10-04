@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  Missing item = 1;
+}

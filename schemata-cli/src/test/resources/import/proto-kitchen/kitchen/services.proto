@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package kitchen.services;
+
+import "kitchen/maps.proto";
+import public "kitchen/enums.proto";
+
+// The ordering API.
+service Orders {
+  rpc Get (kitchen.maps.Item) returns (kitchen.maps.Item);
+  rpc Watch (kitchen.maps.Item) returns (stream kitchen.maps.Item);
+}
+
+message Request {
+  kitchen.maps.Item item = 1;
+}

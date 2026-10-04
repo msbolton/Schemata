@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2403] (lossy): table 'events': no primary key; add @sql(key) before compiling to SQL
+ --> s.sql:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

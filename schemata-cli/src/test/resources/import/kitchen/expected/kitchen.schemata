@@ -11,6 +11,9 @@ record Kitchen {
   note:    string?
   dish:    Dish?
   special: SpecialDish?
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any:     string?
 }
 
 @xsd(name = "bike-rack")
@@ -19,10 +22,11 @@ record BikeRack { slots: int32 }
 
 @xsd(name = "dish")
 @xsd(root = false)
-record Dish { name: string }
+record Dish { name: string @xsd(mixed) text: string? }
 
 @xsd(name = "baseDish")
 @xsd(root = false)
+@xsd(all)
 record BaseDish { garnish: string }
 
 @xsd(name = "specialDish")

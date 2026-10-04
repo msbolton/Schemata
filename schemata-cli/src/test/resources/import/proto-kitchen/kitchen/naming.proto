@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package kitchen.naming;
+
+// A message whose name is not upper camel case.
+message line_item {
+  string FooBaz = 1;
+  string record = 2;
+  int32 HTTPCode = 3;  // a trailing comment joins the doc
+}
+
+message HTTPFrame {
+  line_item item = 1;
+}
+
+message Holder {
+  oneof kind {
+    line_item line_item = 1;
+    HTTPFrame http_frame = 2;
+  }
+}

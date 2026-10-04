@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2402] (lossy): a.proto: namespace 'shop.orders' was derived from the package 'Shop.Orders'
+ --> a.proto:1:1
+  = help: set --namespace to choose it, or keep it and rename later
+
+warning[SCH2402] (lossy): b.proto: namespace 'shop.orders' was derived from the package 'Shop.Orders'
+ --> b.proto:1:1
+  = help: set --namespace to choose it, or keep it and rename later
+
+0 errors, 2 warnings

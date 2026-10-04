@@ -1,0 +1,14 @@
+# import=xsd
+warning[SCH2403] (lossy): element 'payment': substitution group 'payment' imported as its one member type 'Payment'
+ --> s.xsd:3:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2405] (lossy): element 'voucher': substitution member with an inline type dropped from substitution group 'payment'
+ --> s.xsd:4:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2403] (lossy): element 'voucher': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the record
+ --> s.xsd:7:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 3 warnings

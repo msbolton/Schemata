@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2403] (lossy): column 'Orders.refund_kind': member 'cash' imported as 'Cash2', another declaration here being named 'Cash'; the regenerated literal will be 'cash2'
+ --> s.sql:5:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

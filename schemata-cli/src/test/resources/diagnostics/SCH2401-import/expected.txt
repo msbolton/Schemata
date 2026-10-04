@@ -1,6 +1,6 @@
 # import=xsd
 error[SCH2401]: s.xsd: import 'urn:schemata:missing' cannot be resolved
  --> s.xsd:3:1
-  = help: add the referenced schema to the inputs or fix schemaLocation
+  = help: add the schema that declares it to the inputs, or fix the reference
 
 1 error, 0 warnings

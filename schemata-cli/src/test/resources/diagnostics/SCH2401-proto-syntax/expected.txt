@@ -1,0 +1,6 @@
+# import=proto
+error[SCH2401]: s.proto:7:1: cannot parse: expected ';'
+ --> s.proto:7:1
+  = help: give the importer a file protoc accepts
+
+1 error, 0 warnings

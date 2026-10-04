@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2402] (lossy): a-b.proto: namespace 'a_b' was derived from the file name
+ --> a-b.proto:1:1
+  = help: set --namespace to choose it, or keep it and rename later
+
+error[SCH2401]: a_b.proto: package 'x' and a-b.proto's package 'y' both lower to namespace 'a_b'
+ --> a_b.proto:1:1
+  = help: rename one of them
+
+1 error, 1 warning

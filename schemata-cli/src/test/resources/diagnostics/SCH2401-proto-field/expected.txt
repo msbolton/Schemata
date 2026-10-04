@@ -1,0 +1,6 @@
+# import=proto
+error[SCH2401]: field 'Order.order_id' and field 'Order.orderId' both lower to 'order_id'
+ --> s.proto:7:3
+  = help: rename one of them
+
+1 error, 0 warnings

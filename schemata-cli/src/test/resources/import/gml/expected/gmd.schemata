@@ -1,0 +1,11 @@
+@xsd(namespace = "http://www.isotc211.org/2005/gmd")
+namespace gmd
+
+@xsd(name = "EX_Extent_")
+record EXExtent {}
+
+@xsd(name = "CI_Citation_")
+record CICitation {}
+
+@xsd(name = "AbstractDQ_PositionalAccuracy_")
+record AbstractDQPositionalAccuracy {}

@@ -1,0 +1,7 @@
+edition = "2023";
+
+package s;
+
+message Order {
+  string id = 1;
+}

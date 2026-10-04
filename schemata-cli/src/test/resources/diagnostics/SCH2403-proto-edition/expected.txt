@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): s.proto: edition 2023 read as proto3; explicit presence assumed for optional fields only
+ --> s.proto:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

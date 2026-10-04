@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  map<bool, string> flags = 1;
+}

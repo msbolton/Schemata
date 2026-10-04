@@ -1,0 +1,291 @@
+package io.schemata.importer
+
+import io.schemata.lang.format.FormatResult
+import io.schemata.lang.format.Formatter
+import io.schemata.testkit.Golden
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+
+class SchemataEmitterTest {
+    private fun xsd(key: String, value: String? = null) = UnitAnnotation("xsd", key, value)
+
+    private val unit =
+        SchemataUnit(
+            namespace = "gpx",
+            annotations = listOf(xsd("namespace", "\"http://www.topografix.com/GPX/1/1\"")),
+            doc = "GPX schema version 1.1.",
+            imports = listOf("shop.customers"),
+            declarations =
+                listOf(
+                    UnitEnum(
+                        "Fix",
+                        listOf(
+                            UnitEnumValue("none", "No fix.", emptyList()),
+                            UnitEnumValue("_2d", null, listOf(xsd("name", "\"2d\""))),
+                        ),
+                        null,
+                        emptyList(),
+                    ),
+                    UnitUnion(
+                        "Payment",
+                        listOf(
+                            UnionMember(UnitType.Ref("Card")),
+                            UnionMember(UnitType.Scalar("int64", emptyList())),
+                        ),
+                        "How it was paid.",
+                        emptyList(),
+                    ),
+                    UnitRecord(
+                        "Gpx",
+                        listOf(
+                            UnitField(
+                                "version",
+                                UnitType.Scalar("string", emptyList()),
+                                false,
+                                "\"1.1\"",
+                                null,
+                                listOf(xsd("attribute")),
+                            ),
+                            UnitField(
+                                "creator",
+                                UnitType.Scalar("string", listOf("max" to "100")),
+                                true,
+                                null,
+                                "Who wrote it.",
+                                listOf(xsd("attribute")),
+                            ),
+                            UnitField(
+                                "full_name",
+                                UnitType.Scalar("string", emptyList()),
+                                false,
+                                null,
+                                null,
+                                listOf(xsd("name", "\"full-name\"")),
+                            ),
+                            UnitField(
+                                "customer",
+                                UnitType.Ref("shop.customers.Customer"),
+                                false,
+                                null,
+                                null,
+                                emptyList(),
+                            ),
+                            UnitField(
+                                "wpt",
+                                UnitType.ListOf(UnitType.Ref("Wpt"), false, emptyList()),
+                                false,
+                                null,
+                                "Waypoints.",
+                                emptyList(),
+                            ),
+                            UnitField(
+                                "tags",
+                                UnitType.ListOf(
+                                    UnitType.Scalar("string", listOf("max" to "3")),
+                                    true,
+                                    listOf("max" to "2"),
+                                ),
+                                true,
+                                null,
+                                null,
+                                emptyList(),
+                            ),
+                            UnitField(
+                                "counts",
+                                UnitType.MapOf(
+                                    UnitType.Scalar("int64", emptyList()),
+                                    UnitType.Ref("Wpt"),
+                                    true,
+                                    listOf("min" to "1"),
+                                ),
+                                false,
+                                null,
+                                null,
+                                emptyList(),
+                            ),
+                            UnitField(
+                                "total",
+                                UnitType.Scalar(
+                                    "decimal",
+                                    listOf("p" to "19", "s" to "4", "min" to "0"),
+                                ),
+                                false,
+                                "0.0000",
+                                null,
+                                emptyList(),
+                            ),
+                            UnitField("fix", UnitType.Ref("Fix"), false, "none", null, emptyList()),
+                        ),
+                        listOf(
+                            UnitRecord(
+                                "Wpt",
+                                listOf(
+                                    UnitField(
+                                        "lat",
+                                        UnitType.Scalar(
+                                            "float64",
+                                            listOf("min" to "-90.0", "max" to "90.0"),
+                                        ),
+                                        false,
+                                        null,
+                                        null,
+                                        emptyList(),
+                                    )
+                                ),
+                                emptyList(),
+                                "A point.",
+                                listOf(xsd("root", "false")),
+                            )
+                        ),
+                        "GPX is the root element.",
+                        listOf(xsd("name", "\"gpxType\"")),
+                    ),
+                ),
+            sourcePath = "gpx.xsd",
+        )
+
+    @Test
+    fun `emits the kitchen sink and the formatter accepts it`() {
+        val text = SchemataEmitter.emit(unit)
+        val formatted = Formatter.format(text, "gpx.schemata")
+        assertTrue(formatted is FormatResult.Formatted, formatted.toString())
+        Golden.assertMatches("kitchen.schemata", (formatted as FormatResult.Formatted).text)
+    }
+
+    @Test
+    fun `a unit with no doc annotations or imports emits only the namespace and declarations`() {
+        val text =
+            SchemataEmitter.emit(
+                SchemataUnit(
+                    "s",
+                    emptyList(),
+                    null,
+                    emptyList(),
+                    listOf(UnitRecord("R", emptyList(), emptyList(), null, emptyList())),
+                    "s.xsd",
+                )
+            )
+        assertEquals(
+            "namespace s\n\nrecord R {}\n",
+            (Formatter.format(text, "s.schemata") as FormatResult.Formatted).text,
+        )
+    }
+
+    @Test
+    fun `ordinals reserved deprecated and namespace annotations print and format`() {
+        val unit =
+            SchemataUnit(
+                namespace = "corp.orders",
+                annotations = listOf(UnitAnnotation("proto", "package", "\"corp.orders.v1\"")),
+                doc = null,
+                imports = emptyList(),
+                declarations =
+                    listOf(
+                        UnitRecord(
+                            name = "Order",
+                            fields =
+                                listOf(
+                                    UnitField(
+                                        "id",
+                                        UnitType.Scalar("uuid", emptyList()),
+                                        false,
+                                        null,
+                                        null,
+                                        emptyList(),
+                                        ordinal = 1,
+                                    ),
+                                    UnitField(
+                                        "legacy",
+                                        UnitType.Scalar("int32", emptyList()),
+                                        true,
+                                        null,
+                                        null,
+                                        emptyList(),
+                                        ordinal = 3,
+                                        deprecated = true,
+                                    ),
+                                ),
+                            nested =
+                                listOf(
+                                    UnitEnum(
+                                        "Status",
+                                        listOf(
+                                            UnitEnumValue(
+                                                "pending",
+                                                null,
+                                                emptyList(),
+                                                ordinal = 1,
+                                            ),
+                                            UnitEnumValue("paid", null, emptyList(), ordinal = 2),
+                                        ),
+                                        null,
+                                        emptyList(),
+                                        reserved = listOf(UnitReserved.Ordinals(5, 6)),
+                                    )
+                                ),
+                            doc = "An order.",
+                            annotations = emptyList(),
+                            reserved =
+                                listOf(
+                                    UnitReserved.Ordinals(2, 2),
+                                    UnitReserved.Ordinals(7, 9),
+                                    UnitReserved.Name("old_ref"),
+                                ),
+                            deprecated = true,
+                        ),
+                        UnitUnion(
+                            "Payment",
+                            listOf(
+                                UnionMember(UnitType.Ref("Order"), null, ordinal = 1),
+                                UnionMember(
+                                    UnitType.Scalar("string", emptyList()),
+                                    null,
+                                    ordinal = 2,
+                                ),
+                            ),
+                            null,
+                            emptyList(),
+                        ),
+                    ),
+                sourcePath = "orders.proto",
+            )
+        val text = SchemataEmitter.emit(unit)
+        val formatted = Formatter.format(text, "corp/orders.schemata")
+        assertTrue(formatted is FormatResult.Formatted, formatted.toString())
+        Golden.assertMatches("ordinals.schemata", (formatted as FormatResult.Formatted).text)
+    }
+
+    @Test
+    fun `an emitter refuses ordinals on some members but not all`() {
+        val record =
+            UnitRecord(
+                "R",
+                listOf(
+                    UnitField(
+                        "a",
+                        UnitType.Scalar("bool", emptyList()),
+                        false,
+                        null,
+                        null,
+                        emptyList(),
+                        1,
+                    ),
+                    UnitField(
+                        "b",
+                        UnitType.Scalar("bool", emptyList()),
+                        false,
+                        null,
+                        null,
+                        emptyList(),
+                    ),
+                ),
+                emptyList(),
+                null,
+                emptyList(),
+            )
+        val unit = SchemataUnit("x", emptyList(), null, emptyList(), listOf(record), "x")
+        assertFailsWith<IllegalStateException> { SchemataEmitter.emit(unit) }
+    }
+}

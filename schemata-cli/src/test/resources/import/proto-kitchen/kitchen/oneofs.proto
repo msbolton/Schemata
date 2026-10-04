@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package kitchen.oneofs;
+
+import "kitchen/enums.proto";
+
+message Card {
+  string last4 = 1;
+}
+
+message Cash {}
+
+// How the customer paid.
+message Payment {
+  oneof kind {
+    // Paid by card.
+    Card card = 1;
+    Cash cash = 2;
+    string uuid = 3;  // schemata: uuid
+    kitchen.enums.Status status = 4;
+  }
+}
+
+// A oneof whose names differ from the ones the target writes.
+message Tender {
+  oneof method {
+    Card by_card = 1;
+    Cash cash = 2;
+  }
+}
+
+// A oneof beside other fields.
+message Shipment {
+  string id = 1;
+
+  oneof destination {
+    string address = 2;
+    Card pickup_card = 3;
+  }
+}
+
+// Two members of one type cannot be told apart in a union.
+message Contact {
+  oneof via {
+    string email = 1;
+    string phone = 2;
+  }
+}

@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2405] (lossy): table 'orders': foreign key over (pay_kind) dropped
+ --> s.sql:2:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

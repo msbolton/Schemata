@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): record 'Order': oneof 'contact' imported as nullable fields; at most one of them is set, which Schemata cannot say
+ --> s.proto:8:5
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

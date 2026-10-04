@@ -1,0 +1,6 @@
+# import=xsd
+warning[SCH2405] (lossy): element 'unit': fixed value dropped
+ --> s.xsd:5:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

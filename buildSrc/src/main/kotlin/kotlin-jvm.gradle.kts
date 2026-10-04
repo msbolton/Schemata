@@ -31,20 +31,25 @@ tasks.withType<Test>().configureEach {
 }
 
 // Dependency direction: a module may only depend on modules in a strictly lower layer.
-// lang(0) -> core(1) -> target-api(2) -> proto/sql/xsd/jsonschema/import-xsd/evolution/lsp(3) -> cli(4). testkit is outside the layering.
+// lang(0) -> core(1) -> target-api(2) -> import-api(3) ->
+// proto/sql/xsd/jsonschema/import-xsd/import-proto/import-sql/evolution/lsp(4) -> cli(5).
+// testkit is outside the layering.
 val layers =
     mapOf(
         "schemata-lang" to 0,
         "schemata-core" to 1,
         "schemata-target-api" to 2,
-        "schemata-target-proto" to 3,
-        "schemata-target-sql" to 3,
-        "schemata-target-xsd" to 3,
-        "schemata-target-jsonschema" to 3,
-        "schemata-import-xsd" to 3,
-        "schemata-evolution" to 3,
-        "schemata-lsp" to 3,
-        "schemata-cli" to 4,
+        "schemata-import-api" to 3,
+        "schemata-target-proto" to 4,
+        "schemata-target-sql" to 4,
+        "schemata-target-xsd" to 4,
+        "schemata-target-jsonschema" to 4,
+        "schemata-import-xsd" to 4,
+        "schemata-import-proto" to 4,
+        "schemata-import-sql" to 4,
+        "schemata-evolution" to 4,
+        "schemata-lsp" to 4,
+        "schemata-cli" to 5,
     )
 
 layers[project.name]?.let { myLayer ->
@@ -76,7 +81,7 @@ layers[project.name]?.let { myLayer ->
                 if (violations.isNotEmpty()) {
                     throw GradleException(
                         "$moduleName (layer $myLayer) depends on ${violations.joinToString()}, which is not strictly below it. " +
-                            "Dependencies must point downward: lang -> core -> target-api -> targets -> cli."
+                            "Dependencies must point downward: lang -> core -> target-api -> import-api -> targets and importers -> cli."
                     )
                 }
             }

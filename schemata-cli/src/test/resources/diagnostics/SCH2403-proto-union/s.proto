@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package s;
+
+message Payment {
+  oneof method {
+    string card_number = 1;
+    int64 cash = 2;
+  }
+}

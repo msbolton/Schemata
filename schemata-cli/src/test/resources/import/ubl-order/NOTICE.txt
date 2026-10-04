@@ -1,0 +1,99 @@
+OASIS Universal Business Language (UBL) 2.1 OS, Order document schema and the common
+schemas it imports, copied verbatim from
+
+    https://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-Order-2.1.xsd
+    https://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/common/
+
+as test input for the XSD importer.
+
+The head of maindoc/UBL-Order-2.1.xsd reads:
+
+  Library:           OASIS Universal Business Language (UBL) 2.1 OS
+                     http://docs.oasis-open.org/ubl/os-UBL-2.1/
+  Release Date:      04 November 2013
+  Module:            xsd/maindoc/UBL-Order-2.1.xsd
+  Generated on:      2013-10-31 17:17z
+  Copyright (c) OASIS Open 2013. All Rights Reserved.
+
+The notices of the UBL 2.1 specification
+(https://docs.oasis-open.org/ubl/os-UBL-2.1/UBL-2.1.html) read:
+
+  Copyright (c) OASIS Open 2001-2013. All Rights Reserved.
+
+  All capitalized terms in the following text have the meanings assigned to them in the OASIS
+  Intellectual Property Rights Policy (the "OASIS IPR Policy"). The full Policy may be found at
+  the OASIS website.
+
+  This document and translations of it may be copied and furnished to others, and derivative
+  works that comment on or otherwise explain it or assist in its implementation may be prepared,
+  copied, published, and distributed, in whole or in part, without restriction of any kind,
+  provided that the above copyright notice and this section are included on all such copies and
+  derivative works. However, this document itself may not be modified in any way, including by
+  removing the copyright notice or references to OASIS, except as needed for the purpose of
+  developing any document or deliverable produced by an OASIS Technical Committee (in which case
+  the rules applicable to copyrights, as set forth in the OASIS IPR Policy, must be followed) or
+  as required to translate it into languages other than English.
+
+  The limited permissions granted above are perpetual and will not be revoked by OASIS or its
+  successors or assigns.
+
+  This document and the information contained herein is provided on an "AS IS" basis and OASIS
+  DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE
+  USE OF THE INFORMATION HEREIN WILL NOT INFRINGE ANY OWNERSHIP RIGHTS AND ANY IMPLIED WARRANTIES
+  OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Three of the common schemas are copies the UBL distribution itself took from elsewhere, each
+keeping its own notice in its header:
+
+  common/CCTS_CCT_SchemaModule-2.1.xsd       UN/CEFACT, Copyright (C) UN/CEFACT (2006)
+  common/UBL-xmldsig-core-schema-2.1.xsd     W3C XML Signature schema, W3C Software License
+                                             (http://www.w3.org/Consortium/Legal/copyright-software-19980720)
+  common/UBL-XAdESv132-2.1.xsd,              ETSI XAdES (http://uri.etsi.org/01903/)
+  common/UBL-XAdESv141-2.1.xsd
+
+common/UBL-xmldsig-core-schema-2.1.xsd is a copy of the W3C XML Signature schema
+(http://www.w3.org/TR/xmldsig-core/xmldsig-core-schema.xsd), governed, as its own header says, by
+the W3C Software License of 1998
+(http://www.w3.org/Consortium/Legal/copyright-software-19980720), which reads:
+
+  W3C(R) SOFTWARE NOTICE AND LICENSE
+
+  Copyright (c) 1994-2002 World Wide Web Consortium, (Massachusetts Institute of Technology,
+  Institut National de Recherche en Informatique et en Automatique, Keio University). All Rights
+  Reserved. http://www.w3.org/Consortium/Legal/
+
+  This W3C work (including software, documents, or other related items) is being provided by the
+  copyright holders under the following license. By obtaining, using and/or copying this work, you
+  (the licensee) agree that you have read, understood, and will comply with the following terms
+  and conditions:
+
+  Permission to use, copy, modify, and distribute this software and its documentation, with or
+  without modification, for any purpose and without fee or royalty is hereby granted, provided
+  that you include the following on ALL copies of the software and documentation or portions
+  thereof, including modifications, that you make:
+
+  1. The full text of this NOTICE in a location viewable to users of the redistributed or
+     derivative work.
+  2. Any pre-existing intellectual property disclaimers, notices, or terms and conditions. If none
+     exist, a short notice of the following form (hypertext is preferred, text is permitted)
+     should be used within the body of any redistributed or derivative code: "Copyright (c)
+     [$date-of-software] World Wide Web Consortium, (Massachusetts Institute of Technology,
+     Institut National de Recherche en Informatique et en Automatique, Keio University). All
+     Rights Reserved. http://www.w3.org/Consortium/Legal/"
+  3. Notice of any changes or modifications to the W3C files, including the date changes were
+     made. (We recommend you provide URIs to the location from which the code is derived.)
+
+  THIS SOFTWARE AND DOCUMENTATION IS PROVIDED "AS IS," AND COPYRIGHT HOLDERS MAKE NO
+  REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO, WARRANTIES OF
+  MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE SOFTWARE OR
+  DOCUMENTATION WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.
+
+  COPYRIGHT HOLDERS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES
+  ARISING OUT OF ANY USE OF THE SOFTWARE OR DOCUMENTATION.
+
+  The name and trademarks of copyright holders may NOT be used in advertising or publicity
+  pertaining to the software without specific, written prior permission. Title to copyright in
+  this software and any associated documentation will at all times remain with copyright holders.
+
+The changes to that file are UBL's, recorded in its header: the PUBLIC and SYSTEM identifiers were
+removed from its DOCTYPE. This corpus copies UBL's file unchanged.

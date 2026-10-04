@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2405] (lossy): enum value 'Status.STATUS_FINISHED': alias of 'STATUS_DONE' dropped
+ --> s.proto:9:3
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

@@ -357,7 +357,7 @@ message Close {
   string id = 1;  // schemata: uuid
   string period = 2;  // schemata: string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
   .ledger.accounts.v1.Account account = 3;
-  .ledger.journal.v1.Entry last = 4;
+  .ledger.journal.v1.Entry last = 4;  // schemata: Entry?
 ```
 
 `reports.sql` carries that same reference as two foreign keys, one into each schema.
@@ -486,6 +486,83 @@ every record, since the import never adds `@sql(key)`; add keys by hand before c
 The proto, xsd, and jsonschema targets compile it as it stands. More generally, compiling an
 import's own `.schemata` output under the xsd target and importing that result again regenerates
 it byte for byte, with no diagnostics at all.
+
+## Import a proto
+
+`schemata import --from proto` reads `.proto` files the same way. Google's `google.type.Money`
+message is a small, real one: a currency code and an amount held as whole units and nanos. It sits
+in a directory laid out the way `protoc` expects, `google/type/money.proto`, beside a license
+header and the file options every Google API file carries.
+
+From `schemata-cli/src/test/resources/import/proto-money/google/type/money.proto`:
+```proto
+syntax = "proto3";
+
+package google.type;
+
+option go_package = "google.golang.org/genproto/googleapis/type/money;money";
+option java_multiple_files = true;
+option java_outer_classname = "MoneyProto";
+option java_package = "com.google.type";
+option objc_class_prefix = "GTP";
+
+// Represents an amount of money with its currency type.
+message Money {
+  // The three-letter currency code defined in ISO 4217.
+  string currency_code = 1;
+
+  // The whole units of the amount.
+  // For example if `currencyCode` is `"USD"`, then 1 unit is one US dollar.
+  int64 units = 2;
+```
+
+From the directory holding `google/`:
+
+```text
+java -jar schemata-<version>.jar import --from proto --out out google/type/money.proto
+```
+
+The file is named on its own, so its namespace comes from its `package`, `google.type`, which is
+already a namespace name; the import writes `out/import/google/type.schemata` and reports nothing:
+
+```text
+no diagnostics
+wrote 1 file to out/import
+```
+
+From `schemata-cli/src/test/resources/import/proto-money/expected/google/type.schemata`:
+```schemata
+/// Represents an amount of money with its currency type.
+record Money {
+  /// The three-letter currency code defined in ISO 4217.
+  #1 currency_code: string
+  /// The whole units of the amount.
+  /// For example if `currencyCode` is `"USD"`, then 1 unit is one US dollar.
+  #2 units:         int64
+  /// Number of nano (10^-9) units of the amount.
+  /// The value must be between -999,999,999 and +999,999,999 inclusive.
+  /// If `units` is positive, `nanos` must be positive or zero.
+  /// If `units` is zero, `nanos` can be positive, zero, or negative.
+  /// If `units` is negative, `nanos` must be negative or zero.
+  /// For example $-1.75 is represented as `units`=-1 and `nanos`=-750,000,000.
+  #3 nanos:         int32
+}
+```
+
+The field numbers are the ordinals and the comments are the docs. The `option` lines steer code
+generation in other languages and say nothing about the data, so they are ignored without a
+warning, and the license header, separated from the message by a blank line, is not a doc. The
+corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it: importing the
+directory holding `google/` instead finds two files under one root that declare
+`package google.type`, which `protoc` reads as one package, so they import as one namespace,
+`google.type`, in one file. Had `money.proto` been the only file there, it would have taken its path
+under that directory, `google.type.money`, and kept its package as
+`@proto(package = "google.type")`.
+
+Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
+`google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and
+section 18 of the reference lists what each construct becomes. Compiling the result under the
+proto target gives `message Money` back with the same fields, numbers, and comments.
 
 ## Keeping the examples current
 

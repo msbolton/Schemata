@@ -1,0 +1,36 @@
+@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2")
+namespace ubl_signature_aggregate_components_2_1
+
+import ubl_signature_basic_components_2_1
+import ubl_common_basic_components_2_1
+import ubl_xmldsig_core_schema_2_1
+import ubl_x_ad_e_sv132_2_1
+import ubl_x_ad_e_sv141_2_1
+
+/// ABIE
+/// Signature Information. Details
+/// This class captures a single signature and optionally associates to a signature in the document with the corresponding identifier.
+/// Signature Information
+@xsd(name = "SignatureInformation")
+record SignatureInformation {
+  /// BBIE
+  /// Signature Information. Identifier
+  /// This specifies the identifier of the signature distinguishing it from other signatures.
+  /// 0..1
+  /// Signature Information
+  /// Identifier
+  /// Identifier
+  /// Identifier. Type
+  @xsd(name = "ID") id:                      ubl_common_basic_components_2_1.ID?
+  /// BBIE
+  /// Signature Information. Referenced Signature Identifier. Identifier
+  /// This associates this signature with the identifier of a signature business object in the document.
+  /// 0..1
+  /// Signature Information
+  /// Referenced Signature Identifier
+  /// Identifier
+  /// Identifier. Type
+  @xsd(name = "ReferencedSignatureID") referenced_signature_id: ubl_signature_basic_components_2_1.ReferencedSignatureID?
+  /// This is a single digital signature as defined by the W3C specification.
+  @xsd(name = "Signature") signature:               ubl_xmldsig_core_schema_2_1.Signature?
+}

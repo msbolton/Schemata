@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2403] (lossy): column 'Orders.address': 'Address' is stored as json; its fields are not in the DDL
+ --> s.sql:3:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

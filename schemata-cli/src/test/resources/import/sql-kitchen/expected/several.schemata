@@ -1,0 +1,4 @@
+@sql(schema = "public")
+namespace several
+
+record Loose { a: int32? b: string? }

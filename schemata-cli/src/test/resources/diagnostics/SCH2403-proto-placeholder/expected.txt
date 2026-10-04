@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): enum 'Color': only value 'COLOR_UNSET' kept, as 'unset'; the regenerated enum spells it COLOR_UNSET beside the synthesized zero value
+ --> s.proto:6:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

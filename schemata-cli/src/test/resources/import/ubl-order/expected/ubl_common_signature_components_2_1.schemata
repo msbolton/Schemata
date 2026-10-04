@@ -1,0 +1,21 @@
+@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2")
+namespace ubl_common_signature_components_2_1
+
+import ubl_signature_aggregate_components_2_1
+
+/// ABIE
+/// UBL Document Signatures. Details
+/// This class collects all signature information for a document.
+/// UBL Document Signatures
+@xsd(name = "UBLDocumentSignatures")
+record UBLDocumentSignatures {
+  /// ASBIE
+  /// UBL Document Signatures. Signature Information
+  /// Each of these is scaffolding for a single digital signature.
+  /// 1..n
+  /// UBL Document Signatures
+  /// Signature Information
+  /// Signature Information
+  /// Signature Information
+  @xsd(name = "SignatureInformation") signature_information: list<ubl_signature_aggregate_components_2_1.SignatureInformation>(min = 1)
+}

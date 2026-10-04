@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package kitchen.maps;
+
+message Item {
+  string name = 1;
+}
+
+// Maps and lists.
+message Maps {
+  map<string, int32> counts = 1;
+  map<int64, Item> by_id = 2;
+  map<uint32, string> by_small = 3;
+  map<fixed64, string> by_big = 4;
+  map<sint32, string> by_signed = 5;
+  map<bool, string> flags = 6;
+  map<string, string> prices = 7;  // schemata: map<string, decimal(19, 4)>
+  repeated int32 sizes = 8 [packed = true];
+  repeated string limited = 9;  // schemata: list<string(max = 3)>(max = 2)
+  repeated Item items = 10;
+}

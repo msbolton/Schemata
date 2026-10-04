@@ -1,0 +1,6 @@
+# import=sql
+error[SCH2401]: column 'Orders.customer_id': foreign key references 's.customers', which is not in the inputs
+ --> s.sql:3:3
+  = help: add the schema that declares it to the inputs, or fix the reference
+
+1 error, 0 warnings

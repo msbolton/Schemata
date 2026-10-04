@@ -1,0 +1,6 @@
+namespace kitchen.services
+
+import kitchen.maps
+import kitchen.enums
+
+record Request { #1 item: kitchen.maps.Item }

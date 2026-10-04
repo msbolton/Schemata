@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): field 'Order.tag': default x has no Schemata literal; dropped
+ --> s.proto:6:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

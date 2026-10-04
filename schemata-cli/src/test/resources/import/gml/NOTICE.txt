@@ -1,0 +1,69 @@
+OGC Geography Markup Language (GML) 3.2.1 schemas, with the schemas they import, copied verbatim
+as test input for the XSD importer. Nothing in the copied files was changed; the one file not
+copied, iso19139-stub/gmd.xsd, is written for this corpus (see below).
+
+  *.xsd            https://schemas.opengis.net/gml/3.2.1/
+                   Copyright (c) 2007, 2010, 2016, 2018 Open Geospatial Consortium.
+                   OGC Software License, Version 1.0; see LICENSE.txt. OGC's terms:
+                   https://www.ogc.org/about-ogc/legal-notices-term-and-conditions/
+
+  xlink/xlink.xsd  https://www.w3.org/1999/xlink.xsd
+                   W3C XLink 1.1 schema, under the W3C Software and Document Notice and License,
+                   https://www.w3.org/copyright/software-license/
+
+  xml/xml.xsd      https://www.w3.org/2001/xml.xsd, imported by xlink.xsd and smil20.xsd
+                   W3C, under the W3C Software and Document Notice and License,
+                   https://www.w3.org/copyright/software-license/
+
+  smil/*.xsd       https://schemas.opengis.net/gml/3.1.1/smil/, imported by defaultStyle.xsd
+                   SMIL 2.0 schemas, Copyright 1998-2001 W3C (MIT, INRIA, Keio), as reorganised
+                   by OGC (see each file's header); W3C Software and Document Notice and License.
+
+  iso19139-stub/gmd.xsd
+                   Not a copy: a hand-written stub for the ISO/TS 19139:2007 gmd namespace that
+                   coordinateOperations.xsd and referenceSystems.xsd import, declaring only the
+                   three elements GML refers to (EX_Extent, CI_Citation,
+                   AbstractDQ_PositionalAccuracy) with empty content. The ISO 19139 schemas are
+                   not redistributable, so they are not included.
+
+xlink/xlink.xsd, xml/xml.xsd and smil/*.xsd are W3C works, under the W3C Software and Document
+Notice and License (https://www.w3.org/copyright/software-license/, the 2023 version,
+https://www.w3.org/copyright/software-license-2023/), which reads:
+
+  This work is being provided by the copyright holders under the following license.
+
+  License
+
+  By obtaining and/or copying this work, you (the licensee) agree that you have read, understood,
+  and will comply with the following terms and conditions.
+
+  Permission to copy, modify, and distribute this work, with or without modification, for any
+  purpose and without fee or royalty is hereby granted, provided that you include the following
+  on ALL copies of the work or portions thereof, including modifications:
+
+  - The full text of this NOTICE in a location viewable to users of the redistributed or
+    derivative work.
+  - Any pre-existing intellectual property disclaimers, notices, or terms and conditions. If none
+    exist, the W3C software and document short notice should be included.
+  - Notice of any changes or modifications, through a copyright statement on the new code or
+    document such as "This software or document includes material copied from or derived from
+    [title and URI of the W3C document]. Copyright (c) [$year-of-document] World Wide Web
+    Consortium. https://www.w3.org/copyright/software-license-2023/"
+
+  Disclaimers
+
+  THIS WORK IS PROVIDED "AS IS," AND COPYRIGHT HOLDERS MAKE NO REPRESENTATIONS OR WARRANTIES,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO, WARRANTIES OF MERCHANTABILITY OR FITNESS FOR
+  ANY PARTICULAR PURPOSE OR THAT THE USE OF THE SOFTWARE OR DOCUMENT WILL NOT INFRINGE ANY THIRD
+  PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.
+
+  COPYRIGHT HOLDERS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES
+  ARISING OUT OF ANY USE OF THE SOFTWARE OR DOCUMENT.
+
+  The name and trademarks of copyright holders may NOT be used in advertising or publicity
+  pertaining to the work without specific, written prior permission. Title to copyright in this
+  work will at all times remain with copyright holders.
+
+xlink.xsd and xml.xsd are copied unchanged from w3.org. The SMIL files are OGC's reorganisation of
+the W3C SMIL 2.0 schemas, with OGC's changes described in their own headers; they are copied
+unchanged from schemas.opengis.net.

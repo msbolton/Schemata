@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): enum 'Color': values renumbered; 0 is not a Schemata ordinal
+ --> s.proto:5:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

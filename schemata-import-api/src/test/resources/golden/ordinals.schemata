@@ -1,0 +1,19 @@
+@proto(package = "corp.orders.v1")
+namespace corp.orders
+
+/// An order.
+@deprecated
+record Order {
+  #1 id:     uuid
+  @deprecated #3 legacy: int32?
+
+  enum Status {
+    #1 pending
+    #2 paid
+    reserved #5..#6
+  }
+
+  reserved #2, #7..#9, "old_ref"
+}
+
+union Payment = #1 Order | #2 string

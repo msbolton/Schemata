@@ -1,0 +1,18 @@
+@proto(package = "kitchen.legacy")
+namespace kitchen.proto2
+
+/// A proto2 message with defaults, a group, and extensions.
+record Widget {
+  #1  id:          int32
+  #2  label:       string = "none"
+  #3  ratio:       float64 = 0.5
+  #4  enabled:     bool = true
+  #5  weight:      float32?
+  #6  count:       int32 = 16
+  #7  note:        string?
+  #9  values:      list<int32>
+  @deprecated
+  @proto(name = "legacyName")
+  #10 legacy_name: string?
+  reserved #20..#29, #40, "old_label"
+}
