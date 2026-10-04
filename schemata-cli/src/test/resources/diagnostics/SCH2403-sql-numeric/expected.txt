@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2403] (lossy): column 'Orders.total': numeric without precision imported as decimal(38, 9)
+ --> s.sql:3:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

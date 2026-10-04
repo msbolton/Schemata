@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package kitchen.wkt.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+// Every well-known type a field can name.
+message Event {
+  google.protobuf.Timestamp at = 1;
+  .google.protobuf.Duration took = 2;
+  google.protobuf.Timestamp ended = 3;  // schemata: instant?
+  google.protobuf.StringValue nickname = 4;
+  google.protobuf.Int64Value count = 5;
+  google.protobuf.UInt32Value small = 6;
+  google.protobuf.Any payload = 7;
+  google.protobuf.Struct attributes = 8;
+  google.protobuf.FieldMask mask = 9;
+  google.protobuf.Empty nothing = 10;
+  repeated google.protobuf.Timestamp history = 11;
+}

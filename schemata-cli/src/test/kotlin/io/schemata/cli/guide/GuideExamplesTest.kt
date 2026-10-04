@@ -7,7 +7,7 @@ import org.junit.jupiter.api.TestFactory
 
 /**
  * Every schema and rendered-output excerpt and quoted warning in examples.md is exactly what the
- * example directory holds.
+ * file it names holds, in the example directories or in the import corpus.
  */
 class GuideExamplesTest {
     private val text = File(Guide.dir, "examples.md").readText()
@@ -20,7 +20,7 @@ class GuideExamplesTest {
             .sortedBy { it.line }
             .map { block ->
                 DynamicTest.dynamicTest("examples.md:${block.line}") {
-                    val source = sourceFor(block.line, "From `examples/")
+                    val source = sourceFor(block.line, "From `")
                     val file = File(Guide.root, source).readText()
                     assertTrue(
                         contiguous(file, block.body),
@@ -33,7 +33,7 @@ class GuideExamplesTest {
     fun `quoted warnings exist in the warnings file`(): List<DynamicTest> =
         warningsBlocks().map { block ->
             DynamicTest.dynamicTest("examples.md:${block.line}") {
-                val source = sourceFor(block.line, "Warnings from `examples/")
+                val source = sourceFor(block.line, "Warnings from `")
                 val warnings = File(Guide.root, source).readLines()
                 block.body
                     .lines()
@@ -50,7 +50,7 @@ class GuideExamplesTest {
     @TestFactory
     fun `quoted warnings cover every distinct shape in their file`(): List<DynamicTest> =
         warningsBlocks()
-            .groupBy { sourceFor(it.line, "Warnings from `examples/") }
+            .groupBy { sourceFor(it.line, "Warnings from `") }
             .map { (source, blocks) ->
                 DynamicTest.dynamicTest("examples.md -> $source") {
                     val shapes =
@@ -75,7 +75,7 @@ class GuideExamplesTest {
             }
 
     private fun warningsBlocks() =
-        Guide.blocks(text, "text").filter { intro(it.line).startsWith("Warnings from `examples/") }
+        Guide.blocks(text, "text").filter { intro(it.line).startsWith("Warnings from `") }
 
     /** The message with the field name removed: the text after the first `: `. */
     private fun shape(line: String): String = line.substringAfter(": ")

@@ -1,0 +1,38 @@
+SCH2403 kitchen/services.proto: import public 'kitchen/enums.proto' re-exports nothing in Schemata
+SCH2403 kitchen/editions.proto: edition 2023 read as proto3; explicit presence assumed for optional fields only
+SCH2403 enum 'Level': zero value 'LEVEL_UNKNOWN' dropped; the regenerated enum names it 'LEVEL_UNSPECIFIED'
+SCH2403 enum 'Color': values renumbered; 0 is not a Schemata ordinal
+SCH2405 enum value 'Mode.MODE_QUICK': alias of 'MODE_FAST' dropped
+SCH2403 enum 'Legacy': reserved name 'OFF' imported as 'off'; the regenerated enum reserves 'LEGACY_OFF'
+SCH2404 field 'Maps.by_small': uint32 map key imported as int64
+SCH2404 field 'Maps.by_big': fixed64 map key imported as int64
+SCH2404 field 'Maps.by_signed': sint32 map key imported as int32
+SCH2405 field 'Maps.flags': map with a bool key dropped
+SCH2403 union 'Tender': oneof 'method' is named 'kind' in the regenerated message
+SCH2403 union 'Tender': member element 'by_card' has no Schemata equivalent; the regenerated oneof names it 'card'
+SCH2403 record 'Shipment': oneof 'destination' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 record 'Contact': oneof 'via' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 field 'Widget.weight': default inf has no Schemata literal; dropped
+SCH2405 field 'Widget.legacyName': json_name dropped
+SCH2405 message 'Widget': group dropped
+SCH2405 message 'Widget': extensions dropped
+SCH2405 kitchen/proto2.proto: extend dropped
+SCH2404 field 'Scalars.u32': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'Scalars.u64': uint64 imported as int64(min = 0); the top bit is lost
+SCH2404 field 'Scalars.s32': sint32 imported as int32
+SCH2404 field 'Scalars.s64': sint64 imported as int64
+SCH2404 field 'Scalars.f32': fixed32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'Scalars.f64': fixed64 imported as int64(min = 0); the top bit is lost
+SCH2404 field 'Scalars.sf32': sfixed32 imported as int32
+SCH2404 field 'Scalars.sf64': sfixed64 imported as int64
+SCH2403 field 'Scalars.broken': note 'uuid' does not fit int32; ignored
+SCH2403 field 'Scalars.unreadable': note 'string(' cannot be read; ignored
+SCH2405 service 'Orders': rpc 'Get' dropped; services arrive in a later version
+SCH2405 service 'Orders': rpc 'Watch' dropped; services arrive in a later version
+SCH2403 field 'Event.nickname': google.protobuf.StringValue imported as string?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Event.count': google.protobuf.Int64Value imported as int64?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Event.small': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2404 field 'Event.payload': google.protobuf.Any imported as bytes
+SCH2404 field 'Event.attributes': google.protobuf.Struct imported as string
+SCH2404 field 'Event.mask': google.protobuf.FieldMask imported as string
+SCH2404 field 'Event.nothing': google.protobuf.Empty imported as string

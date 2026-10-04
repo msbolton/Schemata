@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  uint64 total = 1;
+}

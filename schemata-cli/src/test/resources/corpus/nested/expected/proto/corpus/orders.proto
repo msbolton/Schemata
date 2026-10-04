@@ -7,7 +7,7 @@ import "corpus/people.proto";
 message Order {
   .corpus.people.Person customer = 1;
   repeated Line lines = 2;
-  Order parent = 3;
+  Order parent = 3;  // schemata: Order?
   Note note = 4;
   Kind kind = 5;
 

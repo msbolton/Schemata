@@ -1,0 +1,18 @@
+# import=proto
+warning[SCH2403] (lossy): union 'Payment': member element 'card' has no Schemata equivalent; the regenerated oneof names it 'string'
+ --> s.proto:7:5
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2405] (lossy): field 'Payment.card': deprecated dropped; a union member cannot be deprecated
+ --> s.proto:7:5
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2403] (lossy): union 'Payment': member element 'cash' has no Schemata equivalent; the regenerated oneof names it 'int64'
+ --> s.proto:8:5
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2405] (lossy): field 'Payment.cash': default dropped; a union member has none
+ --> s.proto:8:5
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 4 warnings

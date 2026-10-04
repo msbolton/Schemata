@@ -1,0 +1,5 @@
+namespace billing
+
+import audit
+
+record Invoice { @sql(key) id: uuid event: audit.Event? }

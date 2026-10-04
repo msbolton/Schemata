@@ -1,0 +1,106 @@
+@proto(package = "k8s.io.api.core.v1")
+namespace k8s_io.api.core.v1.generated
+
+/// ObjectMeta is metadata that all persisted resources must have.
+record ObjectMeta {
+  /// Name must be unique within a namespace.
+  /// +optional
+  #1  name:             string?
+  /// Namespace defines the space within which each name must be unique.
+  /// +optional
+  @proto(name = "namespace") #3  namespace_value:  string?
+  /// An opaque value that represents the internal version of this object.
+  /// +optional
+  @proto(name = "resourceVersion") #6  resource_version: string?
+  /// A sequence number representing a specific generation of the desired state.
+  /// +optional
+  #7  generation:       int64?
+  /// Map of string keys and values that can be used to organize and categorize objects.
+  /// +optional
+  #11 labels:           map<string, string>
+  /// +optional
+  #12 annotations:      map<string, string>
+}
+
+/// URIScheme identifies the scheme used for connection to a host for Get actions.
+enum URIScheme { @proto(name = "HTTP") http, @proto(name = "HTTPS") https }
+
+/// ExecAction describes a "run in container" action.
+record ExecAction {
+  /// Command is the command line to execute inside the container.
+  /// +optional
+  #1 command: list<string>
+}
+
+/// HTTPGetAction describes an action based on HTTP Get requests.
+record HTTPGetAction {
+  /// Path to access on the HTTP server.
+  /// +optional
+  #1 path:   string?
+  /// Number of the port to access on the container.
+  #2 port:   int32 = 80
+  /// Host name to connect to, defaults to the pod IP.
+  /// +optional
+  #3 host:   string?
+  /// Scheme to use for connecting to the host.
+  /// +optional
+  #4 scheme: URIScheme = http
+}
+
+/// TCPSocketAction describes an action based on opening a socket.
+record TCPSocketAction {
+  #1 port: int32?
+  /// +optional
+  #2 host: string?
+}
+
+/// Probe describes a health check to be performed against a container.
+record Probe {
+  #1 exec:                  ExecAction?
+  @proto(name = "httpGet") #2 http_get:              HTTPGetAction?
+  @proto(name = "tcpSocket") #3 tcp_socket:            TCPSocketAction?
+  /// Number of seconds after the container has started before probes are initiated.
+  /// +optional
+  @proto(name = "initialDelaySeconds") #4 initial_delay_seconds: int32?
+  /// Minimum consecutive failures for the probe to be considered failed.
+  /// +optional
+  @proto(name = "failureThreshold") #7 failure_threshold:     int32 = 3
+}
+
+/// ContainerPort represents a network port in a single container.
+record ContainerPort {
+  /// +optional
+  #1 name:           string?
+  /// Number of port to expose on the host.
+  /// +optional
+  @proto(name = "hostPort") #2 host_port:      int32?
+  /// Number of port to expose on the pod's IP address.
+  @proto(name = "containerPort") #3 container_port: int32?
+  /// Protocol for port. Must be UDP, TCP, or SCTP.
+  /// +optional
+  #4 protocol:       string = "TCP"
+}
+
+/// A single application container that you want to run within a pod.
+record Container {
+  #1  name:              string?
+  /// Container image name.
+  /// +optional
+  #2  image:             string?
+  /// Entrypoint array.
+  /// +optional
+  #3  command:           list<string>
+  /// +optional
+  #6  ports:             list<ContainerPort>
+  /// Periodic probe of container liveness.
+  /// +optional
+  @proto(name = "livenessProbe") #10 liveness_probe:    Probe?
+  /// +optional
+  @proto(name = "imagePullPolicy") #14 image_pull_policy: string = "IfNotPresent"
+  /// Whether this container should allocate a TTY for itself.
+  /// +optional
+  #18 tty:               bool = false
+}
+
+/// A pod's metadata and containers.
+record Pod { #1 metadata: ObjectMeta? #2 containers: list<Container> }

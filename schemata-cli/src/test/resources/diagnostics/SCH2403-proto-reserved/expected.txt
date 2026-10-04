@@ -1,0 +1,14 @@
+# import=proto
+warning[SCH2403] (lossy): enum 'Color': reserved numbers below 1 dropped; Schemata ordinals start at 1
+ --> s.proto:8:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): enum 'Color': reserved name 'Blue' imported as 'blue'; the regenerated enum reserves 'COLOR_BLUE'
+ --> s.proto:9:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): record 'Paint': reserved name 'oldName' imported as 'old_name'
+  --> s.proto:14:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 3 warnings

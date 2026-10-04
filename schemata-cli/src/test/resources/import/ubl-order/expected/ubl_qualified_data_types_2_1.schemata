@@ -1,0 +1,4 @@
+@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:QualifiedDataTypes-2")
+namespace ubl_qualified_data_types_2_1
+
+import ubl_unqualified_data_types_2_1

@@ -1,0 +1,2 @@
+namespace s
+record R { @xsd(any) #1 count: int32 }

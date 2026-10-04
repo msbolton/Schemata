@@ -8,7 +8,10 @@ import kotlin.test.assertEquals
 class CatalogStyleTest {
     private fun all() =
         Fixture.all().flatMap { f ->
-            Pipeline.check(f.sources, f.targets, f.strict).diagnostics.map { f.name to it }
+            val diagnostics =
+                if (f.foreign.isNotEmpty()) f.importDiagnostics()
+                else Pipeline.check(f.sources, f.targets, f.strict).diagnostics
+            diagnostics.map { f.name to it }
         }
 
     @Test

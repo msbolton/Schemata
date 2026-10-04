@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  string id = 1;
+  oneof contact {
+    string email = 2;
+    string phone = 3;
+  }
+}

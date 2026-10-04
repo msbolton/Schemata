@@ -1,23 +1,26 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportCodes
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import java.io.IOException
 import java.io.StringReader
+import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
 import org.xml.sax.InputSource
 import org.xml.sax.Locator
 import org.xml.sax.SAXException
 import org.xml.sax.SAXParseException
-import org.xml.sax.helpers.DefaultHandler
+import org.xml.sax.ext.DefaultHandler2
 
 data class ReadResult(val doc: XsdDoc?, val diagnostics: List<Diagnostic>)
 
 /** Reads one `.xsd` into an [XsdDoc]; only the XML Schema vocabulary is kept, with line numbers. */
 object XsdReader {
     const val XS = "http://www.w3.org/2001/XMLSchema"
+    private const val XML = "http://www.w3.org/XML/1998/namespace"
 
     fun read(path: String, text: String): ReadResult {
         val tree =
@@ -62,6 +65,23 @@ object XsdReader {
         val children = mutableListOf<Node>()
         val text = StringBuilder()
 
+        /** How much of its parent's [text] had been read when this node began. */
+        var offset = 0
+
+        /**
+         * All the character data under this node in document order, its own and its descendants',
+         * as an XPath string value: markup inside a documentation node keeps its words.
+         */
+        fun deepText(): String = buildString {
+            var at = 0
+            children.forEach { c ->
+                append(text, at, c.offset)
+                append(c.deepText())
+                at = c.offset
+            }
+            append(text, at, text.length)
+        }
+
         fun attr(name: String): String? = attrs[name]
 
         fun child(local: String): Node? = children.firstOrNull { it.ns == XS && it.local == local }
@@ -71,28 +91,40 @@ object XsdReader {
 
         /**
          * `tns:Foo` → QName(uri of tns, Foo); an unprefixed name takes the default namespace, or
-         * null when there is none or `xmlns=""` undeclared it.
+         * null when there is none or `xmlns=""` undeclared it. The `xml` prefix is bound in every
+         * document without a declaration, so `xml:lang` names the XML namespace's `lang`.
          */
         fun qname(value: String): QName {
             val i = value.indexOf(':')
-            val uri = if (i < 0) prefixes[""] else prefixes[value.substring(0, i)]
+            val prefix = if (i < 0) "" else value.substring(0, i)
+            val uri = prefixes[prefix] ?: if (prefix == "xml") XML else null
             return QName(uri?.ifEmpty { null }, if (i < 0) value else value.substring(i + 1))
         }
     }
 
     private fun parse(path: String, text: String): Node {
-        // A schema never needs a document type declaration, and an external entity would read
-        // whatever file or URL it names, so both are refused outright.
+        // A document type declaration is read only for its internal subset (some published
+        // schemas carry one): nothing external is ever loaded, a DOCTYPE naming an external DTD is
+        // refused outright, and secure processing caps how far internal entities may expand.
         val factory =
             SAXParserFactory.newInstance().apply {
                 isNamespaceAware = true
-                setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
+                setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+                setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
                 setFeature("http://xml.org/sax/features/external-general-entities", false)
                 setFeature("http://xml.org/sax/features/external-parameter-entities", false)
             }
         val handler =
-            object : DefaultHandler() {
+            object : DefaultHandler2() {
                 lateinit var locator: Locator
+
+                override fun startDTD(name: String?, publicId: String?, systemId: String?) {
+                    if (publicId != null || systemId != null) {
+                        throw SAXParseException("external DTD refused", locator)
+                    }
+                }
+
                 val stack = ArrayDeque<Node>()
                 var root: Node? = null
                 val scope =
@@ -121,7 +153,11 @@ object XsdReader {
                     pending.clear()
                     val node =
                         Node(uri.ifEmpty { null }, localName, attrs, locator.lineNumber, prefixes)
-                    if (stack.isEmpty()) root = node else stack.last().children += node
+                    if (stack.isEmpty()) root = node
+                    else {
+                        node.offset = stack.last().text.length
+                        stack.last().children += node
+                    }
                     stack.addLast(node)
                     scope.addLast(HashMap(prefixes))
                 }
@@ -135,12 +171,21 @@ object XsdReader {
                     stack.lastOrNull()?.text?.append(ch, start, length)
                 }
             }
-        factory.newSAXParser().parse(InputSource(StringReader(text)), handler)
+        factory
+            .newSAXParser()
+            .apply { setProperty("http://xml.org/sax/properties/lexical-handler", handler) }
+            .parse(InputSource(StringReader(text)), handler)
         return handler.root ?: error("no root element in $path")
     }
 
     internal class Builder(private val path: String, private val root: Node) {
         val diagnostics = mutableListOf<Diagnostic>()
+
+        // the children of a restriction that are not facets
+        private val nonFacets = setOf("simpleType", "annotation")
+
+        // the children of a simpleContent derivation that declare attributes rather than facets
+        private val attributeChildren = setOf("attribute", "attributeGroup", "anyAttribute")
 
         fun doc(): XsdDoc =
             XsdDoc(
@@ -151,7 +196,17 @@ object XsdReader {
                     root.children("import").map {
                         XImport(it.attr("namespace"), it.attr("schemaLocation"), it.line)
                     },
-                includes = root.children("include").mapNotNull { it.attr("schemaLocation") },
+                // A redefine or override also brings in the document it names; what it changes in
+                // that document is dropped (and reported) by the importer.
+                includes =
+                    root.children
+                        .filter {
+                            it.ns == XS &&
+                                (it.local == "include" ||
+                                    it.local == "redefine" ||
+                                    it.local == "override")
+                        }
+                        .mapNotNull { it.attr("schemaLocation") },
                 complexTypes =
                     root.children("complexType").mapNotNull { n ->
                         required(n, "name")?.let { complexType(n) }
@@ -167,11 +222,13 @@ object XsdReader {
                     },
                 groups =
                     root.children("group").mapNotNull { n ->
-                        required(n, "name")?.let { XGroup(it, modelGroup(n), n.line) }
+                        required(n, "name")?.let { XGroup(it, modelGroup(n), n.line, path) }
                     },
                 attributeGroups =
                     root.children("attributeGroup").mapNotNull { n ->
-                        required(n, "name")?.let { XAttributeGroup(it, attributeUses(n), n.line) }
+                        required(n, "name")?.let {
+                            XAttributeGroup(it, attributeUses(n), n.line, path)
+                        }
                     },
                 dropped =
                     root.children
@@ -182,6 +239,10 @@ object XsdReader {
                                     it.local == "notation")
                         }
                         .map { "xs:${it.local}" to it.line },
+                elementFormDefault = root.attr("elementFormDefault"),
+                attributeFormDefault = root.attr("attributeFormDefault"),
+                blockDefault = root.attr("blockDefault"),
+                finalDefault = root.attr("finalDefault"),
             )
 
         /**
@@ -204,15 +265,14 @@ object XsdReader {
 
         /**
          * The text of every `xs:documentation` under this node's `xs:annotation`, trimmed and
-         * joined by blank lines. Each line loses its leading whitespace: a schema indents its
-         * documentation to suit its own layout, which means nothing once it is a doc comment.
+         * joined by blank lines; markup inside one (XHTML, say) gives up its text in place. Each
+         * line loses its leading whitespace: a schema indents its documentation to suit its own
+         * layout, which means nothing once it is a doc comment.
          */
         private fun documentation(n: Node): String? =
             n.child("annotation")
                 ?.children("documentation")
-                ?.map { d ->
-                    d.text.toString().trim().lines().joinToString("\n") { it.trimStart() }
-                }
+                ?.map { d -> d.deepText().trim().lines().joinToString("\n") { it.trimStart() } }
                 ?.filter { it.isNotEmpty() }
                 ?.takeIf { it.isNotEmpty() }
                 ?.joinToString("\n\n")
@@ -235,9 +295,13 @@ object XsdReader {
                 documentation(n),
                 content,
                 attrs,
-                n.attr("mixed") == "true",
+                // mixed content may be declared on the type or on its complexContent
+                n.attr("mixed") == "true" || n.child("complexContent")?.attr("mixed") == "true",
                 n.attr("abstract") == "true",
                 n.line,
+                path = path,
+                block = n.attr("block"),
+                final = n.attr("final"),
             )
         }
 
@@ -258,8 +322,10 @@ object XsdReader {
                     XContent.Empty -> emptyList()
                     else -> listOf(XParticle.Nested(group, 1, 1, d.line))
                 }
-            return if (ext != null) XContent.Extension(d.qname(base), particles, simple, d.line)
-            else XContent.Restriction(d.qname(base), particles, simple, d.line)
+            val facets = if (simple) facets(d, nonFacets + attributeChildren) else emptyList()
+            return if (ext != null)
+                XContent.Extension(d.qname(base), particles, simple, d.line, facets)
+            else XContent.Restriction(d.qname(base), particles, simple, d.line, facets)
         }
 
         /**
@@ -288,7 +354,16 @@ object XsdReader {
                 .mapNotNull { c ->
                     when (c.local) {
                         "element" -> element(c)?.let { XParticle.Element(it) }
-                        "any" -> XParticle.Any(c.line)
+                        "any" -> {
+                            val (min, max) = occurs(c)
+                            XParticle.Any(
+                                c.line,
+                                min,
+                                max,
+                                c.attr("namespace"),
+                                c.attr("processContents"),
+                            )
+                        }
                         "group" -> groupRef(c)
                         "sequence",
                         "choice",
@@ -395,6 +470,10 @@ object XsdReader {
                             XIdentityConstraint(it.attr("name") ?: "", it.line)
                         },
                 line = n.line,
+                path = path,
+                form = n.attr("form"),
+                block = n.attr("block"),
+                final = n.attr("final"),
             )
         }
 
@@ -406,7 +485,12 @@ object XsdReader {
                         "attribute" -> XAttributeUse.Attribute(attribute(c))
                         "attributeGroup" ->
                             required(c, "ref")?.let { XAttributeUse.GroupRef(c.qname(it), c.line) }
-                        "anyAttribute" -> XAttributeUse.AnyAttribute(c.line)
+                        "anyAttribute" ->
+                            XAttributeUse.AnyAttribute(
+                                c.line,
+                                c.attr("namespace"),
+                                c.attr("processContents"),
+                            )
                         else -> null
                     }
                 }
@@ -422,7 +506,17 @@ object XsdReader {
                 n.attr("fixed"),
                 documentation(n),
                 n.line,
+                form = n.attr("form"),
             )
+
+        /**
+         * The facets under a restriction (or a simpleContent derivation) [d]: every XML Schema
+         * child except those named in [skip].
+         */
+        private fun facets(d: Node, skip: Set<String>): List<XFacet> =
+            d.children
+                .filter { it.ns == XS && it.local !in skip }
+                .map { f -> XFacet(f.local, f.attr("value") ?: "", documentation(f), f.line) }
 
         private fun simpleType(n: Node): XSimpleType {
             val variety: XVariety =
@@ -430,26 +524,26 @@ object XsdReader {
                     XVariety.Restriction(
                         r.attr("base")?.let(r::qname),
                         r.child("simpleType")?.let { simpleType(it) },
-                        r.children
-                            .filter {
-                                it.ns == XS && it.local != "simpleType" && it.local != "annotation"
-                            }
-                            .map { f ->
-                                XFacet(f.local, f.attr("value") ?: "", documentation(f), f.line)
-                            },
+                        facets(r, nonFacets),
                     )
                 }
-                    ?: n.child("list")?.let { XVariety.ListOf(it.attr("itemType")?.let(it::qname)) }
+                    ?: n.child("list")?.let {
+                        XVariety.ListOf(
+                            it.attr("itemType")?.let(it::qname),
+                            it.child("simpleType")?.let { s -> simpleType(s) },
+                        )
+                    }
                     ?: n.child("union")?.let { u ->
                         XVariety.Union(
                             (u.attr("memberTypes") ?: "")
                                 .split(' ')
                                 .filter { it.isNotEmpty() }
-                                .map(u::qname)
+                                .map(u::qname),
+                            u.children("simpleType").map { simpleType(it) },
                         )
                     }
                     ?: XVariety.Restriction(null, null, emptyList())
-            return XSimpleType(n.attr("name"), documentation(n), variety, n.line)
+            return XSimpleType(n.attr("name"), documentation(n), variety, n.line, path)
         }
     }
 }

@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package Shop.Orders;
+
+message Line {
+  string sku = 1;
+}

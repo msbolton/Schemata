@@ -1,0 +1,10 @@
+# import=sql
+warning[SCH2403] (lossy): column 'Orders.qty': note 'int32(' does not read as a type; ignored
+ --> s.sql:3:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): column 'Orders.sku': note 'list<string>' does not fit a text column; ignored
+ --> s.sql:4:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

@@ -32,7 +32,7 @@ object XsdCodes {
             "SCH2204",
             Severity.ERROR,
             Category.SEMANTIC,
-            "@xsd(attribute) is on a field that cannot be an attribute",
+            "an @xsd representation key is on a field that cannot take it",
         )
     val INVALID_OVERRIDE =
         DiagnosticCode(

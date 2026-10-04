@@ -1,0 +1,88 @@
+@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2")
+namespace ubl_signature_basic_components_2_1
+
+import ubl_qualified_data_types_2_1
+import ubl_unqualified_data_types_2_1
+
+@xsd(name = "ReferencedSignatureID")
+record ReferencedSignatureID {
+  value:              string
+  /// UNDT000011-SC2
+  /// SC
+  /// Identification Scheme. Identifier
+  /// The identification of the identification scheme.
+  /// Identification Scheme
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "schemeID")
+  @xsd(attribute)
+  scheme_id:          string?
+  /// UNDT000011-SC3
+  /// SC
+  /// Identification Scheme. Name. Text
+  /// The name of the identification scheme.
+  /// Identification Scheme
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "schemeName")
+  @xsd(attribute)
+  scheme_name:        string?
+  /// UNDT000011-SC4
+  /// SC
+  /// Identification Scheme Agency. Identifier
+  /// The identification of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "schemeAgencyID")
+  @xsd(attribute)
+  scheme_agency_id:   string?
+  /// UNDT000011-SC5
+  /// SC
+  /// Identification Scheme Agency. Name. Text
+  /// The name of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "schemeAgencyName")
+  @xsd(attribute)
+  scheme_agency_name: string?
+  /// UNDT000011-SC6
+  /// SC
+  /// Identification Scheme. Version. Identifier
+  /// The version of the identification scheme.
+  /// Identification Scheme
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "schemeVersionID")
+  @xsd(attribute)
+  scheme_version_id:  string?
+  /// UNDT000011-SC7
+  /// SC
+  /// Identification Scheme Data. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme data is located.
+  /// Identification Scheme Data
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeDataURI")
+  @xsd(attribute)
+  scheme_data_uri:    string?
+  /// UNDT000011-SC8
+  /// SC
+  /// Identification Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme is located.
+  /// Identification Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeURI")
+  @xsd(attribute)
+  scheme_uri:         string?
+}

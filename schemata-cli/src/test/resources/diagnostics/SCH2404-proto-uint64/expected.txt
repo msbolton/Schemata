@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2404] (lossy): field 'Order.total': uint64 imported as int64(min = 0); the top bit is lost
+ --> s.proto:6:3
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 1 warning

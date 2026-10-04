@@ -1,0 +1,7 @@
+edition = "2023";
+
+package kitchen.editions;
+
+message Note {
+  string text = 1;
+}

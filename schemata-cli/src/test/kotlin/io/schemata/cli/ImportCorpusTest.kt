@@ -1,6 +1,8 @@
 package io.schemata.cli
 
-import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.ImportInput
+import io.schemata.importer.proto.ProtoImporter
+import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
 import io.schemata.target.jsonschema.JsonSchemaTarget
@@ -13,18 +15,24 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every `src/test/resources/import/<case>/` directory imports its `.xsd` files into exactly its
- * `expected/` tree, reports exactly the warnings in `expected/import-warnings.txt` (none when the
- * file is absent), and compiles under proto, xsd, and jsonschema without errors; the sql target
- * cannot carry a key the xsd never declared, so it is checked separately, only for errors other
- * than a missing key. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree and the warnings.
+ * Every `src/test/resources/import/<case>/` directory imports the `.xsd`, `.proto`, or `.sql` files
+ * under it (named by their path relative to the case, `expected/` aside, which is also a proto or
+ * sql file's path under its root; an include or import outside the inputs is read from the case
+ * directory too) into exactly its `expected/` tree, reports exactly the warnings in
+ * `expected/import-warnings.txt` (none when the file is absent) and no error, since an import that
+ * reports one writes nothing, and compiles under proto, xsd, and jsonschema without errors. The sql
+ * target cannot carry a key the xsd never declared, nor some shapes it documents as beyond it, so
+ * its errors other than a missing key are compared with `expected/sql-errors.txt` (none when
+ * absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the warnings, and the sql errors.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
     private val update = System.getenv("SCHEMATA_GOLDEN_UPDATE") == "1"
+    private val goldenTexts = setOf("import-warnings.txt", "sql-errors.txt")
 
     @TestFactory
     fun `import corpus cases render their expected tree and compile under every target`():
@@ -35,12 +43,43 @@ class ImportCorpusTest {
             .map { case -> DynamicTest.dynamicTest(case.name) { check(case) } }
 
     private fun check(case: File) {
-        val inputs =
+        val sources =
             case
-                .listFiles { f -> f.extension == "xsd" }!!
-                .sortedBy { it.name }
-                .map { ImportInput(it.name, it.readText()) }
-        val result = XsdImporter.import(inputs)
+                .walkTopDown()
+                .filter {
+                    it.isFile &&
+                        it.extension in setOf("xsd", "proto", "sql") &&
+                        !it.relativeTo(case).path.startsWith("expected")
+                }
+                .sortedBy { it.relativeTo(case).path }
+                .toList()
+        val extensions = sources.map { it.extension }.toSet()
+        check(extensions.size == 1) {
+            "${case.name} must hold .xsd, .proto, or .sql inputs, one kind only: $extensions"
+        }
+        val format = extensions.single()
+        val inputs =
+            sources.map {
+                val path = it.relativeTo(case).path.replace(File.separatorChar, '/')
+                ImportInput(path, it.readText(), if (format == "xsd") null else path)
+            }
+        val importer =
+            when (format) {
+                "proto" -> ProtoImporter
+                "sql" -> SqlImporter
+                else -> XsdImporter
+            }
+        val result =
+            importer.import(inputs, null) { path ->
+                File(case, path).takeIf { it.isFile }?.let { ImportInput(path, it.readText()) }
+            }
+        assertFalse(
+            result.diagnostics.any { it.severity == Severity.ERROR },
+            "${case.name} imports without errors: " +
+                result.diagnostics
+                    .filter { it.severity == Severity.ERROR }
+                    .joinToString("\n") { "${it.code.id} ${it.message}" },
+        )
         val actual = result.files.associate { it.path to it.content }
         val expectedDir = File(case, "expected")
         if (update) {
@@ -55,7 +94,7 @@ class ImportCorpusTest {
         val expected =
             expectedDir
                 .walkTopDown()
-                .filter { it.isFile && it.name != "import-warnings.txt" }
+                .filter { it.isFile && it.name !in goldenTexts }
                 .associate {
                     it.relativeTo(expectedDir).path.replace(File.separatorChar, '/') to
                         it.readText()
@@ -78,8 +117,8 @@ class ImportCorpusTest {
             warnings,
             "import warnings for ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
         )
-        val sources = result.files.map { SourceInput(it.path, it.content) }
-        val noSql = Pipeline.compile(sources, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
+        val imported = result.files.map { SourceInput(it.path, it.content) }
+        val noSql = Pipeline.compile(imported, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
         assertFalse(
             noSql.hasErrors,
             "imported ${case.name} under proto, xsd, and jsonschema: " +
@@ -88,13 +127,36 @@ class ImportCorpusTest {
                     .joinToString("\n") { "${it.code.id} ${it.message}" },
         )
         val sqlErrors =
-            Pipeline.compile(sources, listOf(SqlTarget)).diagnostics.filter {
-                it.severity == Severity.ERROR
-            }
-        assertTrue(
-            sqlErrors.all { it.code == SqlCodes.MISSING_KEY },
-            "imported ${case.name} under sql had an error other than a missing key: " +
-                sqlErrors.joinToString("\n") { "${it.code.id} ${it.message}" },
+            Pipeline.compile(imported, listOf(SqlTarget))
+                .diagnostics
+                .filter { it.severity == Severity.ERROR && it.code != SqlCodes.MISSING_KEY }
+                .joinToString("") { "${it.code.id} ${it.message}\n" }
+        val sqlErrorsFile = File(expectedDir, "sql-errors.txt")
+        if (update) {
+            if (sqlErrors.isEmpty()) sqlErrorsFile.delete() else sqlErrorsFile.writeText(sqlErrors)
+        }
+        assertEquals(
+            if (sqlErrorsFile.isFile) sqlErrorsFile.readText() else "",
+            sqlErrors,
+            "sql errors other than a missing key for ${case.name}; " +
+                "run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
         )
+    }
+
+    /**
+     * The same schema hand-written and as pg_dump writes it imports to the same Schemata: only the
+     * warnings may differ.
+     */
+    @Test
+    fun `a hand written schema and its dump import alike`() {
+        fun tree(case: String): Map<String, String> {
+            val dir = File(root, "$case/expected")
+            return dir.walkTopDown()
+                .filter { it.isFile && it.name !in goldenTexts }
+                .associate { it.relativeTo(dir).path to it.readText() }
+        }
+        val hand = tree("sql-handwritten")
+        assertTrue(hand.isNotEmpty(), "sql-handwritten has an expected tree")
+        assertEquals(hand, tree("sql-dump"))
     }
 }

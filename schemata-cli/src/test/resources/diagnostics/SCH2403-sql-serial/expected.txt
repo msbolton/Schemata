@@ -1,0 +1,10 @@
+# import=sql
+warning[SCH2403] (lossy): column 'Orders.id': serial generation dropped
+ --> s.sql:2:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2404] (lossy): column 'Orders.id': serial imported as int32 with @sql(type)
+ --> s.sql:2:3
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 2 warnings

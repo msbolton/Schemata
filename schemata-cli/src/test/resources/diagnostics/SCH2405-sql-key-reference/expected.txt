@@ -1,0 +1,6 @@
+# import=sql
+warning[SCH2405] (lossy): table 'profile': foreign key over (customer_id) dropped; a key field cannot be a reference
+ --> s.sql:2:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

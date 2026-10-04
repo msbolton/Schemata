@@ -15,8 +15,8 @@ object XsdRenderer {
             append("\n           xmlns:${it.prefix}=\"${escapeAttribute(it.namespace)}\"")
         }
         append("\n           targetNamespace=\"${escapeAttribute(file.targetNamespace)}\"")
-        append("\n           elementFormDefault=\"qualified\"")
-        appendLine("\n           attributeFormDefault=\"unqualified\">")
+        append("\n           elementFormDefault=\"${file.elementFormDefault}\"")
+        appendLine("\n           attributeFormDefault=\"${file.attributeFormDefault}\">")
         file.imports.forEach {
             appendLine(
                 "  <xs:import namespace=\"${escapeAttribute(it.namespace)}\" schemaLocation=\"${escapeAttribute(it.schemaLocation)}\"/>"
@@ -30,9 +30,10 @@ object XsdRenderer {
     private fun type(t: XsdType, indent: String): String = buildString {
         when (t) {
             is XsdComplex -> {
-                appendLine("$indent<xs:complexType name=\"${t.name}\">")
+                val mixed = if (t.mixed) " mixed=\"true\"" else ""
+                appendLine("$indent<xs:complexType name=\"${t.name}\"$mixed>")
                 doc(t.doc, "$indent  ")
-                append(sequence(t.sequence, t.attributes, "$indent  "))
+                append(sequence(t.sequence, t.attributes, t.anyAttribute, "$indent  ", t.all))
                 appendLine("$indent</xs:complexType>")
             }
             is XsdChoice -> {
@@ -67,21 +68,44 @@ object XsdRenderer {
     }
 
     /**
-     * `<xs:sequence>…</xs:sequence>` then attributes; an empty sequence still prints an empty
-     * `xs:sequence`.
+     * `<xs:sequence>…</xs:sequence>` (`xs:all` when [all]), then attributes, then the attribute
+     * wildcard; an empty group still prints as an empty element.
      */
     private fun sequence(
-        elements: List<XsdElement>,
+        particles: List<XsdParticle>,
         attributes: List<XsdAttribute>,
+        anyAttribute: XsdAnyAttribute?,
         indent: String,
+        all: Boolean = false,
     ): String = buildString {
-        if (elements.isEmpty()) appendLine("$indent<xs:sequence/>")
+        val group = if (all) "xs:all" else "xs:sequence"
+        if (particles.isEmpty()) appendLine("$indent<$group/>")
         else {
-            appendLine("$indent<xs:sequence>")
-            elements.forEach { append(element(it, "$indent  ")) }
-            appendLine("$indent</xs:sequence>")
+            appendLine("$indent<$group>")
+            particles.forEach {
+                when (it) {
+                    is XsdElement -> append(element(it, "$indent  "))
+                    is XsdAny -> append(any(it, "$indent  "))
+                }
+            }
+            appendLine("$indent</$group>")
         }
         attributes.forEach { append(attribute(it, indent)) }
+        anyAttribute?.let { a ->
+            val namespace = a.namespace?.let { " namespace=\"${escapeAttribute(it)}\"" } ?: ""
+            appendLine(
+                "$indent<xs:anyAttribute$namespace processContents=\"${a.processContents}\"/>"
+            )
+        }
+    }
+
+    /** `xs:any`, its occurrence bounds printed only when they are not XSD's default of 1. */
+    private fun any(a: XsdAny, indent: String): String = buildString {
+        append("$indent<xs:any")
+        if (a.minOccurs != 1) append(" minOccurs=\"${a.minOccurs}\"")
+        if (a.maxOccurs != 1) append(" maxOccurs=\"${a.maxOccurs ?: "unbounded"}\"")
+        a.namespace?.let { append(" namespace=\"${escapeAttribute(it)}\"") }
+        appendLine(" processContents=\"${a.processContents}\"/>")
     }
 
     private fun element(e: XsdElement, indent: String): String = buildString {
@@ -104,10 +128,11 @@ object XsdRenderer {
             is XsdTypeRef.Restricted -> append(restriction(t, "$indent  "))
             is XsdTypeRef.Anonymous -> {
                 appendLine("$indent  <xs:complexType>")
-                append(sequence(t.sequence, t.attributes, "$indent    "))
+                append(sequence(t.sequence, t.attributes, null, "$indent    "))
                 appendLine("$indent  </xs:complexType>")
             }
             is XsdTypeRef.Extension -> append(extension(t, "$indent  "))
+            is XsdTypeRef.ListOf -> append(list(t, "$indent  "))
             is XsdTypeRef.Builtin,
             is XsdTypeRef.Named -> Unit
         }
@@ -127,14 +152,18 @@ object XsdRenderer {
             if (a.required) append(" use=\"required\"")
             a.default?.let { append(" default=\"${escapeAttribute(it)}\"") }
         }
-        val restricted = a.type as? XsdTypeRef.Restricted
-        if (a.doc == null && restricted == null) {
+        val inline = a.type is XsdTypeRef.Restricted || a.type is XsdTypeRef.ListOf
+        if (a.doc == null && !inline) {
             appendLine("$indent<xs:attribute$attrs/>")
             return@buildString
         }
         appendLine("$indent<xs:attribute$attrs>")
         doc(a.doc, "$indent  ")
-        restricted?.let { append(restriction(it, "$indent  ")) }
+        when (val t = a.type) {
+            is XsdTypeRef.Restricted -> append(restriction(t, "$indent  "))
+            is XsdTypeRef.ListOf -> append(list(t, "$indent  "))
+            else -> Unit
+        }
         appendLine("$indent</xs:attribute>")
     }
 
@@ -155,6 +184,43 @@ object XsdRenderer {
         appendLine("$indent  </xs:restriction>")
         appendLine("$indent</xs:simpleType>")
     }
+
+    /**
+     * An anonymous list type: `itemType` names a builtin or named item, a restricted item is
+     * declared inline, and a length bound wraps the list in a restriction of it.
+     */
+    private fun list(t: XsdTypeRef.ListOf, indent: String): String = buildString {
+        val bounded = t.minLength != null || t.maxLength != null
+        val inner = if (bounded) "$indent    " else indent
+        appendLine("$indent<xs:simpleType>")
+        if (bounded) {
+            appendLine("$indent  <xs:restriction>")
+            appendLine("$inner<xs:simpleType>")
+        }
+        when (val item = t.item) {
+            is XsdTypeRef.Restricted -> {
+                appendLine("$inner  <xs:list>")
+                append(restriction(item, "$inner    "))
+                appendLine("$inner  </xs:list>")
+            }
+            else -> appendLine("$inner  <xs:list itemType=\"${typeName(item)}\"/>")
+        }
+        if (bounded) {
+            appendLine("$inner</xs:simpleType>")
+            t.minLength?.let { appendLine("$indent    <xs:minLength value=\"$it\"/>") }
+            t.maxLength?.let { appendLine("$indent    <xs:maxLength value=\"$it\"/>") }
+            appendLine("$indent  </xs:restriction>")
+        }
+        appendLine("$indent</xs:simpleType>")
+    }
+
+    /** A builtin's or named type's qualified name. */
+    private fun typeName(ref: XsdTypeRef): String =
+        when (ref) {
+            is XsdTypeRef.Builtin -> ref.xsName
+            is XsdTypeRef.Named -> "${ref.prefix}:${ref.name}"
+            else -> error("only a builtin or a named type has a name")
+        }
 
     /** simpleContent when the base is a builtin or simple named type; complexContent otherwise. */
     private fun extension(t: XsdTypeRef.Extension, indent: String): String = buildString {

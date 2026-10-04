@@ -1,0 +1,10 @@
+# import=xsd
+warning[SCH2403] (lossy): union 'Contact': members 'email' and 'phone' share type 'string'; each imported as a record holding it
+ --> s.xsd:5:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): union 'Contact': members 'email' and 'phone' share type 'string'; each imported as a record holding it
+ --> s.xsd:6:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

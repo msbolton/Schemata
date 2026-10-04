@@ -1,0 +1,18 @@
+# import=sql
+warning[SCH2405] (lossy): table 'orders': index over (a, b) dropped; Schemata indexes one field
+ --> s.sql:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): table 'orders': index using gin over (b) dropped
+ --> s.sql:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): table 'orders': partial index over (a) dropped
+ --> s.sql:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): table 'orders': unique index over (b, a) dropped; Schemata keys one field
+ --> s.sql:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 4 warnings

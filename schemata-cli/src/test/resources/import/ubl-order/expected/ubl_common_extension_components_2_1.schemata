@@ -1,0 +1,534 @@
+@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2")
+namespace ubl_common_extension_components_2_1
+
+import ubl_unqualified_data_types_2_1
+import ubl_common_basic_components_2_1
+import ubl_common_signature_components_2_1
+
+@xsd(name = "ExtensionContent")
+record ExtensionContent {
+  @xsd(any)
+  @xsd(wildcard = "##other")
+  any: string
+}
+
+/// A container for all extensions present in the document.
+@xsd(name = "UBLExtensions")
+record UBLExtensions {
+  /// A single extension for private use.
+  @xsd(name = "UBLExtension") ubl_extension: list<UBLExtension>(min = 1)
+}
+
+/// A single extension for private use.
+@xsd(name = "UBLExtension")
+record UBLExtension {
+  /// An identifier for the Extension assigned by the creator of the extension.
+  @xsd(name = "ID") id:                    ubl_common_basic_components_2_1.ID?
+  /// A name for the Extension assigned by the creator of the extension.
+  @xsd(name = "Name") name:                  ubl_common_basic_components_2_1.Name?
+  /// An agency that maintains one or more Extensions.
+  @xsd(name = "ExtensionAgencyID") extension_agency_id:   ExtensionAgencyID?
+  /// The name of the agency that maintains the Extension.
+  @xsd(name = "ExtensionAgencyName") extension_agency_name: ExtensionAgencyName?
+  /// The version of the Extension.
+  @xsd(name = "ExtensionVersionID") extension_version_id:  ExtensionVersionID?
+  /// A URI for the Agency that maintains the Extension.
+  @xsd(name = "ExtensionAgencyURI") extension_agency_uri:  ExtensionAgencyURI?
+  /// A URI for the Extension.
+  @xsd(name = "ExtensionURI") extension_uri:         ExtensionURI?
+  /// A code for reason the Extension is being included.
+  @xsd(name = "ExtensionReasonCode") extension_reason_code: ExtensionReasonCode?
+  /// A description of the reason for the Extension.
+  @xsd(name = "ExtensionReason") extension_reason:      ExtensionReason?
+  /// The definition of the extension content.
+  @xsd(name = "ExtensionContent") extension_content:     ExtensionContent
+}
+
+@xsd(name = "ExtensionAgencyID")
+record ExtensionAgencyID {
+  value:              string
+  /// UNDT000011-SC2
+  /// SC
+  /// Identification Scheme. Identifier
+  /// The identification of the identification scheme.
+  /// Identification Scheme
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "schemeID")
+  @xsd(attribute)
+  scheme_id:          string?
+  /// UNDT000011-SC3
+  /// SC
+  /// Identification Scheme. Name. Text
+  /// The name of the identification scheme.
+  /// Identification Scheme
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "schemeName")
+  @xsd(attribute)
+  scheme_name:        string?
+  /// UNDT000011-SC4
+  /// SC
+  /// Identification Scheme Agency. Identifier
+  /// The identification of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "schemeAgencyID")
+  @xsd(attribute)
+  scheme_agency_id:   string?
+  /// UNDT000011-SC5
+  /// SC
+  /// Identification Scheme Agency. Name. Text
+  /// The name of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "schemeAgencyName")
+  @xsd(attribute)
+  scheme_agency_name: string?
+  /// UNDT000011-SC6
+  /// SC
+  /// Identification Scheme. Version. Identifier
+  /// The version of the identification scheme.
+  /// Identification Scheme
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "schemeVersionID")
+  @xsd(attribute)
+  scheme_version_id:  string?
+  /// UNDT000011-SC7
+  /// SC
+  /// Identification Scheme Data. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme data is located.
+  /// Identification Scheme Data
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeDataURI")
+  @xsd(attribute)
+  scheme_data_uri:    string?
+  /// UNDT000011-SC8
+  /// SC
+  /// Identification Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme is located.
+  /// Identification Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeURI")
+  @xsd(attribute)
+  scheme_uri:         string?
+}
+
+@xsd(name = "ExtensionAgencyName")
+record ExtensionAgencyName {
+  value:              string
+  /// UNDT000019-SC2
+  /// SC
+  /// Language. Identifier
+  /// The identifier of the language used in the content component.
+  /// Language
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "languageID")
+  @xsd(attribute)
+  language_id:        string?
+  /// UNDT000019-SC3
+  /// SC
+  /// Language. Locale. Identifier
+  /// The identification of the locale of the language.
+  /// Language
+  /// Locale
+  /// Identifier
+  /// string
+  @xsd(name = "languageLocaleID")
+  @xsd(attribute)
+  language_locale_id: string?
+}
+
+@xsd(name = "ExtensionAgencyURI")
+record ExtensionAgencyURI {
+  value:              string
+  /// UNDT000011-SC2
+  /// SC
+  /// Identification Scheme. Identifier
+  /// The identification of the identification scheme.
+  /// Identification Scheme
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "schemeID")
+  @xsd(attribute)
+  scheme_id:          string?
+  /// UNDT000011-SC3
+  /// SC
+  /// Identification Scheme. Name. Text
+  /// The name of the identification scheme.
+  /// Identification Scheme
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "schemeName")
+  @xsd(attribute)
+  scheme_name:        string?
+  /// UNDT000011-SC4
+  /// SC
+  /// Identification Scheme Agency. Identifier
+  /// The identification of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "schemeAgencyID")
+  @xsd(attribute)
+  scheme_agency_id:   string?
+  /// UNDT000011-SC5
+  /// SC
+  /// Identification Scheme Agency. Name. Text
+  /// The name of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "schemeAgencyName")
+  @xsd(attribute)
+  scheme_agency_name: string?
+  /// UNDT000011-SC6
+  /// SC
+  /// Identification Scheme. Version. Identifier
+  /// The version of the identification scheme.
+  /// Identification Scheme
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "schemeVersionID")
+  @xsd(attribute)
+  scheme_version_id:  string?
+  /// UNDT000011-SC7
+  /// SC
+  /// Identification Scheme Data. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme data is located.
+  /// Identification Scheme Data
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeDataURI")
+  @xsd(attribute)
+  scheme_data_uri:    string?
+  /// UNDT000011-SC8
+  /// SC
+  /// Identification Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme is located.
+  /// Identification Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeURI")
+  @xsd(attribute)
+  scheme_uri:         string?
+}
+
+@xsd(name = "ExtensionReason")
+record ExtensionReason {
+  value:              string
+  /// UNDT000019-SC2
+  /// SC
+  /// Language. Identifier
+  /// The identifier of the language used in the content component.
+  /// Language
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "languageID")
+  @xsd(attribute)
+  language_id:        string?
+  /// UNDT000019-SC3
+  /// SC
+  /// Language. Locale. Identifier
+  /// The identification of the locale of the language.
+  /// Language
+  /// Locale
+  /// Identifier
+  /// string
+  @xsd(name = "languageLocaleID")
+  @xsd(attribute)
+  language_locale_id: string?
+}
+
+@xsd(name = "ExtensionReasonCode")
+record ExtensionReasonCode {
+  value:            string
+  /// UNDT000007-SC2
+  /// SC
+  /// Code List. Identifier
+  /// The identification of a list of codes.
+  /// Code List
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "listID")
+  @xsd(attribute)
+  list_id:          string?
+  /// UNDT000007-SC3
+  /// SC
+  /// Code List. Agency. Identifier
+  /// An agency that maintains one or more lists of codes.
+  /// Code List
+  /// Agency
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "listAgencyID")
+  @xsd(attribute)
+  list_agency_id:   string?
+  /// UNDT000007-SC4
+  /// SC
+  /// Code List. Agency Name. Text
+  /// The name of the agency that maintains the list of codes.
+  /// Code List
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "listAgencyName")
+  @xsd(attribute)
+  list_agency_name: string?
+  /// UNDT000007-SC5
+  /// SC
+  /// Code List. Name. Text
+  /// The name of a list of codes.
+  /// Code List
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "listName")
+  @xsd(attribute)
+  list_name:        string?
+  /// UNDT000007-SC6
+  /// SC
+  /// Code List. Version. Identifier
+  /// The version of the list of codes.
+  /// Code List
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "listVersionID")
+  @xsd(attribute)
+  list_version_id:  string?
+  /// UNDT000007-SC7
+  /// SC
+  /// Code. Name. Text
+  /// The textual equivalent of the code content component.
+  /// Code
+  /// Name
+  /// Text
+  /// string
+  @xsd(attribute) name:             string?
+  /// UNDT000007-SC8
+  /// SC
+  /// Language. Identifier
+  /// The identifier of the language used in the code name.
+  /// Language
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "languageID")
+  @xsd(attribute)
+  language_id:      string?
+  /// UNDT000007-SC9
+  /// SC
+  /// Code List. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the code list is located.
+  /// Code List
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "listURI")
+  @xsd(attribute)
+  list_uri:         string?
+  /// UNDT000007-SC10
+  /// SC
+  /// Code List Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the code list scheme is located.
+  /// Code List Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "listSchemeURI")
+  @xsd(attribute)
+  list_scheme_uri:  string?
+}
+
+@xsd(name = "ExtensionURI")
+record ExtensionURI {
+  value:              string
+  /// UNDT000011-SC2
+  /// SC
+  /// Identification Scheme. Identifier
+  /// The identification of the identification scheme.
+  /// Identification Scheme
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "schemeID")
+  @xsd(attribute)
+  scheme_id:          string?
+  /// UNDT000011-SC3
+  /// SC
+  /// Identification Scheme. Name. Text
+  /// The name of the identification scheme.
+  /// Identification Scheme
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "schemeName")
+  @xsd(attribute)
+  scheme_name:        string?
+  /// UNDT000011-SC4
+  /// SC
+  /// Identification Scheme Agency. Identifier
+  /// The identification of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "schemeAgencyID")
+  @xsd(attribute)
+  scheme_agency_id:   string?
+  /// UNDT000011-SC5
+  /// SC
+  /// Identification Scheme Agency. Name. Text
+  /// The name of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "schemeAgencyName")
+  @xsd(attribute)
+  scheme_agency_name: string?
+  /// UNDT000011-SC6
+  /// SC
+  /// Identification Scheme. Version. Identifier
+  /// The version of the identification scheme.
+  /// Identification Scheme
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "schemeVersionID")
+  @xsd(attribute)
+  scheme_version_id:  string?
+  /// UNDT000011-SC7
+  /// SC
+  /// Identification Scheme Data. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme data is located.
+  /// Identification Scheme Data
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeDataURI")
+  @xsd(attribute)
+  scheme_data_uri:    string?
+  /// UNDT000011-SC8
+  /// SC
+  /// Identification Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme is located.
+  /// Identification Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeURI")
+  @xsd(attribute)
+  scheme_uri:         string?
+}
+
+@xsd(name = "ExtensionVersionID")
+record ExtensionVersionID {
+  value:              string
+  /// UNDT000011-SC2
+  /// SC
+  /// Identification Scheme. Identifier
+  /// The identification of the identification scheme.
+  /// Identification Scheme
+  /// Identification
+  /// Identifier
+  /// string
+  @xsd(name = "schemeID")
+  @xsd(attribute)
+  scheme_id:          string?
+  /// UNDT000011-SC3
+  /// SC
+  /// Identification Scheme. Name. Text
+  /// The name of the identification scheme.
+  /// Identification Scheme
+  /// Name
+  /// Text
+  /// string
+  @xsd(name = "schemeName")
+  @xsd(attribute)
+  scheme_name:        string?
+  /// UNDT000011-SC4
+  /// SC
+  /// Identification Scheme Agency. Identifier
+  /// The identification of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Identification
+  /// Identifier
+  /// string
+  /// Defaults to the UN/EDIFACT data element 3055 code list.
+  @xsd(name = "schemeAgencyID")
+  @xsd(attribute)
+  scheme_agency_id:   string?
+  /// UNDT000011-SC5
+  /// SC
+  /// Identification Scheme Agency. Name. Text
+  /// The name of the agency that maintains the identification scheme.
+  /// Identification Scheme Agency
+  /// Agency Name
+  /// Text
+  /// string
+  @xsd(name = "schemeAgencyName")
+  @xsd(attribute)
+  scheme_agency_name: string?
+  /// UNDT000011-SC6
+  /// SC
+  /// Identification Scheme. Version. Identifier
+  /// The version of the identification scheme.
+  /// Identification Scheme
+  /// Version
+  /// Identifier
+  /// string
+  @xsd(name = "schemeVersionID")
+  @xsd(attribute)
+  scheme_version_id:  string?
+  /// UNDT000011-SC7
+  /// SC
+  /// Identification Scheme Data. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme data is located.
+  /// Identification Scheme Data
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeDataURI")
+  @xsd(attribute)
+  scheme_data_uri:    string?
+  /// UNDT000011-SC8
+  /// SC
+  /// Identification Scheme. Uniform Resource. Identifier
+  /// The Uniform Resource Identifier that identifies where the identification scheme is located.
+  /// Identification Scheme
+  /// Uniform Resource Identifier
+  /// Identifier
+  /// string
+  @xsd(name = "schemeURI")
+  @xsd(attribute)
+  scheme_uri:         string?
+}

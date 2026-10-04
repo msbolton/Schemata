@@ -1,0 +1,10 @@
+# import=sql
+warning[SCH2405] (lossy): table 'orders': INHERITS dropped
+ --> s.sql:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): table 'orders': UNLOGGED dropped
+ --> s.sql:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 2 warnings

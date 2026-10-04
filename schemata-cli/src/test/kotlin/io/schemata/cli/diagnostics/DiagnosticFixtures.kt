@@ -11,7 +11,10 @@ import io.schemata.cli.report.Sources
 import io.schemata.evolution.Evolution
 import io.schemata.evolution.Rulebook
 import io.schemata.evolution.Rulebooks
-import io.schemata.importer.xsd.ImportInput
+import io.schemata.importer.ImportInput
+import io.schemata.importer.Importer
+import io.schemata.importer.proto.ProtoImporter
+import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Diagnostic
 import io.schemata.target.Target
@@ -58,11 +61,21 @@ class Fixture(val dir: File) {
             .sortedBy { it.name }
             .map { SourceInput(it.name, it.readText()) }
 
-    /** `.xsd` sources for an import fixture; non-empty exactly when [render] runs the importer. */
-    val xsd: List<SourceInput> =
-        dir.listFiles { f -> f.extension == "xsd" }!!
+    /**
+     * The `.xsd`, `.proto`, or `.sql` sources of an import fixture, all of one format; non-empty
+     * exactly when [render] runs the importer.
+     */
+    val foreign: List<SourceInput> =
+        dir.listFiles { f -> f.extension in importers }!!
             .sortedBy { it.name }
             .map { SourceInput(it.name, it.readText()) }
+
+    /**
+     * True when the importer reads [foreign] as files named on their own (`# import=sql lone`);
+     * otherwise a proto or SQL file is read as found under the fixture directory, its name its path
+     * under the root.
+     */
+    private val lone: Boolean = header?.contains("lone") == true
 
     /**
      * The two sides of a diff fixture, loaded from its `old/` and `new/` subdirectories. Paths keep
@@ -92,11 +105,11 @@ class Fixture(val dir: File) {
                         width = 400,
                     )
                 }
-                xsd.isNotEmpty() -> {
+                foreign.isNotEmpty() -> {
                     val report = Report.of(importDiagnostics(), emptyList(), emptyList(), strict)
                     HumanRenderer.render(
                         report,
-                        Sources.of(xsd),
+                        Sources.of(foreign),
                         Palette.NONE,
                         out = "",
                         width = 400,
@@ -124,7 +137,7 @@ class Fixture(val dir: File) {
     private fun diagnostics(): List<Diagnostic> =
         when {
             isDiff -> diffDiagnostics()
-            xsd.isNotEmpty() -> importDiagnostics()
+            foreign.isNotEmpty() -> importDiagnostics()
             else -> Pipeline.check(sources, targets, strict).diagnostics
         }
 
@@ -141,8 +154,15 @@ class Fixture(val dir: File) {
         return Evolution.compare(old.schema!!, new.schema!!, rulebooks).diagnostics
     }
 
-    private fun importDiagnostics(): List<Diagnostic> =
-        XsdImporter.import(xsd.map { ImportInput(it.path, it.content) }).diagnostics
+    /** What the importer for [foreign]'s format reports, as `schemata import` would. */
+    fun importDiagnostics(): List<Diagnostic> {
+        val extension = foreign.map { it.path.substringAfterLast('.') }.distinct().single()
+        val importer = importers.getValue(extension)
+        val rooted = importer !is XsdImporter && !lone
+        return importer
+            .import(foreign.map { ImportInput(it.path, it.content, it.path.takeIf { rooted }) })
+            .diagnostics
+    }
 
     private fun schemataFiles(d: File, prefix: String): List<SourceInput> =
         d.listFiles { f -> f.extension == "schemata" }!!
@@ -164,6 +184,9 @@ class Fixture(val dir: File) {
 
     companion object {
         val root = File("src/test/resources/diagnostics")
+
+        private val importers: Map<String, Importer> =
+            mapOf("xsd" to XsdImporter, "proto" to ProtoImporter, "sql" to SqlImporter)
 
         fun all(): List<Fixture> =
             root.listFiles { f -> f.isDirectory }!!.sortedBy { it.name }.map { Fixture(it) }

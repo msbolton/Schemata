@@ -29,6 +29,25 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class XsdLoweringTest {
+    /** The sequences these tests read hold only elements; each read goes through the element. */
+    private val XsdParticle.element: XsdElement
+        get() = this as XsdElement
+
+    private val XsdParticle.name: String
+        get() = element.name
+
+    private val XsdParticle.type: XsdTypeRef
+        get() = element.type
+
+    private val XsdParticle.minOccurs: Int
+        get() = element.minOccurs
+
+    private val XsdParticle.default: String?
+        get() = element.default
+
+    private val XsdParticle.unique: String?
+        get() = element.unique
+
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
 
     private fun xsd(vararg pairs: Pair<String, AnnotationValue>) =
@@ -175,7 +194,7 @@ class XsdLoweringTest {
             "namespace 'shop.orders': @xsd(namespace = \"orders\") is not an absolute URI",
             d.message,
         )
-        assertEquals("use an absolute URI without a fragment, such as `urn:example:orders`", d.help)
+        assertEquals("use an absolute URI, such as `urn:example:orders`", d.help)
     }
 
     @Test

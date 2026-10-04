@@ -1,6 +1,0 @@
-# import=xsd
-warning[SCH2405] (lossy): complex type 'ThingType': mixed content dropped; elements kept
- --> s.xsd:3:1
-  = help: add the missing part by hand; Schemata cannot express it
-
-0 errors, 1 warning

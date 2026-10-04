@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A stub standing in for the ISO/TS 19139:2007 gmd schema
+  (http://schemas.opengis.net/iso/19139/20070417/gmd/gmd.xsd), written by hand for this test
+  corpus. GML's coordinateOperations.xsd and referenceSystems.xsd import the gmd namespace for
+  three elements only: gmd:EX_Extent, gmd:CI_Citation, and gmd:AbstractDQ_PositionalAccuracy.
+  ISO standards are not freely redistributable and the ISO 19139 schema files carry no licence,
+  so they are not copied here. This stub declares exactly those three elements, with their
+  ISO 19139 type names and abstractness, and empty content.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:gmd="http://www.isotc211.org/2005/gmd" targetNamespace="http://www.isotc211.org/2005/gmd" elementFormDefault="qualified">
+	<xs:complexType name="EX_Extent_Type">
+		<xs:sequence/>
+	</xs:complexType>
+	<xs:element name="EX_Extent" type="gmd:EX_Extent_Type"/>
+	<xs:complexType name="CI_Citation_Type">
+		<xs:sequence/>
+	</xs:complexType>
+	<xs:element name="CI_Citation" type="gmd:CI_Citation_Type"/>
+	<xs:complexType name="AbstractDQ_PositionalAccuracy_Type" abstract="true">
+		<xs:sequence/>
+	</xs:complexType>
+	<xs:element name="AbstractDQ_PositionalAccuracy" type="gmd:AbstractDQ_PositionalAccuracy_Type" abstract="true"/>
+</xs:schema>

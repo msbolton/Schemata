@@ -1,0 +1,8 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:complexType name="ListType">
+    <xs:sequence>
+      <xs:element name="unit" type="xs:string" fixed="kg" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

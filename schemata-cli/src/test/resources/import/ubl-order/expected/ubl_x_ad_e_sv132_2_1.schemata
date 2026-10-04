@@ -1,0 +1,417 @@
+@xsd(namespace = "http://uri.etsi.org/01903/v1.3.2#")
+namespace ubl_x_ad_e_sv132_2_1
+
+import ubl_xmldsig_core_schema_2_1
+
+@xsd(name = "Any")
+record Any {
+  @xsd(any) any:        string
+  @xsd(mixed) text:       string?
+  @xsd(any_attribute)
+  @xsd(process = "strict")
+  attributes: map<string, string>
+}
+
+@xsd(name = "ObjectIdentifier")
+record ObjectIdentifier {
+  @xsd(name = "Identifier") identifier:               Identifier
+  @xsd(name = "Description") description:              string?
+  @xsd(name = "DocumentationReferences") documentation_references: DocumentationReferences?
+}
+
+@xsd(root = false)
+record Identifier {
+  value:     string
+  @xsd(name = "Qualifier")
+  @xsd(attribute)
+  qualifier: Qualifier?
+}
+
+enum Qualifier { @xsd(name = "OIDAsURI") oid_as_uri, @xsd(name = "OIDAsURN") oid_as_urn }
+
+@xsd(root = false)
+record DocumentationReferences {
+  @xsd(name = "DocumentationReference") documentation_reference: string
+}
+
+@xsd(name = "EncapsulatedPKIData")
+record EncapsulatedPKIData {
+  value:    bytes
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:       string?
+  @xsd(name = "Encoding")
+  @xsd(attribute)
+  encoding: string?
+}
+
+@xsd(name = "Include")
+record Include {
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:             string
+  @xsd(name = "referencedData")
+  @xsd(attribute)
+  referenced_data: bool?
+}
+
+@xsd(name = "ReferenceInfo")
+record ReferenceInfo {
+  @xsd(name = "DigestMethod") digest_method: ubl_xmldsig_core_schema_2_1.DigestMethod
+  @xsd(name = "DigestValue") digest_value:  bytes
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:            string?
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:           string?
+}
+
+union GenericTimeStamp = XAdESTimeStamp | OtherTimeStamp
+
+@xsd(name = "XAdESTimeStamp")
+record XAdESTimeStamp {
+  @xsd(name = "Include") include:                 list<Include>
+  @xsd(name = "CanonicalizationMethod") canonicalization_method: ubl_xmldsig_core_schema_2_1.CanonicalizationMethod?
+  choice:                  list<XAdESTimeStampChoice>(min = 1)
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                      string?
+}
+
+union XAdESTimeStampChoice = EncapsulatedPKIData | Any
+
+@xsd(name = "OtherTimeStamp")
+record OtherTimeStamp {
+  @xsd(name = "ReferenceInfo") reference_info:          list<ReferenceInfo>(min = 1)
+  @xsd(name = "CanonicalizationMethod") canonicalization_method: ubl_xmldsig_core_schema_2_1.CanonicalizationMethod?
+  choice:                  OtherTimeStampChoice
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                      string?
+}
+
+union OtherTimeStampChoice = EncapsulatedPKIData | Any
+
+@xsd(name = "QualifyingProperties")
+record QualifyingProperties {
+  @xsd(name = "SignedProperties") signed_properties:   SignedProperties?
+  @xsd(name = "UnsignedProperties") unsigned_properties: UnsignedProperties?
+  @xsd(name = "Target")
+  @xsd(attribute)
+  target:              string
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                  string?
+}
+
+@xsd(name = "SignedProperties")
+record SignedProperties {
+  @xsd(name = "SignedSignatureProperties") signed_signature_properties:   SignedSignatureProperties?
+  @xsd(name = "SignedDataObjectProperties") signed_data_object_properties: SignedDataObjectProperties?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                            string?
+}
+
+@xsd(name = "UnsignedProperties")
+record UnsignedProperties {
+  @xsd(name = "UnsignedSignatureProperties") unsigned_signature_properties:   UnsignedSignatureProperties?
+  @xsd(name = "UnsignedDataObjectProperties") unsigned_data_object_properties: UnsignedDataObjectProperties?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                              string?
+}
+
+@xsd(name = "SignedSignatureProperties")
+record SignedSignatureProperties {
+  @xsd(name = "SigningTime") signing_time:                instant?
+  @xsd(name = "SigningCertificate") signing_certificate:         CertIDList?
+  @xsd(name = "SignaturePolicyIdentifier") signature_policy_identifier: SignaturePolicyIdentifier?
+  @xsd(name = "SignatureProductionPlace") signature_production_place:  SignatureProductionPlace?
+  @xsd(name = "SignerRole") signer_role:                 SignerRole?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                          string?
+}
+
+@xsd(name = "SignedDataObjectProperties")
+record SignedDataObjectProperties {
+  @xsd(name = "DataObjectFormat") data_object_format:                 list<DataObjectFormat>
+  @xsd(name = "CommitmentTypeIndication") commitment_type_indication:         list<CommitmentTypeIndication>
+  @xsd(name = "AllDataObjectsTimeStamp") all_data_objects_time_stamp:        list<XAdESTimeStamp>
+  @xsd(name = "IndividualDataObjectsTimeStamp") individual_data_objects_time_stamp: list<XAdESTimeStamp>
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                                 string?
+}
+
+@xsd(name = "UnsignedSignatureProperties")
+record UnsignedSignatureProperties {
+  choice: list<UnsignedSignaturePropertiesChoice>(min = 1)
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:     string?
+}
+
+@xsd(root = false)
+record SignatureTimeStamp { value: XAdESTimeStamp }
+
+@xsd(root = false)
+record CompleteCertificateRefs2 { value: CompleteCertificateRefs }
+
+@xsd(root = false)
+record CompleteRevocationRefs2 { value: CompleteRevocationRefs }
+
+@xsd(root = false)
+record AttributeCertificateRefs { value: CompleteCertificateRefs }
+
+@xsd(root = false)
+record AttributeRevocationRefs { value: CompleteRevocationRefs }
+
+@xsd(root = false)
+record SigAndRefsTimeStamp { value: XAdESTimeStamp }
+
+@xsd(root = false)
+record RefsOnlyTimeStamp { value: XAdESTimeStamp }
+
+@xsd(root = false)
+record CertificateValues2 { value: CertificateValues }
+
+@xsd(root = false)
+record RevocationValues2 { value: RevocationValues }
+
+@xsd(root = false)
+record AttrAuthoritiesCertValues { value: CertificateValues }
+
+@xsd(root = false)
+record AttributeRevocationValues { value: RevocationValues }
+
+@xsd(root = false)
+record ArchiveTimeStamp { value: XAdESTimeStamp }
+
+union UnsignedSignaturePropertiesChoice =
+  CounterSignature |
+  SignatureTimeStamp |
+  CompleteCertificateRefs2 |
+  CompleteRevocationRefs2 |
+  AttributeCertificateRefs |
+  AttributeRevocationRefs |
+  SigAndRefsTimeStamp |
+  RefsOnlyTimeStamp |
+  CertificateValues2 |
+  RevocationValues2 |
+  AttrAuthoritiesCertValues |
+  AttributeRevocationValues |
+  ArchiveTimeStamp
+
+@xsd(name = "UnsignedDataObjectProperties")
+record UnsignedDataObjectProperties {
+  @xsd(name = "UnsignedDataObjectProperty") unsigned_data_object_property: list<Any>(min = 1)
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                            string?
+}
+
+@xsd(name = "QualifyingPropertiesReference")
+record QualifyingPropertiesReference {
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri: string
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:  string?
+}
+
+record CertIDList { @xsd(name = "Cert") cert: list<CertID>(min = 1) }
+
+@xsd(root = false)
+record CertID {
+  @xsd(name = "CertDigest") cert_digest:   DigestAlgAndValue
+  @xsd(name = "IssuerSerial") issuer_serial: ubl_xmldsig_core_schema_2_1.X509IssuerSerial
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:           string?
+}
+
+@xsd(root = false)
+record DigestAlgAndValue {
+  @xsd(name = "DigestMethod") digest_method: ubl_xmldsig_core_schema_2_1.DigestMethod
+  @xsd(name = "DigestValue") digest_value:  bytes
+}
+
+union SignaturePolicyIdentifier = SignaturePolicyId | string
+
+@xsd(root = false)
+record SignaturePolicyId {
+  @xsd(name = "SigPolicyId") sig_policy_id:         ObjectIdentifier
+  @xsd(name = "Transforms") transforms:            ubl_xmldsig_core_schema_2_1.Transforms?
+  @xsd(name = "SigPolicyHash") sig_policy_hash:       DigestAlgAndValue
+  @xsd(name = "SigPolicyQualifiers") sig_policy_qualifiers: SigPolicyQualifiersList?
+}
+
+@xsd(root = false)
+record SigPolicyQualifiersList {
+  @xsd(name = "SigPolicyQualifier") sig_policy_qualifier: list<Any>(min = 1)
+}
+
+@xsd(name = "SPUserNotice")
+record SPUserNotice {
+  @xsd(name = "NoticeRef") notice_ref:    NoticeReference?
+  @xsd(name = "ExplicitText") explicit_text: string?
+}
+
+@xsd(root = false)
+record NoticeReference {
+  @xsd(name = "Organization") organization:   string
+  @xsd(name = "NoticeNumbers") notice_numbers: IntegerList
+}
+
+@xsd(root = false)
+record IntegerList { int: list<int32> }
+
+@xsd(name = "CounterSignature")
+record CounterSignature {
+  @xsd(name = "Signature") signature: ubl_xmldsig_core_schema_2_1.Signature
+}
+
+@xsd(name = "DataObjectFormat")
+record DataObjectFormat {
+  @xsd(name = "Description") description:       string?
+  @xsd(name = "ObjectIdentifier") object_identifier: ObjectIdentifier?
+  @xsd(name = "MimeType") mime_type:         string?
+  @xsd(name = "Encoding") encoding:          string?
+  @xsd(name = "ObjectReference")
+  @xsd(attribute)
+  object_reference:  string
+}
+
+@xsd(name = "CommitmentTypeIndication")
+record CommitmentTypeIndication {
+  @xsd(name = "CommitmentTypeId") commitment_type_id:         ObjectIdentifier
+  @xsd(name = "ObjectReference") object_reference:           list<string>
+  @xsd(name = "AllSignedDataObjects")
+  @xsd(any_type)
+  all_signed_data_objects:    string?
+  @xsd(name = "CommitmentTypeQualifiers") commitment_type_qualifiers: CommitmentTypeQualifiersList?
+}
+
+@xsd(root = false)
+record CommitmentTypeQualifiersList {
+  @xsd(name = "CommitmentTypeQualifier") commitment_type_qualifier: list<Any>
+}
+
+@xsd(name = "SignatureProductionPlace")
+record SignatureProductionPlace {
+  @xsd(name = "City") city:              string?
+  @xsd(name = "StateOrProvince") state_or_province: string?
+  @xsd(name = "PostalCode") postal_code:       string?
+  @xsd(name = "CountryName") country_name:      string?
+}
+
+@xsd(name = "SignerRole")
+record SignerRole {
+  @xsd(name = "ClaimedRoles") claimed_roles:   ClaimedRolesList?
+  @xsd(name = "CertifiedRoles") certified_roles: CertifiedRolesList?
+}
+
+@xsd(root = false)
+record ClaimedRolesList { @xsd(name = "ClaimedRole") claimed_role: list<Any>(min = 1) }
+
+@xsd(root = false)
+record CertifiedRolesList {
+  @xsd(name = "CertifiedRole") certified_role: list<EncapsulatedPKIData>(min = 1)
+}
+
+@xsd(name = "CompleteCertificateRefs")
+record CompleteCertificateRefs {
+  @xsd(name = "CertRefs") cert_refs: CertIDList
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:        string?
+}
+
+@xsd(name = "CompleteRevocationRefs")
+record CompleteRevocationRefs {
+  @xsd(name = "CRLRefs") crl_refs:   CRLRefs?
+  @xsd(name = "OCSPRefs") ocsp_refs:  OCSPRefs?
+  @xsd(name = "OtherRefs") other_refs: OtherCertStatusRefs?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:         string?
+}
+
+@xsd(root = false)
+record CRLRefs { @xsd(name = "CRLRef") crl_ref: list<CRLRef>(min = 1) }
+
+@xsd(root = false)
+record CRLRef {
+  @xsd(name = "DigestAlgAndValue") digest_alg_and_value: DigestAlgAndValue
+  @xsd(name = "CRLIdentifier") crl_identifier:       CRLIdentifier?
+}
+
+@xsd(root = false)
+record CRLIdentifier {
+  @xsd(name = "Issuer") issuer:     string
+  @xsd(name = "IssueTime") issue_time: instant
+  @xsd(name = "Number") number:     int32?
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:        string?
+}
+
+@xsd(root = false)
+record OCSPRefs { @xsd(name = "OCSPRef") ocsp_ref: list<OCSPRef>(min = 1) }
+
+@xsd(root = false)
+record OCSPRef {
+  @xsd(name = "OCSPIdentifier") ocsp_identifier:      OCSPIdentifier
+  @xsd(name = "DigestAlgAndValue") digest_alg_and_value: DigestAlgAndValue?
+}
+
+union ResponderID = string | bytes
+
+@xsd(root = false)
+record OCSPIdentifier {
+  @xsd(name = "ResponderID") responder_id: ResponderID
+  @xsd(name = "ProducedAt") produced_at:  instant
+  @xsd(name = "URI")
+  @xsd(attribute)
+  uri:          string?
+}
+
+@xsd(root = false)
+record OtherCertStatusRefs { @xsd(name = "OtherRef") other_ref: list<Any>(min = 1) }
+
+@xsd(name = "CertificateValues")
+record CertificateValues {
+  choice: list<CertificateValuesChoice>
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:     string?
+}
+
+union CertificateValuesChoice = EncapsulatedPKIData | Any
+
+@xsd(name = "RevocationValues")
+record RevocationValues {
+  @xsd(name = "CRLValues") crl_values:   CRLValues?
+  @xsd(name = "OCSPValues") ocsp_values:  OCSPValues?
+  @xsd(name = "OtherValues") other_values: OtherCertStatusValues?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:           string?
+}
+
+@xsd(root = false)
+record CRLValues {
+  @xsd(name = "EncapsulatedCRLValue") encapsulated_crl_value: list<EncapsulatedPKIData>(min = 1)
+}
+
+@xsd(root = false)
+record OCSPValues {
+  @xsd(name = "EncapsulatedOCSPValue") encapsulated_ocsp_value: list<EncapsulatedPKIData>(min = 1)
+}
+
+@xsd(root = false)
+record OtherCertStatusValues { @xsd(name = "OtherValue") other_value: list<Any>(min = 1) }

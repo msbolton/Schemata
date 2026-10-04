@@ -1,0 +1,10 @@
+# import=sql
+warning[SCH2405] (lossy): s.sql: CREATE VIEW dropped
+ --> s.sql:2:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): s.sql: INSERT dropped
+ --> s.sql:3:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 2 warnings

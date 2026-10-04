@@ -1,0 +1,25 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:element name="payment" type="PaymentType" abstract="true"/>
+  <xs:element name="card" type="CardType" substitutionGroup="payment"/>
+  <xs:element name="cash" type="CashType" substitutionGroup="payment"/>
+  <xs:complexType name="PaymentType">
+    <xs:sequence>
+      <xs:element name="amount" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CardType">
+    <xs:complexContent>
+      <xs:extension base="PaymentType">
+        <xs:sequence>
+          <xs:element name="last4" type="xs:string"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="CashType">
+    <xs:complexContent>
+      <xs:extension base="PaymentType"/>
+    </xs:complexContent>
+  </xs:complexType>
+</xs:schema>

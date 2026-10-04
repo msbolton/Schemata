@@ -1,0 +1,25 @@
+namespace kitchen.enums
+
+/// Order status, as the Protobuf target writes it.
+enum Status {
+  /// Not yet paid.
+  #1 pending
+  @deprecated #2 paid
+  /// spelled without the prefix
+  @proto(name = "CANCELLED_BY_USER") #3 cancelled_by_user
+  reserved #5..#6, "old"
+}
+
+/// A zero value spelled another way.
+enum Level { #1 low, #2 high }
+
+/// No prefix, and a zero value that means something.
+enum Color { @proto(name = "RED") red, @proto(name = "GREEN") green, @proto(name = "BLUE") blue }
+
+enum Mode { #1 fast, #2 slow }
+
+@deprecated
+enum Legacy {
+  #1 on
+  reserved "off"
+}

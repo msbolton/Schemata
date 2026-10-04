@@ -24,7 +24,6 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="widget" type="tns:Missing" minOccurs="0"/>
       <xs:element name="note" type="xs:string" minOccurs="0" substitutionGroup="tns:comment"/>
       <xs:element name="dish" type="tns:dishType" minOccurs="0"/>
       <xs:element name="special" type="tns:specialDishType" minOccurs="0"/>

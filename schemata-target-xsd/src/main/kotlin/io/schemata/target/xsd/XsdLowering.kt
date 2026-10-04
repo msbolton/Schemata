@@ -24,6 +24,7 @@ import io.schemata.lang.Span
 import io.schemata.target.Lowered
 import io.schemata.target.NameClaims
 import io.schemata.target.OverrideNames
+import io.schemata.target.TypeText
 import io.schemata.target.bool
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.flag
@@ -43,8 +44,7 @@ object XsdLowering {
                         XsdCodes.INVALID_OVERRIDE,
                         "namespace '${ns.name}': @xsd(namespace = \"$override\") is not an absolute URI",
                         ns.span,
-                        help =
-                            "use an absolute URI without a fragment, such as `urn:example:orders`",
+                        help = "use an absolute URI, such as `urn:example:orders`",
                     )
                 uris[ns.name] = "urn:schemata:${ns.name}"
             } else {
@@ -148,6 +148,10 @@ object XsdLowering {
                 imports,
                 types,
                 elements,
+                elementFormDefault =
+                    namespace.annotations.string("xsd", "element_form") ?: "qualified",
+                attributeFormDefault =
+                    namespace.annotations.string("xsd", "attribute_form") ?: "unqualified",
             )
         }
 
@@ -193,22 +197,235 @@ object XsdLowering {
             )
         }
 
+        /**
+         * A record's fields in order: `@xsd(mixed)` makes the type mixed and adds nothing to the
+         * sequence, `@xsd(any_attribute)` becomes the type's attribute wildcard, `@xsd(any)` an
+         * element wildcard in place, `@xsd(attribute)` an attribute, and every other field an
+         * element. A record takes one mixed field and one attribute wildcard; a second of either is
+         * reported. `@xsd(all)` on the record makes the sequence an `xs:all`, which holds each
+         * element at most once, so a field lowering to a repeated element or wildcard is reported.
+         */
         private fun record(record: RecordType, path: List<String>): XsdComplex {
-            val sequence = mutableListOf<XsdElement>()
+            val sequence = mutableListOf<XsdParticle>()
             val attributes = mutableListOf<XsdAttribute>()
+            var anyAttribute: XsdAnyAttribute? = null
+            var mixed = false
+            val all = record.annotations.flag("xsd", "all")
+            val single = mutableMapOf<String, Field>()
             record.fields.forEach { f ->
-                if (f.annotations.flag("xsd", "attribute")) {
-                    attribute(record, f, path)?.let { attributes += it }
-                } else {
-                    sequence += field(record, f, path)
+                val particle: XsdParticle? =
+                    when {
+                        f.annotations.flag("xsd", "mixed") -> {
+                            if (checkMixed(record, f) && once(record, f, "mixed", single))
+                                mixed = true
+                            null
+                        }
+                        f.annotations.flag("xsd", "any_attribute") -> {
+                            val wildcard = anyAttribute(record, f)
+                            if (wildcard != null && once(record, f, "any_attribute", single))
+                                anyAttribute = wildcard
+                            null
+                        }
+                        f.annotations.flag("xsd", "any") -> any(record, f)
+                        f.annotations.flag("xsd", "attribute") -> {
+                            attribute(record, f, path)?.let { attributes += it }
+                            null
+                        }
+                        f.annotations.flag("xsd", "any_type") -> anyTypeField(record, f, path)
+                        else -> field(record, f, path)
+                    }
+                if (particle != null) {
+                    sequence += particle
+                    val misfit = if (all) notUnderAll(particle) else null
+                    if (misfit != null) {
+                        diagnostics +=
+                            Diagnostic(
+                                XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                                "record '${record.name}': @xsd(all) is on a record with a " +
+                                    "$misfit field '${f.name}'",
+                                f.span,
+                                help =
+                                    "remove @xsd(all), or make '${f.name}' a single field; " +
+                                        "xs:all holds each element at most once",
+                            )
+                    }
                 }
+            }
+            record.fields.forEach {
+                checkWildcardKeys(record, it)
+                checkListKey(record, it)
             }
             return XsdComplex(
                 names.xsdTypeName(record.qualifiedName),
                 record.doc,
                 sequence,
                 attributes,
+                anyAttribute,
+                mixed,
+                all,
             )
+        }
+
+        /**
+         * Why [particle] cannot sit in an `xs:all`, which holds only element declarations, each at
+         * most once: `"wildcard"` for an element wildcard, `"repeated"` for a repeated element;
+         * `null` when it can.
+         */
+        private fun notUnderAll(particle: XsdParticle): String? =
+            when (particle) {
+                is XsdAny -> "wildcard"
+                is XsdElement -> if (particle.maxOccurs != 1) "repeated" else null
+            }
+
+        /**
+         * True when [field] is the record's first with `@xsd([key])`; otherwise reports it, since a
+         * complex type has one mixed flag and one attribute wildcard. [seen] holds the first field
+         * per key.
+         */
+        private fun once(
+            record: RecordType,
+            field: Field,
+            key: String,
+            seen: MutableMap<String, Field>,
+        ): Boolean {
+            val first = seen.putIfAbsent(key, field) ?: return true
+            diagnostics +=
+                Diagnostic(
+                    XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                    "${fieldWhere(record, field)}: a record takes one @xsd($key) field; " +
+                        "'${first.name}' already has it",
+                    field.span,
+                    help = "remove @xsd($key) from one of them",
+                )
+            return false
+        }
+
+        /** A `string` with no refinements. */
+        private fun isPlainString(type: Type): Boolean =
+            type is Scalar && type.builtin == Builtin.STRING && type.refinements.isEmpty
+
+        /**
+         * A non-nullable `list<string>` of plain strings; the list's own bounds are free, and
+         * [nullableElements] admits `list<string?>`.
+         */
+        private fun isStringList(field: Field, nullableElements: Boolean = false): Boolean {
+            val t = field.type
+            return !field.nullable &&
+                t is ListOf &&
+                (nullableElements || !t.nullableElement) &&
+                isPlainString(t.element)
+        }
+
+        /**
+         * Reports `@xsd([key])` on [field], whose shape cannot carry it; [takes] names the shapes
+         * that can.
+         */
+        private fun notAllowed(record: RecordType, field: Field, key: String, takes: String) {
+            diagnostics +=
+                Diagnostic(
+                    XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                    "${fieldWhere(record, field)}: @xsd($key) is not allowed on a " +
+                        "${TypeText.of(field.type, field.nullable)}; it takes $takes",
+                    field.span,
+                    help = "remove the annotation, or declare the field as $takes",
+                )
+        }
+
+        /**
+         * True when [field] can stand for a mixed type's character data: a plain `string`, nullable
+         * or not. The field itself has no element.
+         */
+        private fun checkMixed(record: RecordType, field: Field): Boolean {
+            if (isPlainString(field.type)) return true
+            notAllowed(record, field, "mixed", "a string or string?")
+            return false
+        }
+
+        /** The record's attribute wildcard for a `map<string, string>` field; null otherwise. */
+        private fun anyAttribute(record: RecordType, field: Field): XsdAnyAttribute? {
+            val t = field.type
+            if (
+                field.nullable ||
+                    t !is MapOf ||
+                    t.nullableValue ||
+                    !t.refinements.isEmpty ||
+                    !isPlainString(t.key) ||
+                    !isPlainString(t.value)
+            ) {
+                notAllowed(record, field, "any_attribute", "a map<string, string>")
+                return null
+            }
+            return XsdAnyAttribute(
+                field.annotations.string("xsd", "wildcard"),
+                field.annotations.string("xsd", "process") ?: "lax",
+            )
+        }
+
+        /**
+         * An element wildcard in place of [field]: once for a `string` (optional for `string?`),
+         * repeated within the list's bounds for a `list<string>`. A wildcard has no name, so
+         * nothing is claimed.
+         */
+        private fun any(record: RecordType, field: Field): XsdAny? {
+            val t = field.type
+            val (min, max) =
+                when {
+                    isPlainString(t) -> (if (field.nullable) 0 else 1) to 1
+                    isStringList(field) -> {
+                        val r = (t as ListOf).refinements
+                        (r.min?.toInt() ?: 0) to r.max?.toInt()
+                    }
+                    else -> {
+                        notAllowed(record, field, "any", "a string, string?, or list<string>")
+                        return null
+                    }
+                }
+            return XsdAny(
+                min,
+                max,
+                field.annotations.string("xsd", "wildcard"),
+                field.annotations.string("xsd", "process") ?: "lax",
+            )
+        }
+
+        /**
+         * [field] as an element of type `xs:anyType`: a `string` or `string?` once, a
+         * `list<string>` repeated (nillable for `list<string?>`).
+         */
+        private fun anyTypeField(
+            record: RecordType,
+            field: Field,
+            path: List<String>,
+        ): XsdElement? {
+            if (!isPlainString(field.type) && !isStringList(field, nullableElements = true)) {
+                notAllowed(record, field, "any_type", "a string, string?, or list<string>")
+                return null
+            }
+            return field(record, field, path).copy(type = XsdTypeRef.Builtin("xs:anyType"))
+        }
+
+        /**
+         * `@xsd(process)` and `@xsd(wildcard)` describe a wildcard, so they need `@xsd(any)` or
+         * `@xsd(any_attribute)` on the same field.
+         */
+        private fun checkWildcardKeys(record: RecordType, field: Field) {
+            if (
+                field.annotations.flag("xsd", "any") ||
+                    field.annotations.flag("xsd", "any_attribute")
+            )
+                return
+            listOf("process", "wildcard")
+                .filter { field.annotations.string("xsd", it) != null }
+                .forEach { key ->
+                    diagnostics +=
+                        Diagnostic(
+                            XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                            "${fieldWhere(record, field)}: @xsd($key) needs @xsd(any) or " +
+                                "@xsd(any_attribute) on the same field",
+                            field.span,
+                            help = "add @xsd(any) or @xsd(any_attribute), or remove @xsd($key)",
+                        )
+                }
         }
 
         /**
@@ -218,6 +435,15 @@ object XsdLowering {
          */
         private fun attribute(record: RecordType, field: Field, path: List<String>): XsdAttribute? {
             val where = fieldWhere(record, field)
+            if (field.annotations.flag("xsd", "list")) {
+                val list = listRef(record, field, where) ?: return null
+                return XsdAttribute(
+                    name = claimFieldName(field, path, where, "attribute"),
+                    type = list,
+                    required = !field.nullable,
+                    doc = field.doc,
+                )
+            }
             val shape = attributeShape(field.type)
             if (shape != null) {
                 diagnostics +=
@@ -341,6 +567,16 @@ object XsdLowering {
         private fun field(record: RecordType, field: Field, path: List<String>): XsdElement {
             val where = fieldWhere(record, field)
             val name = claimFieldName(field, path, where, "element")
+            if (field.annotations.flag("xsd", "list")) {
+                listRef(record, field, where)?.let {
+                    return XsdElement(
+                        name = name,
+                        type = it,
+                        minOccurs = if (field.nullable) 0 else 1,
+                        doc = field.doc,
+                    )
+                }
+            }
             return when (val t = field.type) {
                 is Scalar,
                 is Ref ->
@@ -373,6 +609,46 @@ object XsdLowering {
                     mapElement(name, t, uniqueBase(record, name), where, field.span)
                         .copy(minOccurs = if (field.nullable) 0 else 1, doc = field.doc)
             }
+        }
+
+        /**
+         * [field]'s `@xsd(list)` type: one element or attribute whose value is a
+         * whitespace-separated list of its items, so only a list of scalars or enums with
+         * non-nullable items can take it; the list's bounds become length facets. `null`, reported,
+         * for any other shape.
+         */
+        private fun listRef(record: RecordType, field: Field, where: String): XsdTypeRef.ListOf? {
+            val t = field.type
+            val item = (t as? ListOf)?.element
+            val itemOk = item is Scalar || (item is Ref && schema.lookup(item.target) is EnumType)
+            if (t !is ListOf || t.nullableElement || !itemOk) {
+                notAllowed(record, field, "list", "a list of scalars or enums")
+                return null
+            }
+            return XsdTypeRef.ListOf(
+                typeRef(t.element, where, field.span),
+                t.refinements.min?.toInt(),
+                t.refinements.max?.toInt(),
+            )
+        }
+
+        /**
+         * `@xsd(list)` describes an element's or attribute's value, so it cannot go with a key that
+         * makes the field a wildcard, mixed text, or `xs:anyType`.
+         */
+        private fun checkListKey(record: RecordType, field: Field) {
+            if (!field.annotations.flag("xsd", "list")) return
+            listOf("any", "any_attribute", "any_type", "mixed")
+                .filter { field.annotations.flag("xsd", it) }
+                .forEach { key ->
+                    diagnostics +=
+                        Diagnostic(
+                            XsdCodes.ATTRIBUTE_NOT_ALLOWED,
+                            "${fieldWhere(record, field)}: @xsd(list) cannot go with @xsd($key)",
+                            field.span,
+                            help = "remove one of the two keys",
+                        )
+                }
         }
 
         /**

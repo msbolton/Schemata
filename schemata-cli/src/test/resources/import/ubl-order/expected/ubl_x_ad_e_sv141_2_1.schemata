@@ -1,0 +1,15 @@
+@xsd(namespace = "http://uri.etsi.org/01903/v1.4.1#")
+namespace ubl_x_ad_e_sv141_2_1
+
+import ubl_x_ad_e_sv132_2_1
+
+record ValidationData {
+  @xsd(name = "CertificateValues") certificate_values: ubl_x_ad_e_sv132_2_1.CertificateValues?
+  @xsd(name = "RevocationValues") revocation_values:  ubl_x_ad_e_sv132_2_1.RevocationValues?
+  @xsd(name = "Id")
+  @xsd(attribute)
+  id:                 string?
+  @xsd(name = "UR")
+  @xsd(attribute)
+  ur:                 string?
+}

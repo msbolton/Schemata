@@ -2,7 +2,7 @@ package io.schemata.cli
 
 import io.schemata.core.CoreCodes
 import io.schemata.evolution.EvolutionCodes
-import io.schemata.importer.xsd.ImportCodes
+import io.schemata.importer.ImportCodes
 import io.schemata.lang.LangCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals

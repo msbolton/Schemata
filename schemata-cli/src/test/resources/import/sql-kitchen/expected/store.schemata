@@ -1,0 +1,121 @@
+namespace store
+
+import ref.geo
+
+/// One column of every kind.
+record Everything {
+  @sql(key) id:           uuid
+  flag:         bool = false
+  @sql(type = "smallint") small:        int32
+  count:        int32(min = 0, max = 100) = 3
+  big:          int64(min = 1)?
+  under:        int32(max = 9)
+  score:        int32(min = 1, max = 5)
+  ratio:        float32
+  exact:        float64(max = 1.5)
+  price:        decimal(10, 2) = 1.50
+  whole:        decimal(12, 0)?
+  amount:       decimal(38, 9)?
+  @sql(type = "money") cash:         decimal(19, 4)?
+  /// Two to eight characters.
+  label:        string(min = 2, max = 8) = "n/a"
+  name:         string(max = 64)
+  @sql(type = "char(3)") code:         string(min = 3, max = 3)?
+  email:        string(pattern = "^[^@]+@[^@]+$")
+  handle:       string(pattern = "^[a-z]+$")?
+  @sql(type = "citext") nick:         string?
+  @sql(type = "inet") addr:         string?
+  @sql(type = "point") spot:         string?
+  blob:         bytes(max = 1024)?
+  day:          date?
+  tod:          time?
+  @sql(type = "timetz") zoned:        time?
+  at:           instant
+  @sql(type = "timestamp") stamp:        instant?
+  took:         duration?
+  @sql(type = "serial") seq:          int32
+  @sql(type = "bigserial") ticket:       int64
+  n:            int32
+  doubled:      int32?
+  @sql(type = "json") raw:          string?
+  @sql(type = "jsonb") doc:          string?
+  @sql(type = "varchar(36)") legacy:       uuid?
+  tags:         list<string(max = 16)>
+  plain:        list<int32>?
+  attributes:   map<string, string>
+  @sql(strategy = json) history:      list<Visit>?
+  @sql(column = "Mixed Case") mixed_case:   string?
+  @sql(column = "record") record_value: string?
+
+  record Visit {}
+}
+
+/// A customer, keyed by code within a tenant.
+@sql(key = (code, tenant_id))
+record Customer { tenant_id: uuid code: string(max = 16) name: string }
+
+/// An order.
+@sql(table = "Order")
+record Order {
+  @sql(key) id:          uuid
+  status:      Status = pending
+  /// Who placed it.
+  @sql(unique) customer:    Customer
+  backup:      Customer?
+  parent:      Order?
+  @sql(column = "origin") origin:      ref.geo.Region?
+  region:      ref.geo.Region?
+  /// How it was paid.
+  @sql(index) payment:     Payment
+  refund:      Refund?
+  home:        Home?
+  away_street: string?
+  away_zip:    string?
+  lines:       list<Line>
+  @sql(strategy = table) tags:        list<string(max = 16)>
+  @sql(strategy = table) statuses:    list<StatusEnum>
+  @sql(strategy = table) prices:      map<string, decimal(10, 2)>
+  regions:     list<ref.geo.Region?>
+  @sql(strategy = table) stops:       map<int32, Stop?>
+
+  union Payment = Card | Cash | uuid | Voucher | Customer
+
+  record Card { last4: string(max = 4) brand: string(max = 32) }
+
+  record Cash { note: string? }
+
+  enum Voucher { gift, promo }
+
+  union Refund = Card | uuid
+
+  record Home {
+    /// Where it goes.
+    street: string(max = 200)
+    zip:    string(min = 5)
+  }
+
+  enum Status { pending, paid_out }
+
+  /// One purchasable item.
+  record Line {
+    /// The stock-keeping unit.
+    sku:      string(max = 64)
+    quantity: int32(min = 1)
+    @sql(strategy = table) notes:    list<string>
+  }
+
+  enum StatusEnum { open, closed }
+
+  record Stop { street: string zip: string }
+}
+
+@sql(table = "Order_audit")
+record OrderAudit {
+  @sql(key)
+  @sql(column = "Order_id")
+  order_id: uuid
+  @sql(key) position: int32
+  note:     string?
+}
+
+record Booking { @sql(key) id: uuid @sql(type = "tstzrange") during: string }

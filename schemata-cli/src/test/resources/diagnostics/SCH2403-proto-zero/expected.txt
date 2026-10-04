@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): enum 'Color': zero value 'COLOR_UNKNOWN' dropped; the regenerated enum names it 'COLOR_UNSPECIFIED'
+ --> s.proto:6:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

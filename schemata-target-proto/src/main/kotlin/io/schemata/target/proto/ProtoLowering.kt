@@ -292,14 +292,23 @@ object ProtoLowering {
                     is Scalar -> {
                         val (scalar, isLossy) = scalar(type.builtin, where, span)
                         lossy = lossy || isLossy
+                        // A nullable Timestamp or Duration has no `optional`: the message's
+                        // presence already says absent. Nothing in the output records that the
+                        // field was nullable, so the note does, for whoever reads the file back.
+                        if (nullable && scalar !is ProtoType.Scalar) lossy = true
                         val label =
                             if (nullable && scalar is ProtoType.Scalar) Label.OPTIONAL
                             else Label.NONE
                         scalar to label
                     }
-                    is Ref ->
+                    is Ref -> {
+                        // Likewise for a record or union: `optional` is written only for an
+                        // enum, so a nullable message-typed field is otherwise
+                        // indistinguishable from a required one.
+                        if (nullable && !isEnum(type.target)) lossy = true
                         reference(type.target, here) to
                             (if (nullable && isEnum(type.target)) Label.OPTIONAL else Label.NONE)
+                    }
                     is ListOf -> {
                         if (nullable) {
                             lossy(
