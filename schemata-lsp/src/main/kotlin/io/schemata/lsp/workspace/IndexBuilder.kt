@@ -11,6 +11,7 @@ import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
@@ -25,6 +26,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
     private val sites = mutableListOf<Site>()
     private val builtins = mutableListOf<BuiltinSite>()
     private val declarations = linkedMapOf<QualifiedName, DeclaredAt>()
+    private val services = linkedMapOf<QualifiedName, ServiceAt>()
     private val typeAt: Map<Span, IndexedDecl> = recorded.types.toMap()
 
     init {
@@ -53,6 +55,19 @@ class IndexBuilder private constructor(recorded: Recorded) {
             }
         }
         file.declarations.forEach { declaration(file, namespace, emptyList(), it) }
+        file.services.forEach { service(file, namespace, it) }
+    }
+
+    /** A service and its operations define names; its payload types are recorded as references. */
+    private fun service(file: SourceFile, namespace: String, decl: ServiceDecl) {
+        val name = QualifiedName(namespace, listOf(decl.name))
+        services.putIfAbsent(name, ServiceAt(decl, file))
+        sites += Site(decl.nameSpan, Symbol.Service(name), definition = true)
+        decl.operations.forEach { op ->
+            sites += Site(op.nameSpan, Symbol.Operation(name, op.name), definition = true)
+            op.request?.let { builtinsIn(it.type) }
+            op.response?.let { builtinsIn(it.type) }
+        }
     }
 
     private fun declaration(
@@ -133,7 +148,12 @@ class IndexBuilder private constructor(recorded: Recorded) {
         fun build(files: List<SourceFile>, recorded: Recorded): ReferenceIndex {
             val builder = IndexBuilder(recorded)
             files.sortedBy { it.path }.forEach(builder::file)
-            return ReferenceIndex(builder.sites, builder.builtins, builder.declarations)
+            return ReferenceIndex(
+                builder.sites,
+                builder.builtins,
+                builder.declarations,
+                builder.services,
+            )
         }
     }
 }

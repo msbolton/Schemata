@@ -74,6 +74,22 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
                 ?.firstOrNull { it.name == symbol.name }
                 ?.let { block("value ${symbol.owner}.${it.name}", it.doc) }
         }
+        is Symbol.Service ->
+            analysis.index.services[symbol.name]?.let {
+                block("service ${symbol.name}", it.decl.doc)
+            }
+        is Symbol.Operation -> {
+            val at = analysis.index.services[symbol.service]
+            val op = at?.decl?.operations?.firstOrNull { it.name == symbol.name }
+            val lines = at?.let { analysis.snapshot(it.file.path)?.lines }
+            if (op == null || lines == null) null
+            else {
+                // The operation's line as the formatter prints it, without its annotations.
+                val ordinal = op.ordinal?.let { "#$it " } ?: ""
+                val binding = op.binding?.let { "  ${it.verb} ${lines.slice(it.pathSpan)}" } ?: ""
+                block("$ordinal${op.name}${payloadsText(op, lines::slice)}$binding", op.doc)
+            }
+        }
         is Symbol.Namespace -> {
             val declaring =
                 analysis.files.sortedBy { it.path }.filter { it.namespace.name == symbol.name }

@@ -44,9 +44,11 @@ internal fun OutlineNode.toLsp(): DocumentSymbol =
             OutlineKind.ALIAS -> SymbolKind.TypeParameter
             OutlineKind.FIELD -> SymbolKind.Field
             OutlineKind.VALUE -> SymbolKind.EnumMember
+            OutlineKind.SERVICE -> SymbolKind.Interface
+            OutlineKind.OPERATION -> SymbolKind.Method
         },
         range.toLsp(),
         selection.toLsp(),
-        null,
+        detail,
         children.map { it.toLsp() },
     )

@@ -1,5 +1,6 @@
 package io.schemata.lsp.workspace
 
+import io.schemata.core.ir.QualifiedName
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -235,5 +236,26 @@ class ReferenceIndexTest {
     fun `a path the workspace has never seen answers nothing`() {
         val f = Fixture(dir)
         assertEquals(emptyList(), f.queries.definition("/nowhere/x.schemata", TextPosition(0, 0)))
+    }
+
+    @Test
+    fun `services define symbols and payload types are references`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", SERVICE_API)
+        val index = f.workspace.analysis(f.workspace.keyOf(a)).index
+        val orders = QualifiedName("t", listOf("Orders"))
+        assertEquals(1, index.definitions(Symbol.Service(orders)).size)
+        assertEquals(1, index.definitions(Symbol.Operation(orders, "get")).size)
+        assertEquals(1, index.definitions(Symbol.Operation(orders, "list")).size)
+        assertEquals(
+            2,
+            index.references(Symbol.Declaration(QualifiedName("t", listOf("Order")))).size,
+        )
+        assertEquals(listOf(f.location(a, "Id")), f.queries.definition(a, f.at(a, "Id)")))
+        fun order(needle: String) = Location(a, TextRange(f.at(a, needle), f.at(a, needle, 0, 5)))
+        assertEquals(
+            listOf(order("Order {"), order("Order  get"), order("Order\n}")),
+            f.queries.references(a, f.at(a, "stream Order", offset = 7), true),
+        )
     }
 }

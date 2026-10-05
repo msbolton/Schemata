@@ -3,6 +3,7 @@ package io.schemata.lsp.workspace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
 import io.schemata.lang.ast.Declaration
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 
 /** Something a name in a schema can refer to. Two sites with equal symbols name the same thing. */
@@ -17,6 +18,10 @@ sealed interface Symbol {
     data class Field(val owner: QualifiedName, val name: String) : Symbol
 
     data class EnumValue(val owner: QualifiedName, val name: String) : Symbol
+
+    data class Service(val name: QualifiedName) : Symbol
+
+    data class Operation(val service: QualifiedName, val name: String) : Symbol
 }
 
 /** One identifier in the source: where a symbol is defined, or where it is used. */
@@ -27,11 +32,14 @@ data class BuiltinSite(val span: Span, val name: String)
 
 data class DeclaredAt(val decl: Declaration, val file: SourceFile)
 
+data class ServiceAt(val decl: ServiceDecl, val file: SourceFile)
+
 /** Every site of one schema set. */
 class ReferenceIndex(
     internal val sites: List<Site>,
     private val builtins: List<BuiltinSite>,
     val declarations: Map<QualifiedName, DeclaredAt>,
+    val services: Map<QualifiedName, ServiceAt> = emptyMap(),
 ) {
     /** The site under a compiler position; a cursor just past a name's last character counts. */
     fun at(file: String, line: Int, column: Int): Site? {
