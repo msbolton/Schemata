@@ -1,5 +1,6 @@
 package io.schemata.importer
 
+import io.schemata.importer.NoteText.OperationNote
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -81,5 +82,47 @@ class NoteTextTest {
             alone.type,
         )
         assertNull(alone.default)
+    }
+
+    @Test
+    fun `operation notes read ordinals and bindings`() {
+        assertEquals(OperationNote(4, "get \"/x\""), NoteText.parseOperationNote("#4; get \"/x\""))
+        assertEquals(
+            OperationNote(null, "post \"/orders\""),
+            NoteText.parseOperationNote("post \"/orders\""),
+        )
+        assertEquals(OperationNote(7, null), NoteText.parseOperationNote("#7"))
+        assertNull(NoteText.parseOperationNote("fetch \"/x\""))
+        assertNull(NoteText.parseOperationNote("get /x"))
+        assertNull(NoteText.parseOperationNote("#x; get \"/x\""))
+    }
+
+    @Test
+    fun `an operation note spells its binding as the formatter does`() {
+        assertEquals(OperationNote(null, "get \"/x\""), NoteText.parseOperationNote("get   \"/x\""))
+    }
+
+    @Test
+    fun `an operation note holds one binding and nothing else`() {
+        assertNull(NoteText.parseOperationNote("get \"/x\" } record R {"))
+        assertNull(NoteText.parseOperationNote("get \"/x\" reserved #1"))
+        assertNull(NoteText.parseOperationNote("get \"/x\" other()"))
+        assertNull(NoteText.parseOperationNote("#0"))
+        assertNull(NoteText.parseOperationNote("#4;"))
+    }
+
+    @Test
+    fun `a reserved note reads ordinals ranges and names`() {
+        assertEquals(
+            listOf(
+                UnitReserved.Ordinals(6, 6),
+                UnitReserved.Ordinals(8, 9),
+                UnitReserved.Name("archive"),
+            ),
+            NoteText.parseReservedNote("reserved #6, #8..#9, \"archive\""),
+        )
+        assertNull(NoteText.parseReservedNote("reserved"))
+        assertNull(NoteText.parseReservedNote("reserved #6 get()"))
+        assertNull(NoteText.parseReservedNote("get()"))
     }
 }

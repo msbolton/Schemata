@@ -2,10 +2,15 @@ syntax = "proto3";
 
 package s;
 
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OPEN = 1;
+}
+
 message Order {
   string id = 1;
 }
 
 service Orders {
-  rpc Get(Order) returns (Order);
+  rpc Get(Status) returns (Order);
 }

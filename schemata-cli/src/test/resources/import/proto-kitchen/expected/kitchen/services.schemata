@@ -4,3 +4,13 @@ import kitchen.maps
 import kitchen.enums
 
 record Request { #1 item: kitchen.maps.Item }
+
+/// The ordering API.
+service Orders {
+  #1 get(kitchen.maps.Item): kitchen.maps.Item  get "/items/{name}"
+  #2 watch(kitchen.maps.Item): stream kitchen.maps.Item
+  /// Forget an item.
+  @deprecated #5 forget(kitchen.maps.Item)  delete "/items/{name}"
+  #4 submit(Request): kitchen.maps.Item
+  reserved #6, "archive"
+}

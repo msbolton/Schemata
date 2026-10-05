@@ -5,13 +5,17 @@ import io.schemata.lang.SchemataText
 import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.Refinement
+import io.schemata.lang.ast.ReservedItem
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.TypeExpr
 
 /**
- * Reads a `schemata:` note back: the type as a user would write it, optionally followed by `;
- * default = <literal>`, or the default alone. The separator is found outside string literals and
- * the language's own parser reads the parts, inside a one-field record made up around the note, so
- * a `"; default = "` inside a pattern or a default string cannot mislead it.
+ * Reads a `schemata:` note back. A field's note is the type as a user would write it, optionally
+ * followed by `; default = <literal>`, or the default alone. The separator is found outside string
+ * literals and the language's own parser reads the parts, inside a one-field record made up around
+ * the note, so a `"; default = "` inside a pattern or a default string cannot mislead it. An
+ * operation's note and a service's `reserved` note are read the same way, inside a service made up
+ * around them.
  */
 object NoteText {
     /**
@@ -42,6 +46,66 @@ object NoteText {
     }
 
     private const val SEPARATOR = "; $DEFAULT"
+
+    /** An operation note: `#4`, `get "/x"`, or `#4; get "/x"`. */
+    data class OperationNote(val ordinal: Int?, val binding: String?)
+
+    /**
+     * The note read back, or null when it does not read as an ordinal, a binding, or both. The
+     * ordinal comes first and a `; ` ends it; the binding is read by the language's own `binding`
+     * rule and spelled as the formatter prints it, so a foreign note's odd spacing normalises.
+     */
+    fun parseOperationNote(note: String): OperationNote? {
+        val text = note.trim()
+        val ordinalText: String?
+        val bindingText: String?
+        if (text.startsWith("#")) {
+            val at = text.indexOf("; ")
+            ordinalText = if (at < 0) text else text.substring(0, at)
+            bindingText = if (at < 0) null else text.substring(at + 2)
+        } else {
+            ordinalText = null
+            bindingText = text
+        }
+        val ordinal =
+            ordinalText?.let {
+                if (!ORDINAL.matches(it)) return null
+                it.substring(1).toIntOrNull()?.takeIf { n -> n >= 1 } ?: return null
+            }
+        val binding =
+            bindingText?.let { b ->
+                val service = service("op() $b")?.takeIf { it.reserved.isEmpty() }
+                val decl = service?.operations?.singleOrNull()?.binding ?: return null
+                "${decl.verb} ${SchemataText.string(decl.path)}"
+            }
+        return OperationNote(ordinal, binding)
+    }
+
+    /**
+     * A service's `reserved` note (`reserved #6, "archive"`) read back, or null when it is not one
+     * `reserved` statement.
+     */
+    fun parseReservedNote(note: String): List<UnitReserved>? {
+        val service = service(note.trim()) ?: return null
+        if (service.operations.isNotEmpty() || service.reserved.isEmpty()) return null
+        return service.reserved.map {
+            when (it) {
+                is ReservedItem.Ordinals -> UnitReserved.Ordinals(it.from, it.to)
+                is ReservedItem.Name -> UnitReserved.Name(it.name)
+            }
+        }
+    }
+
+    private val ORDINAL = Regex("#\\d+")
+
+    /**
+     * [body] parsed as the members of a service, when the made-up file holds that service alone.
+     */
+    private fun service(body: String): ServiceDecl? {
+        val file = Parser.parse("namespace n\nservice S { $body }\n", "note").file ?: return null
+        if (file.declarations.isNotEmpty()) return null
+        return file.services.singleOrNull()
+    }
 
     /**
      * Where the last `; default = ` outside a string literal starts in [text], or null. A `\` in a

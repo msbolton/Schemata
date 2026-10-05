@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2403] (lossy): service 'Orders': note 'reserved #' cannot be read; ignored
+ --> s.proto:9:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): service 'Orders': rpc 'Get': note 'fetch "/orders"' cannot be read; ignored
+  --> s.proto:10:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings
