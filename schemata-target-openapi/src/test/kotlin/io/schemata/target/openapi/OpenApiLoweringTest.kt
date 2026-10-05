@@ -277,6 +277,28 @@ class OpenApiLoweringTest {
     }
 
     @Test
+    fun `a union request on a parameter verb is refused`() {
+        val l =
+            lower(
+                "namespace t\nrecord A { #1 a: string }\nrecord B { #1 b: string }\n" +
+                    "union U = #1 A | #2 B\nrecord R { #1 ok: bool }\n" +
+                    "service S { #1 find(U): R  get \"/find\" }"
+            )
+        assertEquals(
+            listOf(
+                "SCH2601 operation 'find': union 'U' cannot be query parameters; use a body verb"
+            ),
+            messages(l),
+        )
+        assertEquals("request a record, or use post, put, or patch", l.diagnostics.single().help)
+        val doc = l.model.documents.single()
+        val op = doc.paths.single().operations.single()
+        assertNull(op.requestBody)
+        assertTrue(op.parameters.isEmpty())
+        assertEquals(listOf("t.R"), doc.components.map { it.key })
+    }
+
+    @Test
     fun `query parameters refuse structured fields`() {
         val l =
             lower(
@@ -324,19 +346,47 @@ class OpenApiLoweringTest {
     }
 
     @Test
-    fun `an operation name override keeps the derived path`() {
+    fun `a service name override renames the derived path and the default operationId`() {
         val l =
             lower(
                 "namespace t\nrecord R { #1 ok: bool }\n" +
-                    "@openapi(name = \"Things\")\nservice S { @openapi(name = \"fetch_it\") #1 get(): R }"
+                    "@openapi(name = \"Things\")\nservice S { #1 get(): R }"
             )
         val doc = l.model.documents.single()
-        assertEquals(listOf("/S/get"), doc.paths.map { it.path })
+        assertEquals(listOf("/Things/get"), doc.paths.map { it.path })
         val op = doc.paths.single().operations.single()
-        assertEquals("fetch_it", op.operationId)
+        assertEquals("Things_get", op.operationId)
         assertEquals("Things", op.tag)
         assertEquals(listOf(Tag("Things", null)), doc.tags)
         assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `an operation name override replaces the operationId and keeps the derived path`() {
+        val l =
+            lower(
+                "namespace t\nrecord R { #1 ok: bool }\n" +
+                    "service S { @openapi(name = \"fetch_it\") #1 get(): R }"
+            )
+        val doc = l.model.documents.single()
+        assertEquals(listOf("/S/get"), doc.paths.map { it.path })
+        assertEquals("fetch_it", doc.paths.single().operations.single().operationId)
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `two services with one tag name collide and the tag is emitted once`() {
+        val l =
+            lower(
+                "namespace t\nrecord R { #1 ok: bool }\n" +
+                    "/// First.\n@openapi(name = \"Same\")\nservice A { #1 one(): R }\n" +
+                    "/// Second.\n@openapi(name = \"Same\")\nservice B { #1 two(): R }"
+            )
+        assertEquals(listOf("SCH2602 services 'A' and 'B' both lower to tag 'Same'"), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf(Tag("Same", "First.")), doc.tags)
+        assertEquals(listOf("/Same/one", "/Same/two"), doc.paths.map { it.path })
+        assertEquals(listOf("Same", "Same"), doc.paths.map { it.operations.single().tag })
     }
 
     @Test

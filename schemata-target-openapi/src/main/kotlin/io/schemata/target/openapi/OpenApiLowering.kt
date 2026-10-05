@@ -100,7 +100,7 @@ private class NamespaceLowering(
             version = namespace.annotations.string("openapi", "version") ?: "1.0.0",
             description = namespace.doc,
             server = server(),
-            tags = namespace.services.map { Tag(tagName(it), tagDescription(it)) },
+            tags = tags(),
             paths = paths.map { (path, ops) -> PathItem(path, ops.sortedBy { it.verb.ordinal }) },
             components = components,
         )
@@ -134,7 +134,7 @@ private class NamespaceLowering(
     private fun plan(service: Service, op: Operation): Plan? {
         val operationId = operationId(service, op)
         val verb = op.binding?.verb ?: Verb.POST
-        val path = op.binding?.path ?: "/${service.name}/${op.name}"
+        val path = op.binding?.path ?: "/${tagName(service)}/${op.name}"
         val routeTaken = claimRoute(service, op, verb, path)
         val request = op.request
         val decl = request?.let { schema.lookup(it.target) }
@@ -154,8 +154,11 @@ private class NamespaceLowering(
             when {
                 request == null -> null
                 request.stream -> BodyPlan.Whole("application/x-ndjson", request.target)
+                verb.parameterised -> {
+                    if (record == null) unionAsQuery(op, decl!!)
+                    null
+                }
                 record == null -> BodyPlan.Whole("application/json", request.target)
-                verb.parameterised -> null
                 pathFields.isEmpty() -> BodyPlan.Whole("application/json", request.target)
                 remaining.isEmpty() -> null
                 else -> BodyPlan.Partial(remaining)
@@ -172,8 +175,8 @@ private class NamespaceLowering(
     }
 
     /**
-     * `@openapi(name)` when valid, else `<Service>_<operation>`; a second operation with the same
-     * id is reported.
+     * `@openapi(name)` when valid, else `<Service>_<operation>` with the service's tag name; a
+     * second operation with the same id is reported.
      */
     private fun operationId(service: Service, op: Operation): String {
         val override = op.annotations.string("openapi", "name")
@@ -191,7 +194,7 @@ private class NamespaceLowering(
                     }
                     null
                 }
-        val id = valid ?: "${service.name}_${op.name}"
+        val id = valid ?: "${tagName(service)}_${op.name}"
         val previous = operationIds.putIfAbsent(id, service to op)
         if (previous != null) {
             diagnostics +=
@@ -240,6 +243,17 @@ private class NamespaceLowering(
                 help = "use post, or bind it in the path, or flatten it",
             )
         return false
+    }
+
+    /** A union request has no fields to spread over query parameters; it is reported. */
+    private fun unionAsQuery(op: Operation, union: TypeDecl) {
+        diagnostics +=
+            Diagnostic(
+                OpenApiCodes.QUERY_SHAPE,
+                "operation '${op.name}': union '${union.name}' cannot be query parameters; use a body verb",
+                op.nameSpan,
+                help = "request a record, or use post, put, or patch",
+            )
     }
 
     private fun flat(type: Type): Boolean =
@@ -376,6 +390,30 @@ private class NamespaceLowering(
         return parts[0].trim().ifEmpty { null } to parts.getOrNull(1)?.trim()?.ifEmpty { null }
     }
 
+    /**
+     * One tag per service, named by [tagName]; a service whose tag name another already has is
+     * reported, and its operations share that tag.
+     */
+    private fun tags(): List<Tag> {
+        val owners = mutableMapOf<String, Service>()
+        return namespace.services.mapNotNull { service ->
+            val name = tagName(service)
+            val previous = owners.putIfAbsent(name, service)
+            if (previous == null) Tag(name, tagDescription(service))
+            else {
+                diagnostics +=
+                    Diagnostic(
+                        OpenApiCodes.COLLISION,
+                        "services '${previous.name}' and '${service.name}' both lower to tag '$name'",
+                        service.nameSpan,
+                        help = "set a different `@openapi(name = \"…\")` on one of them",
+                    )
+                null
+            }
+        }
+    }
+
+    /** The service's emitted name: its `@openapi(name)`, else its own name. */
     private fun tagName(service: Service): String =
         service.annotations.string("openapi", "name") ?: service.name
 

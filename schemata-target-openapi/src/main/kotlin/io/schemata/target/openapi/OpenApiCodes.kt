@@ -18,7 +18,7 @@ object OpenApiCodes {
             "SCH2602",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two operations lower to one operationId or one verb and path",
+            "two services, operations, or schemas lower to one OpenAPI name",
         )
     val INVALID_OVERRIDE =
         DiagnosticCode(
