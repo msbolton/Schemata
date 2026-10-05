@@ -375,6 +375,24 @@ class OpenApiLoweringTest {
     }
 
     @Test
+    fun `an invalid service name override is reported once and the service name stands`() {
+        val l =
+            lower(
+                "namespace t\nrecord R { #1 ok: bool }\n" +
+                    "@openapi(name = \"a b\")\nservice S { #1 get(): R  #2 put(): R }"
+            )
+        assertEquals(
+            listOf("SCH2603 service 'S': @openapi(name = \"a b\") is not a valid tag"),
+            messages(l),
+        )
+        val doc = l.model.documents.single()
+        assertEquals(listOf(Tag("S", null)), doc.tags)
+        assertEquals(listOf("/S/get", "/S/put"), doc.paths.map { it.path })
+        assertEquals(listOf("S_get", "S_put"), doc.paths.map { it.operations.single().operationId })
+        assertEquals(listOf("S", "S"), doc.paths.map { it.operations.single().tag })
+    }
+
+    @Test
     fun `two services with one tag name collide and the tag is emitted once`() {
         val l =
             lower(

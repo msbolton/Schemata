@@ -413,9 +413,30 @@ private class NamespaceLowering(
         }
     }
 
-    /** The service's emitted name: its `@openapi(name)`, else its own name. */
+    private val tagNames = mutableMapOf<QualifiedName, String>()
+
+    /**
+     * The service's emitted name: its `@openapi(name)` when valid, else its own name; an invalid
+     * override is reported once.
+     */
     private fun tagName(service: Service): String =
-        service.annotations.string("openapi", "name") ?: service.name
+        tagNames.getOrPut(service.qualifiedName) {
+            val override = service.annotations.string("openapi", "name")
+            when {
+                override == null -> service.name
+                OPERATION_ID.matches(override) -> override
+                else -> {
+                    diagnostics +=
+                        Diagnostic(
+                            OpenApiCodes.INVALID_OVERRIDE,
+                            "service '${service.name}': @openapi(name = \"$override\") is not a valid tag",
+                            service.nameSpan,
+                            help = "use letters, digits, `_`, `.`, and `-`",
+                        )
+                    service.name
+                }
+            }
+        }
 
     private fun tagDescription(service: Service): String? {
         if (!service.annotations.deprecated) return service.doc
