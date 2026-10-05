@@ -227,7 +227,7 @@ class ServicesTest {
                     "service A { #1 a(OrderId): Order  get \"/x/{id}\" }\nservice B { #1 b(OrderId): Order  get \"/x/{id}\" }"
             )
         assertEquals(
-            listOf("SCH1048 operation 'b': get \"/x/{id}\" is already bound by operation 'a'"),
+            listOf("SCH1048 operation 'b': get \"/x/{id}\" is already bound by operation 'A.a'"),
             messages(r),
         )
         val other =
@@ -235,6 +235,29 @@ class ServicesTest {
         assertEquals(
             emptyList(),
             messages(analyze(BASE + "service A { #1 a(OrderId): Order  get \"/x/{id}\" }", other)),
+        )
+    }
+
+    @Test
+    fun `paths that differ only in parameter names are one route`() {
+        val r =
+            analyze(
+                BASE +
+                    """
+                    record ByStatus { #1 status: Status #2 id: uuid }
+                    service S {
+                      #1 a(OrderId): Order  get "/orders/{id}"
+                      #2 b(ByStatus): Order  get "/orders/{status}"
+                      #3 c(ByStatus): Order  delete "/orders/{status}"
+                      #4 d(ByStatus): Order  get "/orders/{status}/{id}"
+                    }
+                    """
+            )
+        assertEquals(
+            listOf(
+                "SCH1048 operation 'b': get \"/orders/{status}\" is already bound by operation 'a'"
+            ),
+            messages(r),
         )
     }
 

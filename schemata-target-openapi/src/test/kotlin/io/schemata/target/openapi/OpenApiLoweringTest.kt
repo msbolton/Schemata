@@ -346,6 +346,30 @@ class OpenApiLoweringTest {
     }
 
     @Test
+    fun `paths that differ only in parameter names collide whatever their verbs`() {
+        val l =
+            lower(
+                "namespace t\nrecord Id { #1 id: uuid #2 order_id: uuid }\nrecord R { #1 ok: bool }\n" +
+                    "service S {\n" +
+                    "  #1 get(Id): R  get \"/orders/{id}\"\n" +
+                    "  #2 put(Id): R  put \"/orders/{id}\"\n" +
+                    "  #3 cancel(Id)  delete \"/orders/{order_id}\"\n" +
+                    "}\n" +
+                    "service Other { #1 x(Id): R  post \"/orders/{order_id}\" }"
+            )
+        assertEquals(
+            listOf(
+                "SCH2602 operations 'get' and 'cancel' both lower to path \"/orders/{}\" with different parameter names",
+                "SCH2602 operations 'S.get' and 'Other.x' both lower to path \"/orders/{}\" with different parameter names",
+            ),
+            messages(l),
+        )
+        val item = l.model.documents.single().paths.single()
+        assertEquals("/orders/{id}", item.path)
+        assertEquals(listOf(Verb.GET, Verb.PUT), item.operations.map { it.verb })
+    }
+
+    @Test
     fun `a service name override renames the derived path and the default operationId`() {
         val l =
             lower(

@@ -242,7 +242,10 @@ class ChangeContext(val old: Schema, val new: Schema) {
     private fun overrideKey(target: String) = if (target == "sql") "column" else "name"
 
     private companion object {
-        /** What OpenAPI accepts as a tag or `operationId` override. */
+        /**
+         * What OpenAPI accepts as a tag or `operationId` override; keep in step with
+         * `OpenApiLowering.OPERATION_ID`, which this module cannot depend on.
+         */
         val OPENAPI_NAME = Regex("[A-Za-z0-9_.-]+")
     }
 }

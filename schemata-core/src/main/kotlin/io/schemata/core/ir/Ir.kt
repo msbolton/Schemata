@@ -82,7 +82,18 @@ data class Operation(
 data class Payload(val target: QualifiedName, val stream: Boolean)
 
 /** [path] as written; [parameters] are its `{name}` segments in path order. */
-data class HttpBinding(val verb: Verb, val path: String, val parameters: List<String>)
+data class HttpBinding(val verb: Verb, val path: String, val parameters: List<String>) {
+    companion object {
+        /**
+         * [path] with every `{name}` segment written `{}`: two paths that differ only in their
+         * parameters' names match the same requests, so they are one route.
+         */
+        fun template(path: String): String =
+            path.split("/").joinToString("/") {
+                if (it.startsWith("{") && it.endsWith("}")) "{}" else it
+            }
+    }
+}
 
 enum class Verb {
     GET,

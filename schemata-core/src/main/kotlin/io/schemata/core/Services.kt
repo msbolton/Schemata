@@ -28,15 +28,19 @@ import io.schemata.lang.ast.UnionDecl
  * same ordinal and reserved rules as a record's fields. A payload must resolve to a record or a
  * union, never nullable. A binding's `{name}` segments must each name a non-nullable scalar or enum
  * field of the request record, once; a streamed request has no path parameters and no
- * parameter-only verb; and one verb and path belong to one operation per namespace.
+ * parameter-only verb; and one verb and path belong to one operation per namespace, paths that
+ * differ only in their parameters' names counting as one.
  */
 internal object Services {
     // reserved as an operation name, as it is for fields
     private const val NULL_NAME = "null"
 
-    /** Routes already taken in the namespace: verb and path to the operation that took them. */
+    /**
+     * Routes already taken in the namespace: verb and path template to the service and operation
+     * that took them.
+     */
     class Routes {
-        internal val bound = mutableMapOf<Pair<Verb, String>, String>()
+        internal val bound = mutableMapOf<Pair<Verb, String>, Pair<String, String>>()
     }
 
     /**
@@ -89,7 +93,7 @@ internal object Services {
                     payload(op, op.response, "response", scope, index, resolver, diagnostics)
                 val binding =
                     op.binding?.let {
-                        binding(op, it, request, index, declarations, routes, diagnostics)
+                        binding(decl, op, it, request, index, declarations, routes, diagnostics)
                     }
                 Operation(
                     ordinal = ordinals[i],
@@ -182,6 +186,7 @@ internal object Services {
 
     /** Null when the binding breaks a rule; every broken rule is reported. */
     private fun binding(
+        service: ServiceDecl,
         op: OperationDecl,
         b: BindingDecl,
         request: Payload?,
@@ -241,10 +246,15 @@ internal object Services {
                     )
             }
         }
-        val other = routes.bound.putIfAbsent(verb to b.path, op.name)
+        // `/orders/{id}` and `/orders/{order_id}` match the same requests, so routes compare by
+        // template; the other operation is qualified when another service holds it
+        val other =
+            routes.bound.putIfAbsent(verb to HttpBinding.template(b.path), service.name to op.name)
         if (other != null) {
+            val shown =
+                if (other.first == service.name) other.second else "${other.first}.${other.second}"
             bad(
-                "${verb.lower} ${SchemataText.string(b.path)} is already bound by operation '$other'",
+                "${verb.lower} ${SchemataText.string(b.path)} is already bound by operation '$shown'",
                 b.span,
                 "give each operation its own verb and path",
             )

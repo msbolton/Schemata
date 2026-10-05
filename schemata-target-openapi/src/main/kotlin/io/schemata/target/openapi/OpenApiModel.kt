@@ -10,7 +10,8 @@ data class OpenApiModel(val documents: List<OpenApiDocument>) : TargetModel
 
 /**
  * One OpenAPI 3.1 document, legal by construction: every `$ref` points into [components], every
- * `operationId` and verb-and-path pair is unique.
+ * `operationId` and verb-and-path pair is unique, and no two paths differ only in their parameters'
+ * names.
  */
 data class OpenApiDocument(
     val path: String,

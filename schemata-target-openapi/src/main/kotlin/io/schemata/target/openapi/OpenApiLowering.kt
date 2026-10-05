@@ -2,6 +2,7 @@ package io.schemata.target.openapi
 
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
@@ -83,6 +84,8 @@ private class NamespaceLowering(
     private val needed = LinkedHashSet<QualifiedName>()
     private val operationIds = mutableMapOf<String, Pair<Service, Operation>>()
     private val routes = mutableMapOf<Pair<Verb, String>, Pair<Service, Operation>>()
+    /** Each path template to the first path that lowered to it and that path's operation. */
+    private val templates = mutableMapOf<String, Pair<String, Pair<Service, Operation>>>()
 
     fun lower(): OpenApiDocument {
         // every operation is planned first, so the components are filed before any operation
@@ -208,8 +211,24 @@ private class NamespaceLowering(
         return id
     }
 
-    /** Claims [verb] on [path] for [op]; true, after reporting, when another operation has it. */
+    /**
+     * Claims [verb] on [path] for [op]; true, after reporting, when another operation has it. Paths
+     * that differ only in their parameters' names are one path to OpenAPI, which allows only one of
+     * them whatever their verbs, so the first such path keeps its template.
+     */
     private fun claimRoute(service: Service, op: Operation, verb: Verb, path: String): Boolean {
+        val template = HttpBinding.template(path)
+        val first = templates.putIfAbsent(template, path to (service to op))
+        if (first != null && first.first != path) {
+            diagnostics +=
+                Diagnostic(
+                    OpenApiCodes.COLLISION,
+                    "operations ${both(first.second, service to op)} both lower to path \"$template\" with different parameter names",
+                    op.nameSpan,
+                    help = "use the same parameter names in both paths",
+                )
+            return true
+        }
         val previous = routes.putIfAbsent(verb to path, service to op) ?: return false
         diagnostics +=
             Diagnostic(
@@ -459,6 +478,7 @@ private class NamespaceLowering(
     }
 
     private companion object {
+        // keep in step with `ChangeContext.OPENAPI_NAME` in schemata-evolution
         val OPERATION_ID = Regex("[A-Za-z0-9_.-]+")
         val COMPONENT_KEY = Regex("[a-zA-Z0-9._-]+")
         val SERVER = Regex("[A-Za-z][A-Za-z0-9+.-]*://\\S+|/\\S*")
