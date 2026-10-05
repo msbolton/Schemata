@@ -7,11 +7,13 @@ Every code the compiler can report, with the message shapes and help text its fi
 
 | Code | Severity | Category | Fires when | Message | Help |
 |---|---|---|---|---|---|
-| SCH0001 | error | syntax | the parser cannot continue at this token | missing ':' at 'uuid'<br>mismatched input '<EOF>' expecting {'}', '@', 'record', 'enum', 'union', 'alias', 'reserved', ORDINAL, IDENT, DOC_COMMENT} | the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, or `union Name = A \| B` |
-| SCH0002 | error | syntax | a reserved keyword starts a declaration | 'service' is reserved for a future version of Schemata | rename the declaration; reserved words are listed in the language reference |
+| SCH0001 | error | syntax | the parser cannot continue at this token | missing ':' at 'uuid'<br>mismatched input '<EOF>' expecting {'}', '@', 'record', 'enum', 'union', 'alias', 'reserved', ORDINAL, IDENT, DOC_COMMENT} | the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, `union Name = A \| B`, or `service Name { #1 op(A): B }` |
+| SCH0002 | error | syntax | a reserved keyword starts a declaration | 'operation' is reserved for a future version of Schemata | rename the declaration; reserved words are listed in the language reference |
 | SCH0003 | error | syntax | an integer or ordinal literal is out of range | number '99999999999999999999' is out of range<br>ordinal '#99999999999' is out of range | use a value that fits in 64 bits<br>use an ordinal that fits in 32 bits |
 | SCH0004 | error | syntax | a string holds an escape the language does not define | unknown escape '\q' in a string<br>unknown escape '\u{}' in a string<br>'\u{110000}' is not a Unicode scalar value | write \\ for a backslash; the escapes are \" \\ \n \t \r \u{…} |
 | SCH0005 | error | syntax | a string or doc comment holds a control character XML cannot carry | control character U+0000 in a string<br>control character U+FFFE in a string<br>control character U+0001 in a doc comment<br>control character U+0001 in a string<br>control character U+0002 in a string | write text; only tab, newline, and carriage return are allowed as control characters |
+| SCH0006 | error | syntax | a binding's verb is not an HTTP method | 'fetch' is not an HTTP verb | use one of get, post, put, patch, delete, head, options |
+| SCH0007 | error | syntax | a binding's path is malformed | path "a/{X}" is malformed: it must start with / | write the path as /segment/{param}; parameters are lower_snake |
 
 ## Semantics (SCH1xxx)
 

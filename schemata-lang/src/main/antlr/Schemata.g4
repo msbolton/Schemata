@@ -7,7 +7,7 @@ namespaceDecl : NAMESPACE qualifiedName ;
 importDecl    : IMPORT qualifiedName (AS IDENT)? ;
 qualifiedName : IDENT ('.' IDENT)* ;
 
-topLevel      : declaration | reservedFutureDecl ;
+topLevel      : declaration | serviceDecl | reservedFutureDecl ;
 declaration   : recordDecl | enumDecl | unionDecl | aliasDecl ;
 
 recordDecl    : doc? annotation* RECORD IDENT '{' recordMember* '}' ;
@@ -25,9 +25,19 @@ aliasDecl     : doc? annotation* ALIAS IDENT '=' typeExpr ;
 reservedStmt  : RESERVED reservedItem (',' reservedItem)* ;
 reservedItem  : ORDINAL (RANGE ORDINAL)? | STRING_LITERAL ;
 
-// `service`, `operation`, `stream` parse to a node so the AST builder can report them as
-// reserved for a future version instead of a generic syntax error.
-reservedFutureDecl : (SERVICE | OPERATION | STREAM) IDENT? block? ;
+// A service is its own kind of top-level thing, never a declaration: a service cannot be nested
+// in a record and a record cannot be named after one by accident.
+serviceDecl   : doc? annotation* SERVICE IDENT '{' serviceMember* '}' ;
+serviceMember : operation | reservedStmt ;
+operation     : doc? annotation* ORDINAL? IDENT '(' payload? ')' (':' payload)? binding? ;
+payload       : STREAM? typeExpr ;
+// The verb is an identifier, not a token: `get` and `post` stay legal field names. The builder
+// checks it against the HTTP methods.
+binding       : IDENT STRING_LITERAL ;
+
+// `operation` and `stream` parse to a node so the AST builder can report them as reserved for a
+// future version instead of a generic syntax error.
+reservedFutureDecl : (OPERATION | STREAM) IDENT? block? ;
 block         : '{' (block | ~('{' | '}'))* '}' ;
 
 typeExpr      : qualifiedName typeArgs? refinements? QUESTION? ;

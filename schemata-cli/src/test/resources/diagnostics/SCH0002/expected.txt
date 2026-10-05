@@ -1,4 +1,4 @@
-error[SCH0002]: 'service' is reserved for a future version of Schemata
+error[SCH0002]: 'operation' is reserved for a future version of Schemata
  --> s.schemata:2:1
   = help: rename the declaration; reserved words are listed in the language reference
 

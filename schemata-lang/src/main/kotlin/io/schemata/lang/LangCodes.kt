@@ -39,6 +39,25 @@ object LangCodes {
             "a string or doc comment holds a control character XML cannot carry",
         )
 
+    val UNKNOWN_VERB =
+        DiagnosticCode(
+            "SCH0006",
+            Severity.ERROR,
+            Category.SYNTAX,
+            "a binding's verb is not an HTTP method",
+        )
+
+    val MALFORMED_PATH =
+        DiagnosticCode("SCH0007", Severity.ERROR, Category.SYNTAX, "a binding's path is malformed")
+
     val all: List<DiagnosticCode> =
-        listOf(SYNTAX, RESERVED_KEYWORD, NUMERIC_LITERAL_RANGE, BAD_ESCAPE, CONTROL_CHARACTER)
+        listOf(
+            SYNTAX,
+            RESERVED_KEYWORD,
+            NUMERIC_LITERAL_RANGE,
+            BAD_ESCAPE,
+            CONTROL_CHARACTER,
+            UNKNOWN_VERB,
+            MALFORMED_PATH,
+        )
 }

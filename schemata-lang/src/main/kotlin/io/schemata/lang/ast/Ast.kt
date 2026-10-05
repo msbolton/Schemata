@@ -14,6 +14,7 @@ data class SourceFile(
     val imports: List<ImportDecl>,
     val declarations: List<Declaration>,
     val span: Span,
+    val services: List<ServiceDecl> = emptyList(),
 )
 
 /** `namespace shop.orders` — [name] keeps the dots; [nameSpan] covers the name alone. */
@@ -77,6 +78,53 @@ data class AliasDecl(
     override val annotations: List<Annotation>,
     override val span: Span,
 ) : Declaration
+
+/**
+ * `service Orders { … }`: not a [Declaration], so it never nests and no `when` over declarations
+ * sees it.
+ */
+data class ServiceDecl(
+    val name: String,
+    val nameSpan: Span,
+    val operations: List<OperationDecl>,
+    val reserved: List<ReservedItem>,
+    val doc: String?,
+    val annotations: List<Annotation>,
+    val span: Span,
+)
+
+/**
+ * `#1 get(OrderId): Order get "/orders/{id}"`. [request] is null for `()`, [response] when there is
+ * no `: …`, and [binding] when no HTTP route is given.
+ */
+data class OperationDecl(
+    val ordinal: Int?,
+    val ordinalSpan: Span?,
+    val name: String,
+    val nameSpan: Span,
+    val request: PayloadDecl?,
+    val response: PayloadDecl?,
+    val binding: BindingDecl?,
+    val doc: String?,
+    val annotations: List<Annotation>,
+    val span: Span,
+)
+
+/** `stream Order` or `Order`. */
+data class PayloadDecl(val type: TypeExpr, val stream: Boolean, val span: Span)
+
+/**
+ * `get "/orders/{id}"`; [parameters] are the `{name}` segments in order; [pathSpan] is the
+ * literal's.
+ */
+data class BindingDecl(
+    val verb: String,
+    val verbSpan: Span,
+    val path: String,
+    val pathSpan: Span,
+    val parameters: List<String>,
+    val span: Span,
+)
 
 /** [ordinal] is null when the field has no `#n`; the checker decides all-or-nothing. */
 data class FieldDecl(

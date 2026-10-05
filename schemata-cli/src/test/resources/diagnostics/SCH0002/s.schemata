@@ -1,2 +1,2 @@
 namespace s
-service Foo {}
+operation Foo {}

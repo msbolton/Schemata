@@ -2,12 +2,14 @@ package io.schemata.lang.internal
 
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.LangCodes
+import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.antlr.SchemataParser
 import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.AnnotationArg
 import io.schemata.lang.ast.AnnotationValue
+import io.schemata.lang.ast.BindingDecl
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.EnumValueDecl
@@ -15,9 +17,12 @@ import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.ImportDecl
 import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.NamespaceDecl
+import io.schemata.lang.ast.OperationDecl
+import io.schemata.lang.ast.PayloadDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.Refinement
 import io.schemata.lang.ast.ReservedItem
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
@@ -27,15 +32,18 @@ import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.TerminalNode
 
 /**
- * Parse tree → AST. Constructs the grammar accepts but the language reserves (`service`, …) become
- * diagnostics in [diagnostics] rather than nodes.
+ * Parse tree → AST. Constructs the grammar accepts but the language reserves (`operation`,
+ * `stream`) become diagnostics in [diagnostics] rather than nodes.
  */
 internal class AstBuilder(
     private val file: String,
     private val diagnostics: MutableList<Diagnostic>,
 ) {
-    fun build(ctx: SchemataParser.FileContext): SourceFile =
-        SourceFile(
+    fun build(ctx: SchemataParser.FileContext): SourceFile {
+        // One pass over the top level, so diagnostics come out in source order whether they sit in
+        // a declaration or a service.
+        val services = mutableListOf<ServiceDecl>()
+        return SourceFile(
             path = file,
             doc = doc(ctx.doc()),
             annotations = ctx.annotation().map { build(it) },
@@ -53,9 +61,18 @@ internal class AstBuilder(
                         span = it.span(),
                     )
                 },
-            declarations = ctx.topLevel().mapNotNull { build(it) },
+            declarations =
+                ctx.topLevel().mapNotNull { top ->
+                    val service = top.serviceDecl()
+                    if (service != null) {
+                        services += build(service)
+                        null
+                    } else build(top)
+                },
             span = ctx.span(),
+            services = services,
         )
+    }
 
     private fun build(ctx: SchemataParser.TopLevelContext): Declaration? {
         ctx.reservedFutureDecl()?.let { reserved ->
@@ -70,7 +87,7 @@ internal class AstBuilder(
                 )
             return null
         }
-        return build(ctx.declaration())
+        return ctx.declaration()?.let { build(it) }
     }
 
     private fun build(ctx: SchemataParser.DeclarationContext): Declaration =
@@ -157,6 +174,101 @@ internal class AstBuilder(
             annotations = ctx.annotation().map { build(it) },
             span = ctx.span(),
         )
+
+    private fun build(ctx: SchemataParser.ServiceDeclContext): ServiceDecl {
+        val members = ctx.serviceMember()
+        return ServiceDecl(
+            name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
+            operations = members.mapNotNull { it.operation() }.map { build(it) },
+            reserved = members.mapNotNull { it.reservedStmt() }.flatMap { build(it) },
+            doc = doc(ctx.doc()),
+            annotations = ctx.annotation().map { build(it) },
+            span = ctx.span(),
+        )
+    }
+
+    /**
+     * The `(`, `)`, and `:` literals have no stable token names, so the request is told from the
+     * response by where each payload sits relative to the `)`.
+     */
+    private fun build(ctx: SchemataParser.OperationContext): OperationDecl {
+        val close = ctx.children.indexOfFirst { it is TerminalNode && it.text == ")" }
+        val payloads = ctx.payload()
+        val request = payloads.firstOrNull { ctx.children.indexOf(it) < close }?.let { build(it) }
+        val response = payloads.firstOrNull { ctx.children.indexOf(it) > close }?.let { build(it) }
+        return OperationDecl(
+            ordinal = ctx.ORDINAL()?.let { ordinal(it) },
+            ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
+            name = ctx.IDENT().text,
+            nameSpan = ctx.IDENT().symbol.span(),
+            request = request,
+            response = response,
+            binding = ctx.binding()?.let { build(it) },
+            doc = doc(ctx.doc()),
+            annotations = ctx.annotation().map { build(it) },
+            span = ctx.span(),
+        )
+    }
+
+    private fun build(ctx: SchemataParser.PayloadContext): PayloadDecl =
+        PayloadDecl(build(ctx.typeExpr()), ctx.STREAM() != null, ctx.span())
+
+    /**
+     * The verb is an identifier in the grammar so that `get` and `post` stay legal names elsewhere;
+     * here it must be an HTTP method (SCH0006). The path must be `/`-separated segments of
+     * unreserved URL characters or `{lower_snake}` parameters (SCH0007).
+     */
+    private fun build(ctx: SchemataParser.BindingContext): BindingDecl {
+        val verbNode = ctx.IDENT()
+        val verb = verbNode.text
+        if (verb !in VERBS) {
+            diagnostics +=
+                Diagnostic(
+                    LangCodes.UNKNOWN_VERB,
+                    "'$verb' is not an HTTP verb",
+                    verbNode.symbol.span(),
+                    help = "use one of get, post, put, patch, delete, head, options",
+                )
+        }
+        val literal = ctx.STRING_LITERAL()
+        val pathSpan = literal.symbol.span()
+        val path = string(literal, pathSpan)
+        val parameters = mutableListOf<String>()
+        val problem = pathProblem(path, parameters)
+        if (problem != null) {
+            diagnostics +=
+                Diagnostic(
+                    LangCodes.MALFORMED_PATH,
+                    "path ${SchemataText.string(path)} is malformed: $problem",
+                    pathSpan,
+                    help = "write the path as /segment/{param}; parameters are lower_snake",
+                )
+        }
+        return BindingDecl(verb, verbNode.symbol.span(), path, pathSpan, parameters, ctx.span())
+    }
+
+    /**
+     * Null when [path] is well formed; otherwise what is wrong, with [parameters] filled as far as
+     * it got.
+     */
+    private fun pathProblem(path: String, parameters: MutableList<String>): String? {
+        if (!path.startsWith("/")) return "it must start with /"
+        if (path.length > 1 && path.endsWith("/")) return "it must not end with /"
+        val body = path.substring(1)
+        if (body.isEmpty()) return null
+        for (segment in body.split("/")) {
+            if (segment.isEmpty()) return "it has an empty segment"
+            if (segment.startsWith("{") && segment.endsWith("}")) {
+                val name = segment.substring(1, segment.length - 1)
+                if (!LOWER_SNAKE.matches(name)) return "parameter \"$name\" is not lower_snake"
+                parameters += name
+            } else if (!SEGMENT.matches(segment)) {
+                return "segment \"$segment\" holds a character outside A-Z a-z 0-9 . _ ~ -"
+            }
+        }
+        return null
+    }
 
     private fun build(ctx: SchemataParser.ReservedStmtContext): List<ReservedItem> =
         ctx.reservedItem().map { item ->
@@ -349,6 +461,9 @@ internal class AstBuilder(
     private companion object {
         const val ESCAPE_HELP =
             "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}"
+        val VERBS = setOf("get", "post", "put", "patch", "delete", "head", "options")
+        val LOWER_SNAKE = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
+        val SEGMENT = Regex("[A-Za-z0-9._~-]+")
     }
 
     // ANTLR counts columns in Unicode code points; a token's own text is a normal UTF-16 Java
