@@ -2,12 +2,20 @@ package io.schemata.evolution
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
+import io.schemata.core.ir.Payload
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.service
+import io.schemata.target.string
 
-/** What each kind of [Change] means for a Protobuf consumer reading data under the old schema. */
+/**
+ * What each kind of [Change] means for a Protobuf consumer reading data under the old schema, and
+ * for a gRPC client generated from it, which calls each rpc by its method path.
+ */
 object ProtoRules : Rulebook {
     override val target = "proto"
 
@@ -51,16 +59,31 @@ object ProtoRules : Rulebook {
             is ReservedChanged ->
                 if (change.owner is ServiceOwner) Verdict.Compatible else reservedChanged(change)
             is AnnotationChanged -> annotationChanged(change, ctx)
-            is DeprecationChanged -> Verdict.Compatible
+            is DeprecationChanged -> deprecationChanged(change)
             is DocChanged -> Verdict.Compatible
-            // a .proto file carries no services, so nothing about one reaches its consumers
-            is ServiceAdded,
-            is ServiceRemoved,
-            is OperationAdded,
-            is OperationRemoved,
-            is OperationRenamed,
-            is OperationRequestChanged,
-            is OperationResponseChanged,
+            is ServiceAdded -> Verdict.Compatible
+            is ServiceRemoved ->
+                Verdict.Breaking(
+                    "${change.path}: the service was removed breaks clients that call " +
+                        "${servicePath(ctx.old, change.service, ctx)}/…",
+                    "deprecate its operations and keep the service until no client calls it",
+                )
+            is OperationAdded -> Verdict.Compatible
+            is OperationRemoved -> operationRemoved(change, ctx)
+            is OperationRenamed -> operationRenamed(change, ctx)
+            is OperationRequestChanged ->
+                Verdict.Breaking(
+                    "${change.path}: the request changed from ${payloadText(change.from)} to " +
+                        "${payloadText(change.to)} breaks clients that send the old message",
+                    "add a new operation instead of changing this one's request",
+                )
+            is OperationResponseChanged ->
+                Verdict.Breaking(
+                    "${change.path}: the response changed from ${payloadText(change.from)} to " +
+                        "${payloadText(change.to)} breaks clients that read the old message",
+                    "add a new operation instead of changing this one's response",
+                )
+            // a binding rides in a comment beside the rpc, never in its method path
             is OperationBindingChanged -> Verdict.Compatible
         }
 
@@ -246,8 +269,8 @@ object ProtoRules : Rulebook {
      * A `@proto(name)` override added, changed, or removed, judged by the emitted name of the OLD
      * element against the NEW one, so a pin added in the same step as a rename (which keeps the
      * emitted name) is compatible. A field's emitted name moves the JSON mapping; a declaration's
-     * moves the type name reflection and `Any` use; an enum value's emitted name does not matter on
-     * the wire at all.
+     * moves the type name reflection and `Any` use; a service's or operation's moves the method
+     * path of every rpc it names; an enum value's emitted name does not matter on the wire at all.
      */
     private fun nameAnnotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         val fromName = ctx.emittedName(target, change.oldOwner)
@@ -266,11 +289,109 @@ object ProtoRules : Rulebook {
                         "changes the type name reflection and Any use",
                     "keep @proto(name) stable once published",
                 )
+            is ServiceOwner -> {
+                val from = servicePath(ctx.old, (change.oldOwner as ServiceOwner).service, ctx)
+                val to = servicePath(ctx.new, change.newOwner.service, ctx)
+                Verdict.Breaking(
+                    "${change.path}: the service's rpc paths change from $from/* to $to/*",
+                    "pin the service name with @proto(name = \"$fromName\")",
+                )
+            }
+            is OperationOwner -> {
+                val from = rpcPath(ctx.old, change.oldOwner as OperationOwner, ctx)
+                val to = rpcPath(ctx.new, change.newOwner, ctx)
+                Verdict.Breaking(
+                    "${change.path}: the rpc path changes from $from to $to",
+                    "pin the rpc name with @proto(name = \"$fromName\")",
+                )
+            }
             is NamespaceOwner,
             is EnumValueOwner,
-            is UnionMemberOwner,
-            is ServiceOwner,
-            is OperationOwner -> Verdict.Compatible
+            is UnionMemberOwner -> Verdict.Compatible
         }
     }
+
+    /**
+     * A client calls an rpc by its method path, `/<package>.<Service>/<Rpc>`, so a rename is
+     * compatible only while the emitted rpc name stays the same, as when a pin keeps the old one.
+     */
+    private fun operationRenamed(change: OperationRenamed, ctx: ChangeContext): Verdict {
+        val oldService = ctx.old.service(change.service.qualifiedName) ?: change.service
+        val fromName = ctx.emittedName(target, OperationOwner(oldService, change.from))
+        val toName = ctx.emittedName(target, OperationOwner(change.service, change.to))
+        if (fromName == toName) return Verdict.Compatible
+        val from = rpcPath(ctx.old, OperationOwner(oldService, change.from), ctx)
+        val to = rpcPath(ctx.new, OperationOwner(change.service, change.to), ctx)
+        return Verdict.Breaking(
+            "${change.path}: the operation was renamed, so its rpc path changes from $from to $to",
+            "pin the rpc name with @proto(name = \"$fromName\")",
+        )
+    }
+
+    /**
+     * Reserving the removed name keeps a later operation from taking over its rpc name, and with it
+     * the method path old clients still call; the ordinal is not part of that path.
+     */
+    private fun operationRemoved(change: OperationRemoved, ctx: ChangeContext): Verdict {
+        val op = change.operation
+        val status = ctx.reservedInNew(change.service.qualifiedName, op.ordinal, op.name)
+        val nameReserved = status == ReservedStatus.BOTH || status == ReservedStatus.NAME_ONLY
+        val help = "deprecate the operation and keep it until no client calls it"
+        return Verdict.Breaking(
+            "${change.path}: the rpc was removed breaks clients that call " +
+                rpcPath(ctx.old, OperationOwner(change.service, op), ctx),
+            if (nameReserved) help
+            else "$help; reserve \"${op.name}\" so its rpc name is not reused",
+        )
+    }
+
+    /**
+     * Generated stubs mark a deprecated service's or rpc's methods; every other element's
+     * deprecation is an option that changes nothing on the wire.
+     */
+    private fun deprecationChanged(change: DeprecationChanged): Verdict {
+        val word =
+            when (change.owner) {
+                is ServiceOwner -> "service"
+                is OperationOwner -> "rpc"
+                else -> return Verdict.Compatible
+            }
+        return if (change.deprecated)
+            Verdict.Note(
+                "${change.path}: the $word is now deprecated; generated stubs flag every call to it",
+                "tell clients when the $word will be removed",
+            )
+        else
+            Verdict.Note(
+                "${change.path}: the $word is no longer deprecated",
+                "tell clients that moved off it that it stays",
+            )
+    }
+
+    /** `/<package>.<Service>/<Rpc>`, the gRPC method path of [owner] as it stands in [schema]. */
+    private fun rpcPath(schema: Schema, owner: OperationOwner, ctx: ChangeContext): String =
+        "${servicePath(schema, owner.service, ctx)}/${ctx.emittedName(target, owner)}"
+
+    /** `/<package>.<Service>`, the part of a method path every rpc of [service] shares. */
+    private fun servicePath(schema: Schema, service: Service, ctx: ChangeContext): String =
+        "/${packageOf(schema, service.qualifiedName.namespace)}." +
+            ctx.emittedName(target, ServiceOwner(service))
+
+    /**
+     * The namespace's `@proto(package)`, else its own name; keep in step with
+     * `ProtoNames.packageOf`, which this module cannot depend on.
+     */
+    private fun packageOf(schema: Schema, namespace: String): String =
+        schema.namespaces
+            .firstOrNull { it.name == namespace }
+            ?.annotations
+            ?.string("proto", "package") ?: namespace
+
+    /** `Order`, `stream Order`, or `none`. */
+    private fun payloadText(payload: Payload?): String =
+        when {
+            payload == null -> "none"
+            payload.stream -> "stream ${payload.target.simpleName}"
+            else -> payload.target.simpleName
+        }
 }
