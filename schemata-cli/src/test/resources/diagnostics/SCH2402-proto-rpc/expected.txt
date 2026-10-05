@@ -1,6 +1,6 @@
 # import=proto
 warning[SCH2402] (lossy): service 'Orders': rpc 'GetURL': renamed to 'get_url'
   --> s.proto:10:3
-   = help: set --namespace to choose it, or keep it and rename later
+   = help: keep @proto(name) so the regenerated rpc keeps its proto name
 
 0 errors, 1 warning

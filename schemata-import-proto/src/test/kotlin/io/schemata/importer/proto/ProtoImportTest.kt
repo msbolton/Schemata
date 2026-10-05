@@ -587,6 +587,55 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `a well-known payload other than a plain Empty drops the rpc`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "google/protobuf/empty.proto";
+                    import "google/protobuf/timestamp.proto";
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc At(google.protobuf.Timestamp) returns (M);
+                      rpc Ticks(M) returns (stream .google.protobuf.Empty);
+                      rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+                    }
+                    """
+            )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n  #1 ping()\n}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 service 'S': rpc 'At': request type 'google.protobuf.Timestamp' has no Schemata record; rpc dropped",
+                "SCH2405 service 'S': rpc 'Ticks': response stream of google.protobuf.Empty has no Schemata form; rpc dropped",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an rpc rename says how the proto name is kept`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S { rpc GetURL(M) returns (M); }
+                    """
+            )
+        assertEquals(
+            listOf("keep @proto(name) so the regenerated rpc keeps its proto name"),
+            r.diagnostics.map { it.help },
+        )
+    }
+
+    @Test
     fun `a service whose every rpc is dropped is kept empty`() {
         val r =
             importText(

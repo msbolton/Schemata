@@ -405,16 +405,22 @@ private class FileLowering(
         val scope = context.symbols.scopeOf(file)
         val resolved =
             listOf("request" to rpc.request, "response" to rpc.response).map { (role, t) ->
-                if (t.name.removePrefix(".") == EMPTY) return@map null
-                val symbol = context.symbols.resolve(t.name, scope)
-                if (symbol?.message == null) {
-                    report(
-                        ImportCodes.DROPPED,
-                        "$where: $role type '${t.name}' is not a message; rpc dropped",
-                        rpc.pos,
-                    )
+                fun drop(reason: String): Nothing? {
+                    report(ImportCodes.DROPPED, "$where: $role $reason; rpc dropped", rpc.pos)
                     return null
                 }
+                val full = t.name.removePrefix(".")
+                if (full == EMPTY) {
+                    if (t.stream) return drop("stream of $EMPTY has no Schemata form")
+                    return@map null
+                }
+                // A well-known type is a message, but Schemata reads it as a scalar or not at all,
+                // never as a record an operation could carry.
+                if (full.startsWith("google.protobuf.")) {
+                    return drop("type '$full' has no Schemata record")
+                }
+                val symbol = context.symbols.resolve(t.name, scope)
+                if (symbol?.message == null) return drop("type '${t.name}' is not a message")
                 t to symbol
             }
         val name = ImportNames.lowerSnake(rpc.name)
@@ -431,7 +437,7 @@ private class FileLowering(
         val annotations =
             if (ImportNames.upperCamel(name) == rpc.name) emptyList()
             else {
-                report(ImportCodes.RENAMED, "$where: renamed to '$name'", rpc.pos)
+                report(ImportCodes.RENAMED, "$where: renamed to '$name'", rpc.pos, RPC_RENAME_HELP)
                 listOf(UnitAnnotation("proto", "name", SchemataText.string(rpc.name)))
             }
         val note =
@@ -1053,6 +1059,7 @@ private class FileLowering(
 
     private companion object {
         const val EMPTY = "google.protobuf.Empty"
+        const val RPC_RENAME_HELP = "keep @proto(name) so the regenerated rpc keeps its proto name"
         val UINT32 = UnitType.Scalar("int64", listOf("min" to "0", "max" to "4294967295"))
         val UINT64 = UnitType.Scalar("int64", listOf("min" to "0"))
         val stringCarried = setOf("string", "uuid", "decimal", "date", "time")
