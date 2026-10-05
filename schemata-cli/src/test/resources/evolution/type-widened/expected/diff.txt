@@ -1,10 +1,11 @@
 s.Customer
-  field 'visits' type changed from int32 to int64    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'visits' type changed from int32 to int64    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 1 change
 proto: 0 breaking, 0 notes
 sql: 0 breaking, 0 notes
 xsd: 0 breaking, 0 notes
 jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 no diagnostics

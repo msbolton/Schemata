@@ -1,15 +1,16 @@
 s.Customer
-  declaration removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
+  declaration removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
 s.Order.Note
-  declaration removed    proto: note, sql: compatible, xsd: note, jsonschema: breaking
+  declaration removed    proto: note, sql: compatible, xsd: note, jsonschema: breaking, openapi: compatible
 s.Status
-  declaration removed    proto: note, sql: compatible, xsd: note, jsonschema: breaking
+  declaration removed    proto: note, sql: compatible, xsd: note, jsonschema: breaking, openapi: compatible
 
 3 changes
 proto: 0 breaking, 3 notes
 sql: 1 breaking, 0 notes
 xsd: 1 breaking, 2 notes
 jsonschema: 3 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Customer: the declaration was removed breaks documents validated against it
  --> old/s.schemata:3:8

@@ -63,6 +63,15 @@ class InstanceRules(
             is AnnotationChanged -> annotationChanged(change, ctx)
             is DeprecationChanged -> Verdict.Compatible
             is DocChanged -> Verdict.Compatible
+            // a document schema carries no services, so nothing about one reaches a document
+            is ServiceAdded,
+            is ServiceRemoved,
+            is OperationAdded,
+            is OperationRemoved,
+            is OperationRenamed,
+            is OperationRequestChanged,
+            is OperationResponseChanged,
+            is OperationBindingChanged -> Verdict.Compatible
         }
 
     /**
@@ -230,6 +239,8 @@ class InstanceRules(
      */
     private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         if (change.target != target) return Verdict.Compatible
+        if (change.newOwner is ServiceOwner || change.newOwner is OperationOwner)
+            return Verdict.Compatible
         val xsd = target == "xsd"
         val identityKey = if (xsd) "namespace" else "id"
         return when {

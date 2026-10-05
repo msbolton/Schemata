@@ -1,13 +1,14 @@
 s
-  @proto(package) changed    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible
-  @xsd(namespace) changed    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible
-  @jsonschema(id) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: breaking
+  @proto(package) changed    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  @xsd(namespace) changed    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible, openapi: compatible
+  @jsonschema(id) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: breaking, openapi: compatible
 
 3 changes
 proto: 1 breaking, 0 notes
 sql: 0 breaking, 0 notes
 xsd: 1 breaking, 0 notes
 jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s: @jsonschema(id) changed breaks documents that reference the old identifier
  --> new/s.schemata:4:1

@@ -1,16 +1,17 @@
 s.Status
-  value 'paid' renamed to 'settled'    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible
-  value 'settled': @xsd(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
-  value 'settled': @jsonschema(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
-  value 'refunded' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
-  value 'cancelled' removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
-  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  value 'paid' renamed to 'settled'    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+  value 'settled': @xsd(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  value 'settled': @jsonschema(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  value 'refunded' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  value 'cancelled' removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 6 changes
 proto: 0 breaking, 1 note
 sql: 2 breaking, 0 notes
 xsd: 1 breaking, 0 notes
 jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: sql: s.Status.settled: the enum value was renamed from 'paid' to 'settled' breaks the CHECK constraint for rows that still store the old value
  --> new/s.schemata:5:53

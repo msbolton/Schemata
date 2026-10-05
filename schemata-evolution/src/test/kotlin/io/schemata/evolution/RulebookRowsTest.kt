@@ -46,8 +46,15 @@ class RulebookRowsTest {
     private fun row(old: Namespace, new: Namespace): Map<String, String> =
         judged(old, new).mapValues { it.value.single() }
 
+    /** No service reaches these records, so OpenAPI never sees them. */
     private fun row(proto: String, sql: String, xsd: String, jsonschema: String) =
-        mapOf("proto" to proto, "sql" to sql, "xsd" to xsd, "jsonschema" to jsonschema)
+        mapOf(
+            "proto" to proto,
+            "sql" to sql,
+            "xsd" to xsd,
+            "jsonschema" to jsonschema,
+            "openapi" to "compatible",
+        )
 
     @Test
     fun `a rename that adds every target's pin in the same step is compatible everywhere`() {
@@ -122,6 +129,7 @@ class RulebookRowsTest {
                 "sql" to listOf("breaking", "compatible"),
                 "xsd" to listOf("compatible", "note"),
                 "jsonschema" to listOf("breaking", "compatible"),
+                "openapi" to listOf("compatible", "compatible"),
             ),
             judged(ns(old), ns(new)),
         )

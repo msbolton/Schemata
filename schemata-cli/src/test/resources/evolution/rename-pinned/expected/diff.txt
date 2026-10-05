@@ -1,11 +1,12 @@
 s.Order
-  field 'note' renamed to 'comment'    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'note' renamed to 'comment'    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 1 change
 proto: 0 breaking, 1 note
 sql: 0 breaking, 0 notes
 xsd: 0 breaking, 0 notes
 jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 warning[SCH2502] (lossy): proto: s.Order.comment: field renamed from 'note' to 'comment'; this changes the JSON mapping
  --> new/s.schemata:5:75

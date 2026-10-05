@@ -1,15 +1,23 @@
 package io.schemata.evolution
 
 import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
+import io.schemata.core.ir.Operation
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Service
+import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.service
+import io.schemata.core.ir.services
 import io.schemata.target.Names
 import io.schemata.target.bool
 import io.schemata.target.deprecated
@@ -31,11 +39,12 @@ enum class ReservedStatus {
  */
 class ChangeContext(val old: Schema, val new: Schema) {
     /**
-     * Which of a removed member's [ordinal] and [name] NEW's declaration at [declPath] still
-     * reserves: both, one, or neither.
+     * Which of a removed member's [ordinal] and [name] NEW's declaration or service at [declPath]
+     * still reserves: both, one, or neither.
      */
     fun reservedInNew(declPath: QualifiedName, ordinal: Int, name: String): ReservedStatus {
-        val reserved = Differ.reservedOf(new.lookup(declPath))
+        val reserved =
+            new.lookupOrNull(declPath)?.let(Differ::reservedOf) ?: new.service(declPath)?.reserved
         val ordinalReserved = reserved != null && ordinal in reserved
         val nameReserved = reserved != null && name in reserved.names
         return when {
@@ -63,8 +72,21 @@ class ChangeContext(val old: Schema, val new: Schema) {
             is DeclarationRemoved -> change.decl.annotations.deprecated
             is DeclarationKindChanged -> change.from.annotations.deprecated
             is DeprecationChanged -> !change.deprecated
+            is ServiceRemoved -> change.service.annotations.deprecated
+            is OperationRemoved -> change.operation.annotations.deprecated
+            is OperationRenamed -> change.from.annotations.deprecated
+            is OperationRequestChanged -> oldOperationDeprecated(change.service, change.operation)
+            is OperationResponseChanged -> oldOperationDeprecated(change.service, change.operation)
+            is OperationBindingChanged -> oldOperationDeprecated(change.service, change.operation)
             else -> false
         }
+
+    private fun oldOperationDeprecated(service: Service, operation: Operation): Boolean =
+        old.service(service.qualifiedName)
+            ?.operations
+            ?.firstOrNull { it.ordinal == operation.ordinal }
+            ?.annotations
+            ?.deprecated == true
 
     /** The name [target] emits for [field]: its override on that side, else its declared name. */
     fun emittedFieldName(target: String, field: Field): String =
@@ -78,7 +100,8 @@ class ChangeContext(val old: Schema, val new: Schema) {
      * The name [target] emits for [owner] as it stands on one side. A declaration is its
      * `@<target>(name)` override, or for Postgres its `@sql(table)` override or snake-cased name; a
      * namespace is, for Postgres, its `@sql(schema)` override or the last segment of its name, and
-     * its full name elsewhere; a union member has no name, so it is its ordinal.
+     * its full name elsewhere; a union member has no name, so it is its ordinal. On OpenAPI a
+     * service is its tag and an operation its `operationId`; elsewhere both are their own names.
      */
     fun emittedName(target: String, owner: Owner): String =
         when (owner) {
@@ -102,6 +125,67 @@ class ChangeContext(val old: Schema, val new: Schema) {
             is FieldOwner -> emittedFieldName(target, owner.field)
             is EnumValueOwner -> emittedValueName(target, owner.value)
             is UnionMemberOwner -> "#${owner.member.ordinal}"
+            is ServiceOwner ->
+                if (target == "openapi") tagName(owner.service) else owner.service.name
+            is OperationOwner ->
+                if (target == "openapi") operationId(owner.service, owner.operation)
+                else owner.operation.name
+        }
+
+    /**
+     * An OpenAPI tag: the service's `@openapi(name)`, unless that is not a valid tag (the target
+     * reports it and falls back), else the service's own name.
+     */
+    private fun tagName(service: Service): String =
+        service.annotations.string("openapi", "name")?.takeIf { OPENAPI_NAME.matches(it) }
+            ?: service.name
+
+    /**
+     * An OpenAPI `operationId`: the operation's valid `@openapi(name)`, which replaces the whole
+     * id, else `<tag>_<operation>` with the service's tag.
+     */
+    private fun operationId(service: Service, operation: Operation): String =
+        operation.annotations.string("openapi", "name")?.takeIf { OPENAPI_NAME.matches(it) }
+            ?: "${tagName(service)}_${operation.name}"
+
+    /**
+     * Whether [decl] is one an OpenAPI document on [side] carries: reachable from some service's
+     * request or response through field types, union members, and nesting.
+     */
+    fun reachableFromServices(side: Side, decl: QualifiedName): Boolean =
+        decl in (if (side == Side.OLD) oldReachable else newReachable)
+
+    private val oldReachable by lazy { reachable(old) }
+    private val newReachable by lazy { reachable(new) }
+
+    private fun reachable(schema: Schema): Set<QualifiedName> {
+        val seen = mutableSetOf<QualifiedName>()
+        fun visit(qn: QualifiedName) {
+            if (!seen.add(qn)) return
+            val decl = schema.lookupOrNull(qn) ?: return
+            val types =
+                when (decl) {
+                    is RecordType -> decl.fields.map { it.type }
+                    is UnionType -> decl.members.map { it.type }
+                    is EnumType -> emptyList()
+                }
+            types.flatMap(::refsIn).forEach(::visit)
+            decl.nested.forEach { visit(it.qualifiedName) }
+        }
+        schema
+            .services()
+            .flatMap { it.operations }
+            .flatMap { listOfNotNull(it.request, it.response) }
+            .forEach { visit(it.target) }
+        return seen
+    }
+
+    private fun refsIn(type: Type): List<QualifiedName> =
+        when (type) {
+            is Ref -> listOf(type.target)
+            is ListOf -> refsIn(type.element)
+            is MapOf -> refsIn(type.key) + refsIn(type.value)
+            else -> emptyList()
         }
 
     /** Every declaration, nested ones included, of the namespace named [namespace] on [side]. */
@@ -156,4 +240,9 @@ class ChangeContext(val old: Schema, val new: Schema) {
     private fun schema(side: Side): Schema = if (side == Side.OLD) old else new
 
     private fun overrideKey(target: String) = if (target == "sql") "column" else "name"
+
+    private companion object {
+        /** What OpenAPI accepts as a tag or `operationId` override. */
+        val OPENAPI_NAME = Regex("[A-Za-z0-9_.-]+")
+    }
 }

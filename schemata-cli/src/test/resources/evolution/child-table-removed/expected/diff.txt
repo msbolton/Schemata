@@ -1,14 +1,15 @@
 s.Order
-  field 'lines' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking
-  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'lines' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 s.Line
-  declaration removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
+  declaration removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
 
 3 changes
 proto: 0 breaking, 1 note
 sql: 2 breaking, 0 notes
 xsd: 2 breaking, 0 notes
 jsonschema: 2 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Order.lines: the field was removed breaks old documents that still carry it
  --> old/s.schemata:5:6

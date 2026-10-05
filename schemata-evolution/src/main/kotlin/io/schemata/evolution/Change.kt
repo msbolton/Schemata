@@ -4,9 +4,13 @@ import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.Operation
+import io.schemata.core.ir.Payload
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Reserved
+import io.schemata.core.ir.Service
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
@@ -190,13 +194,103 @@ data class UnionMemberTypeChanged(
     override val kind = "unionMember.typeChanged"
 }
 
+/** [owner] is the declaration or service whose reservations changed, as it stands on NEW's side. */
 data class ReservedChanged(
     override val path: String,
     override val span: Span,
     val from: Reserved,
     val to: Reserved,
+    val owner: Owner,
 ) : Change {
     override val kind = "reserved.changed"
+}
+
+data class ServiceAdded(override val path: String, override val span: Span, val service: Service) :
+    Change {
+    override val kind = "service.added"
+}
+
+data class ServiceRemoved(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+) : Change {
+    override val kind = "service.removed"
+}
+
+data class OperationAdded(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+) : Change {
+    override val kind = "operation.added"
+}
+
+/** [service] and [operation] as they stood on OLD's side. */
+data class OperationRemoved(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+) : Change {
+    override val kind = "operation.removed"
+}
+
+/** [service] is NEW's; [from] is the operation on OLD's side, [to] on NEW's. */
+data class OperationRenamed(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val from: Operation,
+    val to: Operation,
+) : Change {
+    override val kind = "operation.renamed"
+}
+
+/**
+ * The request's type or streaming changed, or a request was added or taken away; [service] and
+ * [operation] are NEW's.
+ */
+data class OperationRequestChanged(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val from: Payload?,
+    val to: Payload?,
+) : Change {
+    override val kind = "operation.requestChanged"
+}
+
+/**
+ * The response's type or streaming changed, or a response was added or taken away; [service] and
+ * [operation] are NEW's.
+ */
+data class OperationResponseChanged(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val from: Payload?,
+    val to: Payload?,
+) : Change {
+    override val kind = "operation.responseChanged"
+}
+
+/**
+ * The HTTP binding was added, removed, or its verb or path changed; [service] and [operation] are
+ * NEW's.
+ */
+data class OperationBindingChanged(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val from: HttpBinding?,
+    val to: HttpBinding?,
+) : Change {
+    override val kind = "operation.bindingChanged"
 }
 
 /**
@@ -214,6 +308,10 @@ data class FieldOwner(val record: RecordType, val field: Field) : Owner
 data class EnumValueOwner(val enum: EnumType, val value: EnumValue) : Owner
 
 data class UnionMemberOwner(val union: UnionType, val member: UnionMember) : Owner
+
+data class ServiceOwner(val service: Service) : Owner
+
+data class OperationOwner(val service: Service, val operation: Operation) : Owner
 
 /**
  * An annotation key added, removed, or changed on an element both sides share; [oldOwner] and

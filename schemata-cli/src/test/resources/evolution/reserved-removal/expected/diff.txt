@@ -1,12 +1,13 @@
 s.Customer
-  field 'note' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking
-  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'note' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 2 changes
 proto: 0 breaking, 0 notes
 sql: 1 breaking, 0 notes
 xsd: 1 breaking, 0 notes
 jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Customer.note: the field was removed breaks old documents that still carry it
  --> old/s.schemata:5:6
