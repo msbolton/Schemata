@@ -9,6 +9,8 @@ enum class Element(val displayName: String, val article: String) {
     ALIAS("alias", "an"),
     FIELD("field", "a"),
     ENUM_VALUE("enum value", "an"),
+    SERVICE("service", "a"),
+    OPERATION("operation", "an"),
 }
 
 enum class ValueKind {

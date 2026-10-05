@@ -21,9 +21,9 @@ Every code the compiler can report, with the message shapes and help text its fi
 |---|---|---|---|---|---|
 | SCH1001 | error | semantic | a namespace segment is not lower_snake | namespace segment 'Shop' must be lower_snake | write the segment in lower_snake, for example `shop` |
 | SCH1002 | error | semantic | a type name is not UpperCamel | record name 'order_line' must be UpperCamel | rename it `OrderLine` |
-| SCH1003 | error | semantic | a field name is not lower_snake | field name 'placedAt' must be lower_snake<br>reserved name 'Bad Name' must be lower_snake<br>field name 'a__b' must be lower_snake<br>field name 'c_' must be lower_snake | rename it `placed_at`<br>rename it `bad_name`<br>rename it `a_b`<br>rename it `c` |
-| SCH1004 | error | semantic | the same qualified name is declared twice | record 'R' is declared in both a.schemata:2 and b.schemata:2<br>record 'R' is declared more than once | rename or remove one of them |
-| SCH1005 | error | semantic | a record repeats a field name | field 'x' is declared more than once in record 'R' | rename or remove one of the two fields |
+| SCH1003 | error | semantic | a member name is not lower_snake | field name 'placedAt' must be lower_snake<br>reserved name 'Bad Name' must be lower_snake<br>field name 'a__b' must be lower_snake<br>field name 'c_' must be lower_snake | rename it `placed_at`<br>rename it `bad_name`<br>rename it `a_b`<br>rename it `c` |
+| SCH1004 | error | semantic | the same qualified name is declared twice | record 'R' is declared in both a.schemata:2 and b.schemata:2<br>record 'R' is declared more than once<br>service 'Orders' and record 'Orders' are both declared in s.schemata | rename or remove one of them<br>rename one of them; a service shares its namespace's type names |
+| SCH1005 | error | semantic | a declaration repeats a member name | field 'x' is declared more than once in record 'R' | rename or remove one of the two fields |
 | SCH1006 | error | semantic | a type name resolves to nothing | unknown type 'Missing' | declare `Missing`, import the namespace that declares it, or check the spelling against the builtin types |
 | SCH1009 | error | semantic | a bare name matches several declarations | type 'T' is ambiguous; candidates: a.T, b.T | write the qualified name, for example `a.T`, or alias one import |
 | SCH1010 | warning | semantic | a declaration shadows a builtin type | 'string' shadows the builtin type of the same name | rename the declaration; every bare use of `string` in this namespace now means yours |
@@ -63,6 +63,8 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1044 | error | semantic | a default is null | default may not be null | add `?` to the field's type and drop the default; a nullable field is null when absent |
 | SCH1045 | error | semantic | an import alias is not lower_snake | import alias 'Base' must be lower_snake | rename it `base` |
 | SCH1046 | error | semantic | an import is repeated | namespace 'a' is imported more than once<br>alias 'base' is given to more than one import | keep one import of `a`<br>give each import its own alias |
+| SCH1047 | error | semantic | an operation's request or response is not a record or a union | operation 'get': request 'uuid' is not a record or a union | wrap it in a record |
+| SCH1048 | error | semantic | an operation's HTTP binding does not fit its request | operation 'get': path parameter 'order' is not a field of 'OrderId'<br>operation 'fetch': get "/orders/{id}" is already bound by operation 'get'<br>operation 'upload': a streamed request cannot use get | name a scalar or enum field of the request record<br>give each operation its own verb and path<br>use post, put, or patch |
 
 Retired, never reused: SCH1007, SCH1008.
 

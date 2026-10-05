@@ -1,0 +1,5 @@
+error[SCH1048]: operation 'upload': a streamed request cannot use get
+ --> s.schemata:8:35
+  = help: use post, put, or patch
+
+1 error, 0 warnings

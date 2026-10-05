@@ -40,8 +40,9 @@ object Ordinals {
     }
 
     /**
-     * A reserved name is a former field or enum value name, so it must be lower_snake too; [naming]
-     * is the code that reports one that is not (SCH1003 for a record, SCH1028 for an enum).
+     * A reserved name is a former field, operation, or enum value name, so it must be lower_snake
+     * too; [naming] is the code that reports one that is not (SCH1003 for a record or a service,
+     * SCH1028 for an enum).
      */
     fun reserved(
         items: List<ReservedItem>,

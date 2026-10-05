@@ -16,6 +16,7 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
@@ -32,10 +33,12 @@ data class AnalysisResult(val schema: Schema?, val diagnostics: List<Diagnostic>
 
 /**
  * AST to IR over a whole compilation, plus every check the language performs before any target sees
- * the schema. Files are processed in sorted-path order; namespaces come out sorted by name.
+ * the schema. Files are processed in sorted-path order; namespaces come out sorted by name. Every
+ * namespace's declarations are lowered before any service, then each namespace's services in
+ * sorted-path then source order.
  */
 object Analyzer {
-    private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
+    internal val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
     internal val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
 
     // `null` lexes as a name so that `= null` can be read; it is reserved as a field, enum value,
@@ -52,22 +55,39 @@ object Analyzer {
         val index = DeclarationIndex(sorted, diagnostics)
         val resolver = Resolver(index, sorted, diagnostics, options.references)
         val annotations = AnnotationChecker(options.annotations, diagnostics)
+        val groups = sorted.groupBy { it.namespace.name }.toSortedMap()
+        val lowered =
+            groups.map { (name, group) ->
+                analyzeNamespace(name, group, index, resolver, annotations, options, diagnostics)
+            }
+        // services after every namespace's declarations: a payload may name another namespace's
+        // record, and a path parameter is judged by its field's lowered type
+        val declarations =
+            lowered
+                .flatMap { ns -> ns.declarations.flatMap { it.selfAndNested() } }
+                .associateBy { it.qualifiedName }
         val namespaces =
             Recursion.mark(
-                sorted
-                    .groupBy { it.namespace.name }
-                    .toSortedMap()
-                    .map { (name, group) ->
-                        analyzeNamespace(
-                            name,
-                            group,
-                            index,
-                            resolver,
-                            annotations,
-                            options,
-                            diagnostics,
-                        )
-                    }
+                lowered.map { ns ->
+                    val routes = Services.Routes()
+                    val services =
+                        groups.getValue(ns.name).flatMap { file ->
+                            file.services.map {
+                                Services.analyze(
+                                    it,
+                                    Scope(file, ns.name, emptyList()),
+                                    index,
+                                    resolver,
+                                    annotations,
+                                    options,
+                                    declarations,
+                                    routes,
+                                    diagnostics,
+                                )
+                            }
+                        }
+                    ns.copy(services = services)
+                }
             )
         resolver.finish()
         val schema = if (diagnostics.hasErrors) null else Schema(namespaces)

@@ -1,0 +1,46 @@
+schema services
+table services.chunk
+  column bytes bytea not null
+  constraint pk_chunk PRIMARY KEY (bytes)
+table services.list_orders
+  column status text
+  column limit integer not null default 50
+  constraint ck_list_orders_limit_max CHECK (("limit" <= 200))
+  constraint ck_list_orders_limit_min CHECK (("limit" >= 1))
+  constraint ck_list_orders_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'cancelled'::text])))
+  constraint pk_list_orders PRIMARY KEY ("limit")
+table services.order
+  column id uuid not null
+  column status text not null
+  column total numeric(12,2) not null
+  constraint ck_order_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'cancelled'::text])))
+  constraint pk_order PRIMARY KEY (id)
+table services.order_id
+  column id uuid not null
+  constraint pk_order_id PRIMARY KEY (id)
+table services.order_lines
+  column order_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  constraint ck_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint fk_order_lines_order FOREIGN KEY (order_id) REFERENCES services."order"(id) ON DELETE CASCADE
+  constraint pk_order_lines PRIMARY KEY (order_id, "position")
+table services.place_order
+  column customer_id uuid not null
+  constraint pk_place_order PRIMARY KEY (customer_id)
+table services.place_order_lines
+  column place_order_customer_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  constraint ck_place_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint fk_place_order_lines_place_order FOREIGN KEY (place_order_customer_id) REFERENCES services.place_order(customer_id) ON DELETE CASCADE
+  constraint pk_place_order_lines PRIMARY KEY (place_order_customer_id, "position")
+table services.receipt
+  column count bigint not null
+  constraint pk_receipt PRIMARY KEY (count)
+table services.verbs -- Verbs stay legal names outside a binding.
+  column get text not null
+  column post integer not null
+  constraint pk_verbs PRIMARY KEY (get)

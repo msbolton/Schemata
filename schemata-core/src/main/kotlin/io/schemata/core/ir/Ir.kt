@@ -29,13 +29,76 @@ data class QualifiedName(val namespace: String, val path: List<String>) {
     override fun toString(): String = (listOf(namespace) + path).joinToString(".")
 }
 
-/** [span] is the `namespace` declaration of the first file (in sorted-path order) declaring it. */
+/** Every namespace's services, in namespace then source order. */
+fun Schema.services(): List<Service> = namespaces.flatMap { it.services }
+
+fun Schema.service(name: QualifiedName): Service? =
+    services().firstOrNull { it.qualifiedName == name }
+
+/**
+ * [span] is the `namespace` declaration of the first file (in sorted-path order) declaring it.
+ * [services] are in sorted-path then source order; a service is not a [TypeDecl], so nothing that
+ * walks [declarations] sees one.
+ */
 data class Namespace(
     val name: String,
     val declarations: List<TypeDecl>,
     val span: Span,
     val annotations: Annotations = Annotations.NONE,
+    val services: List<Service> = emptyList(),
 )
+
+/** A `service` block: operations in source order; [reserved] holds retired operations. */
+data class Service(
+    val qualifiedName: QualifiedName,
+    val name: String,
+    val operations: List<Operation>,
+    val reserved: Reserved,
+    val doc: String?,
+    val span: Span,
+    val nameSpan: Span,
+    val annotations: Annotations = Annotations.NONE,
+)
+
+/**
+ * [ordinal] is the operation's stable identity, as a field's. [request] is null for `()`,
+ * [response] when the operation returns nothing, [binding] when no HTTP route is written.
+ */
+data class Operation(
+    val ordinal: Int,
+    val name: String,
+    val request: Payload?,
+    val response: Payload?,
+    val binding: HttpBinding?,
+    val doc: String?,
+    val span: Span,
+    val nameSpan: Span,
+    val annotations: Annotations = Annotations.NONE,
+)
+
+/** [target] is a record or a union; [stream] means many messages instead of one. */
+data class Payload(val target: QualifiedName, val stream: Boolean)
+
+/** [path] as written; [parameters] are its `{name}` segments in path order. */
+data class HttpBinding(val verb: Verb, val path: String, val parameters: List<String>)
+
+enum class Verb {
+    GET,
+    POST,
+    PUT,
+    PATCH,
+    DELETE,
+    HEAD,
+    OPTIONS;
+
+    /** The verb as written in a binding. */
+    val lower: String
+        get() = name.lowercase()
+
+    /** Verbs whose request fields become parameters rather than a body. */
+    val parameterised: Boolean
+        get() = this == GET || this == DELETE || this == HEAD || this == OPTIONS
+}
 
 sealed interface TypeDecl {
     val qualifiedName: QualifiedName

@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package corpus.services;
+
+message OrderId {
+  string id = 1;  // schemata: uuid
+}
+
+message ListOrders {
+  optional Status status = 1;
+  int32 limit = 2;  // schemata: int32(min = 1, max = 200); default = 50
+}
+
+message PlaceOrder {
+  string customer_id = 1;  // schemata: uuid
+  repeated Order.Line lines = 2;  // schemata: list<Line>(min = 1)
+}
+
+message Order {
+  string id = 1;  // schemata: uuid
+  Status status = 2;
+  repeated Line lines = 3;
+  string total = 4;  // schemata: decimal(12, 2)
+
+  message Line {
+    string sku = 1;  // schemata: string(max = 64)
+    int32 quantity = 2;  // schemata: int32(min = 1)
+  }
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PENDING = 1;
+  STATUS_PAID = 2;
+  STATUS_SHIPPED = 3;
+  STATUS_CANCELLED = 4;
+}
+
+message Chunk {
+  bytes bytes = 1;
+}
+
+message Receipt {
+  int64 count = 1;
+}
+
+// Verbs stay legal names outside a binding.
+message Verbs {
+  string get = 1;
+  int32 post = 2;
+}

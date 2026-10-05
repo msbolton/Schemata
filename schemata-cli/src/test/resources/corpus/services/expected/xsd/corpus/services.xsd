@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:corpus.services"
+           targetNamespace="urn:schemata:corpus.services"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:complexType name="OrderIdType">
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ListOrdersType">
+    <xs:sequence>
+      <xs:element name="status" type="tns:StatusType" minOccurs="0"/>
+      <xs:element name="limit" minOccurs="0" default="50">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1"/>
+            <xs:maxInclusive value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PlaceOrderType">
+    <xs:sequence>
+      <xs:element name="customer_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="lines" type="tns:OrderLineType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderType">
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="status" type="tns:StatusType"/>
+      <xs:element name="lines" type="tns:OrderLineType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="total">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="12"/>
+            <xs:fractionDigits value="2"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderLineType">
+    <xs:sequence>
+      <xs:element name="sku">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="quantity">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="StatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="paid"/>
+      <xs:enumeration value="shipped"/>
+      <xs:enumeration value="cancelled"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ChunkType">
+    <xs:sequence>
+      <xs:element name="bytes" type="xs:base64Binary"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ReceiptType">
+    <xs:sequence>
+      <xs:element name="count" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="VerbsType">
+    <xs:annotation>
+      <xs:documentation>Verbs stay legal names outside a binding.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="get" type="xs:string"/>
+      <xs:element name="post" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="order_id" type="tns:OrderIdType"/>
+  <xs:element name="list_orders" type="tns:ListOrdersType"/>
+  <xs:element name="place_order" type="tns:PlaceOrderType"/>
+  <xs:element name="order" type="tns:OrderType"/>
+  <xs:element name="chunk" type="tns:ChunkType"/>
+  <xs:element name="receipt" type="tns:ReceiptType"/>
+  <xs:element name="verbs" type="tns:VerbsType"/>
+</xs:schema>
