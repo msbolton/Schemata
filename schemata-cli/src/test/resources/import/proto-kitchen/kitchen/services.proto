@@ -15,6 +15,7 @@ service Orders {
     option deprecated = true;
   }
   rpc Submit (Request) returns (kitchen.maps.Item);
+  rpc GetURL (Request) returns (Request);  // schemata: #7
   // schemata: reserved #6, "archive"
 }
 

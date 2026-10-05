@@ -14,7 +14,11 @@ object Protoc {
         System.getProperty("schemata.protoc")?.takeIf { File(it).canExecute() } ?: "protoc"
 
     private val wellKnownTypes =
-        listOf("google/protobuf/timestamp.proto", "google/protobuf/duration.proto")
+        listOf(
+            "google/protobuf/timestamp.proto",
+            "google/protobuf/duration.proto",
+            "google/protobuf/empty.proto",
+        )
 
     /** @return null when protoc accepts every file; otherwise protoc's combined output. */
     fun compile(files: Map<String, String>): String? {

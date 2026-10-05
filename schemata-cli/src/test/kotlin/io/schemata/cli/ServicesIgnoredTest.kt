@@ -3,7 +3,6 @@ package io.schemata.cli
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.services
 import io.schemata.target.jsonschema.JsonSchemaTarget
-import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlTarget
 import io.schemata.target.xsd.XsdTarget
 import java.io.File
@@ -12,14 +11,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * The Protobuf, SQL, XSD, and JSON Schema targets read no service: deleting one changes nothing.
- */
+/** The SQL, XSD, and JSON Schema targets read no service: deleting one changes nothing. */
 class ServicesIgnoredTest {
     private val with = TestSources.of(File("src/test/resources/corpus/services"))
 
     @Test
-    fun `the four targets produce the same output with and without services`() {
+    fun `the three targets produce the same output with and without services`() {
         val without =
             with.map {
                 SourceInput(
@@ -34,7 +31,7 @@ class ServicesIgnoredTest {
         assertFalse("service Orders" in without.single().content)
         assertEquals(1, Pipeline.analyze(with).schema!!.services().size)
         assertEquals(0, Pipeline.analyze(without).schema!!.services().size)
-        listOf(ProtoTarget, SqlTarget, XsdTarget, JsonSchemaTarget).forEach { target ->
+        listOf(SqlTarget, XsdTarget, JsonSchemaTarget).forEach { target ->
             val a = Pipeline.compile(with, listOf(target))
             val b = Pipeline.compile(without, listOf(target))
             assertFalse(a.hasErrors, a.diagnostics.joinToString("\n") { it.message })

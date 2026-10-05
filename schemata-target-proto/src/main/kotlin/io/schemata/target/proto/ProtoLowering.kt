@@ -8,19 +8,24 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.Payload
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.Names
 import io.schemata.target.OverrideNames
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.deprecated
@@ -38,6 +43,7 @@ private fun OverrideNames.of(decl: TypeDecl): String = nameOverride(decl) ?: dec
 object ProtoLowering {
     private const val TIMESTAMP = "google/protobuf/timestamp.proto"
     private const val DURATION = "google/protobuf/duration.proto"
+    private const val EMPTY = "google/protobuf/empty.proto"
 
     /** The largest field number proto allows. */
     private const val MAX_NUMBER = 536870911
@@ -93,14 +99,89 @@ object ProtoLowering {
                     )
                 }
             }
-            scope(namespace.declarations.flatMap { symbols(it) })
+            // Services share the package scope with messages and enums.
+            val declarationSymbols = namespace.declarations.flatMap { symbols(it) }
+            val serviceNames = namespace.services.associateWith { serviceName(it) }
+            scope(
+                declarationSymbols +
+                    namespace.services.map {
+                        Symbol(serviceNames.getValue(it), "service '${it.name}'", it.nameSpan)
+                    }
+            )
             val declarations = namespace.declarations.map { decl(it, emptyList()) }
+            val services = namespace.services.map { service(it, serviceNames.getValue(it)) }
             return ProtoFile(
                 path = namespace.name.replace('.', '/') + ".proto",
                 packageName = packages.getValue(namespace.name),
                 imports = imports.toList(),
                 declarations = declarations,
+                services = services,
             )
+        }
+
+        private fun serviceName(service: Service): String =
+            names.overrideName(service.annotations, "service '${service.name}'", service.nameSpan)
+                ?: service.name
+
+        /**
+         * A service's rpcs, named in a scope of their own. What proto cannot spell rides in
+         * schemata notes: an ordinal that is not the rpc's 1-based position, the HTTP binding as
+         * the formatter prints it, and the service's `reserved` statement.
+         */
+        private fun service(service: Service, name: String): ProtoService {
+            val rpcNames =
+                service.operations.associateWith {
+                    names.overrideName(
+                        it.annotations,
+                        "operation '${service.name}.${it.name}'",
+                        it.nameSpan,
+                    ) ?: Names.upperCamel(it.name)
+                }
+            scope(
+                service.operations.map {
+                    Symbol(rpcNames.getValue(it), "operation '${it.name}'", it.nameSpan)
+                }
+            )
+            val rpcs =
+                service.operations.mapIndexed { index, op ->
+                    val notes = mutableListOf<String>()
+                    if (op.ordinal != index + 1) notes += "#${op.ordinal}"
+                    op.binding?.let { notes += "${it.verb.lower} ${SchemataText.string(it.path)}" }
+                    ProtoRpc(
+                        name = rpcNames.getValue(op),
+                        request = rpcType(op.request),
+                        response = rpcType(op.response),
+                        doc = op.doc,
+                        notes = notes,
+                        deprecated = op.annotations.deprecated,
+                    )
+                }
+            return ProtoService(
+                name = name,
+                doc = service.doc,
+                rpcs = rpcs,
+                notes = reservedNote(service.reserved)?.let(::listOf) ?: emptyList(),
+                deprecated = service.annotations.deprecated,
+            )
+        }
+
+        /** No payload is `google.protobuf.Empty`, which proto offers for exactly that. */
+        private fun rpcType(payload: Payload?): ProtoRpcType {
+            if (payload == null) {
+                imports += EMPTY
+                return ProtoRpcType("google.protobuf.Empty", stream = false)
+            }
+            return ProtoRpcType(reference(payload.target, emptyList()).reference, payload.stream)
+        }
+
+        /** `reserved #3, #5..#7, "archive"`: ordinals as `#n` or `#a..#b`, then quoted names. */
+        private fun reservedNote(reserved: Reserved): String? {
+            if (reserved.ordinals.isEmpty() && reserved.names.isEmpty()) return null
+            val items =
+                reserved.ordinals.map {
+                    if (it.first == it.last) "#${it.first}" else "#${it.first}..#${it.last}"
+                } + reserved.names.map { SchemataText.string(it) }
+            return "reserved " + items.joinToString(", ")
         }
 
         /** [enclosing] is the Schemata path of the records this declaration sits inside. */
