@@ -176,6 +176,23 @@ class OpenApiRulesTest {
     }
 
     @Test
+    fun `binding an operation to its derived URL is compatible and moving it is breaking`() {
+        val unbound = analysed(base + "service S { #1 put(A): B }")
+        val derived = analysed(base + "service S { #1 put(A): B  post \"/S/put\" }")
+        val moved = analysed(base + "service S { #1 put(A): B  post \"/S/other\" }")
+        assertEquals(Verdict.Compatible, only(unbound, derived))
+        assertEquals(Verdict.Compatible, only(derived, unbound))
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.put: the URL changes from post /S/put to post /S/other, which breaks " +
+                    "clients that call the old one",
+                "add a new operation for the new URL instead of moving this one",
+            ),
+            only(derived, moved),
+        )
+    }
+
+    @Test
     fun `an operation removed with its name reserved needs no reservation help`() {
         val old = analysed(base + "service S { #1 get(A)  #2 put(A) }")
         val new = analysed(base + "service S { #1 get(A)  reserved \"put\" }")

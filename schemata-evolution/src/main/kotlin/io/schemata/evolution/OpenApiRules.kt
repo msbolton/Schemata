@@ -122,7 +122,11 @@ object OpenApiRules : Rulebook {
         )
     }
 
-    /** A binding added or removed moves the operation to or from its derived URL. */
+    /**
+     * A binding added or removed moves the operation to or from its derived URL, unless the binding
+     * is that derived URL: a client sees only the verb and path, so the same URL either way is
+     * compatible.
+     */
     private fun bindingChanged(change: OperationBindingChanged, ctx: ChangeContext): Verdict {
         val oldService = oldService(change.service, ctx)
         val oldOp =
@@ -130,6 +134,7 @@ object OpenApiRules : Rulebook {
                 ?: change.operation
         val fromUrl = bindingText(change.from) ?: derivedUrl(oldService, oldOp, ctx)
         val toUrl = bindingText(change.to) ?: derivedUrl(change.service, change.operation, ctx)
+        if (fromUrl == toUrl) return Verdict.Compatible
         val how =
             when {
                 change.from == null -> "the derived path is now bound, so the URL changes"
