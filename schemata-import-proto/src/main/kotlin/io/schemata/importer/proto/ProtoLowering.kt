@@ -347,7 +347,8 @@ private class FileLowering(
             s.rpcs.forEach { rpc ->
                 report(
                     ImportCodes.DROPPED,
-                    "service '${s.name}': rpc '$rpc' dropped; services arrive in a later version",
+                    "service '${s.name}': rpc '$rpc' dropped; the Protobuf target emits " +
+                        "services in v1.3",
                     s.pos,
                 )
             }

@@ -1,8 +1,9 @@
 # Schemata language reference
 
-A `.schemata` file declares records, enums, unions, and aliases in a namespace. You give the
-compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, a Postgres
-schema, an XML Schema, and a JSON Schema.
+A `.schemata` file declares records, enums, unions, aliases, and services in a namespace. You give
+the compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, a
+Postgres schema, an XML Schema, a JSON Schema, and, for each namespace that declares a service, an
+OpenAPI document.
 What a 1.x release promises about this language, its output, and its diagnostics is on the
 [What is stable](stability.md) page.
 
@@ -12,7 +13,7 @@ Every file begins with a namespace declaration: `namespace a.b.c`. Each segment 
 Several files may share a namespace; the compilation unit is the whole set of files given on the
 command line, with any directories walked recursively. Output paths follow the namespace, so
 `namespace shop.orders` writes `shop/orders.proto`, `shop/orders.sql`, `shop/orders.xsd`, and
-`shop/orders.schema.json`. A doc comment and any annotations may precede the `namespace` line
+`shop/orders.schema.json`, and `shop/orders.openapi.json` when it declares a service. A doc comment and any annotations may precede the `namespace` line
 itself; section 15 shows
 annotations there, and `examples/shop/orders.schemata` shows a doc comment. A UTF-8 byte-order mark
 at the start of a file is skipped; `fmt` never writes one.
@@ -128,18 +129,22 @@ record OrderLine {
 
 ## 4. Identifiers and naming
 
-Namespace segments and field names are lower_snake: a lowercase letter, then lowercase letters and
-digits, with single underscores between runs and none at the start or the end (`order_line`, `line2`;
-not `order__line`, `line_`, or `_line`). Type names (record, enum, union, alias) are
-UpperCamel. Enum values are lower_snake. The help suggests a corrected name when it can derive one
-from what you wrote. No name in a `.schemata` file, whether a declaration, a field, or an enum
-value, may be one of the language's reserved words: `namespace`, `import`, `as`, `record`, `enum`,
-`union`, `alias`, `reserved`, `true`, `false`, `service`, `operation`, `stream`. `service`,
-`operation`, and `stream` are held for a future version of the language. An annotation key is
-exempt, so `@xsd(namespace = "…")` is legal. `null` is not a keyword, since `= null` has to be
-read, but a field, an enum value, or a namespace segment may not be called `null` either:
-`= null` always means the literal, never an enum value of that name. Where a suggested name would
-be a reserved word, the help adds `_value` (`null_value`, `true_value`).
+Namespace segments, field names, and operation names are lower_snake: a lowercase letter, then
+lowercase letters and digits, with single underscores between runs and none at the start or the end
+(`order_line`, `line2`; not `order__line`, `line_`, or `_line`). Type names (record, enum, union,
+alias) and service names are UpperCamel. Enum values are lower_snake. The help suggests a corrected
+name when it can derive one from what you wrote. No name in a `.schemata` file, whether a
+declaration, a service, an operation, a field, or an enum value, may be one of the language's
+keywords: `namespace`, `import`, `as`, `record`, `enum`, `union`, `alias`, `reserved`, `true`,
+`false`, `service`, `operation`, `stream`. `service` starts a service and `stream` marks a streamed
+payload (section 16). `operation` is held for a future version of the language: a declaration that
+starts with `operation`, or with `stream` outside a service, is an error (SCH0002). The HTTP verbs
+a binding names (`get`, `post`, and the rest) are not keywords, so a field or an operation may be
+called `get`. An annotation key is exempt, so `@xsd(namespace = "…")` is legal. `null` is not a
+keyword, since `= null` has to be read, but a field, an operation, an enum value, or a namespace
+segment may not be called `null` either: `= null` always means the literal, never an enum value of
+that name. Where a suggested name would be a keyword, the help adds `_value` (`null_value`,
+`true_value`).
 
 ```schemata
 namespace shop.orders
@@ -221,7 +226,7 @@ Postgres. In Protobuf, a nullable scalar or enum lowers to proto3 `optional`; a 
 `list<T>?` or `map<K, V>?` lowers to a plain `repeated` or `map` and reports SCH2001, since an
 empty collection already means absent; a nullable `Record?` or `Union?` lowers to a plain message
 field, since a message field's presence in proto3 is already implicit, and a trailing
-`// schemata: Order?` comment (likewise `instant?` and `duration?`) records the nullability. Section 16 shows all four.
+`// schemata: Order?` comment (likewise `instant?` and `duration?`) records the nullability. Section 17 shows all four.
 A map key may not be nullable. A nullable alias may not be marked `?` again where it is used;
 section 8 shows an alias declared nullable and a field that uses it bare.
 
@@ -458,10 +463,11 @@ record OrderLine {
 
 ## 13. Reserved
 
-`reserved #11, "legacy_ref"` and `reserved #5..#9`, written inside a record or an enum, mark
-ordinals and names that may never be used again. A range is written low`..`high, inclusive on both
-ends. Reusing a reserved ordinal or name is an error. A reserved name is a former field or enum
-value name, so it is lower_snake like one (SCH1003 in a record, SCH1028 in an enum).
+`reserved #11, "legacy_ref"` and `reserved #5..#9`, written inside a record, an enum, or a service,
+mark ordinals and names that may never be used again. A range is written low`..`high, inclusive on
+both ends. Reusing a reserved ordinal or name is an error. A reserved name is a former field, enum
+value, or operation name, so it is lower_snake like one (SCH1003 in a record or a service, SCH1028
+in an enum).
 
 ```schemata
 namespace shop.orders
@@ -486,10 +492,10 @@ record OrderLine {
 
 ## 14. Ordinals
 
-`#n` numbers a field, an enum value, or a union member. Within one declaration, every element
-carries an explicit ordinal or none do; `--strict` rejects a declaration that leaves them implicit.
-Implicit ordinals are assigned in declaration order, starting at `#1`. Ordinals become Protobuf
-field numbers.
+`#n` numbers a field, an enum value, a union member, or an operation. Within one declaration or
+service, every element carries an explicit ordinal or none do; `--strict` rejects one that leaves
+them implicit. Implicit ordinals are assigned in declaration order, starting at `#1`. Ordinals
+become Protobuf field numbers.
 
 ```schemata
 namespace shop.orders
@@ -513,8 +519,9 @@ record OrderLine {
 
 An annotation is written `@target(key)` for a flag, `@target(key = value)` for a value, or
 `@target(k1, k2 = v)` for several keys at once. `@deprecated("reason")` applies to a record, an
-enum, a union, an alias, a field, or an enum value, under no target. A namespace's annotations are
-written before its `namespace` line; a record's are written before its `record` line.
+enum, a union, an alias, a field, an enum value, a service, or an operation, under no target. A
+namespace's annotations are written before its `namespace` line; a record's are written before its
+`record` line.
 
 `@proto(package = "…")` renames a namespace's Protobuf package. `@proto(name = "…")` renames a
 single declaration, field, or enum value.
@@ -541,7 +548,7 @@ an enum value. `@xsd(attribute)` on a field lowers it to an XML attribute instea
 element; only a scalar or enum field can be one (SCH2204 otherwise). `@xsd(root = false)` on a
 record keeps it from getting the global element every record gets by default, for a record meant
 to appear only nested inside another. The remaining `@xsd` keys write XML Schema constructs
-Schemata has no type for, and are what `import --from xsd` uses to carry them (section 18):
+Schemata has no type for, and are what `import --from xsd` uses to carry them (section 19):
 `@xsd(any)`, `@xsd(any_attribute)`, `@xsd(any_type)`, and `@xsd(mixed)` on a string, list, or map
 field write a wildcard, an attribute wildcard, an `xs:anyType` element, or mixed content, with
 `@xsd(process)` and `@xsd(wildcard)` giving a wildcard's `processContents` and namespace
@@ -556,6 +563,11 @@ non-empty and must not contain whitespace or any of `/ ~ # % ? " \`, which a `$r
 Two declarations, fields, union members, or enum values that lower to one JSON name are an error
 (SCH2302). `@jsonschema(open)` on a record drops `additionalProperties: false`, so instances may
 carry properties the record does not declare.
+
+`@openapi(version = "…")` and `@openapi(server = "…")` on a namespace set its OpenAPI document's
+`info.version` (default `1.0.0`) and its one server URL, which must be an absolute URL or a path
+(SCH2603). `@openapi(name = "…")` renames a service's tag or an operation's `operationId`; section
+16 shows all three.
 
 `guide/annotations.md` lists every key each target accepts, the elements it applies to, and the
 codes each target can report.
@@ -624,27 +636,297 @@ record Contact {
 }
 ```
 
-## 16. How constructs lower
+## 16. Services
 
-| Construct | Protobuf | Postgres | XSD | JSON Schema |
-|---|---|---|---|---|
-| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name | an `xs:complexType` plus a global element | an `object` in `$defs` with `additionalProperties: false` unless `@jsonschema(open)`; a field of the type is a `$ref` |
-| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it | the same; the key is not represented | the same; the key is not represented |
-| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table | its own named type, `OuterInnerType` | its own `$defs` entry, keyed `Outer.Inner` |
-| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values | an `xs:simpleType` restricting `xs:string` to an enumeration | `type: string` with `enum`; when a value has a doc, `oneOf` of `const` entries so the docs survive |
-| a union | a message holding a `oneof`; the field holds that message; each member is a field named from the member type's simple name in lower_snake or its `@proto(name)` | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member | an object with `oneOf`, one single-property closed object per member, tagged by the member type's name in lower snake (`bank_transfer`, `int64`), or by its `@jsonschema(name)` as written |
-| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column | a repeated element | an `array` with `items`, `minItems`, `maxItems` |
-| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column | a repeated element of the record's type | an `array` of `$ref` items |
-| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets | an `object` with `additionalProperties`; an integer key adds a digit pattern on `propertyNames`, a refined string key its constraints |
-| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record, union, `instant`, or `duration`, whose presence is already implicit, with a trailing `// schemata: T?` comment | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute | not `required`; a scalar's `type` becomes `[T, "null"]`, anything else `anyOf` with `{"type": "null"}` |
-| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty | `default`, an annotation the reader applies; the field is not `required` |
-| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint; a `pattern` with a construct Postgres regexes lack (`\p{…}`, `\b` as a word boundary, named groups, possessive quantifiers) drops the CHECK with a warning (SCH2105); lookahead and lookbehind are fine | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301), including an identity escape such as `\-` outside a class, which the Unicode dialect JSON Schema assumes rejects; `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) |
-| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented | inlined |
-| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` | `description` |
-| `@deprecated` | `option deprecated = true` or `[deprecated = true]` | not represented | not represented | `deprecated: true` on the def or property; not on enum values |
-| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented | not represented |
+A `service` names a set of operations, each a call that takes a request and returns a response,
+both of them records or unions the schema declares. A service is written at the top level of a
+file, beside the declarations, never inside a record. It is not a type, so no field can hold one
+(SCH1006), but it shares its namespace's type names: a service may not take the name of a
+declaration or of another service in the same namespace (SCH1004). Only the openapi target reads
+services; the Protobuf, Postgres, XSD, and JSON Schema targets write the same output with or
+without them.
 
-### 16.1 Validating JSON instances
+```schemata
+/// Orders and their lines.
+namespace shop.orders
+
+record OrderId { @sql(key) #1 id: uuid }
+
+record ListOrders { #1 status: Status? @sql(key) #2 limit: int32(min = 1, max = 200) = 50 }
+
+record PlaceOrder { @sql(key) #1 customer_id: uuid #2 lines: list<Order.Line>(min = 1) }
+
+record Order {
+  @sql(key) #1 id:     uuid
+  #2 status: Status
+  #3 lines:  list<Line>
+  #4 total:  decimal(12, 2)
+
+  record Line { #1 sku: string(max = 64) #2 quantity: int32(min = 1) }
+}
+
+enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
+
+record Chunk { @sql(key) #1 bytes: bytes }
+
+record Receipt { @sql(key) #1 count: int64 }
+
+/// Place and read orders.
+service Orders {
+  /// Fetch one order.
+  #1 get(OrderId): Order  get "/orders/{id}"
+  /// Orders matching a filter, newest first.
+  #2 list(ListOrders): stream Order  get "/orders"
+  #3 place(PlaceOrder): Order  post "/orders"
+  #4 cancel(OrderId)  delete "/orders/{id}"
+  #5 upload(stream Chunk): Receipt
+  reserved #6, "archive"
+}
+```
+
+### Operations
+
+An operation is written `#n name(Request): Response`, optionally followed by a binding. Its name is
+lower_snake and unique within its service (SCH1005). Either payload may be left out: `cancel`
+above returns nothing, and `ping(): Pong` would take nothing. A payload names a record or a union,
+directly or through an alias, and may come from another namespace, as a field's type can. It may
+not be nullable, a scalar, an enum, or a collection (SCH1047); wrap such a value in a record.
+
+Operations take ordinals and `reserved` exactly as a record's fields do (sections 13 and 14):
+every operation of a service carries an ordinal or none does (SCH1013), `--strict` reports
+implicit ones, and `reserved` keeps an ordinal or a name from coming back (SCH1020). `diff` matches
+operations by ordinal, so number them. A doc comment and `@deprecated` apply to a service and to
+each operation.
+
+```schemata error SCH1047
+namespace shop.orders
+
+record Order {
+  @sql(key) #1 id: uuid
+}
+
+service Orders {
+  #1 get(uuid): Order
+}
+```
+
+### Bindings
+
+A binding gives an operation its HTTP verb and path: `get "/orders/{id}"`. The verb is one of
+`get`, `post`, `put`, `patch`, `delete`, `head`, and `options` (SCH0006). The path starts with
+`/`, ends with one only when it is `/` itself, and is made of segments of letters, digits, `.`,
+`_`, `~`, and `-`, or of parameters written `{name}` in lower_snake (SCH0007).
+
+Each `{name}` binds the request record's field of that name. The field must exist, must be a
+scalar or an enum, and must not be nullable, since a path segment is always present; a path names
+each parameter once, and only a record request can bind one, not a union (SCH1048). A verb and a
+path belong to one operation in a namespace, across all of its services (SCH1048).
+
+The request's other fields go where the verb puts them:
+
+| Verb | A field the path binds | Every other field |
+|---|---|---|
+| `get`, `delete`, `head`, `options` | a path parameter | a query parameter; it must be a scalar, an enum, or a list of either (SCH2601), and a union request, having no fields to spread, cannot use these verbs (SCH2601) |
+| `post`, `put`, `patch` | a path parameter | the request body: the whole record when the path binds nothing, an object of the remaining fields when it binds some, and no body when it binds them all; a union request is always the whole body |
+
+An operation without a binding is `post /<tag>/<operation>`, where the tag is the service's name or
+its `@openapi(name)`, and its request is the body: `upload` above is `post /Orders/upload`.
+
+```schemata error SCH1048
+namespace shop.orders
+
+record OrderId {
+  @sql(key) #1 id: uuid
+}
+
+service Orders {
+  #1 get(OrderId): OrderId  get "/orders/{order}"
+}
+```
+
+```schemata error SCH1048
+namespace shop.orders
+
+record OrderId {
+  @sql(key) #1 id: uuid
+}
+
+service Orders {
+  #1 get(OrderId): OrderId  get "/orders/{id}"
+  #2 fetch(OrderId): OrderId  get "/orders/{id}"
+}
+```
+
+### Streams
+
+`stream` before a payload makes it a sequence of values instead of one. A streamed response is
+server-sent events, `text/event-stream`, one value per event; a streamed request is
+newline-delimited JSON, `application/x-ndjson`, one value per line. A streamed request is always a
+body, so it binds no path parameters and needs `post`, `put`, or `patch` (SCH1048).
+
+```schemata error SCH1048
+namespace shop.uploads
+
+record Chunk {
+  @sql(key) #1 bytes: bytes
+}
+
+service Uploads {
+  #1 upload(stream Chunk): Chunk  get "/uploads"
+}
+```
+
+### The OpenAPI document
+
+The openapi target writes one OpenAPI 3.1 document for each namespace that declares a service, at
+the namespace's path with `.openapi.json` (`shop/orders.openapi.json`). Its `info.title` is the
+namespace, `info.description` the namespace's doc comment, and `info.version` the namespace's
+`@openapi(version)`, or `1.0.0`; `@openapi(server)` gives `servers` its one entry.
+
+Each service is a tag, named by the service or its `@openapi(name)`, described by the service's doc
+comment. Each operation sits under its path and verb, the paths in the order their first operation
+is declared. Its `operationId` is `<tag>_<operation>` (`Orders_get`) unless the operation sets
+`@openapi(name)`. A tag or an `operationId` holds only letters, digits, `_`, `.`, and `-`
+(SCH2603); two services with one tag, two operations with one `operationId`, or two operations on
+one verb and path, a derived path included, are an error (SCH2602). The first paragraph of an
+operation's doc comment is its `summary` and the rest its `description`. `@deprecated` on an
+operation, or on its service, marks the operation `deprecated: true`; on a service, the tag's
+description also says `Deprecated.`
+
+A parameter is named by its field, carries the field's doc comment and `@deprecated`, and takes
+the field's schema: its type, refinements, nullability, and default. `@jsonschema(name)` renames a
+property, never a parameter (SCH2604). A path parameter is always `required`; a query parameter is
+`required` unless its field is nullable or has a default, and is written `style: form` with
+`explode: true`, so a list repeats the parameter.
+
+A response is `200`, with the response's schema as `application/json`, or as `text/event-stream`
+when it is streamed; an operation without a response answers `204`. Every record, enum, and union
+an operation reaches is a component under `#/components/schemas`, keyed `<namespace>.<Name>`
+(`shop.orders.Order`, `shop.orders.Order.Line`) and lowered exactly as the JSON Schema target
+lowers it. A request record the binding splits up, as it splits `OrderId` above, is not a
+component itself; only the types its fields name are.
+
+`get` and `cancel` above share a path; in `shop/orders.openapi.json` they become:
+
+```json
+    "/orders/{id}": {
+      "get": {
+        "operationId": "Orders_get",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Fetch one order.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Order"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "Orders_cancel",
+        "tags": [
+          "Orders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+```
+
+The three `@openapi` keys, together:
+
+```schemata
+@openapi(version = "2.1.0", server = "https://api.example.com/v2")
+namespace shop.orders
+
+record OrderId {
+  @sql(key) #1 id: uuid
+}
+
+record Order {
+  @sql(key) #1 id: uuid
+}
+
+@openapi(name = "orders")
+service Orders {
+  @openapi(name = "getOrder") #1 get(OrderId): Order  get "/orders/{id}"
+  #2 ping(): Order
+}
+```
+
+The document's version is `2.1.0` and its server `https://api.example.com/v2`; the tag is
+`orders`, `get`'s `operationId` is `getOrder`, and `ping` is `post /orders/ping` with
+`operationId` `orders_ping`.
+
+### Evolving and formatting
+
+`schemata diff` compares services too, a service by its qualified name and an operation by its
+ordinal. Only the openapi rulebook judges a change to a service; section 20 lists its verdicts.
+
+`fmt` writes a service in braces, one operation per line, with two spaces before the binding. When
+that line would pass 100 columns, the binding moves to the next line, one level deeper. A service
+with no operations is `service S {}`.
+
+## 17. How constructs lower
+
+The OpenAPI document holds, under `#/components/schemas`, only the declarations its operations
+reach, each lowered as the JSON Schema target lowers it; its `@jsonschema` keys apply there too.
+The four other targets read no service.
+
+| Construct | Protobuf | Postgres | XSD | JSON Schema | OpenAPI |
+|---|---|---|---|---|---|
+| a record (default strategy) | a nested or referenced message field | embedded: the record's fields become columns on the containing table, prefixed by the field name | an `xs:complexType` plus a global element | an `object` in `$defs` with `additionalProperties: false` unless `@jsonschema(open)`; a field of the type is a `$ref` | as JSON Schema, as a component keyed `<namespace>.<Name>`; a field of the type is a `$ref` to `#/components/schemas/<namespace>.<Name>` |
+| a keyed record (`@sql(key)`) | an ordinary message; the key adds nothing to it | its own table, keyed by the declared column or columns; a field elsewhere of this type becomes a foreign key to it | the same; the key is not represented | the same; the key is not represented | the same; the key is not represented |
+| a record declared inside another (`Order.Line`) | a nested message under the enclosing message | nesting only scopes the name; the field that uses the type still follows the record or collection rules in this table | its own named type, `OuterInnerType` | its own `$defs` entry, keyed `Outer.Inner` | its own component, keyed `<namespace>.Outer.Inner` |
+| an enum | `enum`, always with a synthesized zero value (SCH2001) | `text`, with a CHECK restricting it to the declared values | an `xs:simpleType` restricting `xs:string` to an enumeration | `type: string` with `enum`; when a value has a doc, `oneOf` of `const` entries so the docs survive | as JSON Schema |
+| a union | a message holding a `oneof`; the field holds that message; each member is a field named from the member type's simple name in lower_snake or its `@proto(name)` | a discriminator column plus each member's columns, with a CHECK tying the discriminator to the columns a given member requires | a complexType holding an `xs:choice`, one element per member | an object with `oneOf`, one single-property closed object per member, tagged by the member type's name in lower snake (`bank_transfer`, `int64`), or by its `@jsonschema(name)` as written | as JSON Schema |
+| `list<scalar>` | `repeated <scalar>` | an array column by default; `@sql(strategy = table)` gives it a child table, `json` a `jsonb` column | a repeated element | an `array` with `items`, `minItems`, `maxItems` | as JSON Schema |
+| `list<Record>` | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy = json)` gives it a `jsonb` column | a repeated element of the record's type | an `array` of `$ref` items | as JSON Schema |
+| `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy = table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets | an `object` with `additionalProperties`; an integer key adds a digit pattern on `propertyNames`, a refined string key its constraints | as JSON Schema |
+| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable record, union, `instant`, or `duration`, whose presence is already implicit, with a trailing `// schemata: T?` comment | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute | not `required`; a scalar's `type` becomes `[T, "null"]`, anything else `anyOf` with `{"type": "null"}` | as JSON Schema; as a query parameter, not `required` |
+| a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty | `default`, an annotation the reader applies; the field is not `required` | as JSON Schema; as a query parameter, not `required` |
+| a refinement (`min`, `max`, `pattern`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint; a `pattern` with a construct Postgres regexes lack (`\p{…}`, `\b` as a word boundary, named groups, possessive quantifiers) drops the CHECK with a warning (SCH2105); lookahead and lookbehind are fine | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301), including an identity escape such as `\-` outside a class, which the Unicode dialect JSON Schema assumes rejects; `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) | as JSON Schema, with SCH2604 where JSON Schema reports SCH2301 |
+| an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented | inlined | inlined |
+| a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` | `description` | `description`, as JSON Schema |
+| `@deprecated` | `option deprecated = true` or `[deprecated = true]` | not represented | not represented | `deprecated: true` on the def or property; not on enum values | as JSON Schema |
+| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented | not represented | not represented |
+| a service | nothing | nothing | nothing | nothing | a tag; section 16 |
+| an operation | nothing | nothing | nothing | nothing | an operation under its path and verb; section 16 |
+
+### 17.1 Validating JSON instances
 
 A document has no top-level `type`; validate an instance against one definition by its pointer,
 `<$id>#/$defs/<Name>`, for example `urn:schemata:shop.orders#/$defs/Order`. Register every
@@ -658,17 +940,18 @@ Schemata `time` has none. An integer map key is checked only by its digit patter
 enforced. JSON Schema has no per-value deprecation for enum values, so `@deprecated` on an enum
 value is not carried.
 
-## 17. The CLI
+## 18. The CLI
 
 `schemata` has seven commands: `compile`, `check`, `import`, `targets`, `fmt`, `diff`, and `lsp`.
-This section covers `compile`, `check`, `targets`, `fmt`, and `lsp`; `import` is section 18 and
-`diff` is section 19.
+This section covers `compile`, `check`, `targets`, `fmt`, and `lsp`; `import` is section 19 and
+`diff` is section 20.
 
 `compile <paths>...` compiles to `--out` (default `out`), for `--target` (a comma-separated list;
-default `proto`, `sql`, `xsd`, and `jsonschema`), reporting diagnostics in `--format` (`human`, to
-stderr, or `json`, to stdout), colored per `--color` (`auto`, `always`, or `never`), and treating
-every warning as an error under `--strict`, which also reports any field, enum value, or union
-member left with an implicit ordinal. A path may be a file or a directory, walked recursively for
+default `proto`, `sql`, `xsd`, `jsonschema`, and `openapi`), reporting diagnostics in `--format`
+(`human`, to stderr, or `json`, to stdout), colored per `--color` (`auto`, `always`, or `never`),
+and treating every warning as an error under `--strict`, which also reports any field, enum value,
+union member, or operation left with an implicit ordinal. The openapi target writes nothing for a
+namespace without a service. A path may be a file or a directory, walked recursively for
 `.schemata` files.
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
@@ -681,11 +964,11 @@ report, under `--format` (`human` or `json`).
 changed; `schemata fmt --check PATHS...` writes nothing, prints a diff for each file that would
 change, and exits 1 if any would, which is how CI keeps a repository formatted. Comments are kept:
 one on its own line stays above the element that follows it, and a comment at the end of a line
-stays on that line (after the element, or after the opening brace). Long lines are never wrapped.
-Doc-comment text keeps its indentation beyond one space after `///`. A file that does not parse is
+stays on that line (after the element, or after the opening brace). Long lines are never wrapped,
+except that an operation's binding moves to a line of its own (section 16). Doc-comment text keeps its indentation beyond one space after `///`. A file that does not parse is
 reported like `check` would and left untouched.
 
-`lsp` runs the language server for an editor; section 20 describes it. It takes no options and
+`lsp` runs the language server for an editor; section 21 describes it. It takes no options and
 writes nothing but protocol messages to stdout.
 
 The exit code tells you what happened without reading the output: `0` when there is nothing to
@@ -746,7 +1029,7 @@ past the last character.
 
 `schemata --version` prints the compiler's version and exits.
 
-## 18. Importing
+## 19. Importing
 
     schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
 
@@ -1334,7 +1617,8 @@ by its imported name) and dropped otherwise (SCH2403). Groups, `extensions` rang
 blocks are dropped (SCH2405). An editions file (`edition = "2023"`) is read as proto3, reported
 once (SCH2403): a field is `T?` only when it says `optional`, whatever its features say.
 `import public` re-exports nothing in Schemata (SCH2403); the importing file imports the namespace
-directly. A service has no place in the data language yet, so each `rpc` is dropped (SCH2405).
+directly. A `service` is not imported, since the Protobuf target writes none yet: each of its
+`rpc`s is dropped (SCH2405).
 
 Most of the above, in one file, `protos/shop/orders.proto`:
 
@@ -1804,14 +2088,15 @@ reported (SCH2403), since the DDL holds a `jsonb` column and not the record's fi
 the only one importing the sql target's own output reports. Restore the fields by hand, or import
 the same schema from another format.
 
-## 19. Evolving a schema
+## 20. Evolving a schema
 
-    schemata diff    [--target proto,sql,xsd,jsonschema] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
 
 `diff OLD NEW` compares two versions of a schema set — each a file or a directory, loaded the same
 way `compile` loads one — and judges every change against each target's compatibility rulebook:
-whether data produced under OLD stays valid, or readable, under NEW, on that target. `--target`
-restricts which rulebooks judge (default all four); `--strict` promotes every note to a breaking
+whether data produced under OLD stays valid, or readable, under NEW, on that target, and for the
+openapi target whether a client generated from OLD's document still makes the same calls. `--target`
+restricts which rulebooks judge (default all five); `--strict` promotes every note to a breaking
 change. Exit codes match `compile` and `check`: `0` when no selected verdict is a note or a break
 (including when there are no changes at all, printed as `no changes`), `2` when there is a note and
 no break, `1` when any break. `--format json` prints one document on stdout, for CI; a human report
@@ -1837,6 +2122,9 @@ namespace at all, since that is two unrelated schema sets rather than two versio
   schema)`, `@xsd(name)`, or `@jsonschema(name)` — so a rename pinned by an override is compatible
   on that target alone, and a changed override is itself a rename on that target alone, even when
   the declared name did not move.
+- A service matches by qualified name and an operation by ordinal within its service, the same way.
+  A service's emitted name is its OpenAPI tag and an operation's is its `operationId`, each after
+  `@openapi(name)`.
 
 ### Verdicts
 
@@ -1890,6 +2178,26 @@ override, so a pinned rename is a doc-level change only.
 
 `list<T>` → `list<T?>` is compatible everywhere; the reverse is a nullability tightening on the
 element.
+
+The openapi rulebook judges a change to a record, enum, or union exactly as the JSON Schema column
+says when an operation of OLD reaches that declaration, since its component is the JSON Schema
+lowering; a change to any other declaration is compatible on openapi, which never writes it. The
+four other rulebooks call every change to a service compatible, since none of them writes one.
+The openapi rulebook's own rows:
+
+| Change | OpenAPI |
+|---|---|
+| Service added, operation added | compatible |
+| Service removed | breaking |
+| Operation removed | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its default `operationId` |
+| Operation renamed | breaking when its `operationId` changes, or, without a binding, its derived URL; compatible when `@openapi(name)` keeps the `operationId` and a binding keeps the URL |
+| Request or response changed, `stream` included | breaking |
+| Binding added, removed, or changed | breaking: the URL moves |
+| `@openapi(name)` changed on a service or an operation | breaking when the tag or `operationId` it emits changes; a service's tag prefixes every `operationId` that does not set its own |
+| `@openapi(version)` or `@openapi(server)` changed | compatible |
+| `@deprecated` added or removed on a service or an operation | note |
+| `reserved` changed on a service | compatible |
+| Namespace removed | breaking when it declared a service, else compatible |
 
 `reserved` changes how a removal reads on proto only. Removing a field is compatible on the wire
 regardless, but reported as a note unless the removed ordinal and name are both still `reserved` in
@@ -1967,7 +2275,68 @@ The pins need not predate the rename: added in the same change, each target stil
 name the old field emitted with the name the new one emits, and both are the name `note`, so
 every target reads the rename as compatible.
 
-## 20. Editor support
+A service is compared the same way. The two sides of this example differ only in their services,
+and NEW adds a second service, `Audit`.
+
+From `schemata-cli/src/test/resources/evolution/services/old/orders.schemata`:
+```
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+  #2 list(Filter): stream Order  get "/orders"
+  #3 place(PlaceOrder): Order  post "/orders"
+  #4 cancel(OrderId)  delete "/orders/{id}"
+  #5 old(OrderId): Order
+}
+```
+
+From `schemata-cli/src/test/resources/evolution/services/new/orders.schemata`:
+```
+service Orders {
+  #1 fetch(OrderId): Order  get "/orders/{id}"
+  #2 list(Filter): Order  get "/orders"
+  #3 place(PlaceOrder): Order  post "/orders/new"
+  @deprecated #5 old(OrderId): Order
+  #6 count(): Count
+  reserved #4, "cancel"
+}
+```
+
+`schemata diff old new` reports, shortened here to the first of its five diagnostics:
+
+```text
+s.Orders
+  operation 'get' renamed to 'fetch'    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'list' response changed from stream Order to Order    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'place' binding changed from post /orders to post /orders/new    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'old': marked deprecated    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'count' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'cancel' removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+s.Audit
+  service added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+8 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 4 breaking, 1 note
+
+error[SCH2501]: openapi: s.Orders.fetch: the operation was renamed, so its operationId changes from Orders_get to Orders_fetch
+  --> new/orders.schemata:17:6
+   |
+17 |   #1 fetch(OrderId): Order  get "/orders/{id}"
+   |      ^^^^^
+   = help: pin the operationId with @openapi(name = "Orders_get")
+
+4 errors, 1 warning
+```
+
+Only openapi sees any of it. `get`'s rename moves its `operationId`, which generated clients call
+by name; `@openapi(name = "Orders_get")`, as the help says, would keep it. Reserving `cancel`
+quiets the help on its removal but not the break: a client that calls it still fails.
+
+## 21. Editor support
 
 `schemata lsp` is a language server: an editor starts it and talks to it over its standard input
 and output. It reports the diagnostics `schemata check` reports about the schemas themselves, with
@@ -2007,11 +2376,11 @@ What the server does:
 |---|---|
 | Open or edit a file | Diagnostics for every file of its schema set, open or not |
 | Go to definition | A type name goes to its declaration, across files; the alias in `cust.Customer` goes to the import; an import goes to the `namespace` line of each file that declares it; an enum default goes to the value |
-| Hover | The declaration's kind and qualified name, the rest of a field or alias as written, and the doc comment; on a builtin type name such as `int32` or `list`, a one-line description |
+| Hover | The declaration's kind and qualified name, the rest of a field or alias as written, and the doc comment; on an operation, its line as `fmt` writes it, less annotations, and its doc comment; on a builtin type name such as `int32` or `list`, a one-line description |
 | Find references | Every use of a declaration, field, enum value, namespace, or import alias in its set |
-| Rename | The declaration and every use, in one edit |
+| Rename | The declaration and every use, in one edit; a service or an operation too |
 | Format document | The same result as `schemata fmt` |
-| Outline | The namespace, its declarations, and their fields and values |
+| Outline | The namespace, its declarations, and their fields and values; each service, with its operations |
 
 **Schema sets.** Imports name a namespace, not a file, so the server has to know which files belong
 together. By default a file's set is every `.schemata` file in its own directory. When one schema
@@ -2034,12 +2403,14 @@ one comes from that last parsed version, so its location can be off until the fi
 Rename waits until every file of the set parses.
 
 **Rename.** Rename changes names in the schema and nothing else. It does not add `@proto(name)`,
-`@sql(column)`, or any other override, so the emitted names change with it; `schemata diff` tells
-you what that breaks on each target (section 19). A reserved name string and an existing override
-are text, not uses of the name, and stay as they are. A namespace cannot be renamed. Rename
-refuses a name that is not an identifier, is a keyword, or is already taken where the old name
-lives, and a declaration may not take a builtin type name, `list`, or `map`. It also tries the
-rename before it answers, and refuses one that would:
+`@sql(column)`, `@openapi(name)`, or any other override, so the emitted names change with it;
+`schemata diff` tells you what that breaks on each target (section 20). A reserved name string and
+an existing override are text, not uses of the name, and stay as they are. A namespace cannot be
+renamed. Rename refuses a name that is not an identifier, is a keyword, or is already taken where
+the old name lives, and a declaration may not take a builtin type name, `list`, or `map`. A service's
+new name must be UpperCamel and an operation's lower_snake, and a service and a declaration of one
+namespace may not take each other's name. Rename also tries the rename before it answers, and
+refuses one that would:
 
 - change what another name refers to, as when a nested record renamed to `Item` would capture the
   uses of a top-level `Item`;

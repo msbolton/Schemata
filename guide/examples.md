@@ -1,15 +1,17 @@
 # Worked examples
 
-Three example schemas live under `examples/`: `contacts`, `shop`, and `ledger`. Each has a
-committed `expected/proto` tree, an `expected/sql` tree, an `expected/xsd` tree, an
-`expected/jsonschema` tree, and the warnings the compiler reports for each target. Build the CLI
-once, then point it at any of them to reproduce what is shown here:
+Four example schemas live under `examples/`: `contacts`, `shop`, `ledger`, and `services`. Each
+has a committed `expected/proto` tree, an `expected/sql` tree, an `expected/xsd` tree, an
+`expected/jsonschema` tree, and the warnings the compiler reports for each target; `services`,
+the one that declares a service, has an `expected/openapi` tree too. Build the CLI once, then point
+it at any of them to reproduce what is shown here:
 
 ```text
 java -jar schemata-<version>.jar compile --out out examples/contacts
 ```
 
-Swap `examples/contacts` for `examples/shop` or `examples/ledger` to compile the other two.
+Swap `examples/contacts` for `examples/shop`, `examples/ledger`, or `examples/services` to compile
+the others.
 
 ## contacts
 
@@ -425,6 +427,169 @@ Every warning above becomes an error, because `--strict` treats every warning as
 is SCH1014, though: every field and enum value across these three files already carries an
 explicit ordinal, so `--strict`'s other job, catching an implicit one, finds nothing to report.
 
+## services
+
+The orders from `shop` again, cut down, with a service that places and reads them. It shows each
+place an operation's request can go over HTTP: the path, the query, the body, and a stream.
+
+From `examples/services/orders.schemata`:
+```schemata
+record OrderId { @sql(key) #1 id: uuid }
+
+record ListOrders { #1 status: Status? @sql(key) #2 limit: int32(min = 1, max = 200) = 50 }
+
+record PlaceOrder { @sql(key) #1 customer_id: uuid #2 lines: list<Order.Line>(min = 1) }
+```
+
+From `examples/services/orders.schemata`:
+```schemata
+/// Place and read orders.
+service Orders {
+  /// Fetch one order.
+  #1 get(OrderId): Order  get "/orders/{id}"
+  /// Orders matching a filter, newest first.
+  #2 list(ListOrders): stream Order  get "/orders"
+  #3 place(PlaceOrder): Order  post "/orders"
+  #4 cancel(OrderId)  delete "/orders/{id}"
+  #5 upload(stream Chunk): Receipt
+  reserved #6, "archive"
+}
+```
+
+```text
+java -jar schemata-<version>.jar compile --out out examples/services
+```
+
+The run ends:
+
+```text
+0 errors, 12 warnings
+wrote 2 files to out/proto
+wrote 2 files to out/sql
+wrote 2 files to out/xsd
+wrote 2 files to out/jsonschema
+wrote 1 file to out/openapi
+```
+
+The twelve warnings are Protobuf's and Postgres's, of the kinds `shop` already explains; the
+openapi target reports none. The four data targets write `catalog` and `orders` as they would
+without the service. The openapi target writes one document, `shop/orders.openapi.json`, since
+`shop.catalog` declares no service.
+
+`get` and `cancel` bind `id` in the path, and `cancel` has no response, so it answers `204`.
+`list` is a `get` with nothing in its path, so both fields of `ListOrders` become query parameters,
+neither required, since `status` is nullable and `limit` has a default; its response is a stream
+of server-sent events.
+
+From `examples/services/expected/openapi/shop/orders.openapi.json`:
+```json
+    "/orders": {
+      "get": {
+        "operationId": "Orders_list",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Orders matching a filter, newest first.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/shop.orders.Status"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream of Order",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Order"
+                }
+              }
+            }
+          }
+        }
+      },
+```
+
+`place` is a `post` that binds nothing in its path, so the whole `PlaceOrder` record is the body.
+`upload` has no binding, so it is `post /Orders/upload`, and its streamed request is
+newline-delimited JSON.
+
+From `examples/services/expected/openapi/shop/orders.openapi.json`:
+```json
+    "/Orders/upload": {
+      "post": {
+        "operationId": "Orders_upload",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "$ref": "#/components/schemas/shop.orders.Chunk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Receipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+```
+
+Every type an operation reaches is a component keyed by its namespace, `Money` from
+`shop.catalog` included, so the document stands alone: `Order.total` refers to it within the same
+file.
+
+From `examples/services/expected/openapi/shop/orders.openapi.json`:
+```json
+          "total": {
+            "$ref": "#/components/schemas/shop.catalog.Money"
+          }
+```
+
+`OrderId` and `ListOrders` are not components: their fields are parameters, and nothing refers to
+the records themselves. Section 16 of the reference has every rule, and section 20 shows what
+`schemata diff` says about a changed service.
+
 ## GPX
 
 `schemata import --from xsd` goes the other way: it reads an existing `.xsd` and writes a
@@ -561,7 +726,7 @@ under that directory, `google.type.money`, and kept its package as
 
 Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
 `google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and
-section 18 of the reference lists what each construct becomes. Compiling the result under the
+section 19 of the reference lists what each construct becomes. Compiling the result under the
 proto target gives `message Money` back with the same fields, numbers, and comments.
 
 ## Keeping the examples current

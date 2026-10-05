@@ -3,9 +3,9 @@
 ![ci](https://github.com/msbolton/Schemata/actions/workflows/ci.yml/badge.svg)
 
 Schemata is a schema language and compiler. You describe a data model once in
-`.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, with every
-lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf, or
-Postgres DDL schema.
+`.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, and the
+services that use it to OpenAPI 3.1, with every lossy decision reported as a warning, or import one
+from an existing XML Schema, Protobuf, or Postgres DDL schema.
 
 ## Install
 
@@ -119,16 +119,17 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
 ## Commands
 
-    schemata compile [--target proto,sql,xsd,jsonschema] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
-    schemata check   [--target proto,sql,xsd,jsonschema]             [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
-    schemata diff    [--target proto,sql,xsd,jsonschema] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
     schemata lsp
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
-error, even when another target failed. `check` reports everything `compile` would and
+error, even when another target failed; the `openapi` target writes one document per namespace
+that declares a service, and nothing for a schema without one. `check` reports everything `compile` would and
 writes nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql`
 files and writes `--out/import/<file>`, one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
 codes. `diff OLD NEW` judges every change between two schema versions against each target's
@@ -190,6 +191,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-target-sql` | relational model, lowering, renderer |
 | `schemata-target-xsd` | XML Schema model, lowering, renderer |
 | `schemata-target-jsonschema` | JSON Schema model, lowering, renderer |
+| `schemata-target-openapi` | OpenAPI model, lowering, renderer |
 | `schemata-import-api` | the importer interface, the shared model and `SCH24` codes, the Schemata emitter |
 | `schemata-import-xsd` | XSD reader and importer |
 | `schemata-import-proto` | Protobuf reader and importer |
