@@ -20,6 +20,15 @@ class NamesTest {
     }
 
     @Test
+    fun `upper camel joins the underscore parts`() {
+        assertEquals("ListOrders", Names.upperCamel("list_orders"))
+        assertEquals("GetV2", Names.upperCamel("get_v2"))
+        assertEquals("Get", Names.upperCamel("get"))
+        assertEquals("A", Names.upperCamel("a"))
+        assertEquals("AB", Names.upperCamel("_a__b_"))
+    }
+
+    @Test
     fun `type text reads as a user would write it`() {
         assertEquals(
             "string(max = 5)?",

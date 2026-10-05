@@ -9,4 +9,14 @@ object Names {
      * unchanged.
      */
     fun snakeCase(name: String): String = name.split(boundary).joinToString("_").lowercase()
+
+    /**
+     * `list_orders` → `ListOrders`, `get_v2` → `GetV2`, `get` → `Get`: split on `_`, drop empty
+     * parts, upper-case each part's first character.
+     */
+    fun upperCamel(lowerSnake: String): String =
+        lowerSnake
+            .split('_')
+            .filter { it.isNotEmpty() }
+            .joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }
 }

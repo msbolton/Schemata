@@ -211,6 +211,93 @@ class ProtoRendererTest {
     }
 
     @Test
+    fun `renders a service after the declarations`() {
+        val message =
+            ProtoMessage("Order", null, emptyList(), emptyList(), emptyList(), ProtoReserved.NONE)
+        val service =
+            ProtoService(
+                name = "Orders",
+                doc = "Place and read orders.",
+                rpcs =
+                    listOf(
+                        ProtoRpc(
+                            "Get",
+                            ProtoRpcType("OrderId", false),
+                            ProtoRpcType("Order", false),
+                            doc = "Fetch one order.",
+                            notes = listOf("get \"/orders/{id}\""),
+                        ),
+                        ProtoRpc(
+                            "Old",
+                            ProtoRpcType("A", false),
+                            ProtoRpcType("B", false),
+                            notes = listOf("#4"),
+                            deprecated = true,
+                        ),
+                        ProtoRpc(
+                            "Upload",
+                            ProtoRpcType("Chunk", true),
+                            ProtoRpcType("google.protobuf.Empty", false),
+                        ),
+                    ),
+                notes = listOf("reserved #6, \"archive\""),
+                deprecated = true,
+            )
+        val file =
+            ProtoFile(
+                "shop/orders.proto",
+                "shop.orders",
+                emptyList(),
+                listOf(message),
+                listOf(service),
+            )
+        assertEquals(
+            """
+            syntax = "proto3";
+
+            package shop.orders;
+
+            message Order {}
+
+            // Place and read orders.
+            service Orders {
+              option deprecated = true;
+
+              // Fetch one order.
+              rpc Get(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+              rpc Old(A) returns (B) {  // schemata: #4
+                option deprecated = true;
+              }
+              rpc Upload(stream Chunk) returns (google.protobuf.Empty);
+              // schemata: reserved #6, "archive"
+            }
+
+            """
+                .trimIndent(),
+            ProtoRenderer.render(ProtoModel(listOf(file))).single().content,
+        )
+    }
+
+    @Test
+    fun `an empty service renders as one line`() {
+        val file =
+            ProtoFile(
+                "shop/orders.proto",
+                "shop.orders",
+                emptyList(),
+                emptyList(),
+                listOf(ProtoService("S", null, emptyList())),
+            )
+        assertEquals(
+            "service S {}\n",
+            ProtoRenderer.render(ProtoModel(listOf(file)))
+                .single()
+                .content
+                .substringAfter("shop.orders;\n\n"),
+        )
+    }
+
+    @Test
     fun `renders one output per file in model order`() {
         val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user)))
         assertEquals(listOf("shop/customers.proto", "shop/orders.proto"), outs.map { it.path })
