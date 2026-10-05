@@ -721,7 +721,9 @@ A binding gives an operation its HTTP verb and path: `get "/orders/{id}"`. The v
 Each `{name}` binds the request record's field of that name. The field must exist, must be a
 scalar or an enum, and must not be nullable, since a path segment is always present; a path names
 each parameter once, and only a record request can bind one, not a union (SCH1048). A verb and a
-path belong to one operation in a namespace, across all of its services (SCH1048).
+path belong to one operation in a namespace, across all of its services, and paths that differ only
+in their parameters' names, such as `/orders/{id}` and `/orders/{order_id}`, are one path
+(SCH1048).
 
 The request's other fields go where the verb puts them:
 
@@ -788,11 +790,13 @@ Each service is a tag, named by the service or its `@openapi(name)`, described b
 comment. Each operation sits under its path and verb, the paths in the order their first operation
 is declared. Its `operationId` is `<tag>_<operation>` (`Orders_get`) unless the operation sets
 `@openapi(name)`. A tag or an `operationId` holds only letters, digits, `_`, `.`, and `-`
-(SCH2603); two services with one tag, two operations with one `operationId`, or two operations on
-one verb and path, a derived path included, are an error (SCH2602). The first paragraph of an
-operation's doc comment is its `summary` and the rest its `description`. `@deprecated` on an
-operation, or on its service, marks the operation `deprecated: true`; on a service, the tag's
-description also says `Deprecated.`
+(SCH2603); two services with one tag, two operations with one `operationId`, an operation without
+a binding whose derived verb and path another operation binds, or two operations whose paths differ
+only in their parameters' names, whatever their verbs, are an error (SCH2602), since OpenAPI holds
+such paths as one. Two bindings of one verb and path, parameter names aside, are already refused
+(SCH1048). The first paragraph of an operation's doc comment is its `summary` and the rest its
+`description`. `@deprecated` on an operation, or on its service, marks the operation
+`deprecated: true`; on a service, the tag's description also says `Deprecated.`
 
 A parameter is named by its field, carries the field's doc comment and `@deprecated`, and takes
 the field's schema: its type, refinements, nullability, and default. `@jsonschema(name)` renames a
@@ -804,8 +808,10 @@ A response is `200`, with the response's schema as `application/json`, or as `te
 when it is streamed; an operation without a response answers `204`. Every record, enum, and union
 an operation reaches is a component under `#/components/schemas`, keyed `<namespace>.<Name>`
 (`shop.orders.Order`, `shop.orders.Order.Line`) and lowered exactly as the JSON Schema target
-lowers it. A request record whose fields become parameters or a partial body, as `OrderId`'s and
-`ListOrders`'s do above, is not a component itself; only the types its fields name are.
+lowers it. A record's nested declarations are components beside it even when no operation reaches
+them, since a record lowers together with its nested declarations. A request record whose fields
+become parameters or a partial body, as `OrderId`'s and `ListOrders`'s do above, is not a component
+itself; only the types its fields name are.
 
 `get` and `cancel` above share a path; in `shop/orders.openapi.json` they become:
 
