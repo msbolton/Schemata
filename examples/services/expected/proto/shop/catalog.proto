@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package shop.catalog;
+
+message Money {
+  string amount = 1;  // schemata: decimal(19, 4)
+  string currency = 2;  // schemata: string(min = 3, max = 3)
+}

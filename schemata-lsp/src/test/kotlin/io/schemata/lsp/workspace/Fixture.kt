@@ -5,6 +5,19 @@ import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
 
+/** Two records and a service whose operations take and return them, for the service cases. */
+internal const val SERVICE_API =
+    """namespace t
+record Id { #1 id: uuid }
+record Order { #1 id: uuid }
+/// Orders.
+service Orders {
+  /// Fetch.
+  #1 get(Id): Order  get "/orders/{id}"
+  #2 list(): stream Order
+}
+"""
+
 /** Files written under a temporary directory and opened in a workspace, for query tests. */
 class Fixture(private val dir: Path) {
     val workspace = Workspace(AnnotationRegistry.CORE)

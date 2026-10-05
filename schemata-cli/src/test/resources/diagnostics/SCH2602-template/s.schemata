@@ -1,0 +1,6 @@
+namespace s
+record OrderId { #1 id: uuid #2 order_id: uuid }
+service Orders {
+  #1 get(OrderId): OrderId  get "/orders/{id}"
+  #2 cancel(OrderId)  delete "/orders/{order_id}"
+}

@@ -1,0 +1,6 @@
+namespace s
+record A { #1 a: string }
+record B { #1 b: string }
+union U = #1 A | #2 B
+record R { #1 ok: bool }
+service S { #1 find(U): R  get "/find" }

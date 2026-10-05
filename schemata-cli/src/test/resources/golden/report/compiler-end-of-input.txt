@@ -4,6 +4,6 @@ error[SCH0001]: mismatched input '<EOF>' expecting {'}', '@', 'record', 'enum', 
 3 | 
   | ^
   = help: the parser stopped at the caret; a field is written `name: type`, a declaration `record
-          Name { … }`, `enum Name { a, b }`, or `union Name = A | B`
+          Name { … }`, `enum Name { a, b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`
 
 1 error, 0 warnings

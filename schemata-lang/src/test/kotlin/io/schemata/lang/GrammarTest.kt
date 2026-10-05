@@ -234,8 +234,7 @@ class GrammarTest {
 
     @Test
     fun `future keywords parse to a reservedFutureDecl node`() {
-        val (tree, diagnostics) =
-            parse("namespace a\nservice Orders { operation place(PlaceOrder): Order }")
+        val (tree, diagnostics) = parse("namespace a\noperation Orders {}")
         assertEquals(emptyList(), diagnostics)
         assertNotNull(tree.topLevel().single().reservedFutureDecl())
         assertNull(tree.topLevel().single().declaration())

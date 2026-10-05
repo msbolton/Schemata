@@ -83,4 +83,49 @@ class OutlineTest {
         assertEquals(emptyList(), f.queries.symbols(a))
         assertEquals(emptyList(), f.queries.symbols("/nowhere/x.schemata"))
     }
+
+    @Test
+    fun `services outline with their operations`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", SERVICE_API)
+        val nodes = f.queries.symbols(a).single().children
+        val service = nodes.single { it.kind == OutlineKind.SERVICE }
+        assertEquals("Orders", service.name)
+        assertEquals(f.range(a, "Orders", occurrence = 1), service.selection)
+        assertEquals(
+            listOf("get" to "(Id): Order", "list" to "(): stream Order"),
+            service.children.map { it.name to it.detail },
+        )
+        assertEquals(
+            listOf(OutlineKind.OPERATION, OutlineKind.OPERATION),
+            service.children.map { it.kind },
+        )
+        assertEquals(listOf("Id", "Order", "Orders"), nodes.map { it.name })
+    }
+
+    @Test
+    fun `a service between declarations keeps its place`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "t/a.schemata",
+                "namespace t\nrecord A { #1 x: int32 }\n" +
+                    "service S { #1 put(stream A)  put \"/a\" }\n" +
+                    "record B { #1 y: list<A>(min = 1) }\n" +
+                    "service T { #1 find(B): list<A>(min = 1)? }\n",
+            )
+        assertEquals(
+            listOf("A", "S", "B", "T"),
+            f.queries.symbols(a).single().children.map { it.name },
+        )
+        assertEquals(
+            listOf("(stream A)", "(B): list<A>(min = 1)?"),
+            f.queries
+                .symbols(a)
+                .single()
+                .children
+                .flatMap { n -> n.children.map { it.detail } }
+                .filterNotNull(),
+        )
+    }
 }

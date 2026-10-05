@@ -152,7 +152,10 @@ class PipelineTest {
     @Test
     fun `check lowers every target and writes no files`() {
         val result = Pipeline.check(listOf(orders, customers), Pipeline.targets)
-        assertEquals(listOf("proto", "sql", "xsd", "jsonschema"), result.targets.map { it.name })
+        assertEquals(
+            listOf("proto", "sql", "xsd", "jsonschema", "openapi"),
+            result.targets.map { it.name },
+        )
         assertTrue(result.targets.all { it.files.isEmpty() })
         assertEquals(
             Pipeline.compile(listOf(orders, customers), Pipeline.targets).diagnostics,

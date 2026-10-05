@@ -54,6 +54,8 @@ object CoreAnnotations {
                         Element.ALIAS,
                         Element.FIELD,
                         Element.ENUM_VALUE,
+                        Element.SERVICE,
+                        Element.OPERATION,
                     ),
                 valueKind = ValueKind.STRING,
                 role = Role.REPRESENTATION,

@@ -36,7 +36,7 @@ internal class CollectingErrorListener(private val file: String) : BaseErrorList
                 msg,
                 Span(file, line, column, line, column + width - 1),
                 help =
-                    "the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, or `union Name = A | B`",
+                    "the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`",
             )
     }
 }

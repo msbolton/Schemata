@@ -18,6 +18,7 @@ import io.schemata.lang.hasErrors
 import io.schemata.target.OutputFile
 import io.schemata.target.Target
 import io.schemata.target.jsonschema.JsonSchemaTarget
+import io.schemata.target.openapi.OpenApiTarget
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlTarget
 import io.schemata.target.xsd.XsdTarget
@@ -35,9 +36,10 @@ data class TargetResult(
 }
 
 /**
- * Parse and analysis only, no target. [implicitOrdinals] names every declaration (by its parsed
- * AST, before analysis assigns stand-in ordinals) that has a field, enum value, or union member
- * with no explicit `#n`; [schema] is null exactly when [diagnostics] contains an error.
+ * Parse and analysis only, no target. [implicitOrdinals] names every declaration and service (by
+ * its parsed AST, before analysis assigns stand-in ordinals) that has a field, enum value, union
+ * member, or operation with no explicit `#n`; [schema] is null exactly when [diagnostics] contains
+ * an error.
  */
 data class Analyzed(
     val schema: Schema?,
@@ -66,7 +68,8 @@ data class PipelineResult(val core: List<Diagnostic>, val targets: List<TargetRe
  * errors are reported. A target's own error stops only that target.
  */
 object Pipeline {
-    val targets: List<Target<*>> = listOf(ProtoTarget, SqlTarget, XsdTarget, JsonSchemaTarget)
+    val targets: List<Target<*>> =
+        listOf(ProtoTarget, SqlTarget, XsdTarget, JsonSchemaTarget, OpenApiTarget)
 
     /**
      * Core's keys plus every target's, whatever `--target` selects: validity never depends on the
@@ -99,6 +102,9 @@ object Pipeline {
         val out = mutableSetOf<QualifiedName>()
         files.forEach { file ->
             file.declarations.forEach { collect(it, file.namespace.name, emptyList(), out) }
+            file.services
+                .filter { s -> s.operations.any { it.ordinal == null } }
+                .forEach { out += QualifiedName(file.namespace.name, listOf(it.name)) }
         }
         return out
     }

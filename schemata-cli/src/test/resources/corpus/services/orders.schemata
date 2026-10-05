@@ -1,0 +1,38 @@
+/// Orders and their lines.
+namespace corpus.services
+
+record OrderId { @sql(key) #1 id: uuid }
+
+record ListOrders { #1 status: Status? @sql(key) #2 limit: int32(min = 1, max = 200) = 50 }
+
+record PlaceOrder { @sql(key) #1 customer_id: uuid #2 lines: list<Order.Line>(min = 1) }
+
+record Order {
+  @sql(key) #1 id:     uuid
+  #2 status: Status
+  #3 lines:  list<Line>
+  #4 total:  decimal(12, 2)
+
+  record Line { #1 sku: string(max = 64) #2 quantity: int32(min = 1) }
+}
+
+enum Status { pending, paid, shipped, cancelled }
+
+record Chunk { @sql(key) #1 bytes: bytes }
+
+record Receipt { @sql(key) #1 count: int64 }
+
+/// Verbs stay legal names outside a binding.
+record Verbs { @sql(key) #1 get: string #2 post: int32 }
+
+/// Place and read orders.
+service Orders {
+  /// Fetch one order.
+  #1 get(OrderId): Order  get "/orders/{id}"
+  /// Orders matching a filter, newest first.
+  #2 list(ListOrders): stream Order  get "/orders"
+  #3 place(PlaceOrder): Order  post "/orders"
+  #4 cancel(OrderId)  delete "/orders/{id}"
+  #5 upload(stream Chunk): Receipt
+  reserved #6, "archive"
+}

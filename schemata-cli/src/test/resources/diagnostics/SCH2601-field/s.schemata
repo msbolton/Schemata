@@ -1,0 +1,4 @@
+namespace s
+record F { #1 q: string #2 inner: R }
+record R { #1 ok: bool }
+service S { #1 find(F): R  get "/find" }

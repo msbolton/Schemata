@@ -12,6 +12,8 @@ class TargetsCommandTest {
         assertEquals(0, result.statusCode, result.stderr)
         assertTrue(result.stdout.contains("proto\n"), result.stdout)
         assertTrue(result.stdout.contains("sql\n"), result.stdout)
+        assertTrue(result.stdout.contains("openapi\n"), result.stdout)
+        assertTrue(result.stdout.contains("  SCH2601  error    semantic"), result.stdout)
         assertTrue(result.stdout.contains("  key"), result.stdout)
         assertTrue(result.stdout.contains("  SCH2001  warning  lossy"), result.stdout)
         assertTrue(result.stdout.contains("  SCH2110  error    semantic"), result.stdout)
@@ -23,5 +25,6 @@ class TargetsCommandTest {
         assertEquals(0, result.statusCode)
         assertTrue(result.stdout.startsWith("{\n  \"targets\": ["), result.stdout)
         assertTrue(result.stdout.contains("\"id\":\"SCH2105\""), result.stdout)
+        assertTrue(result.stdout.contains("\"name\":\"openapi\""), result.stdout)
     }
 }

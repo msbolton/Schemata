@@ -57,6 +57,8 @@ class AnnotationRegistryTest {
                 Element.ALIAS,
                 Element.FIELD,
                 Element.ENUM_VALUE,
+                Element.SERVICE,
+                Element.OPERATION,
             ),
             deprecated.elements,
         )

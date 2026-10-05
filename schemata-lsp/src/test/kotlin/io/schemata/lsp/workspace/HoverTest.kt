@@ -114,4 +114,47 @@ class HoverTest {
         val names = Builtin.entries.map { it.typeName } + listOf("list", "map")
         assertEquals(names.toSet(), BuiltinDocs.text.keys)
     }
+
+    @Test
+    fun `hover on a service and an operation`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", SERVICE_API)
+        assertEquals(
+            block("service t.Orders", "Orders."),
+            f.queries.hover(a, f.at(a, "Orders {"))!!.markdown,
+        )
+        val get = f.queries.hover(a, f.at(a, "get("))!!
+        assertEquals(block("#1 get(Id): Order  get \"/orders/{id}\"", "Fetch."), get.markdown)
+        assertEquals(f.range(a, "get"), get.range)
+        assertEquals(
+            block("#2 list(): stream Order"),
+            f.queries.hover(a, f.at(a, "list("))!!.markdown,
+        )
+    }
+
+    @Test
+    fun `an operation hover prints its payload types as the formatter does`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "t/a.schemata",
+                "namespace t\nrecord A { #1 x: int32 }\n" +
+                    "service S {\n  put( stream   A ) :  list< A >( min=1 )\n" +
+                    "    put   \"/a\"\n}\n",
+            )
+        assertEquals(
+            block("put(stream A): list<A>(min = 1)  put \"/a\""),
+            f.queries.hover(a, f.at(a, "put("))!!.markdown,
+        )
+    }
+
+    @Test
+    fun `a builtin written as a payload shows its description`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", "namespace t\nservice S { #1 get(uuid) }\n")
+        assertEquals(
+            block("uuid") + "\n\na universally unique identifier",
+            f.queries.hover(a, f.at(a, "uuid"))!!.markdown,
+        )
+    }
 }

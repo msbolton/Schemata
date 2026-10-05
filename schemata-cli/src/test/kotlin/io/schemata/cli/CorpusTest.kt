@@ -9,7 +9,7 @@ class CorpusTest {
     private val corpus = File("src/test/resources/corpus")
 
     @Test
-    fun `every corpus case has an expected proto, sql, xsd, or jsonschema tree`() {
+    fun `every corpus case has an expected proto, sql, xsd, jsonschema, or openapi tree`() {
         val cases = corpus.listFiles { f -> f.isDirectory }!!.sortedBy { it.name }
         val orphans =
             cases
@@ -17,7 +17,8 @@ class CorpusTest {
                     File(it, "expected/proto").isDirectory ||
                         File(it, "expected/sql").isDirectory ||
                         File(it, "expected/xsd").isDirectory ||
-                        File(it, "expected/jsonschema").isDirectory
+                        File(it, "expected/jsonschema").isDirectory ||
+                        File(it, "expected/openapi").isDirectory
                 }
                 .map { it.name }
         assertEquals(emptyList(), orphans)

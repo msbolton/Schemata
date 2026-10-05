@@ -1,0 +1,46 @@
+schema catalog
+schema orders
+table orders.chunk
+  column bytes bytea not null
+  constraint pk_chunk PRIMARY KEY (bytes)
+table orders.list_orders
+  column status text
+  column limit integer not null default 50
+  constraint ck_list_orders_limit_max CHECK (("limit" <= 200))
+  constraint ck_list_orders_limit_min CHECK (("limit" >= 1))
+  constraint ck_list_orders_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'cancelled'::text])))
+  constraint pk_list_orders PRIMARY KEY ("limit")
+table orders.order
+  column id uuid not null
+  column status text not null
+  column total_amount numeric(19,4) not null
+  column total_currency text not null
+  constraint ck_order_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'cancelled'::text])))
+  constraint ck_order_total_currency_max CHECK ((char_length(total_currency) <= 3))
+  constraint ck_order_total_currency_min CHECK ((char_length(total_currency) >= 3))
+  constraint pk_order PRIMARY KEY (id)
+table orders.order_id
+  column id uuid not null
+  constraint pk_order_id PRIMARY KEY (id)
+table orders.order_lines
+  column order_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  constraint ck_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint fk_order_lines_order FOREIGN KEY (order_id) REFERENCES orders."order"(id) ON DELETE CASCADE
+  constraint pk_order_lines PRIMARY KEY (order_id, "position")
+table orders.place_order
+  column customer_id uuid not null
+  constraint pk_place_order PRIMARY KEY (customer_id)
+table orders.place_order_lines
+  column place_order_customer_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  constraint ck_place_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint fk_place_order_lines_place_order FOREIGN KEY (place_order_customer_id) REFERENCES orders.place_order(customer_id) ON DELETE CASCADE
+  constraint pk_place_order_lines PRIMARY KEY (place_order_customer_id, "position")
+table orders.receipt
+  column count bigint not null
+  constraint pk_receipt PRIMARY KEY (count)

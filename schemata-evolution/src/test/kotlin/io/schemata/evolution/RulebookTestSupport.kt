@@ -1,5 +1,13 @@
 package io.schemata.evolution
 
+import io.schemata.core.AnalysisOptions
+import io.schemata.core.Analyzer
+import io.schemata.core.annotations.AnnotationRegistry
+import io.schemata.core.annotations.AnnotationSpec
+import io.schemata.core.annotations.CoreAnnotations
+import io.schemata.core.annotations.Element
+import io.schemata.core.annotations.Role
+import io.schemata.core.annotations.ValueKind
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
@@ -16,6 +24,7 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
+import io.schemata.lang.Parser
 import io.schemata.lang.Span
 
 /** Schema-building and verdict-computing helpers shared by every rulebook's tests. */
@@ -81,3 +90,54 @@ fun verdicts(rulebook: Rulebook, old: List<Namespace>, new: List<Namespace>): Li
 /** The one change between [old] and [new], classified by [rulebook]; fails on any other count. */
 fun verdict(rulebook: Rulebook, old: Namespace, new: Namespace): Verdict =
     verdicts(rulebook, listOf(old), listOf(new)).single()
+
+/** Core's keys plus `@openapi(name)` on services and operations, as the CLI registers it. */
+private val snippetAnnotations =
+    AnnotationRegistry(
+        CoreAnnotations.specs +
+            AnnotationSpec(
+                "openapi",
+                "name",
+                setOf(Element.SERVICE, Element.OPERATION),
+                ValueKind.STRING,
+                Role.NAME,
+            )
+    )
+
+/** [source] parsed and analysed as one file; fails on any diagnostic. */
+fun analysed(source: String): Schema {
+    val parsed = Parser.parse(source, "t.schemata")
+    val result =
+        Analyzer.analyze(
+            listOf(checkNotNull(parsed.file) { parsed.diagnostics.toString() }),
+            AnalysisOptions(annotations = snippetAnnotations),
+        )
+    check(parsed.diagnostics.isEmpty() && result.diagnostics.isEmpty()) {
+        (parsed.diagnostics + result.diagnostics).joinToString("\n") { it.message }
+    }
+    return checkNotNull(result.schema)
+}
+
+private const val SERVICE_BASE =
+    "namespace t\nrecord Id { #1 id: uuid }\nrecord Order { #1 id: uuid }\n" +
+        "record Count { #1 n: int64 }\n"
+
+/** One service whose operations change every way a service can between the two sides. */
+val serviceOld: Schema by lazy {
+    analysed(
+        SERVICE_BASE +
+            "service Orders { #1 get(Id): Order  get \"/orders/{id}\"  " +
+            "#2 list(Id): stream Order  get \"/orders\"  #3 place(Order): Order  post \"/orders\"  " +
+            "#4 cancel(Id)  delete \"/orders/{id}\"  #5 old(Id): Order }"
+    )
+}
+
+val serviceNew: Schema by lazy {
+    analysed(
+        SERVICE_BASE +
+            "service Orders { #1 fetch(Id): Order  get \"/orders/{id}\"  " +
+            "#2 list(Id): Order  get \"/orders\"  #3 place(Order): Order  post \"/orders/new\"  " +
+            "@deprecated #5 old(Id): Order  #6 count(): Count  reserved #4 }\n" +
+            "service Audit { #1 log(Order) }"
+    )
+}

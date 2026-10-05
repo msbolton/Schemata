@@ -1,0 +1,22 @@
+namespace s
+
+record OrderId { @sql(key) #1 id: uuid }
+
+record Filter { #1 status: string(max = 20)? }
+
+record PlaceOrder { #1 customer_id: uuid }
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 total: decimal(19, 4)
+}
+
+record Count { #1 n: int64 }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+  #2 list(Filter): stream Order  get "/orders"
+  #3 place(PlaceOrder): Order  post "/orders"
+  #4 cancel(OrderId)  delete "/orders/{id}"
+  #5 old(OrderId): Order
+}

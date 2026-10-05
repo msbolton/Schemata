@@ -191,6 +191,28 @@ class ServerSessionTest {
     }
 
     @Test
+    fun `a service is an interface whose operations are methods with their payloads as detail`() {
+        val text = "namespace m\n\nrecord A { #1 x: int32 }\n\nservice S { #1 get(A): A }\n"
+        val a = write("m/a.schemata", text)
+        session().use { session ->
+            session.open(a, text)
+            val symbols =
+                wait(
+                    session.server.textDocumentService.documentSymbol(
+                        DocumentSymbolParams(id(session, a))
+                    )
+                )
+            val service = symbols.single().right.children.single { it.name == "S" }
+            assertEquals(SymbolKind.Interface, service.kind)
+            val get = service.children.single()
+            assertEquals(
+                listOf("get", SymbolKind.Method, "(A): A"),
+                listOf(get.name, get.kind, get.detail),
+            )
+        }
+    }
+
+    @Test
     fun `rename returns edits for both files and refuses a bad name with a message`() {
         val c = write("shop/customers.schemata", customers)
         val o = write("shop/orders.schemata", orders)

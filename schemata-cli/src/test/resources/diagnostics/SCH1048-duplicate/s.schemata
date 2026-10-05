@@ -1,0 +1,10 @@
+namespace t
+
+record OrderId {
+  #1 id: uuid
+}
+
+service Orders {
+  #1 get(OrderId): OrderId  get "/orders/{id}"
+  #2 fetch(OrderId): OrderId  get "/orders/{id}"
+}

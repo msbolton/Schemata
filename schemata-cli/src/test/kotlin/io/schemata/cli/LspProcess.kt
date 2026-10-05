@@ -18,20 +18,22 @@ import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.ReferenceContext
 import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.RenameParams
+import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
 
 /**
  * One editor session against `<command> lsp` as a child process, touching every message shape the
  * server sends: the watcher registration, a diagnostic for an unknown type, a definition across an
- * import, hover, the outline, references, a rename and a refused one, a format request, a deleted
- * file's empty publish, then shutdown and exit. Fails if the process writes anything to stderr or
- * does not exit with 0.
+ * import, hover, the outline, references, a rename and a refused one, a format request, a service's
+ * outline and a rename that reaches its operations, a deleted file's empty publish, then shutdown
+ * and exit. Fails if the process writes anything to stderr or does not exit with 0.
  */
 internal fun runLspSession(command: List<String>, examples: File) {
     val dir = Files.createTempDirectory("schemata-lsp").toFile()
     try {
         File(examples, "shop").copyRecursively(File(dir, "shop"))
+        File(examples, "services").copyRecursively(File(dir, "services"))
         val orders = File(dir, "shop/orders.schemata")
         val customers = File(dir, "shop/customers.schemata")
         val extra = File(dir, "shop/extra.schemata")
@@ -101,6 +103,8 @@ internal fun runLspSession(command: List<String>, examples: File) {
                     .get(30, TimeUnit.SECONDS)
             assertEquals(emptyList(), edits)
 
+            services(session, File(dir, "services/orders.schemata"))
+
             session.diagnostics(extra.toPath()) { it.isNotEmpty() }
             extra.delete()
             session.watched(extra.toPath(), FileChangeType.Deleted)
@@ -115,4 +119,26 @@ internal fun runLspSession(command: List<String>, examples: File) {
     } finally {
         dir.deleteRecursively()
     }
+}
+
+/** The services example: its outline lists operations as methods, and a payload record renames. */
+private fun services(session: LspSession, file: File) {
+    val text = file.readText()
+    session.open(file.toPath(), text)
+    val id = TextDocumentIdentifier(session.uri(file.toPath()))
+    val service = session.server.textDocumentService
+    val outline = service.documentSymbol(DocumentSymbolParams(id)).get(30, TimeUnit.SECONDS)
+    val orders = outline.single().right.children.single { it.name == "Orders" }
+    assertEquals(SymbolKind.Interface, orders.kind)
+    val get = orders.children.single { it.name == "get" }
+    assertEquals(SymbolKind.Method, get.kind)
+    assertEquals("(OrderId): Order", get.detail)
+
+    // `OrderId` is declared once and is the request of `get` and `cancel`.
+    val index = text.indexOf("record OrderId") + "record ".length
+    val line = text.substring(0, index).count { it == '\n' }
+    val at = Position(line, index - (text.lastIndexOf('\n', index - 1) + 1))
+    val renamed = service.rename(RenameParams(id, at, "OrderKey")).get(30, TimeUnit.SECONDS)
+    assertEquals(setOf(session.uri(file.toPath())), renamed.changes.keys)
+    assertEquals(3, renamed.changes.values.single().size)
 }

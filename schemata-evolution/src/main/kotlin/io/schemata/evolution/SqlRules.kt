@@ -56,6 +56,15 @@ object SqlRules : Rulebook {
             is AnnotationChanged -> annotationChanged(change, ctx)
             is DeprecationChanged -> Verdict.Compatible
             is DocChanged -> Verdict.Compatible
+            // DDL carries no services, so nothing about one touches stored rows
+            is ServiceAdded,
+            is ServiceRemoved,
+            is OperationAdded,
+            is OperationRemoved,
+            is OperationRenamed,
+            is OperationRequestChanged,
+            is OperationResponseChanged,
+            is OperationBindingChanged -> Verdict.Compatible
         }
 
     private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =
@@ -185,6 +194,8 @@ object SqlRules : Rulebook {
      */
     private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         if (change.target != "sql") return Verdict.Compatible
+        if (change.newOwner is ServiceOwner || change.newOwner is OperationOwner)
+            return Verdict.Compatible
         return when (change.key) {
             "key" ->
                 Verdict.Breaking(

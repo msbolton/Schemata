@@ -1,0 +1,4 @@
+namespace s
+record Q { @jsonschema(name = "Text") #1 text: string }
+record R { #1 ok: bool }
+service S { #1 find(Q): R  get "/find" }

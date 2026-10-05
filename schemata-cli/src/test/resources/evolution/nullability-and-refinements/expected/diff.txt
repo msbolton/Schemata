@@ -1,16 +1,17 @@
 s.Account
-  field 'nickname' nullability changed from string(max = 40)? to string(max = 40)    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
-  field 'tier' nullability changed from int32? to int32    proto: note, sql: breaking, xsd: compatible, jsonschema: breaking
-  field 'tier' default added    proto: note, sql: compatible, xsd: note, jsonschema: compatible
-  field 'code' refinement tightened    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
-  field 'score' refinement loosened    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
-  field 'tags' refinement tightened    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
+  field 'nickname' nullability changed from string(max = 40)? to string(max = 40)    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'tier' nullability changed from int32? to int32    proto: note, sql: breaking, xsd: compatible, jsonschema: breaking, openapi: compatible
+  field 'tier' default added    proto: note, sql: compatible, xsd: note, jsonschema: compatible, openapi: compatible
+  field 'code' refinement tightened    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'score' refinement loosened    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'tags' refinement tightened    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
 
 6 changes
 proto: 0 breaking, 5 notes
 sql: 4 breaking, 0 notes
 xsd: 3 breaking, 1 note
 jsonschema: 4 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Account.nickname: the field became non-null breaks old documents that store a null value
  --> new/s.schemata:4:3

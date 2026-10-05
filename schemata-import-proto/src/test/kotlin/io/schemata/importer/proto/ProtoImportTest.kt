@@ -513,8 +513,8 @@ class ProtoImportTest {
             listOf(
                 "SCH2405 message 'M': extensions dropped",
                 "SCH2405 t.proto: extend dropped",
-                "SCH2405 service 'S': rpc 'A' dropped; services arrive in a later version",
-                "SCH2405 service 'S': rpc 'B' dropped; services arrive in a later version",
+                "SCH2405 service 'S': rpc 'A' dropped; the Protobuf target emits services in v1.3",
+                "SCH2405 service 'S': rpc 'B' dropped; the Protobuf target emits services in v1.3",
             ),
             messages(r),
         )

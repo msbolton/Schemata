@@ -35,6 +35,10 @@ class GuideAppendicesTest {
             stripLocation("record 'R' field 'x': strategy 'embed' is not allowed for a list"),
         )
         assertEquals("unknown type 'X'", stripLocation("unknown type 'X'"))
+        assertEquals(
+            "field 'q' cannot be a query parameter",
+            stripLocation("operation 'find': field 'q' cannot be a query parameter"),
+        )
     }
 
     private data class Module(
@@ -69,6 +73,12 @@ class GuideAppendicesTest {
             ),
             Module("Import (SCH24xx)", "SCH24", ImportCodes.all, emptyList()),
             Module("Evolution (SCH25xx)", "SCH25", EvolutionCodes.all, emptyList()),
+            Module(
+                "OpenAPI (SCH26xx)",
+                "SCH26",
+                Pipeline.targetNamed("openapi")!!.codes,
+                emptyList(),
+            ),
         )
 
     private fun diagnostics(): String = buildString {
@@ -116,7 +126,7 @@ class GuideAppendicesTest {
     private val quotedLocation =
         Regex(
             "^(record|field|enum value|enum|union|namespace|alias|complex type|simple type|" +
-                "element|attribute|message|service|table|column) '"
+                "element|attribute|message|service|operation|table|column) '"
         )
 
     /**
@@ -130,8 +140,9 @@ class GuideAppendicesTest {
 
     /**
      * Drops a message's leading location — `record 'R' field 'x': `, `complex type 'X': `, `element
-     * 'x': `, `attribute 'x': `, `simple type 'X': `, `union 'X': `, `enum value 'X.v': `, a bare
-     * `<file>: `, or an evolution diagnostic's `<target>: <path>: ` — so the shape reads generally.
+     * 'x': `, `operation 'x': `, `attribute 'x': `, `simple type 'X': `, `union 'X': `, `enum value
+     * 'X.v': `, a bare `<file>: `, or an evolution diagnostic's `<target>: <path>: ` — so the shape
+     * reads generally.
      */
     private fun stripLocation(message: String): String =
         when {

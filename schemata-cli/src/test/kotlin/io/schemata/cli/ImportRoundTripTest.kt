@@ -28,7 +28,8 @@ import org.junit.jupiter.api.TestFactory
  * the import compiles cleanly under proto, xsd, and jsonschema; the sql target cannot carry a key
  * the format never declared, so it is checked separately, only for errors other than a missing key.
  * The one diagnostic a round trip may report is SQL's for a record or union stored as json, whose
- * fields the DDL never held.
+ * fields the DDL never held. A SQL file holding nothing but its `CREATE SCHEMA` (a namespace whose
+ * every record is embedded elsewhere) imports as no namespace, so it is not expected back.
  */
 class ImportRoundTripTest {
     private val corpus = File("src/test/resources/corpus")
@@ -40,6 +41,9 @@ class ImportRoundTripTest {
             Triple("proto", ProtoTarget, ProtoImporter),
             Triple("sql", SqlTarget, SqlImporter),
         )
+
+    /** A SQL file that creates its schema and nothing else. */
+    private val schemaOnly = Regex("CREATE SCHEMA IF NOT EXISTS \"[^\"]+\";\\s*")
 
     /** The import diagnostics a format's round trip may report, by format. */
     private val tolerated: Map<String, Regex> =
@@ -120,7 +124,9 @@ class ImportRoundTripTest {
             again.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
         )
         assertEquals(
-            original.files.associate { it.file.path to it.file.content },
+            original.files
+                .filterNot { format == "sql" && schemaOnly.matches(it.file.content) }
+                .associate { it.file.path to it.file.content },
             again.files.associate { it.file.path to it.file.content },
             "regenerated $format for ${case.name}",
         )

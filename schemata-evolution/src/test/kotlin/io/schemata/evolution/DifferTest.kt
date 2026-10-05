@@ -6,6 +6,7 @@ import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
@@ -21,6 +22,7 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
+import io.schemata.core.ir.Verb
 import io.schemata.lang.Span
 import java.math.BigDecimal
 import kotlin.test.Test
@@ -595,5 +597,75 @@ class DifferTest {
             removalChanges.map { it.kind },
         )
         assertEquals(listOf("s.Order", "s.Order.Line"), removalChanges.map { it.path })
+    }
+
+    @Test
+    fun `service and operation changes`() {
+        val changes = Differ.diff(serviceOld, serviceNew)
+        assertEquals(
+            listOf(
+                "operation.renamed t.Orders.fetch",
+                "operation.responseChanged t.Orders.list",
+                "operation.bindingChanged t.Orders.place",
+                "deprecation.changed t.Orders.old",
+                "operation.added t.Orders.count",
+                "operation.removed t.Orders.cancel",
+                "reserved.changed t.Orders",
+                "service.added t.Audit",
+            ),
+            changes.map { "${it.kind} ${it.path}" },
+        )
+        val binding = changes.filterIsInstance<OperationBindingChanged>().single()
+        assertEquals(HttpBinding(Verb.POST, "/orders", emptyList()), binding.from)
+        assertEquals(HttpBinding(Verb.POST, "/orders/new", emptyList()), binding.to)
+        val response = changes.filterIsInstance<OperationResponseChanged>().single()
+        assertEquals(qn("t", "Order"), response.from!!.target)
+        assertTrue(response.from!!.stream)
+        assertFalse(response.to!!.stream)
+        val renamed = changes.filterIsInstance<OperationRenamed>().single()
+        assertEquals(listOf("get", "fetch"), listOf(renamed.from.name, renamed.to.name))
+        val removed = changes.filterIsInstance<OperationRemoved>().single()
+        assertEquals(4, removed.operation.ordinal)
+        val reserved = changes.filterIsInstance<ReservedChanged>().single()
+        assertTrue(reserved.owner is ServiceOwner)
+        assertTrue(4 in reserved.to)
+        val deprecation = changes.filterIsInstance<DeprecationChanged>().single()
+        assertEquals("old", (deprecation.owner as OperationOwner).operation.name)
+    }
+
+    @Test
+    fun `a removed service and a changed request are reported`() {
+        val base = "namespace t\nrecord A { #1 id: uuid }\nrecord B { #1 id: uuid }\n"
+        val old =
+            analysed(base + "/// Old.\nservice S { #1 put(A): A }\nservice Gone { #1 ping() }\n")
+        val new = analysed(base + "/// New.\nservice S { #1 put(stream B): A }\n")
+        val changes = Differ.diff(old, new)
+        assertEquals(
+            listOf("operation.requestChanged t.S.put", "doc.changed t.S", "service.removed t.Gone"),
+            changes.map { "${it.kind} ${it.path}" },
+        )
+        val request = changes.filterIsInstance<OperationRequestChanged>().single()
+        assertEquals(qn("t", "A"), request.from!!.target)
+        assertEquals(qn("t", "B"), request.to!!.target)
+        assertTrue(request.to!!.stream)
+    }
+
+    @Test
+    fun `an operation annotation and doc change are attributed to the operation`() {
+        val base = "namespace t\nrecord A { #1 id: uuid }\n"
+        val old = analysed(base + "service S { #1 get(A): A }")
+        val new =
+            analysed(
+                base + "service S {\n  /// Fetches.\n  @openapi(name = \"fetchA\") #1 get(A): A\n}"
+            )
+        val changes = Differ.diff(old, new)
+        assertEquals(
+            listOf("annotation.changed t.S.get", "doc.changed t.S.get"),
+            changes.map { "${it.kind} ${it.path}" },
+        )
+        val annotation = changes.filterIsInstance<AnnotationChanged>().single()
+        assertEquals("openapi" to "name", annotation.target to annotation.key)
+        assertTrue(annotation.oldOwner is OperationOwner)
+        assertTrue(annotation.newOwner is OperationOwner)
     }
 }

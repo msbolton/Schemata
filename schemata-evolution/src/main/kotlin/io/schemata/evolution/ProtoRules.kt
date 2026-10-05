@@ -48,10 +48,20 @@ object ProtoRules : Rulebook {
                     "${change.path}: union member type changed breaks decoders of the old oneof case",
                     "add a new member instead of changing this one's type",
                 )
-            is ReservedChanged -> reservedChanged(change)
+            is ReservedChanged ->
+                if (change.owner is ServiceOwner) Verdict.Compatible else reservedChanged(change)
             is AnnotationChanged -> annotationChanged(change, ctx)
             is DeprecationChanged -> Verdict.Compatible
             is DocChanged -> Verdict.Compatible
+            // a .proto file carries no services, so nothing about one reaches its consumers
+            is ServiceAdded,
+            is ServiceRemoved,
+            is OperationAdded,
+            is OperationRemoved,
+            is OperationRenamed,
+            is OperationRequestChanged,
+            is OperationResponseChanged,
+            is OperationBindingChanged -> Verdict.Compatible
         }
 
     /** Judged the way removing each of its declarations one by one would be: a note per type. */
@@ -258,7 +268,9 @@ object ProtoRules : Rulebook {
                 )
             is NamespaceOwner,
             is EnumValueOwner,
-            is UnionMemberOwner -> Verdict.Compatible
+            is UnionMemberOwner,
+            is ServiceOwner,
+            is OperationOwner -> Verdict.Compatible
         }
     }
 }

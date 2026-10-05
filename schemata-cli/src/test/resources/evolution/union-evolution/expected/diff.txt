@@ -1,13 +1,14 @@
 s.Payment
-  member type changed from BankTransfer to Wallet    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking
-  member added: Voucher    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
-  member removed: Cash    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking
+  member type changed from BankTransfer to Wallet    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  member added: Voucher    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  member removed: Cash    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
 
 3 changes
 proto: 2 breaking, 0 notes
 sql: 2 breaking, 0 notes
 xsd: 2 breaking, 0 notes
 jsonschema: 2 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Payment.#2: the union member's type changed breaks documents whose discriminator selects the old case
   --> new/s.schemata:13:27

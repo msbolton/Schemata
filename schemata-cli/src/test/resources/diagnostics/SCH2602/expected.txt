@@ -1,0 +1,6 @@
+# targets=openapi
+error[SCH2602] (openapi): operations 'S.a' and 'Other.x' both lower to post "/S/a"
+ --> s.schemata:4:20
+  = help: bind one of them to another path or verb
+
+1 error, 0 warnings

@@ -38,6 +38,7 @@ class DiagnosticCodesTest {
         assertTrue(Pipeline.targetNamed("jsonschema")!!.codes.all { it.id.startsWith("SCH23") })
         assertTrue(ImportCodes.all.all { it.id.startsWith("SCH24") })
         assertTrue(EvolutionCodes.all.all { it.id.startsWith("SCH25") })
+        assertTrue(Pipeline.targetNamed("openapi")!!.codes.all { it.id.startsWith("SCH26") })
     }
 
     @Test

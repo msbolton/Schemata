@@ -11,6 +11,7 @@ import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.Refinement
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
@@ -80,10 +81,15 @@ object Formatter {
                     )
                 }
             }
-            f.declarations.forEach { d ->
-                appendLine()
-                append(declaration(d, ""))
-            }
+            val topLevel: List<Pair<Span, () -> String>> =
+                f.declarations.map { d -> d.span to { declaration(d, "") } } +
+                    f.services.map { s -> s.span to { service(s, "") } }
+            topLevel
+                .sortedWith(compareBy({ it.first.startLine }, { it.first.startColumn }))
+                .forEach { (_, print) ->
+                    appendLine()
+                    append(print())
+                }
             if (comments.fileTrailing.isNotEmpty()) {
                 appendLine()
                 comments.fileTrailing.forEach { appendLine(it.text) }
@@ -105,6 +111,30 @@ object Formatter {
                 is AliasDecl ->
                     appendLine(indent + "alias ${d.name} = ${typeExpr(d.type)}" + trailing(d.span))
             }
+        }
+
+        /**
+         * Always the braced form, one operation per line, except that a service with no members at
+         * all prints as `service S {}`.
+         */
+        internal fun service(s: ServiceDecl, indent: String): String = buildString {
+            comments.leading[s.span]?.forEach { appendLine(indent + it.text) }
+            s.doc?.let { docLines(it, indent).forEach { l -> appendLine(l) } }
+            s.annotations.forEach { appendLine(indent + annotation(it) + trailing(it.span)) }
+            val innerIndent = indent + INDENT
+            val ordWidth = ordinalWidth(s.operations.map { it.ordinal })
+            val members = mutableListOf<BodyMember>()
+            s.operations.forEach {
+                members +=
+                    BodyMember(it.span, isNested = false, operationLines(it, innerIndent, ordWidth))
+            }
+            members += reservedMembers(s.reserved, innerIndent)
+            val canOneLine =
+                s.operations.isEmpty() &&
+                    s.reserved.isEmpty() &&
+                    comments.headerTrailing[s.span].isNullOrEmpty() &&
+                    comments.endOfBlock[s.span].isNullOrEmpty()
+            append(block(indent, "service ${s.name}", s.span, canOneLine, "", members))
         }
 
         internal fun trailing(span: Span) = lineEnd(comments.trailing[span])
@@ -216,7 +246,10 @@ object Formatter {
             return block(indent, "enum ${d.name}", d.span, canOneLine, oneLineMembers, members)
         }
 
-        /** Shared by [record] and [enum]: the one-line form, or the braced multi-line form. */
+        /**
+         * Shared by [record], [enum] and [service]: the one-line form, or the braced multi-line
+         * form.
+         */
         private fun block(
             indent: String,
             keyword: String,

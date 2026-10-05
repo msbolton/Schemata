@@ -1,11 +1,12 @@
 s.Customer
-  field 'visits' type changed from int64 to int32    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking
+  field 'visits' type changed from int64 to int32    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
 
 1 change
 proto: 0 breaking, 0 notes
 sql: 1 breaking, 0 notes
 xsd: 1 breaking, 0 notes
 jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Customer.visits: type changed from int64 to int32 breaks old documents: old values do not fit the new type
  --> new/s.schemata:5:3

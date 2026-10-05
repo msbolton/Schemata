@@ -1,0 +1,5 @@
+error[SCH1048]: operation 'fetch': get "/orders/{order_id}" is already bound by operation 'Orders.get'
+  --> s.schemata:13:31
+   = help: give each operation its own verb and path
+
+1 error, 0 warnings

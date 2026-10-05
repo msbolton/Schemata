@@ -3,7 +3,9 @@ package io.schemata.cli.report
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.EnumRef
+import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.IntValue
+import io.schemata.core.ir.Payload
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RealValue
 import io.schemata.core.ir.Reserved
@@ -35,9 +37,19 @@ import io.schemata.evolution.Judged
 import io.schemata.evolution.NamespaceAdded
 import io.schemata.evolution.NamespaceOwner
 import io.schemata.evolution.NamespaceRemoved
+import io.schemata.evolution.OperationAdded
+import io.schemata.evolution.OperationBindingChanged
+import io.schemata.evolution.OperationOwner
+import io.schemata.evolution.OperationRemoved
+import io.schemata.evolution.OperationRenamed
+import io.schemata.evolution.OperationRequestChanged
+import io.schemata.evolution.OperationResponseChanged
 import io.schemata.evolution.Owner
 import io.schemata.evolution.ReservedChanged
 import io.schemata.evolution.Rulebook
+import io.schemata.evolution.ServiceAdded
+import io.schemata.evolution.ServiceOwner
+import io.schemata.evolution.ServiceRemoved
 import io.schemata.evolution.UnionMemberAdded
 import io.schemata.evolution.UnionMemberOwner
 import io.schemata.evolution.UnionMemberRemoved
@@ -171,6 +183,10 @@ object DiffRenderer {
             is AnnotationChanged -> annotationText(c.from)
             is DeprecationChanged -> (!c.deprecated).toString()
             is DeclarationKindChanged -> c.from.kindWord
+            is OperationRenamed -> c.from.name
+            is OperationRequestChanged -> payloadText(c.from)
+            is OperationResponseChanged -> payloadText(c.from)
+            is OperationBindingChanged -> bindingText(c.from)
             else -> null
         }
 
@@ -187,8 +203,24 @@ object DiffRenderer {
             is AnnotationChanged -> annotationText(c.to)
             is DeprecationChanged -> c.deprecated.toString()
             is DeclarationKindChanged -> c.to.kindWord
+            is OperationRenamed -> c.to.name
+            is OperationRequestChanged -> payloadText(c.to)
+            is OperationResponseChanged -> payloadText(c.to)
+            is OperationBindingChanged -> bindingText(c.to)
             else -> null
         }
+
+    /** `Order` or `stream Order`; `none` for an operation without one. */
+    private fun payloadText(p: Payload?): String =
+        when {
+            p == null -> "none"
+            p.stream -> "stream ${p.target.simpleName}"
+            else -> p.target.simpleName
+        }
+
+    /** `get /orders/{id}` as written; `none` for an operation with no binding. */
+    private fun bindingText(b: HttpBinding?): String =
+        if (b == null) "none" else "${b.verb.lower} ${b.path}"
 
     private fun valueText(v: Value?): String? =
         when (v) {
@@ -264,6 +296,20 @@ object DiffRenderer {
                 memberPrefix(c.owner) +
                     if (c.deprecated) "marked deprecated" else "no longer deprecated"
             is DocChanged -> memberPrefix(c.owner) + "doc changed"
+            is ServiceAdded -> "service added"
+            is ServiceRemoved -> "${dep}service removed"
+            is OperationAdded -> "operation '${c.operation.name}' added"
+            is OperationRemoved -> "${dep}operation '${c.operation.name}' removed"
+            is OperationRenamed -> "${dep}operation '${c.from.name}' renamed to '${c.to.name}'"
+            is OperationRequestChanged ->
+                "${dep}operation '${c.operation.name}' request changed from " +
+                    "${payloadText(c.from)} to ${payloadText(c.to)}"
+            is OperationResponseChanged ->
+                "${dep}operation '${c.operation.name}' response changed from " +
+                    "${payloadText(c.from)} to ${payloadText(c.to)}"
+            is OperationBindingChanged ->
+                "${dep}operation '${c.operation.name}' binding changed from " +
+                    "${bindingText(c.from)} to ${bindingText(c.to)}"
         }
     }
 
@@ -280,8 +326,10 @@ object DiffRenderer {
             is FieldOwner -> "field '${owner.field.name}': "
             is EnumValueOwner -> "value '${owner.value.name}': "
             is UnionMemberOwner -> "member #${owner.member.ordinal}: "
+            is OperationOwner -> "operation '${owner.operation.name}': "
             is DeclarationOwner,
-            is NamespaceOwner -> ""
+            is NamespaceOwner,
+            is ServiceOwner -> ""
         }
 
     private fun verdicts(j: Judged) =
@@ -296,8 +344,9 @@ object DiffRenderer {
 
     /**
      * The heading a change groups under: a field, enum value, or union member change groups under
-     * its own declaration; a declaration- or namespace-level change under itself. Annotation,
-     * deprecation, and doc changes carry their owner, which names the heading directly.
+     * its own declaration, and an operation change under its service; a declaration-, service-, or
+     * namespace-level change under itself. Annotation, deprecation, and doc changes carry their
+     * owner, which names the heading directly.
      */
     private fun groupKey(change: Change): String =
         when (change) {
@@ -323,6 +372,14 @@ object DiffRenderer {
             is AnnotationChanged -> ownerKey(change.newOwner)
             is DeprecationChanged -> ownerKey(change.owner)
             is DocChanged -> ownerKey(change.owner)
+            is ServiceAdded -> change.path
+            is ServiceRemoved -> change.path
+            is OperationAdded -> change.service.qualifiedName.toString()
+            is OperationRemoved -> change.service.qualifiedName.toString()
+            is OperationRenamed -> change.service.qualifiedName.toString()
+            is OperationRequestChanged -> change.service.qualifiedName.toString()
+            is OperationResponseChanged -> change.service.qualifiedName.toString()
+            is OperationBindingChanged -> change.service.qualifiedName.toString()
         }
 
     private fun ownerKey(owner: Owner): String =
@@ -332,5 +389,7 @@ object DiffRenderer {
             is FieldOwner -> owner.record.qualifiedName.toString()
             is EnumValueOwner -> owner.enum.qualifiedName.toString()
             is UnionMemberOwner -> owner.union.qualifiedName.toString()
+            is ServiceOwner -> owner.service.qualifiedName.toString()
+            is OperationOwner -> owner.service.qualifiedName.toString()
         }
 }

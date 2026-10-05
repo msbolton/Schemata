@@ -472,4 +472,57 @@ class RenameTest {
             apply(f.text(a), edits.edits.getValue(a)),
         )
     }
+
+    @Test
+    fun `renaming a record used by operations updates every payload site`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", SERVICE_API)
+        val edits =
+            assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "Order {"), "Purchase")).edits
+        assertEquals(3, edits.getValue(a).size)
+        val after = renameAndReanalyse(f, a, f.at(a, "Order {"), "Purchase")
+        assertEquals(
+            SERVICE_API.replace("record Order", "record Purchase")
+                .replace("Order  get", "Purchase  get")
+                .replace("stream Order", "stream Purchase"),
+            after[a],
+        )
+    }
+
+    @Test
+    fun `renaming an operation or a service follows the naming rules and collisions`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", SERVICE_API)
+        val get = f.at(a, "get(")
+        val orders = f.at(a, "Orders {")
+        assertEquals("'list' is already an operation of t.Orders", refusal(f, a, get, "list"))
+        assertEquals("operation name 'Get' must be lower_snake", refusal(f, a, get, "Get"))
+        assertEquals("'null' is a keyword", refusal(f, a, get, "null"))
+        assertEquals("'Order' is already declared in t", refusal(f, a, orders, "Order"))
+        assertEquals(
+            "service name 'purchases' must be UpperCamel",
+            refusal(f, a, orders, "purchases"),
+        )
+        assertEquals("'Orders' is already declared in t", refusal(f, a, f.at(a, "Id"), "Orders"))
+        assertEquals(
+            SERVICE_API.replace("#1 get(", "#1 fetch("),
+            renameAndReanalyse(f, a, get, "fetch")[a],
+        )
+        val g = Fixture(dir.resolve("other"))
+        val b = g.open("t/a.schemata", SERVICE_API)
+        assertEquals(
+            SERVICE_API.replace("service Orders", "service Purchases"),
+            renameAndReanalyse(g, b, g.at(b, "Orders {"), "Purchases")[b],
+        )
+    }
+
+    @Test
+    fun `an operation may take an HTTP verb as its name`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", SERVICE_API)
+        assertEquals(
+            SERVICE_API.replace("#2 list(", "#2 delete("),
+            renameAndReanalyse(f, a, f.at(a, "list("), "delete")[a],
+        )
+    }
 }

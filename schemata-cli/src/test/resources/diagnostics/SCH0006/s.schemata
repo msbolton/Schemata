@@ -1,0 +1,9 @@
+namespace t
+
+record A {
+  #1 x: int32
+}
+
+service S {
+  #1 a(A): A  fetch "/a"
+}

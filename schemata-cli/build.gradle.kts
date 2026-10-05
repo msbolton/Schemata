@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":schemata-target-sql"))
     implementation(project(":schemata-target-xsd"))
     implementation(project(":schemata-target-jsonschema"))
+    implementation(project(":schemata-target-openapi"))
     implementation(project(":schemata-import-api"))
     implementation(project(":schemata-import-xsd"))
     implementation(project(":schemata-import-proto"))
@@ -102,6 +103,17 @@ val fatJar = tasks.shadowJar.get().archiveFile
 
 tasks.test {
     inputs.file(fatJar)
+    // The guide, README, and example tests read these from the repository root, outside the
+    // module's own sources, so a change to them alone must still rerun the tests.
+    inputs
+        .dir(rootProject.layout.projectDirectory.dir("guide"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs
+        .file(rootProject.layout.projectDirectory.file("README.md"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs
+        .dir(rootProject.layout.projectDirectory.dir("examples"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("schemata.fatJar", fatJar.get().asFile.absolutePath)
     systemProperty("schemata.version", project.version.toString())
     providers.gradleProperty("schemata.nativeBinary").orNull?.let {
@@ -110,8 +122,5 @@ tasks.test {
         val binary = rootProject.layout.projectDirectory.file(it).asFile.absoluteFile
         inputs.file(binary)
         systemProperty("schemata.nativeBinary", binary.path)
-        inputs
-            .dir(rootProject.layout.projectDirectory.dir("examples"))
-            .withPathSensitivity(PathSensitivity.RELATIVE)
     }
 }

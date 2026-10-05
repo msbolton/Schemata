@@ -1,9 +1,15 @@
 package io.schemata.lsp.workspace
 
+import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.OperationDecl
+import io.schemata.lang.ast.PayloadDecl
 import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.ast.Refinement
+import io.schemata.lang.ast.ServiceDecl
+import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
 
 enum class OutlineKind {
@@ -14,18 +20,27 @@ enum class OutlineKind {
     ALIAS,
     FIELD,
     VALUE,
+    SERVICE,
+    OPERATION,
 }
 
-/** One entry of a file's outline: [range] is the whole node, [selection] its name. */
+/**
+ * One entry of a file's outline: [range] is the whole node, [selection] its name, and [detail] what
+ * the editor shows beside the name, such as an operation's `(Request): Response`.
+ */
 data class OutlineNode(
     val name: String,
     val kind: OutlineKind,
     val range: TextRange,
     val selection: TextRange,
     val children: List<OutlineNode>,
+    val detail: String? = null,
 )
 
-/** The namespace, its declarations, and their fields, values, and nested declarations. */
+/**
+ * The namespace, its declarations and services in source order, and their fields, values, nested
+ * declarations, and operations.
+ */
 internal fun outline(snapshot: Snapshot): List<OutlineNode> {
     val lines = snapshot.lines
     fun node(decl: Declaration): OutlineNode {
@@ -76,14 +91,69 @@ internal fun outline(snapshot: Snapshot): List<OutlineNode> {
             children,
         )
     }
+    fun service(decl: ServiceDecl): OutlineNode {
+        val operations =
+            decl.operations.map {
+                OutlineNode(
+                    it.name,
+                    OutlineKind.OPERATION,
+                    lines.range(it.span),
+                    lines.range(it.nameSpan),
+                    emptyList(),
+                    payloadsText(it, lines::slice),
+                )
+            }
+        return OutlineNode(
+            decl.name,
+            OutlineKind.SERVICE,
+            lines.range(decl.span),
+            lines.range(decl.nameSpan),
+            operations,
+        )
+    }
     val file = snapshot.file
+    val members =
+        (file.declarations.map { it.span to node(it) } +
+                file.services.map { it.span to service(it) })
+            .sortedWith(compareBy({ it.first.startLine }, { it.first.startColumn }))
+            .map { it.second }
     return listOf(
         OutlineNode(
             file.namespace.name,
             OutlineKind.NAMESPACE,
             lines.range(file.span),
             lines.range(file.namespace.nameSpan),
-            file.declarations.map(::node),
+            members,
         )
     )
+}
+
+/**
+ * An operation's payloads as the formatter prints them: `(Id): Order`, `(): stream Order`, or
+ * `(stream Chunk)` when there is no response. [slice] gives the source text of a refinement value.
+ */
+internal fun payloadsText(op: OperationDecl, slice: (Span) -> String): String {
+    fun payload(p: PayloadDecl) = (if (p.stream) "stream " else "") + typeText(p.type, slice)
+    val request = op.request?.let(::payload) ?: ""
+    val response = op.response?.let { ": " + payload(it) } ?: ""
+    return "($request)$response"
+}
+
+/** A type as the formatter prints it: `list<Line>(min = 1)?`, with no stray whitespace. */
+internal fun typeText(type: TypeExpr, slice: (Span) -> String): String {
+    val args =
+        if (type.args.isEmpty()) ""
+        else "<" + type.args.joinToString(", ") { typeText(it, slice) } + ">"
+    val refinements =
+        if (type.refinements.isEmpty()) ""
+        else
+            "(" +
+                type.refinements.joinToString(", ") {
+                    when (it) {
+                        is Refinement.Named -> "${it.name} = ${slice(it.value.span)}"
+                        is Refinement.Positional -> slice(it.value.span)
+                    }
+                } +
+                ")"
+    return type.name + args + refinements + (if (type.nullable) "?" else "")
 }

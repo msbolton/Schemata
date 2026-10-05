@@ -1,14 +1,15 @@
 s.Event
-  @jsonschema(open) removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: breaking
+  @jsonschema(open) removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: breaking, openapi: compatible
 s.Audit
-  field 'actor' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: compatible
-  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible
+  field 'actor' removed    proto: compatible, sql: breaking, xsd: breaking, jsonschema: compatible, openapi: compatible
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 3 changes
 proto: 0 breaking, 0 notes
 sql: 1 breaking, 0 notes
 xsd: 1 breaking, 0 notes
 jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Event: @jsonschema(open) was removed breaks old documents whose extra properties are now rejected
  --> new/s.schemata:3:8

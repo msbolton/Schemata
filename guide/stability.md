@@ -10,7 +10,7 @@ Six questions shaped the language. They are settled as follows, and a 1.x releas
 them.
 
 **Absence is one concept.** `T?` is the only way to say a value may be absent. Each target maps it
-to its own notion of presence (section 16 of the reference lists them): Protobuf field presence, a
+to its own notion of presence (section 17 of the reference lists them): Protobuf field presence, a
 nullable column, an optional element or attribute, a `null` alternative. A default on a non-null
 field says what an omitted value means and never makes the field nullable.
 
@@ -22,17 +22,20 @@ whole of it (section 5); a decimal's precision and scale are part of its type, `
 There are no user-defined constraints. A target that cannot enforce a refinement says so with a
 warning, never silently.
 
-**Annotations tune, they do not model.** A `@proto`, `@sql`, `@xsd`, or `@jsonschema` key may
-change a name, a storage representation, or a mapping strategy of something the schema already
-says. No annotation adds a type, a field, or a constraint the language cannot express on its own,
-with one exception: `@sql(type)` is written into the DDL verbatim, so the column type it names, and
-anything else its text says, is your responsibility and not the compiler's.
+**Annotations tune, they do not model.** A `@proto`, `@sql`, `@xsd`, `@jsonschema`, or `@openapi`
+key may change a name, a storage representation, or a mapping strategy of something the schema
+already says. No annotation adds a type, a field, or a constraint the language cannot express on its
+own, with one exception: `@sql(type)` is written into the DDL verbatim, so the column type it names,
+and anything else its text says, is your responsibility and not the compiler's.
 
 **Namespaces map by default.** A namespace is a Protobuf package, a Postgres schema, an XML
-namespace, and a JSON Schema id unless an annotation says otherwise.
+namespace, and a JSON Schema id unless an annotation says otherwise. A namespace that declares a
+service is also one OpenAPI document.
 
-**Services are a later layer.** `service`, `operation`, and `stream` are reserved for it. The data
-language does not change to host it.
+**Services are a layer on top.** A service, added in 1.2, names operations whose requests and
+responses are the records and unions the data language already declares. The data language did not
+change to host it: a schema without a service means what it meant under 1.0, and the Protobuf,
+Postgres, XML Schema, and JSON Schema outputs ignore services. `operation` is still reserved.
 
 A later version that needs a new keyword recognises it only where a keyword can appear, so a name
 you chose under 1.0 keeps working.
@@ -46,7 +49,7 @@ schema set that compiles without errors under 1.0. Every 1.x compiler promises:
 types, nullability, defaults, refinements, ordinals, and names after overrides.
 
 **Output.** For each target, the output is compatible with what 1.0 produced, in the sense
-`schemata diff` uses (section 19): Protobuf messages stay wire-compatible, Postgres rows and DDL
+`schemata diff` uses (section 20): Protobuf messages stay wire-compatible, Postgres rows and DDL
 stay loadable, XML Schema and JSON Schema instances stay valid. The text may change between
 releases, in comments, formatting, ordering, or a fixed bug in a construct that was wrong. A change
 `diff` would call a note is listed in the release notes; a change it would call breaking does not
@@ -55,10 +58,10 @@ ship in 1.x.
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,
 SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, and JSON Schema targets,
-SCH24 for import, SCH25 for evolution. A minor release may add warnings, so a `--strict` build can
-fail after an upgrade; every new code is in that release's notes. A set that compiled without errors
-keeps compiling without errors, unless it compiled only because of a compiler bug, which the notes
-name.
+SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target. A minor release may add
+warnings, so a `--strict` build can fail after an upgrade; every new code is in that release's
+notes. A set that compiled without errors keeps compiling without errors, unless it compiled only
+because of a compiler bug, which the notes name.
 
 **The command line.** Every command, flag, and exit code stays. The JSON report shapes of
 `check`, `compile`, `fmt`, `diff`, `import`, and `targets` stay; a minor may add fields. Not
@@ -68,6 +71,11 @@ report.
 
 **The editor.** `schemata lsp` keeps every capability it advertises in 1.0 and the shape of its
 initialization and configuration options.
+
+**Services.** Services and the OpenAPI target are a 1.2 addition, and carry the same promise from
+1.2 on: a schema set with services that compiles without errors under 1.2 means the same thing in
+every later 1.x, and its OpenAPI documents stay compatible with what 1.2 wrote, in the sense
+`schemata diff` uses, so a client generated from one keeps making the same calls.
 
 A change that cannot keep one of these waits for 2.0.
 

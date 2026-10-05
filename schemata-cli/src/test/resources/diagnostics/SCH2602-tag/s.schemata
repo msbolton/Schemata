@@ -1,0 +1,4 @@
+namespace s
+record R { #1 ok: bool }
+@openapi(name = "Same") service A { #1 one(): R }
+@openapi(name = "Same") service B { #1 two(): R }

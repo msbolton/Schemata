@@ -1,0 +1,9 @@
+namespace t
+
+record Order {
+  #1 id: uuid
+}
+
+service Orders {
+  #1 get(uuid): Order
+}

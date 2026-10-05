@@ -1,14 +1,15 @@
 s.Customer
-  field 'name' renamed to 'age'    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
-  field 'age' type changed from string(max = 100) to int32    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking
-  field 'age' renamed to 'name'    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking
-  field 'name' type changed from int32 to string(max = 100)    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking
+  field 'name' renamed to 'age'    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'age' type changed from string(max = 100) to int32    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'age' renamed to 'name'    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'name' type changed from int32 to string(max = 100)    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
 
 4 changes
 proto: 2 breaking, 2 notes
 sql: 4 breaking, 0 notes
 xsd: 4 breaking, 0 notes
 jsonschema: 4 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 note: ordinals are implicit in 1 declaration; run check --strict
 

@@ -1,14 +1,15 @@
 s.Item
-  field 'sku': @xsd(attribute) added    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible
-  field 'quantity': @xsd(attribute) removed    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible
+  field 'sku': @xsd(attribute) added    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible, openapi: compatible
+  field 'quantity': @xsd(attribute) removed    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible, openapi: compatible
 s.Batch
-  @xsd(root) added    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible
+  @xsd(root) added    proto: compatible, sql: compatible, xsd: breaking, jsonschema: compatible, openapi: compatible
 
 3 changes
 proto: 0 breaking, 0 notes
 sql: 0 breaking, 0 notes
 xsd: 3 breaking, 0 notes
 jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
 
 error[SCH2501]: xsd: s.Item.sku: element 'sku' becomes an attribute breaks old documents that carry it the old way
  --> new/s.schemata:4:22

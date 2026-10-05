@@ -31,6 +31,10 @@ sealed interface RenameResult {
 /** Not a lexer keyword, but it reads as one, so rename refuses it as one. */
 private val reservedWords = setOf("null")
 
+// A service is named like a type and an operation like a field; the analyser rejects anything else.
+private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
+private val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
+
 /**
  * Renames one symbol of a set: its definition and every reference. Before it answers with edits it
  * checks that nothing else changes meaning: it applies the edits in memory, analyses the result,
@@ -61,6 +65,10 @@ internal class Rename(
                 !Names.isIdentifier(newName) -> "'$newName' is not a valid name"
                 symbol is Symbol.Declaration && isBuiltin(newName) ->
                     "'$newName' is a builtin type name"
+                symbol is Symbol.Service && !upperCamel.matches(newName) ->
+                    "service name '$newName' must be UpperCamel"
+                symbol is Symbol.Operation && !lowerSnake.matches(newName) ->
+                    "operation name '$newName' must be lower_snake"
                 else -> collision() ?: leftBehind()
             }
         if (refusal != null) return RenameResult.Refused(refusal)
@@ -83,9 +91,13 @@ internal class Rename(
     private fun isBuiltin(name: String) =
         Builtin.byName(name) != null || name == "list" || name == "map"
 
-    /** A message when [newName] is already taken where [symbol] lives. */
+    /**
+     * A message when [newName] is already taken where [symbol] lives. Services share the type names
+     * of their namespace, so a top-level declaration and a service may not take each other's name.
+     */
     private fun collision(): String? {
         val declarations = analysis.index.declarations
+        val services = analysis.index.services
         return when (symbol) {
             is Symbol.Declaration -> {
                 val parent = symbol.name.path.dropLast(1)
@@ -93,7 +105,21 @@ internal class Rename(
                 val scope =
                     if (parent.isEmpty()) symbol.name.namespace
                     else QualifiedName(symbol.name.namespace, parent).toString()
-                if (sibling in declarations) "'$newName' is already declared in $scope" else null
+                if (sibling in declarations || sibling in services)
+                    "'$newName' is already declared in $scope"
+                else null
+            }
+            is Symbol.Service -> {
+                val sibling = QualifiedName(symbol.name.namespace, listOf(newName))
+                if (sibling in declarations || sibling in services)
+                    "'$newName' is already declared in ${symbol.name.namespace}"
+                else null
+            }
+            is Symbol.Operation -> {
+                val service = services[symbol.service]?.decl
+                if (service?.operations?.any { it.name == newName } == true)
+                    "'$newName' is already an operation of ${symbol.service}"
+                else null
             }
             is Symbol.Field -> {
                 val record = declarations[symbol.owner]?.decl as? RecordDecl
@@ -236,7 +262,7 @@ internal class Rename(
 
 internal fun fileName(path: String) = path.substringAfterLast('/').substringAfterLast('\\')
 
-/** Every type expression written in [file], generic arguments included. */
+/** Every type expression written in [file], generic arguments and operation payloads included. */
 internal fun typesIn(file: SourceFile): List<TypeExpr> {
     val types = mutableListOf<TypeExpr>()
     fun add(type: TypeExpr) {
@@ -255,6 +281,12 @@ internal fun typesIn(file: SourceFile): List<TypeExpr> {
         }
     }
     file.declarations.forEach(::visit)
+    file.services.forEach { service ->
+        service.operations.forEach { op ->
+            op.request?.let { add(it.type) }
+            op.response?.let { add(it.type) }
+        }
+    }
     return types
 }
 

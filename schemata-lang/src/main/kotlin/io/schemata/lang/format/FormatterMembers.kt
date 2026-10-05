@@ -5,6 +5,8 @@ import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.EnumValueDecl
 import io.schemata.lang.ast.FieldDecl
+import io.schemata.lang.ast.OperationDecl
+import io.schemata.lang.ast.PayloadDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.ReservedItem
 import io.schemata.lang.ast.UnionDecl
@@ -154,8 +156,33 @@ internal fun Formatter.Printer.unionMemberOneLine(m: UnionMemberDecl): String {
 }
 
 /**
- * One body member per `reserved` statement of a record or enum, each at its own place among the
- * other members and keyed by its first item for comments, per [CommentTable].
+ * An operation on one line, with two spaces before its binding (`get "/a/{id}"`); when that line is
+ * wider than [Formatter.LINE_WIDTH] the binding moves to the next line, one level deeper. The path
+ * prints as written, so its escapes stay as they were.
+ */
+internal fun Formatter.Printer.operationLines(
+    op: OperationDecl,
+    indent: String,
+    ordWidth: Int,
+): List<String> {
+    val prelude = memberPrelude(op.span, op.doc, op.annotations, op.ordinal, indent, ordWidth)
+    val request = op.request?.let { payload(it) } ?: ""
+    val response = op.response?.let { ": " + payload(it) } ?: ""
+    val head = indent + prelude.annPrefix + prelude.ordinalPart + "${op.name}($request)$response"
+    val binding = op.binding?.let { "${it.verb} ${slice(it.pathSpan)}" }
+    val trailing = trailing(op.span)
+    if (binding == null) return prelude.prefixLines + (head + trailing)
+    val oneLine = "$head  $binding$trailing"
+    if (width(oneLine) <= Formatter.LINE_WIDTH) return prelude.prefixLines + oneLine
+    return prelude.prefixLines + head + (indent + Formatter.INDENT + binding + trailing)
+}
+
+private fun Formatter.Printer.payload(p: PayloadDecl): String =
+    (if (p.stream) "stream " else "") + typeExpr(p.type)
+
+/**
+ * One body member per `reserved` statement of a record, enum or service, each at its own place
+ * among the other members and keyed by its first item for comments, per [CommentTable].
  */
 internal fun Formatter.Printer.reservedMembers(
     items: List<ReservedItem>,

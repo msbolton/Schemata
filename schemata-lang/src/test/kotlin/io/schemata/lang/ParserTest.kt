@@ -261,12 +261,19 @@ class ParserTest {
 
     @Test
     fun `a future keyword is a reserved-keyword error and yields no file`() {
-        val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
+        val result = Parser.parse("namespace a\noperation Orders { }", "t.schemata")
         assertNull(result.file)
         val d = result.diagnostics.single()
         assertEquals(Category.SYNTAX, d.category)
-        assertEquals("'service' is reserved for a future version of Schemata", d.message)
-        assertEquals(Span("t.schemata", 2, 1, 2, 7), d.span)
+        assertEquals("'operation' is reserved for a future version of Schemata", d.message)
+        assertEquals(Span("t.schemata", 2, 1, 2, 9), d.span)
+    }
+
+    @Test
+    fun `an empty service is a service with no operations`() {
+        val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
+        assertEquals(emptyList(), result.diagnostics)
+        assertTrue(result.file!!.services.single().operations.isEmpty())
     }
 
     @Test

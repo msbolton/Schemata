@@ -17,9 +17,9 @@ object CoreCodes {
 
     val NAMESPACE_SEGMENT_NAMING = error("SCH1001", "a namespace segment is not lower_snake")
     val TYPE_NAMING = error("SCH1002", "a type name is not UpperCamel")
-    val FIELD_NAMING = error("SCH1003", "a field name is not lower_snake")
+    val FIELD_NAMING = error("SCH1003", "a member name is not lower_snake")
     val DUPLICATE_TYPE = error("SCH1004", "the same qualified name is declared twice")
-    val DUPLICATE_FIELD = error("SCH1005", "a record repeats a field name")
+    val DUPLICATE_FIELD = error("SCH1005", "a declaration repeats a member name")
     val UNKNOWN_TYPE = error("SCH1006", "a type name resolves to nothing")
     val AMBIGUOUS_TYPE = error("SCH1009", "a bare name matches several declarations")
     val BUILTIN_SHADOWED = warning("SCH1010", "a declaration shadows a builtin type")
@@ -62,6 +62,9 @@ object CoreCodes {
     val NULL_DEFAULT = error("SCH1044", "a default is null")
     val IMPORT_ALIAS_NAMING = error("SCH1045", "an import alias is not lower_snake")
     val REPEATED_IMPORT = error("SCH1046", "an import is repeated")
+    val PAYLOAD_KIND =
+        error("SCH1047", "an operation's request or response is not a record or a union")
+    val BINDING = error("SCH1048", "an operation's HTTP binding does not fit its request")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -109,5 +112,7 @@ object CoreCodes {
             NULL_DEFAULT,
             IMPORT_ALIAS_NAMING,
             REPEATED_IMPORT,
+            PAYLOAD_KIND,
+            BINDING,
         )
 }
