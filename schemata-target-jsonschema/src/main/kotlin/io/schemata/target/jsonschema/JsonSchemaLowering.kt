@@ -179,9 +179,11 @@ class DocumentLowering(
     private val keys: (QualifiedName) -> String,
 ) {
     /**
-     * Who owns each JSON name: `"def:<key>"` for a def, `"property:<declaring path>/<name>"` for a
-     * record's property, `"tag:<declaring path>/<tag>"` for a union member,
+     * Who owns each JSON name: `"def:<key>"` for a def, `"property:<declaring scope>/<name>"` for a
+     * record's property, `"tag:<declaring scope>/<tag>"` for a union member,
      * `"value:<key>/<string>"` for an enum value, scoped so two records may share a property name.
+     * A declaring scope carries the namespace: one lowering may span namespaces, and `a.Money {
+     * amount }` and `b.Money { amount }` are two scopes.
      */
     private val claims =
         NameClaims(
@@ -289,7 +291,7 @@ class DocumentLowering(
             (member.type as? Ref)?.let { schema.lookup(it.target).name }
                 ?: (member.type as Scalar).builtin.typeName
         claims.claim(
-            key = "tag:${path.joinToString(".")}/$tag",
+            key = "tag:${scope(union.qualifiedName, path)}/$tag",
             holder = "union member '$declName'",
             span = member.span,
             display = tag,
@@ -299,6 +301,10 @@ class DocumentLowering(
             typeSchema(member.type, nullable = false, "union '${union.name}' member", member.span)
         return Member(tag, withCommon(schema, schema.common.copy(description = member.doc)))
     }
+
+    /** [qn]'s claim scope: its namespace and its final [path]. */
+    private fun scope(qn: QualifiedName, path: List<String>): String =
+        "${qn.namespace}:${path.joinToString(".")}"
 
     private fun fieldWhere(record: RecordType, field: Field): String =
         "field '${record.name}.${field.name}'"
@@ -310,7 +316,8 @@ class DocumentLowering(
             val name =
                 names.overrides.overrideName(field.annotations, where, field.nameSpan) ?: field.name
             claims.claim(
-                key = "property:${names.path(record.qualifiedName).joinToString(".")}/$name",
+                key =
+                    "property:${scope(record.qualifiedName, names.path(record.qualifiedName))}/$name",
                 holder = where,
                 span = field.nameSpan,
                 display = name,

@@ -429,6 +429,28 @@ class OpenApiLoweringTest {
     }
 
     @Test
+    fun `records with one simple name in two namespaces keep their own property names`() {
+        val billing = "namespace billing\nrecord Money { #1 amount: decimal(19, 4) }"
+        val shop =
+            "namespace shop.orders\nrecord Money { #1 amount: decimal(19, 4) }\n" +
+                "record Bill { #1 local: Money #2 billed: billing.Money }\n" +
+                "service Bills { #1 get(): Bill }"
+        val l = lower(billing, shop)
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(
+            listOf("shop.orders.Bill", "shop.orders.Money", "billing.Money"),
+            doc.components.map { it.key },
+        )
+        doc.components.drop(1).forEach {
+            assertEquals(
+                listOf("amount"),
+                (it.schema as ObjectSchema).properties.map { p -> p.name },
+            )
+        }
+    }
+
+    @Test
     fun `an invalid server is reported and left out`() {
         val l =
             lower(
