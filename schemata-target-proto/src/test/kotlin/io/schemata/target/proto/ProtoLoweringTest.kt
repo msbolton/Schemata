@@ -33,9 +33,11 @@ import io.schemata.lang.Category
 import io.schemata.lang.Parser
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.testkit.Protoc
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 private const val SERVICE =
@@ -1095,14 +1097,14 @@ class ProtoLoweringTest {
                 ProtoRpc(
                     "Cancel",
                     ProtoRpcType("OrderId", false),
-                    ProtoRpcType("google.protobuf.Empty", false),
+                    ProtoRpcType(".google.protobuf.Empty", false),
                     null,
                     listOf("#4", "delete \"/orders/{id}\""),
                 ),
                 ProtoRpc(
                     "Upload",
                     ProtoRpcType("Chunk", true),
-                    ProtoRpcType("google.protobuf.Empty", false),
+                    ProtoRpcType(".google.protobuf.Empty", false),
                     null,
                     listOf("#5"),
                     deprecated = true,
@@ -1174,6 +1176,37 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a service whose rpcs all carry both payloads imports no Empty`() {
+        val file =
+            lower("namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get(R): R #2 put(R): R }")
+                .file("t.proto")
+        assertEquals(emptyList(), file.imports)
+    }
+
+    @Test
+    fun `Empty is spelled absolutely so a google package cannot capture it`() {
+        val lowered =
+            lower("namespace acme.google\nrecord R { #1 x: int32 }\nservice S { #1 ping(): R }")
+        val rpc = lowered.file("acme/google.proto").services.single().rpcs.single()
+        assertEquals(".google.protobuf.Empty", rpc.request.reference)
+        val outs = ProtoRenderer.render(lowered.model)
+        assertNull(Protoc.compile(outs.associate { it.path to it.content }))
+    }
+
+    @Test
+    fun `an rpc override that repeats a derived name collides`() {
+        val out =
+            lower(
+                "namespace t\nrecord R { #1 x: int32 }\n" +
+                    "service S { #1 get(R): R @proto(name = \"Get\") #2 fetch(R): R }"
+            )
+        assertEquals(
+            listOf("SCH2004 proto name 'Get' is already used by operation 'get' (t.schemata:3)"),
+            out.codes(),
+        )
+    }
+
+    @Test
     fun `rpc names collide after casing`() {
         val out =
             lower(
@@ -1236,7 +1269,7 @@ class ProtoLoweringTest {
                 )
                 .file("t.proto")
         assertEquals("Empty", file.declarations.single().name)
-        assertEquals("google.protobuf.Empty", file.services.single().rpcs[0].request.reference)
+        assertEquals(".google.protobuf.Empty", file.services.single().rpcs[0].request.reference)
         assertEquals("Empty", file.services.single().rpcs[1].request.reference)
         assertEquals(listOf("google/protobuf/empty.proto"), file.imports)
     }

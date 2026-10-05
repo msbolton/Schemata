@@ -237,7 +237,7 @@ class ProtoRendererTest {
                         ProtoRpc(
                             "Upload",
                             ProtoRpcType("Chunk", true),
-                            ProtoRpcType("google.protobuf.Empty", false),
+                            ProtoRpcType(".google.protobuf.Empty", false),
                         ),
                     ),
                 notes = listOf("reserved #6, \"archive\""),
@@ -268,7 +268,7 @@ class ProtoRendererTest {
               rpc Old(A) returns (B) {  // schemata: #4
                 option deprecated = true;
               }
-              rpc Upload(stream Chunk) returns (google.protobuf.Empty);
+              rpc Upload(stream Chunk) returns (.google.protobuf.Empty);
               // schemata: reserved #6, "archive"
             }
 

@@ -26,9 +26,9 @@ message Chunk {
 service OrderApi {
   // Fetch one order.
   rpc Fetch(OrderId) returns (Order);  // schemata: get "/orders/{id}"
-  rpc Watch(google.protobuf.Empty) returns (stream Summary);  // schemata: get "/summary"
+  rpc Watch(.google.protobuf.Empty) returns (stream Summary);  // schemata: get "/summary"
   // Feed order data; replaced by a batch import.
-  rpc Upload(stream Chunk) returns (google.protobuf.Empty) {  // schemata: #5; post "/chunks"
+  rpc Upload(stream Chunk) returns (.google.protobuf.Empty) {  // schemata: #5; post "/chunks"
     option deprecated = true;
   }
   // schemata: reserved #3..#4, "old"

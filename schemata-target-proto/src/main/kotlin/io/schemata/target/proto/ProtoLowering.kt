@@ -160,22 +160,27 @@ object ProtoLowering {
                 name = name,
                 doc = service.doc,
                 rpcs = rpcs,
-                notes = reservedNote(service.reserved)?.let(::listOf) ?: emptyList(),
+                notes = listOfNotNull(reservedNote(service.reserved)),
                 deprecated = service.annotations.deprecated,
             )
         }
 
-        /** No payload is `google.protobuf.Empty`, which proto offers for exactly that. */
+        /**
+         * No payload is `google.protobuf.Empty`, which proto offers for exactly that. It is spelled
+         * with a leading dot, as the other well-known types are: a relative `google.…` would
+         * resolve against any `google` visible from the file's package first.
+         */
         private fun rpcType(payload: Payload?): ProtoRpcType {
             if (payload == null) {
                 imports += EMPTY
-                return ProtoRpcType("google.protobuf.Empty", stream = false)
+                return ProtoRpcType(".google.protobuf.Empty", stream = false)
             }
             return ProtoRpcType(reference(payload.target, emptyList()).reference, payload.stream)
         }
 
         /** `reserved #3, #5..#7, "archive"`: ordinals as `#n` or `#a..#b`, then quoted names. */
         private fun reservedNote(reserved: Reserved): String? {
+            // Ordinals then names: the importer prints its `reserved` statement in this order.
             if (reserved.ordinals.isEmpty() && reserved.names.isEmpty()) return null
             val items =
                 reserved.ordinals.map {
