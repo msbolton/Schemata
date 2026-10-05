@@ -7,6 +7,7 @@ import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.ReservedItem
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.UnionDecl
 import org.antlr.v4.runtime.CharStreams
@@ -35,17 +36,18 @@ class CommentTable(
  * Reads the hidden-channel comments of a token stream and attaches each one to the AST element it
  * describes.
  *
- * A block is a list of members in source order: the file's own top level (its namespace, imports
- * and declarations), or the body of a record, enum or union. Placing one comment walks a block's
- * members looking, in order, for: a leaf member whose span holds the comment (inside a field's
- * multi-line type, say) — the comment trails it; a member that is itself a block still open at the
- * comment (the comment sits between that member's own braces) — recurse into it, where a comment on
- * a record's or enum's header line before any of its members trails the header (`record R { // c`);
- * failing that, an earlier member ending on the comment's line, before the comment's column — the
- * comment trails it; failing that, the next member starting after the comment — the comment leads
- * it; and failing all of those, the comment sits after the block's last member, so it belongs to
- * that block's end (or, at the file's own top level, to the end of the file). A union has no
- * closing token, so its last member always holds any comment that is still inside the union.
+ * A block is a list of members in source order: the file's own top level (its namespace, imports,
+ * declarations and services), or the body of a record, enum, union or service. Placing one comment
+ * walks a block's members looking, in order, for: a leaf member whose span holds the comment
+ * (inside a field's multi-line type, say) — the comment trails it; a member that is itself a block
+ * still open at the comment (the comment sits between that member's own braces) — recurse into it,
+ * where a comment on a record's, enum's or service's header line before any of its members trails
+ * the header (`record R { // c`); failing that, an earlier member ending on the comment's line,
+ * before the comment's column — the comment trails it; failing that, the next member starting after
+ * the comment — the comment leads it; and failing all of those, the comment sits after the block's
+ * last member, so it belongs to that block's end (or, at the file's own top level, to the end of
+ * the file). A union has no closing token, so its last member always holds any comment that is
+ * still inside the union.
  *
  * Before any of that, a comment that falls inside a member's own span but before its ordinal or
  * name (its doc and annotations come first in the grammar, so this is the gap between them and the
@@ -91,7 +93,8 @@ object Comments {
             sortedBlock(
                 listOf(leaf(file.namespace.span)) +
                     file.imports.map { leaf(it.span) } +
-                    file.declarations.map { t.element(it) }
+                    file.declarations.map { t.element(it) } +
+                    file.services.map { t.element(it) }
             )
         for (c in comments) {
             if (before(c, file.namespace.span)) t.header(c, file) else t.place(c, topLevel, null)
@@ -114,8 +117,8 @@ object Comments {
      * and marks where its "prefix" (doc and annotations) ends; it is null for elements with no such
      * prefix (an import, a reserved statement). [annotations] are the element's own annotations,
      * used to tell a comment that shares an annotation's line from one that merely precedes the
-     * element's keyword or ordinal. [hasBraces] marks a record or enum, whose header line can carry
-     * a comment of its own.
+     * element's keyword or ordinal. [hasBraces] marks a record, enum or service, whose header line
+     * can carry a comment of its own.
      */
     private class Element(
         val span: Span,
@@ -202,6 +205,16 @@ object Comments {
                     )
                 else -> leaf(d.span, d.nameSpan, d.annotations)
             }
+
+        fun element(s: ServiceDecl): Element =
+            block(
+                s.span,
+                s.operations.map { leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations) } +
+                    reservedElements(s.reserved),
+                s.nameSpan,
+                s.annotations,
+                hasBraces = true,
+            )
 
         /**
          * `reserved #2, #5..#7` is one member, keyed by its first item and spanning through its
