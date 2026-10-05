@@ -1,0 +1,6 @@
+# targets=openapi
+error[SCH2601] (openapi): operation 'find': field 'inner' cannot be a query parameter
+ --> s.schemata:4:16
+  = help: use post, or bind it in the path, or flatten it
+
+1 error, 0 warnings

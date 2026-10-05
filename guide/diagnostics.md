@@ -31,7 +31,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1012 | warning | semantic | an import resolves nothing | import 'a' is unused | remove the import |
 | SCH1013 | error | semantic | some elements have explicit ordinals and some do not | record 'R' mixes explicit and implicit ordinals | write `#n` on every element or on none |
 | SCH1014 | error | semantic | an element has no explicit ordinal under --strict | field 'x' has no explicit ordinal (--strict) | write `#n` before every field and enum value, starting at #1 in declaration order |
-| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, jsonschema, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
+| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, jsonschema, openapi, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
 | SCH1016 | error | semantic | a key is unknown for its annotation target | 'bogus' is not a key of @sql; keys: column, index, key, schema, strategy, table, type, unique | write one of the listed keys, for example `@sql(column)` |
 | SCH1017 | error | semantic | an annotation key is on an element it does not apply to | @sql(column) is not allowed on a record; allowed on: field | move the annotation to a field, or remove it |
 | SCH1018 | error | semantic | an annotation's arguments have the wrong shape or value | @deprecated expects a string<br>@sql needs at least one key<br>@proto needs at least one key<br>@sql arguments are a bare key or key = value<br>@deprecated takes a single value<br>@sql(column) expects a string | write `@deprecated("…")`<br>write `@sql(column = "…")`<br>write `@proto(name = "…")`<br>write `@sql(key)` or `@sql(key = value)`<br>write `@deprecated("value")` |
@@ -63,8 +63,8 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1044 | error | semantic | a default is null | default may not be null | add `?` to the field's type and drop the default; a nullable field is null when absent |
 | SCH1045 | error | semantic | an import alias is not lower_snake | import alias 'Base' must be lower_snake | rename it `base` |
 | SCH1046 | error | semantic | an import is repeated | namespace 'a' is imported more than once<br>alias 'base' is given to more than one import | keep one import of `a`<br>give each import its own alias |
-| SCH1047 | error | semantic | an operation's request or response is not a record or a union | operation 'get': request 'uuid' is not a record or a union | wrap it in a record |
-| SCH1048 | error | semantic | an operation's HTTP binding does not fit its request | operation 'get': path parameter 'order' is not a field of 'OrderId'<br>operation 'fetch': get "/orders/{id}" is already bound by operation 'get'<br>operation 'upload': a streamed request cannot use get | name a scalar or enum field of the request record<br>give each operation its own verb and path<br>use post, put, or patch |
+| SCH1047 | error | semantic | an operation's request or response is not a record or a union | request 'uuid' is not a record or a union | wrap it in a record |
+| SCH1048 | error | semantic | an operation's HTTP binding does not fit its request | path parameter 'order' is not a field of 'OrderId'<br>get "/orders/{id}" is already bound by operation 'get'<br>a streamed request cannot use get | name a scalar or enum field of the request record<br>give each operation its own verb and path<br>use post, put, or patch |
 
 Retired, never reused: SCH1007, SCH1008.
 
@@ -136,3 +136,12 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2501 | error | semantic | a change breaks data produced under the old schema on a target | the default was removed from a non-null field breaks old documents that omit it: the property becomes required<br>type changed from int32 to string breaks decoding: the wire types differ<br>a required column was added breaks existing rows, which have no value for it<br>the field was removed breaks old documents that still carry it | keep a default, or supply the field explicitly in every document<br>add a new field instead of changing this one's type<br>add the column as nullable or with a default<br>keep the field; an XSD document always carries every element |
 | SCH2502 | warning | lossy | a change is compatible on a target with a caveat | a default was added; proto does not transmit defaults, so only newly generated code applies it<br>a default was added or changed; it is applied to empty elements only, not omitted ones<br>field removed; number 2 and name 'y' are free to be reused | apply the new default in application code, not the wire format<br>supply the value explicitly where an old document omitted the element<br>reserve #2 and "y" so they are not reused |
 | SCH2503 | error | semantic | the two schema sets cannot be compared | NEW: the schema set has 1 error<br>OLD and NEW share no namespace | fix the schema with check before diffing<br>diff two versions of the same schema set |
+
+## OpenAPI (SCH26xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2601 | error | semantic | a request field cannot be a query parameter | union 'U' cannot be query parameters; use a body verb<br>field 'inner' cannot be a query parameter | request a record, or use post, put, or patch<br>use post, or bind it in the path, or flatten it |
+| SCH2602 | error | semantic | two services, operations, or schemas lower to one OpenAPI name | operations 'S.a' and 'Other.x' both lower to post "/S/a"<br>operations 'b' and 'a' both lower to operationId 'S_a'<br>services 'A' and 'B' both lower to tag 'Same' | bind one of them to another path or verb<br>rename one, or set `@openapi(name = "…")` on one<br>set a different `@openapi(name = "…")` on one of them |
+| SCH2603 | error | semantic | an @openapi value is not a valid id, URL, or key | @openapi(name = "a b") is not a valid operationId<br>@openapi(server = "not a url") is not a valid URL<br>@openapi(name = "a b") is not a valid tag | use letters, digits, `_`, `.`, and `-`<br>use an absolute URL such as `https://api.example.com`, or a path such as `/v1` |
+| SCH2604 | warning | lossy | something OpenAPI cannot express was dropped by the lowering | @jsonschema(name) on field 'text' does not rename the parameter | a parameter is named by the field; rename the field to rename it |

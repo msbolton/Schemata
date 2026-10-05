@@ -97,3 +97,20 @@ Codes:
 | SCH2302 | error | semantic | two constructs lower to the same JSON Schema name |
 | SCH2303 | error | semantic | a @jsonschema override is empty, holds a character a $ref cannot carry, or is not an absolute URI |
 | SCH2304 | error | semantic | two namespaces lower to the same $id |
+
+## @openapi
+
+| Key | Applies to | Value | Choices |
+|---|---|---|---|
+| `version` | namespace | string |  |
+| `server` | namespace | string |  |
+| `name` | service, operation | string |  |
+
+Codes:
+
+| Code | Severity | Category | Description |
+|---|---|---|---|
+| SCH2601 | error | semantic | a request field cannot be a query parameter |
+| SCH2602 | error | semantic | two services, operations, or schemas lower to one OpenAPI name |
+| SCH2603 | error | semantic | an @openapi value is not a valid id, URL, or key |
+| SCH2604 | warning | lossy | something OpenAPI cannot express was dropped by the lowering |

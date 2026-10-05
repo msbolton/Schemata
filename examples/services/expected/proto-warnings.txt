@@ -1,0 +1,11 @@
+SCH2001 field 'Money.amount': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'Money.currency': refinements on string(min = 3, max = 3) are not enforced by Protobuf
+SCH2001 field 'OrderId.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'ListOrders.limit': refinements on int32(min = 1, max = 200) are not enforced by Protobuf
+SCH2001 field 'ListOrders.limit': default 50 is not carried by proto3
+SCH2001 field 'PlaceOrder.customer_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'PlaceOrder.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
+SCH2001 field 'Order.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf
+SCH2001 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0

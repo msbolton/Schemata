@@ -1,5 +1,6 @@
 package io.schemata.cli.guide
 
+import io.schemata.cli.SourceInput
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.fail
@@ -46,6 +47,23 @@ object Guide {
             } else i++
         }
         return out
+    }
+
+    /**
+     * The sources a `schemata` block holds: several files separated by a line `---
+     * <name>.schemata`, or one file `example.schemata` when it has no such line.
+     */
+    fun sources(body: String): List<SourceInput> {
+        val parts = mutableListOf<Pair<String, StringBuilder>>()
+        for (line in body.lines()) {
+            val m = Regex("^--- (\\S+\\.schemata)$").find(line)
+            if (m != null) parts += m.groupValues[1] to StringBuilder()
+            else {
+                if (parts.isEmpty()) parts += "example.schemata" to StringBuilder()
+                parts.last().second.appendLine(line)
+            }
+        }
+        return parts.map { SourceInput(it.first, it.second.toString()) }
     }
 
     /**

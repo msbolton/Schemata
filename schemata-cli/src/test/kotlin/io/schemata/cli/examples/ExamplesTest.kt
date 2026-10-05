@@ -18,8 +18,9 @@ import org.junit.jupiter.api.TestFactory
 /**
  * Every directory under `examples/` compiles to every target without errors, renders exactly its
  * `expected/` tree and warnings, compiles under protoc and the JDK's XML Schema processor, applies
- * to Postgres, and matches the committed catalog snapshot. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the
- * tree.
+ * to Postgres, and matches the committed catalog snapshot. An example without a service writes no
+ * OpenAPI document and so has no `expected/openapi` tree; the documents an example does write are
+ * validated by `OpenApiConformanceTest`. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree.
  */
 class ExamplesTest {
     private val root = File("../examples")
@@ -71,6 +72,11 @@ class ExamplesTest {
         for (target in result.targets.sortedBy { it.name == "sql" }) {
             val files = target.files.associate { it.path to it.content }
             golden(File(expected, target.name), files, dir.name)
+            if (files.isEmpty())
+                assertFalse(
+                    File(expected, target.name).exists(),
+                    "${dir.name} writes nothing for ${target.name} but has an expected tree",
+                )
             val warnings = target.diagnostics.joinToString("") { "${it.code.id} ${it.message}\n" }
             val warningsFile = File(expected, "${target.name}-warnings.txt")
             if (update) {

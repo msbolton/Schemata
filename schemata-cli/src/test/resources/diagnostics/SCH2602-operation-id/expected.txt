@@ -1,0 +1,6 @@
+# targets=openapi
+error[SCH2602] (openapi): operations 'b' and 'a' both lower to operationId 'S_a'
+ --> s.schemata:3:51
+  = help: rename one, or set `@openapi(name = "…")` on one
+
+1 error, 0 warnings

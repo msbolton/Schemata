@@ -18,6 +18,7 @@ import io.schemata.lang.hasErrors
 import io.schemata.target.OutputFile
 import io.schemata.target.Target
 import io.schemata.target.jsonschema.JsonSchemaTarget
+import io.schemata.target.openapi.OpenApiTarget
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlTarget
 import io.schemata.target.xsd.XsdTarget
@@ -67,7 +68,8 @@ data class PipelineResult(val core: List<Diagnostic>, val targets: List<TargetRe
  * errors are reported. A target's own error stops only that target.
  */
 object Pipeline {
-    val targets: List<Target<*>> = listOf(ProtoTarget, SqlTarget, XsdTarget, JsonSchemaTarget)
+    val targets: List<Target<*>> =
+        listOf(ProtoTarget, SqlTarget, XsdTarget, JsonSchemaTarget, OpenApiTarget)
 
     /**
      * Core's keys plus every target's, whatever `--target` selects: validity never depends on the

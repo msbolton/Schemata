@@ -1,0 +1,4 @@
+@openapi(server = "not a url")
+namespace s
+record R { #1 ok: bool }
+service S { #1 ping(): R }

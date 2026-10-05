@@ -1,7 +1,6 @@
 package io.schemata.cli.guide
 
 import io.schemata.cli.Pipeline
-import io.schemata.cli.SourceInput
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -36,7 +35,7 @@ class GuideReferenceTest {
     private fun check(file: File, block: Guide.Block) {
         if (file == readmeFile && !block.body.trimStart().startsWith("namespace"))
             fail("${file.name}:${block.line} is not a full example; give it a namespace line")
-        val result = Pipeline.check(files(block.body), Pipeline.targets, strict = false)
+        val result = Pipeline.check(Guide.sources(block.body), Pipeline.targets, strict = false)
         val errors = result.diagnostics.filter { it.severity.name == "ERROR" }
         val words = block.info.split(' ').filter { it.isNotBlank() }
         val mustFail = words.contains("error")
@@ -65,18 +64,5 @@ class GuideReferenceTest {
                 errors.isEmpty(),
                 "block at ${file.name}:${block.line} does not compile:\n$report",
             )
-    }
-
-    private fun files(body: String): List<SourceInput> {
-        val parts = mutableListOf<Pair<String, StringBuilder>>()
-        for (line in body.lines()) {
-            val m = Regex("^--- (\\S+\\.schemata)$").find(line)
-            if (m != null) parts += m.groupValues[1] to StringBuilder()
-            else {
-                if (parts.isEmpty()) parts += "example.schemata" to StringBuilder()
-                parts.last().second.appendLine(line)
-            }
-        }
-        return parts.map { SourceInput(it.first, it.second.toString()) }
     }
 }

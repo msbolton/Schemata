@@ -1,0 +1,6 @@
+# targets=openapi
+error[SCH2602] (openapi): services 'A' and 'B' both lower to tag 'Same'
+ --> s.schemata:4:33
+  = help: set a different `@openapi(name = "…")` on one of them
+
+1 error, 0 warnings
