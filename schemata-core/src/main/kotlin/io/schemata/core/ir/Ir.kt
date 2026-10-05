@@ -38,7 +38,8 @@ fun Schema.service(name: QualifiedName): Service? =
 /**
  * [span] is the `namespace` declaration of the first file (in sorted-path order) declaring it.
  * [services] are in sorted-path then source order; a service is not a [TypeDecl], so nothing that
- * walks [declarations] sees one.
+ * walks [declarations] sees one. [doc] is the first file's namespace doc, in sorted-path order,
+ * among the files that have one.
  */
 data class Namespace(
     val name: String,
@@ -46,6 +47,7 @@ data class Namespace(
     val span: Span,
     val annotations: Annotations = Annotations.NONE,
     val services: List<Service> = emptyList(),
+    val doc: String? = null,
 )
 
 /** A `service` block: operations in source order; [reserved] holds retired operations. */

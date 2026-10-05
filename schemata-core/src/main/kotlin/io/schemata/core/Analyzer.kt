@@ -141,7 +141,13 @@ object Analyzer {
                     )
                 }
             }
-        return Namespace(name, declarations, first.namespace.span, nsAnnotations)
+        return Namespace(
+            name,
+            declarations,
+            first.namespace.span,
+            nsAnnotations,
+            doc = files.firstNotNullOfOrNull { it.doc },
+        )
     }
 
     private fun analyzeDeclaration(

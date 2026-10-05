@@ -32,7 +32,8 @@ tasks.withType<Test>().configureEach {
 
 // Dependency direction: a module may only depend on modules in a strictly lower layer.
 // lang(0) -> core(1) -> target-api(2) -> import-api(3) ->
-// proto/sql/xsd/jsonschema/import-xsd/import-proto/import-sql/evolution/lsp(4) -> cli(5).
+// proto/sql/xsd/jsonschema/import-xsd/import-proto/import-sql/evolution/lsp(4) -> openapi(5) ->
+// cli(6).
 // testkit is outside the layering.
 val layers =
     mapOf(
@@ -49,7 +50,8 @@ val layers =
         "schemata-import-sql" to 4,
         "schemata-evolution" to 4,
         "schemata-lsp" to 4,
-        "schemata-cli" to 5,
+        "schemata-target-openapi" to 5,
+        "schemata-cli" to 6,
     )
 
 layers[project.name]?.let { myLayer ->
@@ -81,7 +83,7 @@ layers[project.name]?.let { myLayer ->
                 if (violations.isNotEmpty()) {
                     throw GradleException(
                         "$moduleName (layer $myLayer) depends on ${violations.joinToString()}, which is not strictly below it. " +
-                            "Dependencies must point downward: lang -> core -> target-api -> import-api -> targets and importers -> cli."
+                            "Dependencies must point downward: lang -> core -> target-api -> import-api -> targets and importers -> openapi -> cli."
                     )
                 }
             }
