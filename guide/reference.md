@@ -13,10 +13,10 @@ Every file begins with a namespace declaration: `namespace a.b.c`. Each segment 
 Several files may share a namespace; the compilation unit is the whole set of files given on the
 command line, with any directories walked recursively. Output paths follow the namespace, so
 `namespace shop.orders` writes `shop/orders.proto`, `shop/orders.sql`, `shop/orders.xsd`, and
-`shop/orders.schema.json`, and `shop/orders.openapi.json` when it declares a service. A doc comment and any annotations may precede the `namespace` line
-itself; section 15 shows
-annotations there, and `examples/shop/orders.schemata` shows a doc comment. A UTF-8 byte-order mark
-at the start of a file is skipped; `fmt` never writes one.
+`shop/orders.schema.json`, and `shop/orders.openapi.json` when it declares a service. A doc comment
+and any annotations may precede the `namespace` line itself; section 15 shows annotations there, and
+`examples/shop/orders.schemata` shows a doc comment. A UTF-8 byte-order mark at the start of a file
+is skipped; `fmt` never writes one.
 
 By default, a namespace's Postgres schema is its last segment: `shop.orders` lowers to schema
 `"orders"`. Two namespaces with the same last segment collide (SCH2102) unless one sets
@@ -494,8 +494,9 @@ record OrderLine {
 
 `#n` numbers a field, an enum value, a union member, or an operation. Within one declaration or
 service, every element carries an explicit ordinal or none do; `--strict` rejects one that leaves
-them implicit. Implicit ordinals are assigned in declaration order, starting at `#1`. Ordinals
-become Protobuf field numbers.
+them implicit. Implicit ordinals are assigned in declaration order, starting at `#1`. A field's
+ordinal becomes its Protobuf field number; no target numbers an operation, whose ordinal is its
+identity for `diff`.
 
 ```schemata
 namespace shop.orders
@@ -803,8 +804,8 @@ A response is `200`, with the response's schema as `application/json`, or as `te
 when it is streamed; an operation without a response answers `204`. Every record, enum, and union
 an operation reaches is a component under `#/components/schemas`, keyed `<namespace>.<Name>`
 (`shop.orders.Order`, `shop.orders.Order.Line`) and lowered exactly as the JSON Schema target
-lowers it. A request record the binding splits up, as it splits `OrderId` above, is not a
-component itself; only the types its fields name are.
+lowers it. A request record whose fields become parameters or a partial body, as `OrderId`'s and
+`ListOrders`'s do above, is not a component itself; only the types its fields name are.
 
 `get` and `cancel` above share a path; in `shop/orders.openapi.json` they become:
 
@@ -898,7 +899,7 @@ ordinal. Only the openapi rulebook judges a change to a service; section 20 list
 
 `fmt` writes a service in braces, one operation per line, with two spaces before the binding. When
 that line would pass 100 columns, the binding moves to the next line, one level deeper. A service
-with no operations is `service S {}`.
+with no members and no comments inside its braces is `service S {}`.
 
 ## 17. How constructs lower
 
@@ -965,8 +966,9 @@ changed; `schemata fmt --check PATHS...` writes nothing, prints a diff for each 
 change, and exits 1 if any would, which is how CI keeps a repository formatted. Comments are kept:
 one on its own line stays above the element that follows it, and a comment at the end of a line
 stays on that line (after the element, or after the opening brace). Long lines are never wrapped,
-except that an operation's binding moves to a line of its own (section 16). Doc-comment text keeps its indentation beyond one space after `///`. A file that does not parse is
-reported like `check` would and left untouched.
+except that an operation's binding moves to a line of its own (section 16). Doc-comment text keeps
+its indentation beyond one space after `///`. A file that does not parse is reported like `check`
+would and left untouched.
 
 `lsp` runs the language server for an editor; section 21 describes it. It takes no options and
 writes nothing but protocol messages to stdout.
@@ -2192,7 +2194,7 @@ The openapi rulebook's own rows:
 | Operation removed | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its default `operationId` |
 | Operation renamed | breaking when its `operationId` changes, or, without a binding, its derived URL; compatible when `@openapi(name)` keeps the `operationId` and a binding keeps the URL |
 | Request or response changed, `stream` included | breaking |
-| Binding added, removed, or changed | breaking: the URL moves |
+| Binding added, removed, or changed | breaking when the URL moves; binding an operation to its derived URL, or unbinding one that was bound to it, is compatible |
 | `@openapi(name)` changed on a service or an operation | breaking when the tag or `operationId` it emits changes; a service's tag prefixes every `operationId` that does not set its own |
 | `@openapi(version)` or `@openapi(server)` changed | compatible |
 | `@deprecated` added or removed on a service or an operation | note |
@@ -2203,10 +2205,10 @@ The openapi rulebook's own rows:
 regardless, but reported as a note unless the removed ordinal and name are both still `reserved` in
 NEW — reserve both to clear the note, since a reserved number or name can no longer be handed to
 something else by accident. Removing an enum value is breaking unless both are reserved, and then a
-note, since old senders can still send the value. `@deprecated` never changes a verdict on any
-target; it shapes the report instead: a change to something OLD had deprecated reads `deprecated
-field 'created' removed` (or renamed, retyped, and so on) in the human report, and carries
-`deprecatedInOld` in the JSON one.
+note, since old senders can still send the value. That an element was `@deprecated` in OLD never
+changes the verdict on a change to it, on any target; it shapes the report instead: a change to
+something OLD had deprecated reads `deprecated field 'created' removed` (or renamed, retyped, and so
+on) in the human report, and carries `deprecatedInOld` in the JSON one.
 
 ### Reporting
 
@@ -2420,9 +2422,9 @@ refuses one that would:
 - edit a file that is not open and has changed on disk since the server read it; try again.
 
 **Settings.** `schemata.path` is the `schemata` binary to run (default: the one on `PATH`).
-`schemata.roots` lists schema-set roots. `schemata.strict` reports every field, enum value, or
-union member left with an implicit ordinal as an error, as `--strict` does; unlike `--strict`, it
-does not turn other warnings into errors.
+`schemata.roots` lists schema-set roots. `schemata.strict` reports every field, enum value, union
+member, or operation left with an implicit ordinal as an error, as `--strict` does; unlike
+`--strict`, it does not turn other warnings into errors.
 
 In Zed the same options are `binary.path` and the `roots` and `strict` entries of
 `initialization_options`, as shown above.

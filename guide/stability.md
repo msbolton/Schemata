@@ -24,9 +24,9 @@ warning, never silently.
 
 **Annotations tune, they do not model.** A `@proto`, `@sql`, `@xsd`, `@jsonschema`, or `@openapi`
 key may change a name, a storage representation, or a mapping strategy of something the schema
-already says. No annotation adds a type, a field, or a constraint the language cannot express on its own,
-with one exception: `@sql(type)` is written into the DDL verbatim, so the column type it names, and
-anything else its text says, is your responsibility and not the compiler's.
+already says. No annotation adds a type, a field, or a constraint the language cannot express on its
+own, with one exception: `@sql(type)` is written into the DDL verbatim, so the column type it names,
+and anything else its text says, is your responsibility and not the compiler's.
 
 **Namespaces map by default.** A namespace is a Protobuf package, a Postgres schema, an XML
 namespace, and a JSON Schema id unless an annotation says otherwise. A namespace that declares a
@@ -58,10 +58,10 @@ ship in 1.x.
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,
 SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, and JSON Schema targets,
-SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target. A minor release may add warnings, so a `--strict` build can
-fail after an upgrade; every new code is in that release's notes. A set that compiled without errors
-keeps compiling without errors, unless it compiled only because of a compiler bug, which the notes
-name.
+SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target. A minor release may add
+warnings, so a `--strict` build can fail after an upgrade; every new code is in that release's
+notes. A set that compiled without errors keeps compiling without errors, unless it compiled only
+because of a compiler bug, which the notes name.
 
 **The command line.** Every command, flag, and exit code stays. The JSON report shapes of
 `check`, `compile`, `fmt`, `diff`, `import`, and `targets` stay; a minor may add fields. Not

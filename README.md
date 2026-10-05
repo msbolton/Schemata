@@ -127,15 +127,15 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
     schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
     schemata lsp
 
-`compile` writes `--out/<target>/<file>` for every target whose own lowering reported no
-error, even when another target failed; the `openapi` target writes one document per namespace
-that declares a service, and nothing for a schema without one. `check` reports everything `compile` would and
-writes nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql`
-files and writes `--out/import/<file>`, one `.schemata` file per namespace. `targets` lists each target's annotation keys and diagnostic
-codes. `diff OLD NEW` judges every change between two schema versions against each target's
-compatibility rulebook, so a breaking change is caught before it ships. `lsp` runs the language
-server an editor starts; the guide's Editor support section covers the VS Code and Zed extensions
-and what the server does.
+`compile` writes `--out/<target>/<file>` for every target whose own lowering reported no error, even
+when another target failed; the `openapi` target writes one document per namespace that declares a
+service, and nothing for a schema without one. `check` reports everything `compile` would and writes
+nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and
+writes `--out/import/<file>`, one `.schemata` file per namespace. `targets` lists each target's
+annotation keys and diagnostic codes. `diff OLD NEW` judges every change between two schema versions
+against each target's compatibility rulebook, so a breaking change is caught before it ships. `lsp`
+runs the language server an editor starts; the guide's Editor support section covers the VS Code and
+Zed extensions and what the server does.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.
@@ -199,7 +199,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-evolution` | the differ and the per-target compatibility rulebooks |
 | `schemata-lsp` | the language server: workspace model, reference index, lsp4j protocol layer |
 | `schemata-cli` | command surface |
-| `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator, a JSON Schema validator) |
+| `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator, a JSON Schema validator, an OpenAPI 3.1 validator) |
 
 ### Testing conventions
 
