@@ -4,8 +4,9 @@
 
 Schemata is a schema language and compiler. You describe a data model once in
 `.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, and the
-services that use it to OpenAPI 3.1, with every lossy decision reported as a warning, or import one
-from an existing XML Schema, Protobuf, or Postgres DDL schema.
+services that use it to OpenAPI 3.1 and to gRPC `service` blocks in the Protobuf output, with every
+lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf, or
+Postgres DDL schema.
 
 ## Install
 
@@ -129,7 +130,8 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no error, even
 when another target failed; the `openapi` target writes one document per namespace that declares a
-service, and nothing for a schema without one. `check` reports everything `compile` would and writes
+service, and nothing for a schema without one, and the `proto` target writes each service as a gRPC
+`service` in its namespace's `.proto`. `check` reports everything `compile` would and writes
 nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and
 writes `--out/import/<file>`, one `.schemata` file per namespace. `targets` lists each target's
 annotation keys and diagnostic codes. `diff OLD NEW` judges every change between two schema versions

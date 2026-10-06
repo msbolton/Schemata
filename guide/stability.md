@@ -34,8 +34,9 @@ service is also one OpenAPI document.
 
 **Services are a layer on top.** A service, added in 1.2, names operations whose requests and
 responses are the records and unions the data language already declares. The data language did not
-change to host it: a schema without a service means what it meant under 1.0, and the Protobuf,
-Postgres, XML Schema, and JSON Schema outputs ignore services. `operation` is still reserved.
+change to host it: a schema without a service means what it meant under 1.0, and the Postgres, XML
+Schema, and JSON Schema outputs ignore services. Since 1.3 the Protobuf output writes each service
+as a gRPC `service` after the messages, which stay what they were. `operation` is still reserved.
 
 A later version that needs a new keyword recognises it only where a keyword can appear, so a name
 you chose under 1.0 keeps working.
@@ -75,7 +76,9 @@ initialization and configuration options.
 **Services.** Services and the OpenAPI target are a 1.2 addition, and carry the same promise from
 1.2 on: a schema set with services that compiles without errors under 1.2 means the same thing in
 every later 1.x, and its OpenAPI documents stay compatible with what 1.2 wrote, in the sense
-`schemata diff` uses, so a client generated from one keeps making the same calls.
+`schemata diff` uses, so a client generated from one keeps making the same calls. The gRPC services
+the Protobuf target writes are a 1.3 addition, with the same promise from 1.3 on: a gRPC client
+generated from one keeps calling the same method paths with the same messages.
 
 A change that cannot keep one of these waits for 2.0.
 
@@ -117,6 +120,13 @@ Some behaviours are easy to miss. Each is part of the language as 1.0 defines it
   `instant`, or `duration`, with a `// schemata: T?` comment, which is what lets
   `import --from proto` read the field back as nullable. It is a comment only: the field, its
   number, and the wire format are what 1.0 wrote.
+- Since 1.3, a schema with services gets a `service` block at the end of its `.proto`, and an
+  `import "google/protobuf/empty.proto"` when an operation has no request or no response. Its
+  messages and enums are what 1.2 wrote, and a schema without a service gets the same `.proto`
+  byte for byte. A service or rpc name now claims a Protobuf name where 1.2 wrote nothing, so a
+  service that shares its proto name with a message (one renamed by `@proto(name)`, say), or two
+  operations whose UpperCamel forms coincide (`list_v2` and `list_v_2`), are an error under the
+  Protobuf target (SCH2004); `@proto(name)` on one of them clears it.
 
 ## Upgrading from 0.x
 
