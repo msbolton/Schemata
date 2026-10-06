@@ -1,9 +1,9 @@
 # Schemata language reference
 
 A `.schemata` file declares records, enums, unions, aliases, and services in a namespace. You give
-the compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, its
-services as gRPC services, a Postgres schema, an XML Schema, a JSON Schema, and, for each namespace
-that declares a service, an OpenAPI document.
+the compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, with
+its services as gRPC services, a Postgres schema, an XML Schema, a JSON Schema, and, for each
+namespace that declares a service, an OpenAPI document.
 What a 1.x release promises about this language, its output, and its diagnostics is on the
 [What is stable](stability.md) page.
 
@@ -1819,10 +1819,10 @@ gives `get_url` and then `GetUrl`, the operation keeps `@proto(name = "GetURL")`
 reported (SCH2402). Two rpcs of a service that lower to one name are an error (SCH2401).
 
 A request or a response that names a message becomes a reference to the record or union it
-imports as, `stream` kept; `google.protobuf.Empty` is no payload, written `()`. An operation carries
-only a record or a union, so an rpc is dropped (SCH2405) when either side is anything else: an
-enum, a type that does not resolve, any other `google.protobuf` type, or a `stream` of
-`google.protobuf.Empty`, which Schemata cannot write.
+imports as, `stream` kept. `google.protobuf.Empty` is no payload: an empty `()` for the request, no
+`: Response` for the response. An operation carries only a record or a union, so an rpc is dropped
+(SCH2405) when either side is anything else: an enum, a type that does not resolve, any other
+`google.protobuf` type, or a `stream` of `google.protobuf.Empty`, which Schemata cannot write.
 
 The notes the target writes on a service are read back. The note after an rpc gives its ordinal
 and binding, `// schemata: #5; delete "/items/{name}"`, either part alone or both; a note line
@@ -1862,8 +1862,8 @@ service Orders {
 }
 ```
 
-with one report, `rpc 'GetURL': renamed to 'get_url'` (SCH2402). `submit` has no note, so it takes
-its position, `#4`.
+and the service gives one report, `service 'Orders': rpc 'GetURL': renamed to 'get_url'` (SCH2402).
+`submit` has no note, so it takes its position, `#4`.
 
 #### What each construct becomes
 

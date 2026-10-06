@@ -592,8 +592,8 @@ the records themselves.
 
 Under `--target proto`, the service is a gRPC `service` at the end of `shop/orders.proto`, after
 the messages, and each operation an `rpc` named in UpperCamel. `cancel` has no response, so it
-returns `.google.protobuf.Empty`, and the file imports it beside `shop.catalog`, whose `Money`
-`Order.total` uses.
+returns `.google.protobuf.Empty`, and the file imports `google/protobuf/empty.proto` beside
+`shop/catalog.proto`, which `Order.total`'s `Money` comes from.
 
 From `examples/services/expected/proto/shop/orders.proto`:
 ```proto
