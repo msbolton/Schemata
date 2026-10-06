@@ -420,6 +420,30 @@ class ProtoRulesTest {
     }
 
     @Test
+    fun `a namespace removed with services is breaking and names the first service's path`() {
+        val keep = namespace("keep")
+        val gone =
+            analysed(
+                    pinnedBase +
+                        "@proto(name = \"OrderApi\") service Orders { #1 get(Id): Id }\n" +
+                        "service Audit { #1 log(Id) }"
+                )
+                .namespaces
+                .single()
+        val old = Schema(listOf(gone, keep))
+        val new = Schema(listOf(keep))
+        assertEquals(
+            Verdict.Breaking(
+                "t: the namespace was removed breaks clients that call /shop.v1.OrderApi/…",
+                "keep the namespace's services until no client calls them",
+            ),
+            only(old, new),
+        )
+        val plain = analysed(pinnedBase).namespaces.single()
+        assertIs<Verdict.Note>(only(Schema(listOf(plain, keep)), new))
+    }
+
+    @Test
     fun `a pinned rpc name makes a rename compatible`() {
         val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
         val new = analysed(pinnedBase + "service S { @proto(name = \"Get\") #1 fetch(Id): Id }")

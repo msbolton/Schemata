@@ -2378,7 +2378,7 @@ two rulebooks' own rows:
 | `@openapi(version)` or `@openapi(server)` changed | compatible | compatible |
 | `@deprecated` added or removed on a service or an operation | note | note |
 | `reserved` changed on a service | compatible | compatible |
-| Namespace removed | as in the table above | breaking when it declared a service, else compatible |
+| Namespace removed | breaking when it declared a service; else as in the table above | breaking when it declared a service, else compatible |
 
 `@proto(package)` moves every method path in its namespace too, and is already breaking (above).
 

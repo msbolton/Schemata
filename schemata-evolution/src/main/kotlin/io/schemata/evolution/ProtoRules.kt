@@ -2,7 +2,6 @@ package io.schemata.evolution
 
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
-import io.schemata.core.ir.Payload
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
@@ -87,14 +86,29 @@ object ProtoRules : Rulebook {
             is OperationBindingChanged -> Verdict.Compatible
         }
 
-    /** Judged the way removing each of its declarations one by one would be: a note per type. */
-    private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =
-        if (ctx.declarationsOf(Side.OLD, change.path).isEmpty()) Verdict.Compatible
-        else
-            Verdict.Note(
-                "${change.path}: the namespace was removed; generated code loses its declarations",
-                "keep the types, or confirm nothing outside this schema still depends on them",
-            )
+    /**
+     * A namespace that declared a service took its rpcs with it, which clients still call, and the
+     * message names the first service's method path. Otherwise it is judged the way removing each
+     * of its declarations one by one would be: a note per type.
+     */
+    private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict {
+        val service =
+            ctx.old.namespaces.firstOrNull { it.name == change.path }?.services?.firstOrNull()
+        return when {
+            service != null ->
+                Verdict.Breaking(
+                    "${change.path}: the namespace was removed breaks clients that call " +
+                        "${servicePath(ctx.old, service, ctx)}/…",
+                    "keep the namespace's services until no client calls them",
+                )
+            ctx.declarationsOf(Side.OLD, change.path).isEmpty() -> Verdict.Compatible
+            else ->
+                Verdict.Note(
+                    "${change.path}: the namespace was removed; generated code loses its declarations",
+                    "keep the types, or confirm nothing outside this schema still depends on them",
+                )
+        }
+    }
 
     private fun fieldRemoved(change: FieldRemoved, ctx: ChangeContext): Verdict {
         val ordinal = change.field.ordinal
@@ -386,12 +400,4 @@ object ProtoRules : Rulebook {
             .firstOrNull { it.name == namespace }
             ?.annotations
             ?.string("proto", "package") ?: namespace
-
-    /** `Order`, `stream Order`, or `none`. */
-    private fun payloadText(payload: Payload?): String =
-        when {
-            payload == null -> "none"
-            payload.stream -> "stream ${payload.target.simpleName}"
-            else -> payload.target.simpleName
-        }
 }
