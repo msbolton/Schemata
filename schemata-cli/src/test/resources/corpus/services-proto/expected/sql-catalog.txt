@@ -1,0 +1,15 @@
+schema grpc
+table grpc.chunk
+  column seq bigint not null
+  column data bytea not null
+  constraint pk_chunk PRIMARY KEY (seq)
+table grpc.order
+  column id bigint not null
+  column note text not null
+  constraint pk_order PRIMARY KEY (id)
+table grpc.order_id
+  column id bigint not null
+  constraint pk_order_id PRIMARY KEY (id)
+table grpc.summary
+  column count bigint not null
+  constraint pk_summary PRIMARY KEY (count)

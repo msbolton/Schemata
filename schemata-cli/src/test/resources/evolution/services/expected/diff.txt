@@ -1,16 +1,16 @@
 s.Orders
-  operation 'get' renamed to 'fetch'    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
-  operation 'list' response changed from stream Order to Order    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'get' renamed to 'fetch'    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'list' response changed from stream Order to Order    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
   operation 'place' binding changed from post /orders to post /orders/new    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
-  operation 'old': marked deprecated    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'old': marked deprecated    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
   operation 'count' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
-  operation 'cancel' removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'cancel' removed    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
   reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 s.Audit
   service added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 8 changes
-proto: 0 breaking, 0 notes
+proto: 3 breaking, 1 note
 sql: 0 breaking, 0 notes
 xsd: 0 breaking, 0 notes
 jsonschema: 0 breaking, 0 notes
@@ -23,7 +23,21 @@ error[SCH2501]: openapi: s.Orders.fetch: the operation was renamed, so its opera
    |      ^^^^^
    = help: pin the operationId with @openapi(name = "Orders_get")
 
+error[SCH2501]: proto: s.Orders.fetch: the operation was renamed, so its rpc path changes from /s.Orders/Get to /s.Orders/Fetch
+  --> new/orders.schemata:17:6
+   |
+17 |   #1 fetch(OrderId): Order  get "/orders/{id}"
+   |      ^^^^^
+   = help: pin the rpc name with @proto(name = "Get")
+
 error[SCH2501]: openapi: s.Orders.list: the response changed from stream Order to Order breaks clients that read the old one
+  --> new/orders.schemata:18:3
+   |
+18 |   #2 list(Filter): Order  get "/orders"
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new operation instead of changing this one's response
+
+error[SCH2501]: proto: s.Orders.list: the response changed from stream Order to Order breaks clients that read the old message
   --> new/orders.schemata:18:3
    |
 18 |   #2 list(Filter): Order  get "/orders"
@@ -44,6 +58,13 @@ warning[SCH2502] (lossy): openapi: s.Orders.old: the operation is now deprecated
    |                  ^^^
    = help: tell clients when the operation will be removed
 
+warning[SCH2502] (lossy): proto: s.Orders.old: the rpc is now deprecated; generated stubs flag every call to it
+  --> new/orders.schemata:20:18
+   |
+20 |   @deprecated #5 old(OrderId): Order
+   |                  ^^^
+   = help: tell clients when the rpc will be removed
+
 error[SCH2501]: openapi: s.Orders.cancel: the operation was removed breaks clients that call it
   --> old/orders.schemata:20:6
    |
@@ -51,4 +72,11 @@ error[SCH2501]: openapi: s.Orders.cancel: the operation was removed breaks clien
    |      ^^^^^^
    = help: deprecate the operation and keep it until no client calls it
 
-4 errors, 1 warning
+error[SCH2501]: proto: s.Orders.cancel: the rpc was removed breaks clients that call /s.Orders/Cancel
+  --> old/orders.schemata:20:6
+   |
+20 |   #4 cancel(OrderId)  delete "/orders/{id}"
+   |      ^^^^^^
+   = help: deprecate the operation and keep it until no client calls it
+
+7 errors, 2 warnings

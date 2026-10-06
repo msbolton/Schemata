@@ -22,7 +22,35 @@ object SchemataEmitter {
             appendLine()
             append(declaration(d, ""))
         }
+        unit.services.forEach {
+            appendLine()
+            append(service(it, ""))
+        }
     }
+
+    private fun service(s: UnitService, indent: String): String = buildString {
+        val inner = indent + INDENT
+        s.doc?.let { docLines(it, indent).forEach(::appendLine) }
+        if (s.deprecated) appendLine("$indent@deprecated")
+        s.annotations.forEach { appendLine(indent + annotation(it)) }
+        checkOrdinals(s.name, s.operations.map { it.ordinal })
+        appendLine(indent + "service ${s.name} {")
+        s.operations.forEach { op -> operationLines(op, inner).forEach(::appendLine) }
+        reservedLine(s.reserved, inner)?.let(::appendLine)
+        appendLine(indent + "}")
+    }
+
+    private fun operationLines(op: UnitOperation, indent: String): List<String> = buildList {
+        op.doc?.let { addAll(docLines(it, indent)) }
+        if (op.deprecated) add("$indent@deprecated")
+        op.annotations.forEach { add(indent + annotation(it)) }
+        val request = op.request?.let { payload(it) } ?: ""
+        val response = op.response?.let { ": " + payload(it) } ?: ""
+        val binding = op.binding?.let { "  $it" } ?: ""
+        add("$indent${ordinalPrefix(op.ordinal)}${op.name}($request)$response$binding")
+    }
+
+    private fun payload(p: UnitPayload): String = (if (p.stream) "stream " else "") + p.type.name
 
     private fun docLines(doc: String, indent: String): List<String> =
         doc.lines().map { if (it.isEmpty()) "$indent///" else "$indent/// $it" }

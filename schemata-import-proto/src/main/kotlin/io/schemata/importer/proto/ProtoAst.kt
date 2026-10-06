@@ -77,7 +77,38 @@ data class ProtoMessage(
 
 data class ProtoImport(val path: String, val public: Boolean, val weak: Boolean, val pos: Pos)
 
-data class ProtoService(val name: String, val rpcs: List<String>, val pos: Pos)
+/** An rpc's request or response: the type as written, and whether it is marked `stream`. */
+data class ProtoRpcType(val name: String, val stream: Boolean)
+
+/**
+ * An rpc. [options] are the `option` statements in its body; [doc] is the leading comment block
+ * with its comment markers removed; [note] is the text after `schemata:` in a `//` comment trailing
+ * the rpc's `;` or its body's `{`.
+ */
+data class ProtoRpc(
+    val name: String,
+    val request: ProtoRpcType,
+    val response: ProtoRpcType,
+    val options: List<ProtoOption>,
+    val doc: String?,
+    val note: String?,
+    val pos: Pos,
+)
+
+/**
+ * A service. [options] are its own `option` statements; [doc] is its leading comment block.
+ * [reservedNotes] holds the `//` comments in its body that stand on their own line and start with
+ * `schemata: reserved` (such as `// schemata: reserved #6`), each as the trimmed text after
+ * `schemata:` with where the comment starts.
+ */
+data class ProtoService(
+    val name: String,
+    val rpcs: List<ProtoRpc>,
+    val options: List<ProtoOption>,
+    val doc: String?,
+    val reservedNotes: List<Pair<String, Pos>>,
+    val pos: Pos,
+)
 
 /**
  * A whole file. [syntax] is `proto2`, `proto3`, or `editions` (then [edition] is set); a file with

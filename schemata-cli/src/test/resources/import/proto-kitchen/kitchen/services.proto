@@ -2,13 +2,21 @@ syntax = "proto3";
 
 package kitchen.services;
 
+import "google/protobuf/empty.proto";
 import "kitchen/maps.proto";
 import public "kitchen/enums.proto";
 
 // The ordering API.
 service Orders {
-  rpc Get (kitchen.maps.Item) returns (kitchen.maps.Item);
+  rpc Get (kitchen.maps.Item) returns (kitchen.maps.Item);  // schemata: get "/items/{name}"
   rpc Watch (kitchen.maps.Item) returns (stream kitchen.maps.Item);
+  // Forget an item.
+  rpc Forget (kitchen.maps.Item) returns (google.protobuf.Empty) {  // schemata: #5; delete "/items/{name}"
+    option deprecated = true;
+  }
+  rpc Submit (Request) returns (kitchen.maps.Item);
+  rpc GetURL (Request) returns (Request);  // schemata: #7
+  // schemata: reserved #6, "archive"
 }
 
 message Request {

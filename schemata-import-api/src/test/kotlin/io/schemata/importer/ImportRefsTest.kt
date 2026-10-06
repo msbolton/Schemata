@@ -14,7 +14,14 @@ class ImportRefsTest {
     ) = UnitRecord(name, fields.toList(), nested, null, emptyList())
 
     private fun unit(namespace: String, imports: List<String>, vararg decls: UnitDecl) =
-        SchemataUnit(namespace, emptyList(), null, imports, decls.toList(), "$namespace.xsd")
+        SchemataUnit(
+            namespace,
+            emptyList(),
+            null,
+            imports,
+            decls.toList(),
+            sourcePath = "$namespace.xsd",
+        )
 
     private val basic = unit("basic", emptyList(), record("Location"), record("Code"))
 

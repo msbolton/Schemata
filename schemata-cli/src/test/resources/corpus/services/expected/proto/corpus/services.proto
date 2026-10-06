@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package corpus.services;
 
+import "google/protobuf/empty.proto";
+
 message OrderId {
   string id = 1;  // schemata: uuid
 }
@@ -48,4 +50,16 @@ message Receipt {
 message Verbs {
   string get = 1;
   int32 post = 2;
+}
+
+// Place and read orders.
+service Orders {
+  // Fetch one order.
+  rpc Get(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+  // Orders matching a filter, newest first.
+  rpc List(ListOrders) returns (stream Order);  // schemata: get "/orders"
+  rpc Place(PlaceOrder) returns (Order);  // schemata: post "/orders"
+  rpc Cancel(OrderId) returns (.google.protobuf.Empty);  // schemata: delete "/orders/{id}"
+  rpc Upload(stream Chunk) returns (Receipt);
+  // schemata: reserved #6, "archive"
 }

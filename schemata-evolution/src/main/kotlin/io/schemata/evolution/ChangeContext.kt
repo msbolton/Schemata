@@ -1,6 +1,7 @@
 package io.schemata.evolution
 
 import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
 import io.schemata.core.ir.Field
@@ -101,7 +102,9 @@ class ChangeContext(val old: Schema, val new: Schema) {
      * `@<target>(name)` override, or for Postgres its `@sql(table)` override or snake-cased name; a
      * namespace is, for Postgres, its `@sql(schema)` override or the last segment of its name, and
      * its full name elsewhere; a union member has no name, so it is its ordinal. On OpenAPI a
-     * service is its tag and an operation its `operationId`; elsewhere both are their own names.
+     * service is its tag and an operation its `operationId`; on Protobuf a service is its valid
+     * `@proto(name)` else its own name, and an operation its rpc name, its valid `@proto(name)`
+     * else its name in UpperCamel; elsewhere both are their own names.
      */
     fun emittedName(target: String, owner: Owner): String =
         when (owner) {
@@ -126,11 +129,27 @@ class ChangeContext(val old: Schema, val new: Schema) {
             is EnumValueOwner -> emittedValueName(target, owner.value)
             is UnionMemberOwner -> "#${owner.member.ordinal}"
             is ServiceOwner ->
-                if (target == "openapi") tagName(owner.service) else owner.service.name
+                when (target) {
+                    "openapi" -> tagName(owner.service)
+                    "proto" -> protoName(owner.service.annotations) ?: owner.service.name
+                    else -> owner.service.name
+                }
             is OperationOwner ->
-                if (target == "openapi") operationId(owner.service, owner.operation)
-                else owner.operation.name
+                when (target) {
+                    "openapi" -> operationId(owner.service, owner.operation)
+                    "proto" ->
+                        protoName(owner.operation.annotations)
+                            ?: Names.upperCamel(owner.operation.name)
+                    else -> owner.operation.name
+                }
         }
+
+    /**
+     * A `@proto(name)` override, unless it is not an identifier (the target reports it and falls
+     * back).
+     */
+    private fun protoName(annotations: Annotations): String? =
+        annotations.string("proto", "name")?.takeIf { PROTO_IDENTIFIER.matches(it) }
 
     /**
      * An OpenAPI tag: the service's `@openapi(name)`, unless that is not a valid tag (the target
@@ -247,5 +266,11 @@ class ChangeContext(val old: Schema, val new: Schema) {
          * `OpenApiLowering.OPERATION_ID`, which this module cannot depend on.
          */
         val OPENAPI_NAME = Regex("[A-Za-z0-9_.-]+")
+
+        /**
+         * What Protobuf accepts as a service or rpc name override; keep in step with
+         * `ProtoNames.isIdentifier`, which this module cannot depend on.
+         */
+        val PROTO_IDENTIFIER = Regex("[A-Za-z_][A-Za-z0-9_]*")
     }
 }

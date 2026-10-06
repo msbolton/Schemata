@@ -1,0 +1,149 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "corpus.grpc",
+    "version": "1.0.0",
+    "description": "Orders served as a gRPC API under a pinned package."
+  },
+  "tags": [
+    {
+      "name": "Orders",
+      "description": "Read and feed orders."
+    }
+  ],
+  "paths": {
+    "/orders/{id}": {
+      "get": {
+        "operationId": "Orders_get",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Fetch one order.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/corpus.grpc.Order"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/summary": {
+      "get": {
+        "operationId": "Orders_watch",
+        "tags": [
+          "Orders"
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream of Summary",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/corpus.grpc.Summary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chunks": {
+      "post": {
+        "operationId": "Orders_upload",
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Feed order data; replaced by a batch import.",
+        "deprecated": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "$ref": "#/components/schemas/corpus.grpc.Chunk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "corpus.grpc.Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.grpc.Summary": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.grpc.Chunk": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "data": {
+            "type": "string",
+            "contentEncoding": "base64"
+          }
+        },
+        "required": [
+          "seq",
+          "data"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

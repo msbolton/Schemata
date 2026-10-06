@@ -17,8 +17,37 @@ data class SchemataUnit(
     val doc: String?,
     val imports: List<String>,
     val declarations: List<UnitDecl>,
+    val services: List<UnitService> = emptyList(),
     val sourcePath: String,
 )
+
+/** A `service` block; [reserved] prints as one `reserved` statement after the operations. */
+data class UnitService(
+    val name: String,
+    val operations: List<UnitOperation>,
+    val doc: String?,
+    val annotations: List<UnitAnnotation>,
+    val reserved: List<UnitReserved> = emptyList(),
+    val deprecated: Boolean = false,
+)
+
+/**
+ * One operation. [binding] is the HTTP binding exactly as Schemata source spells it (`get
+ * "/orders/{id}"`), or null. [ordinal] prints as `#n` before the name; a service gives every
+ * operation one or none.
+ */
+data class UnitOperation(
+    val name: String,
+    val request: UnitPayload?,
+    val response: UnitPayload?,
+    val binding: String?,
+    val doc: String?,
+    val annotations: List<UnitAnnotation>,
+    val ordinal: Int? = null,
+    val deprecated: Boolean = false,
+)
+
+data class UnitPayload(val type: UnitType.Ref, val stream: Boolean)
 
 /** A declaration; [deprecated] prints `@deprecated` ahead of its other [annotations]. */
 sealed interface UnitDecl {

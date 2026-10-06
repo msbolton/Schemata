@@ -519,34 +519,90 @@ object ProtoReader {
         }
 
         private fun service(): ProtoService {
-            takeDoc(peek().pos)
+            val doc = takeDoc(peek().pos)
             val start = next() // service
             val name = ident("a service name").text
             expect("{")
-            val rpcs = mutableListOf<String>()
-            while (!at("}")) {
+            val rpcs = mutableListOf<ProtoRpc>()
+            val options = mutableListOf<ProtoOption>()
+            val reservedNotes = mutableListOf<Pair<String, Pos>>()
+            while (true) {
+                peek()
+                reservedNotes += takeReservedNotes()
+                if (at("}")) break
                 when {
                     at(";") -> next()
-                    atIdent("option") -> option()
-                    atIdent("rpc") -> {
-                        next()
-                        rpcs += ident("an rpc name").text
-                        rpcType()
-                        if (!atIdent("returns")) fail("expected 'returns'")
-                        next()
-                        rpcType()
-                        if (at("{")) skipBlock() else expect(";")
-                    }
+                    atIdent("option") -> options += option()
+                    atIdent("rpc") -> rpcs += rpc()
                     else -> fail("expected an rpc")
                 }
             }
-            expect("}")
-            return ProtoService(name, rpcs, start.pos)
+            val close = expect("}")
+            takeTrailing(close.pos.line)
+            return ProtoService(name, rpcs, options, doc, reservedNotes, start.pos)
+        }
+
+        /**
+         * Removes the `//` comments starting with `schemata: reserved` from the comments standing
+         * on their own lines, returning the trimmed text after `schemata:` of each with where the
+         * comment starts; the rest, other `schemata:` comments included, stay to become the next
+         * declaration's doc.
+         */
+        private fun takeReservedNotes(): List<Pair<String, Pos>> {
+            val notes = pending.filter { !it.block && reservedNote(it.text) != null }
+            pending.removeAll(notes)
+            return notes.map { reservedNote(it.text)!! to it.pos }
+        }
+
+        /** The text after `schemata:` when [comment] is a `schemata: reserved` note, else null. */
+        private fun reservedNote(comment: String): String? {
+            val text = comment.trim()
+            if (!text.startsWith("schemata:")) return null
+            val note = text.removePrefix("schemata:").trim()
+            val word = note.takeWhile { !it.isWhitespace() }
+            return note.takeIf { word == "reserved" }
+        }
+
+        /**
+         * `rpc Name ( … ) returns ( … )` ended by `;` or by a body of `option` statements; the
+         * `schemata:` note trails the `;` or the body's `{`.
+         */
+        private fun rpc(): ProtoRpc {
+            val doc = takeDoc(peek().pos)
+            val start = next() // rpc
+            val name = ident("an rpc name").text
+            val request = rpcType()
+            if (!atIdent("returns")) fail("expected 'returns'")
+            next()
+            val response = rpcType()
+            val options = mutableListOf<ProtoOption>()
+            val note: String?
+            if (at("{")) {
+                val open = next()
+                note = takeTrailing(open.pos.line).first
+                while (!at("}")) {
+                    when {
+                        peek().kind == TokenKind.EOF -> fail("unterminated block", open.pos)
+                        at(";") -> next()
+                        atIdent("option") -> options += option()
+                        // Anything else in an rpc body is read past, nested blocks whole.
+                        at("{") -> skipBlock()
+                        else -> next()
+                    }
+                }
+                val close = next()
+                takeTrailing(close.pos.line)
+            } else {
+                val semi = expect(";")
+                note = takeTrailing(semi.pos.line).first
+            }
+            return ProtoRpc(name, request, response, options, doc, note, start.pos)
         }
 
         /** `( [stream] Type )`; a type named `stream` (or `stream.X`) is read as the type. */
-        private fun rpcType() {
+        private fun rpcType(): ProtoRpcType {
             expect("(")
+            var stream = false
             if (atIdent("stream")) {
                 val s = peek()
                 val after = peekSecond()
@@ -555,10 +611,14 @@ object ProtoReader {
                         (after.text == ")" ||
                             (after.text == "." &&
                                 after.pos == Pos(s.pos.line, s.pos.col + s.text.length)))
-                if (!typeNamedStream) next()
+                if (!typeNamedStream) {
+                    next()
+                    stream = true
+                }
             }
-            typeName()
+            val name = typeName()
             expect(")")
+            return ProtoRpcType(name, stream)
         }
     }
 }

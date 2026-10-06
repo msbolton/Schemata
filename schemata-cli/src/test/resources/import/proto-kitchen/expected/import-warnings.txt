@@ -27,8 +27,7 @@ SCH2404 field 'Scalars.sf32': sfixed32 imported as int32
 SCH2404 field 'Scalars.sf64': sfixed64 imported as int64
 SCH2403 field 'Scalars.broken': note 'uuid' does not fit int32; ignored
 SCH2403 field 'Scalars.unreadable': note 'string(' cannot be read; ignored
-SCH2405 service 'Orders': rpc 'Get' dropped; the Protobuf target emits services in v1.3
-SCH2405 service 'Orders': rpc 'Watch' dropped; the Protobuf target emits services in v1.3
+SCH2402 service 'Orders': rpc 'GetURL': renamed to 'get_url'
 SCH2403 field 'Event.nickname': google.protobuf.StringValue imported as string?; the regenerated field is optional, not a wrapper
 SCH2403 field 'Event.count': google.protobuf.Int64Value imported as int64?; the regenerated field is optional, not a wrapper
 SCH2403 field 'Event.small': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper

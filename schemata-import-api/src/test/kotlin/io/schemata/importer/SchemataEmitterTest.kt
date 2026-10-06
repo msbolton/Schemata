@@ -164,7 +164,7 @@ class SchemataEmitterTest {
                     null,
                     emptyList(),
                     listOf(UnitRecord("R", emptyList(), emptyList(), null, emptyList())),
-                    "s.xsd",
+                    sourcePath = "s.xsd",
                 )
             )
         assertEquals(
@@ -285,7 +285,104 @@ class SchemataEmitterTest {
                 null,
                 emptyList(),
             )
-        val unit = SchemataUnit("x", emptyList(), null, emptyList(), listOf(record), "x")
+        val unit =
+            SchemataUnit("x", emptyList(), null, emptyList(), listOf(record), sourcePath = "x")
         assertFailsWith<IllegalStateException> { SchemataEmitter.emit(unit) }
+    }
+
+    @Test
+    fun `services print after declarations in the formatter's form`() {
+        val id = UnitType.Ref("Id")
+        val unit =
+            SchemataUnit(
+                namespace = "t",
+                doc = null,
+                imports = emptyList(),
+                declarations =
+                    listOf(UnitRecord("Id", emptyList(), emptyList(), null, emptyList())),
+                services =
+                    listOf(
+                        UnitService(
+                            name = "Orders",
+                            doc = "Place and read orders.",
+                            annotations = listOf(UnitAnnotation("proto", "name", "\"OrderApi\"")),
+                            operations =
+                                listOf(
+                                    UnitOperation(
+                                        "get",
+                                        UnitPayload(id, false),
+                                        UnitPayload(id, false),
+                                        "get \"/orders/{id}\"",
+                                        "Fetch one order.",
+                                        emptyList(),
+                                        ordinal = 1,
+                                    ),
+                                    UnitOperation(
+                                        "list",
+                                        UnitPayload(id, false),
+                                        UnitPayload(id, true),
+                                        "get \"/orders\"",
+                                        null,
+                                        emptyList(),
+                                        ordinal = 2,
+                                    ),
+                                    UnitOperation(
+                                        "cancel",
+                                        UnitPayload(id, false),
+                                        null,
+                                        "delete \"/orders/{id}\"",
+                                        null,
+                                        emptyList(),
+                                        ordinal = 4,
+                                    ),
+                                    UnitOperation(
+                                        "upload",
+                                        UnitPayload(id, true),
+                                        UnitPayload(id, false),
+                                        null,
+                                        null,
+                                        emptyList(),
+                                        ordinal = 5,
+                                        deprecated = true,
+                                    ),
+                                    UnitOperation(
+                                        "ping",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        emptyList(),
+                                        ordinal = 6,
+                                    ),
+                                ),
+                            reserved =
+                                listOf(UnitReserved.Ordinals(3, 3), UnitReserved.Name("archive")),
+                        )
+                    ),
+                sourcePath = "t.proto",
+            )
+        assertEquals(
+            """
+            |namespace t
+            |
+            |record Id {
+            |}
+            |
+            |/// Place and read orders.
+            |@proto(name = "OrderApi")
+            |service Orders {
+            |  /// Fetch one order.
+            |  #1 get(Id): Id  get "/orders/{id}"
+            |  #2 list(Id): stream Id  get "/orders"
+            |  #4 cancel(Id)  delete "/orders/{id}"
+            |  @deprecated
+            |  #5 upload(stream Id): Id
+            |  #6 ping()
+            |  reserved #3, "archive"
+            |}
+            |"""
+                .trimMargin(),
+            SchemataEmitter.emit(unit),
+        )
     }
 }

@@ -9,6 +9,7 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Schema
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -361,6 +362,193 @@ class ProtoRulesTest {
         val old = record("s", "R", field(1, "a"))
         val new = old.copy(doc = "updated")
         assertEquals(Verdict.Compatible, verdict(ProtoRules, ns(old), ns(new)))
+    }
+
+    /** Every change between [old] and [new], each with its `proto` verdict. */
+    private fun judged(old: Schema, new: Schema): List<Pair<Change, Verdict>> {
+        val ctx = ChangeContext(old, new)
+        return Differ.diff(old, new).map { it to ProtoRules.classify(it, ctx) }
+    }
+
+    private fun only(old: Schema, new: Schema): Verdict = judged(old, new).single().second
+
+    private val serviceBase = "namespace t\nrecord A { #1 id: uuid }\nrecord B { #1 id: uuid }\n"
+
+    private val pinnedBase =
+        "@proto(package = \"shop.v1\")\nnamespace t\nrecord Id { #1 id: uuid }\n"
+
+    @Test
+    fun `proto verdicts per service change`() {
+        val ctx = ChangeContext(serviceOld, serviceNew)
+        val changes = Differ.diff(serviceOld, serviceNew)
+        fun verdict(kind: String) = ProtoRules.classify(changes.single { it.kind == kind }, ctx)
+        assertEquals(
+            Verdict.Breaking(
+                "t.Orders.fetch: the operation was renamed, so its rpc path changes from " +
+                    "/t.Orders/Get to /t.Orders/Fetch",
+                "pin the rpc name with @proto(name = \"Get\")",
+            ),
+            verdict("operation.renamed"),
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t.Orders.list: the response changed from stream Order to Order breaks clients " +
+                    "that read the old message",
+                "add a new operation instead of changing this one's response",
+            ),
+            verdict("operation.responseChanged"),
+        )
+        assertEquals(Verdict.Compatible, verdict("operation.bindingChanged"))
+        assertEquals(
+            Verdict.Breaking(
+                "t.Orders.cancel: the rpc was removed breaks clients that call /t.Orders/Cancel",
+                "deprecate the operation and keep it until no client calls it; reserve " +
+                    "\"cancel\" so its rpc name is not reused",
+            ),
+            verdict("operation.removed"),
+        )
+        assertEquals(
+            Verdict.Note(
+                "t.Orders.old: the rpc is now deprecated; generated stubs flag every call to it",
+                "tell clients when the rpc will be removed",
+            ),
+            verdict("deprecation.changed"),
+        )
+        assertEquals(Verdict.Compatible, verdict("operation.added"))
+        assertEquals(Verdict.Compatible, verdict("service.added"))
+        assertEquals(Verdict.Compatible, verdict("reserved.changed"))
+    }
+
+    @Test
+    fun `a namespace removed with services is breaking and names the first service's path`() {
+        val keep = namespace("keep")
+        val gone =
+            analysed(
+                    pinnedBase +
+                        "@proto(name = \"OrderApi\") service Orders { #1 get(Id): Id }\n" +
+                        "service Audit { #1 log(Id) }"
+                )
+                .namespaces
+                .single()
+        val old = Schema(listOf(gone, keep))
+        val new = Schema(listOf(keep))
+        assertEquals(
+            Verdict.Breaking(
+                "t: the namespace was removed breaks clients that call /shop.v1.OrderApi/…",
+                "keep the namespace's services until no client calls them",
+            ),
+            only(old, new),
+        )
+        val plain = analysed(pinnedBase).namespaces.single()
+        assertIs<Verdict.Note>(only(Schema(listOf(plain, keep)), new))
+    }
+
+    @Test
+    fun `a pinned rpc name makes a rename compatible`() {
+        val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
+        val new = analysed(pinnedBase + "service S { @proto(name = \"Get\") #1 fetch(Id): Id }")
+        val verdicts = judged(old, new).associate { it.first.kind to it.second }
+        assertEquals(Verdict.Compatible, verdicts["operation.renamed"])
+        assertEquals(Verdict.Compatible, verdicts["annotation.changed"])
+        assertEquals(2, verdicts.size)
+    }
+
+    @Test
+    fun `an rpc name pinned away from the derived one moves the rpc path`() {
+        val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
+        val moved = analysed(pinnedBase + "service S { @proto(name = \"Other\") #1 get(Id): Id }")
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.get: the rpc path changes from /shop.v1.S/Get to /shop.v1.S/Other",
+                "pin the rpc name with @proto(name = \"Get\")",
+            ),
+            only(old, moved),
+        )
+    }
+
+    @Test
+    fun `a service name override moves every rpc path`() {
+        val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
+        val new = analysed(pinnedBase + "@proto(name = \"Store\")\nservice S { #1 get(Id): Id }")
+        assertEquals(
+            Verdict.Breaking(
+                "t.S: the service's rpc paths change from /shop.v1.S/* to /shop.v1.Store/*",
+                "pin the service name with @proto(name = \"S\")",
+            ),
+            only(old, new),
+        )
+    }
+
+    @Test
+    fun `a service name override that keeps the service name is compatible`() {
+        val old = analysed(serviceBase + "service S { #1 get(A): B }")
+        val new = analysed(serviceBase + "@proto(name = \"S\")\nservice S { #1 get(A): B }")
+        assertEquals(Verdict.Compatible, only(old, new))
+    }
+
+    @Test
+    fun `an invalid rpc name override falls back to the derived name`() {
+        val old = analysed(serviceBase + "service S { #1 list_all(A): B }")
+        val new =
+            analysed(serviceBase + "service S { @proto(name = \"not-valid\") #1 list_all(A): B }")
+        assertEquals(Verdict.Compatible, only(old, new))
+    }
+
+    @Test
+    fun `a request change names both payloads`() {
+        val old = analysed(serviceBase + "service S { #1 put(A): B }")
+        val new = analysed(serviceBase + "service S { #1 put(stream B): B }")
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.put: the request changed from A to stream B breaks clients that send the " +
+                    "old message",
+                "add a new operation instead of changing this one's request",
+            ),
+            only(old, new),
+        )
+        val dropped = analysed(serviceBase + "service S { #1 put(): B }")
+        assertEquals(
+            "t.S.put: the request changed from A to none breaks clients that send the old message",
+            assertIs<Verdict.Breaking>(only(old, dropped)).message,
+        )
+    }
+
+    @Test
+    fun `a removed service or reserved operation is breaking`() {
+        val old =
+            analysed(pinnedBase + "service S { #1 get(Id): Id  #2 drop_all(Id) }\nservice T {}")
+        val new = analysed(pinnedBase + "service S { #1 get(Id): Id  reserved #2, \"drop_all\" }")
+        val verdicts = judged(old, new).associate { it.first.kind to it.second }
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.drop_all: the rpc was removed breaks clients that call /shop.v1.S/DropAll",
+                "deprecate the operation and keep it until no client calls it",
+            ),
+            verdicts["operation.removed"],
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t.T: the service was removed breaks clients that call /shop.v1.T/…",
+                "deprecate its operations and keep the service until no client calls it",
+            ),
+            verdicts["service.removed"],
+        )
+        assertEquals(Verdict.Compatible, verdicts["reserved.changed"])
+    }
+
+    @Test
+    fun `a service deprecation lifted is a note and a doc change is compatible`() {
+        val old = analysed(serviceBase + "@deprecated\nservice S { #1 get(A): B }")
+        val new = analysed(serviceBase + "/// Orders.\nservice S { #1 get(A): B }")
+        val verdicts = judged(old, new).associate { it.first.kind to it.second }
+        assertEquals(
+            Verdict.Note(
+                "t.S: the service is no longer deprecated",
+                "tell clients that moved off it that it stays",
+            ),
+            verdicts["deprecation.changed"],
+        )
+        assertEquals(Verdict.Compatible, verdicts["doc.changed"])
     }
 
     @Test

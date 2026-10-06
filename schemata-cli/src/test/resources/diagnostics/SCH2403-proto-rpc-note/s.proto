@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  string id = 1;
+}
+
+service Orders {
+  rpc Get(Order) returns (Order); // schemata: fetch "/orders"
+  // schemata: reserved #
+}

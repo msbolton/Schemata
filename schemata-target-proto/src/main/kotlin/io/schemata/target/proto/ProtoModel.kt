@@ -14,6 +14,31 @@ data class ProtoFile(
     val packageName: String,
     val imports: List<String>,
     val declarations: List<ProtoDecl>,
+    val services: List<ProtoService> = emptyList(),
+)
+
+/** [notes] prints as a `// schemata: …` comment line after the last rpc. */
+data class ProtoService(
+    val name: String,
+    val doc: String?,
+    val rpcs: List<ProtoRpc>,
+    val notes: List<String> = emptyList(),
+    val deprecated: Boolean = false,
+)
+
+data class ProtoRpcType(val reference: String, val stream: Boolean)
+
+/**
+ * [notes] prints as a trailing `// schemata: …` comment on the rpc's `;` line, or its `{` line when
+ * [deprecated].
+ */
+data class ProtoRpc(
+    val name: String,
+    val request: ProtoRpcType,
+    val response: ProtoRpcType,
+    val doc: String? = null,
+    val notes: List<String> = emptyList(),
+    val deprecated: Boolean = false,
 )
 
 sealed interface ProtoDecl {

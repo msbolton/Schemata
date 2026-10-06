@@ -1,0 +1,188 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "corpus.shadow_rpc",
+    "version": "1.0.0",
+    "description": "Orders whose operations share their payloads' names."
+  },
+  "tags": [
+    {
+      "name": "Orders",
+      "description": "Place, amend, and cancel orders."
+    }
+  ],
+  "paths": {
+    "/Orders/place_order": {
+      "post": {
+        "operationId": "Orders_place_order",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/corpus.shadow_rpc.PlaceOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/corpus.shadow_rpc.Order"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Orders/order": {
+      "post": {
+        "operationId": "Orders_order",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/corpus.shadow_rpc.Order.Line"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/corpus.shadow_rpc.Order"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Orders/cancel": {
+      "post": {
+        "operationId": "Orders_cancel",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/corpus.shadow_rpc.OrderId"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/corpus.shadow_rpc.Receipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "corpus.shadow_rpc.PlaceOrder": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          }
+        },
+        "required": [
+          "customer_id"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.shadow_rpc.Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.shadow_rpc.Order.Line": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "sku",
+          "quantity"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.shadow_rpc.OrderId": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.shadow_rpc.Receipt": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

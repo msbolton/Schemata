@@ -18,7 +18,7 @@ object ImportCodes {
             "SCH2402",
             Severity.WARNING,
             Category.LOSSY,
-            "a namespace name was derived from a file name",
+            "a name was derived from a file name or changed on import",
         )
     val APPROXIMATED =
         DiagnosticCode("SCH2403", Severity.WARNING, Category.LOSSY, "a construct was approximated")

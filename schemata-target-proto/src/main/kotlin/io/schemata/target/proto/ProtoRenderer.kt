@@ -20,7 +20,59 @@ object ProtoRenderer {
             appendLine()
             append(block(it, indent = ""))
         }
+        file.services.forEach {
+            appendLine()
+            append(service(it))
+        }
     }
+
+    /**
+     * A service block; the option, the rpcs, and the notes follow the same section rules as
+     * messages.
+     */
+    private fun service(service: ProtoService): String {
+        val indent = "  "
+        val sections = mutableListOf<String>()
+        if (service.deprecated) sections += "${indent}option deprecated = true;\n"
+        val body = buildString {
+            service.rpcs.forEach { append(rpc(it, indent)) }
+            if (service.notes.isNotEmpty()) {
+                appendLine("$indent// schemata: ${service.notes.joinToString("; ")}")
+            }
+        }
+        if (body.isNotEmpty()) sections += body
+        return buildString {
+            doc(service.doc, "")
+            if (sections.isEmpty()) {
+                appendLine("service ${service.name} {}")
+                return@buildString
+            }
+            appendLine("service ${service.name} {")
+            sections.forEachIndexed { i, section ->
+                if (i > 0) appendLine()
+                append(section)
+            }
+            appendLine("}")
+        }
+    }
+
+    private fun rpc(rpc: ProtoRpc, indent: String): String = buildString {
+        doc(rpc.doc, indent)
+        append(
+            "${indent}rpc ${rpc.name}(${rpcType(rpc.request)}) returns (${rpcType(rpc.response)})"
+        )
+        val note = if (rpc.notes.isEmpty()) "" else "  // schemata: ${rpc.notes.joinToString("; ")}"
+        if (rpc.deprecated) {
+            appendLine(" {$note")
+            appendLine("$indent  option deprecated = true;")
+            appendLine("$indent}")
+        } else {
+            appendLine(";$note")
+        }
+    }
+
+    private fun rpcType(type: ProtoRpcType): String =
+        if (type.stream) "stream ${type.reference}" else type.reference
 
     /** A message or enum block; sections inside are separated by one blank line. */
     private fun block(decl: ProtoDecl, indent: String): String {

@@ -1,9 +1,9 @@
 # Schemata language reference
 
 A `.schemata` file declares records, enums, unions, aliases, and services in a namespace. You give
-the compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, a
-Postgres schema, an XML Schema, a JSON Schema, and, for each namespace that declares a service, an
-OpenAPI document.
+the compiler a set of `.schemata` files, and it compiles that one set to a Protobuf schema, with
+its services as gRPC services, a Postgres schema, an XML Schema, a JSON Schema, and, for each
+namespace that declares a service, an OpenAPI document.
 What a 1.x release promises about this language, its output, and its diagnostics is on the
 [What is stable](stability.md) page.
 
@@ -525,7 +525,7 @@ namespace's annotations are written before its `namespace` line; a record's are 
 `record` line.
 
 `@proto(package = "…")` renames a namespace's Protobuf package. `@proto(name = "…")` renames a
-single declaration, field, or enum value.
+single declaration, field, enum value, service, or operation; section 16 shows it on the last two.
 
 `@sql(schema = "…")` renames a namespace's Postgres schema. `@sql(table = "…")` and
 `@sql(column = "…")` rename a record's table or a field's column. An empty `@sql(schema | table | column)` is an error (SCH2114); the derived name is used. `@sql(key)` on a field, or
@@ -643,9 +643,10 @@ A `service` names a set of operations, each a call that takes a request and retu
 both of them records or unions the schema declares. A service is written at the top level of a
 file, beside the declarations, never inside a record. It is not a type, so no field can hold one
 (SCH1006), but it shares its namespace's type names: a service may not take the name of a
-declaration or of another service in the same namespace (SCH1004). Only the openapi target reads
-services; the Protobuf, Postgres, XSD, and JSON Schema targets write the same output with or
-without them.
+declaration or of another service in the same namespace (SCH1004). Two targets read services: the
+openapi target writes an OpenAPI document for them, and the Protobuf target writes each one as a
+gRPC `service` in its namespace's `.proto` file. The Postgres, XSD, and JSON Schema targets write
+the same output with or without them.
 
 ```schemata
 /// Orders and their lines.
@@ -898,10 +899,112 @@ The document's version is `2.1.0` and its server `https://api.example.com/v2`; t
 `orders`, `get`'s `operationId` is `getOrder`, and `ping` is `post /orders/ping` with
 `operationId` `orders_ping`.
 
+### Protobuf
+
+The Protobuf target writes each service as a gRPC `service` at the end of its namespace's `.proto`
+file, after the messages and enums, in the order the services are declared, with one `rpc` per
+operation in the order the operations are written.
+
+A service is named by its own name, or by its `@proto(name)`. It shares the package's names with
+the messages and enums, so a service and a message or enum of one proto name are an error
+(SCH2004). An rpc is named by the UpperCamel form of its operation's name, `list_orders` becoming
+`ListOrders`, or by the operation's `@proto(name)`; two rpcs of one name in a service are an error
+too (SCH2004). An override that is not a valid Protobuf identifier is SCH2007.
+
+A request or a response is written the way a field of that type would be: the message's name as
+it stands in the file, `Order` or `Order.Line`, or `.shop.catalog.Money` with an `import` of its
+file when it comes from another namespace. protoc looks an rpc's types up from inside the service,
+where the service's rpc names are names too, so a message whose name begins with one of them is
+written from the package instead: `order(Order.Line)` becomes
+`rpc Order(.shop.orders.Order.Line)`. A union is the message the union lowers to, and an
+alias the type it stands for. `stream` carries over as it is. An operation without a request or a
+response takes `.google.protobuf.Empty` in its place, and the file imports
+`google/protobuf/empty.proto`.
+
+The `Orders` service at the start of this section becomes, at the end of `shop/orders.proto`:
+
+```proto
+// Place and read orders.
+service Orders {
+  // Fetch one order.
+  rpc Get(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+  // Orders matching a filter, newest first.
+  rpc List(ListOrders) returns (stream Order);  // schemata: get "/orders"
+  rpc Place(PlaceOrder) returns (Order);  // schemata: post "/orders"
+  rpc Cancel(OrderId) returns (.google.protobuf.Empty);  // schemata: delete "/orders/{id}"
+  rpc Upload(stream Chunk) returns (Receipt);
+  // schemata: reserved #6, "archive"
+}
+```
+
+What gRPC has no place for rides in a `// schemata:` note, the same comment that carries a field's
+refinements, so `import --from proto` can read it back (section 19):
+
+| Schemata | Protobuf |
+|---|---|
+| a service | `service`, named by its name or its `@proto(name)` |
+| an operation | `rpc`, named by the UpperCamel form of its name or by its `@proto(name)` |
+| a request or a response | the message, `stream` included |
+| no request, or no response | `.google.protobuf.Empty`, and its import |
+| a doc comment | a `//` comment above the service or the rpc |
+| `@deprecated` | `option deprecated = true;` inside the service, or in a body the rpc then takes |
+| a binding | a note after the rpc: `// schemata: get "/orders/{id}"` |
+| an ordinal | a note after the rpc, `// schemata: #5`, only when it is not the rpc's position in the service, counting from 1 |
+| `reserved` | a note line after the last rpc: `// schemata: reserved #6, "archive"` |
+| `@openapi` keys | nothing |
+
+An rpc with both an ordinal and a binding takes one note, the ordinal first, the two separated by
+`; `. Every one of those carriers, in one namespace:
+
+```schemata
+/// Orders served as a gRPC API under a pinned package.
+@proto(package = "shop.v1")
+namespace corpus.grpc
+
+record OrderId { @sql(key) #1 id: int64 }
+
+record Order { @sql(key) #1 id: int64 #2 note: string }
+
+record Summary { @sql(key) #1 count: int64 }
+
+record Chunk { @sql(key) #1 seq: int64 #2 data: bytes }
+
+/// Read and feed orders.
+@proto(name = "OrderApi")
+service Orders {
+  /// Fetch one order.
+  @proto(name = "Fetch") #1 get(OrderId): Order  get "/orders/{id}"
+  #2 watch(): stream Summary  get "/summary"
+  /// Feed order data; replaced by a batch import.
+  @deprecated #5 upload(stream Chunk)  post "/chunks"
+  reserved #3..#4, "old"
+}
+```
+
+gives, in `corpus/grpc.proto`:
+
+```proto
+// Read and feed orders.
+service OrderApi {
+  // Fetch one order.
+  rpc Fetch(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+  rpc Watch(.google.protobuf.Empty) returns (stream Summary);  // schemata: get "/summary"
+  // Feed order data; replaced by a batch import.
+  rpc Upload(stream Chunk) returns (.google.protobuf.Empty) {  // schemata: #5; post "/chunks"
+    option deprecated = true;
+  }
+  // schemata: reserved #3..#4, "old"
+}
+```
+
+`upload` is the third rpc but `#5`, so its note says so; `get` and `watch` sit at their ordinals
+and need none.
+
 ### Evolving and formatting
 
 `schemata diff` compares services too, a service by its qualified name and an operation by its
-ordinal. Only the openapi rulebook judges a change to a service; section 20 lists its verdicts.
+ordinal. The openapi and proto rulebooks judge a change to a service; section 20 lists their
+verdicts.
 
 `fmt` writes a service in braces, one operation per line, with two spaces before the binding. When
 that line would pass 100 columns, the binding moves to the next line, one level deeper. A service
@@ -911,7 +1014,8 @@ with no members and no comments inside its braces is `service S {}`.
 
 The OpenAPI document holds, under `#/components/schemas`, only the declarations its operations
 reach, each lowered as the JSON Schema target lowers it; its `@jsonschema` keys apply there too.
-The four other targets read no service.
+The Protobuf target writes a service as a gRPC `service` after its namespace's messages; the
+Postgres, XSD, and JSON Schema targets read no service.
 
 | Construct | Protobuf | Postgres | XSD | JSON Schema | OpenAPI |
 |---|---|---|---|---|---|
@@ -929,9 +1033,9 @@ The four other targets read no service.
 | an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented | inlined | inlined |
 | a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` | `description` | `description`, as JSON Schema |
 | `@deprecated` | `option deprecated = true` or `[deprecated = true]` | not represented | not represented | `deprecated: true` on the def or property; not on enum values | as JSON Schema |
-| `reserved` | `reserved <n>;` and `reserved "name";` inside the message | nothing | not represented | not represented | not represented |
-| a service | nothing | nothing | nothing | nothing | a tag; section 16 |
-| an operation | nothing | nothing | nothing | nothing | an operation under its path and verb; section 16 |
+| `reserved` | `reserved <n>;` and `reserved "name";` inside the message; in a service, a `// schemata: reserved …` line | nothing | not represented | not represented | not represented |
+| a service | a `service`, named by its name or `@proto(name)`; section 16 | nothing | nothing | nothing | a tag; section 16 |
+| an operation | an `rpc`, named in UpperCamel or by `@proto(name)`; no payload is `.google.protobuf.Empty`, and the binding and an ordinal off its position ride in a `// schemata:` note | nothing | nothing | nothing | an operation under its path and verb; section 16 |
 
 ### 17.1 Validating JSON instances
 
@@ -1084,7 +1188,7 @@ Every import reports in one family:
 | Code | Meaning |
 |---|---|
 | SCH2401 | error: a file cannot be read, a reference, import, or include cannot be resolved, or two constructs lower to one name |
-| SCH2402 | warning: a namespace name was derived rather than taken as written |
+| SCH2402 | warning: a namespace name was derived rather than taken as written, or an rpc's name was lower-snaked into one the target would not write back |
 | SCH2403 | warning: a construct was approximated; it is kept, but the regenerated schema will differ |
 | SCH2404 | warning: a type or facet was widened or dropped |
 | SCH2405 | warning: a construct was dropped |
@@ -1625,8 +1729,7 @@ by its imported name) and dropped otherwise (SCH2403). Groups, `extensions` rang
 blocks are dropped (SCH2405). An editions file (`edition = "2023"`) is read as proto3, reported
 once (SCH2403): a field is `T?` only when it says `optional`, whatever its features say.
 `import public` re-exports nothing in Schemata (SCH2403); the importing file imports the namespace
-directly. A `service` is not imported, since the Protobuf target writes none yet: each of its
-`rpc`s is dropped (SCH2405).
+directly.
 
 Most of the above, in one file, `protos/shop/orders.proto`:
 
@@ -1710,6 +1813,63 @@ record Card { #1 last4: string }
 and reports the wrapper (SCH2403), the `uint32` (SCH2404), and the `voucher` member, which the
 regenerated `oneof` will name `string` (SCH2403).
 
+A `service` imports as a service, named as a message would be, and each `rpc` as an operation; a
+leading comment becomes a doc comment and `option deprecated = true` becomes `@deprecated`, on the
+service and on the rpc alike. A service and a message or enum that lower to one name are an error
+(SCH2401). An rpc's name is lower-snaked: `GetOrder` becomes `get_order`. The target writes an
+operation's name back in UpperCamel, so when that does not give the rpc's name again, as `GetURL`
+gives `get_url` and then `GetUrl`, the operation keeps `@proto(name = "GetURL")` and the rename is
+reported (SCH2402). Two rpcs of a service that lower to one name are an error (SCH2401).
+
+A request or a response that names a message becomes a reference to the record or union it
+imports as, `stream` kept. `google.protobuf.Empty` is no payload: an empty `()` for the request, no
+`: Response` for the response. An operation carries only a record or a union, so an rpc is dropped
+(SCH2405) when either side is anything else: an enum, a type that does not resolve, any other
+`google.protobuf` type, or a `stream` of `google.protobuf.Empty`, which Schemata cannot write.
+
+The notes the target writes on a service are read back. The note after an rpc gives its ordinal
+and binding, `// schemata: #5; delete "/items/{name}"`, either part alone or both; a note line
+inside the service, `// schemata: reserved #6, "archive"`, gives its `reserved`, and any other
+`// schemata:` line there stays a doc comment. An operation with no ordinal in its note takes its
+position among the rpcs kept, counting from 1. A note that does not read is ignored and the
+operation kept (SCH2403). An ordinal that an earlier operation of the service already holds, or
+that the service reserves, gives way to the next free one above it (SCH2403).
+
+From `schemata-cli/src/test/resources/import/proto-kitchen/kitchen/services.proto`:
+
+```proto
+// The ordering API.
+service Orders {
+  rpc Get (kitchen.maps.Item) returns (kitchen.maps.Item);  // schemata: get "/items/{name}"
+  rpc Watch (kitchen.maps.Item) returns (stream kitchen.maps.Item);
+  // Forget an item.
+  rpc Forget (kitchen.maps.Item) returns (google.protobuf.Empty) {  // schemata: #5; delete "/items/{name}"
+    option deprecated = true;
+  }
+  rpc Submit (Request) returns (kitchen.maps.Item);
+  rpc GetURL (Request) returns (Request);  // schemata: #7
+  // schemata: reserved #6, "archive"
+}
+```
+
+imports as:
+
+```
+/// The ordering API.
+service Orders {
+  #1 get(kitchen.maps.Item): kitchen.maps.Item  get "/items/{name}"
+  #2 watch(kitchen.maps.Item): stream kitchen.maps.Item
+  /// Forget an item.
+  @deprecated #5 forget(kitchen.maps.Item)  delete "/items/{name}"
+  #4 submit(Request): kitchen.maps.Item
+  @proto(name = "GetURL") #7 get_url(Request): Request
+  reserved #6, "archive"
+}
+```
+
+and the service gives one report, `service 'Orders': rpc 'GetURL': renamed to 'get_url'` (SCH2402).
+`submit` has no note, so it takes its position, `#4`.
+
 #### What each construct becomes
 
 | Protobuf construct | Imported as | Code |
@@ -1731,14 +1891,17 @@ regenerated `oneof` will name `string` (SCH2403).
 | an enum value numbered 0 or below | values renumbered without ordinals | SCH2403 |
 | an alias | nothing | SCH2405 |
 | `reserved` | `reserved` | SCH2403 when a name is renamed or a number is below 1 |
-| `// schemata:` note | the type and default it gives | SCH2403 when ignored |
+| `// schemata:` note | the type and default it gives; after an rpc, its ordinal and binding; in a service, its `reserved` | SCH2403 when ignored |
 | a proto2 `[default]` | a default | SCH2403 when it has no Schemata literal |
-| `[deprecated = true]`, `option deprecated = true` | `@deprecated` | SCH2405 on a union member |
+| `[deprecated = true]`, `option deprecated = true` | `@deprecated`, on a service and an rpc too | SCH2405 on a union member |
 | `json_name` | nothing | SCH2405 |
 | any other option | nothing, silently | |
 | a group | nothing | SCH2405 |
 | `extensions`, `extend` | nothing | SCH2405 |
-| a service | nothing, per `rpc` | SCH2405 |
+| a service | a service | |
+| an `rpc` | an operation, its name lower-snaked | SCH2402 when `@proto(name)` keeps its spelling |
+| an rpc's `google.protobuf.Empty` | no request or no response | |
+| an rpc's request or response that is not a message of the inputs, or a `stream` of `Empty` | nothing; the rpc is dropped | SCH2405 |
 | a doc comment | a doc comment | |
 
 ### From SQL
@@ -2084,10 +2247,17 @@ targets' annotations do not, since an XML Schema holds none of them.
 
 Protobuf: names, ordinals, docs, `@deprecated`, and `reserved` come back from the proto itself, and
 every refinement, default, and type Protobuf cannot say rides on the `// schemata:` note the target
-writes, so importing the proto target's own output reports nothing. Nullability of a message-typed
-field rides on the note too: a field of a nullable record, union, `instant`, or `duration` is
-written with `// schemata: T?`. A `.proto` written by a compiler before 1.1, which did not write
-that note, imports such a field as required.
+writes, so importing the proto target's own output reports nothing but the rpc names described
+below. Nullability of a message-typed field rides on the note too: a field of a nullable record,
+union, `instant`, or `duration` is written with `// schemata: T?`. A `.proto` written by a compiler
+before 1.1, which did not write that note, imports such a field as required.
+
+A service comes back with its operations, their payloads and streams, docs, and `@deprecated` from
+the proto, and their bindings, ordinals, and `reserved` from the notes. Names come back as the
+proto spells them, so an operation the target named by `@proto(name)` imports under its rpc's
+name, lower-snaked; an override such as `@proto(name = "GetURL")`, which no lower_snake name gives
+in UpperCamel, comes back as `@proto(name)` and is reported (SCH2402). `@openapi` keys do not come
+back, since a `.proto` holds none.
 
 SQL: tables, keys, references, child tables, unions, embedded records, enums, refinements, and
 docs come back from the DDL, but ordinals do not, since a column has none; fields keep column
@@ -2131,8 +2301,9 @@ namespace at all, since that is two unrelated schema sets rather than two versio
   on that target alone, and a changed override is itself a rename on that target alone, even when
   the declared name did not move.
 - A service matches by qualified name and an operation by ordinal within its service, the same way.
-  A service's emitted name is its OpenAPI tag and an operation's is its `operationId`, each after
-  `@openapi(name)`.
+  On openapi, a service's emitted name is its tag and an operation's is its `operationId`, each
+  after `@openapi(name)`; on proto, they are the service's and the rpc's names, each after
+  `@proto(name)`.
 
 ### Verdicts
 
@@ -2190,22 +2361,28 @@ element.
 The openapi rulebook judges a change to a record, enum, or union exactly as the JSON Schema column
 says when an operation of OLD reaches that declaration, since its component is the JSON Schema
 lowering; a change to any other declaration is compatible on openapi, which never writes it. The
-four other rulebooks call every change to a service compatible, since none of them writes one.
-The openapi rulebook's own rows:
+Postgres, XSD, and JSON Schema rulebooks call every change to a service compatible, since none of
+them writes one. The proto rulebook judges a service by what a gRPC client generated from OLD
+calls: each rpc by its method path, `/<package>.<Service>/<Rpc>`, with the request and response
+messages it was built against. A binding rides in a note beside the rpc, never in that path. The
+two rulebooks' own rows:
 
-| Change | OpenAPI |
-|---|---|
-| Service added, operation added | compatible |
-| Service removed | breaking |
-| Operation removed | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its default `operationId` |
-| Operation renamed | breaking when its `operationId` changes, or, without a binding, its derived URL; compatible when `@openapi(name)` keeps the `operationId` and a binding keeps the URL |
-| Request or response changed, `stream` included | breaking |
-| Binding added, removed, or changed | breaking when the URL moves; binding an operation to its derived URL, or unbinding one that was bound to it, is compatible |
-| `@openapi(name)` changed on a service or an operation | breaking when the tag or `operationId` it emits changes; a service's tag prefixes every `operationId` that does not set its own |
-| `@openapi(version)` or `@openapi(server)` changed | compatible |
-| `@deprecated` added or removed on a service or an operation | note |
-| `reserved` changed on a service | compatible |
-| Namespace removed | breaking when it declared a service, else compatible |
+| Change | Protobuf | OpenAPI |
+|---|---|---|
+| Service added, operation added | compatible | compatible |
+| Service removed | breaking | breaking |
+| Operation removed | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its rpc name | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its default `operationId` |
+| Operation renamed | breaking when its rpc name changes; compatible when `@proto(name)` keeps it | breaking when its `operationId` changes, or, without a binding, its derived URL; compatible when `@openapi(name)` keeps the `operationId` and a binding keeps the URL |
+| Request or response changed, `stream` included | breaking | breaking |
+| Binding added, removed, or changed | compatible | breaking when the URL moves; binding an operation to its derived URL, or unbinding one that was bound to it, is compatible |
+| `@proto(name)` changed on a service or an operation | breaking when the service or rpc name it emits changes | compatible |
+| `@openapi(name)` changed on a service or an operation | compatible | breaking when the tag or `operationId` it emits changes; a service's tag prefixes every `operationId` that does not set its own |
+| `@openapi(version)` or `@openapi(server)` changed | compatible | compatible |
+| `@deprecated` added or removed on a service or an operation | note | note |
+| `reserved` changed on a service | compatible | compatible |
+| Namespace removed | breaking when it declared a service; else as in the table above | breaking when it declared a service, else compatible |
+
+`@proto(package)` moves every method path in its namespace too, and is already breaking (above).
 
 `reserved` changes how a removal reads on proto only. Removing a field is compatible on the wire
 regardless, but reported as a note unless the removed ordinal and name are both still `reserved` in
@@ -2309,22 +2486,22 @@ service Orders {
 }
 ```
 
-`schemata diff old new` reports, shortened here to the first of its five diagnostics:
+`schemata diff old new` reports, shortened here to the first two of its nine diagnostics:
 
 ```text
 s.Orders
-  operation 'get' renamed to 'fetch'    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
-  operation 'list' response changed from stream Order to Order    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'get' renamed to 'fetch'    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'list' response changed from stream Order to Order    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
   operation 'place' binding changed from post /orders to post /orders/new    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
-  operation 'old': marked deprecated    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'old': marked deprecated    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
   operation 'count' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
-  operation 'cancel' removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'cancel' removed    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
   reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 s.Audit
   service added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 8 changes
-proto: 0 breaking, 0 notes
+proto: 3 breaking, 1 note
 sql: 0 breaking, 0 notes
 xsd: 0 breaking, 0 notes
 jsonschema: 0 breaking, 0 notes
@@ -2337,12 +2514,51 @@ error[SCH2501]: openapi: s.Orders.fetch: the operation was renamed, so its opera
    |      ^^^^^
    = help: pin the operationId with @openapi(name = "Orders_get")
 
-4 errors, 1 warning
+error[SCH2501]: proto: s.Orders.fetch: the operation was renamed, so its rpc path changes from /s.Orders/Get to /s.Orders/Fetch
+  --> new/orders.schemata:17:6
+   |
+17 |   #1 fetch(OrderId): Order  get "/orders/{id}"
+   |      ^^^^^
+   = help: pin the rpc name with @proto(name = "Get")
+
+7 errors, 2 warnings
 ```
 
-Only openapi sees any of it. `get`'s rename moves its `operationId`, which generated clients call
-by name; `@openapi(name = "Orders_get")`, as the help says, would keep it. Reserving `cancel`
-quiets the help on its removal but not the break: a client that calls it still fails.
+Both rulebooks that write a service see the changes, and judge them by what each writes. `get`'s
+rename moves its `operationId`, which generated clients call by name, and its rpc's method path,
+from `/s.Orders/Get` to `/s.Orders/Fetch`; `@openapi(name = "Orders_get")` and
+`@proto(name = "Get")`, as the two helps say, would keep both. Dropping `list`'s `stream` breaks
+both too, and `old`'s deprecation is a note on both. `place`'s new path breaks openapi only, since
+the proto keeps a binding in a note and its method path stays. Reserving `cancel` quiets the help
+on its removal but not the break: a client that calls it still fails.
+
+With both pins, added in the same change as the rename, the rename is compatible everywhere. Here
+OLD's `Orders` holds only `#1 get(OrderId): Order  get "/orders/{id}"`.
+
+From `schemata-cli/src/test/resources/evolution/services-pinned/new/orders.schemata`:
+```
+service Orders {
+  @proto(name = "Get") @openapi(name = "Orders_get") #1 fetch(OrderId): Order  get "/orders/{id}"
+}
+```
+
+`schemata diff old new` reports:
+
+```text
+s.Orders
+  operation 'get' renamed to 'fetch'    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'fetch': @proto(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'fetch': @openapi(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+3 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+no diagnostics
+```
 
 ## 21. Editor support
 

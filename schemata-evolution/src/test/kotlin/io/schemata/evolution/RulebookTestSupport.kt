@@ -91,7 +91,10 @@ fun verdicts(rulebook: Rulebook, old: List<Namespace>, new: List<Namespace>): Li
 fun verdict(rulebook: Rulebook, old: Namespace, new: Namespace): Verdict =
     verdicts(rulebook, listOf(old), listOf(new)).single()
 
-/** Core's keys plus `@openapi(name)` on services and operations, as the CLI registers it. */
+/**
+ * Core's keys plus `@openapi(name)` and `@proto(name)` on services and operations and
+ * `@proto(package)` on a namespace, as the CLI registers them.
+ */
 private val snippetAnnotations =
     AnnotationRegistry(
         CoreAnnotations.specs +
@@ -99,6 +102,20 @@ private val snippetAnnotations =
                 "openapi",
                 "name",
                 setOf(Element.SERVICE, Element.OPERATION),
+                ValueKind.STRING,
+                Role.NAME,
+            ) +
+            AnnotationSpec(
+                "proto",
+                "name",
+                setOf(Element.SERVICE, Element.OPERATION),
+                ValueKind.STRING,
+                Role.NAME,
+            ) +
+            AnnotationSpec(
+                "proto",
+                "package",
+                setOf(Element.NAMESPACE),
                 ValueKind.STRING,
                 Role.NAME,
             )

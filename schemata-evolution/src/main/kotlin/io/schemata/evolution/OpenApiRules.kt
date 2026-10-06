@@ -2,7 +2,6 @@ package io.schemata.evolution
 
 import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.Operation
-import io.schemata.core.ir.Payload
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Service
 import io.schemata.core.ir.service
@@ -217,12 +216,4 @@ object OpenApiRules : Rulebook {
 
     private fun bindingText(binding: HttpBinding?): String? =
         binding?.let { "${it.verb.lower} ${it.path}" }
-
-    /** `Order`, `stream Order`, or `none`. */
-    private fun payloadText(payload: Payload?): String =
-        when {
-            payload == null -> "none"
-            payload.stream -> "stream ${payload.target.simpleName}"
-            else -> payload.target.simpleName
-        }
 }

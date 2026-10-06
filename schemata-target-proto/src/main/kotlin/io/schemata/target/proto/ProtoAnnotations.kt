@@ -25,6 +25,8 @@ object ProtoAnnotations {
                     Element.UNION,
                     Element.FIELD,
                     Element.ENUM_VALUE,
+                    Element.SERVICE,
+                    Element.OPERATION,
                 ),
                 ValueKind.STRING,
                 Role.NAME,

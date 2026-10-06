@@ -8,7 +8,7 @@ Keys each target accepts, the elements they apply to, and the codes each target 
 | Key | Applies to | Value | Choices |
 |---|---|---|---|
 | `package` | namespace | string |  |
-| `name` | record, enum, union, field, enum value | string |  |
+| `name` | record, enum, union, field, enum value, service, operation | string |  |
 
 Codes:
 

@@ -4,6 +4,8 @@ import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ProtoImportTest {
     private fun importText(vararg files: Pair<String, String>): ImportResult =
@@ -498,7 +500,7 @@ class ProtoImportTest {
     }
 
     @Test
-    fun `services and extend are dropped`() {
+    fun `extensions and extend are dropped`() {
         val r =
             importText(
                 "t.proto" to
@@ -506,16 +508,315 @@ class ProtoImportTest {
                     syntax = "proto2";
                     message M { optional int32 a = 1; extensions 100 to 200; }
                     extend M { optional int32 x = 100; }
-                    service S { rpc A (M) returns (M); rpc B (stream M) returns (M); }
+                    """
+            )
+        assertEquals(
+            listOf("SCH2405 message 'M': extensions dropped", "SCH2405 t.proto: extend dropped"),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a service imports with its operations`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "google/protobuf/empty.proto";
+                    message Id { string id = 1; }
+                    message Order { string id = 1; }
+                    // Orders.
+                    service Orders {
+                      // Fetch.
+                      rpc Get(Id) returns (Order);  // schemata: get "/orders/{id}"
+                      rpc List(Id) returns (stream Order);
+                      rpc Cancel(Id) returns (google.protobuf.Empty) {  // schemata: #5; delete "/orders/{id}"
+                        option deprecated = true;
+                      }
+                      rpc GetURL(Id) returns (Order);
+                      // schemata: reserved #6, "archive"
+                    }
+                    """
+            )
+        assertEquals(
+            """
+            /// Orders.
+            service Orders {
+              /// Fetch.
+              #1 get(Id): Order  get "/orders/{id}"
+              #2 list(Id): stream Order
+              @deprecated #5 cancel(Id)  delete "/orders/{id}"
+              @proto(name = "GetURL") #4 get_url(Id): Order
+              reserved #6, "archive"
+            }
+            """
+                .trimIndent() + "\n",
+            "/// Orders.\n" + text(r, "t.schemata").substringAfter("\n/// Orders.\n"),
+        )
+        assertEquals(
+            listOf("SCH2402 service 'Orders': rpc 'GetURL': renamed to 'get_url'"),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an rpc on an enum is dropped`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    enum E { E_UNSPECIFIED = 0; E_A = 1; }
+                    message M { int32 x = 1; }
+                    service S { rpc Bad(E) returns (M); rpc Worse(M) returns (Missing); rpc Ok(M) returns (M); }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue("#1 ok(M): M" in out, out)
+        assertFalse("bad(" in out, out)
+        assertEquals(
+            listOf(
+                "SCH2405 service 'S': rpc 'Bad': request type 'E' is not a message; rpc dropped",
+                "SCH2405 service 'S': rpc 'Worse': response type 'Missing' is not a message; rpc dropped",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a well-known payload other than a plain Empty drops the rpc`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "google/protobuf/empty.proto";
+                    import "google/protobuf/timestamp.proto";
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc At(google.protobuf.Timestamp) returns (M);
+                      rpc Ticks(M) returns (stream .google.protobuf.Empty);
+                      rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+                    }
+                    """
+            )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n  #1 ping()\n}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 service 'S': rpc 'At': request type 'google.protobuf.Timestamp' has no Schemata record; rpc dropped",
+                "SCH2405 service 'S': rpc 'Ticks': response stream of google.protobuf.Empty has no Schemata form; rpc dropped",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an rpc rename says how the proto name is kept`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S { rpc GetURL(M) returns (M); }
+                    """
+            )
+        assertEquals(
+            listOf("keep @proto(name) so the regenerated rpc keeps its proto name"),
+            r.diagnostics.map { it.help },
+        )
+    }
+
+    @Test
+    fun `a service whose every rpc is dropped is kept empty`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    service S { rpc Bad(string) returns (string); }
+                    """
+            )
+        assertEquals("namespace t\n\nservice S {}\n", text(r, "t.schemata"))
+        assertEquals(
+            listOf(
+                "SCH2405 service 'S': rpc 'Bad': request type 'string' is not a message; rpc dropped"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `unreadable operation and reserved notes are ignored`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);  // schemata: fetch "/x"
+                      // schemata: reserved #
+                    }
+                    """
+            )
+        assertTrue("#1 a(M): M\n" in text(r, "t.schemata"), text(r, "t.schemata"))
+        assertEquals(
+            listOf(
+                "SCH2403 service 'S': rpc 'A': note 'fetch \"/x\"' cannot be read; ignored",
+                "SCH2403 service 'S': note 'reserved #' cannot be read; ignored",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an unreadable reserved note is reported at its own line`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);
+                      // schemata: reserved #
+                    }
+                    """
+            )
+        assertEquals(listOf(6), r.diagnostics.map { it.span.startLine })
+    }
+
+    @Test
+    fun `an ordinal a note repeats takes the next free one`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);  // schemata: #2
+                      rpc B(M) returns (M);
+                      rpc C(M) returns (M);
+                    }
+                    """
+            )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n" +
+                "  #2 a(M): M\n  #3 b(M): M\n  #4 c(M): M\n}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used; the next free ordinal is taken",
+                "SCH2403 service 'S': rpc 'C': ordinal #3 is already used; the next free ordinal is taken",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an ordinal the service reserves takes the next free one`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);
+                      rpc B(M) returns (M);
+                      // schemata: reserved #2
+                    }
+                    """
+            )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n" +
+                "  #1 a(M): M\n  #3 b(M): M\n  reserved #2\n}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used; the next free ordinal is taken"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a payload from another namespace is imported`() {
+        val r =
+            importText(
+                "a.proto" to
+                    """
+                    syntax = "proto3";
+                    package a;
+                    message Item { string name = 1; message Part { int32 n = 1; } }
+                    """,
+                "b.proto" to
+                    """
+                    syntax = "proto3";
+                    package b;
+                    import "a.proto";
+                    service S { rpc Get(a.Item) returns (stream .a.Item.Part); }
+                    """,
+            )
+        assertEquals(
+            "namespace b\n\nimport a\n\nservice S {\n  #1 get(a.Item): stream a.Item.Part\n}\n",
+            text(r, "b.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `a service and a message that lower to one name collide`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message orders { int32 x = 1; }
+                    service Orders { rpc Get(orders) returns (orders); rpc get(orders) returns (orders); }
                     """
             )
         assertEquals(
             listOf(
-                "SCH2405 message 'M': extensions dropped",
-                "SCH2405 t.proto: extend dropped",
-                "SCH2405 service 'S': rpc 'A' dropped; the Protobuf target emits services in v1.3",
-                "SCH2405 service 'S': rpc 'B' dropped; the Protobuf target emits services in v1.3",
+                "SCH2401 t.proto: service 'Orders' and t.proto's message 'orders' both lower to " +
+                    "service 'Orders'"
             ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `two rpcs that lower to one operation name collide`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S { rpc GetUrl(M) returns (M); rpc GetURL(M) returns (M); }
+                    """
+            )
+        assertEquals(
+            listOf("SCH2401 service 'S': rpc 'GetURL' and rpc 'GetUrl' both lower to 'get_url'"),
             messages(r),
         )
     }

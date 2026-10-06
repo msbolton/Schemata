@@ -99,7 +99,7 @@ class ProtoReaderTest {
         assertEquals(listOf(11 to 11, 20 to 536870911), order.reserved[0].ranges)
         assertEquals(listOf("legacy_ref"), order.reserved[1].names)
         assertEquals(listOf("extensions"), order.dropped.map { it.first })
-        assertEquals(listOf("Get"), f.services.single().rpcs)
+        assertEquals(listOf("Get"), f.services.single().rpcs.map { it.name })
     }
 
     @Test
@@ -159,6 +159,119 @@ class ProtoReaderTest {
     fun `a trailing comment on a statement is not a doc of the next declaration`() {
         val f = read("message M {\n  option deprecated = true;  // why\n  int32 a = 1;\n}")
         assertNull(f.messages[0].fields[0].doc)
+    }
+
+    @Test
+    fun `an rpc keeps its types, streams, and note`() {
+        val file =
+            read(
+                """
+                syntax = "proto3";
+                // Orders.
+                service Orders {
+                  // Fetch.
+                  rpc Get(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+                  rpc List(ListOrders) returns (stream Order);
+                  rpc Upload(stream Chunk) returns (google.protobuf.Empty);
+                  // schemata: reserved #6, "archive"
+                }
+                """
+            )
+        val s = file.services.single()
+        assertEquals("Orders.", s.doc)
+        assertEquals(listOf("reserved #6, \"archive\""), s.reservedNotes.map { it.first })
+        val (get, list, upload) = s.rpcs
+        assertEquals(ProtoRpcType("OrderId", false), get.request)
+        assertEquals(ProtoRpcType("Order", false), get.response)
+        assertEquals("get \"/orders/{id}\"", get.note)
+        assertEquals("Fetch.", get.doc)
+        assertEquals(ProtoRpcType("Order", true), list.response)
+        assertEquals(ProtoRpcType("Chunk", true), upload.request)
+        assertEquals("google.protobuf.Empty", upload.response.name)
+    }
+
+    @Test
+    fun `a note on an rpc with a body`() {
+        val file =
+            read(
+                """
+                syntax = "proto3";
+                service S {
+                  rpc Old(A) returns (B) {  // schemata: #4; get "/old"
+                    option deprecated = true;
+                  }
+                  option deprecated = true;
+                }
+                """
+            )
+        val s = file.services.single()
+        val old = s.rpcs.single()
+        assertEquals("#4; get \"/old\"", old.note)
+        assertTrue(old.options.any { it.name == "deprecated" && it.value == "true" })
+        assertTrue(s.options.any { it.name == "deprecated" && it.value == "true" })
+    }
+
+    @Test
+    fun `a standalone schemata reserved comment between rpcs is a reserved note and a plain one is a doc`() {
+        val s =
+            read(
+                    """
+                service S {
+                  rpc A(M) returns (M);
+                  // schemata: reserved "gone"
+
+                  // Second.
+                  rpc B(M) returns (M);  // schemata: #2
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(listOf("reserved \"gone\"" to Pos(3, 3)), s.reservedNotes)
+        assertNull(s.rpcs[0].note)
+        assertEquals("Second.", s.rpcs[1].doc)
+        assertEquals("#2", s.rpcs[1].note)
+    }
+
+    @Test
+    fun `a standalone schemata comment that is not a reservation stays a doc`() {
+        val s =
+            read(
+                    """
+                service S {
+                  // schemata: get "/a"
+                  rpc A(M) returns (M);
+                  // schemata: reservedly
+                  rpc B(M) returns (M);
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(emptyList(), s.reservedNotes)
+        assertEquals("schemata: get \"/a\"", s.rpcs[0].doc)
+        assertEquals("schemata: reservedly", s.rpcs[1].doc)
+    }
+
+    @Test
+    fun `a type named stream is the type and not a stream marker`() {
+        val rpc =
+            read(
+                    "service S { rpc A(stream) returns (stream.Item); rpc B(stream stream) returns (M); }"
+                )
+                .services
+                .single()
+                .rpcs
+        assertEquals(ProtoRpcType("stream", false), rpc[0].request)
+        assertEquals(ProtoRpcType("stream.Item", false), rpc[0].response)
+        assertEquals(ProtoRpcType("stream", true), rpc[1].request)
+    }
+
+    @Test
+    fun `an rpc body cut off by the end of the file is a syntax error`() {
+        assertFailsWith<ProtoSyntaxError> {
+            read("service S { rpc A(M) returns (M) { option x = 1;")
+        }
     }
 
     @Test

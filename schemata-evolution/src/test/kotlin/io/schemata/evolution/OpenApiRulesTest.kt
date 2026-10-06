@@ -67,10 +67,10 @@ class OpenApiRulesTest {
     }
 
     @Test
-    fun `the other rulebooks find every service change compatible`() {
+    fun `the rulebooks without services find every service change compatible`() {
         val ctx = ChangeContext(serviceOld, serviceNew)
         val changes = Differ.diff(serviceOld, serviceNew)
-        listOf(ProtoRules, SqlRules, XsdRules, JsonSchemaRules).forEach { rules ->
+        listOf(SqlRules, XsdRules, JsonSchemaRules).forEach { rules ->
             changes.forEach {
                 assertEquals(
                     Verdict.Compatible,
@@ -141,7 +141,7 @@ class OpenApiRulesTest {
         )
         assertEquals(
             "get",
-            ctx.emittedName("proto", OperationOwner(service, service.operations.single())),
+            ctx.emittedName("sql", OperationOwner(service, service.operations.single())),
         )
     }
 

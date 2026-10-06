@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package shop.v1;
+
+import "google/protobuf/empty.proto";
+
+message OrderId {
+  int64 id = 1;
+}
+
+message Order {
+  int64 id = 1;
+  string note = 2;
+}
+
+message Summary {
+  int64 count = 1;
+}
+
+message Chunk {
+  int64 seq = 1;
+  bytes data = 2;
+}
+
+// Read and feed orders.
+service OrderApi {
+  // Fetch one order.
+  rpc Fetch(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+  rpc Watch(.google.protobuf.Empty) returns (stream Summary);  // schemata: get "/summary"
+  // Feed order data; replaced by a batch import.
+  rpc Upload(stream Chunk) returns (.google.protobuf.Empty) {  // schemata: #5; post "/chunks"
+    option deprecated = true;
+  }
+  // schemata: reserved #3..#4, "old"
+}

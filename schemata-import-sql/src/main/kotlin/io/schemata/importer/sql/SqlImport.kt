@@ -388,7 +388,7 @@ private class Lowering(
                 null,
                 imports.toList(),
                 records,
-                first.sourcePath,
+                sourcePath = first.sourcePath,
             )
         }
 

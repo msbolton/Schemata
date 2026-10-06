@@ -472,8 +472,9 @@ wrote 1 file to out/openapi
 ```
 
 The twelve warnings are Protobuf's and Postgres's, of the kinds `shop` already explains; the
-openapi target reports none. The four data targets write `catalog` and `orders` as they would
-without the service. The openapi target writes one document, `shop/orders.openapi.json`, since
+openapi target reports none. The Postgres, XSD, and JSON Schema targets write `catalog` and
+`orders` as they would without the service, and the Protobuf target writes the same messages with a
+gRPC service after them. The openapi target writes one document, `shop/orders.openapi.json`, since
 `shop.catalog` declares no service.
 
 `get` and `cancel` bind `id` in the path, and `cancel` has no response, so it answers `204`.
@@ -587,8 +588,46 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
 ```
 
 `OrderId` and `ListOrders` are not components: their fields are parameters, and nothing refers to
-the records themselves. Section 16 of the reference has every rule, and section 20 shows what
-`schemata diff` says about a changed service.
+the records themselves.
+
+Under `--target proto`, the service is a gRPC `service` at the end of `shop/orders.proto`, after
+the messages, and each operation an `rpc` named in UpperCamel. `cancel` has no response, so it
+returns `.google.protobuf.Empty`, and the file imports `google/protobuf/empty.proto` beside
+`shop/catalog.proto`, which `Order.total`'s `Money` comes from.
+
+From `examples/services/expected/proto/shop/orders.proto`:
+```proto
+import "google/protobuf/empty.proto";
+import "shop/catalog.proto";
+```
+
+The streams carry over as gRPC streams, and the doc comments as `//` comments. A binding has no
+place in a gRPC `service`, so it rides in a `// schemata:` note after its rpc, and the `reserved`
+statement in a note line after the last one. No rpc needs an ordinal in its note, since each
+operation's ordinal is its position.
+
+From `examples/services/expected/proto/shop/orders.proto`:
+```proto
+// Place and read orders.
+service Orders {
+  // Fetch one order.
+  rpc Get(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+  // Orders matching a filter, newest first.
+  rpc List(ListOrders) returns (stream Order);  // schemata: get "/orders"
+  rpc Place(PlaceOrder) returns (Order);  // schemata: post "/orders"
+  rpc Cancel(OrderId) returns (.google.protobuf.Empty);  // schemata: delete "/orders/{id}"
+  rpc Upload(stream Chunk) returns (Receipt);
+  // schemata: reserved #6, "archive"
+}
+```
+
+Those notes are what lets the round trip close: `schemata import --from proto out/proto` reports
+nothing and reads the service back as it is declared above, with its ordinals, bindings, streams,
+docs, and `reserved`, and compiling that import under `--target proto` writes `shop/orders.proto`
+again byte for byte.
+
+Section 16 of the reference has every rule, and section 20 shows what `schemata diff` says about a
+changed service.
 
 ## GPX
 
