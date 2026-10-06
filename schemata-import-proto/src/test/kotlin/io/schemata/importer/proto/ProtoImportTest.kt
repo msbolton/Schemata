@@ -681,6 +681,83 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `an unreadable reserved note is reported at its own line`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);
+                      // schemata: reserved #
+                    }
+                    """
+            )
+        assertEquals(listOf(6), r.diagnostics.map { it.span.startLine })
+    }
+
+    @Test
+    fun `an ordinal a note repeats takes the next free one`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);  // schemata: #2
+                      rpc B(M) returns (M);
+                      rpc C(M) returns (M);
+                    }
+                    """
+            )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n" +
+                "  #2 a(M): M\n  #3 b(M): M\n  #4 c(M): M\n}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used; the next free ordinal is taken",
+                "SCH2403 service 'S': rpc 'C': ordinal #3 is already used; the next free ordinal is taken",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an ordinal the service reserves takes the next free one`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);
+                      rpc B(M) returns (M);
+                      // schemata: reserved #2
+                    }
+                    """
+            )
+        assertEquals(
+            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n" +
+                "  #1 a(M): M\n  #3 b(M): M\n  reserved #2\n}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used; the next free ordinal is taken"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `a payload from another namespace is imported`() {
         val r =
             importText(

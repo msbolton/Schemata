@@ -1829,9 +1829,11 @@ imports as, `stream` kept. `google.protobuf.Empty` is no payload: an empty `()` 
 
 The notes the target writes on a service are read back. The note after an rpc gives its ordinal
 and binding, `// schemata: #5; delete "/items/{name}"`, either part alone or both; a note line
-inside the service, `// schemata: reserved #6, "archive"`, gives its `reserved`. An operation with
-no ordinal in its note takes its position among the rpcs kept, counting from 1. A note that does
-not read is ignored and the operation kept (SCH2403).
+inside the service, `// schemata: reserved #6, "archive"`, gives its `reserved`, and any other
+`// schemata:` line there stays a doc comment. An operation with no ordinal in its note takes its
+position among the rpcs kept, counting from 1. A note that does not read is ignored and the
+operation kept (SCH2403). An ordinal that an earlier operation of the service already holds, or
+that the service reserves, gives way to the next free one above it (SCH2403).
 
 From `schemata-cli/src/test/resources/import/proto-kitchen/kitchen/services.proto`:
 

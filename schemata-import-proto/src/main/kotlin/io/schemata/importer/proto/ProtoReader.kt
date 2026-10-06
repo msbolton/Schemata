@@ -525,10 +525,10 @@ object ProtoReader {
             expect("{")
             val rpcs = mutableListOf<ProtoRpc>()
             val options = mutableListOf<ProtoOption>()
-            val reservedNotes = mutableListOf<String>()
+            val reservedNotes = mutableListOf<Pair<String, Pos>>()
             while (true) {
                 peek()
-                reservedNotes += takeStandaloneNotes()
+                reservedNotes += takeReservedNotes()
                 if (at("}")) break
                 when {
                     at(";") -> next()
@@ -543,14 +543,24 @@ object ProtoReader {
         }
 
         /**
-         * Removes the `//` comments starting with `schemata:` from the comments standing on their
-         * own lines, returning the trimmed text after `schemata:` of each; the rest stay to become
-         * the next declaration's doc.
+         * Removes the `//` comments starting with `schemata: reserved` from the comments standing
+         * on their own lines, returning the trimmed text after `schemata:` of each with where the
+         * comment starts; the rest, other `schemata:` comments included, stay to become the next
+         * declaration's doc.
          */
-        private fun takeStandaloneNotes(): List<String> {
-            val notes = pending.filter { !it.block && it.text.trim().startsWith("schemata:") }
+        private fun takeReservedNotes(): List<Pair<String, Pos>> {
+            val notes = pending.filter { !it.block && reservedNote(it.text) != null }
             pending.removeAll(notes)
-            return notes.map { it.text.trim().removePrefix("schemata:").trim() }
+            return notes.map { reservedNote(it.text)!! to it.pos }
+        }
+
+        /** The text after `schemata:` when [comment] is a `schemata: reserved` note, else null. */
+        private fun reservedNote(comment: String): String? {
+            val text = comment.trim()
+            if (!text.startsWith("schemata:")) return null
+            val note = text.removePrefix("schemata:").trim()
+            val word = note.takeWhile { !it.isWhitespace() }
+            return note.takeIf { word == "reserved" }
         }
 
         /**

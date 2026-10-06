@@ -313,6 +313,24 @@ private class FieldType(
 /** One value type: a scalar, a well-known type, or a reference. */
 private class Single(val type: UnitType, val nullable: Boolean, val symbol: Symbol?)
 
+/**
+ * The ordinals a service's operations have taken so far, beside its [reserved] ranges, which none
+ * may take: Schemata refuses two operations of one ordinal and an operation on a reserved one.
+ */
+private class RpcOrdinals(private val reserved: List<IntRange>) {
+    private val used = mutableSetOf<Int>()
+
+    private fun free(n: Int): Boolean = n !in used && reserved.none { n in it }
+
+    /** [wanted] when it is free, else the next free ordinal above it; either is now taken. */
+    fun claim(wanted: Int): Int {
+        var n = maxOf(wanted, 1)
+        while (!free(n)) n++
+        used += n
+        return n
+    }
+}
+
 private class FileLowering(
     val file: ProtoFile,
     val namespace: String,
@@ -363,22 +381,30 @@ private class FileLowering(
             val name = typeName(s.name)
             if (!claim(topLevel, name, "service", "service", s.name, s.pos)) return@mapNotNull null
             val where = "service '${s.name}'"
+            // Read before the rpcs, whose ordinals must avoid the reserved ones, but reported
+            // after them, where the notes stand.
+            val notes = s.reservedNotes.map { (text, _) -> NoteText.parseReservedNote(text) }
+            val reserved = notes.flatMap { it.orEmpty() }
+            val ordinals =
+                RpcOrdinals(
+                    reserved.filterIsInstance<UnitReserved.Ordinals>().map { it.from..it.to }
+                )
             val claimed = mutableMapOf<String, String>()
             val operations = mutableListOf<UnitOperation>()
             s.rpcs.forEach { rpc ->
-                operation(rpc, where, claimed, operations.size + 1)?.let { operations += it }
-            }
-            val reserved =
-                s.reservedNotes.flatMap { text ->
-                    NoteText.parseReservedNote(text)
-                        ?: emptyList<UnitReserved>().also {
-                            report(
-                                ImportCodes.APPROXIMATED,
-                                "$where: note '$text' cannot be read; ignored",
-                                s.pos,
-                            )
-                        }
+                operation(rpc, where, claimed, operations.size + 1, ordinals)?.let {
+                    operations += it
                 }
+            }
+            s.reservedNotes.zip(notes).forEach { (note, parsed) ->
+                if (parsed == null) {
+                    report(
+                        ImportCodes.APPROXIMATED,
+                        "$where: note '${note.first}' cannot be read; ignored",
+                        note.second,
+                    )
+                }
+            }
             UnitService(
                 name = name,
                 operations = operations,
@@ -394,12 +420,14 @@ private class FileLowering(
      * `google.protobuf.Empty` for none. The target writes the UpperCamel form of the operation's
      * name, so a name that form does not give back keeps its proto spelling in `@proto(name)`. A
      * note's ordinal wins; otherwise the operation takes [position], its place among the rpcs kept.
+     * An ordinal [ordinals] already holds is replaced by the next free one.
      */
     private fun operation(
         rpc: ProtoRpc,
         service: String,
         claimed: MutableMap<String, String>,
         position: Int,
+        ordinals: RpcOrdinals,
     ): UnitOperation? {
         val where = "$service: rpc '${rpc.name}'"
         val scope = context.symbols.scopeOf(file)
@@ -435,7 +463,7 @@ private class FileLowering(
             return null
         }
         val annotations =
-            if (ImportNames.upperCamel(name) == rpc.name) emptyList()
+            if (Names.upperCamel(name) == rpc.name) emptyList()
             else {
                 report(ImportCodes.RENAMED, "$where: renamed to '$name'", rpc.pos, RPC_RENAME_HELP)
                 listOf(UnitAnnotation("proto", "name", SchemataText.string(rpc.name)))
@@ -455,6 +483,15 @@ private class FileLowering(
             resolved.map { r ->
                 r?.let { (t, symbol) -> UnitPayload(reference(symbol, emptyList()), t.stream) }
             }
+        val wanted = note?.ordinal ?: position
+        val ordinal = ordinals.claim(wanted)
+        if (ordinal != wanted) {
+            report(
+                ImportCodes.APPROXIMATED,
+                "$where: ordinal #$wanted is already used; the next free ordinal is taken",
+                rpc.pos,
+            )
+        }
         return UnitOperation(
             name = name,
             request = request,
@@ -462,7 +499,7 @@ private class FileLowering(
             binding = note?.binding,
             doc = rpc.doc,
             annotations = annotations,
-            ordinal = note?.ordinal ?: position,
+            ordinal = ordinal,
             deprecated = rpc.options.flag("deprecated"),
         )
     }

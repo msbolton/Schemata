@@ -98,14 +98,15 @@ data class ProtoRpc(
 /**
  * A service. [options] are its own `option` statements; [doc] is its leading comment block.
  * [reservedNotes] holds the `//` comments in its body that stand on their own line and start with
- * `schemata:` (such as `// schemata: reserved #6`), each as the trimmed text after `schemata:`.
+ * `schemata: reserved` (such as `// schemata: reserved #6`), each as the trimmed text after
+ * `schemata:` with where the comment starts.
  */
 data class ProtoService(
     val name: String,
     val rpcs: List<ProtoRpc>,
     val options: List<ProtoOption>,
     val doc: String?,
-    val reservedNotes: List<String>,
+    val reservedNotes: List<Pair<String, Pos>>,
     val pos: Pos,
 )
 

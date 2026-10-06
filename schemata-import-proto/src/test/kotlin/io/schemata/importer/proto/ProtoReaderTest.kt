@@ -179,7 +179,7 @@ class ProtoReaderTest {
             )
         val s = file.services.single()
         assertEquals("Orders.", s.doc)
-        assertEquals(listOf("reserved #6, \"archive\""), s.reservedNotes)
+        assertEquals(listOf("reserved #6, \"archive\""), s.reservedNotes.map { it.first })
         val (get, list, upload) = s.rpcs
         assertEquals(ProtoRpcType("OrderId", false), get.request)
         assertEquals(ProtoRpcType("Order", false), get.response)
@@ -212,7 +212,7 @@ class ProtoReaderTest {
     }
 
     @Test
-    fun `a standalone schemata comment between rpcs is reserved and a plain one is a doc`() {
+    fun `a standalone schemata reserved comment between rpcs is a reserved note and a plain one is a doc`() {
         val s =
             read(
                     """
@@ -227,10 +227,30 @@ class ProtoReaderTest {
                 )
                 .services
                 .single()
-        assertEquals(listOf("reserved \"gone\""), s.reservedNotes)
+        assertEquals(listOf("reserved \"gone\"" to Pos(3, 3)), s.reservedNotes)
         assertNull(s.rpcs[0].note)
         assertEquals("Second.", s.rpcs[1].doc)
         assertEquals("#2", s.rpcs[1].note)
+    }
+
+    @Test
+    fun `a standalone schemata comment that is not a reservation stays a doc`() {
+        val s =
+            read(
+                    """
+                service S {
+                  // schemata: get "/a"
+                  rpc A(M) returns (M);
+                  // schemata: reservedly
+                  rpc B(M) returns (M);
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(emptyList(), s.reservedNotes)
+        assertEquals("schemata: get \"/a\"", s.rpcs[0].doc)
+        assertEquals("schemata: reservedly", s.rpcs[1].doc)
     }
 
     @Test
