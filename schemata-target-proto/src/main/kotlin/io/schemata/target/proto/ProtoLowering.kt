@@ -142,6 +142,7 @@ object ProtoLowering {
                     Symbol(rpcNames.getValue(it), "operation '${it.name}'", it.nameSpan)
                 }
             )
+            val shadowing = rpcNames.values.toSet()
             val rpcs =
                 service.operations.mapIndexed { index, op ->
                     val notes = mutableListOf<String>()
@@ -149,8 +150,8 @@ object ProtoLowering {
                     op.binding?.let { notes += "${it.verb.lower} ${SchemataText.string(it.path)}" }
                     ProtoRpc(
                         name = rpcNames.getValue(op),
-                        request = rpcType(op.request),
-                        response = rpcType(op.response),
+                        request = rpcType(op.request, shadowing),
+                        response = rpcType(op.response, shadowing),
                         doc = op.doc,
                         notes = notes,
                         deprecated = op.annotations.deprecated,
@@ -169,13 +170,24 @@ object ProtoLowering {
          * No payload is `google.protobuf.Empty`, which proto offers for exactly that. It is spelled
          * with a leading dot, as the other well-known types are: a relative `google.…` would
          * resolve against any `google` visible from the file's package first.
+         *
+         * protoc resolves an rpc's types from inside the service, where every rpc name of the
+         * service is a symbol, so a relative payload whose first segment is one of [rpcNames] would
+         * resolve to that rpc. Such a payload is spelled from the package, with a leading dot.
          */
-        private fun rpcType(payload: Payload?): ProtoRpcType {
+        private fun rpcType(payload: Payload?, rpcNames: Set<String>): ProtoRpcType {
             if (payload == null) {
                 imports += EMPTY
                 return ProtoRpcType(".google.protobuf.Empty", stream = false)
             }
-            return ProtoRpcType(reference(payload.target, emptyList()).reference, payload.stream)
+            val reference = reference(payload.target, emptyList()).reference
+            val spelled =
+                if (!reference.startsWith(".") && reference.substringBefore('.') in rpcNames) {
+                    ".${packages.getValue(namespace.name)}.$reference"
+                } else {
+                    reference
+                }
+            return ProtoRpcType(spelled, payload.stream)
         }
 
         /** `reserved #3, #5..#7, "archive"`: ordinals as `#n` or `#a..#b`, then quoted names. */

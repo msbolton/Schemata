@@ -1,0 +1,18 @@
+schema shadow_rpc
+table shadow_rpc.line
+  column sku text not null
+  column quantity integer not null
+  constraint pk_line PRIMARY KEY (sku)
+table shadow_rpc.order
+  column id bigint not null
+  column note text not null
+  constraint pk_order PRIMARY KEY (id)
+table shadow_rpc.order_id
+  column id bigint not null
+  constraint pk_order_id PRIMARY KEY (id)
+table shadow_rpc.place_order
+  column customer_id bigint not null
+  constraint pk_place_order PRIMARY KEY (customer_id)
+table shadow_rpc.receipt
+  column count bigint not null
+  constraint pk_receipt PRIMARY KEY (count)

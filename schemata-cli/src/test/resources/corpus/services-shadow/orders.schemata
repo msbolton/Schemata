@@ -1,0 +1,22 @@
+/// Orders whose operations share their payloads' names.
+namespace corpus.shadow_rpc
+
+record PlaceOrder { @sql(key) #1 customer_id: int64 }
+
+record Order {
+  @sql(key) #1 id: int64
+  #2 note: string
+
+  record Line { @sql(key) #1 sku: string #2 quantity: int32 }
+}
+
+record OrderId { @sql(key) #1 id: int64 }
+
+record Receipt { @sql(key) #1 count: int64 }
+
+/// Place, amend, and cancel orders.
+service Orders {
+  #1 place_order(PlaceOrder): Order
+  #2 order(Order.Line): Order
+  #3 cancel(OrderId): Receipt
+}

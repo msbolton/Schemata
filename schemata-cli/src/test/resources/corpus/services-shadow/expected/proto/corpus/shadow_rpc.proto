@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package corpus.shadow_rpc;
+
+message PlaceOrder {
+  int64 customer_id = 1;
+}
+
+message Order {
+  int64 id = 1;
+  string note = 2;
+
+  message Line {
+    string sku = 1;
+    int32 quantity = 2;
+  }
+}
+
+message OrderId {
+  int64 id = 1;
+}
+
+message Receipt {
+  int64 count = 1;
+}
+
+// Place, amend, and cancel orders.
+service Orders {
+  rpc PlaceOrder(.corpus.shadow_rpc.PlaceOrder) returns (.corpus.shadow_rpc.Order);
+  rpc Order(.corpus.shadow_rpc.Order.Line) returns (.corpus.shadow_rpc.Order);
+  rpc Cancel(OrderId) returns (Receipt);
+}

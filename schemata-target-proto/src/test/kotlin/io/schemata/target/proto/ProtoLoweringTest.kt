@@ -1169,6 +1169,25 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a payload whose first segment is an rpc name of the service is spelled absolutely`() {
+        val lowered =
+            lower(
+                "namespace shop\n" +
+                    "record PlaceOrder { #1 x: int32 }\n" +
+                    "record Order { #1 x: int32 record Line { #1 y: int32 } }\n" +
+                    "record Receipt { #1 x: int32 }\n" +
+                    "service Orders { #1 place_order(PlaceOrder): Receipt #2 order(Order.Line): Order }"
+            )
+        val rpcs = lowered.file("shop.proto").services.single().rpcs
+        assertEquals(".shop.PlaceOrder", rpcs[0].request.reference)
+        assertEquals("Receipt", rpcs[0].response.reference)
+        assertEquals(".shop.Order.Line", rpcs[1].request.reference)
+        assertEquals(".shop.Order", rpcs[1].response.reference)
+        val outs = ProtoRenderer.render(lowered.model)
+        assertNull(Protoc.compile(outs.associate { it.path to it.content }))
+    }
+
+    @Test
     fun `a schema without services imports no Empty`() {
         val file = lower("namespace t\nrecord R { #1 x: int32 }").file("t.proto")
         assertEquals(emptyList(), file.imports)
