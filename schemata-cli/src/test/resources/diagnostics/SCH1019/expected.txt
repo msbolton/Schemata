@@ -1,5 +1,5 @@
 error[SCH1019]: ordinal #1 is used more than once in record 'R'
- --> s.schemata:2:24
+ --> s.schemata:3:22
   = help: give each element its own ordinal; the next free one is #2
 
 1 error, 0 warnings

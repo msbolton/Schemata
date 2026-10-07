@@ -1,4 +1,7 @@
-@openapi(server = "not a url")
-namespace s
-record R { #1 ok: bool }
-service S { #1 ping(): R }
+schema s @openapi(server: "not a url")
+
+model R { #1 ok bool }
+
+service S {
+  #1 ping(): R
+}

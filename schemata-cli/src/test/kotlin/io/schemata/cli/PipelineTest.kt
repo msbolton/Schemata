@@ -12,20 +12,11 @@ class PipelineTest {
         SourceInput(
             "src/orders.schemata",
             """
-            namespace shop.orders
+            schema shop.orders
 
-            record User {
-              @sql(key) id:    uuid
-              email: string?
-              name:  string
-              age:   int32
-            }
+            model User { id uuid { id }  email string?  name string  age int32 }
 
-            record Session {
-              @sql(key) token:   string
-              user_id: uuid
-              active:  bool
-            }
+            model Session { token string { id }  user_id uuid  active bool }
             """
                 .trimIndent(),
         )
@@ -34,12 +25,9 @@ class PipelineTest {
         SourceInput(
             "src/customers.schemata",
             """
-            namespace shop.customers
+            schema shop.customers
 
-            record Customer {
-              @sql(key) id:   uuid
-              name: string
-            }
+            model Customer { id uuid { id }  name string }
             """
                 .trimIndent(),
         )
@@ -68,8 +56,8 @@ class PipelineTest {
 
     @Test
     fun `stops at the first failing stage and reports every file's syntax errors`() {
-        val bad1 = SourceInput("a.schemata", "namespace a\nrecord R { x uuid }")
-        val bad2 = SourceInput("b.schemata", "namespace b\nrecord S { y uuid }")
+        val bad1 = SourceInput("a.schemata", "schema a\nmodel R { x: uuid }")
+        val bad2 = SourceInput("b.schemata", "schema b\nmodel S { y: uuid }")
         val syntax = Pipeline.compile(listOf(bad1, bad2), Pipeline.targets)
         assertTrue(syntax.hasErrors)
         assertEquals(emptyList(), syntax.files)
@@ -77,7 +65,7 @@ class PipelineTest {
 
         val semantic =
             Pipeline.compile(
-                listOf(SourceInput("c.schemata", "namespace c\nrecord R { x: money }")),
+                listOf(SourceInput("c.schemata", "schema c\n\nmodel R { x money }")),
                 Pipeline.targets,
             )
         assertTrue(semantic.hasErrors)
@@ -86,7 +74,7 @@ class PipelineTest {
 
     @Test
     fun `strict is threaded through to the analyzer`() {
-        val src = SourceInput("src/t.schemata", "namespace a\n\nrecord R {\n  x: bool\n}")
+        val src = SourceInput("src/t.schemata", "schema a\n\nmodel R { x bool }")
         val strict = Pipeline.compile(listOf(src), listOf(ProtoTarget), strict = true)
         assertEquals(listOf("SCH1014"), strict.diagnostics.map { it.code.id })
         assertTrue(
@@ -104,11 +92,7 @@ class PipelineTest {
 
     @Test
     fun `annotations of every known target are accepted whatever targets are selected`() {
-        val src =
-            SourceInput(
-                "src/t.schemata",
-                "namespace a\n\nrecord R {\n  @sql(key)\n  id: uuid\n  x: bool\n}",
-            )
+        val src = SourceInput("src/t.schemata", "schema a\n\nmodel R { id uuid { id }  x bool }")
         val result = Pipeline.compile(listOf(src), listOf(ProtoTarget))
         assertTrue(result.diagnostics.none { it.code.id.startsWith("SCH1") })
         assertEquals(setOf("SCH2001"), result.diagnostics.map { it.code.id }.toSet())
@@ -121,11 +105,11 @@ class PipelineTest {
             SourceInput(
                 "p.schemata",
                 """
-                namespace p
+                schema p
 
-                record Orphan { #1 name: string }
+                model Orphan { #1 name string }
 
-                record R { @sql(key) #1 id: uuid }
+                model R { #1 id uuid { id } }
                 """
                     .trimIndent(),
             )

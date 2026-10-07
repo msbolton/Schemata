@@ -1,6 +1,6 @@
 # targets=proto
 warning[SCH2001] (lossy) (proto): field 'R.d': decimal has no Protobuf representation; lowered to string
- --> s.schemata:2:36
+ --> s.schemata:3:31
   = help: keep the string form; parse it in application code
 
 0 errors, 1 warning

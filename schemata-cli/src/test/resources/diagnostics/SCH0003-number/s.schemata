@@ -1,2 +1,2 @@
-namespace s
-record R { #1 x: int64 = 99999999999999999999 }
+schema s
+model R { #1 x int64 = 99999999999999999999 }

@@ -12,10 +12,10 @@ import org.junit.jupiter.api.io.TempDir
 class RenameTest {
     @TempDir lateinit var dir: Path
 
-    private val customers = "namespace shop.customers\nrecord Customer { #1 id: uuid }\n"
+    private val customers = "schema shop.customers\nmodel Customer { #1 id uuid }\n"
     private val orders =
-        "namespace shop.orders\nimport shop.customers\n" +
-            "record Order { /* 😀 */ #1 who: Customer #2 all: list<Customer> }\n"
+        "schema shop.orders\nimport shop.customers\n" +
+            "model Order { /* 😀 */ #1 who Customer #2 all Customer[] }\n"
 
     /** Applies [edits] to [text], last edit first so earlier offsets stay valid. */
     private fun apply(text: String, edits: List<TextEdit>): String {
@@ -51,10 +51,10 @@ class RenameTest {
         val c = f.open("shop/customers.schemata", customers)
         val o = f.open("shop/orders.schemata", orders)
         val after = renameAndReanalyse(f, o, f.at(o, "Customer"), "Client")
-        assertEquals("namespace shop.customers\nrecord Client { #1 id: uuid }\n", after[c])
+        assertEquals("schema shop.customers\nmodel Client { #1 id uuid }\n", after[c])
         assertEquals(
-            "namespace shop.orders\nimport shop.customers\n" +
-                "record Order { /* 😀 */ #1 who: Client #2 all: list<Client> }\n",
+            "schema shop.orders\nimport shop.customers\n" +
+                "model Order { /* 😀 */ #1 who Client #2 all Client[] }\n",
             after[o],
         )
     }
@@ -77,13 +77,14 @@ class RenameTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\n@sql(unique = (first, second))\n" +
-                    "record R { #1 first: int32 #2 second: int32 }\n",
+                "schema m\n@sql(unique: (first, second))\n" +
+                    "model R { #1 first int32 #2 second int32 }\n",
             )
-        val edits = assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "first: "), "primary"))
+        val edits =
+            assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "first int32"), "primary"))
         assertEquals(
-            "namespace m\n@sql(unique = (primary, second))\n" +
-                "record R { #1 primary: int32 #2 second: int32 }\n",
+            "schema m\n@sql(unique: (primary, second))\n" +
+                "model R { #1 primary int32 #2 second int32 }\n",
             apply(f.text(a), edits.edits.getValue(a)),
         )
     }
@@ -94,12 +95,12 @@ class RenameTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nenum Status { #1 pending, #2 paid }\n" +
-                    "record R { #1 s: Status = pending }\n",
+                "schema m\nenum Status { #1 pending, #2 paid }\n" +
+                    "model R { #1 s Status = pending }\n",
             )
         val after = renameAndReanalyse(f, a, f.at(a, "pending"), "open")
         assertEquals(
-            "namespace m\nenum Status { #1 open, #2 paid }\nrecord R { #1 s: Status = open }\n",
+            "schema m\nenum Status { #1 open, #2 paid }\nmodel R { #1 s Status = open }\n",
             after[a],
         )
     }
@@ -111,14 +112,14 @@ class RenameTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers as cust\n" +
-                    "record Order { #1 who: cust.Customer }\n",
+                "schema shop.orders\nimport shop.customers as cust\n" +
+                    "model Order { #1 who cust.Customer }\n",
             )
         val after = renameAndReanalyse(f, o, f.at(o, "cust.Customer"), "c")
         assertEquals(setOf(o), after.keys)
         assertEquals(
-            "namespace shop.orders\nimport shop.customers as c\n" +
-                "record Order { #1 who: c.Customer }\n",
+            "schema shop.orders\nimport shop.customers as c\n" +
+                "model Order { #1 who c.Customer }\n",
             after[o],
         )
     }
@@ -126,12 +127,12 @@ class RenameTest {
     @Test
     fun `prepare returns the name's range and nothing for what cannot be renamed`() {
         val f = Fixture(dir)
-        f.open("shop/customers.schemata", customers)
+        val c = f.open("shop/customers.schemata", customers)
         val o = f.open("shop/orders.schemata", orders)
         assertEquals(f.range(o, "Customer"), f.queries.prepareRename(o, f.at(o, "Customer")))
         assertNull(f.queries.prepareRename(o, f.at(o, "shop.customers")))
-        assertNull(f.queries.prepareRename(o, f.at(o, "list")))
-        assertNull(f.queries.prepareRename(o, f.at(o, "record")))
+        assertNull(f.queries.prepareRename(c, f.at(c, "uuid")))
+        assertNull(f.queries.prepareRename(o, f.at(o, "model")))
     }
 
     private fun refusal(f: Fixture, path: String, position: TextPosition, name: String): String =
@@ -145,7 +146,7 @@ class RenameTest {
         val at = f.at(o, "Order")
         assertEquals("'9lives' is not a valid name", refusal(f, o, at, "9lives"))
         assertEquals("'has space' is not a valid name", refusal(f, o, at, "has space"))
-        assertEquals("'record' is a keyword", refusal(f, o, at, "record"))
+        assertEquals("'model' is a keyword", refusal(f, o, at, "model"))
         assertEquals(
             "'all' is already a field of shop.orders.Order",
             refusal(f, o, f.at(o, "who"), "all"),
@@ -155,8 +156,8 @@ class RenameTest {
     @Test
     fun `rename refuses a declaration name taken anywhere in the namespace`() {
         val f = Fixture(dir)
-        val a = f.open("m/a.schemata", "namespace m\nrecord A { #1 x: int32 }\n")
-        f.open("m/b.schemata", "namespace m\nrecord B { #1 x: int32 }\n")
+        val a = f.open("m/a.schemata", "schema m\nmodel A { #1 x int32 }\n")
+        f.open("m/b.schemata", "schema m\nmodel B { #1 x int32 }\n")
         assertEquals("'B' is already declared in m", refusal(f, a, f.at(a, "A"), "B"))
     }
 
@@ -169,7 +170,7 @@ class RenameTest {
             "a namespace cannot be renamed; it is the name its files declare",
             refusal(f, o, f.at(o, "shop.customers"), "x"),
         )
-        assertEquals("nothing to rename here", refusal(f, o, f.at(o, "record"), "x"))
+        assertEquals("nothing to rename here", refusal(f, o, f.at(o, "model"), "x"))
     }
 
     @Test
@@ -177,14 +178,14 @@ class RenameTest {
         val f = Fixture(dir)
         val c = f.open("shop/customers.schemata", customers)
         val o = f.open("shop/orders.schemata", orders)
-        f.workspace.change(c, "namespace shop.customers\nrecord Customer {")
+        f.workspace.change(c, "schema shop.customers\nmodel Customer {")
         val message = refusal(f, o, f.at(o, "Order"), "Purchase")
         assertTrue(message.startsWith("fix the syntax errors in customers.schemata"), message)
     }
 
     private val nested =
-        "namespace m\nrecord Item { #1 x: int32 }\n" +
-            "record Order {\n  record Line { #1 y: int32 }\n  #1 item: Item\n  #2 line: Line\n}\n"
+        "schema m\nmodel Item { #1 x int32 }\n" +
+            "model Order {\n  model Line { #1 y int32 }\n  #1 item Item\n  #2 line Line\n}\n"
 
     @Test
     fun `rename refuses a nested name that would capture a use of a top-level one`() {
@@ -213,9 +214,9 @@ class RenameTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\n" +
-                    "record Client { #1 id: uuid }\n" +
-                    "record Order { #1 who: Customer #2 by: Client }\n",
+                "schema shop.orders\nimport shop.customers\n" +
+                    "model Client { #1 id uuid }\n" +
+                    "model Order { #1 who Customer #2 by Client }\n",
             )
         assertEquals(
             "renaming to 'Customer' would introduce errors",
@@ -229,13 +230,13 @@ class RenameTest {
         val c =
             f.open(
                 "shop/customers.schemata",
-                "namespace shop.customers\nrecord Customer { #1 id: uuid }\n" +
-                    "record Foo { #1 id: uuid }\n",
+                "schema shop.customers\nmodel Customer { #1 id uuid }\n" +
+                    "model Foo { #1 id uuid }\n",
             )
         f.open(
             "shop/orders.schemata",
-            "namespace shop.orders\nimport shop.customers\n" +
-                "record Order { #1 who: Customer }\nrecord Book { #1 last: Order }\n",
+            "schema shop.orders\nimport shop.customers\n" +
+                "model Order { #1 who Customer }\nmodel Book { #1 last Order }\n",
         )
         assertEquals(
             "renaming to 'Order' would introduce errors",
@@ -261,8 +262,8 @@ class RenameTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers as cust\n" +
-                    "record Order { #1 who: cust.Customer }\n",
+                "schema shop.orders\nimport shop.customers as cust\n" +
+                    "model Order { #1 who cust.Customer }\n",
             )
         assertEquals(
             "renaming to 'Order' would introduce errors",
@@ -275,8 +276,8 @@ class RenameTest {
         val c = f.open("shop/customers.schemata", customers)
         f.open(
             "shop/orders.schemata",
-            "namespace shop.orders\nimport shop.customers\n" +
-                "record Order {\n  #1 who: Customer\n  #2 odd: $type\n}\n",
+            "schema shop.orders\nimport shop.customers\n" +
+                "model Order {\n  #1 who Customer\n  #2 odd $type\n}\n",
         )
         return refusal(f, c, f.at(c, "Customer"), "Client")
     }
@@ -312,8 +313,8 @@ class RenameTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers as cust\n" +
-                    "record Order {\n  #1 who: cust.Customer\n  #2 odd: list<cust.Customer, int32>\n}\n",
+                "schema shop.orders\nimport shop.customers as cust\n" +
+                    "model Order {\n  #1 who cust.Customer\n  #2 odd list<cust.Customer, int32>\n}\n",
             )
         assertEquals(
             "fix the type at orders.schemata:5 before renaming",
@@ -327,12 +328,12 @@ class RenameTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nrecord Card { #1 n: string }\nrecord Cash {}\n" +
+                "schema m\nmodel Card { #1 n string }\nmodel Cash {}\n" +
                     "union Payment = #1 Card | #2 Cash\n",
             )
         val after = renameAndReanalyse(f, a, f.at(a, "Card |"), "CreditCard")
         assertEquals(
-            "namespace m\nrecord CreditCard { #1 n: string }\nrecord Cash {}\n" +
+            "schema m\nmodel CreditCard { #1 n string }\nmodel Cash {}\n" +
                 "union Payment = #1 CreditCard | #2 Cash\n",
             after[a],
         )
@@ -344,13 +345,13 @@ class RenameTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nrecord Item { #1 n: string }\n" +
-                    "record Bag { #1 by_name: map<string, Item> #2 all: list<Item> }\n",
+                "schema m\nmodel Item { #1 n string }\n" +
+                    "model Bag { #1 by_name map<string, Item> #2 all Item[] }\n",
             )
         val after = renameAndReanalyse(f, a, f.at(a, "Item {"), "Thing")
         assertEquals(
-            "namespace m\nrecord Thing { #1 n: string }\n" +
-                "record Bag { #1 by_name: map<string, Thing> #2 all: list<Thing> }\n",
+            "schema m\nmodel Thing { #1 n string }\n" +
+                "model Bag { #1 by_name map<string, Thing> #2 all Thing[] }\n",
             after[a],
         )
     }
@@ -359,21 +360,21 @@ class RenameTest {
     fun `renaming through an alias to an alias rewrites each link`() {
         val f = Fixture(dir)
         val text =
-            "namespace m\nrecord Item { #1 n: string }\nalias First = Item\nalias Second = First\n" +
-                "record Use { #1 a: First #2 b: Second }\n"
+            "schema m\nmodel Item { #1 n string }\nalias First = Item\nalias Second = First\n" +
+                "model Use { #1 a First #2 b Second }\n"
         val a = f.open("m/a.schemata", text)
         val once = renameAndReanalyse(f, a, f.at(a, "First ="), "Head").getValue(a)
         assertEquals(
-            "namespace m\nrecord Item { #1 n: string }\nalias Head = Item\nalias Second = Head\n" +
-                "record Use { #1 a: Head #2 b: Second }\n",
+            "schema m\nmodel Item { #1 n string }\nalias Head = Item\nalias Second = Head\n" +
+                "model Use { #1 a Head #2 b Second }\n",
             once,
         )
         val g = Fixture(dir)
         val b = g.open("m/a.schemata", once)
         val twice = renameAndReanalyse(g, b, g.at(b, "Item {"), "Thing").getValue(b)
         assertEquals(
-            "namespace m\nrecord Thing { #1 n: string }\nalias Head = Thing\nalias Second = Head\n" +
-                "record Use { #1 a: Head #2 b: Second }\n",
+            "schema m\nmodel Thing { #1 n string }\nalias Head = Thing\nalias Second = Head\n" +
+                "model Use { #1 a Head #2 b Second }\n",
             twice,
         )
     }
@@ -385,29 +386,26 @@ class RenameTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nrecord Order { #1 who: shop.customers.Customer }\n",
+                "schema shop.orders\nmodel Order { #1 who shop.customers.Customer }\n",
             )
         val after = renameAndReanalyse(f, c, f.at(c, "Customer"), "Client")
-        assertEquals(
-            "namespace shop.orders\nrecord Order { #1 who: shop.customers.Client }\n",
-            after[o],
-        )
+        assertEquals("schema shop.orders\nmodel Order { #1 who shop.customers.Client }\n", after[o])
     }
 
     @Test
     fun `renaming an outer and an inner declaration rewrites a qualified nested use`() {
         val f = Fixture(dir)
         val text =
-            "namespace shop.orders\nrecord Order {\n  record Line { #1 n: int32 }\n  #1 l: Line\n}\n"
+            "schema shop.orders\nmodel Order {\n  model Line { #1 n int32 }\n  #1 l Line\n}\n"
         val o = f.open("shop/orders.schemata", text)
         val b =
             f.open(
                 "shop/billing.schemata",
-                "namespace shop.billing\nrecord Bill { #1 line: shop.orders.Order.Line }\n",
+                "schema shop.billing\nmodel Bill { #1 line shop.orders.Order.Line }\n",
             )
         val once = renameAndReanalyse(f, o, f.at(o, "Line {"), "Entry")
         assertEquals(
-            "namespace shop.billing\nrecord Bill { #1 line: shop.orders.Order.Entry }\n",
+            "schema shop.billing\nmodel Bill { #1 line shop.orders.Order.Entry }\n",
             once[b],
         )
         val g = Fixture(dir)
@@ -415,11 +413,11 @@ class RenameTest {
         val b2 = g.open("shop/billing.schemata", once.getValue(b))
         val twice = renameAndReanalyse(g, b2, g.at(b2, "Order."), "Purchase")
         assertEquals(
-            "namespace shop.billing\nrecord Bill { #1 line: shop.orders.Purchase.Entry }\n",
+            "schema shop.billing\nmodel Bill { #1 line shop.orders.Purchase.Entry }\n",
             twice[b2],
         )
         assertEquals(
-            "namespace shop.orders\nrecord Purchase {\n  record Entry { #1 n: int32 }\n  #1 l: Entry\n}\n",
+            "schema shop.orders\nmodel Purchase {\n  model Entry { #1 n int32 }\n  #1 l Entry\n}\n",
             twice[o2],
         )
     }
@@ -430,11 +428,11 @@ class RenameTest {
         val c = f.write("shop/customers.schemata", customers)
         val o = f.open("shop/orders.schemata", orders)
         f.workspace.analysis(f.workspace.keyOf(o))
-        val moved = "namespace shop.customers\n\n// moved down\nrecord Customer { #1 id: uuid }\n"
+        val moved = "schema shop.customers\n\n// moved down\nmodel Customer { #1 id uuid }\n"
         f.write("shop/customers.schemata", moved)
         val edits = assertIs<RenameResult.Edits>(f.queries.rename(o, f.at(o, "Customer"), "Client"))
         assertEquals(
-            "namespace shop.customers\n\n// moved down\nrecord Client { #1 id: uuid }\n",
+            "schema shop.customers\n\n// moved down\nmodel Client { #1 id uuid }\n",
             apply(moved, edits.edits.getValue(c)),
         )
     }
@@ -448,7 +446,7 @@ class RenameTest {
         // Same size and the same modification time: nothing short of reading it shows the edit.
         val file = Path.of(c)
         val stamp = Files.getLastModifiedTime(file)
-        Files.writeString(file, customers.replace("id: uuid", "ix: uuid"))
+        Files.writeString(file, customers.replace("id uuid", "ix uuid"))
         Files.setLastModifiedTime(file, stamp)
         assertEquals(
             "customers.schemata changed on disk; try again",
@@ -462,12 +460,13 @@ class RenameTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nrecord R {\n  @sql(column = \"note\") #1 note: string\n" +
+                "schema m\nmodel R {\n  @sql(column: \"note\") #1 note string\n" +
                     "  reserved \"note\"\n}\n",
             )
-        val edits = assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "note:"), "memo"))
+        val edits =
+            assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "note string"), "memo"))
         assertEquals(
-            "namespace m\nrecord R {\n  @sql(column = \"note\") #1 memo: string\n" +
+            "schema m\nmodel R {\n  @sql(column: \"note\") #1 memo string\n" +
                 "  reserved \"note\"\n}\n",
             apply(f.text(a), edits.edits.getValue(a)),
         )
@@ -482,7 +481,7 @@ class RenameTest {
         assertEquals(3, edits.getValue(a).size)
         val after = renameAndReanalyse(f, a, f.at(a, "Order {"), "Purchase")
         assertEquals(
-            SERVICE_API.replace("record Order", "record Purchase")
+            SERVICE_API.replace("model Order", "model Purchase")
                 .replace("Order  get", "Purchase  get")
                 .replace("stream Order", "stream Purchase"),
             after[a],

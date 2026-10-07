@@ -37,7 +37,7 @@ internal fun runLspSession(command: List<String>, examples: File) {
         val orders = File(dir, "shop/orders.schemata")
         val customers = File(dir, "shop/customers.schemata")
         val extra = File(dir, "shop/extra.schemata")
-        extra.writeText("namespace shop.extra\n\nrecord Extra { #1 x: Missing }\n")
+        extra.writeText("schema shop.extra\n\nmodel Extra { #1 x Missing }\n")
         val text = orders.readText()
         val process = ProcessBuilder(command + "lsp").redirectErrorStream(false).start()
         var err = ""
@@ -46,14 +46,14 @@ internal fun runLspSession(command: List<String>, examples: File) {
         val session = LspSession.overProcess(process)
         try {
             session.initialize(dir.toPath())
-            session.open(orders.toPath(), text.replace("customer:  Customer", "customer:  Custmer"))
+            session.open(orders.toPath(), text.replace("customer  Customer", "customer  Custmer"))
             val shown = session.diagnostics(orders.toPath()) { it.isNotEmpty() }
             // The misspelled name is unknown, and the import it no longer uses is reported too.
             assertEquals(setOf("SCH1006", "SCH1012"), shown.map { it.code.left }.toSet())
             session.change(orders.toPath(), text)
             session.diagnostics(orders.toPath()) { it.isEmpty() }
 
-            val index = text.indexOf("customer:  Customer") + 12
+            val index = text.indexOf("customer  Customer") + 12
             val line = text.substring(0, index).count { it == '\n' }
             val character = index - (text.lastIndexOf('\n', index - 1) + 1)
             val id = TextDocumentIdentifier(session.uri(orders.toPath()))
@@ -135,7 +135,7 @@ private fun services(session: LspSession, file: File) {
     assertEquals("(OrderId): Order", get.detail)
 
     // `OrderId` is declared once and is the request of `get` and `cancel`.
-    val index = text.indexOf("record OrderId") + "record ".length
+    val index = text.indexOf("model OrderId") + "model ".length
     val line = text.substring(0, index).count { it == '\n' }
     val at = Position(line, index - (text.lastIndexOf('\n', index - 1) + 1))
     val renamed = service.rename(RenameParams(id, at, "OrderKey")).get(30, TimeUnit.SECONDS)

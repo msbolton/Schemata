@@ -1,7 +1,7 @@
 package io.schemata.importer
 
 import io.schemata.lang.format.FormatResult
-import io.schemata.lang.format.Formatter
+import io.schemata.lang.upgrade.Upgrader
 import io.schemata.testkit.Golden
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -147,9 +147,9 @@ class SchemataEmitterTest {
         )
 
     @Test
-    fun `emits the kitchen sink and the formatter accepts it`() {
+    fun `emits the kitchen sink and the upgrader accepts it`() {
         val text = SchemataEmitter.emit(unit)
-        val formatted = Formatter.format(text, "gpx.schemata")
+        val formatted = Upgrader.upgrade(text, "gpx.schemata")
         assertTrue(formatted is FormatResult.Formatted, formatted.toString())
         Golden.assertMatches("kitchen.schemata", (formatted as FormatResult.Formatted).text)
     }
@@ -168,13 +168,13 @@ class SchemataEmitterTest {
                 )
             )
         assertEquals(
-            "namespace s\n\nrecord R {}\n",
-            (Formatter.format(text, "s.schemata") as FormatResult.Formatted).text,
+            "schema s\n\nmodel R {}\n",
+            (Upgrader.upgrade(text, "s.schemata") as FormatResult.Formatted).text,
         )
     }
 
     @Test
-    fun `ordinals reserved deprecated and namespace annotations print and format`() {
+    fun `ordinals reserved deprecated and namespace annotations print and upgrade`() {
         val unit =
             SchemataUnit(
                 namespace = "corp.orders",
@@ -252,7 +252,7 @@ class SchemataEmitterTest {
                 sourcePath = "orders.proto",
             )
         val text = SchemataEmitter.emit(unit)
-        val formatted = Formatter.format(text, "corp/orders.schemata")
+        val formatted = Upgrader.upgrade(text, "corp/orders.schemata")
         assertTrue(formatted is FormatResult.Formatted, formatted.toString())
         Golden.assertMatches("ordinals.schemata", (formatted as FormatResult.Formatted).text)
     }

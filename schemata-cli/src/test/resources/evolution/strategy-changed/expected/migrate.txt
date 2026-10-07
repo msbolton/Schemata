@@ -11,34 +11,34 @@ s.sql
 3 destructive, 1 may fail
 
 warning[SCH2702] (lossy): s.Order.billing: SET NOT NULL on "billing" fails when a row holds NULL
- --> new/s.schemata:6:28
+ --> new/s.schemata:6:6
   |
-6 |   @sql(strategy = json) #3 billing: Address
-  |                            ^^^^^^^
+6 |   #3 billing Address  @sql(strategy: json)
+  |      ^^^^^^^
   = help: run UPDATE "s"."order" SET "billing" = … WHERE "billing" IS NULL before applying
 
 warning[SCH2701] (lossy): s.Order.tags: DROP COLUMN "tags" loses every value the column holds
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:37
   |
-5 |   #2 tags: list<string(max = 16)>
-  |      ^^^^
+3 | model Order { #1 id uuid { id }  #2 tags string[] { max 16 }  #3 billing Address { embed } }
+  |                                     ^^^^
   = help: move the data into "order_tags" between this statement and the one that creates it, then
           rerun with --allow-destructive
 
 warning[SCH2701] (lossy): s.Order.billing.street: DROP COLUMN "billing_street" loses every value the column holds
-  --> old/s.schemata:10:6
-   |
-10 |   #1 street: string(max = 200)
-   |      ^^^^^^
-   = help: move the data into "order"."billing" between this statement and the one that creates it,
-           then rerun with --allow-destructive
+ --> old/s.schemata:5:20
+  |
+5 | model Address { #1 street string { max 200 }  #2 city string { max 100 } }
+  |                    ^^^^^^
+  = help: move the data into "order"."billing" between this statement and the one that creates it,
+          then rerun with --allow-destructive
 
 warning[SCH2701] (lossy): s.Order.billing.city: DROP COLUMN "billing_city" loses every value the column holds
-  --> old/s.schemata:11:6
-   |
-11 |   #2 city: string(max = 100)
-   |      ^^^^
-   = help: move the data into "order"."billing" between this statement and the one that creates it,
-           then rerun with --allow-destructive
+ --> old/s.schemata:5:50
+  |
+5 | model Address { #1 street string { max 200 }  #2 city string { max 100 } }
+  |                                                  ^^^^
+  = help: move the data into "order"."billing" between this statement and the one that creates it,
+          then rerun with --allow-destructive
 
 0 errors, 4 warnings

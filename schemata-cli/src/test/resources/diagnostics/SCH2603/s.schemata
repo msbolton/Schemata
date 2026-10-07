@@ -1,3 +1,7 @@
-namespace s
-record R { #1 ok: bool }
-service S { @openapi(name = "a b") #1 a(R): R }
+schema s
+
+model R { #1 ok bool }
+
+service S {
+  @openapi(name: "a b") #1 a(R): R
+}

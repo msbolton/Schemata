@@ -1,6 +1,6 @@
 # targets=xsd
 error[SCH2203] (xsd): namespaces a and b both lower to target namespace 'urn:x'
- --> b.schemata:2:1
+ --> b.schemata:1:1
   = help: set `@xsd(namespace = "…")` on one of them
 
 1 error, 0 warnings

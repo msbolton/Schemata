@@ -1,2 +1,7 @@
-namespace s
-@proto record A { #1 x: bool }
+schema s
+
+model A {
+  #1 x bool
+
+  @@proto
+}

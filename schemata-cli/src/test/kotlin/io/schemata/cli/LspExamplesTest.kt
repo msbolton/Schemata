@@ -70,7 +70,7 @@ class LspExamplesTest {
         session(examples).use { session ->
             session.open(orders, text)
             session.diagnostics(orders) { it.isEmpty() }
-            session.change(orders, text.replace("customer:  Customer", "customer:  Custmer"))
+            session.change(orders, text.replace("customer  Customer", "customer  Custmer"))
             val shown = session.diagnostics(orders) { it.isNotEmpty() }
             // The misspelled name is unknown, and the import it no longer uses is reported too.
             assertEquals(setOf("SCH1006", "SCH1012"), shown.map { it.code.left }.toSet())
@@ -88,7 +88,7 @@ class LspExamplesTest {
         session(examples).use { session ->
             session.open(orders, text)
             val at =
-                position(text, "customer:  Customer").let { Position(it.line, it.character + 12) }
+                position(text, "customer  Customer").let { Position(it.line, it.character + 12) }
             val found =
                 session.server.textDocumentService
                     .definition(DefinitionParams(TextDocumentIdentifier(session.uri(orders)), at))
@@ -120,7 +120,7 @@ class LspExamplesTest {
             session.open(orders, text)
             session.diagnostics(orders) { it.isEmpty() }
             val at =
-                position(text, "customer:  Customer").let { Position(it.line, it.character + 12) }
+                position(text, "customer  Customer").let { Position(it.line, it.character + 12) }
             val edit =
                 session.server.textDocumentService
                     .rename(RenameParams(TextDocumentIdentifier(session.uri(orders)), at, "Client"))
@@ -131,11 +131,11 @@ class LspExamplesTest {
             // The editor applies the edit: the open file through the buffer, the closed one on
             // disk, which its file watcher reports.
             val renamed = apply(text, edit.changes.getValue(session.uri(orders)))
-            assertTrue("customer:  Client" in renamed, renamed)
+            assertTrue("customer  Client" in renamed, renamed)
             session.change(orders, renamed)
             val file = customers.toFile()
             file.writeText(apply(file.readText(), edit.changes.getValue(session.uri(customers))))
-            assertTrue("record Client {" in file.readText(), file.readText())
+            assertTrue("model Client {" in file.readText(), file.readText())
             session.watched(customers, FileChangeType.Changed)
             session.settle(orders)
             assertEquals(emptyList(), session.diagnostics(orders) { it.isEmpty() })

@@ -1,5 +1,5 @@
 error[SCH1003]: field name 'placedAt' must be lower_snake
- --> s.schemata:2:15
+ --> s.schemata:3:14
   = help: rename it `placed_at`
 
 1 error, 0 warnings

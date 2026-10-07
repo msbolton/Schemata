@@ -1,27 +1,24 @@
-namespace s
+schema s
 
-record Card { #1 last4: string(max = 4) }
+model Card { #1 last4 string { max 4 } }
 
-record BankTransfer { #1 iban: string(max = 34) }
+model BankTransfer { #1 iban string { max 34 } }
 
-record Cash {}
+model Cash {}
 
-record Wallet { #1 provider: string(max = 32) }
+model Wallet { #1 provider string { max 32 } }
 
-record Voucher { #1 code: string(max = 16) }
+model Voucher { #1 code string { max 16 } }
 
 union Payment = #1 Card | #2 BankTransfer | #3 Cash
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 payment: Payment
-}
+model Order { #1 id uuid { id }  #2 payment Payment }
 
-record Holdings {
-  @sql(key) #1 id: uuid
-  #2 card: Card?
-  #3 transfer: BankTransfer?
-  #4 cash: Cash?
-  #5 wallet: Wallet?
-  #6 voucher: Voucher?
+model Holdings {
+  #1 id       uuid          { id }
+  #2 card     Card?
+  #3 transfer BankTransfer?
+  #4 cash     Cash?
+  #5 wallet   Wallet?
+  #6 voucher  Voucher?
 }

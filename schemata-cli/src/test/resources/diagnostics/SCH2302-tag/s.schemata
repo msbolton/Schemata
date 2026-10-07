@@ -1,4 +1,9 @@
-namespace s
-record Card {}
-@jsonschema(name = "card") record Other {}
+schema s
+
+model Card {}
+
+model Other {
+  @@jsonschema(name: "card")
+}
+
 union U = Card | Other

@@ -1,95 +1,86 @@
-@xsd(namespace = "http://www.w3.org/2001/SMIL20/")
-namespace smil20
+schema smil20 @xsd(namespace: "http://www.w3.org/2001/SMIL20/")
 
 import smil20_language
 import xml
 
-@xsd(root = false)
-record AnimatePrototype {
-  @xsd(name = "attributeName")
-  @xsd(attribute)
-  attribute_name: string
-  @xsd(name = "attributeType")
-  @xsd(attribute)
-  attribute_type: AttributeType = auto
-  @xsd(attribute) additive:       Additive = replace
-  @xsd(attribute) accumulate:     Accumulate = none
-  @xsd(attribute) to:             string?
-  @xsd(attribute) from:           string?
-  @xsd(attribute) by:             string?
-  @xsd(attribute) values:         string?
+model AnimatePrototype {
+  attribute_name string        @xsd(name: "attributeName") @xsd(attribute)
+  attribute_type AttributeType @xsd(name: "attributeType") @xsd(attribute) = auto
+  additive       Additive      @xsd(attribute) = replace
+  accumulate     Accumulate    @xsd(attribute) = none
+  to             string?       @xsd(attribute)
+  from           string?       @xsd(attribute)
+  by             string?       @xsd(attribute)
+  values         string?       @xsd(attribute)
 
-  enum AttributeType { @xsd(name = "XML") xml, @xsd(name = "CSS") css, auto }
+  enum AttributeType { @xsd(name: "XML") xml @xsd(name: "CSS") css auto }
 
-  enum Additive { replace, sum }
+  enum Additive { replace sum }
 
-  enum Accumulate { none, sum }
+  enum Accumulate { none sum }
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record AnimateMotionPrototype {
-  @xsd(attribute) additive:   Additive = replace
-  @xsd(attribute) accumulate: Accumulate = none
-  @xsd(attribute) to:         string?
-  @xsd(attribute) from:       string?
-  @xsd(attribute) by:         string?
-  @xsd(attribute) values:     string?
-  @xsd(attribute) origin:     string?
+model AnimateMotionPrototype {
+  additive   Additive   @xsd(attribute) = replace
+  accumulate Accumulate @xsd(attribute) = none
+  to         string?    @xsd(attribute)
+  from       string?    @xsd(attribute)
+  by         string?    @xsd(attribute)
+  values     string?    @xsd(attribute)
+  origin     string?    @xsd(attribute)
 
-  enum Additive { replace, sum }
+  enum Additive { replace sum }
 
-  enum Accumulate { none, sum }
+  enum Accumulate { none sum }
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record AnimateColorPrototype {
-  @xsd(name = "attributeName")
-  @xsd(attribute)
-  attribute_name: string
-  @xsd(name = "attributeType")
-  @xsd(attribute)
-  attribute_type: AttributeType = auto
-  @xsd(attribute) additive:       Additive = replace
-  @xsd(attribute) accumulate:     Accumulate = none
-  @xsd(attribute) to:             string?
-  @xsd(attribute) from:           string?
-  @xsd(attribute) by:             string?
-  @xsd(attribute) values:         string?
+model AnimateColorPrototype {
+  attribute_name string        @xsd(name: "attributeName") @xsd(attribute)
+  attribute_type AttributeType @xsd(name: "attributeType") @xsd(attribute) = auto
+  additive       Additive      @xsd(attribute) = replace
+  accumulate     Accumulate    @xsd(attribute) = none
+  to             string?       @xsd(attribute)
+  from           string?       @xsd(attribute)
+  by             string?       @xsd(attribute)
+  values         string?       @xsd(attribute)
 
-  enum AttributeType { @xsd(name = "XML") xml, @xsd(name = "CSS") css, auto }
+  enum AttributeType { @xsd(name: "XML") xml @xsd(name: "CSS") css auto }
 
-  enum Additive { replace, sum }
+  enum Additive { replace sum }
 
-  enum Accumulate { none, sum }
+  enum Accumulate { none sum }
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record SetPrototype {
-  @xsd(name = "attributeName")
-  @xsd(attribute)
-  attribute_name: string
-  @xsd(name = "attributeType")
-  @xsd(attribute)
-  attribute_type: AttributeType = auto
-  @xsd(attribute) to:             string?
+model SetPrototype {
+  attribute_name string        @xsd(name: "attributeName") @xsd(attribute)
+  attribute_type AttributeType @xsd(name: "attributeType") @xsd(attribute) = auto
+  to             string?       @xsd(attribute)
 
-  enum AttributeType { @xsd(name = "XML") xml, @xsd(name = "CSS") css, auto }
+  enum AttributeType { @xsd(name: "XML") xml @xsd(name: "CSS") css auto }
+
+  @@xsd(root: false)
 }
 
-@xsd(name = "syncBehavior")
-enum SyncBehavior { @xsd(name = "canSlip") can_slip, locked, independent, default }
+@xsd(name: "syncBehavior")
+enum SyncBehavior { @xsd(name: "canSlip") can_slip locked independent default }
 
-@xsd(name = "syncBehaviorDefault")
-enum SyncBehaviorDefault { @xsd(name = "canSlip") can_slip, locked, independent, inherit }
+@xsd(name: "syncBehaviorDefault")
+enum SyncBehaviorDefault { @xsd(name: "canSlip") can_slip locked independent inherit }
 
-@xsd(name = "restartTiming")
-enum RestartTiming { never, always, @xsd(name = "whenNotActive") when_not_active, default }
+@xsd(name: "restartTiming")
+enum RestartTiming { never always @xsd(name: "whenNotActive") when_not_active default }
 
-@xsd(name = "restartDefault")
-enum RestartDefault { never, always, @xsd(name = "whenNotActive") when_not_active, inherit }
+@xsd(name: "restartDefault")
+enum RestartDefault { never always @xsd(name: "whenNotActive") when_not_active inherit }
 
-@xsd(name = "fillTimingAttrs")
-enum FillTimingAttrs { remove, freeze, hold, auto, default, transition }
+@xsd(name: "fillTimingAttrs")
+enum FillTimingAttrs { remove freeze hold auto default transition }
 
-@xsd(name = "fillDefault")
-enum FillDefault { remove, freeze, hold, auto, inherit, transition }
+@xsd(name: "fillDefault")
+enum FillDefault { remove freeze hold auto inherit transition }

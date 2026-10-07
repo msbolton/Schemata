@@ -1,2 +1,0 @@
-namespace s
-record R { #1 x: string(size = 3) }

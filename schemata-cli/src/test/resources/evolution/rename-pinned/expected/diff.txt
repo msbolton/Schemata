@@ -9,10 +9,10 @@ jsonschema: 0 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 warning[SCH2502] (lossy): proto: s.Order.comment: field renamed from 'note' to 'comment'; this changes the JSON mapping
- --> new/s.schemata:5:75
+ --> new/s.schemata:5:6
   |
-5 |   @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
-  |                                                                           ^^^^^^^
+5 |   #9 comment string? { max 500 } @sql(column: "note") @xsd(name: "note") @jsonschema(name: "note")
+  |      ^^^^^^^
   = help: pin the emitted name with @proto(name = "note")
 
 0 errors, 1 warning

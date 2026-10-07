@@ -313,16 +313,9 @@ class XsdRulesTest {
     }
 
     @Test
-    fun `a sql key annotation change is compatible`() {
+    fun `a model key added is compatible`() {
         val old = record("s", "R", field(1, "a"))
-        val new =
-            record(
-                "s",
-                "R",
-                field(1, "a"),
-                annotations =
-                    Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("a"))))),
-            )
+        val new = record("s", "R", field(1, "a"), compositeKey = listOf("a"))
         assertEquals(Verdict.Compatible, verdict(XsdRules, ns(old), ns(new)))
     }
 

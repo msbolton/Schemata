@@ -1,0 +1,7 @@
+schema s
+
+model Order {
+  #1 status enum { pending paid }
+
+  model OrderStatus { #1 code int32 }
+}

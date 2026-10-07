@@ -1,2 +1,1 @@
-@jsonschema(id = "urn:x")
-namespace a
+schema a @jsonschema(id: "urn:x")

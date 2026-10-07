@@ -1,13 +1,12 @@
-namespace s
+schema s
 
 enum Status {
   #1 pending
-  @xsd(name = "paid") @jsonschema(name = "paid") #2 settled
+  @xsd(name: "paid")
+  @jsonschema(name: "paid")
+  #2 settled
   #4 refunded
   reserved #3, "cancelled"
 }
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 status: Status
-}
+model Order { #1 id uuid { id }  #2 status Status }

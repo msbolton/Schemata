@@ -1,3 +1,5 @@
-namespace s
+schema s
+
 alias N = string?
-record R { #1 x: N? }
+
+model R { #1 x N? }

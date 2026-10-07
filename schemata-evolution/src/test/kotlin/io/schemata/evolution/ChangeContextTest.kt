@@ -180,25 +180,9 @@ class ChangeContextTest {
     }
 
     @Test
-    fun `isKeyed reads a field flag or a record key name tuple`() {
-        val keyedByField =
-            record(
-                "s",
-                "A",
-                field(
-                    1,
-                    "id",
-                    annotations = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag))),
-                ),
-            )
-        val keyedByRecord =
-            record(
-                "s",
-                "B",
-                field(1, "id"),
-                annotations =
-                    Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("id"))))),
-            )
+    fun `isKeyed reads a field key or a model key`() {
+        val keyedByField = record("s", "A", field(1, "id", key = true))
+        val keyedByRecord = record("s", "B", field(1, "id"), compositeKey = listOf("id"))
         val unkeyed = record("s", "C", field(1, "id"))
         val schema = Schema(listOf(namespace("s", keyedByField, keyedByRecord, unkeyed)))
         val ctx = ChangeContext(schema, schema)

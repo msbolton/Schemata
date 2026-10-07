@@ -1,3 +1,5 @@
-namespace s
-record R { #1 x: bool }
-union U = #1 list<R>
+schema s
+
+model R { #1 x bool }
+
+union U = #1 R[]

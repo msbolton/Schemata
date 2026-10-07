@@ -76,20 +76,20 @@ class AnnotationsTest {
     @Test
     fun `validated annotations land on every element`() {
         val src =
-            "@sql(schema = \"shop\")\n" +
-                "namespace a\n" +
-                "@sql(key = (tenant_id, id))\n" +
-                "@proto(name = \"OrderV2\")\n" +
-                "record Order {\n" +
-                "  @sql(key, strategy = embed)\n" +
+            "schema a @sql(schema: \"shop\")\n" +
+                "\n" +
+                "@sql(key: (tenant_id, id))\n" +
+                "@proto(name: \"OrderV2\")\n" +
+                "model Order {\n" +
+                "  @sql(key, strategy: embed)\n" +
                 "  @deprecated(\"use id2\")\n" +
-                "  id: uuid\n" +
+                "  id uuid\n" +
                 "  @deprecated\n" +
-                "  @proto(name = \"n\")\n" +
-                "  name: string\n" +
+                "  @proto(name: \"n\")\n" +
+                "  name string\n" +
                 "}\n" +
                 "@deprecated\n" +
-                "enum E { @proto(name = \"X\") x }"
+                "enum E { @proto(name: \"X\") x }"
         val r = analyze("t.schemata" to src)
         assertEquals(emptyList(), messages(r))
         val ns = r.schema!!.namespaces.single()
@@ -130,26 +130,26 @@ class AnnotationsTest {
     @Test
     fun `unknown, misplaced, malformed, and repeated annotations are reported`() {
         val src =
-            "namespace a\n" +
-                "@sql(strategy = embed)\n" +
-                "record R {\n" +
+            "schema a\n" +
+                "@sql(strategy: embed)\n" +
+                "model R {\n" +
                 "  @mongo(index)\n" +
-                "  a: bool\n" +
-                "  @sql(table = \"t\")\n" +
-                "  b: bool\n" +
-                "  @sql(strategy = blob)\n" +
-                "  c: bool\n" +
-                "  @sql(key = 1)\n" +
-                "  d: bool\n" +
+                "  a bool\n" +
+                "  @sql(table: \"t\")\n" +
+                "  b bool\n" +
+                "  @sql(strategy: blob)\n" +
+                "  c bool\n" +
+                "  @sql(key: 1)\n" +
+                "  d bool\n" +
                 "  @sql(key)\n" +
                 "  @sql(key)\n" +
-                "  e: bool\n" +
+                "  e bool\n" +
                 "  @deprecated(1)\n" +
-                "  f: bool\n" +
+                "  f bool\n" +
                 "  @sql\n" +
-                "  g: bool\n" +
+                "  g bool\n" +
                 "  @sql(\"x\")\n" +
-                "  h: bool\n" +
+                "  h bool\n" +
                 "}"
         val r = analyze("t.schemata" to src)
         assertNull(r.schema)
@@ -173,22 +173,20 @@ class AnnotationsTest {
     fun `namespace annotations are merged across files in path order`() {
         val r =
             analyze(
-                "a.schemata" to "@sql(schema = \"x\")\nnamespace n\nrecord A { x: bool }",
-                "b.schemata" to "@sql(schema = \"y\")\nnamespace n\nrecord B { x: bool }",
+                "a.schemata" to "schema n @sql(schema: \"x\")\nmodel A { x bool }",
+                "b.schemata" to "schema n @sql(schema: \"y\")\nmodel B { x bool }",
             )
-        assertEquals(listOf("b.schemata:1:6 @sql(schema) is given more than once"), messages(r))
+        assertEquals(listOf("b.schemata:1:15 @sql(schema) is given more than once"), messages(r))
     }
 
     @Test
     fun `alias annotations are checked and then dropped`() {
         val clean =
             analyze(
-                "t.schemata" to
-                    "namespace a\n@deprecated(\"x\")\nalias A = string\nrecord R { x: A }"
+                "t.schemata" to "schema a\n@deprecated(\"x\")\nalias A = string\nmodel R { x A }"
             )
         assertEquals(emptyList(), messages(clean))
-        val bad =
-            analyze("t.schemata" to "namespace a\n@sql(key)\nalias A = string\nrecord R { x: A }")
+        val bad = analyze("t.schemata" to "schema a\n@sql(key)\nalias A = string\nmodel R { x A }")
         assertEquals(
             listOf(
                 "t.schemata:2:6 @sql(key) is not allowed on an alias; allowed on: record, field"
@@ -200,7 +198,7 @@ class AnnotationsTest {
     @Test
     fun `the default registry knows only core keys`() {
         val file =
-            Parser.parse("namespace a\nrecord R {\n  @sql(key)\n  x: bool\n}", "t.schemata").file!!
+            Parser.parse("schema a\nmodel R {\n  @sql(key)\n  x bool\n}", "t.schemata").file!!
         val r = Analyzer.analyze(listOf(file))
         assertNull(r.schema)
         assertEquals(

@@ -1,3 +1,5 @@
-namespace b
+schema b
+
 import a
-record R { #1 x: bool }
+
+model R { #1 x bool }

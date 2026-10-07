@@ -111,7 +111,7 @@ class ImportCommandTest {
         assertFalse(r.stderr.contains("SCH2402"), r.stderr)
         val written = out.resolve("import/tracks.schemata")
         assertTrue(written.isFile, r.stderr)
-        assertTrue(written.readText().contains("namespace tracks"), written.readText())
+        assertTrue(written.readText().contains("schema tracks"), written.readText())
     }
 
     @Test
@@ -176,8 +176,8 @@ class ImportCommandTest {
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/shop/customers.schemata").isFile, r.stderr)
         val orders = out.resolve("import/shop/orders.schemata").readText()
-        assertTrue(orders.contains("@proto(package = \"shop.orders.v1\")"), orders)
-        assertTrue(orders.contains("customer: shop.customers.Customer"), orders)
+        assertTrue(orders.contains("@proto(package: \"shop.orders.v1\")"), orders)
+        assertTrue(orders.contains("customer shop.customers.Customer"), orders)
     }
 
     @Test
@@ -213,8 +213,8 @@ class ImportCommandTest {
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/shop/customers.schemata").isFile, r.stderr)
         val orders = out.resolve("import/shop/orders.schemata").readText()
-        assertTrue(orders.contains("@sql(schema = \"shop\")"), orders)
-        assertTrue(orders.contains("customer: shop.customers.Customer"), orders)
+        assertTrue(orders.contains("@sql(schema: \"shop\")"), orders)
+        assertTrue(orders.contains("customer shop.customers.Customer"), orders)
     }
 
     @Test

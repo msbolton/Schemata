@@ -12,15 +12,15 @@ openapi: 0 breaking, 0 notes
 error[SCH2501]: sql: s.Customer.id: @sql(key) removed breaks the primary key used to address existing rows
  --> new/s.schemata:4:6
   |
-4 |   #1 id: uuid
+4 |   #1 id    uuid
   |      ^^
   = help: avoid changing @sql(key) once the table holds data
 
 error[SCH2501]: sql: s.Customer.code: @sql(key) added breaks the primary key used to address existing rows
- --> new/s.schemata:5:16
+ --> new/s.schemata:5:6
   |
-5 |   @sql(key) #2 code: string(max = 16)
-  |                ^^^^
+5 |   #2 code  string { id, max 16 }
+  |      ^^^^
   = help: avoid changing @sql(key) once the table holds data
 
 2 errors, 0 warnings

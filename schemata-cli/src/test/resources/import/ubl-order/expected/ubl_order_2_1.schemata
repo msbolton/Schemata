@@ -1,5 +1,4 @@
-@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:Order-2")
-namespace ubl_order_2_1
+schema ubl_order_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:Order-2")
 
 import ubl_common_aggregate_components_2_1
 import ubl_common_basic_components_2_1
@@ -10,10 +9,9 @@ import ubl_common_extension_components_2_1
 /// A document used to order goods and services.
 /// Order
 /// Purchase Order
-@xsd(name = "Order")
-record Order {
+model Order {
   /// A container for all extensions present in the document.
-  @xsd(name = "UBLExtensions") ubl_extensions:                  ubl_common_extension_components_2_1.UBLExtensions?
+  ubl_extensions                  ubl_common_extension_components_2_1.UBLExtensions?            @xsd(name: "UBLExtensions")
   /// BBIE
   /// Order. UBL Version Identifier. Identifier
   /// Identifies the earliest version of the UBL 2 schema for this document type that defines all of the elements that might be encountered in the current instance.
@@ -23,7 +21,7 @@ record Order {
   /// Identifier
   /// Identifier. Type
   /// 2.0.5
-  @xsd(name = "UBLVersionID") ubl_version_id:                  ubl_common_basic_components_2_1.UBLVersionID?
+  ubl_version_id                  ubl_common_basic_components_2_1.UBLVersionID?                 @xsd(name: "UBLVersionID")
   /// BBIE
   /// Order. Customization Identifier. Identifier
   /// Identifies a user-defined customization of UBL for a specific use.
@@ -33,7 +31,7 @@ record Order {
   /// Identifier
   /// Identifier. Type
   /// NES
-  @xsd(name = "CustomizationID") customization_id:                ubl_common_basic_components_2_1.CustomizationID?
+  customization_id                ubl_common_basic_components_2_1.CustomizationID?              @xsd(name: "CustomizationID")
   /// BBIE
   /// Order. Profile Identifier. Identifier
   /// Identifies a user-defined profile of the customization of UBL being used.
@@ -43,7 +41,7 @@ record Order {
   /// Identifier
   /// Identifier. Type
   /// BasicProcurementProcess
-  @xsd(name = "ProfileID") profile_id:                      ubl_common_basic_components_2_1.ProfileID?
+  profile_id                      ubl_common_basic_components_2_1.ProfileID?                    @xsd(name: "ProfileID")
   /// BBIE
   /// Order. Profile Execution Identifier. Identifier
   /// Identifies an instance of executing a profile, to associate all transactions in a collaboration.
@@ -53,7 +51,7 @@ record Order {
   /// Identifier
   /// Identifier. Type
   /// BPP-1001
-  @xsd(name = "ProfileExecutionID") profile_execution_id:            ubl_common_basic_components_2_1.ProfileExecutionID?
+  profile_execution_id            ubl_common_basic_components_2_1.ProfileExecutionID?           @xsd(name: "ProfileExecutionID")
   /// BBIE
   /// Order. Identifier
   /// An identifier for this document, assigned by the sender.
@@ -63,7 +61,7 @@ record Order {
   /// Identifier
   /// Identifier. Type
   /// Purchase Order Number, Order Number
-  @xsd(name = "ID") id:                              ubl_common_basic_components_2_1.ID
+  id                              ubl_common_basic_components_2_1.ID                            @xsd(name: "ID")
   /// BBIE
   /// Order. Sales_ Order Identifier. Identifier
   /// An identifier for the Order, assigned by the seller.
@@ -73,7 +71,7 @@ record Order {
   /// Order Identifier
   /// Identifier
   /// Identifier. Type
-  @xsd(name = "SalesOrderID") sales_order_id:                  ubl_common_basic_components_2_1.SalesOrderID?
+  sales_order_id                  ubl_common_basic_components_2_1.SalesOrderID?                 @xsd(name: "SalesOrderID")
   /// BBIE
   /// Order. Copy_ Indicator. Indicator
   /// Indicates whether this document is a copy (true) or not (false).
@@ -83,7 +81,7 @@ record Order {
   /// Indicator
   /// Indicator
   /// Indicator. Type
-  @xsd(name = "CopyIndicator") copy_indicator:                  ubl_common_basic_components_2_1.CopyIndicator?
+  copy_indicator                  ubl_common_basic_components_2_1.CopyIndicator?                @xsd(name: "CopyIndicator")
   /// BBIE
   /// Order. UUID. Identifier
   /// A universally unique identifier for an instance of this document.
@@ -92,7 +90,7 @@ record Order {
   /// UUID
   /// Identifier
   /// Identifier. Type
-  @xsd(name = "UUID") uuid:                            ubl_common_basic_components_2_1.UUID?
+  uuid                            ubl_common_basic_components_2_1.UUID?                         @xsd(name: "UUID")
   /// BBIE
   /// Order. Issue Date. Date
   /// The date, assigned by the sender, on which this document was issued.
@@ -102,7 +100,7 @@ record Order {
   /// Date
   /// Date. Type
   /// Order Date
-  @xsd(name = "IssueDate") issue_date:                      ubl_common_basic_components_2_1.IssueDate
+  issue_date                      ubl_common_basic_components_2_1.IssueDate                     @xsd(name: "IssueDate")
   /// BBIE
   /// Order. Issue Time. Time
   /// The time, assigned by the sender, at which this document was issued.
@@ -111,7 +109,7 @@ record Order {
   /// Issue Time
   /// Time
   /// Time. Type
-  @xsd(name = "IssueTime") issue_time:                      ubl_common_basic_components_2_1.IssueTime?
+  issue_time                      ubl_common_basic_components_2_1.IssueTime?                    @xsd(name: "IssueTime")
   /// BBIE
   /// Order. Order Type Code. Code
   /// A code signifying the type of Order.
@@ -120,7 +118,7 @@ record Order {
   /// Order Type Code
   /// Code
   /// Code. Type
-  @xsd(name = "OrderTypeCode") order_type_code:                 ubl_common_basic_components_2_1.OrderTypeCode?
+  order_type_code                 ubl_common_basic_components_2_1.OrderTypeCode?                @xsd(name: "OrderTypeCode")
   /// BBIE
   /// Order. Note. Text
   /// Free-form text pertinent to this document, conveying information that is not contained explicitly in other structures.
@@ -129,7 +127,7 @@ record Order {
   /// Note
   /// Text
   /// Text. Type
-  @xsd(name = "Note") note:                            list<ubl_common_basic_components_2_1.Note>
+  note                            ubl_common_basic_components_2_1.Note[]                        @xsd(name: "Note")
   /// BBIE
   /// Order. Requested Invoice_ Currency Code. Code
   /// A code signifying the currency requested for amount totals in Invoices related to this Order.
@@ -140,7 +138,7 @@ record Order {
   /// Code
   /// Currency
   /// Currency_ Code. Type
-  @xsd(name = "RequestedInvoiceCurrencyCode") requested_invoice_currency_code: ubl_common_basic_components_2_1.RequestedInvoiceCurrencyCode?
+  requested_invoice_currency_code ubl_common_basic_components_2_1.RequestedInvoiceCurrencyCode? @xsd(name: "RequestedInvoiceCurrencyCode")
   /// BBIE
   /// Order. Document_ Currency Code. Code
   /// A code signifying the default currency for this document.
@@ -151,7 +149,7 @@ record Order {
   /// Code
   /// Currency
   /// Currency_ Code. Type
-  @xsd(name = "DocumentCurrencyCode") document_currency_code:          ubl_common_basic_components_2_1.DocumentCurrencyCode?
+  document_currency_code          ubl_common_basic_components_2_1.DocumentCurrencyCode?         @xsd(name: "DocumentCurrencyCode")
   /// BBIE
   /// Order. Pricing_ Currency Code. Code
   /// A code signifying the currency used for all prices in the Order.
@@ -162,7 +160,7 @@ record Order {
   /// Code
   /// Currency
   /// Currency_ Code. Type
-  @xsd(name = "PricingCurrencyCode") pricing_currency_code:           ubl_common_basic_components_2_1.PricingCurrencyCode?
+  pricing_currency_code           ubl_common_basic_components_2_1.PricingCurrencyCode?          @xsd(name: "PricingCurrencyCode")
   /// BBIE
   /// Order. Tax_ Currency Code. Code
   /// A code signifying the currency requested for tax amounts in Invoices related to this Order.
@@ -173,7 +171,7 @@ record Order {
   /// Code
   /// Currency
   /// Currency_ Code. Type
-  @xsd(name = "TaxCurrencyCode") tax_currency_code:               ubl_common_basic_components_2_1.TaxCurrencyCode?
+  tax_currency_code               ubl_common_basic_components_2_1.TaxCurrencyCode?              @xsd(name: "TaxCurrencyCode")
   /// BBIE
   /// Order. Customer_ Reference. Text
   /// A supplementary reference for the Order.
@@ -183,7 +181,7 @@ record Order {
   /// Reference
   /// Text
   /// Text. Type
-  @xsd(name = "CustomerReference") customer_reference:              ubl_common_basic_components_2_1.CustomerReference?
+  customer_reference              ubl_common_basic_components_2_1.CustomerReference?            @xsd(name: "CustomerReference")
   /// BBIE
   /// Order. Accounting Cost Code. Code
   /// The buyer's accounting code, applied to the Order as a whole.
@@ -192,7 +190,7 @@ record Order {
   /// Accounting Cost Code
   /// Code
   /// Code. Type
-  @xsd(name = "AccountingCostCode") accounting_cost_code:            ubl_common_basic_components_2_1.AccountingCostCode?
+  accounting_cost_code            ubl_common_basic_components_2_1.AccountingCostCode?           @xsd(name: "AccountingCostCode")
   /// BBIE
   /// Order. Accounting Cost. Text
   /// The buyer's accounting cost centre, applied to the Order as a whole, expressed as text.
@@ -201,7 +199,7 @@ record Order {
   /// Accounting Cost
   /// Text
   /// Text. Type
-  @xsd(name = "AccountingCost") accounting_cost:                 ubl_common_basic_components_2_1.AccountingCost?
+  accounting_cost                 ubl_common_basic_components_2_1.AccountingCost?               @xsd(name: "AccountingCost")
   /// BBIE
   /// Order. Line Count. Numeric
   /// The number of Order Lines in the document.
@@ -210,7 +208,7 @@ record Order {
   /// Line Count
   /// Numeric
   /// Numeric. Type
-  @xsd(name = "LineCountNumeric") line_count_numeric:              ubl_common_basic_components_2_1.LineCountNumeric?
+  line_count_numeric              ubl_common_basic_components_2_1.LineCountNumeric?             @xsd(name: "LineCountNumeric")
   /// ASBIE
   /// Order. Validity_ Period. Period
   /// The period for which the Order is valid.
@@ -220,7 +218,7 @@ record Order {
   /// Period
   /// Period
   /// Period
-  @xsd(name = "ValidityPeriod") validity_period:                 list<ubl_common_aggregate_components_2_1.Period>
+  validity_period                 ubl_common_aggregate_components_2_1.Period[]                  @xsd(name: "ValidityPeriod")
   /// ASBIE
   /// Order. Quotation_ Document Reference. Document Reference
   /// A reference to a Quotation.
@@ -230,7 +228,7 @@ record Order {
   /// Document Reference
   /// Document Reference
   /// Document Reference
-  @xsd(name = "QuotationDocumentReference") quotation_document_reference:    ubl_common_aggregate_components_2_1.DocumentReference?
+  quotation_document_reference    ubl_common_aggregate_components_2_1.DocumentReference?        @xsd(name: "QuotationDocumentReference")
   /// ASBIE
   /// Order. Order_ Document Reference. Document Reference
   /// A reference to another Order.
@@ -240,7 +238,7 @@ record Order {
   /// Document Reference
   /// Document Reference
   /// Document Reference
-  @xsd(name = "OrderDocumentReference") order_document_reference:        list<ubl_common_aggregate_components_2_1.DocumentReference>
+  order_document_reference        ubl_common_aggregate_components_2_1.DocumentReference[]       @xsd(name: "OrderDocumentReference")
   /// ASBIE
   /// Order. Originator_ Document Reference. Document Reference
   /// A reference to an originator document associated with this document.
@@ -250,7 +248,7 @@ record Order {
   /// Document Reference
   /// Document Reference
   /// Document Reference
-  @xsd(name = "OriginatorDocumentReference") originator_document_reference:   ubl_common_aggregate_components_2_1.DocumentReference?
+  originator_document_reference   ubl_common_aggregate_components_2_1.DocumentReference?        @xsd(name: "OriginatorDocumentReference")
   /// ASBIE
   /// Order. Catalogue Reference
   /// A reference to the Catalogue on which this Order is based.
@@ -259,7 +257,7 @@ record Order {
   /// Catalogue Reference
   /// Catalogue Reference
   /// Catalogue Reference
-  @xsd(name = "CatalogueReference") catalogue_reference:             ubl_common_aggregate_components_2_1.CatalogueReference?
+  catalogue_reference             ubl_common_aggregate_components_2_1.CatalogueReference?       @xsd(name: "CatalogueReference")
   /// ASBIE
   /// Order. Additional_ Document Reference. Document Reference
   /// A reference to an additional document associated with this document.
@@ -269,7 +267,7 @@ record Order {
   /// Document Reference
   /// Document Reference
   /// Document Reference
-  @xsd(name = "AdditionalDocumentReference") additional_document_reference:   list<ubl_common_aggregate_components_2_1.DocumentReference>
+  additional_document_reference   ubl_common_aggregate_components_2_1.DocumentReference[]       @xsd(name: "AdditionalDocumentReference")
   /// ASBIE
   /// Order. Contract
   /// A contracts associated with this Order.
@@ -278,7 +276,7 @@ record Order {
   /// Contract
   /// Contract
   /// Contract
-  @xsd(name = "Contract") contract:                        list<ubl_common_aggregate_components_2_1.Contract>
+  contract                        ubl_common_aggregate_components_2_1.Contract[]                @xsd(name: "Contract")
   /// ASBIE
   /// Order. Project Reference
   /// A project with which this Order is associated.
@@ -287,7 +285,7 @@ record Order {
   /// Project Reference
   /// Project Reference
   /// Project Reference
-  @xsd(name = "ProjectReference") project_reference:               list<ubl_common_aggregate_components_2_1.ProjectReference>
+  project_reference               ubl_common_aggregate_components_2_1.ProjectReference[]        @xsd(name: "ProjectReference")
   /// ASBIE
   /// Order. Signature
   /// A signature applied to this document.
@@ -296,7 +294,7 @@ record Order {
   /// Signature
   /// Signature
   /// Signature
-  @xsd(name = "Signature") signature:                       list<ubl_common_aggregate_components_2_1.Signature>
+  signature                       ubl_common_aggregate_components_2_1.Signature[]               @xsd(name: "Signature")
   /// ASBIE
   /// Order. Buyer_ Customer Party. Customer Party
   /// The buyer.
@@ -306,7 +304,7 @@ record Order {
   /// Customer Party
   /// Customer Party
   /// Customer Party
-  @xsd(name = "BuyerCustomerParty") buyer_customer_party:            ubl_common_aggregate_components_2_1.CustomerParty
+  buyer_customer_party            ubl_common_aggregate_components_2_1.CustomerParty             @xsd(name: "BuyerCustomerParty")
   /// ASBIE
   /// Order. Seller_ Supplier Party. Supplier Party
   /// The seller.
@@ -316,7 +314,7 @@ record Order {
   /// Supplier Party
   /// Supplier Party
   /// Supplier Party
-  @xsd(name = "SellerSupplierParty") seller_supplier_party:           ubl_common_aggregate_components_2_1.SupplierParty
+  seller_supplier_party           ubl_common_aggregate_components_2_1.SupplierParty             @xsd(name: "SellerSupplierParty")
   /// ASBIE
   /// Order. Originator_ Customer Party. Customer Party
   /// The originator.
@@ -326,7 +324,7 @@ record Order {
   /// Customer Party
   /// Customer Party
   /// Customer Party
-  @xsd(name = "OriginatorCustomerParty") originator_customer_party:       ubl_common_aggregate_components_2_1.CustomerParty?
+  originator_customer_party       ubl_common_aggregate_components_2_1.CustomerParty?            @xsd(name: "OriginatorCustomerParty")
   /// ASBIE
   /// Order. Freight Forwarder_ Party. Party
   /// A freight forwarder or carrier.
@@ -337,7 +335,7 @@ record Order {
   /// Party
   /// Party
   /// Carrier
-  @xsd(name = "FreightForwarderParty") freight_forwarder_party:         ubl_common_aggregate_components_2_1.Party?
+  freight_forwarder_party         ubl_common_aggregate_components_2_1.Party?                    @xsd(name: "FreightForwarderParty")
   /// ASBIE
   /// Order. Accounting_ Customer Party. Customer Party
   /// The accounting customer party.
@@ -347,7 +345,7 @@ record Order {
   /// Customer Party
   /// Customer Party
   /// Customer Party
-  @xsd(name = "AccountingCustomerParty") accounting_customer_party:       ubl_common_aggregate_components_2_1.CustomerParty?
+  accounting_customer_party       ubl_common_aggregate_components_2_1.CustomerParty?            @xsd(name: "AccountingCustomerParty")
   /// ASBIE
   /// Order. Delivery
   /// A delivery associated with this document.
@@ -356,7 +354,7 @@ record Order {
   /// Delivery
   /// Delivery
   /// Delivery
-  @xsd(name = "Delivery") delivery:                        list<ubl_common_aggregate_components_2_1.Delivery>
+  delivery                        ubl_common_aggregate_components_2_1.Delivery[]                @xsd(name: "Delivery")
   /// ASBIE
   /// Order. Delivery Terms
   /// A set of delivery terms associated with this document.
@@ -365,7 +363,7 @@ record Order {
   /// Delivery Terms
   /// Delivery Terms
   /// Delivery Terms
-  @xsd(name = "DeliveryTerms") delivery_terms:                  list<ubl_common_aggregate_components_2_1.DeliveryTerms>
+  delivery_terms                  ubl_common_aggregate_components_2_1.DeliveryTerms[]           @xsd(name: "DeliveryTerms")
   /// ASBIE
   /// Order. Payment Means
   /// Expected means of payment.
@@ -374,7 +372,7 @@ record Order {
   /// Payment Means
   /// Payment Means
   /// Payment Means
-  @xsd(name = "PaymentMeans") payment_means:                   list<ubl_common_aggregate_components_2_1.PaymentMeans>
+  payment_means                   ubl_common_aggregate_components_2_1.PaymentMeans[]            @xsd(name: "PaymentMeans")
   /// ASBIE
   /// Order. Payment Terms
   /// A set of payment terms associated with this document.
@@ -383,7 +381,7 @@ record Order {
   /// Payment Terms
   /// Payment Terms
   /// Payment Terms
-  @xsd(name = "PaymentTerms") payment_terms:                   list<ubl_common_aggregate_components_2_1.PaymentTerms>
+  payment_terms                   ubl_common_aggregate_components_2_1.PaymentTerms[]            @xsd(name: "PaymentTerms")
   /// ASBIE
   /// Order. Transaction Conditions
   /// A specification of purchasing or sales conditions applying to the whole Order.
@@ -393,7 +391,7 @@ record Order {
   /// Transaction Conditions
   /// Transaction Conditions
   /// Sales condition, procurement condition
-  @xsd(name = "TransactionConditions") transaction_conditions:          ubl_common_aggregate_components_2_1.TransactionConditions?
+  transaction_conditions          ubl_common_aggregate_components_2_1.TransactionConditions?    @xsd(name: "TransactionConditions")
   /// ASBIE
   /// Order. Allowance Charge
   /// A discount or charge that applies to a price component.
@@ -402,7 +400,7 @@ record Order {
   /// Allowance Charge
   /// Allowance Charge
   /// Allowance Charge
-  @xsd(name = "AllowanceCharge") allowance_charge:                list<ubl_common_aggregate_components_2_1.AllowanceCharge>
+  allowance_charge                ubl_common_aggregate_components_2_1.AllowanceCharge[]         @xsd(name: "AllowanceCharge")
   /// ASBIE
   /// Order. Tax_ Exchange Rate. Exchange Rate
   /// The exchange rate between the document currency and the tax currency.
@@ -412,7 +410,7 @@ record Order {
   /// Exchange Rate
   /// Exchange Rate
   /// Exchange Rate
-  @xsd(name = "TaxExchangeRate") tax_exchange_rate:               ubl_common_aggregate_components_2_1.ExchangeRate?
+  tax_exchange_rate               ubl_common_aggregate_components_2_1.ExchangeRate?             @xsd(name: "TaxExchangeRate")
   /// ASBIE
   /// Order. Pricing_ Exchange Rate. Exchange Rate
   /// The exchange rate between the document currency and the pricing currency.
@@ -422,7 +420,7 @@ record Order {
   /// Exchange Rate
   /// Exchange Rate
   /// Exchange Rate
-  @xsd(name = "PricingExchangeRate") pricing_exchange_rate:           ubl_common_aggregate_components_2_1.ExchangeRate?
+  pricing_exchange_rate           ubl_common_aggregate_components_2_1.ExchangeRate?             @xsd(name: "PricingExchangeRate")
   /// ASBIE
   /// Order. Payment_ Exchange Rate. Exchange Rate
   /// The exchange rate between the document currency and the payment currency.
@@ -432,7 +430,7 @@ record Order {
   /// Exchange Rate
   /// Exchange Rate
   /// Exchange Rate
-  @xsd(name = "PaymentExchangeRate") payment_exchange_rate:           ubl_common_aggregate_components_2_1.ExchangeRate?
+  payment_exchange_rate           ubl_common_aggregate_components_2_1.ExchangeRate?             @xsd(name: "PaymentExchangeRate")
   /// ASBIE
   /// Order. Destination_ Country. Country
   /// The country of destination (for customs purposes).
@@ -442,7 +440,7 @@ record Order {
   /// Country
   /// Country
   /// Country
-  @xsd(name = "DestinationCountry") destination_country:             ubl_common_aggregate_components_2_1.Country?
+  destination_country             ubl_common_aggregate_components_2_1.Country?                  @xsd(name: "DestinationCountry")
   /// ASBIE
   /// Order. Tax Total
   /// The total amount of a specific type of tax.
@@ -451,7 +449,7 @@ record Order {
   /// Tax Total
   /// Tax Total
   /// Tax Total
-  @xsd(name = "TaxTotal") tax_total:                       list<ubl_common_aggregate_components_2_1.TaxTotal>
+  tax_total                       ubl_common_aggregate_components_2_1.TaxTotal[]                @xsd(name: "TaxTotal")
   /// ASBIE
   /// Order. Anticipated_ Monetary Total. Monetary Total
   /// The total amount for the Order anticipated by the buyer.
@@ -461,7 +459,7 @@ record Order {
   /// Monetary Total
   /// Monetary Total
   /// Monetary Total
-  @xsd(name = "AnticipatedMonetaryTotal") anticipated_monetary_total:      ubl_common_aggregate_components_2_1.MonetaryTotal?
+  anticipated_monetary_total      ubl_common_aggregate_components_2_1.MonetaryTotal?            @xsd(name: "AnticipatedMonetaryTotal")
   /// ASBIE
   /// Order. Order Line
   /// A line associated with a line in the Catalogue and specifying a kind of item being ordered.
@@ -470,5 +468,7 @@ record Order {
   /// Order Line
   /// Order Line
   /// Order Line
-  @xsd(name = "OrderLine") order_line:                      list<ubl_common_aggregate_components_2_1.OrderLine>(min = 1)
+  order_line                      ubl_common_aggregate_components_2_1.OrderLine[]               { minItems 1 } @xsd(name: "OrderLine")
+
+  @@xsd(name: "Order")
 }

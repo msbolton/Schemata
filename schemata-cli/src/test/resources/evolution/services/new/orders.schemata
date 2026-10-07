@@ -1,17 +1,14 @@
-namespace s
+schema s
 
-record OrderId { @sql(key) #1 id: uuid }
+model OrderId { #1 id uuid { id } }
 
-record Filter { #1 status: string(max = 20)? }
+model Filter { #1 status string? { max 20 } }
 
-record PlaceOrder { #1 customer_id: uuid }
+model PlaceOrder { #1 customer_id uuid }
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 total: decimal(19, 4)
-}
+model Order { #1 id uuid { id }  #2 total decimal(19, 4) }
 
-record Count { #1 n: int64 }
+model Count { #1 n int64 }
 
 service Orders {
   #1 fetch(OrderId): Order  get "/orders/{id}"
@@ -22,4 +19,6 @@ service Orders {
   reserved #4, "cancel"
 }
 
-service Audit { #1 log(Order) }
+service Audit {
+  #1 log(Order)
+}

@@ -203,7 +203,7 @@ class ImportTypesTest {
     fun `an escaped pattern literal formats as Schemata source`() {
         val (email, _) = facets(s("string"), listOf(XFacet("pattern", "[^\"]+@[^\"]+", null, 1)))
         val literal = email.refinements.single().second
-        val source = "namespace s\n\nalias Email = string(pattern = $literal)\n"
+        val source = "schema s\n\nalias Email = string { match $literal }\n"
         val formatted = Formatter.format(source, "s.schemata") as FormatResult.Formatted
         assertTrue(formatted.text.contains("\"^[^\\\"]+@[^\\\"]+$\""), formatted.text)
     }

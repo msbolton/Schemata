@@ -11,31 +11,31 @@ jsonschema: 1 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Customer.ref: the field was renamed from 'code' to 'ref' breaks old documents that still use the old name
- --> new/s.schemata:6:19
+ --> new/s.schemata:6:6
   |
-6 |   @sql(unique) #3 ref: string(max = 8)
-  |                   ^^^
+6 |   #3 ref   string  { unique, max 8 }
+  |      ^^^
   = help: pin the emitted name with @jsonschema(name = "code")
 
 error[SCH2501]: sql: s.Customer.ref: the column was renamed from 'code' to 'ref' breaks statements that reference the old name
- --> new/s.schemata:6:19
+ --> new/s.schemata:6:6
   |
-6 |   @sql(unique) #3 ref: string(max = 8)
-  |                   ^^^
+6 |   #3 ref   string  { unique, max 8 }
+  |      ^^^
   = help: pin the emitted column with @sql(column = "code")
 
 error[SCH2501]: xsd: s.Customer.ref: the field was renamed from 'code' to 'ref' breaks old documents that still use the old name
- --> new/s.schemata:6:19
+ --> new/s.schemata:6:6
   |
-6 |   @sql(unique) #3 ref: string(max = 8)
-  |                   ^^^
+6 |   #3 ref   string  { unique, max 8 }
+  |      ^^^
   = help: pin the emitted name with @xsd(name = "code")
 
 warning[SCH2502] (lossy): proto: s.Customer.ref: field renamed from 'code' to 'ref'; this changes the JSON mapping
- --> new/s.schemata:6:19
+ --> new/s.schemata:6:6
   |
-6 |   @sql(unique) #3 ref: string(max = 8)
-  |                   ^^^
+6 |   #3 ref   string  { unique, max 8 }
+  |      ^^^
   = help: pin the emitted name with @proto(name = "code")
 
 3 errors, 1 warning

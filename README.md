@@ -64,16 +64,15 @@ checks it against the jar.
 `contacts.schemata`:
 
 ```schemata
-namespace contacts
+schema contacts
 
-enum Kind { #1 personal, #2 work }
+enum Kind { #1 personal #2 work }
 
-record Contact {
-  @sql(key)
-  #1 id:    int64
-  #2 name:  string(max = 100)
-  #3 email: string(max = 254, pattern = "^[^@]+@[^@]+$")
-  #4 kind:  Kind = personal
+model Contact {
+  #1 id    int64  { id }
+  #2 name  string { max 100 }
+  #3 email string { max 254, match "^[^@]+@[^@]+$" }
+  #4 kind  Kind   = personal
 }
 ```
 

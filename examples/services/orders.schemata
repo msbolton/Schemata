@@ -1,28 +1,28 @@
 /// Orders and their lines.
-namespace shop.orders
+schema shop.orders
 
 import shop.catalog as catalog
 
-record OrderId { @sql(key) id: uuid }
+model OrderId { id uuid { id } }
 
-record ListOrders { status: Status? @sql(key) limit: int32(min = 1, max = 200) = 50 }
+model ListOrders { status Status?  limit int32 { id, min 1, max 200 } = 50 }
 
-record PlaceOrder { @sql(key) customer_id: uuid lines: list<Order.Line>(min = 1) }
+model PlaceOrder { customer_id uuid { id }  lines Order.Line[] { minItems 1 } }
 
-record Order {
-  @sql(key) id:     uuid
-  status: Status
-  lines:  list<Line>
-  total:  catalog.Money
+model Order {
+  id     uuid          { id }
+  status Status
+  lines  Line[]
+  total  catalog.Money
 
-  record Line { sku: string(max = 64) quantity: int32(min = 1) }
+  model Line { sku string { max 64 }  quantity int32 { min 1 } }
 }
 
-enum Status { pending, paid, shipped, cancelled }
+enum Status { pending paid shipped cancelled }
 
-record Chunk { @sql(key) bytes: bytes }
+model Chunk { bytes bytes { id } }
 
-record Receipt { @sql(key) count: int64 }
+model Receipt { count int64 { id } }
 
 /// Place and read orders.
 service Orders {

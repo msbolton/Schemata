@@ -1,10 +1,10 @@
-namespace corpus.embedding
+schema corpus.embedding
 
-record Address { #1 street: string(max = 200) #2 zip: string(min = 5, max = 5) }
+model Address { #1 street string { max 200 }  #2 zip string { min 5, max 5 } }
 
-record Site {
-  @sql(key) #1 id:     uuid
-  #2 office: Address
-  #3 home:   Address?
-  @sql(strategy = json) #4 legacy: Address
+model Site {
+  #1 id     uuid     { id }
+  #2 office Address
+  #3 home   Address?
+  #4 legacy Address  @sql(strategy: json)
 }

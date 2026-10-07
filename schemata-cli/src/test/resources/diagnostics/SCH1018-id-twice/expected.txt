@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH1018]: @@id names 'id' more than once
+ --> s.schemata:6:3
+  = help: list each field once
+
+1 error, 0 warnings

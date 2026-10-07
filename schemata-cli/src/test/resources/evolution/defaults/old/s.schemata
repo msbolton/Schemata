@@ -1,7 +1,9 @@
-namespace s
+schema s
 
-@sql(key = (region)) record Settings {
-  #1 retries: int32
-  #2 timeout: int32 = 30
-  #3 region: string(max = 16) = "eu"
+model Settings {
+  #1 retries int32
+  #2 timeout int32  = 30
+  #3 region  string { max 16 } = "eu"
+
+  @@id(region)
 }

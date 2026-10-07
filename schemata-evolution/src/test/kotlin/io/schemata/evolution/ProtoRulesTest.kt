@@ -251,16 +251,9 @@ class ProtoRulesTest {
     }
 
     @Test
-    fun `a sql key annotation change is compatible`() {
+    fun `a model key added is compatible`() {
         val old = record("s", "R", field(1, "a"))
-        val new =
-            record(
-                "s",
-                "R",
-                field(1, "a"),
-                annotations =
-                    Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("a"))))),
-            )
+        val new = record("s", "R", field(1, "a"), compositeKey = listOf("a"))
         assertEquals(Verdict.Compatible, verdict(ProtoRules, ns(old), ns(new)))
     }
 
@@ -372,10 +365,9 @@ class ProtoRulesTest {
 
     private fun only(old: Schema, new: Schema): Verdict = judged(old, new).single().second
 
-    private val serviceBase = "namespace t\nrecord A { #1 id: uuid }\nrecord B { #1 id: uuid }\n"
+    private val serviceBase = "schema t\n\nmodel A { #1 id uuid }\n\nmodel B { #1 id uuid }\n"
 
-    private val pinnedBase =
-        "@proto(package = \"shop.v1\")\nnamespace t\nrecord Id { #1 id: uuid }\n"
+    private val pinnedBase = "schema t @proto(package: \"shop.v1\")\n\nmodel Id { #1 id uuid }\n"
 
     @Test
     fun `proto verdicts per service change`() {
@@ -425,7 +417,7 @@ class ProtoRulesTest {
         val gone =
             analysed(
                     pinnedBase +
-                        "@proto(name = \"OrderApi\") service Orders { #1 get(Id): Id }\n" +
+                        "@proto(name: \"OrderApi\") service Orders { #1 get(Id): Id }\n" +
                         "service Audit { #1 log(Id) }"
                 )
                 .namespaces
@@ -446,7 +438,7 @@ class ProtoRulesTest {
     @Test
     fun `a pinned rpc name makes a rename compatible`() {
         val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
-        val new = analysed(pinnedBase + "service S { @proto(name = \"Get\") #1 fetch(Id): Id }")
+        val new = analysed(pinnedBase + "service S { @proto(name: \"Get\") #1 fetch(Id): Id }")
         val verdicts = judged(old, new).associate { it.first.kind to it.second }
         assertEquals(Verdict.Compatible, verdicts["operation.renamed"])
         assertEquals(Verdict.Compatible, verdicts["annotation.changed"])
@@ -456,7 +448,7 @@ class ProtoRulesTest {
     @Test
     fun `an rpc name pinned away from the derived one moves the rpc path`() {
         val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
-        val moved = analysed(pinnedBase + "service S { @proto(name = \"Other\") #1 get(Id): Id }")
+        val moved = analysed(pinnedBase + "service S { @proto(name: \"Other\") #1 get(Id): Id }")
         assertEquals(
             Verdict.Breaking(
                 "t.S.get: the rpc path changes from /shop.v1.S/Get to /shop.v1.S/Other",
@@ -469,7 +461,7 @@ class ProtoRulesTest {
     @Test
     fun `a service name override moves every rpc path`() {
         val old = analysed(pinnedBase + "service S { #1 get(Id): Id }")
-        val new = analysed(pinnedBase + "@proto(name = \"Store\")\nservice S { #1 get(Id): Id }")
+        val new = analysed(pinnedBase + "@proto(name: \"Store\")\nservice S { #1 get(Id): Id }")
         assertEquals(
             Verdict.Breaking(
                 "t.S: the service's rpc paths change from /shop.v1.S/* to /shop.v1.Store/*",
@@ -482,7 +474,7 @@ class ProtoRulesTest {
     @Test
     fun `a service name override that keeps the service name is compatible`() {
         val old = analysed(serviceBase + "service S { #1 get(A): B }")
-        val new = analysed(serviceBase + "@proto(name = \"S\")\nservice S { #1 get(A): B }")
+        val new = analysed(serviceBase + "@proto(name: \"S\")\nservice S { #1 get(A): B }")
         assertEquals(Verdict.Compatible, only(old, new))
     }
 
@@ -490,7 +482,7 @@ class ProtoRulesTest {
     fun `an invalid rpc name override falls back to the derived name`() {
         val old = analysed(serviceBase + "service S { #1 list_all(A): B }")
         val new =
-            analysed(serviceBase + "service S { @proto(name = \"not-valid\") #1 list_all(A): B }")
+            analysed(serviceBase + "service S { @proto(name: \"not-valid\") #1 list_all(A): B }")
         assertEquals(Verdict.Compatible, only(old, new))
     }
 

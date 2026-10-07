@@ -1,4 +1,4 @@
-namespace corpus.variants
+schema corpus.variants
 
 /// Payment status.
 enum Status {
@@ -6,13 +6,13 @@ enum Status {
   #1 pending
   #2 paid
   @deprecated("use paid") #3 settled
-  @proto(name = "CANCELLED_BY_USER") #4 cancelled
+  @proto(name: "CANCELLED_BY_USER") #4 cancelled
   reserved #5..#6, "old_status"
 }
 
-record Card { #1 last4: string(max = 4) }
+model Card { #1 last4 string { max 4 } }
 
-record Cash {}
+model Cash {}
 
 /// How the customer paid.
 union Payment =
@@ -20,11 +20,11 @@ union Payment =
   #1 Card |
   #2 Cash |
   #3 uuid |
-  #4 string(max = 5)
+  #4 string { max 5 }
 
-record Order {
-  #1 payment:  Payment
-  #2 fallback: Payment?
-  #3 history:  list<Payment>
-  #4 status:   Status = pending
+model Order {
+  #1 payment  Payment
+  #2 fallback Payment?
+  #3 history  Payment[]
+  #4 status   Status    = pending
 }

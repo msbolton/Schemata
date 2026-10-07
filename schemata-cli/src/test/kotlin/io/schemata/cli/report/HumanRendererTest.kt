@@ -16,13 +16,13 @@ import io.schemata.testkit.Golden
 import kotlin.test.Test
 
 /**
- * Spans are inclusive: `Span(f, 3, 8, 3, 12)` covers columns 8 to 12, the five letters of `Order`.
+ * Spans are inclusive: `Span(f, 3, 7, 3, 11)` covers columns 7 to 11, the five letters of `Order`.
  */
 class HumanRendererTest {
     private val orders =
         SourceInput(
             "shop/orders.schemata",
-            "namespace shop.orders\n\nrecord Order {\n  status: Status = null\n\tnote: string(max = 5,\n    min = 1)\n}\n",
+            "schema shop.orders\n\nmodel Order {\n  status Status = null\n\tnote string { max 5,\n    min 1 }\n}\n",
         )
     private val sources = Sources.of(listOf(orders))
 
@@ -42,7 +42,7 @@ class HumanRendererTest {
             Diagnostic(
                 CoreCodes.NULL_DEFAULT,
                 "a default may not be null; declare the field as nullable with '?'",
-                Span("shop/orders.schemata", 4, 20, 4, 23),
+                Span("shop/orders.schemata", 4, 19, 4, 22),
                 help = "declare the field as `Status?`",
             )
         Golden.assertMatches("report/single-line.txt", render(report(core = listOf(d))))
@@ -52,9 +52,9 @@ class HumanRendererTest {
     fun `multi-line span underlines to the end of its first line and marks continuation`() {
         val d =
             Diagnostic(
-                CoreCodes.UNKNOWN_REFINEMENT,
+                CoreCodes.INVALID_REFINEMENT,
                 "'min' is not a refinement of string",
-                Span("shop/orders.schemata", 5, 15, 6, 12),
+                Span("shop/orders.schemata", 5, 16, 6, 11),
             )
         Golden.assertMatches("report/multi-line.txt", render(report(core = listOf(d))))
     }
@@ -85,7 +85,7 @@ class HumanRendererTest {
             Diagnostic(
                 ProtoCodes.LOSSY,
                 "proto3 requires a zero value",
-                Span("shop/orders.schemata", 3, 8, 3, 12),
+                Span("shop/orders.schemata", 3, 7, 3, 11),
             )
         Golden.assertMatches(
             "report/promoted.txt",
@@ -99,7 +99,7 @@ class HumanRendererTest {
             Diagnostic(
                 ProtoCodes.LOSSY,
                 "proto3 requires a zero value",
-                Span("shop/orders.schemata", 3, 8, 3, 12),
+                Span("shop/orders.schemata", 3, 7, 3, 11),
             )
         Golden.assertMatches(
             "report/color.txt",
@@ -113,7 +113,7 @@ class HumanRendererTest {
             Diagnostic(
                 LangCodes.SYNTAX,
                 "mismatched input '<EOF>' expecting '}'",
-                Span("shop/orders.schemata", 3, 15, 3, 15),
+                Span("shop/orders.schemata", 3, 14, 3, 14),
             )
         Golden.assertMatches("report/end-of-input.txt", render(report(core = listOf(d))))
     }
@@ -121,7 +121,7 @@ class HumanRendererTest {
     @Test
     fun `a diagnostic from the compiler underlines exactly its token`() {
         val source =
-            SourceInput("s.schemata", "namespace a\nenum E { #1 p }\nrecord R { #1 x: E = null }\n")
+            SourceInput("s.schemata", "schema a\nenum E { #1 p }\nmodel R { #1 x E = null }\n")
         val result = Pipeline.check(listOf(source), emptyList(), strict = false)
         Golden.assertMatches(
             "report/compiler-span.txt",
@@ -136,7 +136,7 @@ class HumanRendererTest {
 
     @Test
     fun `the end of a file that ends in a newline is one caret on the line after it`() {
-        val source = SourceInput("s.schemata", "namespace a\nrecord R {\n")
+        val source = SourceInput("s.schemata", "schema a\nmodel R {\n")
         val parsed = Parser.parse(source.content, source.path)
         Golden.assertMatches(
             "report/compiler-end-of-input.txt",
@@ -160,7 +160,7 @@ class HumanRendererTest {
             Diagnostic(
                 SqlCodes.MISSING_KEY,
                 "record 'Order' has no key",
-                Span("shop/orders.schemata", 3, 8, 3, 12),
+                Span("shop/orders.schemata", 3, 7, 3, 11),
             )
         val r =
             report(

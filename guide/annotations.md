@@ -29,11 +29,7 @@ Codes:
 | `table` | record | string |  |
 | `column` | field | string |  |
 | `type` | field | string |  |
-| `key` | field | flag |  |
-| `key` | record | name_tuple |  |
-| `strategy` | field | name | embed, json, table |
-| `unique` | field | flag |  |
-| `index` | field | flag |  |
+| `strategy` | field | name | json, table |
 
 Codes:
 

@@ -7,16 +7,16 @@ import kotlin.test.assertEquals
 class MigrateCodesTest {
     private val base =
         """
-        namespace s
-        record Customer {
-          @sql(key) #1 id: uuid
-          #2 note: string?
+        schema s
+        model Customer {
+          #1 id uuid { id }
+          #2 note string?
         }
         """
 
     @Test
     fun `a destructive step is an error unless allowed and then a warning with the same id`() {
-        val migration = Planner.plan(side(base), side(base.replace("  #2 note: string?\n", "")))
+        val migration = Planner.plan(side(base), side(base.replace("  #2 note string?\n", "")))
         val blocked = MigrateCodes.diagnostics(migration, allowDestructive = false).single()
         val allowed = MigrateCodes.diagnostics(migration, allowDestructive = true).single()
         assertEquals("SCH2701", blocked.code.id)
@@ -36,7 +36,7 @@ class MigrateCodesTest {
     @Test
     fun `a step that may fail is a warning naming the backfill`() {
         val migration =
-            Planner.plan(side(base), side(base.replace("#2 note: string?", "#2 note: string")))
+            Planner.plan(side(base), side(base.replace("#2 note string?", "#2 note string")))
         val d = MigrateCodes.diagnostics(migration, allowDestructive = false).single()
         assertEquals("SCH2702", d.code.id)
         assertEquals(
@@ -54,7 +54,7 @@ class MigrateCodesTest {
         val migration =
             Planner.plan(
                 side(base),
-                side(base.replace("#2 note: string?", "#2 note: string?\n  #3 tier: int32?")),
+                side(base.replace("#2 note string?", "#2 note string?\n  #3 tier int32?")),
             )
         assertEquals(emptyList(), MigrateCodes.diagnostics(migration, allowDestructive = false))
     }

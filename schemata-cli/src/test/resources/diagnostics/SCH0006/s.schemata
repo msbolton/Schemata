@@ -1,8 +1,6 @@
-namespace t
+schema t
 
-record A {
-  #1 x: int32
-}
+model A { #1 x int32 }
 
 service S {
   #1 a(A): A  fetch "/a"

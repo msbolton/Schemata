@@ -1,7 +1,7 @@
 error[SCH2001] (lossy) (proto) [promoted]: proto3 requires a zero value
- --> shop/orders.schemata:3:8
+ --> shop/orders.schemata:3:7
   |
-3 | record Order {
-  |        ^^^^^
+3 | model Order {
+  |       ^^^^^
 
 1 error, 0 warnings (1 promoted by --strict)

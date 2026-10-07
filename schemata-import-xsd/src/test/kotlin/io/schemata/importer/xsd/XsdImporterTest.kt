@@ -60,11 +60,11 @@ class XsdImporterTest {
         assertEquals(
             """
             /// Orders.
-            namespace shop.orders
+            schema shop.orders
 
             import shop.customers
 
-            record Order { customer: shop.customers.Customer note: string? }
+            model Order { customer shop.customers.Customer  note string? }
 
             """
                 .trimIndent(),
@@ -89,7 +89,7 @@ class XsdImporterTest {
         val result = XsdImporter.import(listOf(ImportInput("gpx.xsd", gpxXsd)))
         val file = result.files.single()
         assertTrue(
-            file.content.startsWith("@xsd(namespace = \"http://x/gpx\")\nnamespace gpx\n"),
+            file.content.startsWith("schema gpx @xsd(namespace: \"http://x/gpx\")\n"),
             file.content,
         )
     }
@@ -112,7 +112,7 @@ class XsdImporterTest {
             XsdImporter.import(listOf(ImportInput("gpx.xsd", gpxXsd)), namespace = "tracks")
         val file = result.files.single()
         assertEquals("tracks.schemata", file.path)
-        assertTrue(file.content.contains("namespace tracks"), file.content)
+        assertTrue(file.content.contains("schema tracks"), file.content)
     }
 
     @Test
@@ -186,7 +186,7 @@ class XsdImporterTest {
         assertEquals(emptyList(), result.diagnostics)
         val a = result.files.single { it.path == "a.schemata" }
         assertTrue(a.content.contains("import c"), a.content)
-        assertTrue(a.content.contains("thing: c.C"), a.content)
+        assertTrue(a.content.contains("thing c.C"), a.content)
     }
 
     @Test
@@ -232,7 +232,7 @@ class XsdImporterTest {
             )
         assertEquals(emptyList(), result.diagnostics)
         val file = result.files.single()
-        assertTrue(file.content.contains("record Deep"), file.content)
+        assertTrue(file.content.contains("model Deep"), file.content)
     }
 
     @Test
@@ -270,8 +270,8 @@ class XsdImporterTest {
             )
         assertEquals(emptyList(), result.diagnostics)
         val file = result.files.single()
-        assertEquals(1, Regex("record A \\{").findAll(file.content).count())
-        assertEquals(1, Regex("record B \\{").findAll(file.content).count())
+        assertEquals(1, Regex("model A \\{").findAll(file.content).count())
+        assertEquals(1, Regex("model B \\{").findAll(file.content).count())
     }
 
     @Test
@@ -293,21 +293,21 @@ class XsdImporterTest {
 
         val order =
             orders
-                .substringAfter("record Order {")
+                .substringAfter("model Order {")
                 .substringBefore("\n}")
                 .replace(Regex("[ \t]+"), " ")
         val fields =
             listOf(
-                "id: uuid",
-                "customer: shop.customers.Customer",
-                "status: Status = pending",
-                "lines: list<OrderLine>(min = 1)",
-                "total: decimal(19, 4)",
-                "payment: Payment",
-                "shipping: OrderAddress",
-                "placed_at: instant",
-                "note: string(max = 500)?",
-                "created: instant?",
+                "id uuid",
+                "customer shop.customers.Customer",
+                "status Status = pending",
+                "lines OrderLine[] { minItems 1 }",
+                "total decimal(19, 4)",
+                "payment Payment",
+                "shipping OrderAddress",
+                "placed_at instant",
+                "note string? { max 500 }",
+                "created instant?",
             )
         var pos = 0
         fields.forEach { field ->
@@ -351,8 +351,8 @@ class XsdImporterTest {
                 assertEquals(emptyList(), result.diagnostics)
                 val file = result.files.single()
                 assertEquals("a.schemata", file.path)
-                assertTrue(file.content.contains("record A"), file.content)
-                assertTrue(file.content.contains("record B"), file.content)
+                assertTrue(file.content.contains("model A"), file.content)
+                assertTrue(file.content.contains("model B"), file.content)
             }
     }
 
@@ -404,7 +404,11 @@ class XsdImporterTest {
             unit.declarations,
         )
         assertEquals(
-            "@xsd(element_form = \"unqualified\")\nnamespace t\n\nrecord Party {}\n\nrecord Holder {}\n",
+            "schema t @xsd(element_form: \"unqualified\")\n" +
+                "\n" +
+                "model Party {}\n" +
+                "\n" +
+                "model Holder {}\n",
             emitUnits(listOf(unit)).single().content,
         )
     }
@@ -453,7 +457,7 @@ class XsdImporterTest {
         val file = result.files.single()
         assertEquals("foo.schemata", file.path)
         assertTrue(
-            file.content.startsWith("@xsd(namespace = \"urn:schemata:Foo-Bar\")\nnamespace foo\n"),
+            file.content.startsWith("schema foo @xsd(namespace: \"urn:schemata:Foo-Bar\")\n"),
             file.content,
         )
     }
@@ -465,7 +469,7 @@ class XsdImporterTest {
         assertEquals(emptyList(), result.diagnostics)
         val file = result.files.single()
         assertEquals("shop/orders.schemata", file.path)
-        assertTrue(file.content.startsWith("namespace shop.orders\n"), file.content)
+        assertTrue(file.content.startsWith("schema shop.orders\n"), file.content)
     }
 
     @Test
@@ -474,8 +478,8 @@ class XsdImporterTest {
             .forEach { uri ->
                 val result = XsdImporter.import(listOf(ImportInput("foo.xsd", schemaIn(uri))))
                 val file = result.files.single()
-                assertTrue(file.content.contains("namespace foo\n"), "$uri: ${file.content}")
-                assertTrue(file.content.contains("record Thing"), "$uri: ${file.content}")
+                assertTrue(file.content.startsWith("schema foo "), "$uri: ${file.content}")
+                assertTrue(file.content.contains("model Thing"), "$uri: ${file.content}")
             }
     }
 
@@ -505,14 +509,14 @@ class XsdImporterTest {
                     .trimIndent(),
             )
         val result = XsdImporter.import(listOf(main, parts))
-        assertTrue("qty: Qty" in result.files.single().content, result.files.single().content)
+        assertTrue("qty Qty" in result.files.single().content, result.files.single().content)
         assertEquals(
             emptyList(),
             result.diagnostics.filter { it.severity == Severity.ERROR }.map { it.message },
         )
         val text = result.files.single().content
-        assertTrue("record Line {" in text, text)
-        assertTrue("line: Line" in text, text)
+        assertTrue("model Line {" in text, text)
+        assertTrue("line Line" in text, text)
     }
 
     @Test
@@ -560,8 +564,8 @@ class XsdImporterTest {
         val result = XsdImporter.import(listOf(main, common))
         assertEquals(emptyList(), result.diagnostics.map { "${it.code.id} ${it.message}" })
         val text = result.files.single().content
-        assertTrue("record A {" in text, text)
-        assertTrue("record B {" in text, text)
+        assertTrue("model A {" in text, text)
+        assertTrue("model B {" in text, text)
     }
 
     @Test

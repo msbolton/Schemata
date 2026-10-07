@@ -7,7 +7,7 @@ s.sql
 warning[SCH2701] (lossy): s.Audit.actor: DROP COLUMN "actor" loses every value the column holds
   --> old/s.schemata:12:6
    |
-12 |   #2 actor: string?
+12 |   #2 actor string?
    |      ^^^^^
    = help: rerun with --allow-destructive once the data is migrated or no longer needed
 

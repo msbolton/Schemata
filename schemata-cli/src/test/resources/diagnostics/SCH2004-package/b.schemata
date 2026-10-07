@@ -1,3 +1,3 @@
-@proto(package = "p")
-namespace b
-record S { #1 x: bool }
+schema b @proto(package: "p")
+
+model S { #1 x bool }

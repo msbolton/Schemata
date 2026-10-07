@@ -9,7 +9,7 @@ import org.junit.jupiter.api.io.TempDir
 class ReferenceIndexTest {
     @TempDir lateinit var dir: Path
 
-    private val customers = "namespace shop.customers\nrecord Customer { #1 id: uuid }\n"
+    private val customers = "schema shop.customers\nmodel Customer { #1 id uuid }\n"
 
     @Test
     fun `a type name goes to its declaration in another file`() {
@@ -18,7 +18,7 @@ class ReferenceIndexTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\nrecord Order { #1 who: Customer }\n",
+                "schema shop.orders\nimport shop.customers\nmodel Order { #1 who Customer }\n",
             )
         assertEquals(
             listOf(f.location(c, "Customer")),
@@ -33,7 +33,7 @@ class ReferenceIndexTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\nrecord Order { #1 who: Customer }\n",
+                "schema shop.orders\nimport shop.customers\nmodel Order { #1 who Customer }\n",
             )
         assertEquals(
             listOf(f.location(c, "Customer")),
@@ -48,8 +48,8 @@ class ReferenceIndexTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers as cust\n" +
-                    "record Order { #1 who: cust.Customer }\n",
+                "schema shop.orders\nimport shop.customers as cust\n" +
+                    "model Order { #1 who cust.Customer }\n",
             )
         assertEquals(
             listOf(f.location(o, "cust", occurrence = 1)),
@@ -68,12 +68,12 @@ class ReferenceIndexTest {
         val c2 =
             f.open(
                 "shop/customers_more.schemata",
-                "namespace shop.customers\nrecord Address { #1 city: string }\n",
+                "schema shop.customers\nmodel Address { #1 city string }\n",
             )
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\nrecord Order { #1 who: Customer }\n",
+                "schema shop.orders\nimport shop.customers\nmodel Order { #1 who Customer }\n",
             )
         assertEquals(
             listOf(f.location(c1, "shop.customers"), f.location(c2, "shop.customers")),
@@ -84,8 +84,8 @@ class ReferenceIndexTest {
     @Test
     fun `a declaration in another file of the same namespace resolves without an import`() {
         val f = Fixture(dir)
-        val a = f.open("m/a.schemata", "namespace m\nrecord A { #1 b: B }\n")
-        val b = f.open("m/b.schemata", "namespace m\nrecord B { #1 x: int32 }\n")
+        val a = f.open("m/a.schemata", "schema m\nmodel A { #1 b B }\n")
+        val b = f.open("m/b.schemata", "schema m\nmodel B { #1 x int32 }\n")
         assertEquals(listOf(f.location(b, "B")), f.queries.definition(a, f.at(a, "B }")))
     }
 
@@ -95,8 +95,8 @@ class ReferenceIndexTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nrecord Outer { #1 x: int32\n  record Inner { #1 y: int32 } }\n" +
-                    "record Use { #1 i: Outer.Inner }\n",
+                "schema m\nmodel Outer { #1 x int32\n  model Inner { #1 y int32 } }\n" +
+                    "model Use { #1 i Outer.Inner }\n",
             )
         assertEquals(
             listOf(f.location(a, "Outer")),
@@ -115,8 +115,8 @@ class ReferenceIndexTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\n" +
-                    "record Order { #1 who: shop.customers.Customer }\n",
+                "schema shop.orders\nimport shop.customers\n" +
+                    "model Order { #1 who shop.customers.Customer }\n",
             )
         assertEquals(
             listOf(f.location(c, "shop.customers")),
@@ -130,8 +130,8 @@ class ReferenceIndexTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nenum Status { #1 pending, #2 paid }\nalias S = Status\n" +
-                    "record R { #1 a: Status = paid #2 b: S = pending }\n",
+                "schema m\nenum Status { #1 pending, #2 paid }\nalias S = Status\n" +
+                    "model R { #1 a Status = paid #2 b S = pending }\n",
             )
         assertEquals(
             listOf(f.location(a, "paid")),
@@ -149,8 +149,8 @@ class ReferenceIndexTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\n@sql(unique = (first, second))\n" +
-                    "record R { #1 first: int32 #2 second: int32 }\n",
+                "schema m\n@sql(unique: (first, second))\n" +
+                    "model R { #1 first int32 #2 second int32 }\n",
             )
         assertEquals(
             listOf(f.location(a, "second", occurrence = 1)),
@@ -165,8 +165,8 @@ class ReferenceIndexTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\n" +
-                    "record Order { #1 who: Customer #2 also: list<Customer> }\n",
+                "schema shop.orders\nimport shop.customers\n" +
+                    "model Order { #1 who Customer #2 also Customer[] }\n",
             )
         val uses = listOf(f.location(o, "Customer"), f.location(o, "Customer", occurrence = 1))
         assertEquals(uses, f.queries.references(c, f.at(c, "Customer"), includeDeclaration = false))
@@ -182,7 +182,7 @@ class ReferenceIndexTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nrecord Card {}\nrecord Cash {}\nunion Payment = #1 Card | #2 Cash\n",
+                "schema m\nmodel Card {}\nmodel Cash {}\nunion Payment = #1 Card | #2 Cash\n",
             )
         assertEquals(listOf(f.location(a, "Card")), f.queries.definition(a, f.at(a, "Card |")))
         assertEquals(
@@ -197,8 +197,8 @@ class ReferenceIndexTest {
         val a =
             f.open(
                 "m/a.schemata",
-                "namespace m\nrecord Outer { #1 x: int32\n  record Inner { #1 y: int32 } }\n" +
-                    "record Use { #1 i: Outer.Inner }\n",
+                "schema m\nmodel Outer { #1 x int32\n  model Inner { #1 y int32 } }\n" +
+                    "model Use { #1 i Outer.Inner }\n",
             )
         assertEquals(
             listOf(f.location(a, "Outer")),
@@ -209,9 +209,9 @@ class ReferenceIndexTest {
     @Test
     fun `a builtin, a keyword, and blank space have no definition`() {
         val f = Fixture(dir)
-        val a = f.open("m/a.schemata", "namespace m\nrecord R { #1 x: int32 }\n")
+        val a = f.open("m/a.schemata", "schema m\nmodel R { #1 x int32 }\n")
         assertEquals(emptyList(), f.queries.definition(a, f.at(a, "int32")))
-        assertEquals(emptyList(), f.queries.definition(a, f.at(a, "record")))
+        assertEquals(emptyList(), f.queries.definition(a, f.at(a, "model")))
         assertEquals(emptyList(), f.queries.definition(a, TextPosition(40, 0)))
     }
 
@@ -222,9 +222,9 @@ class ReferenceIndexTest {
         val o =
             f.open(
                 "shop/orders.schemata",
-                "namespace shop.orders\nimport shop.customers\nrecord Order { #1 who: Customer }\n",
+                "schema shop.orders\nimport shop.customers\nmodel Order { #1 who Customer }\n",
             )
-        f.workspace.change(o, "namespace shop.orders\nimport shop.customers\nrecord Order {")
+        f.workspace.change(o, "schema shop.orders\nimport shop.customers\nmodel Order {")
         assertEquals(emptyList(), f.queries.definition(o, TextPosition(1, 8)))
         assertEquals(
             listOf(f.location(o, "Customer")),

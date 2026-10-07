@@ -1,6 +1,6 @@
-namespace s
+schema s
 
-record Order {
-  @sql(key) #1 id: uuid
+model Order {
+  #1 id uuid { id }
   reserved #2, "lines"
 }

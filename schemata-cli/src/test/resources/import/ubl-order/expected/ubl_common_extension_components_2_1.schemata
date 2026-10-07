@@ -1,52 +1,51 @@
-@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2")
-namespace ubl_common_extension_components_2_1
+schema ubl_common_extension_components_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2")
 
 import ubl_unqualified_data_types_2_1
 import ubl_common_basic_components_2_1
 import ubl_common_signature_components_2_1
 
-@xsd(name = "ExtensionContent")
-record ExtensionContent {
-  @xsd(any)
-  @xsd(wildcard = "##other")
-  any: string
+model ExtensionContent {
+  any string @xsd(any) @xsd(wildcard: "##other")
+
+  @@xsd(name: "ExtensionContent")
 }
 
 /// A container for all extensions present in the document.
-@xsd(name = "UBLExtensions")
-record UBLExtensions {
+model UBLExtensions {
   /// A single extension for private use.
-  @xsd(name = "UBLExtension") ubl_extension: list<UBLExtension>(min = 1)
+  ubl_extension UBLExtension[] { minItems 1 } @xsd(name: "UBLExtension")
+
+  @@xsd(name: "UBLExtensions")
 }
 
 /// A single extension for private use.
-@xsd(name = "UBLExtension")
-record UBLExtension {
+model UBLExtension {
   /// An identifier for the Extension assigned by the creator of the extension.
-  @xsd(name = "ID") id:                    ubl_common_basic_components_2_1.ID?
+  id                    ubl_common_basic_components_2_1.ID?   @xsd(name: "ID")
   /// A name for the Extension assigned by the creator of the extension.
-  @xsd(name = "Name") name:                  ubl_common_basic_components_2_1.Name?
+  name                  ubl_common_basic_components_2_1.Name? @xsd(name: "Name")
   /// An agency that maintains one or more Extensions.
-  @xsd(name = "ExtensionAgencyID") extension_agency_id:   ExtensionAgencyID?
+  extension_agency_id   ExtensionAgencyID?                    @xsd(name: "ExtensionAgencyID")
   /// The name of the agency that maintains the Extension.
-  @xsd(name = "ExtensionAgencyName") extension_agency_name: ExtensionAgencyName?
+  extension_agency_name ExtensionAgencyName?                  @xsd(name: "ExtensionAgencyName")
   /// The version of the Extension.
-  @xsd(name = "ExtensionVersionID") extension_version_id:  ExtensionVersionID?
+  extension_version_id  ExtensionVersionID?                   @xsd(name: "ExtensionVersionID")
   /// A URI for the Agency that maintains the Extension.
-  @xsd(name = "ExtensionAgencyURI") extension_agency_uri:  ExtensionAgencyURI?
+  extension_agency_uri  ExtensionAgencyURI?                   @xsd(name: "ExtensionAgencyURI")
   /// A URI for the Extension.
-  @xsd(name = "ExtensionURI") extension_uri:         ExtensionURI?
+  extension_uri         ExtensionURI?                         @xsd(name: "ExtensionURI")
   /// A code for reason the Extension is being included.
-  @xsd(name = "ExtensionReasonCode") extension_reason_code: ExtensionReasonCode?
+  extension_reason_code ExtensionReasonCode?                  @xsd(name: "ExtensionReasonCode")
   /// A description of the reason for the Extension.
-  @xsd(name = "ExtensionReason") extension_reason:      ExtensionReason?
+  extension_reason      ExtensionReason?                      @xsd(name: "ExtensionReason")
   /// The definition of the extension content.
-  @xsd(name = "ExtensionContent") extension_content:     ExtensionContent
+  extension_content     ExtensionContent                      @xsd(name: "ExtensionContent")
+
+  @@xsd(name: "UBLExtension")
 }
 
-@xsd(name = "ExtensionAgencyID")
-record ExtensionAgencyID {
-  value:              string
+model ExtensionAgencyID {
+  value              string
   /// UNDT000011-SC2
   /// SC
   /// Identification Scheme. Identifier
@@ -55,9 +54,7 @@ record ExtensionAgencyID {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "schemeID")
-  @xsd(attribute)
-  scheme_id:          string?
+  scheme_id          string? @xsd(name: "schemeID") @xsd(attribute)
   /// UNDT000011-SC3
   /// SC
   /// Identification Scheme. Name. Text
@@ -66,9 +63,7 @@ record ExtensionAgencyID {
   /// Name
   /// Text
   /// string
-  @xsd(name = "schemeName")
-  @xsd(attribute)
-  scheme_name:        string?
+  scheme_name        string? @xsd(name: "schemeName") @xsd(attribute)
   /// UNDT000011-SC4
   /// SC
   /// Identification Scheme Agency. Identifier
@@ -78,9 +73,7 @@ record ExtensionAgencyID {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "schemeAgencyID")
-  @xsd(attribute)
-  scheme_agency_id:   string?
+  scheme_agency_id   string? @xsd(name: "schemeAgencyID") @xsd(attribute)
   /// UNDT000011-SC5
   /// SC
   /// Identification Scheme Agency. Name. Text
@@ -89,9 +82,7 @@ record ExtensionAgencyID {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "schemeAgencyName")
-  @xsd(attribute)
-  scheme_agency_name: string?
+  scheme_agency_name string? @xsd(name: "schemeAgencyName") @xsd(attribute)
   /// UNDT000011-SC6
   /// SC
   /// Identification Scheme. Version. Identifier
@@ -100,9 +91,7 @@ record ExtensionAgencyID {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "schemeVersionID")
-  @xsd(attribute)
-  scheme_version_id:  string?
+  scheme_version_id  string? @xsd(name: "schemeVersionID") @xsd(attribute)
   /// UNDT000011-SC7
   /// SC
   /// Identification Scheme Data. Uniform Resource. Identifier
@@ -111,9 +100,7 @@ record ExtensionAgencyID {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeDataURI")
-  @xsd(attribute)
-  scheme_data_uri:    string?
+  scheme_data_uri    string? @xsd(name: "schemeDataURI") @xsd(attribute)
   /// UNDT000011-SC8
   /// SC
   /// Identification Scheme. Uniform Resource. Identifier
@@ -122,14 +109,13 @@ record ExtensionAgencyID {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeURI")
-  @xsd(attribute)
-  scheme_uri:         string?
+  scheme_uri         string? @xsd(name: "schemeURI") @xsd(attribute)
+
+  @@xsd(name: "ExtensionAgencyID")
 }
 
-@xsd(name = "ExtensionAgencyName")
-record ExtensionAgencyName {
-  value:              string
+model ExtensionAgencyName {
+  value              string
   /// UNDT000019-SC2
   /// SC
   /// Language. Identifier
@@ -138,9 +124,7 @@ record ExtensionAgencyName {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "languageID")
-  @xsd(attribute)
-  language_id:        string?
+  language_id        string? @xsd(name: "languageID") @xsd(attribute)
   /// UNDT000019-SC3
   /// SC
   /// Language. Locale. Identifier
@@ -149,14 +133,13 @@ record ExtensionAgencyName {
   /// Locale
   /// Identifier
   /// string
-  @xsd(name = "languageLocaleID")
-  @xsd(attribute)
-  language_locale_id: string?
+  language_locale_id string? @xsd(name: "languageLocaleID") @xsd(attribute)
+
+  @@xsd(name: "ExtensionAgencyName")
 }
 
-@xsd(name = "ExtensionAgencyURI")
-record ExtensionAgencyURI {
-  value:              string
+model ExtensionAgencyURI {
+  value              string
   /// UNDT000011-SC2
   /// SC
   /// Identification Scheme. Identifier
@@ -165,9 +148,7 @@ record ExtensionAgencyURI {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "schemeID")
-  @xsd(attribute)
-  scheme_id:          string?
+  scheme_id          string? @xsd(name: "schemeID") @xsd(attribute)
   /// UNDT000011-SC3
   /// SC
   /// Identification Scheme. Name. Text
@@ -176,9 +157,7 @@ record ExtensionAgencyURI {
   /// Name
   /// Text
   /// string
-  @xsd(name = "schemeName")
-  @xsd(attribute)
-  scheme_name:        string?
+  scheme_name        string? @xsd(name: "schemeName") @xsd(attribute)
   /// UNDT000011-SC4
   /// SC
   /// Identification Scheme Agency. Identifier
@@ -188,9 +167,7 @@ record ExtensionAgencyURI {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "schemeAgencyID")
-  @xsd(attribute)
-  scheme_agency_id:   string?
+  scheme_agency_id   string? @xsd(name: "schemeAgencyID") @xsd(attribute)
   /// UNDT000011-SC5
   /// SC
   /// Identification Scheme Agency. Name. Text
@@ -199,9 +176,7 @@ record ExtensionAgencyURI {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "schemeAgencyName")
-  @xsd(attribute)
-  scheme_agency_name: string?
+  scheme_agency_name string? @xsd(name: "schemeAgencyName") @xsd(attribute)
   /// UNDT000011-SC6
   /// SC
   /// Identification Scheme. Version. Identifier
@@ -210,9 +185,7 @@ record ExtensionAgencyURI {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "schemeVersionID")
-  @xsd(attribute)
-  scheme_version_id:  string?
+  scheme_version_id  string? @xsd(name: "schemeVersionID") @xsd(attribute)
   /// UNDT000011-SC7
   /// SC
   /// Identification Scheme Data. Uniform Resource. Identifier
@@ -221,9 +194,7 @@ record ExtensionAgencyURI {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeDataURI")
-  @xsd(attribute)
-  scheme_data_uri:    string?
+  scheme_data_uri    string? @xsd(name: "schemeDataURI") @xsd(attribute)
   /// UNDT000011-SC8
   /// SC
   /// Identification Scheme. Uniform Resource. Identifier
@@ -232,14 +203,13 @@ record ExtensionAgencyURI {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeURI")
-  @xsd(attribute)
-  scheme_uri:         string?
+  scheme_uri         string? @xsd(name: "schemeURI") @xsd(attribute)
+
+  @@xsd(name: "ExtensionAgencyURI")
 }
 
-@xsd(name = "ExtensionReason")
-record ExtensionReason {
-  value:              string
+model ExtensionReason {
+  value              string
   /// UNDT000019-SC2
   /// SC
   /// Language. Identifier
@@ -248,9 +218,7 @@ record ExtensionReason {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "languageID")
-  @xsd(attribute)
-  language_id:        string?
+  language_id        string? @xsd(name: "languageID") @xsd(attribute)
   /// UNDT000019-SC3
   /// SC
   /// Language. Locale. Identifier
@@ -259,14 +227,13 @@ record ExtensionReason {
   /// Locale
   /// Identifier
   /// string
-  @xsd(name = "languageLocaleID")
-  @xsd(attribute)
-  language_locale_id: string?
+  language_locale_id string? @xsd(name: "languageLocaleID") @xsd(attribute)
+
+  @@xsd(name: "ExtensionReason")
 }
 
-@xsd(name = "ExtensionReasonCode")
-record ExtensionReasonCode {
-  value:            string
+model ExtensionReasonCode {
+  value            string
   /// UNDT000007-SC2
   /// SC
   /// Code List. Identifier
@@ -275,9 +242,7 @@ record ExtensionReasonCode {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "listID")
-  @xsd(attribute)
-  list_id:          string?
+  list_id          string? @xsd(name: "listID") @xsd(attribute)
   /// UNDT000007-SC3
   /// SC
   /// Code List. Agency. Identifier
@@ -287,9 +252,7 @@ record ExtensionReasonCode {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "listAgencyID")
-  @xsd(attribute)
-  list_agency_id:   string?
+  list_agency_id   string? @xsd(name: "listAgencyID") @xsd(attribute)
   /// UNDT000007-SC4
   /// SC
   /// Code List. Agency Name. Text
@@ -298,9 +261,7 @@ record ExtensionReasonCode {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "listAgencyName")
-  @xsd(attribute)
-  list_agency_name: string?
+  list_agency_name string? @xsd(name: "listAgencyName") @xsd(attribute)
   /// UNDT000007-SC5
   /// SC
   /// Code List. Name. Text
@@ -309,9 +270,7 @@ record ExtensionReasonCode {
   /// Name
   /// Text
   /// string
-  @xsd(name = "listName")
-  @xsd(attribute)
-  list_name:        string?
+  list_name        string? @xsd(name: "listName") @xsd(attribute)
   /// UNDT000007-SC6
   /// SC
   /// Code List. Version. Identifier
@@ -320,9 +279,7 @@ record ExtensionReasonCode {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "listVersionID")
-  @xsd(attribute)
-  list_version_id:  string?
+  list_version_id  string? @xsd(name: "listVersionID") @xsd(attribute)
   /// UNDT000007-SC7
   /// SC
   /// Code. Name. Text
@@ -331,7 +288,7 @@ record ExtensionReasonCode {
   /// Name
   /// Text
   /// string
-  @xsd(attribute) name:             string?
+  name             string? @xsd(attribute)
   /// UNDT000007-SC8
   /// SC
   /// Language. Identifier
@@ -340,9 +297,7 @@ record ExtensionReasonCode {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "languageID")
-  @xsd(attribute)
-  language_id:      string?
+  language_id      string? @xsd(name: "languageID") @xsd(attribute)
   /// UNDT000007-SC9
   /// SC
   /// Code List. Uniform Resource. Identifier
@@ -351,9 +306,7 @@ record ExtensionReasonCode {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "listURI")
-  @xsd(attribute)
-  list_uri:         string?
+  list_uri         string? @xsd(name: "listURI") @xsd(attribute)
   /// UNDT000007-SC10
   /// SC
   /// Code List Scheme. Uniform Resource. Identifier
@@ -362,14 +315,13 @@ record ExtensionReasonCode {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "listSchemeURI")
-  @xsd(attribute)
-  list_scheme_uri:  string?
+  list_scheme_uri  string? @xsd(name: "listSchemeURI") @xsd(attribute)
+
+  @@xsd(name: "ExtensionReasonCode")
 }
 
-@xsd(name = "ExtensionURI")
-record ExtensionURI {
-  value:              string
+model ExtensionURI {
+  value              string
   /// UNDT000011-SC2
   /// SC
   /// Identification Scheme. Identifier
@@ -378,9 +330,7 @@ record ExtensionURI {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "schemeID")
-  @xsd(attribute)
-  scheme_id:          string?
+  scheme_id          string? @xsd(name: "schemeID") @xsd(attribute)
   /// UNDT000011-SC3
   /// SC
   /// Identification Scheme. Name. Text
@@ -389,9 +339,7 @@ record ExtensionURI {
   /// Name
   /// Text
   /// string
-  @xsd(name = "schemeName")
-  @xsd(attribute)
-  scheme_name:        string?
+  scheme_name        string? @xsd(name: "schemeName") @xsd(attribute)
   /// UNDT000011-SC4
   /// SC
   /// Identification Scheme Agency. Identifier
@@ -401,9 +349,7 @@ record ExtensionURI {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "schemeAgencyID")
-  @xsd(attribute)
-  scheme_agency_id:   string?
+  scheme_agency_id   string? @xsd(name: "schemeAgencyID") @xsd(attribute)
   /// UNDT000011-SC5
   /// SC
   /// Identification Scheme Agency. Name. Text
@@ -412,9 +358,7 @@ record ExtensionURI {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "schemeAgencyName")
-  @xsd(attribute)
-  scheme_agency_name: string?
+  scheme_agency_name string? @xsd(name: "schemeAgencyName") @xsd(attribute)
   /// UNDT000011-SC6
   /// SC
   /// Identification Scheme. Version. Identifier
@@ -423,9 +367,7 @@ record ExtensionURI {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "schemeVersionID")
-  @xsd(attribute)
-  scheme_version_id:  string?
+  scheme_version_id  string? @xsd(name: "schemeVersionID") @xsd(attribute)
   /// UNDT000011-SC7
   /// SC
   /// Identification Scheme Data. Uniform Resource. Identifier
@@ -434,9 +376,7 @@ record ExtensionURI {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeDataURI")
-  @xsd(attribute)
-  scheme_data_uri:    string?
+  scheme_data_uri    string? @xsd(name: "schemeDataURI") @xsd(attribute)
   /// UNDT000011-SC8
   /// SC
   /// Identification Scheme. Uniform Resource. Identifier
@@ -445,14 +385,13 @@ record ExtensionURI {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeURI")
-  @xsd(attribute)
-  scheme_uri:         string?
+  scheme_uri         string? @xsd(name: "schemeURI") @xsd(attribute)
+
+  @@xsd(name: "ExtensionURI")
 }
 
-@xsd(name = "ExtensionVersionID")
-record ExtensionVersionID {
-  value:              string
+model ExtensionVersionID {
+  value              string
   /// UNDT000011-SC2
   /// SC
   /// Identification Scheme. Identifier
@@ -461,9 +400,7 @@ record ExtensionVersionID {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "schemeID")
-  @xsd(attribute)
-  scheme_id:          string?
+  scheme_id          string? @xsd(name: "schemeID") @xsd(attribute)
   /// UNDT000011-SC3
   /// SC
   /// Identification Scheme. Name. Text
@@ -472,9 +409,7 @@ record ExtensionVersionID {
   /// Name
   /// Text
   /// string
-  @xsd(name = "schemeName")
-  @xsd(attribute)
-  scheme_name:        string?
+  scheme_name        string? @xsd(name: "schemeName") @xsd(attribute)
   /// UNDT000011-SC4
   /// SC
   /// Identification Scheme Agency. Identifier
@@ -484,9 +419,7 @@ record ExtensionVersionID {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "schemeAgencyID")
-  @xsd(attribute)
-  scheme_agency_id:   string?
+  scheme_agency_id   string? @xsd(name: "schemeAgencyID") @xsd(attribute)
   /// UNDT000011-SC5
   /// SC
   /// Identification Scheme Agency. Name. Text
@@ -495,9 +428,7 @@ record ExtensionVersionID {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "schemeAgencyName")
-  @xsd(attribute)
-  scheme_agency_name: string?
+  scheme_agency_name string? @xsd(name: "schemeAgencyName") @xsd(attribute)
   /// UNDT000011-SC6
   /// SC
   /// Identification Scheme. Version. Identifier
@@ -506,9 +437,7 @@ record ExtensionVersionID {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "schemeVersionID")
-  @xsd(attribute)
-  scheme_version_id:  string?
+  scheme_version_id  string? @xsd(name: "schemeVersionID") @xsd(attribute)
   /// UNDT000011-SC7
   /// SC
   /// Identification Scheme Data. Uniform Resource. Identifier
@@ -517,9 +446,7 @@ record ExtensionVersionID {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeDataURI")
-  @xsd(attribute)
-  scheme_data_uri:    string?
+  scheme_data_uri    string? @xsd(name: "schemeDataURI") @xsd(attribute)
   /// UNDT000011-SC8
   /// SC
   /// Identification Scheme. Uniform Resource. Identifier
@@ -528,7 +455,7 @@ record ExtensionVersionID {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeURI")
-  @xsd(attribute)
-  scheme_uri:         string?
+  scheme_uri         string? @xsd(name: "schemeURI") @xsd(attribute)
+
+  @@xsd(name: "ExtensionVersionID")
 }

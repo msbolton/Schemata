@@ -1,194 +1,210 @@
-@xsd(namespace = "http://uri.etsi.org/01903/v1.3.2#")
-namespace ubl_x_ad_e_sv132_2_1
+schema ubl_x_ad_e_sv132_2_1 @xsd(namespace: "http://uri.etsi.org/01903/v1.3.2#")
 
 import ubl_xmldsig_core_schema_2_1
 
-@xsd(name = "Any")
-record Any {
-  @xsd(any) any:        string
-  @xsd(mixed) text:       string?
-  @xsd(any_attribute)
-  @xsd(process = "strict")
-  attributes: map<string, string>
+model Any {
+  any        string              @xsd(any)
+  text       string?             @xsd(mixed)
+  attributes map<string, string> @xsd(any_attribute) @xsd(process: "strict")
+
+  @@xsd(name: "Any")
 }
 
-@xsd(name = "ObjectIdentifier")
-record ObjectIdentifier {
-  @xsd(name = "Identifier") identifier:               Identifier
-  @xsd(name = "Description") description:              string?
-  @xsd(name = "DocumentationReferences") documentation_references: DocumentationReferences?
+model ObjectIdentifier {
+  identifier               Identifier               @xsd(name: "Identifier")
+  description              string?                  @xsd(name: "Description")
+  documentation_references DocumentationReferences? @xsd(name: "DocumentationReferences")
+
+  @@xsd(name: "ObjectIdentifier")
 }
 
-@xsd(root = false)
-record Identifier {
-  value:     string
-  @xsd(name = "Qualifier")
-  @xsd(attribute)
-  qualifier: Qualifier?
+model Identifier {
+  value     string
+  qualifier Qualifier? @xsd(name: "Qualifier") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
-enum Qualifier { @xsd(name = "OIDAsURI") oid_as_uri, @xsd(name = "OIDAsURN") oid_as_urn }
+enum Qualifier { @xsd(name: "OIDAsURI") oid_as_uri @xsd(name: "OIDAsURN") oid_as_urn }
 
-@xsd(root = false)
-record DocumentationReferences {
-  @xsd(name = "DocumentationReference") documentation_reference: string
+model DocumentationReferences {
+  documentation_reference string @xsd(name: "DocumentationReference")
+
+  @@xsd(root: false)
 }
 
-@xsd(name = "EncapsulatedPKIData")
-record EncapsulatedPKIData {
-  value:    bytes
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:       string?
-  @xsd(name = "Encoding")
-  @xsd(attribute)
-  encoding: string?
+model EncapsulatedPKIData {
+  value    bytes
+  id       string? @xsd(name: "Id") @xsd(attribute)
+  encoding string? @xsd(name: "Encoding") @xsd(attribute)
+
+  @@xsd(name: "EncapsulatedPKIData")
 }
 
-@xsd(name = "Include")
-record Include {
-  @xsd(name = "URI")
-  @xsd(attribute)
-  uri:             string
-  @xsd(name = "referencedData")
-  @xsd(attribute)
-  referenced_data: bool?
+model Include {
+  uri             string @xsd(name: "URI") @xsd(attribute)
+  referenced_data bool?  @xsd(name: "referencedData") @xsd(attribute)
+
+  @@xsd(name: "Include")
 }
 
-@xsd(name = "ReferenceInfo")
-record ReferenceInfo {
-  @xsd(name = "DigestMethod") digest_method: ubl_xmldsig_core_schema_2_1.DigestMethod
-  @xsd(name = "DigestValue") digest_value:  bytes
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:            string?
-  @xsd(name = "URI")
-  @xsd(attribute)
-  uri:           string?
+model ReferenceInfo {
+  digest_method ubl_xmldsig_core_schema_2_1.DigestMethod @xsd(name: "DigestMethod")
+  digest_value  bytes                                    @xsd(name: "DigestValue")
+  id            string?                                  @xsd(name: "Id") @xsd(attribute)
+  uri           string?                                  @xsd(name: "URI") @xsd(attribute)
+
+  @@xsd(name: "ReferenceInfo")
 }
 
 union GenericTimeStamp = XAdESTimeStamp | OtherTimeStamp
 
-@xsd(name = "XAdESTimeStamp")
-record XAdESTimeStamp {
-  @xsd(name = "Include") include:                 list<Include>
-  @xsd(name = "CanonicalizationMethod") canonicalization_method: ubl_xmldsig_core_schema_2_1.CanonicalizationMethod?
-  choice:                  list<XAdESTimeStampChoice>(min = 1)
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                      string?
+model XAdESTimeStamp {
+  include                 Include[]                                           @xsd(name: "Include")
+  canonicalization_method ubl_xmldsig_core_schema_2_1.CanonicalizationMethod? @xsd(name: "CanonicalizationMethod")
+  choice                  XAdESTimeStampChoice[]                              { minItems 1 }
+  id                      string?                                             @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "XAdESTimeStamp")
 }
 
 union XAdESTimeStampChoice = EncapsulatedPKIData | Any
 
-@xsd(name = "OtherTimeStamp")
-record OtherTimeStamp {
-  @xsd(name = "ReferenceInfo") reference_info:          list<ReferenceInfo>(min = 1)
-  @xsd(name = "CanonicalizationMethod") canonicalization_method: ubl_xmldsig_core_schema_2_1.CanonicalizationMethod?
-  choice:                  OtherTimeStampChoice
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                      string?
+model OtherTimeStamp {
+  reference_info          ReferenceInfo[]                                     { minItems 1 } @xsd(name: "ReferenceInfo")
+  canonicalization_method ubl_xmldsig_core_schema_2_1.CanonicalizationMethod? @xsd(name: "CanonicalizationMethod")
+  choice                  OtherTimeStampChoice
+  id                      string?                                             @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "OtherTimeStamp")
 }
 
 union OtherTimeStampChoice = EncapsulatedPKIData | Any
 
-@xsd(name = "QualifyingProperties")
-record QualifyingProperties {
-  @xsd(name = "SignedProperties") signed_properties:   SignedProperties?
-  @xsd(name = "UnsignedProperties") unsigned_properties: UnsignedProperties?
-  @xsd(name = "Target")
-  @xsd(attribute)
-  target:              string
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                  string?
+model QualifyingProperties {
+  signed_properties   SignedProperties?   @xsd(name: "SignedProperties")
+  unsigned_properties UnsignedProperties? @xsd(name: "UnsignedProperties")
+  target              string              @xsd(name: "Target") @xsd(attribute)
+  id                  string?             @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "QualifyingProperties")
 }
 
-@xsd(name = "SignedProperties")
-record SignedProperties {
-  @xsd(name = "SignedSignatureProperties") signed_signature_properties:   SignedSignatureProperties?
-  @xsd(name = "SignedDataObjectProperties") signed_data_object_properties: SignedDataObjectProperties?
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                            string?
+model SignedProperties {
+  signed_signature_properties   SignedSignatureProperties?  @xsd(name: "SignedSignatureProperties")
+  signed_data_object_properties SignedDataObjectProperties? @xsd(name: "SignedDataObjectProperties")
+  id                            string?                     @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "SignedProperties")
 }
 
-@xsd(name = "UnsignedProperties")
-record UnsignedProperties {
-  @xsd(name = "UnsignedSignatureProperties") unsigned_signature_properties:   UnsignedSignatureProperties?
-  @xsd(name = "UnsignedDataObjectProperties") unsigned_data_object_properties: UnsignedDataObjectProperties?
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                              string?
+model UnsignedProperties {
+  unsigned_signature_properties   UnsignedSignatureProperties?  @xsd(name: "UnsignedSignatureProperties")
+  unsigned_data_object_properties UnsignedDataObjectProperties? @xsd(name: "UnsignedDataObjectProperties")
+  id                              string?                       @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "UnsignedProperties")
 }
 
-@xsd(name = "SignedSignatureProperties")
-record SignedSignatureProperties {
-  @xsd(name = "SigningTime") signing_time:                instant?
-  @xsd(name = "SigningCertificate") signing_certificate:         CertIDList?
-  @xsd(name = "SignaturePolicyIdentifier") signature_policy_identifier: SignaturePolicyIdentifier?
-  @xsd(name = "SignatureProductionPlace") signature_production_place:  SignatureProductionPlace?
-  @xsd(name = "SignerRole") signer_role:                 SignerRole?
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                          string?
+model SignedSignatureProperties {
+  signing_time                instant?                   @xsd(name: "SigningTime")
+  signing_certificate         CertIDList?                @xsd(name: "SigningCertificate")
+  signature_policy_identifier SignaturePolicyIdentifier? @xsd(name: "SignaturePolicyIdentifier")
+  signature_production_place  SignatureProductionPlace?  @xsd(name: "SignatureProductionPlace")
+  signer_role                 SignerRole?                @xsd(name: "SignerRole")
+  id                          string?                    @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "SignedSignatureProperties")
 }
 
-@xsd(name = "SignedDataObjectProperties")
-record SignedDataObjectProperties {
-  @xsd(name = "DataObjectFormat") data_object_format:                 list<DataObjectFormat>
-  @xsd(name = "CommitmentTypeIndication") commitment_type_indication:         list<CommitmentTypeIndication>
-  @xsd(name = "AllDataObjectsTimeStamp") all_data_objects_time_stamp:        list<XAdESTimeStamp>
-  @xsd(name = "IndividualDataObjectsTimeStamp") individual_data_objects_time_stamp: list<XAdESTimeStamp>
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                                 string?
+model SignedDataObjectProperties {
+  data_object_format                 DataObjectFormat[]         @xsd(name: "DataObjectFormat")
+  commitment_type_indication         CommitmentTypeIndication[] @xsd(name: "CommitmentTypeIndication")
+  all_data_objects_time_stamp        XAdESTimeStamp[]           @xsd(name: "AllDataObjectsTimeStamp")
+  individual_data_objects_time_stamp XAdESTimeStamp[]           @xsd(name: "IndividualDataObjectsTimeStamp")
+  id                                 string?                    @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "SignedDataObjectProperties")
 }
 
-@xsd(name = "UnsignedSignatureProperties")
-record UnsignedSignatureProperties {
-  choice: list<UnsignedSignaturePropertiesChoice>(min = 1)
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:     string?
+model UnsignedSignatureProperties {
+  choice UnsignedSignaturePropertiesChoice[] { minItems 1 }
+  id     string?                             @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "UnsignedSignatureProperties")
 }
 
-@xsd(root = false)
-record SignatureTimeStamp { value: XAdESTimeStamp }
+model SignatureTimeStamp {
+  value XAdESTimeStamp
 
-@xsd(root = false)
-record CompleteCertificateRefs2 { value: CompleteCertificateRefs }
+  @@xsd(root: false)
+}
 
-@xsd(root = false)
-record CompleteRevocationRefs2 { value: CompleteRevocationRefs }
+model CompleteCertificateRefs2 {
+  value CompleteCertificateRefs
 
-@xsd(root = false)
-record AttributeCertificateRefs { value: CompleteCertificateRefs }
+  @@xsd(root: false)
+}
 
-@xsd(root = false)
-record AttributeRevocationRefs { value: CompleteRevocationRefs }
+model CompleteRevocationRefs2 {
+  value CompleteRevocationRefs
 
-@xsd(root = false)
-record SigAndRefsTimeStamp { value: XAdESTimeStamp }
+  @@xsd(root: false)
+}
 
-@xsd(root = false)
-record RefsOnlyTimeStamp { value: XAdESTimeStamp }
+model AttributeCertificateRefs {
+  value CompleteCertificateRefs
 
-@xsd(root = false)
-record CertificateValues2 { value: CertificateValues }
+  @@xsd(root: false)
+}
 
-@xsd(root = false)
-record RevocationValues2 { value: RevocationValues }
+model AttributeRevocationRefs {
+  value CompleteRevocationRefs
 
-@xsd(root = false)
-record AttrAuthoritiesCertValues { value: CertificateValues }
+  @@xsd(root: false)
+}
 
-@xsd(root = false)
-record AttributeRevocationValues { value: RevocationValues }
+model SigAndRefsTimeStamp {
+  value XAdESTimeStamp
 
-@xsd(root = false)
-record ArchiveTimeStamp { value: XAdESTimeStamp }
+  @@xsd(root: false)
+}
+
+model RefsOnlyTimeStamp {
+  value XAdESTimeStamp
+
+  @@xsd(root: false)
+}
+
+model CertificateValues2 {
+  value CertificateValues
+
+  @@xsd(root: false)
+}
+
+model RevocationValues2 {
+  value RevocationValues
+
+  @@xsd(root: false)
+}
+
+model AttrAuthoritiesCertValues {
+  value CertificateValues
+
+  @@xsd(root: false)
+}
+
+model AttributeRevocationValues {
+  value RevocationValues
+
+  @@xsd(root: false)
+}
+
+model ArchiveTimeStamp {
+  value XAdESTimeStamp
+
+  @@xsd(root: false)
+}
 
 union UnsignedSignaturePropertiesChoice =
   CounterSignature |
@@ -205,213 +221,232 @@ union UnsignedSignaturePropertiesChoice =
   AttributeRevocationValues |
   ArchiveTimeStamp
 
-@xsd(name = "UnsignedDataObjectProperties")
-record UnsignedDataObjectProperties {
-  @xsd(name = "UnsignedDataObjectProperty") unsigned_data_object_property: list<Any>(min = 1)
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:                            string?
+model UnsignedDataObjectProperties {
+  unsigned_data_object_property Any[]   { minItems 1 } @xsd(name: "UnsignedDataObjectProperty")
+  id                            string? @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "UnsignedDataObjectProperties")
 }
 
-@xsd(name = "QualifyingPropertiesReference")
-record QualifyingPropertiesReference {
-  @xsd(name = "URI")
-  @xsd(attribute)
-  uri: string
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:  string?
+model QualifyingPropertiesReference {
+  uri string  @xsd(name: "URI") @xsd(attribute)
+  id  string? @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "QualifyingPropertiesReference")
 }
 
-record CertIDList { @xsd(name = "Cert") cert: list<CertID>(min = 1) }
+model CertIDList { cert CertID[] { minItems 1 } @xsd(name: "Cert") }
 
-@xsd(root = false)
-record CertID {
-  @xsd(name = "CertDigest") cert_digest:   DigestAlgAndValue
-  @xsd(name = "IssuerSerial") issuer_serial: ubl_xmldsig_core_schema_2_1.X509IssuerSerial
-  @xsd(name = "URI")
-  @xsd(attribute)
-  uri:           string?
+model CertID {
+  cert_digest   DigestAlgAndValue                            @xsd(name: "CertDigest")
+  issuer_serial ubl_xmldsig_core_schema_2_1.X509IssuerSerial @xsd(name: "IssuerSerial")
+  uri           string?                                      @xsd(name: "URI") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record DigestAlgAndValue {
-  @xsd(name = "DigestMethod") digest_method: ubl_xmldsig_core_schema_2_1.DigestMethod
-  @xsd(name = "DigestValue") digest_value:  bytes
+model DigestAlgAndValue {
+  digest_method ubl_xmldsig_core_schema_2_1.DigestMethod @xsd(name: "DigestMethod")
+  digest_value  bytes                                    @xsd(name: "DigestValue")
+
+  @@xsd(root: false)
 }
 
 union SignaturePolicyIdentifier = SignaturePolicyId | string
 
-@xsd(root = false)
-record SignaturePolicyId {
-  @xsd(name = "SigPolicyId") sig_policy_id:         ObjectIdentifier
-  @xsd(name = "Transforms") transforms:            ubl_xmldsig_core_schema_2_1.Transforms?
-  @xsd(name = "SigPolicyHash") sig_policy_hash:       DigestAlgAndValue
-  @xsd(name = "SigPolicyQualifiers") sig_policy_qualifiers: SigPolicyQualifiersList?
+model SignaturePolicyId {
+  sig_policy_id         ObjectIdentifier                        @xsd(name: "SigPolicyId")
+  transforms            ubl_xmldsig_core_schema_2_1.Transforms? @xsd(name: "Transforms")
+  sig_policy_hash       DigestAlgAndValue                       @xsd(name: "SigPolicyHash")
+  sig_policy_qualifiers SigPolicyQualifiersList?                @xsd(name: "SigPolicyQualifiers")
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record SigPolicyQualifiersList {
-  @xsd(name = "SigPolicyQualifier") sig_policy_qualifier: list<Any>(min = 1)
+model SigPolicyQualifiersList {
+  sig_policy_qualifier Any[] { minItems 1 } @xsd(name: "SigPolicyQualifier")
+
+  @@xsd(root: false)
 }
 
-@xsd(name = "SPUserNotice")
-record SPUserNotice {
-  @xsd(name = "NoticeRef") notice_ref:    NoticeReference?
-  @xsd(name = "ExplicitText") explicit_text: string?
+model SPUserNotice {
+  notice_ref    NoticeReference? @xsd(name: "NoticeRef")
+  explicit_text string?          @xsd(name: "ExplicitText")
+
+  @@xsd(name: "SPUserNotice")
 }
 
-@xsd(root = false)
-record NoticeReference {
-  @xsd(name = "Organization") organization:   string
-  @xsd(name = "NoticeNumbers") notice_numbers: IntegerList
+model NoticeReference {
+  organization   string      @xsd(name: "Organization")
+  notice_numbers IntegerList @xsd(name: "NoticeNumbers")
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record IntegerList { int: list<int32> }
+model IntegerList {
+  int int32[]
 
-@xsd(name = "CounterSignature")
-record CounterSignature {
-  @xsd(name = "Signature") signature: ubl_xmldsig_core_schema_2_1.Signature
+  @@xsd(root: false)
 }
 
-@xsd(name = "DataObjectFormat")
-record DataObjectFormat {
-  @xsd(name = "Description") description:       string?
-  @xsd(name = "ObjectIdentifier") object_identifier: ObjectIdentifier?
-  @xsd(name = "MimeType") mime_type:         string?
-  @xsd(name = "Encoding") encoding:          string?
-  @xsd(name = "ObjectReference")
-  @xsd(attribute)
-  object_reference:  string
+model CounterSignature {
+  signature ubl_xmldsig_core_schema_2_1.Signature @xsd(name: "Signature")
+
+  @@xsd(name: "CounterSignature")
 }
 
-@xsd(name = "CommitmentTypeIndication")
-record CommitmentTypeIndication {
-  @xsd(name = "CommitmentTypeId") commitment_type_id:         ObjectIdentifier
-  @xsd(name = "ObjectReference") object_reference:           list<string>
-  @xsd(name = "AllSignedDataObjects")
-  @xsd(any_type)
-  all_signed_data_objects:    string?
-  @xsd(name = "CommitmentTypeQualifiers") commitment_type_qualifiers: CommitmentTypeQualifiersList?
+model DataObjectFormat {
+  description       string?           @xsd(name: "Description")
+  object_identifier ObjectIdentifier? @xsd(name: "ObjectIdentifier")
+  mime_type         string?           @xsd(name: "MimeType")
+  encoding          string?           @xsd(name: "Encoding")
+  object_reference  string            @xsd(name: "ObjectReference") @xsd(attribute)
+
+  @@xsd(name: "DataObjectFormat")
 }
 
-@xsd(root = false)
-record CommitmentTypeQualifiersList {
-  @xsd(name = "CommitmentTypeQualifier") commitment_type_qualifier: list<Any>
+model CommitmentTypeIndication {
+  commitment_type_id         ObjectIdentifier              @xsd(name: "CommitmentTypeId")
+  object_reference           string[]                      @xsd(name: "ObjectReference")
+  all_signed_data_objects    string?                       @xsd(name: "AllSignedDataObjects") @xsd(any_type)
+  commitment_type_qualifiers CommitmentTypeQualifiersList? @xsd(name: "CommitmentTypeQualifiers")
+
+  @@xsd(name: "CommitmentTypeIndication")
 }
 
-@xsd(name = "SignatureProductionPlace")
-record SignatureProductionPlace {
-  @xsd(name = "City") city:              string?
-  @xsd(name = "StateOrProvince") state_or_province: string?
-  @xsd(name = "PostalCode") postal_code:       string?
-  @xsd(name = "CountryName") country_name:      string?
+model CommitmentTypeQualifiersList {
+  commitment_type_qualifier Any[] @xsd(name: "CommitmentTypeQualifier")
+
+  @@xsd(root: false)
 }
 
-@xsd(name = "SignerRole")
-record SignerRole {
-  @xsd(name = "ClaimedRoles") claimed_roles:   ClaimedRolesList?
-  @xsd(name = "CertifiedRoles") certified_roles: CertifiedRolesList?
+model SignatureProductionPlace {
+  city              string? @xsd(name: "City")
+  state_or_province string? @xsd(name: "StateOrProvince")
+  postal_code       string? @xsd(name: "PostalCode")
+  country_name      string? @xsd(name: "CountryName")
+
+  @@xsd(name: "SignatureProductionPlace")
 }
 
-@xsd(root = false)
-record ClaimedRolesList { @xsd(name = "ClaimedRole") claimed_role: list<Any>(min = 1) }
+model SignerRole {
+  claimed_roles   ClaimedRolesList?   @xsd(name: "ClaimedRoles")
+  certified_roles CertifiedRolesList? @xsd(name: "CertifiedRoles")
 
-@xsd(root = false)
-record CertifiedRolesList {
-  @xsd(name = "CertifiedRole") certified_role: list<EncapsulatedPKIData>(min = 1)
+  @@xsd(name: "SignerRole")
 }
 
-@xsd(name = "CompleteCertificateRefs")
-record CompleteCertificateRefs {
-  @xsd(name = "CertRefs") cert_refs: CertIDList
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:        string?
+model ClaimedRolesList {
+  claimed_role Any[] { minItems 1 } @xsd(name: "ClaimedRole")
+
+  @@xsd(root: false)
 }
 
-@xsd(name = "CompleteRevocationRefs")
-record CompleteRevocationRefs {
-  @xsd(name = "CRLRefs") crl_refs:   CRLRefs?
-  @xsd(name = "OCSPRefs") ocsp_refs:  OCSPRefs?
-  @xsd(name = "OtherRefs") other_refs: OtherCertStatusRefs?
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:         string?
+model CertifiedRolesList {
+  certified_role EncapsulatedPKIData[] { minItems 1 } @xsd(name: "CertifiedRole")
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record CRLRefs { @xsd(name = "CRLRef") crl_ref: list<CRLRef>(min = 1) }
+model CompleteCertificateRefs {
+  cert_refs CertIDList @xsd(name: "CertRefs")
+  id        string?    @xsd(name: "Id") @xsd(attribute)
 
-@xsd(root = false)
-record CRLRef {
-  @xsd(name = "DigestAlgAndValue") digest_alg_and_value: DigestAlgAndValue
-  @xsd(name = "CRLIdentifier") crl_identifier:       CRLIdentifier?
+  @@xsd(name: "CompleteCertificateRefs")
 }
 
-@xsd(root = false)
-record CRLIdentifier {
-  @xsd(name = "Issuer") issuer:     string
-  @xsd(name = "IssueTime") issue_time: instant
-  @xsd(name = "Number") number:     int32?
-  @xsd(name = "URI")
-  @xsd(attribute)
-  uri:        string?
+model CompleteRevocationRefs {
+  crl_refs   CRLRefs?             @xsd(name: "CRLRefs")
+  ocsp_refs  OCSPRefs?            @xsd(name: "OCSPRefs")
+  other_refs OtherCertStatusRefs? @xsd(name: "OtherRefs")
+  id         string?              @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "CompleteRevocationRefs")
 }
 
-@xsd(root = false)
-record OCSPRefs { @xsd(name = "OCSPRef") ocsp_ref: list<OCSPRef>(min = 1) }
+model CRLRefs {
+  crl_ref CRLRef[] { minItems 1 } @xsd(name: "CRLRef")
 
-@xsd(root = false)
-record OCSPRef {
-  @xsd(name = "OCSPIdentifier") ocsp_identifier:      OCSPIdentifier
-  @xsd(name = "DigestAlgAndValue") digest_alg_and_value: DigestAlgAndValue?
+  @@xsd(root: false)
+}
+
+model CRLRef {
+  digest_alg_and_value DigestAlgAndValue @xsd(name: "DigestAlgAndValue")
+  crl_identifier       CRLIdentifier?    @xsd(name: "CRLIdentifier")
+
+  @@xsd(root: false)
+}
+
+model CRLIdentifier {
+  issuer     string  @xsd(name: "Issuer")
+  issue_time instant @xsd(name: "IssueTime")
+  number     int32?  @xsd(name: "Number")
+  uri        string? @xsd(name: "URI") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+model OCSPRefs {
+  ocsp_ref OCSPRef[] { minItems 1 } @xsd(name: "OCSPRef")
+
+  @@xsd(root: false)
+}
+
+model OCSPRef {
+  ocsp_identifier      OCSPIdentifier     @xsd(name: "OCSPIdentifier")
+  digest_alg_and_value DigestAlgAndValue? @xsd(name: "DigestAlgAndValue")
+
+  @@xsd(root: false)
 }
 
 union ResponderID = string | bytes
 
-@xsd(root = false)
-record OCSPIdentifier {
-  @xsd(name = "ResponderID") responder_id: ResponderID
-  @xsd(name = "ProducedAt") produced_at:  instant
-  @xsd(name = "URI")
-  @xsd(attribute)
-  uri:          string?
+model OCSPIdentifier {
+  responder_id ResponderID @xsd(name: "ResponderID")
+  produced_at  instant     @xsd(name: "ProducedAt")
+  uri          string?     @xsd(name: "URI") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record OtherCertStatusRefs { @xsd(name = "OtherRef") other_ref: list<Any>(min = 1) }
+model OtherCertStatusRefs {
+  other_ref Any[] { minItems 1 } @xsd(name: "OtherRef")
 
-@xsd(name = "CertificateValues")
-record CertificateValues {
-  choice: list<CertificateValuesChoice>
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:     string?
+  @@xsd(root: false)
+}
+
+model CertificateValues {
+  choice CertificateValuesChoice[]
+  id     string?                   @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "CertificateValues")
 }
 
 union CertificateValuesChoice = EncapsulatedPKIData | Any
 
-@xsd(name = "RevocationValues")
-record RevocationValues {
-  @xsd(name = "CRLValues") crl_values:   CRLValues?
-  @xsd(name = "OCSPValues") ocsp_values:  OCSPValues?
-  @xsd(name = "OtherValues") other_values: OtherCertStatusValues?
-  @xsd(name = "Id")
-  @xsd(attribute)
-  id:           string?
+model RevocationValues {
+  crl_values   CRLValues?             @xsd(name: "CRLValues")
+  ocsp_values  OCSPValues?            @xsd(name: "OCSPValues")
+  other_values OtherCertStatusValues? @xsd(name: "OtherValues")
+  id           string?                @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(name: "RevocationValues")
 }
 
-@xsd(root = false)
-record CRLValues {
-  @xsd(name = "EncapsulatedCRLValue") encapsulated_crl_value: list<EncapsulatedPKIData>(min = 1)
+model CRLValues {
+  encapsulated_crl_value EncapsulatedPKIData[] { minItems 1 } @xsd(name: "EncapsulatedCRLValue")
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record OCSPValues {
-  @xsd(name = "EncapsulatedOCSPValue") encapsulated_ocsp_value: list<EncapsulatedPKIData>(min = 1)
+model OCSPValues {
+  encapsulated_ocsp_value EncapsulatedPKIData[] { minItems 1 } @xsd(name: "EncapsulatedOCSPValue")
+
+  @@xsd(root: false)
 }
 
-@xsd(root = false)
-record OtherCertStatusValues { @xsd(name = "OtherValue") other_value: list<Any>(min = 1) }
+model OtherCertStatusValues {
+  other_value Any[] { minItems 1 } @xsd(name: "OtherValue")
+
+  @@xsd(root: false)
+}

@@ -1,12 +1,13 @@
 /// Storefront catalog.
-namespace corpus.catalog
+schema corpus.catalog
 
 /// A product for sale.
-@proto(name = "Item")
-@deprecated
-record Product {
+model Product {
   /// Stock keeping unit.
-  @proto(name = "sku_code") #1 sku:       string
-  @deprecated("use sku") #2 legacy_id: int32?
-  @sql(key) #3 id:        uuid
+  #1 sku       string @proto(name: "sku_code")
+  #2 legacy_id int32? @deprecated("use sku")
+  #3 id        uuid   { id }
+
+  @@proto(name: "Item")
+  @@deprecated
 }

@@ -1,0 +1,3 @@
+schema s
+
+model R { #1 x bool { max 3 } }

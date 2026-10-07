@@ -13,29 +13,29 @@ openapi: 0 breaking, 0 notes
 error[SCH2501]: jsonschema: c: the namespace was removed breaks documents validated against its declarations
  --> old/c.schemata:1:1
   |
-1 | namespace c
-  | ^^^^^^^^^^^
+1 | schema c
+  | ^^^^^^^^
   = help: keep the namespace, or confirm nothing outside this schema still depends on it
 
 error[SCH2501]: sql: c: the namespace was removed breaks reads of the tables backing its declarations
  --> old/c.schemata:1:1
   |
-1 | namespace c
-  | ^^^^^^^^^^^
+1 | schema c
+  | ^^^^^^^^
   = help: drop the tables only after migrating or archiving their data
 
 error[SCH2501]: xsd: c: the namespace was removed breaks documents validated against its declarations
  --> old/c.schemata:1:1
   |
-1 | namespace c
-  | ^^^^^^^^^^^
+1 | schema c
+  | ^^^^^^^^
   = help: keep the namespace, or confirm nothing outside this schema still depends on it
 
 warning[SCH2502] (lossy): proto: c: the namespace was removed; generated code loses its declarations
  --> old/c.schemata:1:1
   |
-1 | namespace c
-  | ^^^^^^^^^^^
+1 | schema c
+  | ^^^^^^^^
   = help: keep the types, or confirm nothing outside this schema still depends on them
 
 3 errors, 1 warning

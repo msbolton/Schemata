@@ -1,8 +1,14 @@
-namespace s
+schema s
 
-@sql(key = (sku)) record Item {
-  #1 sku: string(max = 16)
-  @xsd(attribute) #2 quantity: int32
+model Item {
+  #1 sku      string { max 16 }
+  #2 quantity int32  @xsd(attribute)
+
+  @@id(sku)
 }
 
-@sql(key = (id)) record Batch { #1 id: uuid }
+model Batch {
+  #1 id uuid
+
+  @@id(id)
+}

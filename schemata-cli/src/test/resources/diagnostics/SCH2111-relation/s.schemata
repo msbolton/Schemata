@@ -1,4 +1,7 @@
-namespace s
-record RItems { @sql(key) #1 id: int32 }
-record Item { #1 n: bool }
-record R { @sql(key) #1 id: int32  @sql(strategy = table) #2 items: list<Item> }
+schema s
+
+model RItems { #1 id int32 { id } }
+
+model Item { #1 n bool }
+
+model R { #1 id int32 { id }  #2 items Item[] @sql(strategy: table) }

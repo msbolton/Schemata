@@ -1,6 +1,0 @@
-# targets=sql
-error[SCH2107] (sql): record 'R' declares @sql(key) on both the record and its fields
- --> s.schemata:2:25
-  = help: keep one form: `@sql(key)` on fields, or `@sql(key = (…))` on the record
-
-1 error, 0 warnings

@@ -24,16 +24,16 @@ class RecursionTest {
     fun `self reference, mutual reference, and reference through list or union are recursive`() {
         val src =
             """
-            namespace a
-            record Node { next: Node? }
-            record A { b: B }
-            record B { a: A? }
-            record Tree { children: list<Tree> }
-            record Expr { kids: map<string, Expr> }
-            record Leaf { v: int32 }
+            schema a
+            model Node { next Node? }
+            model A { b B }
+            model B { a A? }
+            model Tree { children Tree[] }
+            model Expr { kids map<string, Expr> }
+            model Leaf { v int32 }
             union Item = Leaf | Box
-            record Box { items: list<Item> }
-            record Plain { leaf: Leaf }
+            model Box { items Item[] }
+            model Plain { leaf Leaf }
             """
                 .trimIndent()
         assertEquals(
@@ -53,7 +53,7 @@ class RecursionTest {
 
     @Test
     fun `nested records participate`() {
-        val src = "namespace a\nrecord Outer {\n  inner: Inner\n  record Inner { back: Outer? }\n}"
+        val src = "schema a\nmodel Outer {\n  inner Inner\n  model Inner { back Outer? }\n}"
         assertEquals(mapOf("Outer" to true, "Outer.Inner" to true), recursive(src))
     }
 }

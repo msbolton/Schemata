@@ -33,15 +33,15 @@ class ProtoHelpTest {
         val helps =
             lossyHelp(
                 """
-                namespace t
+                schema t
 
                 enum Color { #1 red }
 
-                record R {
-                  #1 name: string(max = 3) = "ab"
-                  #2 tags: list<string>?
-                  #3 attrs: map<string, string?>
-                  #4 amount: decimal(10, 2)
+                model R {
+                  #1 name   string               { max 3 } = "ab"
+                  #2 tags   string[]?
+                  #3 attrs  map<string, string?>
+                  #4 amount decimal(10, 2)
                 }
                 """
                     .trimIndent()
@@ -64,9 +64,9 @@ class ProtoHelpTest {
         val found =
             diagnostics(
                 """
-                namespace t
+                schema t
 
-                record R { #1 g: list<list<int32>> }
+                model R { #1 g list<int32[]> }
                 """
                     .trimIndent(),
                 ProtoCodes.UNSUPPORTED_NESTING,
@@ -81,9 +81,9 @@ class ProtoHelpTest {
         val found =
             diagnostics(
                 """
-                namespace t
+                schema t
 
-                record R { #600000000 x: bool }
+                model R { #600000000 x bool }
                 """
                     .trimIndent(),
                 ProtoCodes.INVALID_FIELD_NUMBER,

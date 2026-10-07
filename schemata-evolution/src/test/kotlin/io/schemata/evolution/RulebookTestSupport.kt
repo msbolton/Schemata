@@ -45,7 +45,25 @@ fun field(
     nullable: Boolean = false,
     default: Value? = null,
     annotations: Annotations = Annotations.NONE,
-) = Field(ordinal, name, type, nullable, default, null, null, at(), at(), annotations)
+    key: Boolean = false,
+    unique: Boolean = false,
+    index: Boolean = false,
+) =
+    Field(
+        ordinal,
+        name,
+        type,
+        nullable,
+        default,
+        null,
+        null,
+        at(),
+        at(),
+        annotations,
+        key = key,
+        unique = unique,
+        index = index,
+    )
 
 fun record(
     ns: String,
@@ -53,6 +71,7 @@ fun record(
     vararg fields: Field,
     reserved: Reserved = Reserved.NONE,
     annotations: Annotations = Annotations.NONE,
+    compositeKey: List<String> = emptyList(),
 ) =
     RecordType(
         qn(ns, name),
@@ -65,6 +84,7 @@ fun record(
         at(),
         at(),
         annotations,
+        compositeKey = compositeKey,
     )
 
 fun value(ordinal: Int, name: String) = EnumValue(ordinal, name, null, at(), at())
@@ -136,8 +156,13 @@ fun analysed(source: String): Schema {
 }
 
 private const val SERVICE_BASE =
-    "namespace t\nrecord Id { #1 id: uuid }\nrecord Order { #1 id: uuid }\n" +
-        "record Count { #1 n: int64 }\n"
+    "schema t\n" +
+        "\n" +
+        "model Id { #1 id uuid }\n" +
+        "\n" +
+        "model Order { #1 id uuid }\n" +
+        "\n" +
+        "model Count { #1 n int64 }\n"
 
 /** One service whose operations change every way a service can between the two sides. */
 val serviceOld: Schema by lazy {

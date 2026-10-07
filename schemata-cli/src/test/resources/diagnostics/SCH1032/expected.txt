@@ -1,5 +1,5 @@
 error[SCH1032]: 'bool' is not generic
- --> s.schemata:2:18
+ --> s.schemata:3:16
   = help: remove the type arguments; only `list` and `map` take them
 
 1 error, 0 warnings

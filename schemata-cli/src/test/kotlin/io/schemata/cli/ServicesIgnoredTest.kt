@@ -54,7 +54,18 @@ class ServicesIgnoredTest {
         val implicit =
             SourceInput(
                 "s.schemata",
-                "namespace s\nrecord A { #1 x: int32 }\nservice Implicit { a(A)  b(A) }\nservice Explicit { #1 a(A) }",
+                "schema s\n" +
+                    "\n" +
+                    "model A { #1 x int32 }\n" +
+                    "\n" +
+                    "service Implicit {\n" +
+                    "  a(A)\n" +
+                    "  b(A)\n" +
+                    "}\n" +
+                    "\n" +
+                    "service Explicit {\n" +
+                    "  #1 a(A)\n" +
+                    "}",
             )
         val analyzed = Pipeline.analyze(listOf(implicit))
         assertEquals(emptyList(), analyzed.diagnostics.map { it.message })

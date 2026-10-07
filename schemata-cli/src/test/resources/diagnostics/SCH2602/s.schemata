@@ -1,4 +1,11 @@
-namespace s
-record R { #1 ok: bool }
-service S { #1 a(): R }
-service Other { #1 x(): R  post "/S/a" }
+schema s
+
+model R { #1 ok bool }
+
+service S {
+  #1 a(): R
+}
+
+service Other {
+  #1 x(): R  post "/S/a"
+}

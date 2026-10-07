@@ -1,34 +1,29 @@
-@sql(schema = "shop")
-namespace schema
+schema schema_value @sql(schema: "shop")
 
-record Customers {
-  @sql(key) tenant_id: uuid
-  @sql(key) code:      string(max = 16)
-  name:      string(min = 1)
-}
+model Customers { tenant_id uuid { id }  code string { id, max 16 }  name string { min 1 } }
 
 /// An order, one row per checkout.
-record Orders {
-  @sql(key) id:       uuid
-  @sql(index) status:   Status = pending
-  @sql(type = "smallint") qty:      int32(min = 1)
+model Orders {
+  id       uuid      { id }
+  status   Status    { index } = pending
+  qty      int32     { min 1 } @sql(type: "smallint")
   /// A note for the courier.
-  @sql(unique) note:     string(max = 500)?
-  customer: Customers
-  @sql(type = "serial") seq:      int32
-  n:        int32
+  note     string?   { unique, max 500 }
+  customer Customers
+  seq      int32     @sql(type: "serial")
+  n        int32
   /// How the order was paid.
-  payment:  Payment
-  lines:    list<Line>
+  payment  Payment
+  lines    Line[]
 
   union Payment = Card | Cash
 
-  record Card { last4: string(max = 4) brand: string(max = 32) }
+  model Card { last4 string { max 4 }  brand string { max 32 } }
 
-  record Cash {}
+  model Cash {}
 
-  enum Status { pending, paid }
+  enum Status { pending paid }
 
   /// One purchasable item.
-  record Line { sku: string(max = 64) quantity: int32(min = 1) }
+  model Line { sku string { max 64 }  quantity int32 { min 1 } }
 }

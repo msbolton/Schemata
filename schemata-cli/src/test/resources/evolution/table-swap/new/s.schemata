@@ -1,15 +1,17 @@
-namespace s
+schema s
 
-@sql(table = "beta")
-record First {
-  @sql(key) #1 id: uuid
-  @sql(unique) #2 code: string(max = 8)
-  @sql(index) #3 label: string(max = 32)
+model First {
+  #1 id    uuid   { id }
+  #2 code  string { unique, max 8 }
+  #3 label string { index, max 32 }
+
+  @@sql(table: "beta")
 }
 
-@sql(table = "alpha")
-record Second {
-  @sql(key) #1 id: uuid
-  @sql(unique) #2 code: string(max = 8)
-  @sql(index) #3 label: string(max = 32)
+model Second {
+  #1 id    uuid   { id }
+  #2 code  string { unique, max 8 }
+  #3 label string { index, max 32 }
+
+  @@sql(table: "alpha")
 }

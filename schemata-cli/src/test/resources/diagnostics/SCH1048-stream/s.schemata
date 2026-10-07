@@ -1,8 +1,6 @@
-namespace t
+schema t
 
-record Chunk {
-  #1 bytes: bytes
-}
+model Chunk { #1 bytes bytes }
 
 service Uploads {
   #1 upload(stream Chunk): Chunk  get "/uploads"

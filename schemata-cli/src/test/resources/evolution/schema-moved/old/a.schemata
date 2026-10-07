@@ -1,8 +1,5 @@
-namespace a
+schema a
 
 import b
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 buyer: Customer
-}
+model Order { #1 id uuid { id }  #2 buyer Customer }

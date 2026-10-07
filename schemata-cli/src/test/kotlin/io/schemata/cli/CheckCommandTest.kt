@@ -12,12 +12,9 @@ import kotlin.test.assertTrue
 class CheckCommandTest {
     private val customers =
         """
-        namespace shop.customers
+        schema shop.customers
 
-        record Customer {
-          @sql(key) #1 id:   uuid
-          #2 name: string
-        }
+        model Customer { #1 id uuid { id }  #2 name string }
         """
             .trimIndent()
 
@@ -49,7 +46,9 @@ class CheckCommandTest {
         assertEquals(1, CheckCommand().test("--target proto --strict $src").statusCode)
         val clean =
             source(
-                "namespace shop.customers\n\nrecord Customer {\n  @sql(key) #1 id: uuid\n  #2 name: string\n}\n"
+                "schema shop.customers\n" +
+                    "\n" +
+                    "model Customer { #1 id uuid { id }  #2 name string }\n"
             )
         val sqlOnly = CheckCommand().test("--target sql $clean")
         assertEquals(0, sqlOnly.statusCode, sqlOnly.stderr)

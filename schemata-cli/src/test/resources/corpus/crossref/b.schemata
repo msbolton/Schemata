@@ -1,4 +1,7 @@
-namespace x.beta
+schema x.beta
 
-@xsd(name = "Beta")
-record B { @sql(key) #1 id: uuid }
+model B {
+  #1 id uuid { id }
+
+  @@xsd(name: "Beta")
+}

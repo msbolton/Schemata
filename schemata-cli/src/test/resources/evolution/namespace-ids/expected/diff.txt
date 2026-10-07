@@ -11,24 +11,24 @@ jsonschema: 1 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s: @jsonschema(id) changed breaks documents that reference the old identifier
- --> new/s.schemata:4:1
+ --> new/s.schemata:1:1
   |
-4 | namespace s
-  | ^^^^^^^^^^^
+1 | schema s @proto(package: "s.v2") @xsd(namespace: "urn:example:s2") @jsonschema(id: "https://example.com/schemas/s2")
+  | ^^^^^^^^
   = help: avoid changing @jsonschema(id) once published
 
 error[SCH2501]: proto: s: the proto package changed breaks consumers that pin the fully-qualified message name
- --> new/s.schemata:4:1
+ --> new/s.schemata:1:1
   |
-4 | namespace s
-  | ^^^^^^^^^^^
+1 | schema s @proto(package: "s.v2") @xsd(namespace: "urn:example:s2") @jsonschema(id: "https://example.com/schemas/s2")
+  | ^^^^^^^^
   = help: avoid changing @proto(package) once published
 
 error[SCH2501]: xsd: s: @xsd(namespace) changed breaks documents that reference the old identifier
- --> new/s.schemata:4:1
+ --> new/s.schemata:1:1
   |
-4 | namespace s
-  | ^^^^^^^^^^^
+1 | schema s @proto(package: "s.v2") @xsd(namespace: "urn:example:s2") @jsonschema(id: "https://example.com/schemas/s2")
+  | ^^^^^^^^
   = help: avoid changing @xsd(namespace) once published
 
 3 errors, 0 warnings

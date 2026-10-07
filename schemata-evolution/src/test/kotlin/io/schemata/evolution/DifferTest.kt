@@ -268,6 +268,31 @@ class DifferTest {
     }
 
     @Test
+    fun `key unique and index facts diff as the sql keys they lower to`() {
+        val id = field(1, "id", Scalar(Builtin.UUID))
+        val code = field(2, "code", Scalar(Builtin.STRING))
+        val old = record("s", "R", id.copy(key = true), code)
+        val new = record("s", "R", id, code.copy(key = true, unique = true, index = true))
+        val changes = diff(ns(old), ns(new)).filterIsInstance<AnnotationChanged>()
+        assertEquals(
+            listOf(
+                Triple("s.R.id", "key", false),
+                Triple("s.R.code", "key", true),
+                Triple("s.R.code", "unique", true),
+                Triple("s.R.code", "index", true),
+            ),
+            changes.map { Triple(it.path, it.key, it.to != null) },
+        )
+        assertTrue(changes.all { it.target == "sql" })
+        val composite = record("s", "R", id, code).copy(compositeKey = listOf("code", "id"))
+        val keyChange =
+            diff(ns(record("s", "R", id, code)), ns(composite))
+                .filterIsInstance<AnnotationChanged>()
+                .single()
+        assertEquals(AnnotationValue.Names(listOf("code", "id")), keyChange.to)
+    }
+
+    @Test
     fun `declarations namespaces enums unions reserved annotations and deprecation`() {
         // declaration.added, declaration.removed, declaration.kindChanged: a record becomes a union
         val oldR = record("s", "R", field(1, "x", Scalar(Builtin.BOOL)))
@@ -635,7 +660,7 @@ class DifferTest {
 
     @Test
     fun `a removed service and a changed request are reported`() {
-        val base = "namespace t\nrecord A { #1 id: uuid }\nrecord B { #1 id: uuid }\n"
+        val base = "schema t\n\nmodel A { #1 id uuid }\n\nmodel B { #1 id uuid }\n"
         val old =
             analysed(base + "/// Old.\nservice S { #1 put(A): A }\nservice Gone { #1 ping() }\n")
         val new = analysed(base + "/// New.\nservice S { #1 put(stream B): A }\n")
@@ -652,11 +677,11 @@ class DifferTest {
 
     @Test
     fun `an operation annotation and doc change are attributed to the operation`() {
-        val base = "namespace t\nrecord A { #1 id: uuid }\n"
+        val base = "schema t\n\nmodel A { #1 id uuid }\n"
         val old = analysed(base + "service S { #1 get(A): A }")
         val new =
             analysed(
-                base + "service S {\n  /// Fetches.\n  @openapi(name = \"fetchA\") #1 get(A): A\n}"
+                base + "service S {\n  /// Fetches.\n  @openapi(name: \"fetchA\") #1 get(A): A\n}"
             )
         val changes = Differ.diff(old, new)
         assertEquals(

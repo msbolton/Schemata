@@ -1,3 +1,5 @@
-namespace s
-record O { #1 x: bool }
-record R { #1 y: O.Inner }
+schema s
+
+model O { #1 x bool }
+
+model R { #1 y O.Inner }

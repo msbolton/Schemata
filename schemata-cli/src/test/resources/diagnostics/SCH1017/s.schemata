@@ -1,2 +1,7 @@
-namespace s
-@sql(column = "c") record R { #1 x: bool }
+schema s
+
+model R {
+  #1 x bool
+
+  @@sql(column: "c")
+}

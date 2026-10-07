@@ -1,12 +1,9 @@
-namespace s
+schema s
 
-record Order {
-  @sql(key) #1 id: uuid
-  @sql(strategy = table) #2 tags: list<string(max = 16)>
-  @sql(strategy = json) #3 billing: Address
+model Order {
+  #1 id      uuid     { id }
+  #2 tags    string[] { max 16 } @sql(strategy: table)
+  #3 billing Address  @sql(strategy: json)
 }
 
-record Address {
-  #1 street: string(max = 200)
-  #2 city: string(max = 100)
-}
+model Address { #1 street string { max 200 }  #2 city string { max 100 } }

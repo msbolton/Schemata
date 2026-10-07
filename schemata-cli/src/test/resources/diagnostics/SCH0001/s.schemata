@@ -1,2 +1,2 @@
-namespace s
-record R { x uuid }
+schema s
+model R { x: uuid }

@@ -1,6 +1,0 @@
-# targets=sql
-error[SCH2107] (sql): record 'R': @sql(key) names 'id' more than once
- --> s.schemata:2:29
-  = help: list each key field once
-
-1 error, 0 warnings

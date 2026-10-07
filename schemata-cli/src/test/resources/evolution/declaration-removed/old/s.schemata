@@ -1,15 +1,12 @@
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
-  #2 name: string(max = 100)
+model Customer { #1 id uuid { id }  #2 name string { max 100 } }
+
+model Order {
+  #1 id    uuid           { id }
+  #2 total decimal(19, 4)
+
+  model Note { #1 text string { id, max 200 } }
 }
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 total: decimal(19, 4)
-
-  record Note { @sql(key) #1 text: string(max = 200) }
-}
-
-enum Status { #1 open, #2 closed }
+enum Status { #1 open #2 closed }

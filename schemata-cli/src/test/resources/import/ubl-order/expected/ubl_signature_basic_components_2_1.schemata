@@ -1,12 +1,10 @@
-@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2")
-namespace ubl_signature_basic_components_2_1
+schema ubl_signature_basic_components_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:SignatureBasicComponents-2")
 
 import ubl_qualified_data_types_2_1
 import ubl_unqualified_data_types_2_1
 
-@xsd(name = "ReferencedSignatureID")
-record ReferencedSignatureID {
-  value:              string
+model ReferencedSignatureID {
+  value              string
   /// UNDT000011-SC2
   /// SC
   /// Identification Scheme. Identifier
@@ -15,9 +13,7 @@ record ReferencedSignatureID {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "schemeID")
-  @xsd(attribute)
-  scheme_id:          string?
+  scheme_id          string? @xsd(name: "schemeID") @xsd(attribute)
   /// UNDT000011-SC3
   /// SC
   /// Identification Scheme. Name. Text
@@ -26,9 +22,7 @@ record ReferencedSignatureID {
   /// Name
   /// Text
   /// string
-  @xsd(name = "schemeName")
-  @xsd(attribute)
-  scheme_name:        string?
+  scheme_name        string? @xsd(name: "schemeName") @xsd(attribute)
   /// UNDT000011-SC4
   /// SC
   /// Identification Scheme Agency. Identifier
@@ -38,9 +32,7 @@ record ReferencedSignatureID {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "schemeAgencyID")
-  @xsd(attribute)
-  scheme_agency_id:   string?
+  scheme_agency_id   string? @xsd(name: "schemeAgencyID") @xsd(attribute)
   /// UNDT000011-SC5
   /// SC
   /// Identification Scheme Agency. Name. Text
@@ -49,9 +41,7 @@ record ReferencedSignatureID {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "schemeAgencyName")
-  @xsd(attribute)
-  scheme_agency_name: string?
+  scheme_agency_name string? @xsd(name: "schemeAgencyName") @xsd(attribute)
   /// UNDT000011-SC6
   /// SC
   /// Identification Scheme. Version. Identifier
@@ -60,9 +50,7 @@ record ReferencedSignatureID {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "schemeVersionID")
-  @xsd(attribute)
-  scheme_version_id:  string?
+  scheme_version_id  string? @xsd(name: "schemeVersionID") @xsd(attribute)
   /// UNDT000011-SC7
   /// SC
   /// Identification Scheme Data. Uniform Resource. Identifier
@@ -71,9 +59,7 @@ record ReferencedSignatureID {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeDataURI")
-  @xsd(attribute)
-  scheme_data_uri:    string?
+  scheme_data_uri    string? @xsd(name: "schemeDataURI") @xsd(attribute)
   /// UNDT000011-SC8
   /// SC
   /// Identification Scheme. Uniform Resource. Identifier
@@ -82,7 +68,7 @@ record ReferencedSignatureID {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeURI")
-  @xsd(attribute)
-  scheme_uri:         string?
+  scheme_uri         string? @xsd(name: "schemeURI") @xsd(attribute)
+
+  @@xsd(name: "ReferencedSignatureID")
 }

@@ -9,10 +9,10 @@ jsonschema: 0 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: sql: s.Order: @sql(table) added renames 'order' to 'purchase', which breaks statements that reference the old name
- --> new/s.schemata:4:8
+ --> new/s.schemata:3:7
   |
-4 | record Order {
-  |        ^^^^^
+3 | model Order {
+  |       ^^^^^
   = help: migrate references to the new name, or keep @sql(table) pinned to "order"
 
 1 error, 0 warnings

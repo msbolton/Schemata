@@ -18,34 +18,33 @@
 /// </xs:element>
 /// ...
 /// </xs:schema>
-@xsd(namespace = "http://www.w3.org/1999/xlink")
-@xsd(element_form = "unqualified")
-namespace xlink
+schema xlink @xsd(namespace: "http://www.w3.org/1999/xlink") @xsd(element_form: "unqualified")
 
 import xml
 
-@xsd(name = "type")
-enum Type { simple, extended, title, resource, locator, arc }
+@xsd(name: "type")
+enum Type { simple extended title resource locator arc }
 
-@xsd(name = "show")
-enum Show { new, replace, embed, other, none }
+@xsd(name: "show")
+enum Show { new replace embed other none }
 
-@xsd(name = "actuate")
-enum Actuate { @xsd(name = "onLoad") on_load, @xsd(name = "onRequest") on_request, other, none }
+@xsd(name: "actuate")
+enum Actuate { @xsd(name: "onLoad") on_load @xsd(name: "onRequest") on_request other none }
 
 /// Intended for use as the type of user-declared elements to make them
 /// simple links.
-@xsd(root = false)
-record Simple {
-  @xsd(any) any:     list<string>
-  @xsd(mixed) text:    string?
-  @xsd(attribute) type:    Type = simple
-  @xsd(attribute) href:    string?
-  @xsd(attribute) role:    string(min = 1)?
-  @xsd(attribute) arcrole: string(min = 1)?
-  @xsd(attribute) title:   string?
-  @xsd(attribute) show:    Show?
-  @xsd(attribute) actuate: Actuate?
+model Simple {
+  any     string[] @xsd(any)
+  text    string?  @xsd(mixed)
+  type    Type     @xsd(attribute) = simple
+  href    string?  @xsd(attribute)
+  role    string?  { min 1 } @xsd(attribute)
+  arcrole string?  { min 1 } @xsd(attribute)
+  title   string?  @xsd(attribute)
+  show    Show?    @xsd(attribute)
+  actuate Actuate? @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// Intended for use as the type of user-declared elements to make them
@@ -53,59 +52,64 @@ record Simple {
 /// Note that the elements referenced in the content model are all abstract.
 /// The intention is that by simply declaring elements with these as their
 /// substitutionGroup, all the right things will happen.
-@xsd(root = false)
-record Extended {
-  title:           list<TitleElt>
-  resource:        list<Resource>
-  locator:         list<Locator>
-  arc:             list<Arc>
-  @xsd(attribute) type:            Type = extended
-  @xsd(attribute) role:            string(min = 1)?
-  @xsd(attribute) title_attribute: string?
+model Extended {
+  title           TitleElt[]
+  resource        Resource[]
+  locator         Locator[]
+  arc             Arc[]
+  type            Type       @xsd(attribute) = extended
+  role            string?    { min 1 } @xsd(attribute)
+  title_attribute string?    @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
-@xsd(name = "titleElt")
-record TitleElt {
-  @xsd(any) any:  list<string>
-  @xsd(mixed) text: string?
-  @xsd(attribute) type: Type = title
+model TitleElt {
+  any  string[] @xsd(any)
+  text string?  @xsd(mixed)
+  type Type     @xsd(attribute) = title
   /// xml:lang is not required, but provides much of the
   /// motivation for title elements in addition to attributes, and so
   /// is provided here for convenience.
-  @xsd(attribute) lang: string?
+  lang string?  @xsd(attribute)
+
+  @@xsd(name: "titleElt")
 }
 
-@xsd(name = "resource")
-record Resource {
-  @xsd(any) any:   list<string>
-  @xsd(mixed) text:  string?
-  @xsd(attribute) type:  Type = resource
-  @xsd(attribute) role:  string(min = 1)?
-  @xsd(attribute) title: string?
-  @xsd(attribute) label: string?
+model Resource {
+  any   string[] @xsd(any)
+  text  string?  @xsd(mixed)
+  type  Type     @xsd(attribute) = resource
+  role  string?  { min 1 } @xsd(attribute)
+  title string?  @xsd(attribute)
+  label string?  @xsd(attribute)
+
+  @@xsd(name: "resource")
 }
 
-@xsd(name = "locator")
-record Locator {
-  title:           list<TitleElt>
-  @xsd(attribute) type:            Type = locator
-  @xsd(attribute) href:            string
-  @xsd(attribute) role:            string(min = 1)?
-  @xsd(attribute) title_attribute: string?
+model Locator {
+  title           TitleElt[]
+  type            Type       @xsd(attribute) = locator
+  href            string     @xsd(attribute)
+  role            string?    { min 1 } @xsd(attribute)
+  title_attribute string?    @xsd(attribute)
   /// label is not required, but locators have no particular
   /// XLink function if they are not labeled.
-  @xsd(attribute) label:           string?
+  label           string?    @xsd(attribute)
+
+  @@xsd(name: "locator")
 }
 
-@xsd(name = "arc")
-record Arc {
-  title:           list<TitleElt>
-  @xsd(attribute) type:            Type = arc
-  @xsd(attribute) arcrole:         string(min = 1)?
-  @xsd(attribute) title_attribute: string?
-  @xsd(attribute) show:            Show?
-  @xsd(attribute) actuate:         Actuate?
-  @xsd(attribute) from:            string?
+model Arc {
+  title           TitleElt[]
+  type            Type       @xsd(attribute) = arc
+  arcrole         string?    { min 1 } @xsd(attribute)
+  title_attribute string?    @xsd(attribute)
+  show            Show?      @xsd(attribute)
+  actuate         Actuate?   @xsd(attribute)
+  from            string?    @xsd(attribute)
   /// from and to have default behavior when values are missing
-  @xsd(attribute) to:              string?
+  to              string?    @xsd(attribute)
+
+  @@xsd(name: "arc")
 }

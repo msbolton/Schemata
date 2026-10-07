@@ -1,18 +1,16 @@
 /// Period closes, kept in their own schema.
-@sql(schema = "ledger_reports")
-@proto(package = "ledger.reports.v1")
-namespace ledger.reports
+schema ledger.reports @sql(schema: "ledger_reports") @proto(package: "ledger.reports.v1")
 
 import ledger.accounts
 import ledger.journal
 
 /// A close of one account for one period.
-record Close {
-  @sql(key) #1 id:      uuid
-  #2 period:  string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
-  #3 account: Account
-  #4 last:    Entry?
-  #5 totals:  Totals
+model Close {
+  #1 id      uuid    { id }
+  #2 period  string  { max 7, match "^[0-9]{4}-[0-9]{2}$" }
+  #3 account Account
+  #4 last    Entry?
+  #5 totals  Totals
 
-  record Totals { #1 debits: Money #2 credits: Money }
+  model Totals { #1 debits Money  #2 credits Money }
 }

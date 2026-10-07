@@ -1,6 +1,6 @@
 # targets=xsd
 error[SCH2205] (xsd): field 'R.x': @xsd(name = "1bad") is not a valid XML name
- --> s.schemata:2:35
+ --> s.schemata:3:14
   = help: use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore
 
 1 error, 0 warnings

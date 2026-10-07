@@ -1,2 +1,2 @@
-namespace s
+schema s
 operation Foo {}

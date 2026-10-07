@@ -1,6 +1,6 @@
 # targets=openapi
 error[SCH2603] (openapi): operation 'a': @openapi(name = "a b") is not a valid operationId
- --> s.schemata:3:39
+ --> s.schemata:6:28
   = help: use letters, digits, `_`, `.`, and `-`
 
 1 error, 0 warnings

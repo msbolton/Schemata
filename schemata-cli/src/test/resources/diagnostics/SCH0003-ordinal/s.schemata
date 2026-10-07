@@ -1,2 +1,2 @@
-namespace s
-record R { #99999999999 x: bool }
+schema s
+model R { #99999999999 x bool }

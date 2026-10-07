@@ -8,11 +8,11 @@ import kotlin.test.assertTrue
 class PlannerTest {
     private val base =
         """
-        namespace s
-        record Customer {
-          @sql(key) #1 id: uuid
-          #2 name: string(max = 100)
-          #3 note: string?
+        schema s
+        model Customer {
+          #1 id uuid { id }
+          #2 name string { max 100 }
+          #3 note string?
         }
         """
 
@@ -23,8 +23,7 @@ class PlannerTest {
 
     @Test
     fun `a nullable field added is one clean add column`() {
-        val steps =
-            plan(base, base.replace("#3 note: string?", "#3 note: string?\n  #4 tier: int32?"))
+        val steps = plan(base, base.replace("#3 note string?", "#3 note string?\n  #4 tier int32?"))
         val add = steps.single() as AddColumn
         assertEquals("tier", add.column.name)
         assertEquals(Risk.CLEAN, add.risk)
@@ -33,8 +32,7 @@ class PlannerTest {
 
     @Test
     fun `a required field without a default is added nullable then set not null and may fail`() {
-        val steps =
-            plan(base, base.replace("#3 note: string?", "#3 note: string?\n  #4 tier: int32"))
+        val steps = plan(base, base.replace("#3 note string?", "#3 note string?\n  #4 tier int32"))
         assertEquals(listOf(AddColumn::class, SetNotNull::class), steps.map { it::class })
         assertTrue((steps[0] as AddColumn).column.nullable)
         assertEquals(Risk.MAY_FAIL, steps[1].risk)
@@ -43,7 +41,7 @@ class PlannerTest {
     @Test
     fun `a required field with a default is one clean add column with the default`() {
         val steps =
-            plan(base, base.replace("#3 note: string?", "#3 note: string?\n  #4 tier: int32 = 1"))
+            plan(base, base.replace("#3 note string?", "#3 note string?\n  #4 tier int32 = 1"))
         val add = steps.single() as AddColumn
         assertEquals(false, add.column.nullable)
         assertEquals("1", add.column.default)
@@ -51,7 +49,7 @@ class PlannerTest {
 
     @Test
     fun `a field removed is a destructive drop column`() {
-        val steps = plan(base, base.replace("  #3 note: string?\n", ""))
+        val steps = plan(base, base.replace("  #3 note string?\n", ""))
         val drop = steps.single() as DropColumn
         assertEquals("note", drop.column)
         assertEquals(Risk.DESTRUCTIVE, drop.risk)
@@ -60,7 +58,7 @@ class PlannerTest {
 
     @Test
     fun `a field renamed under its ordinal is a rename column`() {
-        val steps = plan(base, base.replace("#3 note:", "#3 comment:"))
+        val steps = plan(base, base.replace("#3 note ", "#3 comment "))
         val rename = steps.single() as RenameColumn
         assertEquals("note" to "comment", rename.from to rename.to)
     }
@@ -69,32 +67,32 @@ class PlannerTest {
     fun `a rename pinned by a column override plans nothing`() {
         assertEquals(
             emptyList(),
-            plan(base, base.replace("#3 note:", "@sql(column = \"note\") #3 comment:")),
+            plan(base, base.replace("#3 note string?", "#3 comment string? @sql(column: \"note\")")),
         )
     }
 
     @Test
     fun `a widened type is a clean alter and a narrowed one is destructive`() {
         val widened =
-            plan(base, base.replace("string(max = 100)", "string(max = 200)")).single()
+            plan(base, base.replace("string { max 100 }", "string { max 200 }")).single()
                 as AlterColumnType
         assertEquals(ColumnType.VARCHAR(200), widened.type)
         assertEquals(Risk.CLEAN, widened.risk)
         val narrowed =
-            plan(base, base.replace("string(max = 100)", "string(max = 50)")).single()
+            plan(base, base.replace("string { max 100 }", "string { max 50 }")).single()
                 as AlterColumnType
         assertEquals(Risk.DESTRUCTIVE, narrowed.risk)
     }
 
     @Test
     fun `nullable to non-null backfills when there is a default and may fail without one`() {
-        val withDefault = plan(base, base.replace("#3 note: string?", "#3 note: string = \"\""))
+        val withDefault = plan(base, base.replace("#3 note string?", "#3 note string = \"\""))
         assertEquals(
             listOf(SetDefault::class, Backfill::class, SetNotNull::class),
             withDefault.map { it::class },
         )
         assertEquals(Risk.CLEAN, withDefault[2].risk)
-        val without = plan(base, base.replace("#3 note: string?", "#3 note: string"))
+        val without = plan(base, base.replace("#3 note string?", "#3 note string"))
         val set = without.single() as SetNotNull
         assertEquals(Risk.MAY_FAIL, set.risk)
     }
@@ -102,14 +100,14 @@ class PlannerTest {
     @Test
     fun `non-null to nullable is a clean drop not null`() {
         val steps =
-            plan(base, base.replace("#2 name: string(max = 100)", "#2 name: string(max = 100)?"))
+            plan(base, base.replace("#2 name string { max 100 }", "#2 name string? { max 100 }"))
         assertTrue(steps.single() is DropNotNull)
     }
 
     @Test
     fun `a tightened check is dropped and re-added and may fail`() {
-        val old = base.replace("#3 note: string?", "#3 age: int32(min = 0)")
-        val new = base.replace("#3 note: string?", "#3 age: int32(min = 18)")
+        val old = base.replace("#3 note string?", "#3 age int32 { min 0 }")
+        val new = base.replace("#3 note string?", "#3 age int32 { min 18 }")
         val steps = plan(old, new)
         assertEquals(listOf(DropConstraint::class, AddConstraint::class), steps.map { it::class })
         assertEquals(Risk.MAY_FAIL, steps[1].risk)
@@ -122,8 +120,8 @@ class PlannerTest {
     fun `a key moved drops the primary key and adds the new one and may fail`() {
         val new =
             base
-                .replace("@sql(key) #1 id: uuid", "#1 id: uuid")
-                .replace("#2 name:", "@sql(key) #2 name:")
+                .replace("#1 id uuid { id }", "#1 id uuid")
+                .replace("#2 name string { max 100 }", "#2 name string { id, max 100 }")
         val steps = plan(base, new)
         val drop = steps.filterIsInstance<DropConstraint>().single()
         val add = steps.filterIsInstance<AddConstraint>().single()
@@ -137,14 +135,14 @@ class PlannerTest {
     fun `a renamed table renames its constraints and its child table's foreign key`() {
         val old =
             """
-            namespace s
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 lines: list<Line>
-              record Line { #1 sku: string(max = 8) }
+            schema s
+            model Order {
+              #1 id uuid { id }
+              #2 lines Line[]
+              model Line { #1 sku string { max 8 } }
             }
             """
-        val new = old.replace("record Order {", "@sql(table = \"purchase\") record Order {")
+        val new = old.replace("model Order {", "@sql(table: \"purchase\") model Order {")
         val steps = plan(old, new)
         assertTrue(steps.any { it is RenameTable && it.at.table == "order" && it.to == "purchase" })
         assertTrue(
@@ -175,8 +173,8 @@ class PlannerTest {
 
     @Test
     fun `a dropped column drops the constraints that name it first`() {
-        val old = base.replace("#3 note: string?", "@sql(unique) #3 code: string(max = 8)")
-        val steps = plan(old, base.replace("  #3 note: string?\n", ""))
+        val old = base.replace("#3 note string?", "#3 code string { unique, max 8 }")
+        val steps = plan(old, base.replace("  #3 note string?\n", ""))
         val kinds = steps.map { it::class }
         assertTrue(kinds.indexOf(DropConstraint::class) < kinds.indexOf(DropColumn::class))
         val drop = steps.first { it is DropConstraint } as DropConstraint
@@ -188,14 +186,14 @@ class PlannerTest {
     fun `a field retyped and made nullable re-adds its check as may-fail`() {
         val old =
             """
-            namespace s
+            schema s
             enum Status { #1 a #2 b }
-            record Item {
-              @sql(key) #1 id: uuid
-              #2 x: string
+            model Item {
+              #1 id uuid { id }
+              #2 x string
             }
             """
-        val steps = plan(old, old.replace("#2 x: string", "#2 x: Status?"))
+        val steps = plan(old, old.replace("#2 x string", "#2 x Status?"))
         val add = steps.filterIsInstance<AddConstraint>().single()
         assertEquals("ck_item_x_enum", add.constraint.name)
         assertEquals(Risk.MAY_FAIL, add.risk)
@@ -205,13 +203,13 @@ class PlannerTest {
     fun `a retyped column drops its checks before the type change`() {
         val old =
             """
-            namespace s
-            record Item {
-              @sql(key) #1 id: uuid
-              #2 code: string(pattern = "^[a-z]+$")
+            schema s
+            model Item {
+              #1 id uuid { id }
+              #2 code string { match "^[a-z]+$" }
             }
             """
-        val steps = plan(old, old.replace(Regex("string\\(pattern = .*\\)"), "int32"))
+        val steps = plan(old, old.replace(Regex("string \\{ match .* \\}"), "int32"))
         val drop = steps.indexOfFirst { it is DropConstraint && it.name.startsWith("ck_item_code") }
         val alter = steps.indexOfFirst { it is AlterColumnType }
         assertTrue(drop in 0 until alter, steps.toString())
@@ -222,17 +220,17 @@ class PlannerTest {
     fun `a moved key drops the child's parent column and adds the new one`() {
         val old =
             """
-            namespace s
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 code: string(max = 8)
-              #3 lines: list<Line>
-              record Line { #1 sku: string(max = 8) }
+            schema s
+            model Order {
+              #1 id uuid { id }
+              #2 code string { max 8 }
+              #3 lines Line[]
+              model Line { #1 sku string { max 8 } }
             }
             """
         val new =
-            old.replace("@sql(key) #1 id: uuid", "#1 id: uuid")
-                .replace("#2 code:", "@sql(key) #2 code:")
+            old.replace("#1 id uuid { id }", "#1 id uuid")
+                .replace("#2 code string { max 8 }", "#2 code string { id, max 8 }")
         val steps = plan(old, new)
         assertTrue(steps.none { it is AlterColumnType || it is RenameColumn }, steps.toString())
         val add = steps.filterIsInstance<AddColumn>().single()
@@ -263,7 +261,7 @@ class PlannerTest {
 
     @Test
     fun `a renumbered field drops the old column before adding the new one`() {
-        val steps = plan(base, base.replace("#3 note: string?", "#4 note: string?"))
+        val steps = plan(base, base.replace("#3 note string?", "#4 note string?"))
         assertEquals(listOf(DropColumn::class, AddColumn::class), steps.map { it::class })
         assertEquals("note", (steps[0] as DropColumn).column)
         assertEquals("note", (steps[1] as AddColumn).column.name)
@@ -274,14 +272,14 @@ class PlannerTest {
     fun `two fields swapping names rename through a temporary name`() {
         val old =
             """
-            namespace s
-            record Pair {
-              @sql(key) #3 id: uuid
-              #1 a: int32
-              #2 b: int32
+            schema s
+            model Pair {
+              #3 id uuid { id }
+              #1 a int32
+              #2 b int32
             }
             """
-        val new = old.replace("#1 a: int32", "#1 b: int32").replace("#2 b: int32", "#2 a: int32")
+        val new = old.replace("#1 a int32", "#1 b int32").replace("#2 b int32", "#2 a int32")
         val renames = plan(old, new).map { it as RenameColumn }
         assertEquals(
             listOf("a" to "a__schemata_tmp", "b" to "a", "a__schemata_tmp" to "b"),
@@ -291,7 +289,7 @@ class PlannerTest {
 
     @Test
     fun `a declaration added creates its table and one removed drops it destructively`() {
-        val new = base + "\nrecord Tag { @sql(key) #1 id: uuid }\n"
+        val new = base + "\nmodel Tag { #1 id uuid { id } }\n"
         assertTrue(plan(base, new).single() is CreateTable)
         val drop = plan(new, base).single() as DropTable
         assertEquals("tag", drop.at.table)
@@ -302,10 +300,10 @@ class PlannerTest {
     fun `a union member removed drops its variant columns and re-adds the kind check`() {
         val old =
             """
-            namespace s
-            record Card { #1 last4: string(max = 4) }
+            schema s
+            model Card { #1 last4 string { max 4 } }
             union Payment = #1 Card | #2 string
-            record Order { @sql(key) #1 id: uuid  #2 payment: Payment }
+            model Order { #1 id uuid { id }  #2 payment Payment }
             """
         val new = old.replace("union Payment = #1 Card | #2 string", "union Payment = #1 Card")
         val steps = plan(old, new)
@@ -324,15 +322,15 @@ class PlannerTest {
     fun `a union member's type change drops its variant columns and adds the new ones`() {
         val old =
             """
-            namespace s
-            record Card { #1 last4: string(max = 4) }
-            record Voucher { #1 code: string(max = 16) }
+            schema s
+            model Card { #1 last4 string { max 4 } }
+            model Voucher { #1 code string { max 16 } }
             union Payment = #1 Card | #2 string
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 payment: Payment
-              #3 card: Card?
-              #4 voucher: Voucher?
+            model Order {
+              #1 id uuid { id }
+              #2 payment Payment
+              #3 card Card?
+              #4 voucher Voucher?
             }
             """
         val new = old.replace("= #1 Card | #2 string", "= #1 Voucher | #2 string")
@@ -351,17 +349,17 @@ class PlannerTest {
     fun `an embedded record swapped for another is a drop and an add`() {
         val old =
             """
-            namespace s
-            record Address { #1 street: string(max = 50) }
-            record Location { #1 street: string(max = 80) }
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 billing: Address
-              #3 spare: Address?
-              #4 other: Location?
+            schema s
+            model Address { #1 street string { max 50 } }
+            model Location { #1 street string { max 80 } }
+            model Order {
+              #1 id uuid { id }
+              #2 billing Address
+              #3 spare Address?
+              #4 other Location?
             }
             """
-        val new = old.replace("#2 billing: Address", "#2 billing: Location")
+        val new = old.replace("#2 billing Address", "#2 billing Location")
         val steps = plan(old, new)
         assertTrue(steps.none { it is RenameColumn || it is AlterColumnType }, steps.toString())
         val drop = steps.indexOfFirst { it is DropColumn && it.column == "billing_street" }
@@ -376,17 +374,17 @@ class PlannerTest {
     fun `a list element record swapped drops the child table`() {
         val old =
             """
-            namespace s
-            record Line { #1 sku: string(max = 8) }
-            record Item { #1 sku: string(max = 16) }
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 lines: list<Line>
-              #3 line: Line?
-              #4 item: Item?
+            schema s
+            model Line { #1 sku string { max 8 } }
+            model Item { #1 sku string { max 16 } }
+            model Order {
+              #1 id uuid { id }
+              #2 lines Line[]
+              #3 line Line?
+              #4 item Item?
             }
             """
-        val new = old.replace("list<Line>", "list<Item>")
+        val new = old.replace("Line[]", "Item[]")
         val steps = plan(old, new)
         val drop = steps.indexOfFirst { it is DropTable && it.at.table == "order_lines" }
         val create = steps.indexOfFirst { it is CreateTable && it.table.name == "order_lines" }
@@ -399,13 +397,13 @@ class PlannerTest {
     fun `a strategy change drops the old shape and creates the new with a help that names the move`() {
         val old =
             """
-            namespace s
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 tags: list<string>
+            schema s
+            model Order {
+              #1 id uuid { id }
+              #2 tags string[]
             }
             """
-        val new = old.replace("#2 tags:", "@sql(strategy = table) #2 tags:")
+        val new = old.replace("#2 tags string[]", "#2 tags string[] @sql(strategy: table)")
         val steps = plan(old, new)
         val drop = steps.filterIsInstance<DropColumn>().single()
         assertEquals("tags", drop.column)
@@ -415,7 +413,7 @@ class PlannerTest {
 
     @Test
     fun `a doc change is a comment and a removed doc comments null`() {
-        val documented = base.replace("record Customer", "/// People.\nrecord Customer")
+        val documented = base.replace("model Customer", "/// People.\nmodel Customer")
         val add = plan(base, documented).single() as Comment
         assertEquals("People.", add.text)
         val remove = plan(documented, base).single() as Comment
@@ -424,7 +422,7 @@ class PlannerTest {
 
     @Test
     fun `a schema override moves every table and drops the old schema`() {
-        val new = base.replace("namespace s", "@sql(schema = \"shop\")\nnamespace s")
+        val new = base.replace("schema s", "schema s @sql(schema: \"shop\")")
         val steps = plan(base, new)
         assertEquals(
             listOf(CreateSchema::class, SetSchema::class, DropSchema::class),
@@ -437,22 +435,22 @@ class PlannerTest {
     fun `steps come in the planned order`() {
         val old =
             """
-            namespace s
-            record Customer {
-              @sql(key) #1 id: uuid
-              #2 name: string(max = 100)
-              #3 note: string?
-              #4 gone: int32
+            schema s
+            model Customer {
+              #1 id uuid { id }
+              #2 name string { max 100 }
+              #3 note string?
+              #4 gone int32
             }
             """
         val new =
             """
-            namespace s
-            record Customer {
-              @sql(key) #1 id: uuid
-              #2 full_name: string(max = 200)
-              #3 note: string = ""
-              #5 added: bool?
+            schema s
+            model Customer {
+              #1 id uuid { id }
+              #2 full_name string { max 200 }
+              #3 note string = ""
+              #5 added bool?
             }
             """
         val kinds = plan(old, new).map { it::class }
@@ -472,8 +470,8 @@ class PlannerTest {
 
     @Test
     fun `a retyped column with a default drops it before the type change and sets the new one after`() {
-        val old = base.replace("#3 note: string?", "#3 retries: string = \"3\"")
-        val new = base.replace("#3 note: string?", "#3 retries: int32 = 3")
+        val old = base.replace("#3 note string?", "#3 retries string = \"3\"")
+        val new = base.replace("#3 note string?", "#3 retries int32 = 3")
         val steps = plan(old, new)
         assertEquals(
             listOf(DropDefault::class, AlterColumnType::class, SetDefault::class),
@@ -488,7 +486,7 @@ class PlannerTest {
 
     @Test
     fun `a type override is judged by the type it spells`() {
-        val old = base.replace("#3 note: string?", "@sql(type = \"integer\") #3 n: int32")
+        val old = base.replace("#3 note string?", "@sql(type: \"integer\") #3 n int32")
         val new = old.replace("\"integer\"", "\"bigint\"")
         assertEquals(Risk.CLEAN, (plan(old, new).single() as AlterColumnType).risk)
         assertEquals(Risk.DESTRUCTIVE, (plan(new, old).single() as AlterColumnType).risk)
@@ -498,13 +496,13 @@ class PlannerTest {
     fun `two tables swapping names route their keys through a temporary name`() {
         val old =
             """
-            namespace s
-            record A { @sql(key) #1 id: uuid }
-            record B { @sql(key) #1 id: uuid }
+            schema s
+            model A { #1 id uuid { id } }
+            model B { #1 id uuid { id } }
             """
         val new =
-            old.replace("record A", "@sql(table = \"b\") record A")
-                .replace("record B", "@sql(table = \"a\") record B")
+            old.replace("model A", "@sql(table: \"b\") model A")
+                .replace("model B", "@sql(table: \"a\") model B")
         val keys = plan(old, new).filterIsInstance<RenameConstraint>().map { it.from to it.to }
         assertEquals(
             listOf(
@@ -520,16 +518,16 @@ class PlannerTest {
     fun `a renamed table's key moves out of the way before a new table takes its name`() {
         val old =
             """
-            namespace s
-            record Order { @sql(key) #1 id: uuid }
+            schema s
+            model Order { #1 id uuid { id } }
             """
         val new =
             """
-            namespace s
-            @sql(table = "purchase") record Order { @sql(key) #1 id: uuid }
-            record Basket { @sql(key) #1 id: uuid }
+            schema s
+            @sql(table: "purchase") model Order { #1 id uuid { id } }
+            model Basket { #1 id uuid { id } }
             """
-                .replace("record Basket", "@sql(table = \"order\") record Basket")
+                .replace("model Basket", "@sql(table: \"order\") model Basket")
         val steps = plan(old, new)
         val rename = steps.indexOfFirst { it is RenameConstraint && it.from == "pk_order" }
         val create = steps.indexOfFirst { it is CreateTable && it.table.name == "order" }
@@ -540,14 +538,14 @@ class PlannerTest {
     fun `a key widened in place is re-added clean with its foreign keys`() {
         val old =
             """
-            namespace s
-            record Order {
-              @sql(key) #1 id: int32
-              #2 lines: list<Line>
-              record Line { #1 sku: string(max = 8) }
+            schema s
+            model Order {
+              #1 id int32 { id }
+              #2 lines Line[]
+              model Line { #1 sku string { max 8 } }
             }
             """
-        val steps = plan(old, old.replace("#1 id: int32", "#1 id: int64"))
+        val steps = plan(old, old.replace("#1 id int32", "#1 id int64"))
         val adds = steps.filterIsInstance<AddConstraint>()
         assertEquals(3, adds.size, steps.toString())
         assertTrue(adds.all { it.risk == Risk.CLEAN }, adds.toString())
@@ -564,14 +562,14 @@ class PlannerTest {
     fun `a strategy change sets the new shape not null after the old shape is dropped`() {
         val old =
             """
-            namespace s
-            record Address { #1 street: string(max = 50) }
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 billing: Address
+            schema s
+            model Address { #1 street string { max 50 } }
+            model Order {
+              #1 id uuid { id }
+              #2 billing Address
             }
             """
-        val new = old.replace("#2 billing:", "@sql(strategy = json) #2 billing:")
+        val new = old.replace("#2 billing Address", "#2 billing Address @sql(strategy: json)")
         val steps = plan(old, new)
         val drop = steps.indexOfFirst { it is DropColumn }
         val notNull = steps.indexOfFirst { it is SetNotNull }
@@ -582,11 +580,11 @@ class PlannerTest {
     fun `a renamed enum value is rewritten before its check returns and is clean`() {
         val old =
             """
-            namespace s
+            schema s
             enum Status { #1 pending, #2 paid }
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 status: Status
+            model Order {
+              #1 id uuid { id }
+              #2 status Status
             }
             """
         val steps = plan(old, old.replace("#2 paid", "#2 settled"))
@@ -603,11 +601,11 @@ class PlannerTest {
     fun `enum values swapped rename through one case statement`() {
         val old =
             """
-            namespace s
+            schema s
             enum Status { #1 a, #2 b, #3 c }
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 status: Status
+            model Order {
+              #1 id uuid { id }
+              #2 status Status
             }
             """
         val steps = plan(old, old.replace("{ #1 a, #2 b, #3 c }", "{ #1 b, #2 a, #3 c }"))
@@ -623,15 +621,15 @@ class PlannerTest {
     fun `a retargeted reference is a drop and an add, not a moved key`() {
         val old =
             """
-            namespace s
-            record Customer { @sql(key) #1 id: uuid }
-            record Vendor { @sql(key) #1 code: string(max = 8) }
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 buyer: Customer
+            schema s
+            model Customer { #1 id uuid { id } }
+            model Vendor { #1 code string { id, max 8 } }
+            model Order {
+              #1 id uuid { id }
+              #2 buyer Customer
             }
             """
-        val steps = plan(old, old.replace("#2 buyer: Customer", "#2 buyer: Vendor"))
+        val steps = plan(old, old.replace("#2 buyer Customer", "#2 buyer Vendor"))
         val drop = steps.filterIsInstance<DropColumn>().single()
         assertEquals("buyer_id", drop.column)
         assertEquals(DESTRUCTIVE_HELP, drop.help)
@@ -644,22 +642,22 @@ class PlannerTest {
     fun `a foreign key between two files is dropped by the earlier file`() {
         val b =
             """
-            namespace b
-            record Customer { @sql(key) #1 id: uuid }
+            schema b
+            model Customer { #1 id uuid { id } }
             """
         val a =
             """
-            namespace a
+            schema a
             import b
-            record Order {
-              @sql(key) #1 id: uuid
-              #2 buyer: Customer
+            model Order {
+              #1 id uuid { id }
+              #2 buyer Customer
             }
             """
         val migration =
             Planner.plan(
                 side(mapOf("a.schemata" to a, "b.schemata" to b)),
-                side(mapOf("a.schemata" to a, "b.schemata" to b.replace("id: uuid", "id: string"))),
+                side(mapOf("a.schemata" to a, "b.schemata" to b.replace("id uuid", "id string"))),
             )
         val files = migration.namespaces.associate { it.path to it.steps }
         val drop = files.getValue("a.sql").filterIsInstance<DropConstraint>().single()

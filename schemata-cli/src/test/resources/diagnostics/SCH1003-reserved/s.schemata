@@ -1,3 +1,11 @@
-namespace s
-record R { #1 x: bool  reserved "Bad Name" }
-enum E { #1 p  reserved "x_" }
+schema s
+
+model R {
+  #1 x bool
+  reserved "Bad Name"
+}
+
+enum E {
+  #1 p
+  reserved "x_"
+}

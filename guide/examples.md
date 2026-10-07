@@ -22,19 +22,19 @@ default on an enum.
 From `examples/contacts/contacts.schemata`:
 ```schemata
 /// A personal address book.
-namespace contacts
+schema contacts
 
-enum Kind { personal, work }
+enum Kind { personal work }
 
 /// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
-record Contact {
-  @sql(key) id:    int64
-  name:  string(max = 100)
-  email: string(max = 254, pattern = "^[^@]+@[^@]+$")
-  age:   int32(min = 0, max = 150)?
-  kind:  Kind = personal
-  born:  date?
-  tags:  list<string(max = 20)>
+model Contact {
+  id    int64    { id }
+  name  string   { max 100 }
+  email string   { max 254, match "^[^@]+@[^@]+$" }
+  age   int32?   { min 0, max 150 }
+  kind  Kind     = personal
+  born  date?
+  tags  string[] { max 20 }
 }
 ```
 
@@ -124,41 +124,41 @@ alongside its replacement.
 
 From `examples/shop/customers.schemata`:
 ```schemata
-namespace shop.customers
+schema shop.customers
 
-record Customer { @sql(key) id: uuid name: string(max = 100) }
+model Customer { id uuid { id }  name string { max 100 } }
 ```
 
 From `examples/shop/orders.schemata`:
 ```schemata
 import shop.customers
 
-alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
+alias Email = string { max 254, match "^[^@]+@[^@]+$" }
 
 alias Money = decimal(19, 4)
 
-enum Status { pending, paid, shipped, cancelled }
+enum Status { pending paid shipped cancelled }
 
-record Card { last4: string(max = 4) brand: string(max = 32) }
+model Card { last4 string { max 4 }  brand string { max 32 } }
 
-record BankTransfer { iban: string(max = 34) }
+model BankTransfer { iban string { max 34 } }
 
-record Cash {}
+model Cash {}
 
 union Payment = Card | BankTransfer | Cash
 
 /// A customer's order. One row per checkout.
-record Order {
-  @sql(key) id:        uuid
-  customer:  Customer
-  status:    Status = pending
-  lines:     list<Line>(min = 1)
-  total:     Money
-  payment:   Payment
-  @sql(strategy = embed) shipping:  Address
-  placed_at: instant
-  note:      string(max = 500)?
-  @deprecated("use placed_at") created:   instant?
+model Order {
+  id        uuid     { id }
+  customer  Customer
+  status    Status   = pending
+  lines     Line[]   { minItems 1 }
+  total     Money
+  payment   Payment
+  shipping  Address  { embed }
+  placed_at instant
+  note      string?  { max 500 }
+  created   instant? @deprecated("use placed_at")
   reserved #11, "legacy_ref"
 ```
 
@@ -286,24 +286,27 @@ lowered to a child table, and foreign keys that cross Postgres schemas.
 From `examples/ledger/accounts.schemata`:
 ```schemata
 /// An account, keyed by tenant and code.
-@sql(key = (tenant_id, code))
-record Account {
-  #1 tenant_id: int64
-  #2 code:      string(max = 16)
-  #3 name:      string(max = 120)
-  #4 kind:      Kind
-  #5 opened:    date
-  #6 closed:    date?
-  #7 limits:    Limits
-  @sql(strategy = table) #8 balances:  map<string, Money>
+model Account {
+  #1 tenant_id int64
+  #2 code      string             { max 16 }
+  #3 name      string             { max 120 }
+  #4 kind      Kind
+  #5 opened    date
+  #6 closed    date?
+  #7 limits    Limits
+  #8 balances  map<string, Money> @sql(strategy: table)
+
+  /// Overdraft and daily limits in the account's currency.
+  model Limits { #1 overdraft Money  #2 daily Money? }
+
+  @@id(tenant_id, code)
+}
 ```
 
 From `examples/ledger/journal.schemata`:
 ```schemata
 /// Double-entry journal.
-@sql(schema = "ledger_journal")
-@proto(package = "ledger.journal.v1")
-namespace ledger.journal
+schema ledger.journal @sql(schema: "ledger_journal") @proto(package: "ledger.journal.v1")
 ```
 
 A namespace cannot share another namespace's `@sql(schema = ...)`; `ledger.journal` keeps its own,
@@ -312,34 +315,32 @@ A namespace cannot share another namespace's `@sql(schema = ...)`; `ledger.journ
 From `examples/ledger/journal.schemata`:
 ```schemata
 /// A balanced entry: at least two lines.
-record Entry {
-  @sql(key) #1 id:     uuid
-  #2 posted: date
-  #3 memo:   string(max = 500)?
-  #4 lines:  list<Line>(min = 2)
-  #5 ref:    Reference
+model Entry {
+  #1 id     uuid      { id }
+  #2 posted date
+  #3 memo   string?   { max 500 }
+  #4 lines  Line[]    { minItems 2 }
+  #5 ref    Reference
   reserved #6
 ```
 
 From `examples/ledger/reports.schemata`:
 ```schemata
 /// Period closes, kept in their own schema.
-@sql(schema = "ledger_reports")
-@proto(package = "ledger.reports.v1")
-namespace ledger.reports
+schema ledger.reports @sql(schema: "ledger_reports") @proto(package: "ledger.reports.v1")
 
 import ledger.accounts
 import ledger.journal
 
 /// A close of one account for one period.
-record Close {
-  @sql(key) #1 id:      uuid
-  #2 period:  string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
-  #3 account: Account
-  #4 last:    Entry?
-  #5 totals:  Totals
+model Close {
+  #1 id      uuid    { id }
+  #2 period  string  { max 7, match "^[0-9]{4}-[0-9]{2}$" }
+  #3 account Account
+  #4 last    Entry?
+  #5 totals  Totals
 
-  record Totals { #1 debits: Money #2 credits: Money }
+  model Totals { #1 debits Money  #2 credits Money }
 }
 ```
 
@@ -434,11 +435,11 @@ place an operation's request can go over HTTP: the path, the query, the body, an
 
 From `examples/services/orders.schemata`:
 ```schemata
-record OrderId { @sql(key) id: uuid }
+model OrderId { id uuid { id } }
 
-record ListOrders { status: Status? @sql(key) limit: int32(min = 1, max = 200) = 50 }
+model ListOrders { status Status?  limit int32 { id, min 1, max 200 } = 50 }
 
-record PlaceOrder { @sql(key) customer_id: uuid lines: list<Order.Line>(min = 1) }
+model PlaceOrder { customer_id uuid { id }  lines Order.Line[] { minItems 1 } }
 ```
 
 From `examples/services/orders.schemata`:
@@ -652,23 +653,21 @@ From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
 /// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
 ///
 /// GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
-@xsd(namespace = "http://www.topografix.com/GPX/1/1")
-namespace gpx
+schema gpx @xsd(namespace: "http://www.topografix.com/GPX/1/1")
 
 /// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
 /// to the extensions section of the GPX document.
-@xsd(name = "gpx")
-record Gpx {
+model Gpx {
   /// Metadata about the file.
-  metadata:   Metadata?
+  metadata   Metadata?
   /// A list of waypoints.
-  wpt:        list<Wpt>
+  wpt        Wpt[]
   /// A list of routes.
-  rte:        list<Rte>
+  rte        Rte[]
   /// A list of tracks.
-  trk:        list<Trk>
+  trk        Trk[]
   /// You can add extend GPX by adding your own elements from another schema here.
-  extensions: Extensions?
+  extensions Extensions?
 ```
 
 Every warning is lossy; none stops the import from writing its file.
@@ -737,19 +736,19 @@ wrote 1 file to out/import
 From `schemata-cli/src/test/resources/import/proto-money/expected/google/type.schemata`:
 ```schemata
 /// Represents an amount of money with its currency type.
-record Money {
+model Money {
   /// The three-letter currency code defined in ISO 4217.
-  #1 currency_code: string
+  #1 currency_code string
   /// The whole units of the amount.
   /// For example if `currencyCode` is `"USD"`, then 1 unit is one US dollar.
-  #2 units:         int64
+  #2 units         int64
   /// Number of nano (10^-9) units of the amount.
   /// The value must be between -999,999,999 and +999,999,999 inclusive.
   /// If `units` is positive, `nanos` must be positive or zero.
   /// If `units` is zero, `nanos` can be positive, zero, or negative.
   /// If `units` is negative, `nanos` must be negative or zero.
   /// For example $-1.75 is represented as `units`=-1 and `nanos`=-750,000,000.
-  #3 nanos:         int32
+  #3 nanos         int32
 }
 ```
 

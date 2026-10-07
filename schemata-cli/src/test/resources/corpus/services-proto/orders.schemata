@@ -1,20 +1,19 @@
 /// Orders served as a gRPC API under a pinned package.
-@proto(package = "shop.v1")
-namespace corpus.grpc
+schema corpus.grpc @proto(package: "shop.v1")
 
-record OrderId { @sql(key) #1 id: int64 }
+model OrderId { #1 id int64 { id } }
 
-record Order { @sql(key) #1 id: int64 #2 note: string }
+model Order { #1 id int64 { id }  #2 note string }
 
-record Summary { @sql(key) #1 count: int64 }
+model Summary { #1 count int64 { id } }
 
-record Chunk { @sql(key) #1 seq: int64 #2 data: bytes }
+model Chunk { #1 seq int64 { id }  #2 data bytes }
 
 /// Read and feed orders.
-@proto(name = "OrderApi")
+@proto(name: "OrderApi")
 service Orders {
   /// Fetch one order.
-  @proto(name = "Fetch") #1 get(OrderId): Order  get "/orders/{id}"
+  @proto(name: "Fetch") #1 get(OrderId): Order  get "/orders/{id}"
   #2 watch(): stream Summary  get "/summary"
   /// Feed order data; replaced by a batch import.
   @deprecated #5 upload(stream Chunk)  post "/chunks"

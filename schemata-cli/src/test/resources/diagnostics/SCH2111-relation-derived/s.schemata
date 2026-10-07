@@ -1,3 +1,5 @@
-namespace s
-record PkR { @sql(key) #1 id: int32 }
-record R { @sql(key) #1 id: int32 }
+schema s
+
+model PkR { #1 id int32 { id } }
+
+model R { #1 id int32 { id } }

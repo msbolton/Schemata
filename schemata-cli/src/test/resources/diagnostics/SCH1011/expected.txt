@@ -1,5 +1,5 @@
 error[SCH1011]: import 'nowhere' does not name a namespace in this compilation
- --> s.schemata:2:1
+ --> s.schemata:3:1
   = help: add the file that declares `namespace nowhere` to the compilation, or fix the import
 
 1 error, 0 warnings

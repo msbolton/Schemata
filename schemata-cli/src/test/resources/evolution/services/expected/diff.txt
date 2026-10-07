@@ -17,65 +17,65 @@ jsonschema: 0 breaking, 0 notes
 openapi: 4 breaking, 1 note
 
 error[SCH2501]: openapi: s.Orders.fetch: the operation was renamed, so its operationId changes from Orders_get to Orders_fetch
-  --> new/orders.schemata:17:6
+  --> new/orders.schemata:14:6
    |
-17 |   #1 fetch(OrderId): Order  get "/orders/{id}"
+14 |   #1 fetch(OrderId): Order  get "/orders/{id}"
    |      ^^^^^
    = help: pin the operationId with @openapi(name = "Orders_get")
 
 error[SCH2501]: proto: s.Orders.fetch: the operation was renamed, so its rpc path changes from /s.Orders/Get to /s.Orders/Fetch
-  --> new/orders.schemata:17:6
+  --> new/orders.schemata:14:6
    |
-17 |   #1 fetch(OrderId): Order  get "/orders/{id}"
+14 |   #1 fetch(OrderId): Order  get "/orders/{id}"
    |      ^^^^^
    = help: pin the rpc name with @proto(name = "Get")
 
 error[SCH2501]: openapi: s.Orders.list: the response changed from stream Order to Order breaks clients that read the old one
-  --> new/orders.schemata:18:3
+  --> new/orders.schemata:15:3
    |
-18 |   #2 list(Filter): Order  get "/orders"
+15 |   #2 list(Filter): Order  get "/orders"
    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: add a new operation instead of changing this one's response
 
 error[SCH2501]: proto: s.Orders.list: the response changed from stream Order to Order breaks clients that read the old message
-  --> new/orders.schemata:18:3
+  --> new/orders.schemata:15:3
    |
-18 |   #2 list(Filter): Order  get "/orders"
+15 |   #2 list(Filter): Order  get "/orders"
    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: add a new operation instead of changing this one's response
 
 error[SCH2501]: openapi: s.Orders.place: the URL changes from post /orders to post /orders/new, which breaks clients that call the old one
-  --> new/orders.schemata:19:3
+  --> new/orders.schemata:16:3
    |
-19 |   #3 place(PlaceOrder): Order  post "/orders/new"
+16 |   #3 place(PlaceOrder): Order  post "/orders/new"
    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: add a new operation for the new URL instead of moving this one
 
 warning[SCH2502] (lossy): openapi: s.Orders.old: the operation is now deprecated; generated clients flag every call to it
-  --> new/orders.schemata:20:18
+  --> new/orders.schemata:17:18
    |
-20 |   @deprecated #5 old(OrderId): Order
+17 |   @deprecated #5 old(OrderId): Order
    |                  ^^^
    = help: tell clients when the operation will be removed
 
 warning[SCH2502] (lossy): proto: s.Orders.old: the rpc is now deprecated; generated stubs flag every call to it
-  --> new/orders.schemata:20:18
+  --> new/orders.schemata:17:18
    |
-20 |   @deprecated #5 old(OrderId): Order
+17 |   @deprecated #5 old(OrderId): Order
    |                  ^^^
    = help: tell clients when the rpc will be removed
 
 error[SCH2501]: openapi: s.Orders.cancel: the operation was removed breaks clients that call it
-  --> old/orders.schemata:20:6
+  --> old/orders.schemata:17:6
    |
-20 |   #4 cancel(OrderId)  delete "/orders/{id}"
+17 |   #4 cancel(OrderId)  delete "/orders/{id}"
    |      ^^^^^^
    = help: deprecate the operation and keep it until no client calls it
 
 error[SCH2501]: proto: s.Orders.cancel: the rpc was removed breaks clients that call /s.Orders/Cancel
-  --> old/orders.schemata:20:6
+  --> old/orders.schemata:17:6
    |
-20 |   #4 cancel(OrderId)  delete "/orders/{id}"
+17 |   #4 cancel(OrderId)  delete "/orders/{id}"
    |      ^^^^^^
    = help: deprecate the operation and keep it until no client calls it
 

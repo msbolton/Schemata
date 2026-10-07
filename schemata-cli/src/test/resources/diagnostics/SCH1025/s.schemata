@@ -1,3 +1,5 @@
-namespace s
-record A { #1 x: bool }
+schema s
+
+model A { #1 x bool }
+
 union U = #1 A | #2 A

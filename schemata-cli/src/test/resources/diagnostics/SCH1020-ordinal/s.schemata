@@ -1,2 +1,7 @@
-namespace s
-record R { #1 x: bool  reserved #2  #2 y: bool }
+schema s
+
+model R {
+  #1 x bool
+  reserved #2
+  #2 y bool
+}

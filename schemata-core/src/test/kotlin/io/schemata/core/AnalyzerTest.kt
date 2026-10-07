@@ -22,13 +22,13 @@ import kotlin.test.assertTrue
 class AnalyzerTest {
     private val fixture =
         """
-        namespace shop.orders
+        schema shop.orders
 
-        record User {
-          id:    uuid
-          email: string?
-          name:  string
-          age:   int32
+        model User {
+          id    uuid
+          email string?
+          name  string
+          age   int32
         }
         """
             .trimIndent()
@@ -49,7 +49,7 @@ class AnalyzerTest {
     @Test
     fun `lower_snake forbids a doubled or trailing underscore`() {
         fun codes(field: String) =
-            analyze("namespace a\nrecord R { #1 $field: int32 }").diagnostics.map { it.code.id }
+            analyze("schema a\nmodel R { #1 $field int32 }").diagnostics.map { it.code.id }
         assertEquals(emptyList(), codes("a"))
         assertEquals(emptyList(), codes("a1"))
         assertEquals(emptyList(), codes("a_1"))
@@ -63,11 +63,11 @@ class AnalyzerTest {
     fun `lower_snake applies to namespace segments and enum values`() {
         assertEquals(
             listOf("SCH1001"),
-            analyze("namespace a__b\nrecord R { x: bool }").diagnostics.map { it.code.id },
+            analyze("schema a__b\nmodel R { x bool }").diagnostics.map { it.code.id },
         )
         assertEquals(
             listOf("SCH1028"),
-            analyze("namespace a\nenum E { a_ }").diagnostics.map { it.code.id },
+            analyze("schema a\nenum E { a_ }").diagnostics.map { it.code.id },
         )
     }
 
@@ -104,14 +104,14 @@ class AnalyzerTest {
     fun `resolves same-namespace, nested, and qualified-nested references`() {
         val src =
             """
-            namespace a
-            record Order {
-              shipping: Address
-              line:     Line
-              record Address { city: string }
-              record Line { addr: Address  outer: Order.Address }
+            schema a
+            model Order {
+              shipping Address
+              line     Line
+              model Address { city string }
+              model Line { addr Address  outer Order.Address }
             }
-            record Invoice { addr: Order.Address }
+            model Invoice { addr Order.Address }
             """
                 .trimIndent()
         val result = analyze(src)
@@ -130,16 +130,15 @@ class AnalyzerTest {
 
     @Test
     fun `innermost nested declaration wins`() {
-        val src =
-            "namespace a\nrecord Tag { x: bool }\nrecord Post {\n  t: Tag\n  record Tag { y: bool }\n}"
+        val src = "schema a\nmodel Tag { x bool }\nmodel Post {\n  t Tag\n  model Tag { y bool }\n}"
         val post = analyze(src).schema!!.lookup(qn("a", "Post")) as RecordType
         assertEquals(Ref(qn("a", "Post", "Tag")), post.fields.single().type)
     }
 
     @Test
     fun `resolves fully qualified names across namespaces without an import`() {
-        val a = "namespace shop.customers\nrecord Customer { id: uuid }"
-        val b = "namespace shop.orders\nrecord Order { who: shop.customers.Customer }"
+        val a = "schema shop.customers\nmodel Customer { id uuid }"
+        val b = "schema shop.orders\nmodel Order { who shop.customers.Customer }"
         val result = analyze("a.schemata" to a, "b.schemata" to b)
         assertEquals(emptyList(), result.diagnostics)
         val order = result.schema!!.lookup(qn("shop.orders", "Order")) as RecordType
@@ -150,15 +149,15 @@ class AnalyzerTest {
     fun `lowers enums, unions, lists, and maps`() {
         val src =
             """
-            namespace a
+            schema a
             enum Status { pending, paid }
-            record Card { last4: string }
+            model Card { last4 string }
             union Payment = Card | uuid
-            record Order {
-              status: Status
-              tags:   list<string?>
-              extra:  map<string, Card?>
-              pay:    Payment
+            model Order {
+              status Status
+              tags   string?[]
+              extra  map<string, Card?>
+              pay    Payment
             }
             """
                 .trimIndent()
@@ -191,8 +190,8 @@ class AnalyzerTest {
         val names =
             Builtin.entries.map { if (it == Builtin.DECIMAL) "decimal(19, 4)" else it.typeName }
         val src =
-            "namespace a\nrecord R {\n" +
-                names.mapIndexed { i, n -> "  f$i: $n" }.joinToString("\n") +
+            "schema a\nmodel R {\n" +
+                names.mapIndexed { i, n -> "  f$i $n" }.joinToString("\n") +
                 "\n}"
         val result = analyze(src)
         assertEquals(emptyList(), result.diagnostics)
@@ -208,9 +207,9 @@ class AnalyzerTest {
 
     @Test
     fun `merges files that share a namespace and orders namespaces by name`() {
-        val b = "namespace shop.orders\nrecord Beta { x: bool }"
-        val a = "namespace shop.orders\nrecord Alpha { x: bool }"
-        val z = "namespace zoo\nrecord Z { x: bool }"
+        val b = "schema shop.orders\nmodel Beta { x bool }"
+        val a = "schema shop.orders\nmodel Alpha { x bool }"
+        val z = "schema zoo\nmodel Z { x bool }"
         val result = analyze("b.schemata" to b, "z.schemata" to z, "a.schemata" to a)
         assertEquals(emptyList(), result.diagnostics)
         assertEquals(listOf("shop.orders", "zoo"), result.schema!!.namespaces.map { it.name })
@@ -221,14 +220,14 @@ class AnalyzerTest {
 
     @Test
     fun `reports duplicate declarations within and across files with the kind`() {
-        val a = "namespace n\nrecord R { x: bool }\nenum R { a }"
-        val b = "namespace n\n\nrecord R { y: bool }"
+        val a = "schema n\nmodel R { x bool }\nenum R { a }"
+        val b = "schema n\n\nmodel R { y bool }"
         val result = analyze("a.schemata" to a, "b.schemata" to b)
         assertNull(result.schema)
         assertEquals(
             listOf(
                 "3:6 enum 'R' is declared more than once",
-                "3:8 record 'R' is declared in both a.schemata:2 and b.schemata:3",
+                "3:7 record 'R' is declared in both a.schemata:2 and b.schemata:3",
             ),
             messages(result),
         )
@@ -237,40 +236,36 @@ class AnalyzerTest {
     @Test
     fun `reports unknown and missing nested types at the name`() {
         val result =
-            analyze(
-                "namespace a\nrecord Order { record Line {} }\nrecord R { x: money  y: Order.Nope }"
-            )
+            analyze("schema a\nmodel Order { model Line {} }\nmodel R { x money  y Order.Nope }")
         assertNull(result.schema)
         assertEquals(
-            listOf("3:15 unknown type 'money'", "3:25 type 'Order' has no nested type 'Nope'"),
+            listOf("3:13 unknown type 'money'", "3:22 type 'Order' has no nested type 'Nope'"),
             messages(result),
         )
     }
 
     @Test
     fun `a failed nested lookup through a qualified name reports once`() {
-        val a = "a.schemata" to "namespace shop.customers\nrecord Customer { id: uuid }"
-        val b =
-            "b.schemata" to
-                "namespace shop.orders\nrecord Order { x: shop.customers.Customer.Nope }"
+        val a = "a.schemata" to "schema shop.customers\nmodel Customer { id uuid }"
+        val b = "b.schemata" to "schema shop.orders\nmodel Order { x shop.customers.Customer.Nope }"
         val result = analyze(a, b)
         assertNull(result.schema)
-        assertEquals(listOf("2:19 type 'Customer' has no nested type 'Nope'"), messages(result))
+        assertEquals(listOf("2:17 type 'Customer' has no nested type 'Nope'"), messages(result))
     }
 
     @Test
     fun `validates generics`() {
         val src =
-            "namespace a\nrecord C {}\nrecord R {\n  a: list<string, bool>\n  b: map<string>\n  c: C<bool>\n  d: map<C, bool>\n  e: map<string?, bool>\n}"
+            "schema a\nmodel C {}\nmodel R {\n  a list<string, bool>\n  b map<string>\n  c C<bool>\n  d map<C, bool>\n  e map<string?, bool>\n}"
         val result = analyze(src)
         assertNull(result.schema)
         assertEquals(
             listOf(
-                "4:6 'list' takes 1 type argument; got 2",
-                "5:6 'map' takes 2 type arguments; got 1",
-                "6:6 'C' is not generic",
-                "7:10 map key C must be string, int32, or int64",
-                "8:10 map key string? is nullable",
+                "4:5 'list' takes 1 type argument; got 2",
+                "5:5 'map' takes 2 type arguments; got 1",
+                "6:5 'C' is not generic",
+                "7:9 map key C must be string, int32, or int64",
+                "8:9 map key string? is nullable",
             ),
             messages(result),
         )
@@ -278,8 +273,7 @@ class AnalyzerTest {
 
     @Test
     fun `validates enums and unions`() {
-        val src =
-            "namespace a\nenum E {}\nenum F { Bad, x, x }\nrecord C {}\nunion U = C | C | U | list<C>"
+        val src = "schema a\nenum E {}\nenum F { Bad, x, x }\nmodel C {}\nunion U = C | C | U | C[]"
         val result = analyze(src)
         assertNull(result.schema)
         assertEquals(
@@ -289,7 +283,7 @@ class AnalyzerTest {
                 "3:18 enum value 'x' is declared more than once in enum 'F'",
                 "5:15 union member 'C' is repeated",
                 "5:19 union 'U' may not contain itself",
-                "5:23 union member list<C> must be a named type or a scalar",
+                "5:23 union member C[] must be a named type or a scalar",
             ),
             messages(result),
         )
@@ -299,13 +293,13 @@ class AnalyzerTest {
     fun `enforces naming for every declaration kind`() {
         val result =
             analyze(
-                "namespace a\nrecord bad_r { F: bool }\nenum bad_e { a }\nunion bad_u = bad_r\nalias bad_a = string"
+                "schema a\nmodel bad_r { F bool }\nenum bad_e { a }\nunion bad_u = bad_r\nalias bad_a = string"
             )
         assertNull(result.schema)
         assertEquals(
             listOf(
-                "2:8 record name 'bad_r' must be UpperCamel",
-                "2:16 field name 'F' must be lower_snake",
+                "2:7 record name 'bad_r' must be UpperCamel",
+                "2:15 field name 'F' must be lower_snake",
                 "3:6 enum name 'bad_e' must be UpperCamel",
                 "4:7 union name 'bad_u' must be UpperCamel",
                 "5:7 alias name 'bad_a' must be UpperCamel",
@@ -318,23 +312,23 @@ class AnalyzerTest {
     fun `enforces lower_snake namespace segments and duplicate fields`() {
         assertEquals(
             listOf("1:1 namespace segment 'Shop' must be lower_snake"),
-            messages(analyze("namespace Shop.orders")),
+            messages(analyze("schema Shop.orders")),
         )
         assertEquals(
-            listOf("2:21 field 'x' is declared more than once in record 'R'"),
-            messages(analyze("namespace a\nrecord R { x: bool  x: bool }")),
+            listOf("2:19 field 'x' is declared more than once in record 'R'"),
+            messages(analyze("schema a\nmodel R { x bool  x bool }")),
         )
     }
 
     @Test
     fun `null is reserved as a field, enum value, and namespace segment name`() {
-        val result = analyze("namespace a.null\nenum E { null }\nrecord R { null: E }")
+        val result = analyze("schema a.null\nenum E { null }\nmodel R { null E }")
         assertNull(result.schema)
         assertEquals(
             listOf(
                 "SCH1001 1:1 namespace segment 'null' is reserved; help: rename the segment, for example `null_value`",
                 "SCH1028 2:10 enum value 'null' is reserved; help: rename it `null_value`",
-                "SCH1003 3:12 field name 'null' is reserved; help: rename it `null_value`",
+                "SCH1003 3:11 field name 'null' is reserved; help: rename it `null_value`",
             ),
             result.diagnostics.map {
                 "${it.code.id} ${it.span.startLine}:${it.span.startColumn} ${it.message}; help: ${it.help}"
@@ -346,13 +340,13 @@ class AnalyzerTest {
     fun `a reserved name is a lower_snake name`() {
         val result =
             analyze(
-                "namespace a\nrecord R { #1 x: bool  reserved \"Bad Name\", \"old_x\" }\n" +
+                "schema a\nmodel R { #1 x bool  reserved \"Bad Name\", \"old_x\" }\n" +
                     "enum E { #1 p  reserved \"x_\" }"
             )
         assertNull(result.schema)
         assertEquals(
             listOf(
-                "SCH1003 2:33 reserved name 'Bad Name' must be lower_snake; help: rename it `bad_name`",
+                "SCH1003 2:31 reserved name 'Bad Name' must be lower_snake; help: rename it `bad_name`",
                 "SCH1028 3:25 reserved name 'x_' must be lower_snake; help: rename it `x`",
             ),
             result.diagnostics.map {
@@ -363,7 +357,7 @@ class AnalyzerTest {
 
     @Test
     fun `a naming help never suggests a keyword`() {
-        val result = analyze("namespace a\nenum E { true_ }\nrecord R { _1x: bool }")
+        val result = analyze("schema a\nenum E { true_ }\nmodel R { _1x bool }")
         assertEquals(
             listOf("rename it `true_value`", "rename it `v1x`"),
             result.diagnostics.map { it.help },
@@ -372,7 +366,7 @@ class AnalyzerTest {
 
     @Test
     fun `carries docs and defaults through unchanged`() {
-        val src = "namespace a\n/// about R\nrecord R {\n  /// about x\n  x: string = \"v\"\n}"
+        val src = "schema a\n/// about R\nmodel R {\n  /// about x\n  x string = \"v\"\n}"
         val r = analyze(src).schema!!.lookup(qn("a", "R")) as RecordType
         assertEquals("about R", r.doc)
         assertEquals("about x", r.fields.single().doc)

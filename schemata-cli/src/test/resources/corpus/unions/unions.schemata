@@ -1,14 +1,14 @@
-namespace corpus.unions
+schema corpus.unions
 
-record Card { #1 last4: string(max = 4) }
+model Card { #1 last4 string { max 4 } }
 
-record Cash {}
+model Cash {}
 
 union Payment = Card | Cash | uuid
 
-record Order {
-  @sql(key) #1 id:       uuid
-  #2 payment:  Payment
-  #3 refund:   Payment?
-  @sql(strategy = json) #4 archived: Payment
+model Order {
+  #1 id       uuid     { id }
+  #2 payment  Payment
+  #3 refund   Payment?
+  #4 archived Payment  @sql(strategy: json)
 }

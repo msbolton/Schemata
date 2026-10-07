@@ -1,6 +1,6 @@
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
+model Customer {
+  #1 id uuid { id }
   reserved #2, "note"
 }

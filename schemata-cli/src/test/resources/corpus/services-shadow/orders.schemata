@@ -1,18 +1,18 @@
 /// Orders whose operations share their payloads' names.
-namespace corpus.shadow_rpc
+schema corpus.shadow_rpc
 
-record PlaceOrder { @sql(key) #1 customer_id: int64 }
+model PlaceOrder { #1 customer_id int64 { id } }
 
-record Order {
-  @sql(key) #1 id:   int64
-  #2 note: string
+model Order {
+  #1 id   int64  { id }
+  #2 note string
 
-  record Line { @sql(key) #1 sku: string #2 quantity: int32 }
+  model Line { #1 sku string { id }  #2 quantity int32 }
 }
 
-record OrderId { @sql(key) #1 id: int64 }
+model OrderId { #1 id int64 { id } }
 
-record Receipt { @sql(key) #1 count: int64 }
+model Receipt { #1 count int64 { id } }
 
 /// Place, amend, and cancel orders.
 service Orders {

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1049]: 'E' is an alias and takes no option 'max' here
+ --> s.schemata:5:20
+  = help: write the option where the alias is declared, or write the builtin type here
+
+1 error, 0 warnings

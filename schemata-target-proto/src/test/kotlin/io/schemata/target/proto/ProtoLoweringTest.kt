@@ -42,11 +42,16 @@ import kotlin.test.assertTrue
 
 private const val SERVICE =
     """
-namespace shop.orders
+schema shop.orders
+
 import shop.catalog as catalog
-record OrderId { #1 id: uuid }
-record Order { #1 id: uuid #2 total: catalog.Money }
-record Chunk { #1 bytes: bytes }
+
+model OrderId { #1 id uuid }
+
+model Order { #1 id uuid  #2 total catalog.Money }
+
+model Chunk { #1 bytes bytes }
+
 /// Place and read orders.
 service Orders {
   /// Fetch one order.
@@ -58,7 +63,7 @@ service Orders {
 }
 """
 
-private const val CATALOG = "namespace shop.catalog\nrecord Money { #1 amount: int64 }\n"
+private const val CATALOG = "schema shop.catalog\n\nmodel Money { #1 amount int64 }\n"
 
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
@@ -1051,7 +1056,7 @@ class ProtoLoweringTest {
     private fun lower(vararg sources: String): Lowered<ProtoModel> {
         val files =
             sources.map { text ->
-                val ns = Regex("""namespace\s+([\w.]+)""").find(text)!!.groupValues[1]
+                val ns = Regex("""schema\s+([\w.]+)""").find(text)!!.groupValues[1]
                 Parser.parse(text, "$ns.schemata").file!!
             }
         val analysis =
@@ -1118,7 +1123,16 @@ class ProtoLoweringTest {
     @Test
     fun `a service with no reservations has no service note`() {
         val s =
-            lower("namespace t\nrecord R { #1 x: int32 }\n@deprecated\nservice S { #1 go(R): R }")
+            lower(
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "@deprecated\n" +
+                        "service S {\n" +
+                        "  #1 go(R): R\n" +
+                        "}"
+                )
                 .file("t.proto")
                 .services
                 .single()
@@ -1131,8 +1145,14 @@ class ProtoLoweringTest {
     fun `reserved ranges spell as the formatter prints them`() {
         val s =
             lower(
-                    "namespace t\nrecord R { #1 x: int32 }\n" +
-                        "service S { #1 go(R): R  post \"/r/{x}\"  reserved #2..#4, #7, \"old\", \"older\" }"
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 go(R): R  post \"/r/{x}\"\n" +
+                        "  reserved #2..#4, #7, \"old\", \"older\"\n" +
+                        "}"
                 )
                 .file("t.proto")
                 .services
@@ -1145,8 +1165,16 @@ class ProtoLoweringTest {
     fun `a cross-namespace payload imports its file`() {
         val file =
             lower(
-                    "namespace a\nimport b\nrecord R { #1 x: int32 }\nservice S { #1 go(R): T }",
-                    "namespace b\nrecord T { #1 y: int32 }\n",
+                    "schema a\n" +
+                        "\n" +
+                        "import b\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 go(R): T\n" +
+                        "}",
+                    "schema b\n\nmodel T { #1 y int32 }\n",
                 )
                 .file("a.proto")
         assertEquals(listOf("b.proto"), file.imports)
@@ -1157,8 +1185,17 @@ class ProtoLoweringTest {
     fun `a nested payload is spelled by its path`() {
         val rpc =
             lower(
-                    "namespace t\nrecord R { #1 x: int32 record Inner { #1 y: int32 } }\n" +
-                        "service S { #1 go(R.Inner): R }"
+                    "schema t\n" +
+                        "\n" +
+                        "model R {\n" +
+                        "  #1 x int32\n" +
+                        "\n" +
+                        "  model Inner { #1 y int32 }\n" +
+                        "}\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 go(R.Inner): R\n" +
+                        "}"
                 )
                 .file("t.proto")
                 .services
@@ -1172,11 +1209,22 @@ class ProtoLoweringTest {
     fun `a payload whose first segment is an rpc name of the service is spelled absolutely`() {
         val lowered =
             lower(
-                "namespace shop\n" +
-                    "record PlaceOrder { #1 x: int32 }\n" +
-                    "record Order { #1 x: int32 record Line { #1 y: int32 } }\n" +
-                    "record Receipt { #1 x: int32 }\n" +
-                    "service Orders { #1 place_order(PlaceOrder): Receipt #2 order(Order.Line): Order }"
+                "schema shop\n" +
+                    "\n" +
+                    "model PlaceOrder { #1 x int32 }\n" +
+                    "\n" +
+                    "model Order {\n" +
+                    "  #1 x int32\n" +
+                    "\n" +
+                    "  model Line { #1 y int32 }\n" +
+                    "}\n" +
+                    "\n" +
+                    "model Receipt { #1 x int32 }\n" +
+                    "\n" +
+                    "service Orders {\n" +
+                    "  #1 place_order(PlaceOrder): Receipt\n" +
+                    "  #2 order(Order.Line): Order\n" +
+                    "}"
             )
         val rpcs = lowered.file("shop.proto").services.single().rpcs
         assertEquals(".shop.PlaceOrder", rpcs[0].request.reference)
@@ -1189,7 +1237,7 @@ class ProtoLoweringTest {
 
     @Test
     fun `a schema without services imports no Empty`() {
-        val file = lower("namespace t\nrecord R { #1 x: int32 }").file("t.proto")
+        val file = lower("schema t\n\nmodel R { #1 x int32 }").file("t.proto")
         assertEquals(emptyList(), file.imports)
         assertEquals(emptyList(), file.services)
     }
@@ -1197,7 +1245,16 @@ class ProtoLoweringTest {
     @Test
     fun `a service whose rpcs all carry both payloads imports no Empty`() {
         val file =
-            lower("namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get(R): R #2 put(R): R }")
+            lower(
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 get(R): R\n" +
+                        "  #2 put(R): R\n" +
+                        "}"
+                )
                 .file("t.proto")
         assertEquals(emptyList(), file.imports)
     }
@@ -1205,7 +1262,15 @@ class ProtoLoweringTest {
     @Test
     fun `Empty is spelled absolutely so a google package cannot capture it`() {
         val lowered =
-            lower("namespace acme.google\nrecord R { #1 x: int32 }\nservice S { #1 ping(): R }")
+            lower(
+                "schema acme.google\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 ping(): R\n" +
+                    "}"
+            )
         val rpc = lowered.file("acme/google.proto").services.single().rpcs.single()
         assertEquals(".google.protobuf.Empty", rpc.request.reference)
         val outs = ProtoRenderer.render(lowered.model)
@@ -1216,11 +1281,17 @@ class ProtoLoweringTest {
     fun `an rpc override that repeats a derived name collides`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n" +
-                    "service S { #1 get(R): R @proto(name = \"Get\") #2 fetch(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "  @proto(name: \"Get\") #2 fetch(R): R\n" +
+                    "}"
             )
         assertEquals(
-            listOf("SCH2004 proto name 'Get' is already used by operation 'get' (t.schemata:3)"),
+            listOf("SCH2004 proto name 'Get' is already used by operation 'get' (t.schemata:6)"),
             out.codes(),
         )
     }
@@ -1229,11 +1300,18 @@ class ProtoLoweringTest {
     fun `rpc names collide after casing`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get_v2(R): R #2 get_v_2(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 get_v2(R): R\n" +
+                    "  #2 get_v_2(R): R\n" +
+                    "}"
             )
         assertEquals(
             listOf(
-                "SCH2004 proto name 'GetV2' is already used by operation 'get_v2' (t.schemata:3)"
+                "SCH2004 proto name 'GetV2' is already used by operation 'get_v2' (t.schemata:6)"
             ),
             out.codes(),
         )
@@ -1243,7 +1321,17 @@ class ProtoLoweringTest {
     fun `rpc names in different services do not collide`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get(R): R }\nservice U { #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "}\n" +
+                    "\n" +
+                    "service U {\n" +
+                    "  #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(emptyList(), out.codes())
     }
@@ -1252,16 +1340,27 @@ class ProtoLoweringTest {
     fun `overrides name services and rpcs`() {
         val file =
             lower(
-                    "namespace t\nrecord R { #1 x: int32 }\n" +
-                        "@proto(name = \"OrderApi\") service S { @proto(name = \"Fetch\") #1 get(R): R }"
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "@proto(name: \"OrderApi\")\n" +
+                        "service S {\n" +
+                        "  @proto(name: \"Fetch\") #1 get(R): R\n" +
+                        "}"
                 )
                 .file("t.proto")
         assertEquals("OrderApi", file.services.single().name)
         assertEquals("Fetch", file.services.single().rpcs.single().name)
         val bad =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n" +
-                    "service S { @proto(name = \"1x\") #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  @proto(name: \"1x\") #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(
             listOf("SCH2007 operation 'S.get': @proto(name = \"1x\") is not a valid identifier"),
@@ -1270,8 +1369,14 @@ class ProtoLoweringTest {
         assertEquals("Get", bad.file("t.proto").services.single().rpcs.single().name)
         val badService =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n" +
-                    "@proto(name = \"a b\") service S { #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "@proto(name: \"a b\")\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(
             listOf("SCH2007 service 'S': @proto(name = \"a b\") is not a valid identifier"),
@@ -1284,7 +1389,14 @@ class ProtoLoweringTest {
     fun `a record named Empty does not clash with the well-known type`() {
         val file =
             lower(
-                    "namespace t\nrecord Empty { #1 x: int32 }\nservice S { #1 ping() #2 take(Empty) }"
+                    "schema t\n" +
+                        "\n" +
+                        "model Empty { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 ping()\n" +
+                        "  #2 take(Empty)\n" +
+                        "}"
                 )
                 .file("t.proto")
         assertEquals("Empty", file.declarations.single().name)
@@ -1297,10 +1409,17 @@ class ProtoLoweringTest {
     fun `a service name collides with a message`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n@proto(name = \"R\") service S { #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "@proto(name: \"R\")\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(
-            listOf("SCH2004 proto name 'R' is already used by record 'R' (t.schemata:2)"),
+            listOf("SCH2004 proto name 'R' is already used by record 'R' (t.schemata:3)"),
             out.codes(),
         )
     }

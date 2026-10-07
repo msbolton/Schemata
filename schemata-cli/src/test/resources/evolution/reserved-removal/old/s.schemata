@@ -1,6 +1,3 @@
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
-  #2 note: string(max = 200)?
-}
+model Customer { #1 id uuid { id }  #2 note string? { max 200 } }

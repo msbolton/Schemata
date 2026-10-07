@@ -1,6 +1,6 @@
 # targets=xsd
 error[SCH2204] (xsd): field 'R.tags': @xsd(attribute) is not allowed on a list
- --> s.schemata:2:12
+ --> s.schemata:3:11
   = help: remove the annotation; only scalar and enum fields lower to attributes
 
 1 error, 0 warnings

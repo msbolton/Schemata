@@ -13,64 +13,64 @@ openapi: 0 breaking, 0 notes
 error[SCH2501]: jsonschema: s.Customer.email: the field became non-null breaks old documents that store a null value
  --> new/s.schemata:5:3
   |
-5 |   #2 email: string(max = 254)
+5 |   #2 email string { max 254 }
   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable, or backfill every old document first
 
 error[SCH2501]: sql: s.Customer.email: the column became NOT NULL breaks existing rows that store a null value
  --> new/s.schemata:5:3
   |
-5 |   #2 email: string(max = 254)
+5 |   #2 email string { max 254 }
   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: backfill the column before making it NOT NULL
 
 error[SCH2501]: xsd: s.Customer.email: the field became required breaks old documents that omit it: the element becomes minOccurs = 1
  --> new/s.schemata:5:3
   |
-5 |   #2 email: string(max = 254)
+5 |   #2 email string { max 254 }
   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable, give it a default, or backfill every old document
 
 warning[SCH2502] (lossy): proto: s.Customer.email: the field became non-null; proto cannot tell an absent value from the zero value
  --> new/s.schemata:5:3
   |
-5 |   #2 email: string(max = 254)
+5 |   #2 email string { max 254 }
   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: keep the field nullable
 
 error[SCH2501]: jsonschema: s.Customer.age: the refinement was tightened breaks old documents whose value falls outside the new bound
  --> new/s.schemata:6:3
   |
-6 |   #3 age: int32(min = 18)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+6 |   #3 age   int32  { min 18 }
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing documents before tightening the constraint
 
 error[SCH2501]: sql: s.Customer.age: the refinement was tightened breaks rows whose existing value falls outside the new CHECK
  --> new/s.schemata:6:3
   |
-6 |   #3 age: int32(min = 18)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+6 |   #3 age   int32  { min 18 }
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing values before tightening the constraint
 
 error[SCH2501]: xsd: s.Customer.age: the refinement was tightened breaks old documents whose value falls outside the new bound
  --> new/s.schemata:6:3
   |
-6 |   #3 age: int32(min = 18)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+6 |   #3 age   int32  { min 18 }
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate and migrate existing documents before tightening the constraint
 
 warning[SCH2502] (lossy): proto: s.Customer.age: the refinement was tightened; proto does not enforce refinements, so old values outside the new bound can still arrive
  --> new/s.schemata:6:3
   |
-6 |   #3 age: int32(min = 18)
-  |   ^^^^^^^^^^^^^^^^^^^^^^^
+6 |   #3 age   int32  { min 18 }
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^
   = help: validate incoming values separately; proto will not reject them
 
 error[SCH2501]: sql: s.Customer.code: @sql(unique) added breaks tables that already hold duplicate values
- --> new/s.schemata:7:19
+ --> new/s.schemata:7:6
   |
-7 |   @sql(unique) #4 code: string(max = 8)
-  |                   ^^^^
+7 |   #4 code  string { unique, max 8 }
+  |      ^^^^
   = help: remove duplicate rows before adding the constraint
 
 7 errors, 2 warnings

@@ -22,7 +22,7 @@ class ReferenceRecorderTest {
         }
 
         override fun namespace(site: Span, namespace: String) {
-            events += "namespace ${at(site)} -> $namespace"
+            events += "schema ${at(site)} -> $namespace"
         }
     }
 
@@ -33,8 +33,7 @@ class ReferenceRecorderTest {
         return recording.events.sorted()
     }
 
-    private val customers =
-        "c.schemata" to "namespace shop.customers\nrecord Customer { #1 id: uuid }"
+    private val customers = "c.schemata" to "schema shop.customers\nmodel Customer { #1 id uuid }"
 
     @Test
     fun `a bare name records the declaration it resolves to and builtins record nothing`() {
@@ -42,10 +41,10 @@ class ReferenceRecorderTest {
             record(
                 customers,
                 "o.schemata" to
-                    "namespace shop.orders\nimport shop.customers\n" +
-                        "record Order { #1 who: Customer #2 n: int32 }",
+                    "schema shop.orders\nimport shop.customers\n" +
+                        "model Order { #1 who Customer #2 n int32 }",
             )
-        assertEquals(listOf("type o.schemata:3:24-31 -> shop.customers.Customer"), events)
+        assertEquals(listOf("type o.schemata:3:22-29 -> shop.customers.Customer"), events)
     }
 
     @Test
@@ -54,13 +53,13 @@ class ReferenceRecorderTest {
             record(
                 customers,
                 "o.schemata" to
-                    "namespace shop.orders\nimport shop.customers as cust\n" +
-                        "record Order { #1 who: cust.Customer }",
+                    "schema shop.orders\nimport shop.customers as cust\n" +
+                        "model Order { #1 who cust.Customer }",
             )
         assertEquals(
             listOf(
-                "alias o.schemata:3:24-27 -> shop.customers",
-                "type o.schemata:3:29-36 -> shop.customers.Customer",
+                "alias o.schemata:3:22-25 -> shop.customers",
+                "type o.schemata:3:27-34 -> shop.customers.Customer",
             ),
             events,
         )
@@ -72,13 +71,13 @@ class ReferenceRecorderTest {
             record(
                 customers,
                 "o.schemata" to
-                    "namespace shop.orders\nimport shop.customers\n" +
-                        "record Order { #1 who: shop.customers.Customer }",
+                    "schema shop.orders\nimport shop.customers\n" +
+                        "model Order { #1 who shop.customers.Customer }",
             )
         assertEquals(
             listOf(
-                "namespace o.schemata:3:24-37 -> shop.customers",
-                "type o.schemata:3:39-46 -> shop.customers.Customer",
+                "schema o.schemata:3:22-35 -> shop.customers",
+                "type o.schemata:3:37-44 -> shop.customers.Customer",
             ),
             events,
         )
@@ -89,13 +88,13 @@ class ReferenceRecorderTest {
         val events =
             record(
                 "a.schemata" to
-                    "namespace a\nrecord Outer { #1 x: int32\n  record Inner { #1 y: int32 } }\n" +
-                        "record Use { #1 i: Outer.Inner }"
+                    "schema a\nmodel Outer { #1 x int32\n  model Inner { #1 y int32 } }\n" +
+                        "model Use { #1 i Outer.Inner }"
             )
         assertEquals(
             listOf(
-                "type a.schemata:4:20-24 -> a.Outer",
-                "type a.schemata:4:26-30 -> a.Outer.Inner",
+                "type a.schemata:4:18-22 -> a.Outer",
+                "type a.schemata:4:24-28 -> a.Outer.Inner",
             ),
             events,
         )
@@ -106,13 +105,13 @@ class ReferenceRecorderTest {
         val events =
             record(
                 "a.schemata" to
-                    "namespace a\nrecord R { #1 a: M #2 b: M }\nalias M = Money\n" +
-                        "record Money { #1 v: int64 }"
+                    "schema a\nmodel R { #1 a M #2 b M }\nalias M = Money\n" +
+                        "model Money { #1 v int64 }"
             )
         assertEquals(
             listOf(
-                "type a.schemata:2:18-18 -> a.M",
-                "type a.schemata:2:26-26 -> a.M",
+                "type a.schemata:2:16-16 -> a.M",
+                "type a.schemata:2:23-23 -> a.M",
                 "type a.schemata:3:11-15 -> a.Money",
             ),
             events,
@@ -121,7 +120,7 @@ class ReferenceRecorderTest {
 
     @Test
     fun `an unresolved name records nothing`() {
-        val events = record("a.schemata" to "namespace a\nrecord R { #1 a: Missing }")
+        val events = record("a.schemata" to "schema a\nmodel R { #1 a Missing }")
         assertEquals(emptyList(), events)
     }
 
@@ -131,9 +130,9 @@ class ReferenceRecorderTest {
             record(
                 customers,
                 "o.schemata" to
-                    "namespace shop.orders\nimport shop.customers as cust\n" +
-                        "record Order { #1 who: cust.Missing }",
+                    "schema shop.orders\nimport shop.customers as cust\n" +
+                        "model Order { #1 who cust.Missing }",
             )
-        assertEquals(listOf("alias o.schemata:3:24-27 -> shop.customers"), events)
+        assertEquals(listOf("alias o.schemata:3:22-25 -> shop.customers"), events)
     }
 }

@@ -58,8 +58,15 @@ class DocumentLoweringTest {
         val schema =
             compile(
                 """
-                namespace a
-                record Order { #1 id: uuid #2 line: Line record Line { #1 n: int32 } }
+                schema a
+
+                model Order {
+                  #1 id   uuid
+                  #2 line Line
+
+                  model Line { #1 n int32 }
+                }
+
                 enum S { #1 x }
                 """
             )
@@ -79,8 +86,14 @@ class DocumentLoweringTest {
         val schema =
             compile(
                 """
-                namespace a
-                record Order { #1 id: uuid record Line { #1 n: int32 } }
+                schema a
+
+                model Order {
+                  #1 id uuid
+
+                  model Line { #1 n int32 }
+                }
+
                 enum S { #1 x }
                 """
             )
@@ -98,13 +111,15 @@ class DocumentLoweringTest {
         val schema =
             compile(
                 """
-                namespace a
+                schema a
+
                 enum Status { #1 open #2 closed }
-                record Order {
-                  #1 id: uuid
-                  #2 status: Status?
+
+                model Order {
+                  #1 id     uuid
+                  #2 status Status?
                   /// The page size.
-                  #3 limit: int32 = 50
+                  #3 limit  int32   = 50
                 }
                 """
             )
@@ -131,8 +146,9 @@ class DocumentLoweringTest {
         val schema =
             compile(
                 """
-                namespace a
-                record Order { #1 a: int32 @jsonschema(name = "a") #2 b: int32 #3 c: int32 }
+                schema a
+
+                model Order { #1 a int32  #2 b int32 @jsonschema(name: "a")  #3 c int32 }
                 """
             )
         val diagnostics = mutableListOf<Diagnostic>()

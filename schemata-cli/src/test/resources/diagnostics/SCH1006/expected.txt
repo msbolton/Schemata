@@ -1,5 +1,5 @@
 error[SCH1006]: unknown type 'Missing'
- --> s.schemata:2:18
+ --> s.schemata:3:16
   = help: declare `Missing`, import the namespace that declares it, or check the spelling against the builtin types
 
 1 error, 0 warnings

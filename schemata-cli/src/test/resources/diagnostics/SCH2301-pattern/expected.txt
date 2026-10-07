@@ -1,6 +1,6 @@
 # targets=jsonschema
 warning[SCH2301] (lossy) (jsonschema): field 'R.x': pattern uses \A, which JSON Schema (ECMA-262) cannot express; dropped
- --> s.schemata:2:12
+ --> s.schemata:3:11
   = help: rewrite the pattern without \A, or enforce it in application code
 
 0 errors, 1 warning

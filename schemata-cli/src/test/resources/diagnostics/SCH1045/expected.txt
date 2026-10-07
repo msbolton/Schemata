@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1045]: import alias 'Base' must be lower_snake
- --> b.schemata:2:13
+ --> b.schemata:3:13
   = help: rename it `base`
 
 1 error, 0 warnings

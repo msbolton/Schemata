@@ -11,17 +11,17 @@ jsonschema: 0 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: sql: s.First: @sql(table) changed renames 'alpha' to 'beta', which breaks statements that reference the old name
- --> new/s.schemata:4:8
+ --> new/s.schemata:3:7
   |
-4 | record First {
-  |        ^^^^^
+3 | model First {
+  |       ^^^^^
   = help: migrate references to the new name, or keep @sql(table) pinned to "alpha"
 
 error[SCH2501]: sql: s.Second: @sql(table) changed renames 'beta' to 'alpha', which breaks statements that reference the old name
-  --> new/s.schemata:11:8
+  --> new/s.schemata:11:7
    |
-11 | record Second {
-   |        ^^^^^^
+11 | model Second {
+   |       ^^^^^^
    = help: migrate references to the new name, or keep @sql(table) pinned to "beta"
 
 2 errors, 0 warnings

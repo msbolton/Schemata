@@ -23,17 +23,13 @@ By default, a namespace's Postgres schema is its last segment: `shop.orders` low
 `@sql(schema = "…")`.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record Order {
-  @sql(key) #1 id: int64
-}
+model Order { #1 id int64 { id } }
 --- lines.schemata
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-}
+model OrderLine { #1 id int64 { id } }
 ```
 
 ## 2. Imports
@@ -47,63 +43,46 @@ to one import only; a repeat of either is an error (SCH1046).
 
 ```schemata
 --- customers.schemata
-namespace shop.customers
+schema shop.customers
 
-record Customer {
-  @sql(key) #1 id: int64
-}
+model Customer { #1 id int64 { id } }
 --- orders.schemata
-namespace shop.orders
+schema shop.orders
 
 import shop.customers
 
-record Order {
-  @sql(key) #1 id: int64
-  #2 customer: Customer
-}
+model Order { #1 id int64 { id }  #2 customer Customer }
 ```
 
 ```schemata
 --- customers.schemata
-namespace shop.customers
+schema shop.customers
 
-record Customer {
-  @sql(key) #1 id: int64
-}
+model Customer { #1 id int64 { id } }
 --- orders.schemata
-namespace shop.orders
+schema shop.orders
 
 import shop.customers as cust
 
-record Order {
-  @sql(key) #1 id: int64
-  #2 customer: cust.Customer
-}
+model Order { #1 id int64 { id }  #2 customer cust.Customer }
 ```
 
 ```schemata error SCH1009
 --- a.schemata
-namespace shop.a
+schema shop.a
 
-record Customer {
-  @sql(key) #1 id: int64
-}
+model Customer { #1 id int64 { id } }
 --- b.schemata
-namespace shop.b
+schema shop.b
 
-record Customer {
-  @sql(key) #1 id: int64
-}
+model Customer { #1 id int64 { id } }
 --- orders.schemata
-namespace shop.orders
+schema shop.orders
 
 import shop.a
 import shop.b
 
-record Order {
-  @sql(key) #1 id: int64
-  #2 customer: Customer
-}
+model Order { #1 id int64 { id }  #2 customer Customer }
 ```
 
 ## 3. Comments
@@ -116,14 +95,14 @@ the parser keeps it, but none of the outputs carries it. Like a string, a doc co
 but no other control character below U+0020 (SCH0005).
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
 // Orders placed by customers.
 /// A single line on an order.
-record OrderLine {
-  @sql(key) #1 id: int64
+model OrderLine {
+  #1 id       int64 { id }
   /// The number of units ordered.
-  #2 quantity: int32
+  #2 quantity int32
 }
 ```
 
@@ -147,25 +126,17 @@ that name. Where a suggested name would be a keyword, the help adds `_value` (`n
 `true_value`).
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-enum Status {
-  #1 open
-  #2 closed
-}
+enum Status { #1 open #2 closed }
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 status: Status
-}
+model OrderLine { #1 id int64 { id }  #2 status Status }
 ```
 
 ```schemata error SCH1002
-namespace shop.orders
+schema shop.orders
 
-record order_line {
-  @sql(key) #1 id: int64
-}
+model order_line { #1 id int64 { id } }
 ```
 
 ## 5. Builtin types and refinements
@@ -208,14 +179,14 @@ other than tab, newline, and carriage return, nor U+FFFE or U+FFFF, whether type
 written `\u{…}` (SCH0005): XML cannot carry them. A tab typed between the quotes is a tab.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 sku: string(max = 100)
-  #3 quantity: int32(min = 0)
-  #4 price: decimal(19, 4)
-  #5 code: string(pattern = "^[a-z]+$")
+model OrderLine {
+  #1 id       int64          { id }
+  #2 sku      string         { max 100 }
+  #3 quantity int32          { min 0 }
+  #4 price    decimal(19, 4)
+  #5 code     string         { match "^[a-z]+$" }
 }
 ```
 
@@ -231,22 +202,15 @@ A map key may not be nullable. A nullable alias may not be marked `?` again wher
 section 8 shows an alias declared nullable and a field that uses it bare.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 note: string?
-  #3 tags: map<string, int32>
-}
+model OrderLine { #1 id int64 { id }  #2 note string?  #3 tags map<string, int32> }
 ```
 
 ```schemata error SCH1021
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 tags: map<string?, int32>
-}
+model OrderLine { #1 id int64 { id }  #2 tags map<string?, int32> }
 ```
 
 ## 7. Defaults
@@ -256,29 +220,23 @@ refinements it carries. `= null` is an error; write `T?` instead. An enum defaul
 values. Postgres carries defaults into the column; Protobuf does not, and reports SCH2001.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-enum Status {
-  #1 open
-  #2 closed
-}
+enum Status { #1 open #2 closed }
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 active: bool = true
-  #3 quantity: int32 = 1
-  #4 sku: string = "N/A"
-  #5 status: Status = open
+model OrderLine {
+  #1 id       int64  { id }
+  #2 active   bool   = true
+  #3 quantity int32  = 1
+  #4 sku      string = "N/A"
+  #5 status   Status = open
 }
 ```
 
 ```schemata error SCH1044
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 note: string = null
-}
+model OrderLine { #1 id int64 { id }  #2 note string = null }
 ```
 
 ## 8. Aliases
@@ -288,28 +246,21 @@ add refinements where it is used, only where it is declared. An alias may be mar
 the `?` belongs on the alias declaration itself; a field that uses the alias writes its bare name.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
 alias Money = decimal(19, 4)
+
 alias OptionalMoney = decimal(19, 4)?
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 price: Money
-  #3 discount: Money?
-  #4 tip: OptionalMoney
-}
+model OrderLine { #1 id int64 { id }  #2 price Money  #3 discount Money?  #4 tip OptionalMoney }
 ```
 
-```schemata error SCH1039
-namespace shop.orders
+```schemata error SCH1049
+schema shop.orders
 
 alias Money = decimal(19, 4)
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 price: Money(max = 5)
-}
+model OrderLine { #1 id int64 { id }  #2 price Money { max 5 } }
 ```
 
 ## 9. Records
@@ -325,44 +276,33 @@ dropping every underscore and capitalising the letter after it, so two fields of
 derive the same one, such as `a_1` and `a1`, are an error for the Protobuf target (SCH2008).
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record Order {
-  @sql(key) #1 id: int64
+model Order {
+  #1 id         int64 { id }
 
-  record Line {
-    #1 sku: string
-    #2 quantity: int32
-  }
+  model Line { #1 sku string  #2 quantity int32 }
 
-  #2 first_line: Line
+  #2 first_line Line
 }
 ```
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record Order {
-  @sql(key) #1 id: int64
+model Order {
+  #1 id int64 { id }
 
-  record Line {
-    @sql(key) #1 id: int64
-    #2 quantity: int32
-  }
+  model Line { #1 id int64 { id }  #2 quantity int32 }
 }
 
-record Shipment {
-  @sql(key) #1 id: int64
-  #2 line: Order.Line
-}
+model Shipment { #1 id int64 { id }  #2 line Order.Line }
 ```
 
 ```schemata error SCH2106
-namespace shop.orders
+schema shop.orders
 
-record Orphan {
-  #1 id: int64
-}
+model Orphan { #1 id int64 }
 ```
 
 ## 10. Enums
@@ -372,17 +312,11 @@ always synthesizes a zero value for proto3 and reports SCH2001. Postgres stores 
 `text`, with a CHECK restricting it to the declared values.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-enum Status {
-  #1 pending
-  #2 paid
-}
+enum Status { #1 pending #2 paid }
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 status: Status = pending
-}
+model OrderLine { #1 id int64 { id }  #2 status Status = pending }
 ```
 
 ## 11. Unions
@@ -399,36 +333,25 @@ the columns that member requires. A member named `Kind` collides on the Postgres
 CHECK constraint takes the same name as the discriminator's (SCH2111).
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record Card {
-  #1 id: int64
-}
+model Card { #1 id int64 }
 
-record BankTransfer {
-  #1 id: int64
-}
+model BankTransfer { #1 id int64 }
 
-record Cash {
-  #1 id: int64
-}
+model Cash { #1 id int64 }
 
 union Payment = #1 Card | #2 BankTransfer | #3 Cash
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 payment: Payment
-}
+model OrderLine { #1 id int64 { id }  #2 payment Payment }
 ```
 
 ```schemata error SCH1027
-namespace shop.orders
+schema shop.orders
 
-record Card {
-  @sql(key) #1 id: int64
-}
+model Card { #1 id int64 { id } }
 
-union Payment = #1 Card | #2 list<string>
+union Payment = #1 Card | #2 string[]
 ```
 
 ## 12. Collections
@@ -443,22 +366,19 @@ collection nested inside another collection has no Protobuf form (SCH2005), and 
 unless the outer collection takes `@sql(strategy = json)`.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 tags: list<string>(max = 20)
-  #3 attrs: map<string, int32>
+model OrderLine {
+  #1 id    int64              { id }
+  #2 tags  string[]           { maxItems 20 }
+  #3 attrs map<string, int32>
 }
 ```
 
 ```schemata error SCH2005 SCH2110
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 grid: list<list<int32>>
-}
+model OrderLine { #1 id int64 { id }  #2 grid list<int32[]> }
 ```
 
 ## 13. Reserved
@@ -470,23 +390,23 @@ value, or operation name, so it is lower_snake like one (SCH1003 in a record or 
 in an enum).
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 quantity: int32
+model OrderLine {
+  #1 id       int64 { id }
+  #2 quantity int32
   reserved #11, "legacy_ref"
   reserved #5..#9
 }
 ```
 
 ```schemata error SCH1020
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
+model OrderLine {
+  #1 id       int64 { id }
   reserved #2
-  #2 quantity: int32
+  #2 quantity int32
 }
 ```
 
@@ -499,21 +419,15 @@ ordinal becomes its Protobuf field number; no target numbers an operation, whose
 identity for `diff`.
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) id: int64
-  quantity: int32
-}
+model OrderLine { id int64 { id }  quantity int32 }
 ```
 
 ```schemata error SCH1013
-namespace shop.orders
+schema shop.orders
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  quantity: int32
-}
+model OrderLine { #1 id int64 { id }  quantity int32 }
 ```
 
 ## 15. Annotations
@@ -574,66 +488,53 @@ carry properties the record does not declare.
 codes each target can report.
 
 ```schemata
-@proto(package = "shop.orders.v1")
-@sql(schema = "shop_orders")
-namespace shop.orders
+schema shop.orders @proto(package: "shop.orders.v1") @sql(schema: "shop_orders")
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  #2 quantity: int32
+model OrderLine { #1 id int64 { id }  #2 quantity int32 }
+```
+
+```schemata
+schema shop.orders
+
+model OrderLine {
+  #1 order_id int64
+  #2 sku      string
+  #3 quantity int32
+
+  @@id(order_id, sku)
 }
 ```
 
 ```schemata
-namespace shop.orders
+schema shop.orders
 
-@sql(key = (order_id, sku))
-record OrderLine {
-  #1 order_id: int64
-  #2 sku: string
-  #3 quantity: int32
+model OrderLine { #1 id int64 { id }  #2 attrs map<string, int32> @sql(strategy: table) }
+```
+
+```schemata error SCH1049
+schema shop.orders
+
+model OrderLine { #1 id int64 { id }  #2 tags string[] { unique } }
+```
+
+```schemata
+schema contacts @xsd(namespace: "http://example.com/contacts")
+
+model Contact {
+  #1 id   int64    { id } @xsd(attribute)
+  #2 name string   { max 100 } @xsd(name: "full-name")
+  #3 tags string[]
 }
 ```
 
 ```schemata
-namespace shop.orders
+schema contacts @jsonschema(id: "https://example.com/schemas/contacts")
 
-record OrderLine {
-  @sql(key) #1 id: int64
-  @sql(strategy = table) #2 attrs: map<string, int32>
-}
-```
+model Contact {
+  #1 id   int64  { id } @jsonschema(name: "contactId")
+  #2 name string { max 100 }
 
-```schemata error SCH2110
-namespace shop.orders
-
-record OrderLine {
-  @sql(key) #1 id: int64
-  @sql(unique) #2 tags: list<string>
-}
-```
-
-```schemata
-@xsd(namespace = "http://example.com/contacts")
-namespace contacts
-
-record Contact {
-  @sql(key)
-  @xsd(attribute) #1 id: int64
-  @xsd(name = "full-name") #2 name: string(max = 100)
-  #3 tags: list<string>
-}
-```
-
-```schemata
-@jsonschema(id = "https://example.com/schemas/contacts")
-namespace contacts
-
-@jsonschema(open)
-record Contact {
-  @sql(key)
-  @jsonschema(name = "contactId") #1 id: int64
-  #2 name: string(max = 100)
+  @@jsonschema(open)
 }
 ```
 
@@ -650,28 +551,28 @@ the same output with or without them.
 
 ```schemata
 /// Orders and their lines.
-namespace shop.orders
+schema shop.orders
 
-record OrderId { @sql(key) #1 id: uuid }
+model OrderId { #1 id uuid { id } }
 
-record ListOrders { #1 status: Status? @sql(key) #2 limit: int32(min = 1, max = 200) = 50 }
+model ListOrders { #1 status Status?  #2 limit int32 { id, min 1, max 200 } = 50 }
 
-record PlaceOrder { @sql(key) #1 customer_id: uuid #2 lines: list<Order.Line>(min = 1) }
+model PlaceOrder { #1 customer_id uuid { id }  #2 lines Order.Line[] { minItems 1 } }
 
-record Order {
-  @sql(key) #1 id:     uuid
-  #2 status: Status
-  #3 lines:  list<Line>
-  #4 total:  decimal(12, 2)
+model Order {
+  #1 id     uuid           { id }
+  #2 status Status
+  #3 lines  Line[]
+  #4 total  decimal(12, 2)
 
-  record Line { #1 sku: string(max = 64) #2 quantity: int32(min = 1) }
+  model Line { #1 sku string { max 64 }  #2 quantity int32 { min 1 } }
 }
 
-enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
+enum Status { #1 pending #2 paid #3 shipped #4 cancelled }
 
-record Chunk { @sql(key) #1 bytes: bytes }
+model Chunk { #1 bytes bytes { id } }
 
-record Receipt { @sql(key) #1 count: int64 }
+model Receipt { #1 count int64 { id } }
 
 /// Place and read orders.
 service Orders {
@@ -701,11 +602,9 @@ operations by ordinal, so number them. A doc comment and `@deprecated` apply to 
 each operation.
 
 ```schemata error SCH1047
-namespace shop.orders
+schema shop.orders
 
-record Order {
-  @sql(key) #1 id: uuid
-}
+model Order { #1 id uuid { id } }
 
 service Orders {
   #1 get(uuid): Order
@@ -737,11 +636,9 @@ An operation without a binding is `post /<tag>/<operation>`, where the tag is th
 its `@openapi(name)`, and its request is the body: `upload` above is `post /Orders/upload`.
 
 ```schemata error SCH1048
-namespace shop.orders
+schema shop.orders
 
-record OrderId {
-  @sql(key) #1 id: uuid
-}
+model OrderId { #1 id uuid { id } }
 
 service Orders {
   #1 get(OrderId): OrderId  get "/orders/{order}"
@@ -749,11 +646,9 @@ service Orders {
 ```
 
 ```schemata error SCH1048
-namespace shop.orders
+schema shop.orders
 
-record OrderId {
-  @sql(key) #1 id: uuid
-}
+model OrderId { #1 id uuid { id } }
 
 service Orders {
   #1 get(OrderId): OrderId  get "/orders/{id}"
@@ -769,11 +664,9 @@ newline-delimited JSON, `application/x-ndjson`, one value per line. A streamed r
 body, so it binds no path parameters and needs `post`, `put`, or `patch` (SCH1048).
 
 ```schemata error SCH1048
-namespace shop.uploads
+schema shop.uploads
 
-record Chunk {
-  @sql(key) #1 bytes: bytes
-}
+model Chunk { #1 bytes bytes { id } }
 
 service Uploads {
   #1 upload(stream Chunk): Chunk  get "/uploads"
@@ -877,20 +770,15 @@ itself; only the types its fields name are.
 The three `@openapi` keys, together:
 
 ```schemata
-@openapi(version = "2.1.0", server = "https://api.example.com/v2")
-namespace shop.orders
+schema shop.orders @openapi(version: "2.1.0", server: "https://api.example.com/v2")
 
-record OrderId {
-  @sql(key) #1 id: uuid
-}
+model OrderId { #1 id uuid { id } }
 
-record Order {
-  @sql(key) #1 id: uuid
-}
+model Order { #1 id uuid { id } }
 
-@openapi(name = "orders")
+@openapi(name: "orders")
 service Orders {
-  @openapi(name = "getOrder") #1 get(OrderId): Order  get "/orders/{id}"
+  @openapi(name: "getOrder") #1 get(OrderId): Order  get "/orders/{id}"
   #2 ping(): Order
 }
 ```
@@ -958,22 +846,21 @@ An rpc with both an ordinal and a binding takes one note, the ordinal first, the
 
 ```schemata
 /// Orders served as a gRPC API under a pinned package.
-@proto(package = "shop.v1")
-namespace corpus.grpc
+schema corpus.grpc @proto(package: "shop.v1")
 
-record OrderId { @sql(key) #1 id: int64 }
+model OrderId { #1 id int64 { id } }
 
-record Order { @sql(key) #1 id: int64 #2 note: string }
+model Order { #1 id int64 { id }  #2 note string }
 
-record Summary { @sql(key) #1 count: int64 }
+model Summary { #1 count int64 { id } }
 
-record Chunk { @sql(key) #1 seq: int64 #2 data: bytes }
+model Chunk { #1 seq int64 { id }  #2 data bytes }
 
 /// Read and feed orders.
-@proto(name = "OrderApi")
+@proto(name: "OrderApi")
 service Orders {
   /// Fetch one order.
-  @proto(name = "Fetch") #1 get(OrderId): Order  get "/orders/{id}"
+  @proto(name: "Fetch") #1 get(OrderId): Order  get "/orders/{id}"
   #2 watch(): stream Summary  get "/summary"
   /// Feed order data; replaced by a batch import.
   @deprecated #5 upload(stream Chunk)  post "/chunks"
@@ -1349,13 +1236,21 @@ imports as
 ```
 union Shape = Circle | Square
 
-@xsd(root = false)
-record Circle { label: string radius: float64 }
+model Circle {
+  label  string
+  radius float64
 
-@xsd(root = false)
-record Square { label: string side: float64 }
+  @@xsd(root: false)
+}
 
-record Drawing { shape: list<Shape>(min = 1) }
+model Square {
+  label string
+  side  float64
+
+  @@xsd(root: false)
+}
+
+model Drawing { shape Shape[] { minItems 1 } }
 ```
 
 A substitution group's union is named after its head element, or `<Head>Choice` when a type or
@@ -1412,16 +1307,13 @@ already takes one of these names, the synthesized field gives way: `any_2`, `mix
 imports, with no diagnostics, as
 
 ```
-record Para {
-  bold:       list<string>
-  @xsd(any)
-  @xsd(process = "strict")
-  @xsd(wildcard = "##other")
-  any:        list<string>
-  @xsd(any_type) extra:      string?
-  @xsd(mixed) text:       string?
-  @xsd(attribute) lang:       string?
-  @xsd(any_attribute) attributes: map<string, string>
+model Para {
+  bold       string[]
+  any        string[]            @xsd(any) @xsd(process: "strict") @xsd(wildcard: "##other")
+  extra      string?             @xsd(any_type)
+  text       string?             @xsd(mixed)
+  lang       string?             @xsd(attribute)
+  attributes map<string, string> @xsd(any_attribute)
 }
 ```
 
@@ -1505,20 +1397,28 @@ them, becomes its own optional field (SCH2403), a list when the choice repeats.
 imports as
 
 ```
-@xsd(all)
-record Settings { units: string zoom: int32? }
+model Settings {
+  units string
+  zoom  int32?
 
-record Track {
-  name:      string
-  lat_group: list<LatGroup>
+  @@xsd(all)
+}
 
-  record LatGroup { lat: float64 lon: float64 }
+model Track {
+  name      string
+  lat_group LatGroup[]
+
+  model LatGroup { lat float64  lon float64 }
 }
 
 union Place = string | StreetGroup
 
-@xsd(root = false)
-record StreetGroup { street: string city: string }
+model StreetGroup {
+  street string
+  city   string
+
+  @@xsd(root: false)
+}
 ```
 
 reporting the `lat`/`lon` sequence, the `code` branch's name, and the `street` branch's record
@@ -1784,30 +1684,30 @@ message Card {
 `schemata import --from proto protos` writes `out/import/shop/orders.schemata`:
 
 ```
-namespace shop.orders
+schema shop.orders
 
-enum Status { #1 pending, #2 paid }
+enum Status { #1 pending #2 paid }
 
 /// One checkout.
-record Order {
-  #1 id:        uuid
-  #2 status:    Status
-  #3 lines:     list<Line>
-  #4 labels:    map<string, string>
-  #5 placed_at: instant
-  #6 note:      string?
-  #7 priority:  int32?
-  #8 payment:   Payment?
-  #9 points:    int64(min = 0, max = 4294967295)
+model Order {
+  #1 id        uuid
+  #2 status    Status
+  #3 lines     Line[]
+  #4 labels    map<string, string>
+  #5 placed_at instant
+  #6 note      string?
+  #7 priority  int32?
+  #8 payment   Payment?
+  #9 points    int64               { min 0, max 4294967295 }
 
-  record Line { #1 sku: string #2 quantity: int64 }
+  model Line { #1 sku string  #2 quantity int64 }
 
   reserved #10, #12..#14, "coupon"
 }
 
 union Payment = #1 Card | #2 string
 
-record Card { #1 last4: string }
+model Card { #1 last4 string }
 ```
 
 and reports the wrapper (SCH2403), the `uint32` (SCH2404), and the `voucher` member, which the
@@ -1862,7 +1762,7 @@ service Orders {
   /// Forget an item.
   @deprecated #5 forget(kitchen.maps.Item)  delete "/items/{name}"
   #4 submit(Request): kitchen.maps.Item
-  @proto(name = "GetURL") #7 get_url(Request): Request
+  @proto(name: "GetURL") #7 get_url(Request): Request
   reserved #6, "archive"
 }
 ```
@@ -1973,15 +1873,15 @@ CREATE TABLE shop.customer (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-record Customer {
-  @sql(key) id:      uuid
-  @sql(strategy = json) address: Address
-  prefs:   map<string, string>?
-  @sql(type = "jsonb") extra:   string?
+model Customer {
+  id      uuid                 { id }
+  address Address              @sql(strategy: json)
+  prefs   map<string, string>?
+  extra   string?              @sql(type: "jsonb")
 
-  record Address {}
+  model Address {}
 }
 ```
 
@@ -2005,15 +1905,15 @@ CREATE TABLE shop."order" (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-record Order {
-  @sql(key) id:     uuid
-  status: Status = pending
-  qty:    int32(min = 1, max = 99)
-  code:   string(pattern = "^[A-Z]{3}$")?
+model Order {
+  id     uuid    { id }
+  status Status  = pending
+  qty    int32   { min 1, max 99 }
+  code   string? { match "^[A-Z]{3}$" }
 
-  enum Status { pending, paid }
+  enum Status { pending paid }
 }
 ```
 
@@ -2046,10 +1946,15 @@ CREATE TABLE shop.plan (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-@sql(key = (code, tenant_id))
-record Plan { tenant_id: uuid code: string(max = 8) name: string }
+model Plan {
+  tenant_id uuid
+  code      string { max 8 }
+  name      string
+
+  @@id(code, tenant_id)
+}
 ```
 
 References. A foreign key to the whole primary key of another table's record is a field of that
@@ -2069,11 +1974,11 @@ CREATE TABLE shop."order" (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-record Customer { @sql(key) id: uuid }
+model Customer { id uuid { id } }
 
-record Order { @sql(key) id: uuid customer: Customer referrer: Customer? }
+model Order { id uuid { id }  customer Customer  referrer Customer? }
 ```
 
 Child tables. A table named `<parent>_<field>`, keyed by the parent's key columns, each prefixed
@@ -2107,15 +2012,15 @@ CREATE TABLE shop.order_prices (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-record Order {
-  @sql(key) id:     uuid
-  lines:  list<Line>
-  @sql(strategy = table) tags:   list<string>
-  @sql(strategy = table) prices: map<string, decimal(10, 2)>
+model Order {
+  id     uuid                        { id }
+  lines  Line[]
+  tags   string[]                    @sql(strategy: table)
+  prices map<string, decimal(10, 2)> @sql(strategy: table)
 
-  record Line { sku: string quantity: int32 }
+  model Line { sku string  quantity int32 }
 }
 ```
 
@@ -2141,17 +2046,17 @@ CREATE TABLE shop."order" (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-record Order {
-  @sql(key) id:      uuid
-  payment: Payment
+model Order {
+  id      uuid    { id }
+  payment Payment
 
   union Payment = Card | Cash | uuid
 
-  record Card { last4: string(max = 4) brand: string? }
+  model Card { last4 string { max 4 }  brand string? }
 
-  record Cash {}
+  model Cash {}
 }
 ```
 
@@ -2171,13 +2076,13 @@ CREATE TABLE shop.site (
 ```
 
 ```schemata
-namespace shop
+schema shop
 
-record Site {
-  @sql(key) id:   uuid
-  home: Home?
+model Site {
+  id   uuid  { id }
+  home Home?
 
-  record Home { street: string zip: string(max = 10) }
+  model Home { street string  zip string { max 10 } }
 }
 ```
 
@@ -2411,21 +2316,21 @@ Schemata source, so a string reads `"eu"` with its quotes. When the sides cannot
 
 From `schemata-cli/src/test/resources/evolution/rename-pinned/old/s.schemata`:
 ```
-namespace s
+schema s
 
-record Order {
-  #1 id: uuid
-  @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 note: string(max = 500)?
+model Order {
+  #1 id   uuid    { id }
+  #9 note string? { max 500 } @sql(column: "note") @xsd(name: "note") @jsonschema(name: "note")
 }
 ```
 
 From `schemata-cli/src/test/resources/evolution/rename-pinned/new/s.schemata`:
 ```
-namespace s
+schema s
 
-record Order {
-  #1 id: uuid
-  @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
+model Order {
+  #1 id      uuid    { id }
+  #9 comment string? { max 500 } @sql(column: "note") @xsd(name: "note") @jsonschema(name: "note")
 }
 ```
 
@@ -2538,7 +2443,9 @@ OLD's `Orders` holds only `#1 get(OrderId): Order  get "/orders/{id}"`.
 From `schemata-cli/src/test/resources/evolution/services-pinned/new/orders.schemata`:
 ```
 service Orders {
-  @proto(name = "Get") @openapi(name = "Orders_get") #1 fetch(OrderId): Order  get "/orders/{id}"
+  @proto(name: "Get")
+  @openapi(name: "Orders_get")
+  #1 fetch(OrderId): Order  get "/orders/{id}"
 }
 ```
 
@@ -2672,25 +2579,25 @@ for the sql rulebook plus `steps` (`file`, `kind`, `sql`, `risk`, `path`, `line`
 
 From `schemata-cli/src/test/resources/evolution/may-fail/old/s.schemata`:
 ```
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
-  #2 email: string(max = 254)?
-  #3 age: int32(min = 0)
-  #4 code: string(max = 8)
+model Customer {
+  #1 id    uuid    { id }
+  #2 email string? { max 254 }
+  #3 age   int32   { min 0 }
+  #4 code  string  { max 8 }
 }
 ```
 
 From `schemata-cli/src/test/resources/evolution/may-fail/new/s.schemata`:
 ```
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
-  #2 email: string(max = 254)
-  #3 age: int32(min = 18)
-  @sql(unique) #4 code: string(max = 8)
+model Customer {
+  #1 id    uuid   { id }
+  #2 email string { max 254 }
+  #3 age   int32  { min 18 }
+  #4 code  string { unique, max 8 }
 }
 ```
 
@@ -2722,22 +2629,22 @@ s.sql
 warning[SCH2702] (lossy): s.Customer.email: SET NOT NULL on "email" fails when a row holds NULL
  --> new/s.schemata:5:6
   |
-5 |   #2 email: string(max = 254)
+5 |   #2 email string { max 254 }
   |      ^^^^^
   = help: run UPDATE "s"."customer" SET "email" = … WHERE "email" IS NULL before applying
 
 warning[SCH2702] (lossy): s.Customer.age: CONSTRAINT "ck_customer_age_min" fails when a row violates it
  --> new/s.schemata:6:6
   |
-6 |   #3 age: int32(min = 18)
+6 |   #3 age   int32  { min 18 }
   |      ^^^
   = help: fix or delete the rows the new constraint rejects before applying
 
 warning[SCH2702] (lossy): s.Customer.code: UNIQUE "uq_customer_code" fails when rows duplicate the key
- --> new/s.schemata:7:19
+ --> new/s.schemata:7:6
   |
-7 |   @sql(unique) #4 code: string(max = 8)
-  |                   ^^^^
+7 |   #4 code  string { unique, max 8 }
+  |      ^^^^
   = help: remove duplicate rows before applying
 
 0 errors, 3 warnings

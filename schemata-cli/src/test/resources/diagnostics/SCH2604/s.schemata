@@ -1,4 +1,9 @@
-namespace s
-record Q { @jsonschema(name = "Text") #1 text: string }
-record R { #1 ok: bool }
-service S { #1 find(Q): R  get "/find" }
+schema s
+
+model Q { #1 text string @jsonschema(name: "Text") }
+
+model R { #1 ok bool }
+
+service S {
+  #1 find(Q): R  get "/find"
+}

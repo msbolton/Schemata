@@ -1,11 +1,9 @@
-@proto(package = "corp.orders.v1")
-namespace corp.orders
+schema corp.orders @proto(package: "corp.orders.v1")
 
 /// An order.
-@deprecated
-record Order {
-  #1 id:     uuid
-  @deprecated #3 legacy: int32?
+model Order {
+  #1 id     uuid
+  #3 legacy int32? @deprecated
 
   enum Status {
     #1 pending
@@ -14,6 +12,8 @@ record Order {
   }
 
   reserved #2, #7..#9, "old_ref"
+
+  @@deprecated
 }
 
 union Payment = #1 Order | #2 string

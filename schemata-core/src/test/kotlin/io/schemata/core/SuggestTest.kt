@@ -25,7 +25,8 @@ class SuggestTest {
     fun `a suggestion is never a reserved word and never starts with a digit`() {
         assertEquals("true_value", Suggest.lowerSnake("true_"))
         assertEquals("false_value", Suggest.lowerSnake("False"))
-        assertEquals("record_value", Suggest.lowerSnake("Record"))
+        assertEquals("model_value", Suggest.lowerSnake("Model"))
+        assertEquals("record", Suggest.lowerSnake("Record"))
         assertEquals("null_value", Suggest.lowerSnake("null"))
         assertEquals("null_value", Suggest.lowerSnake("NULL"))
         assertEquals("v1x", Suggest.lowerSnake("_1x"))

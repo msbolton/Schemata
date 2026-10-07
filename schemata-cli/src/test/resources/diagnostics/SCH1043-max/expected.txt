@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1043]: default 5 is above max 3
- --> s.schemata:2:35
+ --> s.schemata:3:34
   = help: use a default of at most 3, or raise max
 
 1 error, 0 warnings

@@ -1,13 +1,15 @@
-namespace s
+schema s
 
-@sql(table = "purchase")
-record Order {
-  @sql(key) #1 id: uuid
-  @sql(unique) #2 number: string(max = 16)
+model Order {
+  #1 id     uuid   { id }
+  #2 number string { unique, max 16 }
+
+  @@sql(table: "purchase")
 }
 
-@sql(table = "order")
-record Basket {
-  @sql(key) #1 id: uuid
-  @sql(unique) #2 number: string(max = 16)
+model Basket {
+  #1 id     uuid   { id }
+  #2 number string { unique, max 16 }
+
+  @@sql(table: "order")
 }

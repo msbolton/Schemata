@@ -10,10 +10,10 @@ c.sql
 1 destructive, 0 may fail
 
 warning[SCH2701] (lossy): c.Ticket: DROP TABLE "ticket" loses every row of the table
- --> old/c.schemata:5:8
+ --> old/c.schemata:5:7
   |
-5 | record Ticket {
-  |        ^^^^^^
+5 | model Ticket { #1 id uuid { id }  #2 customer Customer }
+  |       ^^^^^^
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 0 errors, 1 warning

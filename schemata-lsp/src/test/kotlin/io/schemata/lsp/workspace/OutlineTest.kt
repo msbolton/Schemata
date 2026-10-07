@@ -10,8 +10,8 @@ class OutlineTest {
     @TempDir lateinit var dir: Path
 
     private val text =
-        "namespace shop\n" +
-            "record Order {\n  #1 id: uuid\n  record Line { #1 sku: string }\n}\n" +
+        "schema shop\n" +
+            "model Order {\n  #1 id uuid\n  model Line { #1 sku string }\n}\n" +
             "enum Status { #1 pending, #2 paid }\n" +
             "union Payment = #1 Order | #2 Status\n" +
             "alias Money = decimal(19, 4)\n"
@@ -46,8 +46,8 @@ class OutlineTest {
         val a =
             f.open(
                 "shop/a.schemata",
-                "namespace shop\nrecord Order {\n  record Line { #1 sku: string }\n" +
-                    "  #1 lines: list<Line>\n  enum Kind { #1 retail }\n  #2 kind: Kind\n}\n",
+                "schema shop\nmodel Order {\n  model Line { #1 sku string }\n" +
+                    "  #1 lines Line[]\n  enum Kind { #1 retail }\n  #2 kind Kind\n}\n",
             )
         assertEquals(
             listOf("Line", "lines", "Kind", "kind"),
@@ -79,7 +79,7 @@ class OutlineTest {
     fun `a broken or unknown file has no outline`() {
         val f = Fixture(dir)
         val a = f.open("shop/a.schemata", text)
-        f.workspace.change(a, "namespace shop\nrecord Order {")
+        f.workspace.change(a, "schema shop\nmodel Order {")
         assertEquals(emptyList(), f.queries.symbols(a))
         assertEquals(emptyList(), f.queries.symbols("/nowhere/x.schemata"))
     }
@@ -109,17 +109,17 @@ class OutlineTest {
         val a =
             f.open(
                 "t/a.schemata",
-                "namespace t\nrecord A { #1 x: int32 }\n" +
+                "schema t\nmodel A { #1 x int32 }\n" +
                     "service S { #1 put(stream A)  put \"/a\" }\n" +
-                    "record B { #1 y: list<A>(min = 1) }\n" +
-                    "service T { #1 find(B): list<A>(min = 1)? }\n",
+                    "model B { #1 y A[] { minItems 1 } }\n" +
+                    "service T { #1 find(B): A[]? }\n",
             )
         assertEquals(
             listOf("A", "S", "B", "T"),
             f.queries.symbols(a).single().children.map { it.name },
         )
         assertEquals(
-            listOf("(stream A)", "(B): list<A>(min = 1)?"),
+            listOf("(stream A)", "(B): A[]?"),
             f.queries
                 .symbols(a)
                 .single()

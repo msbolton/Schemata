@@ -17,31 +17,32 @@ import kotlin.test.assertEquals
 class ProvenanceTest {
     private val source =
         """
-        namespace s
+        schema s
 
-        record Card { #1 last4: string(max = 4) }
+        model Card { #1 last4 string { max 4 } }
 
-        enum Status { #1 open, #2 closed }
+        enum Status { #1 open #2 closed }
 
         union Payment = #1 Card | #2 string | #3 Status | #4 Customer
 
-        record Address { #1 street: string #2 city: string }
+        model Address { #1 street string  #2 city string }
 
-        record Customer { @sql(key) #2 id: uuid }
+        model Customer { #2 id uuid { id } }
 
-        record Order {
-          @sql(key) #1 id: uuid
-          @sql(column = "buyer") #2 customer: Customer
-          #3 payment: Payment
-          @sql(strategy = embed) #4 shipping: Address
-          #5 lines: list<Line>
-          #6 tags: list<string>
-          @sql(strategy = table) #7 notes: map<string, string>
-          @sql(strategy = table) #8 stops: map<string, Address>
-          #9 watchers: list<Customer>
+        model Order {
+          #1 id       uuid                 { id }
+          #2 customer Customer             @sql(column: "buyer")
+          #3 payment  Payment
+          #4 shipping Address              { embed }
+          #5 lines    Line[]
+          #6 tags     string[]
+          #7 notes    map<string, string>  @sql(strategy: table)
+          #8 stops    map<string, Address> @sql(strategy: table)
+          #9 watchers Customer[]
 
-          record Line { #1 sku: string #2 qty: int32 #3 parts: list<Part> }
-          record Part { #1 name: string }
+          model Line { #1 sku string  #2 qty int32  #3 parts Part[] }
+
+          model Part { #1 name string }
         }
         """
             .trimIndent()

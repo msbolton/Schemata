@@ -1,6 +1,6 @@
 # targets=xsd
-error[SCH2202] (xsd): enum value 'Status.settled' lowers to enumeration value 'paid', already used by enum value 'Status.paid' (s.schemata:2)
- --> s.schemata:2:46
+error[SCH2202] (xsd): enum value 'Status.settled' lowers to enumeration value 'paid', already used by enum value 'Status.paid' (s.schemata:3)
+ --> s.schemata:3:45
   = help: rename one of them, or set `@xsd(name = "…")` on one
 
 1 error, 0 warnings

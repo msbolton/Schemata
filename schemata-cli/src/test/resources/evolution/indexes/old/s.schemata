@@ -1,8 +1,8 @@
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
-  @sql(index) #2 email: string(max = 254)
-  @sql(unique) #3 code: string(max = 8)
-  #4 city: string(max = 64)?
+model Customer {
+  #1 id    uuid    { id }
+  #2 email string  { index, max 254 }
+  #3 code  string  { unique, max 8 }
+  #4 city  string? { max 64 }
 }

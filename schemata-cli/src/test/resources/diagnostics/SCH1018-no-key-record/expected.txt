@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1018]: @proto needs at least one key
- --> s.schemata:2:1
+ --> s.schemata:6:3
   = help: write `@proto(name = "…")`
 
 1 error, 0 warnings

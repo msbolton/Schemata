@@ -9,31 +9,31 @@ jsonschema: 1 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Customer.note: the field was removed breaks old documents that still carry it
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:40
   |
-5 |   #2 note: string(max = 200)?
-  |      ^^^^
+3 | model Customer { #1 id uuid { id }  #2 note string? { max 200 } }
+  |                                        ^^^^
   = help: keep the field, or mark the record @jsonschema(open)
 
 error[SCH2501]: sql: s.Customer.note: the column was dropped breaks rows that still hold its data
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:40
   |
-5 |   #2 note: string(max = 200)?
-  |      ^^^^
+3 | model Customer { #1 id uuid { id }  #2 note string? { max 200 } }
+  |                                        ^^^^
   = help: migrate the column's data elsewhere before dropping it
 
 error[SCH2501]: xsd: s.Customer.note: the field was removed breaks old documents that still carry it
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:40
   |
-5 |   #2 note: string(max = 200)?
-  |      ^^^^
+3 | model Customer { #1 id uuid { id }  #2 note string? { max 200 } }
+  |                                        ^^^^
   = help: keep the field; an XSD document always carries every element
 
 warning[SCH2502] (lossy): proto: s.Customer.note: field removed; number 2 and name 'note' are free to be reused
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:40
   |
-5 |   #2 note: string(max = 200)?
-  |      ^^^^
+3 | model Customer { #1 id uuid { id }  #2 note string? { max 200 } }
+  |                                        ^^^^
   = help: reserve #2 and "note" so they are not reused
 
 3 errors, 1 warning

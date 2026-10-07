@@ -1,5 +1,5 @@
 error[SCH0006]: 'fetch' is not an HTTP verb
- --> s.schemata:8:15
+ --> s.schemata:6:15
   = help: use one of get, post, put, patch, delete, head, options
 
 1 error, 0 warnings

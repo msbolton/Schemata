@@ -7,9 +7,9 @@ import kotlin.io.path.writeText
 
 /** Two records and a service whose operations take and return them, for the service cases. */
 internal const val SERVICE_API =
-    """namespace t
-record Id { #1 id: uuid }
-record Order { #1 id: uuid }
+    """schema t
+model Id { #1 id uuid }
+model Order { #1 id uuid }
 /// Orders.
 service Orders {
   /// Fetch.

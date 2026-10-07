@@ -14,7 +14,7 @@ class OpenApiRulesTest {
 
     private fun only(old: Schema, new: Schema): Verdict = judged(old, new).single().second
 
-    private val base = "namespace t\nrecord A { #1 id: uuid }\nrecord B { #1 id: uuid }\n"
+    private val base = "schema t\n\nmodel A { #1 id uuid }\n\nmodel B { #1 id uuid }\n"
 
     @Test
     fun `openapi verdicts per change`() {
@@ -87,7 +87,7 @@ class OpenApiRulesTest {
         val new =
             analysed(
                 base +
-                    "service Orders { @openapi(name = \"Orders_get\") #1 fetch(A): B  get \"/a/{id}\" }"
+                    "service Orders { @openapi(name: \"Orders_get\") #1 fetch(A): B  get \"/a/{id}\" }"
             )
         val judged = judged(old, new)
         assertEquals(
@@ -101,7 +101,7 @@ class OpenApiRulesTest {
     fun `a rename of an unbound operation moves its derived URL even when the id is pinned`() {
         val old = analysed(base + "service Orders { #1 get(A): B }")
         val new =
-            analysed(base + "service Orders { @openapi(name = \"Orders_get\") #1 fetch(A): B }")
+            analysed(base + "service Orders { @openapi(name: \"Orders_get\") #1 fetch(A): B }")
         val renamed = judged(old, new).first { it.first is OperationRenamed }.second
         assertEquals(
             Verdict.Breaking(
@@ -116,9 +116,9 @@ class OpenApiRulesTest {
     @Test
     fun `the default operationId takes the service's tag name`() {
         val old =
-            analysed(base + "@openapi(name = \"Things\") service S { #1 get(A): B  get \"/a\" }")
+            analysed(base + "@openapi(name: \"Things\") service S { #1 get(A): B  get \"/a\" }")
         val new =
-            analysed(base + "@openapi(name = \"Things\") service S { #1 fetch(A): B  get \"/a\" }")
+            analysed(base + "@openapi(name: \"Things\") service S { #1 fetch(A): B  get \"/a\" }")
         val verdict = only(old, new)
         assertIs<Verdict.Breaking>(verdict)
         assertEquals(
@@ -132,7 +132,7 @@ class OpenApiRulesTest {
     fun `an invalid service name falls back to the service's own name`() {
         val ctx = ChangeContext(Schema(emptyList()), Schema(emptyList()))
         val schema =
-            analysed(base + "@openapi(name = \"a b\") service S { #1 get(A): B  get \"/a\" }")
+            analysed(base + "@openapi(name: \"a b\") service S { #1 get(A): B  get \"/a\" }")
         val service = schema.namespaces.single().services.single()
         assertEquals("S", ctx.emittedName("openapi", ServiceOwner(service)))
         assertEquals(
@@ -230,7 +230,7 @@ class OpenApiRulesTest {
     @Test
     fun `an openapi name change on a service or operation is breaking`() {
         val old = analysed(base + "service S { #1 get(A)  get \"/a\" }")
-        val tagged = analysed(base + "@openapi(name = \"T\") service S { #1 get(A)  get \"/a\" }")
+        val tagged = analysed(base + "@openapi(name: \"T\") service S { #1 get(A)  get \"/a\" }")
         assertEquals(
             Verdict.Breaking(
                 "t.S: @openapi(name) added, so the tag changes from S to T, and with it every " +
@@ -239,8 +239,7 @@ class OpenApiRulesTest {
             ),
             only(old, tagged),
         )
-        val pinned =
-            analysed(base + "service S { @openapi(name = \"getA\") #1 get(A)  get \"/a\" }")
+        val pinned = analysed(base + "service S { @openapi(name: \"getA\") #1 get(A)  get \"/a\" }")
         assertEquals(
             Verdict.Breaking(
                 "t.S.get: @openapi(name) added, so the operationId changes from S_get to getA",
@@ -248,7 +247,7 @@ class OpenApiRulesTest {
             ),
             only(old, pinned),
         )
-        val same = analysed(base + "service S { @openapi(name = \"S_get\") #1 get(A)  get \"/a\" }")
+        val same = analysed(base + "service S { @openapi(name: \"S_get\") #1 get(A)  get \"/a\" }")
         assertEquals(Verdict.Compatible, only(old, same))
     }
 
@@ -275,11 +274,29 @@ class OpenApiRulesTest {
     @Test
     fun `a data change is judged as json schema judges it only when a service reaches it`() {
         val oldText =
-            "namespace t\nrecord A { #1 id: uuid  #2 inner: Inner }\nrecord Inner { #1 x: int32 }\n" +
-                "record Loose { #1 x: int32 }\nservice S { #1 get(A)  get \"/a\" }"
+            "schema t\n" +
+                "\n" +
+                "model A { #1 id uuid  #2 inner Inner }\n" +
+                "\n" +
+                "model Inner { #1 x int32 }\n" +
+                "\n" +
+                "model Loose { #1 x int32 }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #1 get(A)  get \"/a\"\n" +
+                "}"
         val newText =
-            "namespace t\nrecord A { #1 id: uuid  #2 inner: Inner }\nrecord Inner { #1 x: string }\n" +
-                "record Loose { #1 x: string }\nservice S { #1 get(A)  get \"/a\" }"
+            "schema t\n" +
+                "\n" +
+                "model A { #1 id uuid  #2 inner Inner }\n" +
+                "\n" +
+                "model Inner { #1 x string }\n" +
+                "\n" +
+                "model Loose { #1 x string }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #1 get(A)  get \"/a\"\n" +
+                "}"
         val old = analysed(oldText)
         val new = analysed(newText)
         val ctx = ChangeContext(old, new)
@@ -295,7 +312,7 @@ class OpenApiRulesTest {
 
     @Test
     fun `a namespace with services removed is breaking`() {
-        val keep = "namespace k\nrecord K { #1 id: uuid }\n"
+        val keep = "schema k\n\nmodel K { #1 id uuid }\n"
         val old =
             Schema(
                 analysed(keep).namespaces +

@@ -1,5 +1,5 @@
-namespace billing
+schema billing
 
 import audit
 
-record Invoice { @sql(key) id: uuid event: audit.Event? }
+model Invoice { id uuid { id }  event audit.Event? }

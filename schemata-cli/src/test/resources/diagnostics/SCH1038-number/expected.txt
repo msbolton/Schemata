@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1038]: max for float64 must be a number
- --> s.schemata:2:26
+ --> s.schemata:3:26
   = help: write a number
 
 1 error, 0 warnings

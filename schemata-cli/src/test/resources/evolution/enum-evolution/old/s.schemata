@@ -1,12 +1,5 @@
-namespace s
+schema s
 
-enum Status {
-  #1 pending
-  #2 paid
-  #3 cancelled
-}
+enum Status { #1 pending #2 paid #3 cancelled }
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 status: Status
-}
+model Order { #1 id uuid { id }  #2 status Status }

@@ -53,7 +53,13 @@ class ProtoImporterTest {
         assertEquals(emptyList(), r.diagnostics.map { "${it.code.id} ${it.message}" })
         assertEquals(listOf("a.schemata", "b/people.schemata"), r.files.map { it.path })
         assertEquals(
-            "namespace a\n\nimport b.people\n\nrecord Order { #1 who: b.people.People }\n\nrecord Line {}\n",
+            "schema a\n" +
+                "\n" +
+                "import b.people\n" +
+                "\n" +
+                "model Order { #1 who b.people.People }\n" +
+                "\n" +
+                "model Line {}\n",
             r.files.first().content,
         )
         assertEquals(listOf("C:/protos/a/b/people.proto", "C:/protos/b/people.proto"), located)

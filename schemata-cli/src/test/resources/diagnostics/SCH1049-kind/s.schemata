@@ -1,0 +1,5 @@
+schema s
+
+model A { #1 x bool }
+
+model R { #1 a A { max 3 } }

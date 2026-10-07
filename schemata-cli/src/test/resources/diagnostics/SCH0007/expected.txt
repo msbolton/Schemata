@@ -1,5 +1,5 @@
 error[SCH0007]: path "a/{X}" is malformed: it must start with /
- --> s.schemata:8:19
+ --> s.schemata:6:19
   = help: write the path as /segment/{param}; parameters are lower_snake
 
 1 error, 0 warnings

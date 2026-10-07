@@ -9,24 +9,24 @@ jsonschema: 1 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: jsonschema: s.Customer.visits: type changed from int64 to int32 breaks old documents: old values do not fit the new type
- --> new/s.schemata:5:3
+ --> new/s.schemata:3:37
   |
-5 |   #2 visits: int32
-  |   ^^^^^^^^^^^^^^^^
+3 | model Customer { #1 id uuid { id }  #2 visits int32 }
+  |                                     ^^^^^^^^^^^^^^^
   = help: add a new field instead of changing this one's type
 
 error[SCH2501]: sql: s.Customer.visits: type changed from int64 to int32 breaks existing rows: old values do not fit the new type
- --> new/s.schemata:5:3
+ --> new/s.schemata:3:37
   |
-5 |   #2 visits: int32
-  |   ^^^^^^^^^^^^^^^^
+3 | model Customer { #1 id uuid { id }  #2 visits int32 }
+  |                                     ^^^^^^^^^^^^^^^
   = help: add a new column instead of changing this one's type
 
 error[SCH2501]: xsd: s.Customer.visits: type changed from int64 to int32 breaks old documents: old values do not fit the new type
- --> new/s.schemata:5:3
+ --> new/s.schemata:3:37
   |
-5 |   #2 visits: int32
-  |   ^^^^^^^^^^^^^^^^
+3 | model Customer { #1 id uuid { id }  #2 visits int32 }
+  |                                     ^^^^^^^^^^^^^^^
   = help: add a new field instead of changing this one's type
 
 3 errors, 0 warnings

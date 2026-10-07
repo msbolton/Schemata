@@ -10,24 +10,24 @@ s.sql
 1 destructive, 2 may fail
 
 warning[SCH2702] (lossy): s.Order.payment: CONSTRAINT "ck_order_payment_kind" fails when a row violates it
-  --> new/s.schemata:11:6
-   |
-11 |   #2 payment: Payment
-   |      ^^^^^^^
-   = help: fix or delete the rows the new constraint rejects before applying
+ --> new/s.schemata:9:37
+  |
+9 | model Order { #1 id uuid { id }  #2 payment Payment  #3 card Card?  #4 voucher Voucher? }
+  |                                     ^^^^^^^
+  = help: fix or delete the rows the new constraint rejects before applying
 
 warning[SCH2702] (lossy): s.Order.payment: CONSTRAINT "ck_order_payment_voucher" fails when a row violates it
-  --> new/s.schemata:11:6
-   |
-11 |   #2 payment: Payment
-   |      ^^^^^^^
-   = help: fix or delete the rows the new constraint rejects before applying
+ --> new/s.schemata:9:37
+  |
+9 | model Order { #1 id uuid { id }  #2 payment Payment  #3 card Card?  #4 voucher Voucher? }
+  |                                     ^^^^^^^
+  = help: fix or delete the rows the new constraint rejects before applying
 
 warning[SCH2701] (lossy): s.Order.payment.#1.last4: DROP COLUMN "payment_card_last4" loses every value the column holds
- --> old/s.schemata:3:18
+ --> old/s.schemata:3:17
   |
-3 | record Card { #1 last4: string(max = 4) }
-  |                  ^^^^^
+3 | model Card { #1 last4 string { max 4 } }
+  |                 ^^^^^
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 0 errors, 3 warnings

@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH1053]: the inline enum of field 'status' is named 'OrderStatus', which record 'Order' already declares
+ --> s.schemata:4:6
+  = help: name it with @name("…")
+
+1 error, 0 warnings

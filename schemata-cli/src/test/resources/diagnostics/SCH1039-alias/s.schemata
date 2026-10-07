@@ -1,3 +1,0 @@
-namespace s
-alias E = string
-record R { #1 x: E(max = 3) }

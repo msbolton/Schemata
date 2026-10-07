@@ -1,5 +1,5 @@
 error[SCH1004]: record 'R' is declared more than once
- --> s.schemata:3:8
+ --> s.schemata:5:7
   = help: rename or remove one of them
 
 1 error, 0 warnings

@@ -48,23 +48,23 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace corp.orders
+            schema corp.orders
 
-            record Order {
-              #1  id:     string
-              #2  n:      int32?
-              #3  tags:   list<string>
-              #4  counts: map<string, int64>
-              #5  at:     instant
-              #6  nick:   string?
-              #7  s:      int32
-              #8  u:      int64(min = 0, max = 4294967295)
-              #9  big:    int64(min = 0)
-              #10 f:      int64(min = 0)
-              #11 line:   Line
-              #12 maybe:  Line?
+            model Order {
+              #1  id     string
+              #2  n      int32?
+              #3  tags   string[]
+              #4  counts map<string, int64>
+              #5  at     instant
+              #6  nick   string?
+              #7  s      int32
+              #8  u      int64              { min 0, max 4294967295 }
+              #9  big    int64              { min 0 }
+              #10 f      int64              { min 0 }
+              #11 line   Line
+              #12 maybe  Line?
 
-              record Line { #1 qty: int64 }
+              model Line { #1 qty int64 }
             }
             """
                 .trimIndent() + "\n",
@@ -102,17 +102,17 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
             enum Status { #1 pending }
 
-            record M {
-              #1 f: decimal(10, 2)
-              #2 d: date?
-              #3 o: int32(min = 0) = 3
-              #4 l: list<string(max = 3)>(max = 2)
-              #5 m: map<string, decimal(19, 4)>
-              #6 s: Status = pending
+            model M {
+              #1 f decimal(10, 2)
+              #2 d date?
+              #3 o int32                       { min 0 } = 3
+              #4 l string[]                    { maxItems 2, max 3 }
+              #5 m map<string, decimal(19, 4)>
+              #6 s Status                      = pending
             }
             """
                 .trimIndent() + "\n",
@@ -136,9 +136,9 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            record M { #1 a: int32 #2 b: string }
+            model M { #1 a int32  #2 b string }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -166,9 +166,9 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            record M { #1 f: string(pattern = "^a; b$") = "x; y" }
+            model M { #1 f string { match "^a; b$" } = "x; y" }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -198,7 +198,7 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
             enum Status {
               #1 pending
@@ -206,13 +206,13 @@ class ProtoImportTest {
               reserved #5..#6, "old"
             }
 
-            enum Color { @proto(name = "RED") red, @proto(name = "GREEN") green }
+            enum Color { @proto(name: "RED") red @proto(name: "GREEN") green }
 
             enum K { #1 a }
 
             enum E { #1 a }
 
-            enum V { #1 foo_bar, @proto(name = "CUSTOM") #2 custom }
+            enum V { #1 foo_bar @proto(name: "CUSTOM") #2 custom }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -250,19 +250,19 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
             union Payment = #1 Card | #2 Cash | #3 uuid
 
-            record Card {}
+            model Card {}
 
-            record Cash {}
+            model Cash {}
 
             union P = #1 Card | #2 Cash
 
-            record Q { #1 x: int32 #2 a: string? #3 b: string? }
+            model Q { #1 x int32  #2 a string?  #3 b string? }
 
-            record S { #1 a: string? #2 b: string? }
+            model S { #1 a string?  #2 b string? }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -322,21 +322,22 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
             /// A message.
             /// Second line.
-            @deprecated
-            record M {
+            model M {
               /// The field.
               ///
               /// trailing words
-              #1 f: string
-              @deprecated #2 g: int32
-              #3 h: list<int32>
+              #1 f string
+              #2 g int32   @deprecated
+              #3 h int32[]
               /// Block doc.
-              #4 i: string
+              #4 i string
               reserved #7, #9..#11, "old", "older"
+
+              @@deprecated
             }
             """
                 .trimIndent() + "\n",
@@ -357,12 +358,13 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            @proto(name = "foo_bar")
-            record FooBar {
-              @proto(name = "FooBaz") #1 foo_baz:      string
-              @proto(name = "record") #2 record_value: string
+            model FooBar {
+              #1 foo_baz      string @proto(name: "FooBaz")
+              #2 record_value string @proto(name: "record")
+
+              @@proto(name: "foo_bar")
             }
             """
                 .trimIndent() + "\n",
@@ -388,9 +390,9 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            record M { #1 a: int32 #2 b: string = "x" }
+            model M { #1 a int32  #2 b string = "x" }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -436,18 +438,18 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
             enum Status { #1 pending }
 
-            record M {
-              #1 a: int32 = -3
-              #2 b: float64 = 1.5
-              #3 c: bool = true
-              #4 d: Status = pending
-              #5 e: string = "a\"b"
-              #6 f: float64?
-              #7 g: int32?
+            model M {
+              #1 a int32    = -3
+              #2 b float64  = 1.5
+              #3 c bool     = true
+              #4 d Status   = pending
+              #5 e string   = "a\"b"
+              #6 f float64?
+              #7 g int32?
             }
             """
                 .trimIndent() + "\n",
@@ -472,7 +474,7 @@ class ProtoImportTest {
                     """
             )
         assertEquals(listOf("SCH2405 t.proto: extend dropped"), messages(r))
-        assertEquals("namespace t\n\nrecord M { #1 s: string }\n", text(r, "t.schemata"))
+        assertEquals("schema t\n\nmodel M { #1 s string }\n", text(r, "t.schemata"))
     }
 
     @Test
@@ -493,10 +495,7 @@ class ProtoImportTest {
             ),
             messages(r),
         )
-        assertEquals(
-            "namespace t\n\nrecord M { #1 f: string #2 g: list<string> }\n",
-            text(r, "t.schemata"),
-        )
+        assertEquals("schema t\n\nmodel M { #1 f string  #2 g string[] }\n", text(r, "t.schemata"))
     }
 
     @Test
@@ -548,7 +547,7 @@ class ProtoImportTest {
               #1 get(Id): Order  get "/orders/{id}"
               #2 list(Id): stream Order
               @deprecated #5 cancel(Id)  delete "/orders/{id}"
-              @proto(name = "GetURL") #4 get_url(Id): Order
+              @proto(name: "GetURL") #4 get_url(Id): Order
               reserved #6, "archive"
             }
             """
@@ -605,7 +604,7 @@ class ProtoImportTest {
                     """
             )
         assertEquals(
-            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n  #1 ping()\n}\n",
+            "schema t\n\nmodel M { #1 x int32 }\n\nservice S {\n  #1 ping()\n}\n",
             text(r, "t.schemata"),
         )
         assertEquals(
@@ -646,7 +645,7 @@ class ProtoImportTest {
                     service S { rpc Bad(string) returns (string); }
                     """
             )
-        assertEquals("namespace t\n\nservice S {}\n", text(r, "t.schemata"))
+        assertEquals("schema t\n\nservice S {}\n", text(r, "t.schemata"))
         assertEquals(
             listOf(
                 "SCH2405 service 'S': rpc 'Bad': request type 'string' is not a message; rpc dropped"
@@ -715,8 +714,15 @@ class ProtoImportTest {
                     """
             )
         assertEquals(
-            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n" +
-                "  #2 a(M): M\n  #3 b(M): M\n  #4 c(M): M\n}\n",
+            "schema t\n" +
+                "\n" +
+                "model M { #1 x int32 }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #2 a(M): M\n" +
+                "  #3 b(M): M\n" +
+                "  #4 c(M): M\n" +
+                "}\n",
             text(r, "t.schemata"),
         )
         assertEquals(
@@ -745,8 +751,15 @@ class ProtoImportTest {
                     """
             )
         assertEquals(
-            "namespace t\n\nrecord M { #1 x: int32 }\n\nservice S {\n" +
-                "  #1 a(M): M\n  #3 b(M): M\n  reserved #2\n}\n",
+            "schema t\n" +
+                "\n" +
+                "model M { #1 x int32 }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #1 a(M): M\n" +
+                "  #3 b(M): M\n" +
+                "  reserved #2\n" +
+                "}\n",
             text(r, "t.schemata"),
         )
         assertEquals(
@@ -776,7 +789,13 @@ class ProtoImportTest {
                     """,
             )
         assertEquals(
-            "namespace b\n\nimport a\n\nservice S {\n  #1 get(a.Item): stream a.Item.Part\n}\n",
+            "schema b\n" +
+                "\n" +
+                "import a\n" +
+                "\n" +
+                "service S {\n" +
+                "  #1 get(a.Item): stream a.Item.Part\n" +
+                "}\n",
             text(r, "b.schemata"),
         )
         assertEquals(emptyList(), messages(r))
@@ -852,12 +871,12 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
             import shop.customers
             import x
 
-            record M { #1 c: shop.customers.Customer #2 e: string #3 a: bytes }
+            model M { #1 c shop.customers.Customer  #2 e string  #3 a bytes }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -920,20 +939,20 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            record Card { #1 top: bool }
+            model Card { #1 top bool }
 
-            record Order {
-              #1 inner: Card
-              #2 outer: t.Card
+            model Order {
+              #1 inner Card
+              #2 outer t.Card
 
-              record Card { #1 nested: bool }
+              model Card { #1 nested bool }
 
-              record Line { #1 near: Card #2 again: Card }
+              model Line { #1 near Card  #2 again Card }
             }
 
-            record Audit { #1 line: Order.Line #2 card: Card }
+            model Audit { #1 line Order.Line  #2 card Card }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -953,9 +972,9 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            record M { #1 m: map<int64, string> }
+            model M { #1 m map<int64, string> }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),
@@ -982,10 +1001,9 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            @proto(package = "corp.orders.v1")
-            namespace corpus.orders
+            schema corpus.orders @proto(package: "corp.orders.v1")
 
-            record Order {}
+            model Order {}
             """
                 .trimIndent() + "\n",
             text(r, "corpus/orders.schemata"),
@@ -1000,14 +1018,14 @@ class ProtoImportTest {
                 listOf(ImportInput("money.proto", "syntax = \"proto3\";\npackage google.type;\n"))
             )
         assertEquals(listOf("google/type.schemata"), money.files.map { it.path })
-        assertEquals("namespace google.type\n", money.files.single().content)
+        assertEquals("schema google.type\n", money.files.single().content)
         assertEquals(emptyList(), messages(money))
         val upper =
             ProtoImporter.import(
                 listOf(ImportInput("money.proto", "syntax = \"proto3\";\npackage Google.Type;\n"))
             )
         assertEquals(
-            "@proto(package = \"Google.Type\")\nnamespace money\n",
+            "schema money @proto(package: \"Google.Type\")\n",
             text(upper, "money.schemata"),
         )
         assertEquals(
@@ -1037,13 +1055,13 @@ class ProtoImportTest {
         assertEquals(listOf("corp.schemata"), r.files.map { it.path })
         assertEquals(
             """
-            namespace corp
+            schema corp
 
-            record A {}
+            model A {}
 
-            record M { #1 x: int32 }
+            model M { #1 x int32 }
 
-            record B { #1 a: A }
+            model B { #1 a A }
             """
                 .trimIndent() + "\n",
             text(r, "corp.schemata"),
@@ -1102,10 +1120,10 @@ class ProtoImportTest {
             r.files.map { it.path },
         )
         assertEquals(
-            "namespace a.orders\n\nimport b.people\n\nrecord O { #1 p: b.people.P }\n",
+            "schema a.orders\n\nimport b.people\n\nmodel O { #1 p b.people.P }\n",
             text(r, "a/orders.schemata"),
         )
-        assertEquals("namespace x\n\nimport y\n\nrecord X { #1 y: y.Y }\n", text(r, "x.schemata"))
+        assertEquals("schema x\n\nimport y\n\nmodel X { #1 y y.Y }\n", text(r, "x.schemata"))
     }
 
     @Test
@@ -1116,7 +1134,11 @@ class ProtoImportTest {
                 "corp/b.proto" to "syntax = \"proto3\";\npackage Corp.Orders;\nmessage B {}",
             )
         assertEquals(
-            "@proto(package = \"Corp.Orders\")\nnamespace corp.orders\n\nrecord A {}\n\nrecord B {}\n",
+            "schema corp.orders @proto(package: \"Corp.Orders\")\n" +
+                "\n" +
+                "model A {}\n" +
+                "\n" +
+                "model B {}\n",
             text(r, "corp/orders.schemata"),
         )
         assertEquals(
@@ -1166,11 +1188,11 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            namespace t
+            schema t
 
-            enum Placeholder { @proto(name = "PLACEHOLDER_UNSPECIFIED_VALUE") unspecified }
+            enum Placeholder { @proto(name: "PLACEHOLDER_UNSPECIFIED_VALUE") unspecified }
 
-            enum Aliased { @proto(name = "ALIASED_UNSPECIFIED_VALUE") unspecified }
+            enum Aliased { @proto(name: "ALIASED_UNSPECIFIED_VALUE") unspecified }
             """
                 .trimIndent() + "\n",
             text(r, "t.schemata"),

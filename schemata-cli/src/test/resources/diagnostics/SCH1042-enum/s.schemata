@@ -1,3 +1,5 @@
-namespace s
+schema s
+
 enum C { #1 red }
-record R { #1 c: C = blue }
+
+model R { #1 c C = blue }

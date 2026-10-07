@@ -52,7 +52,12 @@ class GuideAppendicesTest {
     private fun modules() =
         listOf(
             Module("Syntax (SCH0xxx)", "SCH0", LangCodes.all, emptyList()),
-            Module("Semantics (SCH1xxx)", "SCH1", CoreCodes.all, listOf("SCH1007", "SCH1008")),
+            Module(
+                "Semantics (SCH1xxx)",
+                "SCH1",
+                CoreCodes.all,
+                listOf("SCH1007", "SCH1008", "SCH1037"),
+            ),
             Module(
                 "Protobuf (SCH20xx)",
                 "SCH20",

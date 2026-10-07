@@ -1,26 +1,26 @@
-namespace kitchen.scalars
+schema kitchen.scalars
 
 /// Every scalar, and the notes the target writes.
-record Scalars {
-  #1  d:          float64
-  #2  f:          float32
-  #3  i32:        int32
-  #4  i64:        int64
-  #5  u32:        int64(min = 0, max = 4294967295)
-  #6  u64:        int64(min = 0)
-  #7  s32:        int32
-  #8  s64:        int64
-  #9  f32:        int64(min = 0, max = 4294967295)
-  #10 f64:        int64(min = 0)
-  #11 sf32:       int32
-  #12 sf64:       int64
-  #13 b:          bool
-  #14 s:          string
-  #15 raw:        bytes
-  #16 maybe:      string?
-  #17 id:         uuid
-  #18 amount:     decimal(19, 4)
-  #19 broken:     int32
-  #20 unreadable: string
-  #21 code:       string(pattern = "^a; b$") = "a; b"
+model Scalars {
+  #1  d          float64
+  #2  f          float32
+  #3  i32        int32
+  #4  i64        int64
+  #5  u32        int64          { min 0, max 4294967295 }
+  #6  u64        int64          { min 0 }
+  #7  s32        int32
+  #8  s64        int64
+  #9  f32        int64          { min 0, max 4294967295 }
+  #10 f64        int64          { min 0 }
+  #11 sf32       int32
+  #12 sf64       int64
+  #13 b          bool
+  #14 s          string
+  #15 raw        bytes
+  #16 maybe      string?
+  #17 id         uuid
+  #18 amount     decimal(19, 4)
+  #19 broken     int32
+  #20 unreadable string
+  #21 code       string         { match "^a; b$" } = "a; b"
 }

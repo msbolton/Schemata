@@ -1,5 +1,5 @@
 error[SCH1047]: operation 'get': request 'uuid' is not a record or a union
- --> s.schemata:8:10
+ --> s.schemata:6:10
   = help: wrap it in a record
 
 1 error, 0 warnings

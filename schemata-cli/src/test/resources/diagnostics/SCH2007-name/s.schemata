@@ -1,2 +1,3 @@
-namespace s
-record R { @proto(name = "1x") #1 x: bool }
+schema s
+
+model R { #1 x bool @proto(name: "1x") }

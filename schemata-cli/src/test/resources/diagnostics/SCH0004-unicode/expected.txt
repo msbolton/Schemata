@@ -1,9 +1,9 @@
 error[SCH0004]: unknown escape '\u{}' in a string
- --> s.schemata:2:61
+ --> s.schemata:2:59
   = help: write \\ for a backslash; the escapes are \" \\ \n \t \r \u{…}
 
 error[SCH0004]: '\u{110000}' is not a Unicode scalar value
- --> s.schemata:2:83
+ --> s.schemata:2:81
   = help: write \\ for a backslash; the escapes are \" \\ \n \t \r \u{…}
 
 2 errors, 0 warnings
