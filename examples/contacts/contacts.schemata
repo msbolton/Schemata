@@ -1,15 +1,15 @@
 /// A personal address book.
 namespace contacts
 
-enum Kind { #1 personal, #2 work }
+enum Kind { personal, work }
 
 /// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
 record Contact {
-  @sql(key) #1 id:    int64
-  #2 name:  string(max = 100)
-  #3 email: string(max = 254, pattern = "^[^@]+@[^@]+$")
-  #4 age:   int32(min = 0, max = 150)?
-  #5 kind:  Kind = personal
-  #6 born:  date?
-  #7 tags:  list<string(max = 20)>
+  @sql(key) id:    int64
+  name:  string(max = 100)
+  email: string(max = 254, pattern = "^[^@]+@[^@]+$")
+  age:   int32(min = 0, max = 150)?
+  kind:  Kind = personal
+  born:  date?
+  tags:  list<string(max = 20)>
 }

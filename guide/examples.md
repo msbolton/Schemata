@@ -24,17 +24,17 @@ From `examples/contacts/contacts.schemata`:
 /// A personal address book.
 namespace contacts
 
-enum Kind { #1 personal, #2 work }
+enum Kind { personal, work }
 
 /// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
 record Contact {
-  @sql(key) #1 id:    int64
-  #2 name:  string(max = 100)
-  #3 email: string(max = 254, pattern = "^[^@]+@[^@]+$")
-  #4 age:   int32(min = 0, max = 150)?
-  #5 kind:  Kind = personal
-  #6 born:  date?
-  #7 tags:  list<string(max = 20)>
+  @sql(key) id:    int64
+  name:  string(max = 100)
+  email: string(max = 254, pattern = "^[^@]+@[^@]+$")
+  age:   int32(min = 0, max = 150)?
+  kind:  Kind = personal
+  born:  date?
+  tags:  list<string(max = 20)>
 }
 ```
 
@@ -126,7 +126,7 @@ From `examples/shop/customers.schemata`:
 ```schemata
 namespace shop.customers
 
-record Customer { @sql(key) #1 id: uuid #2 name: string(max = 100) }
+record Customer { @sql(key) id: uuid name: string(max = 100) }
 ```
 
 From `examples/shop/orders.schemata`:
@@ -137,28 +137,28 @@ alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
 
 alias Money = decimal(19, 4)
 
-enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
+enum Status { pending, paid, shipped, cancelled }
 
-record Card { #1 last4: string(max = 4) #2 brand: string(max = 32) }
+record Card { last4: string(max = 4) brand: string(max = 32) }
 
-record BankTransfer { #1 iban: string(max = 34) }
+record BankTransfer { iban: string(max = 34) }
 
 record Cash {}
 
-union Payment = #1 Card | #2 BankTransfer | #3 Cash
+union Payment = Card | BankTransfer | Cash
 
 /// A customer's order. One row per checkout.
 record Order {
-  @sql(key) #1  id:        uuid
-  #2  customer:  Customer
-  #3  status:    Status = pending
-  #4  lines:     list<Line>(min = 1)
-  #5  total:     Money
-  #6  payment:   Payment
-  @sql(strategy = embed) #7  shipping:  Address
-  #8  placed_at: instant
-  #9  note:      string(max = 500)?
-  @deprecated("use placed_at") #10 created:   instant?
+  @sql(key) id:        uuid
+  customer:  Customer
+  status:    Status = pending
+  lines:     list<Line>(min = 1)
+  total:     Money
+  payment:   Payment
+  @sql(strategy = embed) shipping:  Address
+  placed_at: instant
+  note:      string(max = 500)?
+  @deprecated("use placed_at") created:   instant?
   reserved #11, "legacy_ref"
 ```
 
@@ -434,11 +434,11 @@ place an operation's request can go over HTTP: the path, the query, the body, an
 
 From `examples/services/orders.schemata`:
 ```schemata
-record OrderId { @sql(key) #1 id: uuid }
+record OrderId { @sql(key) id: uuid }
 
-record ListOrders { #1 status: Status? @sql(key) #2 limit: int32(min = 1, max = 200) = 50 }
+record ListOrders { status: Status? @sql(key) limit: int32(min = 1, max = 200) = 50 }
 
-record PlaceOrder { @sql(key) #1 customer_id: uuid #2 lines: list<Order.Line>(min = 1) }
+record PlaceOrder { @sql(key) customer_id: uuid lines: list<Order.Line>(min = 1) }
 ```
 
 From `examples/services/orders.schemata`:
@@ -446,12 +446,12 @@ From `examples/services/orders.schemata`:
 /// Place and read orders.
 service Orders {
   /// Fetch one order.
-  #1 get(OrderId): Order  get "/orders/{id}"
+  get(OrderId): Order  get "/orders/{id}"
   /// Orders matching a filter, newest first.
-  #2 list(ListOrders): stream Order  get "/orders"
-  #3 place(PlaceOrder): Order  post "/orders"
-  #4 cancel(OrderId)  delete "/orders/{id}"
-  #5 upload(stream Chunk): Receipt
+  list(ListOrders): stream Order  get "/orders"
+  place(PlaceOrder): Order  post "/orders"
+  cancel(OrderId)  delete "/orders/{id}"
+  upload(stream Chunk): Receipt
   reserved #6, "archive"
 }
 ```
