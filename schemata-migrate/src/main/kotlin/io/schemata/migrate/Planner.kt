@@ -225,8 +225,12 @@ private class NamespacePlan(
         return Triple(adds, queued, late)
     }
 
-    /** Whether [column] replaces a dropped shape of the same field: a column or a child table. */
+    /**
+     * Whether [column] replaces a dropped shape of the same field, a column or a child table; a
+     * moved key's new copy is filled from the parent instead, before the keys return.
+     */
     private fun reshaped(p: Pairing, column: Column): Boolean {
+        if (p.rekeyed.values.any { into -> column in into }) return false
         val to = chainOf(p.new.origin, column.origin) ?: return false
         val from =
             p.dropped.mapNotNull { chainOf(p.old.origin, it.origin) } +
@@ -357,7 +361,7 @@ private class NamespacePlan(
                     columnSubject(oldSide, p.old, c),
                     "every value the column holds",
                     p.rekeyed[c]?.let { rekeyHelp(p, it) }
-                        ?: destructiveHelp(p.old.origin, c.origin),
+                        ?: if (early) DESTRUCTIVE_HELP else destructiveHelp(p.old.origin, c.origin),
                 )
             }
 
@@ -379,15 +383,17 @@ private class NamespacePlan(
                     At(old!!.schemaName, it.name),
                     tableSubject(oldSide, it),
                     "every row of the table",
-                    destructiveHelp(it.origin, null),
+                    if (early) DESTRUCTIVE_HELP else destructiveHelp(it.origin, null),
                 )
             }
 
     /**
      * A field whose shape changed (a list moved between an array column and a child table, an
      * embedded record turned into a json column) drops one shape and creates the other, so the
-     * drop's help names where its data belongs. Shapes are related when one's field chain is a
-     * prefix of the other's: `billing_street` and `billing_city` both moved into `billing`.
+     * drop's help names where its data belongs. A drop that must precede the create, because the
+     * new shape takes its name, leaves no statement between the two and gets the plain help. Shapes
+     * are related when one's field chain is a prefix of the other's: `billing_street` and
+     * `billing_city` both moved into `billing`.
      */
     private fun destructiveHelp(table: TableOrigin, column: ColumnOrigin?): String {
         val from = chainOf(table, column) ?: return DESTRUCTIVE_HELP

@@ -368,6 +368,7 @@ class PlannerTest {
         val add = steps.indexOfFirst { it is AddColumn && it.column.name == "billing_street" }
         assertTrue(drop in 0 until add, steps.toString())
         assertEquals(Risk.DESTRUCTIVE, steps[drop].risk)
+        assertEquals(DESTRUCTIVE_HELP, steps[drop].help)
         assertEquals(ColumnType.VARCHAR(80), (steps[add] as AddColumn).column.type)
     }
 
