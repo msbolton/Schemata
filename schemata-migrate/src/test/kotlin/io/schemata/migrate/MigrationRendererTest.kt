@@ -106,16 +106,17 @@ class MigrationRendererTest {
     }
 
     @Test
-    fun `a renamed enum value is rewritten in a column and in an array`() {
+    fun `renamed enum values are rewritten in one statement in a column and in an array`() {
         val at = At("s", "order")
         val subject = Subject("s.Order.status", io.schemata.lang.Span("s.schemata", 1, 1, 1, 1))
+        val swap = listOf("a" to "b", "b" to "a")
         assertEquals(
-            "UPDATE \"s\".\"order\" SET \"status\" = 'settled' WHERE \"status\" = 'paid';",
-            MigrationRenderer.sql(RenameValue(at, "status", "paid", "settled", false, subject)),
+            "UPDATE \"s\".\"order\" SET \"status\" = CASE \"status\" WHEN 'a' THEN 'b' WHEN 'b' THEN 'a' END WHERE \"status\" IN ('a', 'b');",
+            MigrationRenderer.sql(RenameValue(at, "status", swap, false, subject)),
         )
         assertEquals(
-            "UPDATE \"s\".\"order\" SET \"tags\" = array_replace(\"tags\", 'paid', 'settled') WHERE 'paid' = ANY(\"tags\");",
-            MigrationRenderer.sql(RenameValue(at, "tags", "paid", "settled", true, subject)),
+            "UPDATE \"s\".\"order\" SET \"tags\" = ARRAY(SELECT CASE e WHEN 'a' THEN 'b' WHEN 'b' THEN 'a' ELSE e END FROM unnest(\"tags\") e) WHERE \"tags\" && ARRAY['a', 'b'];",
+            MigrationRenderer.sql(RenameValue(at, "tags", swap, true, subject)),
         )
     }
 

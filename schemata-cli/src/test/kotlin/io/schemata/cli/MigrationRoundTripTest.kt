@@ -142,7 +142,11 @@ class MigrationRoundTripTest {
         val rewritten =
             rows.rows.map { row ->
                 row.mapValues { (column, value) ->
-                    renames.firstOrNull { it.column == column && it.from == value }?.to ?: value
+                    renames
+                        .firstOrNull { it.column == column }
+                        ?.renames
+                        ?.firstOrNull { it.first == value }
+                        ?.second ?: value
                 }
             }
         return Snapshot(rows.types, rows.count, rewritten)

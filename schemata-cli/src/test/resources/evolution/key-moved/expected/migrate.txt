@@ -5,14 +5,14 @@ s.sql
   drop constraint "order"."fk_order_customer"    clean
   drop constraint "customer"."pk_customer"    clean
   drop constraint "customer_notes"."pk_customer_notes"    clean
-  set not null "customer_notes"."customer_code"    may fail
-  set not null "order"."customer_code"    may fail
   add constraint "customer"."pk_customer"    may fail
   add constraint "customer_notes"."pk_customer_notes"    may fail
   add constraint "customer_notes"."fk_customer_notes_customer"    may fail
   add constraint "order"."fk_order_customer"    may fail
   drop column "customer_notes"."customer_id"    destructive
   drop column "order"."customer_id"    destructive
+  set not null "customer_notes"."customer_code"    may fail
+  set not null "order"."customer_code"    may fail
 
 14 steps in 1 file
 2 destructive, 6 may fail

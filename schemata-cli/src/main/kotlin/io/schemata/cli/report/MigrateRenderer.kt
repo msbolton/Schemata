@@ -146,7 +146,10 @@ object MigrateRenderer {
             is DropDefault -> "drop default ${q(step.at.table)}.${q(step.column)}"
             is Backfill -> "backfill ${q(step.at.table)}.${q(step.column)}"
             is RenameValue ->
-                "rename value ${q(step.at.table)}.${q(step.column)} ${Naming.literal(step.from)} to ${Naming.literal(step.to)}"
+                "rename values ${q(step.at.table)}.${q(step.column)} " +
+                    step.renames.joinToString(", ") { (from, to) ->
+                        "${Naming.literal(from)} to ${Naming.literal(to)}"
+                    }
             is DropConstraint -> "drop constraint ${q(step.at.table)}.${q(step.name)}"
             is AddConstraint -> "add constraint ${q(step.at.table)}.${q(step.constraint.name)}"
             is RenameConstraint ->

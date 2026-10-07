@@ -37,7 +37,6 @@ warning[SCH2701] (lossy): s.Order.payment.#2.iban: DROP COLUMN "payment_bank_tra
   |
 5 | record BankTransfer { #1 iban: string(max = 34) }
   |                          ^^^^
-  = help: move the data into "order"."payment_wallet_provider" between this statement and the one
-          that creates it, then rerun with --allow-destructive
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 0 errors, 4 warnings

@@ -1,6 +1,6 @@
 s.sql
   drop constraint "order"."ck_order_status_enum"    clean
-  rename value "order"."status" 'paid' to 'settled'    clean
+  rename values "order"."status" 'paid' to 'settled'    clean
   add constraint "order"."ck_order_status_enum"    may fail
 
 3 steps in 1 file

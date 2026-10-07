@@ -19,6 +19,8 @@ import io.schemata.target.sql.Column
 import io.schemata.target.sql.ColumnOrigin
 import io.schemata.target.sql.Table
 import io.schemata.target.sql.TableOrigin
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /** A table and the schema it lives in, on one side. */
 internal data class Placed(val schema: String, val table: Table)
@@ -32,14 +34,22 @@ internal class Pairing(
     val old: Table,
     val newSchema: String,
     val new: Table,
-    renewed: (Side, Table, Column) -> Boolean,
+    isRenewed: (Side, Table, Column) -> Boolean,
     oldSide: Side,
     newSide: Side,
 ) {
-    private val oldByOrigin =
-        old.columns.filter { !renewed(oldSide, old, it) }.associateBy { it.origin }
-    private val newByOrigin =
-        new.columns.filter { !renewed(newSide, new, it) }.associateBy { it.origin }
+    /**
+     * The OLD and NEW columns under a field or member that now refers to another declaration, by
+     * identity, since an OLD and a NEW column can be equal as values.
+     */
+    val renewed: Set<Column> =
+        Collections.newSetFromMap(IdentityHashMap<Column, Boolean>()).apply {
+            addAll(old.columns.filter { isRenewed(oldSide, old, it) })
+            addAll(new.columns.filter { isRenewed(newSide, new, it) })
+        }
+
+    private val oldByOrigin = old.columns.filter { it !in renewed }.associateBy { it.origin }
+    private val newByOrigin = new.columns.filter { it !in renewed }.associateBy { it.origin }
 
     /** Old and new column for every column both have, in NEW's order. */
     val changed: List<Pair<Column, Column>> =
@@ -52,13 +62,15 @@ internal class Pairing(
     /**
      * Each dropped column that copied a key (a reference's `k<ordinal>` or a child's
      * `parent:<id>`), with the added columns copying the new key in its place: a moved key is a new
-     * column, which must be filled from the parent before the foreign key returns.
+     * column, which must be filled from the parent before the foreign key returns. A reference
+     * whose field now names another record is a new reference, not a moved key.
      */
     val rekeyed: Map<Column, List<Column>> =
         dropped
+            .filter { it !in renewed }
             .mapNotNull { o ->
                 val base = keyCopy(o.origin) ?: return@mapNotNull null
-                val into = added.filter { keyCopy(it.origin) == base }
+                val into = added.filter { it !in renewed && keyCopy(it.origin) == base }
                 if (into.isEmpty()) null else o to into
             }
             .toMap()
@@ -115,6 +127,11 @@ internal class Context(val old: Side, val new: Side) {
             val n = newByOrigin[origin] ?: return@getOrPut null
             Pairing(o.table, n.schema, n.table, ::renewed, old, new)
         }
+
+    /**
+     * Whether OLD's [table] sits under a field or member that now refers to another declaration.
+     */
+    fun renewed(table: Table): Boolean = renewed(old, table)
 
     private fun renewed(side: Side, table: Table): Boolean =
         tightening.renews(Labels.table(side.schema, table.origin.record, table.origin.path))

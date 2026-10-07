@@ -595,11 +595,49 @@ class PlannerTest {
             steps.map { it::class },
         )
         val rename = steps[1] as RenameValue
-        assertEquals(
-            Triple("status", "paid", "settled"),
-            Triple(rename.column, rename.from, rename.to),
-        )
+        assertEquals("status" to listOf("paid" to "settled"), rename.column to rename.renames)
         assertTrue(steps.all { it.risk == Risk.CLEAN }, steps.toString())
+    }
+
+    @Test
+    fun `enum values swapped rename through one case statement`() {
+        val old =
+            """
+            namespace s
+            enum Status { #1 a, #2 b, #3 c }
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 status: Status
+            }
+            """
+        val steps = plan(old, old.replace("{ #1 a, #2 b, #3 c }", "{ #1 b, #2 a, #3 c }"))
+        val rename = steps.filterIsInstance<RenameValue>().single()
+        assertEquals(listOf("a" to "b", "b" to "a"), rename.renames)
+        assertEquals(
+            "UPDATE \"s\".\"order\" SET \"status\" = CASE \"status\" WHEN 'a' THEN 'b' WHEN 'b' THEN 'a' END WHERE \"status\" IN ('a', 'b');",
+            MigrationRenderer.sql(rename),
+        )
+    }
+
+    @Test
+    fun `a retargeted reference is a drop and an add, not a moved key`() {
+        val old =
+            """
+            namespace s
+            record Customer { @sql(key) #1 id: uuid }
+            record Vendor { @sql(key) #1 code: string(max = 8) }
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 buyer: Customer
+            }
+            """
+        val steps = plan(old, old.replace("#2 buyer: Customer", "#2 buyer: Vendor"))
+        val drop = steps.filterIsInstance<DropColumn>().single()
+        assertEquals("buyer_id", drop.column)
+        assertEquals(DESTRUCTIVE_HELP, drop.help)
+        val fk =
+            steps.filterIsInstance<AddConstraint>().single { it.constraint is Constraint.Foreign }
+        assertEquals(Risk.CLEAN, fk.risk)
     }
 
     @Test

@@ -205,8 +205,8 @@ private class NamespacePlan(
      * A column that is required and has no default cannot be added as such to a table that has
      * rows, so it is added nullable and made NOT NULL afterwards, a step that fails unless the
      * table is empty or the rows are filled in first. When the column is the new shape of a field
-     * whose old shape is dropped (a strategy change), its NOT NULL waits until after the drops, so
-     * the data can be moved between the create and the drop before anything can fail.
+     * whose old shape is dropped (a strategy change), or a moved key's new copy, its NOT NULL waits
+     * until after the drops and the keys, so the data can be moved or filled before it can fail.
      */
     private fun adds(): Triple<List<Step>, List<Step>, List<Step>> {
         val adds = mutableListOf<Step>()
@@ -218,19 +218,16 @@ private class NamespacePlan(
                 if (!c.nullable && c.default == null) {
                     adds += AddColumn(p.at, c.copy(nullable = true), subject)
                     val notNull = mayFailNotNull(p.at, c.name, subject)
-                    if (reshaped(p, c)) late += notNull else queued += notNull
+                    val rekey = p.rekeyed.values.any { into -> c in into }
+                    if (rekey || reshaped(p, c)) late += notNull else queued += notNull
                 } else adds += AddColumn(p.at, c, subject)
             }
         }
         return Triple(adds, queued, late)
     }
 
-    /**
-     * Whether [column] replaces a dropped shape of the same field, a column or a child table; a
-     * moved key's new copy is filled from the parent instead, before the keys return.
-     */
+    /** Whether [column] replaces a dropped shape of the same field, a column or a child table. */
     private fun reshaped(p: Pairing, column: Column): Boolean {
-        if (p.rekeyed.values.any { into -> column in into }) return false
         val to = chainOf(p.new.origin, column.origin) ?: return false
         val from =
             p.dropped.mapNotNull { chainOf(p.old.origin, it.origin) } +
@@ -252,10 +249,10 @@ private class NamespacePlan(
             p.changed.flatMap { (o, n) ->
                 val enum = storedEnum(newSide, p.new, n) ?: return@flatMap emptyList()
                 if (storedEnum(oldSide, p.old, o) != enum) return@flatMap emptyList()
+                val renames = context.tightening.renamedValues(enum)
+                if (renames.isEmpty()) return@flatMap emptyList()
                 val subject = columnSubject(newSide, p.new, n)
-                context.tightening.renamedValues(enum).map { (from, to) ->
-                    RenameValue(p.at, n.name, from, to, n.type is ColumnType.ARRAY, subject)
-                }
+                listOf(RenameValue(p.at, n.name, renames, n.type is ColumnType.ARRAY, subject))
             }
         }
 
@@ -361,7 +358,8 @@ private class NamespacePlan(
                     columnSubject(oldSide, p.old, c),
                     "every value the column holds",
                     p.rekeyed[c]?.let { rekeyHelp(p, it) }
-                        ?: if (early) DESTRUCTIVE_HELP else destructiveHelp(p.old.origin, c.origin),
+                        ?: if (early || c in p.renewed) DESTRUCTIVE_HELP
+                        else destructiveHelp(p.old.origin, c.origin),
                 )
             }
 
@@ -383,7 +381,8 @@ private class NamespacePlan(
                     At(old!!.schemaName, it.name),
                     tableSubject(oldSide, it),
                     "every row of the table",
-                    if (early) DESTRUCTIVE_HELP else destructiveHelp(it.origin, null),
+                    if (early || context.renewed(it)) DESTRUCTIVE_HELP
+                    else destructiveHelp(it.origin, null),
                 )
             }
 
@@ -391,9 +390,10 @@ private class NamespacePlan(
      * A field whose shape changed (a list moved between an array column and a child table, an
      * embedded record turned into a json column) drops one shape and creates the other, so the
      * drop's help names where its data belongs. A drop that must precede the create, because the
-     * new shape takes its name, leaves no statement between the two and gets the plain help. Shapes
-     * are related when one's field chain is a prefix of the other's: `billing_street` and
-     * `billing_city` both moved into `billing`.
+     * new shape takes its name, leaves no statement between the two, and a column or table whose
+     * field now refers to another declaration has no counterpart to move into; both get the plain
+     * help. Shapes are related when one's field chain is a prefix of the other's: `billing_street`
+     * and `billing_city` both moved into `billing`.
      */
     private fun destructiveHelp(table: TableOrigin, column: ColumnOrigin?): String {
         val from = chainOf(table, column) ?: return DESTRUCTIVE_HELP

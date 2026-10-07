@@ -28,7 +28,6 @@ warning[SCH2701] (lossy): s.Order.payment.#1.last4: DROP COLUMN "payment_card_la
   |
 3 | record Card { #1 last4: string(max = 4) }
   |                  ^^^^^
-  = help: move the data into "order"."payment_voucher_code" between this statement and the one that
-          creates it, then rerun with --allow-destructive
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 0 errors, 3 warnings

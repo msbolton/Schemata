@@ -141,14 +141,14 @@ data class Backfill(
 ) : Step
 
 /**
- * `UPDATE … SET col = 'to' WHERE col = 'from'` for an enum value renamed under its ordinal; [array]
- * rewrites the value inside an array column instead.
+ * One `UPDATE` rewriting every enum value of a column renamed under its ordinal, [renames] old name
+ * to new, all at once so a swap or a chain of renames never collapses two values into one; [array]
+ * rewrites the values inside an array column instead.
  */
 data class RenameValue(
     val at: At,
     val column: String,
-    val from: String,
-    val to: String,
+    val renames: List<Pair<String, String>>,
     val array: Boolean,
     override val subject: Subject,
 ) : Step

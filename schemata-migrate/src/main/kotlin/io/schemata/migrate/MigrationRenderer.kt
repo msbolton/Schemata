@@ -42,11 +42,15 @@ object MigrationRenderer {
                 "UPDATE ${t(step.at)} SET ${q(step.column)} = ${step.default} WHERE ${q(step.column)} IS NULL;"
             is RenameValue -> {
                 val c = q(step.column)
-                val from = Naming.literal(step.from)
-                val to = Naming.literal(step.to)
+                val olds = step.renames.joinToString(", ") { Naming.literal(it.first) }
+                fun case(of: String) =
+                    "CASE $of " +
+                        step.renames.joinToString(" ") { (from, to) ->
+                            "WHEN ${Naming.literal(from)} THEN ${Naming.literal(to)}"
+                        }
                 if (step.array)
-                    "UPDATE ${t(step.at)} SET $c = array_replace($c, $from, $to) WHERE $from = ANY($c);"
-                else "UPDATE ${t(step.at)} SET $c = $to WHERE $c = $from;"
+                    "UPDATE ${t(step.at)} SET $c = ARRAY(SELECT ${case("e")} ELSE e END FROM unnest($c) e) WHERE $c && ARRAY[$olds];"
+                else "UPDATE ${t(step.at)} SET $c = ${case(c)} END WHERE $c IN ($olds);"
             }
             is DropConstraint -> {
                 val exists = if (step.ifExists) "IF EXISTS " else ""

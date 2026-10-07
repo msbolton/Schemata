@@ -1,0 +1,12 @@
+namespace s
+
+enum Size {
+  #1 small
+  #2 large
+  #3 medium
+}
+
+record Item {
+  @sql(key) #1 id: uuid
+  #2 size: Size
+}
