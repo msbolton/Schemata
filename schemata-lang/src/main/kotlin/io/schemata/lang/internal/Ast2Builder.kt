@@ -506,7 +506,12 @@ internal class Ast2Builder(
         Annotation(ctx.attributeName().text, ctx.attrArg().map { build(it) }, ctx.span())
 
     private fun build(ctx: Schemata2Parser.BlockAttributeContext): Annotation =
-        Annotation(ctx.attributeName().text, ctx.attrArg().map { build(it) }, ctx.span())
+        Annotation(
+            ctx.attributeName().text,
+            ctx.attrArg().map { build(it) },
+            ctx.span(),
+            block = true,
+        )
 
     /**
      * `key: value` is named; a bare name is `Positional(Lit(NameLit(name)))`, as is any literal.

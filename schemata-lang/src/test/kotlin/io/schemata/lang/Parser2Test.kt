@@ -188,6 +188,17 @@ class Parser2Test {
     }
 
     @Test
+    fun `block attributes are flagged and leading ones are not`() {
+        val m = model("schema s\n@deprecated(\"old\")\nmodel M {\n  a int32\n  @@id(a)\n}")
+        assertEquals(listOf(false, true), m.annotations.map { it.block })
+        val shape = model("schema s\nmodel M { s { a int32  @@unique(a) } }").fields.single()
+        assertEquals(listOf(true), shape.type.inlineShape!!.annotations.map { it.block })
+        val v1 =
+            Parser.parse("namespace s\n@deprecated(\"old\")\nrecord R { a: int32 }", "t").file!!
+        assertEquals(listOf(false), v1.declarations.single().annotations.map { it.block })
+    }
+
+    @Test
     fun `an inline shape keeps its own block attributes and nested members`() {
         val m = model("schema s\nmodel M { s { a int32  b int32  reserved #9  @@unique(a, b) } }")
         val shape = m.fields.single().type.inlineShape!!

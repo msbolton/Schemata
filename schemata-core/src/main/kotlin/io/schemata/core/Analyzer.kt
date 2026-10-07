@@ -219,7 +219,8 @@ object Analyzer {
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): RecordType {
-        val (listAnnotations, tuned) = record.annotations.partition { it.name in modelListNames }
+        val (listAnnotations, tuned) =
+            record.annotations.partition { it.block && it.name in modelListNames }
         val recordAnnotations = annotations.check(tuned, Element.RECORD)
         val inner = scope.copy(enclosing = scope.enclosing + record.name)
         val reserved = Ordinals.reserved(record.reserved, CoreCodes.FIELD_NAMING, diagnostics)
@@ -315,7 +316,8 @@ object Analyzer {
     }
 
     // `@@id`, `@@unique`, and `@@index` name a model's fields; they are language facts the
-    // analyzer reads itself, never annotations a target tunes, so the checker never sees them.
+    // analyzer reads itself, never annotations a target tunes, so the checker never sees them. A
+    // single-`@` `@id(...)` is not one of them and goes to the checker like any other annotation.
     private val modelListNames = setOf("id", "unique", "index")
 
     private class ModelLists(

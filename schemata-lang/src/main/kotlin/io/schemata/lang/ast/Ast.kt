@@ -218,7 +218,16 @@ sealed interface Refinement {
     data class Positional(override val value: Literal, override val span: Span) : Refinement
 }
 
-data class Annotation(val name: String, val args: List<AnnotationArg>, val span: Span)
+/**
+ * [block] is true for a model-level `@@name(...)` attribute, which closes a model body; a leading
+ * or trailing `@name(...)` (and every 1.x annotation) leaves it false.
+ */
+data class Annotation(
+    val name: String,
+    val args: List<AnnotationArg>,
+    val span: Span,
+    val block: Boolean = false,
+)
 
 sealed interface AnnotationArg {
     val span: Span

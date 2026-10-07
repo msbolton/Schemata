@@ -117,4 +117,11 @@ class HoistingTest {
         val text = "schema s\nmodel M { a { x int32 } @name(\"P\")\n b { y int32 } @name(\"P\") }"
         assertEquals(listOf("SCH1053"), codes(text))
     }
+
+    @Test
+    fun `a single-at id on a model is an unknown annotation, not a key`() {
+        val r = analyze2("schema s\n@id(a)\nmodel M { a int32 }")
+        assertEquals(listOf("SCH1015"), r.diagnostics.map { it.code.id })
+        assertEquals(listOf("SCH1015"), codes("schema s\n@timestamps\nmodel M { a int32 }"))
+    }
 }

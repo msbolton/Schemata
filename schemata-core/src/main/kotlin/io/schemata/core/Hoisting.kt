@@ -39,7 +39,8 @@ object Hoisting {
         val taken = decl.nested.map { it.name }.toMutableSet()
         val hoisted = mutableListOf<Declaration>()
         val fields = decl.fields.map { field(decl, it, taken, hoisted, report) }
-        val (stamps, annotations) = decl.annotations.partition { it.name == TIMESTAMPS }
+        // only the block attribute `@@timestamps`; a single-`@` one goes to the annotation checker
+        val (stamps, annotations) = decl.annotations.partition { it.block && it.name == TIMESTAMPS }
         return decl.copy(
             fields = fields + timestamps(fields, decl.reserved, stamps, report),
             nested = decl.nested.map { if (it is RecordDecl) record(it, report) else it } + hoisted,
