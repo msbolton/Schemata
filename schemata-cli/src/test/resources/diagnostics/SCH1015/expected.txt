@@ -1,5 +1,5 @@
 # targets=proto
-error[SCH1015]: unknown annotation '@nope'; known: deprecated, jsonschema, openapi, proto, sql, xsd
+error[SCH1015]: unknown annotation '@nope'; known: deprecated, jsonschema, name, openapi, proto, sql, xsd
  --> s.schemata:2:12
   = help: write one of the listed annotations, or run `schemata targets` for each target's keys
 

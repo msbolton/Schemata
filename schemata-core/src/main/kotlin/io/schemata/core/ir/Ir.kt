@@ -138,7 +138,12 @@ val TypeDecl.kindWord: String
 fun Schema.declarationPath(qn: QualifiedName): List<TypeDecl> =
     qn.path.indices.map { i -> lookup(QualifiedName(qn.namespace, qn.path.take(i + 1))) }
 
-/** [recursive] is true when this record can reach itself through [Ref]s. */
+/**
+ * [recursive] is true when this record can reach itself through [Ref]s. [compositeKey] names the
+ * key fields in key order when a model-level `@@id(a, b)` gives one, and is empty when the key
+ * comes from the fields flagged [Field.key]. [uniques] and [indexes] hold the field-name lists of
+ * `@@unique(a, b)` and `@@index(a, b)`, in source order.
+ */
 data class RecordType(
     override val qualifiedName: QualifiedName,
     override val name: String,
@@ -150,7 +155,19 @@ data class RecordType(
     override val span: Span,
     override val nameSpan: Span,
     override val annotations: Annotations = Annotations.NONE,
+    val compositeKey: List<String> = emptyList(),
+    val uniques: List<List<String>> = emptyList(),
+    val indexes: List<List<String>> = emptyList(),
 ) : TypeDecl
+
+/**
+ * The key fields of a record: [RecordType.compositeKey] in its order, else the fields flagged
+ * [Field.key] in declaration order. Empty for a record without a key.
+ */
+fun RecordType.keyFields(): List<Field> =
+    if (compositeKey.isNotEmpty())
+        compositeKey.mapNotNull { n -> fields.firstOrNull { it.name == n } }
+    else fields.filter { it.key }
 
 data class EnumType(
     override val qualifiedName: QualifiedName,
@@ -178,6 +195,8 @@ data class UnionType(
 /**
  * [ordinal] is the field's stable identity: the explicit `#n`, else declaration order. [default]
  * has been checked against the type and its refinements; [aliasName] records a transparent alias.
+ * [key], [unique], and [index] are the field's `{ id }`, `{ unique }`, and `{ index }` options:
+ * language-level facts every target may read.
  */
 data class Field(
     val ordinal: Int,
@@ -190,6 +209,9 @@ data class Field(
     val span: Span,
     val nameSpan: Span,
     val annotations: Annotations = Annotations.NONE,
+    val key: Boolean = false,
+    val unique: Boolean = false,
+    val index: Boolean = false,
 )
 
 data class EnumValue(

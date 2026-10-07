@@ -60,6 +60,8 @@ object CoreAnnotations {
                 valueKind = ValueKind.STRING,
                 role = Role.REPRESENTATION,
                 optional = true,
-            )
+            ),
+            // The name an inline shape or enum written as the field's type is hoisted under.
+            AnnotationSpec("", "name", setOf(Element.FIELD), ValueKind.STRING, Role.NAME),
         )
 }

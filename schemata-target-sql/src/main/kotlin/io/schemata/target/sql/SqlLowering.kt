@@ -1664,8 +1664,9 @@ object SqlLowering {
             )
 
         /**
-         * The unique [field] asks for over [columns], if any. A list or map field never gets one;
-         * [collectionConstraints] has already reported the annotation.
+         * The unique [field] asks for over [columns], if any, through `{ unique }` or
+         * `@sql(unique)`. A list or map field never gets one; [collectionConstraints] has already
+         * reported the annotation, and the analyzer the option.
          */
         private fun uniqueOf(
             ctx: FieldContext,
@@ -1673,7 +1674,10 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if (field.annotations.flag("sql", "unique") && constrainable(field, columns))
+            if (
+                (field.unique || field.annotations.flag("sql", "unique")) &&
+                    constrainable(field, columns)
+            )
                 listOf(Unique(identifier("uq_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
@@ -1684,7 +1688,10 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if (field.annotations.flag("sql", "index") && constrainable(field, columns))
+            if (
+                (field.index || field.annotations.flag("sql", "index")) &&
+                    constrainable(field, columns)
+            )
                 listOf(Index(identifier("ix_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 

@@ -31,7 +31,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1012 | warning | semantic | an import resolves nothing | import 'a' is unused | remove the import |
 | SCH1013 | error | semantic | some elements have explicit ordinals and some do not | record 'R' mixes explicit and implicit ordinals | write `#n` on every element or on none |
 | SCH1014 | error | semantic | an element has no explicit ordinal under --strict | field 'x' has no explicit ordinal (--strict) | write `#n` before every field and enum value, starting at #1 in declaration order |
-| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, jsonschema, openapi, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
+| SCH1015 | error | semantic | an annotation name is unknown | unknown annotation '@nope'; known: deprecated, jsonschema, name, openapi, proto, sql, xsd | write one of the listed annotations, or run `schemata targets` for each target's keys |
 | SCH1016 | error | semantic | a key is unknown for its annotation target | 'bogus' is not a key of @sql; keys: column, index, key, schema, strategy, table, type, unique | write one of the listed keys, for example `@sql(column)` |
 | SCH1017 | error | semantic | an annotation key is on an element it does not apply to | @sql(column) is not allowed on a record; allowed on: field | move the annotation to a field, or remove it |
 | SCH1018 | error | semantic | an annotation's arguments have the wrong shape or value | @deprecated expects a string<br>@sql needs at least one key<br>@proto needs at least one key<br>@sql arguments are a bare key or key = value<br>@deprecated takes a single value<br>@sql(column) expects a string | write `@deprecated("…")`<br>write `@sql(column = "…")`<br>write `@proto(name = "…")`<br>write `@sql(key)` or `@sql(key = value)`<br>write `@deprecated("value")` |
@@ -65,6 +65,8 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1046 | error | semantic | an import is repeated | namespace 'a' is imported more than once<br>alias 'base' is given to more than one import | keep one import of `a`<br>give each import its own alias |
 | SCH1047 | error | semantic | an operation's request or response is not a record or a union | request 'uuid' is not a record or a union | wrap it in a record |
 | SCH1048 | error | semantic | an operation's HTTP binding does not fit its request | path parameter 'order' is not a field of 'OrderId'<br>get "/orders/{id}" is already bound by operation 'get'<br>a streamed request cannot use get<br>get "/orders/{order_id}" is already bound by operation 'Orders.get' | name a scalar or enum field of the request record<br>give each operation its own verb and path<br>use post, put, or patch |
+| SCH1049 | error | semantic | an option on a type that cannot carry it |  |  |
+| SCH1053 | error | semantic | an inline shape's or enum's name collides with a declaration |  |  |
 
 Retired, never reused: SCH1007, SCH1008.
 

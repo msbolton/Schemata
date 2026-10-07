@@ -21,8 +21,12 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
+import io.schemata.lang.ast.Annotation
+import io.schemata.lang.ast.AnnotationArg
+import io.schemata.lang.ast.AnnotationValue as AstValue
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.UnionDecl
@@ -51,7 +55,7 @@ object Analyzer {
         options: AnalysisOptions = AnalysisOptions.DEFAULT,
     ): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
-        val sorted = files.sortedBy { it.path }
+        val sorted = files.sortedBy { it.path }.map { Hoisting.apply(it) { d -> diagnostics += d } }
         val index = DeclarationIndex(sorted, diagnostics)
         val resolver = Resolver(index, sorted, diagnostics, options.references)
         val annotations = AnnotationChecker(options.annotations, diagnostics)
@@ -215,7 +219,8 @@ object Analyzer {
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): RecordType {
-        val recordAnnotations = annotations.check(record.annotations, Element.RECORD)
+        val (listAnnotations, tuned) = record.annotations.partition { it.name in modelListNames }
+        val recordAnnotations = annotations.check(tuned, Element.RECORD)
         val inner = scope.copy(enclosing = scope.enclosing + record.name)
         val reserved = Ordinals.reserved(record.reserved, CoreCodes.FIELD_NAMING, diagnostics)
         val ordinals =
@@ -262,7 +267,12 @@ object Analyzer {
                             help = "rename or remove one of the two fields",
                         )
                 }
-                val resolved = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
+                val written = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
+                // options bound the type before the default is judged against it
+                val (resolved, lowered) =
+                    Options.refine(field.options, field.type, written, { index.find(it)?.decl }) {
+                        diagnostics += it
+                    }
                 Field(
                     ordinal = ordinals[i],
                     name = field.name,
@@ -277,8 +287,12 @@ object Analyzer {
                     span = field.span,
                     nameSpan = field.nameSpan,
                     annotations = annotations.check(field.annotations, Element.FIELD),
+                    key = lowered.key,
+                    unique = lowered.unique,
+                    index = lowered.index,
                 )
             }
+        val lists = modelLists(record, listAnnotations, diagnostics)
         val nested =
             record.nested.mapNotNull {
                 analyzeDeclaration(it, inner, index, resolver, annotations, options, diagnostics)
@@ -294,7 +308,105 @@ object Analyzer {
             span = record.span,
             nameSpan = record.nameSpan,
             annotations = recordAnnotations,
+            compositeKey = lists.key,
+            uniques = lists.uniques,
+            indexes = lists.indexes,
         )
+    }
+
+    // `@@id`, `@@unique`, and `@@index` name a model's fields; they are language facts the
+    // analyzer reads itself, never annotations a target tunes, so the checker never sees them.
+    private val modelListNames = setOf("id", "unique", "index")
+
+    private class ModelLists(
+        val key: List<String>,
+        val uniques: List<List<String>>,
+        val indexes: List<List<String>>,
+    )
+
+    /**
+     * Reads `@@id(a, b)`, `@@unique(a, b)`, and `@@index(a, b)`: each names fields of the record,
+     * each field once. A record has at most one `@@id`; when it has one, it is the key, in its
+     * order, whatever `{ id }` its fields carry.
+     */
+    private fun modelLists(
+        record: RecordDecl,
+        written: List<Annotation>,
+        diagnostics: MutableList<Diagnostic>,
+    ): ModelLists {
+        var key = emptyList<String>()
+        var keyed = false
+        val uniques = mutableListOf<List<String>>()
+        val indexes = mutableListOf<List<String>>()
+        val declared = record.fields.map { it.name }.toSet()
+        for (annotation in written) {
+            val display = "@@${annotation.name}"
+            val example = "write `$display(a, b)` with the fields' names"
+            val names =
+                annotation.args.map { arg ->
+                    ((arg as? AnnotationArg.Positional)?.value as? AstValue.Lit)?.literal
+                        as? Literal.NameLit
+                }
+            if (names.isEmpty() || names.any { it == null }) {
+                diagnostics +=
+                    error(
+                        CoreCodes.ANNOTATION_VALUE,
+                        if (names.isEmpty()) "$display names no fields"
+                        else "$display takes field names",
+                        annotation.span,
+                        help = example,
+                    )
+                continue
+            }
+            val list = names.map { it!!.name }
+            var ok = true
+            names.filterNotNull().forEach { name ->
+                if (name.name !in declared) {
+                    diagnostics +=
+                        error(
+                            CoreCodes.ANNOTATION_VALUE,
+                            "$display names '${name.name}', which is not a field of record '${record.name}'",
+                            name.span,
+                            help = "name a declared field",
+                        )
+                    ok = false
+                }
+            }
+            list
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
+                .forEach {
+                    diagnostics +=
+                        error(
+                            CoreCodes.ANNOTATION_VALUE,
+                            "$display names '$it' more than once",
+                            annotation.span,
+                            help = "list each field once",
+                        )
+                    ok = false
+                }
+            if (!ok) continue
+            when (annotation.name) {
+                "id" ->
+                    if (keyed) {
+                        diagnostics +=
+                            error(
+                                CoreCodes.DUPLICATE_ANNOTATION,
+                                "@@id is given more than once",
+                                annotation.span,
+                                help = "keep one of them",
+                            )
+                    } else {
+                        key = list
+                        keyed = true
+                    }
+                "unique" -> uniques += list
+                "index" -> indexes += list
+            }
+        }
+        return ModelLists(key, uniques, indexes)
     }
 
     private fun analyzeEnum(

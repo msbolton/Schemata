@@ -459,6 +459,43 @@ class SqlLoweringTest {
     }
 
     @Test
+    fun `the language's key unique and index flags lower like the sql annotations`() {
+        val r =
+            record(
+                "a",
+                "Account",
+                field(1, "tenant", Scalar(Builtin.UUID)).copy(key = true),
+                field(2, "email", Scalar(Builtin.STRING)).copy(unique = true),
+                field(3, "id", Scalar(Builtin.UUID)).copy(key = true),
+                field(4, "created", Scalar(Builtin.INSTANT)).copy(index = true),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "account")
+        assertEquals(listOf("tenant", "id"), t.primaryKey)
+        assertEquals(listOf(Unique("uq_account_email", listOf("email"))), t.uniques)
+        assertEquals(listOf(Index("ix_account_created", listOf("created"))), t.indexes)
+    }
+
+    @Test
+    fun `a model key orders the primary key and a nullable key field is still reported`() {
+        val r =
+            record(
+                    "a",
+                    "Plan",
+                    field(1, "tenant_id", Scalar(Builtin.UUID)).copy(key = true),
+                    field(2, "code", Scalar(Builtin.STRING), nullable = true),
+                )
+                .copy(compositeKey = listOf("code", "tenant_id"))
+        val lowered = lower(namespace("a", r))
+        assertEquals(listOf("code", "tenant_id"), table(lowered, "plan").primaryKey)
+        assertEquals(
+            listOf("12 SCH2107 record 'Plan': key field 'code' is nullable"),
+            messages(lowered),
+        )
+    }
+
+    @Test
     fun `a record key names columns in its own order and must name fields`() {
         val plan =
             record(

@@ -65,6 +65,9 @@ object CoreCodes {
     val PAYLOAD_KIND =
         error("SCH1047", "an operation's request or response is not a record or a union")
     val BINDING = error("SCH1048", "an operation's HTTP binding does not fit its request")
+    val OPTION_NOT_APPLICABLE = error("SCH1049", "an option on a type that cannot carry it")
+    val HOISTED_NAME_COLLISION =
+        error("SCH1053", "an inline shape's or enum's name collides with a declaration")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -114,5 +117,7 @@ object CoreCodes {
             REPEATED_IMPORT,
             PAYLOAD_KIND,
             BINDING,
+            OPTION_NOT_APPLICABLE,
+            HOISTED_NAME_COLLISION,
         )
 }

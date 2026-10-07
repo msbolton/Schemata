@@ -156,7 +156,7 @@ class AnnotationsTest {
         assertEquals(
             listOf(
                 "t.schemata:2:6 @sql(strategy) is not allowed on a record; allowed on: field",
-                "t.schemata:4:3 unknown annotation '@mongo'; known: deprecated, proto, sql",
+                "t.schemata:4:3 unknown annotation '@mongo'; known: deprecated, name, proto, sql",
                 "t.schemata:6:8 'table' is not a key of @sql; keys: key, schema, strategy",
                 "t.schemata:8:8 @sql(strategy) expects one of: embed, json, table",
                 "t.schemata:10:8 @sql(key) takes no value",
@@ -204,7 +204,7 @@ class AnnotationsTest {
         val r = Analyzer.analyze(listOf(file))
         assertNull(r.schema)
         assertEquals(
-            listOf("t.schemata:3:3 unknown annotation '@sql'; known: deprecated"),
+            listOf("t.schemata:3:3 unknown annotation '@sql'; known: deprecated, name"),
             messages(r),
         )
     }

@@ -39,9 +39,9 @@ class AnnotationRegistryTest {
         assertTrue(registry.hasTarget("sql"))
         assertTrue(registry.hasTarget("proto"))
         assertTrue(!registry.hasTarget("deprecated"))
-        assertEquals(listOf("deprecated", "proto", "sql"), registry.names())
+        assertEquals(listOf("deprecated", "name", "proto", "sql"), registry.names())
         assertEquals(listOf("key", "schema"), registry.keys("sql"))
-        assertEquals(listOf("deprecated"), registry.keys(""))
+        assertEquals(listOf("deprecated", "name"), registry.keys(""))
     }
 
     @Test
@@ -62,7 +62,10 @@ class AnnotationRegistryTest {
             ),
             deprecated.elements,
         )
-        assertEquals(listOf("deprecated"), AnnotationRegistry.CORE.names())
+        val name = AnnotationRegistry.CORE.find("", "name").single()
+        assertEquals(ValueKind.STRING, name.valueKind)
+        assertEquals(setOf(Element.FIELD), name.elements)
+        assertEquals(listOf("deprecated", "name"), AnnotationRegistry.CORE.names())
     }
 
     @Test

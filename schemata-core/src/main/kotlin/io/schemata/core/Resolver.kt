@@ -110,7 +110,36 @@ class Resolver(
         }
     }
 
+    /**
+     * Options written on [expr] itself (a type argument's, or an alias's right-hand side's) bound
+     * the type wherever it is used; the field flags among them belong to a field and are reported.
+     */
     fun resolve(expr: TypeExpr, scope: Scope): Resolved? {
+        val resolved = resolveType(expr, scope) ?: return null
+        if (expr.options.isEmpty()) return resolved
+        val (flags, bounds) = expr.options.partition { it.name in Options.FIELD_FLAGS }
+        flags.forEach {
+            error(
+                CoreCodes.OPTION_NOT_APPLICABLE,
+                "option '${it.name}' belongs to a field, not to a type argument or an alias",
+                it.span,
+                help = "move it to the options of the field that uses the type",
+            )
+        }
+        return Options.refine(bounds, expr, resolved, { index.find(it)?.decl }) {
+                diagnostics += it
+            }
+            .first
+    }
+
+    /** `T[]` is a list of `T`: the `?` before `[]` is the element's, the one after the list's. */
+    private fun resolveType(expr: TypeExpr, scope: Scope): Resolved? {
+        if (expr.list) {
+            val element =
+                resolve(expr.copy(list = false, listNullable = false, options = emptyList()), scope)
+                    ?: return null
+            return Resolved(ListOf(element.type, element.nullable), expr.listNullable, null)
+        }
         when (expr.name) {
             "list" ->
                 return generic(expr, scope, arity = 1) { args ->
@@ -403,8 +432,16 @@ class Resolver(
     }
 }
 
-/** The type as the user wrote it: its name, generic args recursively, and a trailing `?`. */
+/**
+ * The type as the user wrote it: its name, generic args recursively, a trailing `?`, and a postfix
+ * `[]` with its own `?`.
+ */
 internal fun TypeExpr.text(): String {
     val base = if (args.isEmpty()) name else "$name<${args.joinToString(", ") { it.text() }}>"
-    return if (nullable) "$base?" else base
+    val written = if (nullable) "$base?" else base
+    return when {
+        !list -> written
+        listNullable -> "$written[]?"
+        else -> "$written[]"
+    }
 }

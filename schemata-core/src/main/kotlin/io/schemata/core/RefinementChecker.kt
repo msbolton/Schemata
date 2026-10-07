@@ -104,19 +104,40 @@ object RefinementChecker {
                 ok = false
             }
         }
-        val bound =
-            when (builtin) {
-                Builtin.INT32 -> Bound.INT32
-                Builtin.INT64 -> Bound.INT64
-                Builtin.FLOAT32 -> Bound.FLOAT32
-                Builtin.FLOAT64 -> Bound.FLOAT64
-                Builtin.DECIMAL -> Bound.REAL
-                else -> Bound.COUNT
-            }
-        val values = named(named, builtin.typeName, builtin.refinementKeys, bound, diagnostics)
+        val values =
+            named(named, builtin.typeName, builtin.refinementKeys, boundOf(builtin), diagnostics)
         if (!ok || values == null) return null
         return Refinements(values.min, values.max, values.pattern, precision, scale)
     }
+
+    /**
+     * A numeric type is bounded within its own range; every other type (a string's or bytes'
+     * length, a collection's size, or no builtin at all) by a non-negative count.
+     */
+    private fun boundOf(builtin: Builtin?): Bound =
+        when (builtin) {
+            Builtin.INT32 -> Bound.INT32
+            Builtin.INT64 -> Bound.INT64
+            Builtin.FLOAT32 -> Bound.FLOAT32
+            Builtin.FLOAT64 -> Bound.FLOAT64
+            Builtin.DECIMAL -> Bound.REAL
+            else -> Bound.COUNT
+        }
+
+    /**
+     * Reads the value of a bounding option (`min`, `max`, `minItems`, `maxItems`) as the limit it
+     * sets on [builtin], or on a collection's size when [builtin] is null; [typeName] names the
+     * bounded type in messages. Returns null after reporting, as a refinement's bound does.
+     */
+    internal fun optionBound(
+        name: String,
+        value: Literal,
+        span: Span,
+        builtin: Builtin?,
+        typeName: String,
+        diagnostics: MutableList<Diagnostic>,
+    ): BigDecimal? =
+        bound(Refinement.Named(name, value, span), boundOf(builtin), typeName, diagnostics)
 
     /** [kind] is `list` or `map`; both take element-count bounds only. */
     fun collection(

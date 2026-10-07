@@ -13,6 +13,7 @@ import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.keyFields
 import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Span
 import io.schemata.target.flag
@@ -96,23 +97,26 @@ class Catalog(
     operator fun get(name: QualifiedName): Entry? = entries[name]
 
     /**
-     * The key fields in key order, or empty when the record has no key. Diagnostics about the key
-     * forms are lowering's job.
+     * The key fields in key order, or empty when the record has no key: the language's own key (`{
+     * id }` fields, or `@@id(a, b)`) when there is one, else the `@sql(key)` annotations'.
+     * Diagnostics about the key forms are lowering's job.
      */
-    private fun keyFields(record: RecordType): List<Field> {
-        val recordKey =
-            (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values?.distinct()
-        if (recordKey != null) {
-            return recordKey.mapNotNull { n -> record.fields.firstOrNull { it.name == n } }
+    private fun keyFields(record: RecordType): List<Field> =
+        record.keyFields().ifEmpty {
+            val recordKey =
+                (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values?.distinct()
+            recordKey?.mapNotNull { n -> record.fields.firstOrNull { it.name == n } }
+                ?: record.fields.filter { it.annotations.flag("sql", "key") }
         }
-        return record.fields.filter { it.annotations.flag("sql", "key") }
-    }
 
     /**
-     * Whether the record's own `@sql(key)` says it means to be keyed, whether or not it resolves.
+     * Whether the record says it means to be keyed, through the language's key or its own
+     * `@sql(key)`, whether or not the key resolves.
      */
     private fun declaresKey(record: RecordType): Boolean =
-        record.annotations["sql"]["key"] is AnnotationValue.Names ||
+        record.compositeKey.isNotEmpty() ||
+            record.fields.any { it.key } ||
+            record.annotations["sql"]["key"] is AnnotationValue.Names ||
             record.fields.any { it.annotations.flag("sql", "key") }
 
     private fun targets(decl: TypeDecl): List<QualifiedName> =
