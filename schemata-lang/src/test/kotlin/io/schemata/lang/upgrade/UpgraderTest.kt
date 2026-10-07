@@ -184,39 +184,36 @@ class UpgraderTest {
     }
 
     @Test
-    fun `a namespace named schema becomes schema_ with its sql name preserved`() {
+    fun `a namespace named schema becomes schema_value with its sql name preserved`() {
         assertEquals(
-            "schema schema_ @sql(schema: \"schema\")\n\nmodel R { a int32 }\n",
+            "schema schema_value @sql(schema: \"schema\")\n\nmodel R { a int32 }\n",
             up("namespace schema\nrecord R { a: int32 }"),
         )
         assertEquals(
-            "schema shop.schema_ @sql(schema: \"x\")\n\nmodel R { a int32 }\n",
+            "schema shop.schema_value @sql(schema: \"x\")\n\nmodel R { a int32 }\n",
             up("@sql(schema = \"x\")\nnamespace shop.schema\nrecord R { a: int32 }"),
         )
         assertEquals(
-            "schema schema_.orders\n\nimport schema_\n\nmodel R { a schema_.T }\n",
+            "schema schema_value.orders @sql(schema: \"orders\")\n\nimport schema_value\n\nmodel R { a schema_value.T }\n",
             up("namespace schema.orders\nimport schema\nrecord R { a: schema.T }"),
         )
     }
 
     @Test
-    fun `a model named model is renamed and its references follow`() {
+    fun `a field named model is renamed with its column preserved`() {
         assertEquals(
             """
             schema s
 
-            import other as model_
+            import other as model_value
 
-            enum E { model_ other }
+            enum E { model_value other }
 
-            model model_ {
-              model_ string @sql(column: "model")
-              e      E      = model_
+            model R { model_value string @sql(column: "model")  e E = model_value  t model_value.T }
 
-              @@sql(table: "model")
+            service S {
+              #1 model_value(R): R
             }
-
-            model R { a model_  b model_.T[]  c model_[] }
             """
                 .trimIndent() + "\n",
             up(
@@ -224,12 +221,30 @@ class UpgraderTest {
                 namespace s
                 import other as model
                 enum E { model, other }
-                record model { model: string e: E = model }
-                record R { a: model b: list<model.T> c: list<model> }
+                record R { model: string e: E = model t: model.T }
+                service S { #1 model(R): R }
                 """
                     .trimIndent()
             ),
         )
+    }
+
+    @Test
+    fun `a rename that collides is an upgrade error`() {
+        val r =
+            Upgrader.upgrade(
+                "namespace s\nrecord R { model: string model_value: int32 }\nenum E { schema, schema_value }",
+                "t.schemata",
+            )
+        assertTrue(r is FormatResult.Failed, "$r")
+        assertEquals(
+            listOf(
+                "cannot rename 'model': 'model_value' is already declared",
+                "cannot rename 'schema': 'schema_value' is already declared",
+            ),
+            r.diagnostics.map { it.message },
+        )
+        assertEquals("SCH0001", r.diagnostics.first().code.id)
     }
 
     @Test

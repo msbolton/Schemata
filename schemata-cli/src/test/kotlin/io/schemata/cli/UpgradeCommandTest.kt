@@ -64,7 +64,7 @@ class UpgradeCommandTest {
         val r = UpgradeCommand().test(listOf(f.path))
         assertEquals(0, r.statusCode, r.stderr)
         assertEquals(
-            "schema t\n\nmodel R { model_ string @sql(column: \"model\") }\n",
+            "schema t\n\nmodel R { model_value string @sql(column: \"model\") }\n",
             f.readText(),
         )
     }

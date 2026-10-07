@@ -69,10 +69,12 @@ object Upgrader {
  * - Everything else (the namespace, imports, enums, unions, services, reserved, docs) keeps its
  *   text; the printer decides the 2.0 keywords and punctuation.
  * - A union member's refinements become the member's options (`| string { max 34 }`).
- * - A name spelled `schema` or `model`, keywords in 2.0, becomes `schema_` or `model_`, wherever it
- *   is declared or referred to. A renamed namespace's last segment, record, or field keeps its SQL
- *   name through `@sql(schema: …)`, `@@sql(table: …)`, or `@sql(column: …)`, unless it already has
- *   one.
+ * - A name spelled `schema` or `model`, keywords in 2.0, becomes `schema_value` or `model_value`
+ *   wherever it is declared or referred to. Only a lower_snake name can be spelled like a keyword,
+ *   so the names that reach SQL are a namespace's segments and a field's: a namespace keeps its SQL
+ *   schema name through `@sql(schema: …)` and a field its column through `@sql(column: …)`, unless
+ *   it already names one. A rename onto a name already declared in the same scope is reported
+ *   instead.
  * - What 2.0 cannot say is reported, not printed: a refinement on a payload (2.0 gives it no
  *   options), a positional refinement on anything but `decimal(p, s)`, and a bound given as a bare
  *   name.
@@ -104,14 +106,18 @@ private class Mapper(private val table: CommentTable) {
     }
 
     /**
-     * A namespace whose last segment is renamed keeps its SQL schema name, which is that segment,
+     * A namespace with a renamed segment keeps its SQL schema name, which is its 1.x last segment,
      * through `@sql(schema: …)` on the header unless the file already names one.
      */
     fun file(f: SourceFile): SourceFile {
         val annotations = f.annotations.map(::renamed).toMutableList()
-        val last = f.namespace.name.substringAfterLast('.')
-        if (last in NEW_KEYWORDS && annotations.none { sqlNames(it, "schema") })
-            annotations += sqlName("schema", last, f.namespace.nameSpan)
+        val segments = f.namespace.name.split('.')
+        if (segments.any { it in NEW_KEYWORDS } && annotations.none { sqlNames(it, "schema") })
+            annotations += sqlName("schema", segments.last(), f.namespace.nameSpan)
+        collisions(
+            f.declarations.map { it.name to it.nameSpan } +
+                f.services.map { it.name to it.nameSpan }
+        )
         return f.copy(
             namespace = f.namespace.copy(name = renamed(f.namespace.name)),
             annotations = annotations,
@@ -126,11 +132,30 @@ private class Mapper(private val table: CommentTable) {
 
     /**
      * [text] with each dot-separated segment that is a 2.0 keyword (`schema`, `model`) suffixed
-     * with `_`. Every name is renamed by this one rule, declarations and references alike, so a
-     * reference keeps pointing at what it named.
+     * with `_value`, as the importers spell a keyword name; the result is still lower_snake. Every
+     * name is renamed by this one rule, declarations and references alike, so a reference keeps
+     * pointing at what it named.
      */
     private fun renamed(text: String): String =
-        text.split('.').joinToString(".") { if (it in NEW_KEYWORDS) it + "_" else it }
+        text.split('.').joinToString(".") { if (it in NEW_KEYWORDS) it + SUFFIX else it }
+
+    /**
+     * Reports each of [names], the names declared in one scope, whose rename is already declared
+     * there: renaming it would make two of them one.
+     */
+    private fun collisions(names: List<Pair<String, Span>>) {
+        val declared = names.map { it.first }.toSet()
+        for ((name, at) in names) {
+            if (name !in NEW_KEYWORDS || name + SUFFIX !in declared) continue
+            problems +=
+                Diagnostic(
+                    LangCodes.SYNTAX,
+                    "cannot rename '$name': '$name$SUFFIX' is already declared",
+                    at,
+                    help = "rename one of them in the 1.x file, then upgrade",
+                )
+        }
+    }
 
     private fun renamed(a: Annotation): Annotation =
         a.copy(
@@ -171,7 +196,8 @@ private class Mapper(private val table: CommentTable) {
         val annotations = d.annotations.map(::renamed)
         return when (d) {
             is RecordDecl -> record(d.copy(annotations = annotations))
-            is EnumDecl ->
+            is EnumDecl -> {
+                collisions(d.values.map { it.name to it.nameSpan })
                 d.copy(
                     name = name,
                     annotations = annotations,
@@ -183,6 +209,7 @@ private class Mapper(private val table: CommentTable) {
                             )
                         },
                 )
+            }
             is UnionDecl ->
                 d.copy(
                     name = name,
@@ -197,8 +224,9 @@ private class Mapper(private val table: CommentTable) {
         }
     }
 
-    private fun service(s: ServiceDecl): ServiceDecl =
-        s.copy(
+    private fun service(s: ServiceDecl): ServiceDecl {
+        collisions(s.operations.map { it.name to it.nameSpan })
+        return s.copy(
             name = renamed(s.name),
             annotations = s.annotations.map(::renamed),
             operations =
@@ -211,6 +239,7 @@ private class Mapper(private val table: CommentTable) {
                     )
                 },
         )
+    }
 
     private fun payload(p: PayloadDecl): PayloadDecl = p.copy(type = optionless(p.type))
 
@@ -234,9 +263,8 @@ private class Mapper(private val table: CommentTable) {
             keys += id(key.value as AnnotationValue.Tuple, if (rest.isEmpty()) a.span else key.span)
             if (rest.isNotEmpty()) others += a.copy(args = rest, block = true)
         }
-        // A renamed record keeps its SQL table name, which is its name (already snake case).
-        if (d.name in NEW_KEYWORDS && (keys + others).none { sqlNames(it, "table") })
-            others += sqlName("table", d.name, d.nameSpan).copy(block = true)
+        collisions(d.fields.map { it.name to it.nameSpan })
+        collisions(d.nested.map { it.name to it.nameSpan })
         return d.copy(
             name = renamed(d.name),
             fields = d.fields.map(::field),
@@ -398,6 +426,7 @@ private class Mapper(private val table: CommentTable) {
 
     private companion object {
         val NEW_KEYWORDS = setOf("schema", "model")
+        const val SUFFIX = "_value"
     }
 
     private fun optionName(refinement: String, collection: Boolean): String =
