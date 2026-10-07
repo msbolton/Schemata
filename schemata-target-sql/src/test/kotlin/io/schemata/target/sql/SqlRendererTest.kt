@@ -1,10 +1,48 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.QualifiedName
+import io.schemata.lang.Span
 import io.schemata.testkit.Golden
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SqlRendererTest {
+    // The renderer ignores provenance, so the hand-built models give every table and column the
+    // same placeholder.
+    private val none = Span("test.schemata", 1, 1, 1, 1)
+
+    private fun table(
+        name: String,
+        columns: List<Column>,
+        primaryKey: List<String> = emptyList(),
+        primaryKeyName: String? = null,
+        checks: List<Check> = emptyList(),
+        uniques: List<Unique> = emptyList(),
+        indexes: List<Index> = emptyList(),
+        doc: String? = null,
+    ) =
+        Table(
+            name,
+            columns,
+            primaryKey,
+            primaryKeyName,
+            checks,
+            uniques,
+            indexes,
+            doc,
+            TableOrigin(QualifiedName("t", listOf("R"))),
+            none,
+        )
+
+    private fun column(
+        name: String,
+        type: ColumnType,
+        nullable: Boolean,
+        default: String? = null,
+        doc: String? = null,
+        notes: List<String> = emptyList(),
+    ) = Column(name, type, nullable, default, doc, notes, ColumnOrigin.Role("test"), none)
+
     // `user` is a reserved word in Postgres; the renderer must quote it.
     private val orders =
         RelationalSchema(
@@ -12,13 +50,13 @@ class SqlRendererTest {
             schemaName = "orders",
             tables =
                 listOf(
-                    Table(
+                    table(
                         "user",
                         listOf(
-                            Column("id", ColumnType.UUID, nullable = false),
-                            Column("email", ColumnType.TEXT, nullable = true),
-                            Column("name", ColumnType.TEXT, nullable = false),
-                            Column("age", ColumnType.INTEGER, nullable = false),
+                            column("id", ColumnType.UUID, nullable = false),
+                            column("email", ColumnType.TEXT, nullable = true),
+                            column("name", ColumnType.TEXT, nullable = false),
+                            column("age", ColumnType.INTEGER, nullable = false),
                         ),
                     )
                 ),
@@ -29,7 +67,7 @@ class SqlRendererTest {
             path = "shop/customers.sql",
             schemaName = "customers",
             tables =
-                listOf(Table("customer", listOf(Column("name", ColumnType.TEXT, nullable = false)))),
+                listOf(table("customer", listOf(column("name", ColumnType.TEXT, nullable = false)))),
         )
 
     /** Every construct the renderer prints, in one file. */
@@ -39,35 +77,35 @@ class SqlRendererTest {
             schemaName = "kitchen",
             tables =
                 listOf(
-                    Table(
+                    table(
                         name = "product",
                         columns =
                             listOf(
-                                Column("id", ColumnType.UUID, nullable = false),
-                                Column(
+                                column("id", ColumnType.UUID, nullable = false),
+                                column(
                                     "sku",
                                     ColumnType.VARCHAR(64),
                                     nullable = false,
                                     doc = "Stock keeping unit.",
                                 ),
-                                Column(
+                                column(
                                     "status",
                                     ColumnType.TEXT,
                                     nullable = false,
                                     default = "'pending'",
                                 ),
-                                Column("price", ColumnType.NUMERIC(19, 4), nullable = false),
-                                Column(
+                                column("price", ColumnType.NUMERIC(19, 4), nullable = false),
+                                column(
                                     "stock",
                                     ColumnType.INTEGER,
                                     nullable = false,
                                     default = "0",
                                 ),
-                                Column("ratio", ColumnType.DOUBLE, nullable = true),
-                                Column("tags", ColumnType.ARRAY(ColumnType.TEXT), nullable = true),
-                                Column("meta", ColumnType.JSONB, nullable = true),
-                                Column("created", ColumnType.TIMESTAMPTZ, nullable = false),
-                                Column(
+                                column("ratio", ColumnType.DOUBLE, nullable = true),
+                                column("tags", ColumnType.ARRAY(ColumnType.TEXT), nullable = true),
+                                column("meta", ColumnType.JSONB, nullable = true),
+                                column("created", ColumnType.TIMESTAMPTZ, nullable = false),
+                                column(
                                     "legacy",
                                     ColumnType.RAW("varchar(36)"),
                                     nullable = true,
@@ -88,18 +126,18 @@ class SqlRendererTest {
                         indexes = listOf(Index("ix_product_status", listOf("status"))),
                         doc = "A product for sale.",
                     ),
-                    Table(
+                    table(
                         name = "order_line",
                         columns =
                             listOf(
-                                Column("order_id", ColumnType.UUID, nullable = false),
-                                Column("position", ColumnType.INTEGER, nullable = false),
-                                Column("sku", ColumnType.TEXT, nullable = false),
+                                column("order_id", ColumnType.UUID, nullable = false),
+                                column("position", ColumnType.INTEGER, nullable = false),
+                                column("sku", ColumnType.TEXT, nullable = false),
                             ),
                         primaryKey = listOf("order_id", "position"),
                         primaryKeyName = "pk_order_line",
                     ),
-                    Table("empty", emptyList()),
+                    table("empty", emptyList()),
                 ),
             foreignKeys =
                 listOf(
