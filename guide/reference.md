@@ -2570,9 +2570,12 @@ applies when a side does not analyse. The SQL target then lowers both sides; an 
 either side is reported and nothing is written, exactly as `compile` behaves. One file is written
 per namespace with a relational change, `--out/migrate/<namespace as a path>.sql`, each wrapped in
 `BEGIN;` … `COMMIT;` so a failing statement rolls that namespace back; a run with no change prints
-`no changes`. Apply the files in path order: a foreign key between two namespaces is written to the
-file that sorts later, the same rule `compile` follows. The tool never connects to a database; run
-the files with `psql`, or hand them to the migration tool you already use.
+`no changes`. Apply the files in path order: a foreign key between two namespaces is added by the
+file that sorts later, the same rule `compile` follows, and dropped by the earlier one. The tool
+never connects to a database; run the files with `psql`, or hand them to the migration tool you
+already use. The exit code is 0 when every step is clean, 2 when any step is a warning, and 1 on any
+error, including a destructive step without `--allow-destructive`, in which case nothing is
+written. `migrate` reports only its own codes; the SQL lowering's warnings belong to `compile`.
 
 ### Identity
 
@@ -2580,8 +2583,12 @@ Tables and columns are matched by what produced them — the record, and the cha
 union members) from that record — never by name. So a field renamed under its ordinal is a
 `RENAME COLUMN`, a record renamed with `@sql(table)` is a `RENAME TABLE` whose primary key and
 child table follow, and a rename pinned by `@sql(column)` is no step at all. A record renamed by
-its declaration is a new table and a dropped one, as evolution's identity rule says. Number a
-schema before relying on `migrate`, for the same reason as `diff`. A column added later sits at the
+its declaration is a new table and a dropped one, as evolution's identity rule says. Identity also
+follows what a field refers to: when a field's record or union is swapped for another, or a union
+member's type changes, the columns and child tables under it are new and the old ones are dropped.
+A column that copies a key (a reference, or a child table's parent column) is identified by the key
+field it copies, so moving `@sql(key)` to another field drops the old copies and adds new ones.
+Number a schema before relying on `migrate`, for the same reason as `diff`. A column added later sits at the
 end of its table, so a migrated database can differ from a freshly created one only in column
 order, which no migration changes.
 
@@ -2595,25 +2602,31 @@ Every step is `clean`, `may fail`, or `destructive`:
   primary key, a required column added without a default. The help names the backfill to run
   first. `--strict` makes these errors, for a CI that wants only unconditionally safe migrations.
 - **destructive** (`SCH2701`) — the statement loses data: a dropped column or table, a narrowing
-  type change, a union member removed, a strategy change. It is an error and nothing is written
-  until you rerun with `--allow-destructive`, which writes the step under a one-line comment
-  naming the code and reports it as a warning instead.
+  or recasting type change (values that do not fit the new type: the cast fails or truncates), a
+  union member removed, a strategy change, a moved key. It is an error and nothing is written until
+  you rerun with `--allow-destructive`, which writes the step under a one-line comment naming the
+  code and reports it as a warning instead.
 
-Within a namespace the steps run in a fixed order: renames, new tables, added columns, type
-changes, defaults, nullability, constraints and indexes, foreign keys, then drops. Three cases move
-a drop earlier: a dropped column or table whose name an added or renamed one takes, the constraints
-and indexes of a column whose type changes, and a rename cycle, which routes through a temporary
-name `<name>__schemata_tmp`. Primary-key and unique drops are `DROP CONSTRAINT … CASCADE`, so a
-foreign key in another namespace's file never blocks them; that file drops its own key
-`IF EXISTS` and re-adds it.
+Within a namespace the steps run in a fixed order: the schema; table renames, then new tables;
+column renames; added columns; constraint and index drops; type changes; defaults; backfills and
+nullability; constraints and indexes added, foreign keys last; drops of columns, then tables;
+comments. Constraint and index drops precede type changes because Postgres re-checks checks and
+foreign keys on a column whose type changes. Three cases move a drop earlier still: a dropped
+column or table whose name an added or renamed one takes, a constraint or index naming a column
+whose type changes, and a rename cycle, which routes through a temporary name
+`<name>__schemata_tmp`. Primary keys, uniques, and indexes share the schema's relation names, so
+their renames are ordered together per schema and run before any new table is created.
+Primary-key and unique drops are `DROP CONSTRAINT … CASCADE`, so a foreign key in another
+namespace's file never blocks them; a foreign key between two namespaces is dropped `IF EXISTS` in
+the earlier of their two files and re-added in the later.
 
 | Change | Steps | Risk |
 |---|---|---|
 | Field added, nullable or defaulted | `ADD COLUMN` (with `DEFAULT` when the field has one; `NOT NULL` when defaulted and non-null) | clean |
 | Field added, required, no default | `ADD COLUMN` nullable, then `SET NOT NULL` | may fail (SCH2702, help names the backfill) |
 | Field removed | `DROP COLUMN` (and the constraints that named it) | destructive |
-| Field renamed (emitted name changes) | `RENAME COLUMN`; checks that embed the name are dropped and re-added | clean |
-| Scalar widened (`int32`→`int64`, `float32`→`float64`, longer `varchar`, wider `numeric` at the same scale, `uuid`→`text`) | `ALTER COLUMN … TYPE … USING "col"::<type>` | clean |
+| Field renamed (emitted name changes) | `RENAME COLUMN`; constraints and indexes whose definition is unchanged are renamed in place | clean |
+| Scalar widened (`int32`→`int64`, `float32`→`float64`, longer `varchar`, wider `numeric` at the same scale, `uuid`→`text`) | `DROP DEFAULT` when the column had one, `ALTER COLUMN … TYPE … USING "col"::<type>`, `SET DEFAULT` when NEW has one (Postgres cannot recast a stored default) | clean |
 | Scalar narrowed or recast otherwise | `ALTER COLUMN … TYPE … USING` | destructive |
 | Nullable → non-null, with default | `Backfill` (`UPDATE … SET col = default WHERE col IS NULL`), `SET NOT NULL` | clean |
 | Nullable → non-null, no default | `SET NOT NULL` | may fail |
@@ -2626,11 +2639,12 @@ foreign key in another namespace's file never blocks them; that file drops its o
 | Enum value renamed (emitted name changes) | `UPDATE … SET col = 'new' WHERE col = 'old'`, then drop and re-add the enum check | clean |
 | Union member added | `ADD COLUMN` per variant column, re-add the kind and variant checks | clean |
 | Union member removed | `DROP COLUMN` per variant column, re-add the checks | destructive |
-| Union member type changed | drop the old variant columns, add the new | destructive |
-| `@sql(key)` added, removed, or moved | drop the primary key (and the foreign keys that referenced it), add the new; child tables' parent columns follow | may fail (duplicates or nulls in the new key) |
+| Union member type changed, or a field's referenced record or union changed | the columns and child tables under that field or member are a new identity: drop the old (destructive), add the new | destructive |
+| `@sql(key)` added or removed | drop the primary key (and the foreign keys that referenced it), add the new | may fail (duplicates or nulls in the new key) |
+| `@sql(key)` moved to other fields | drop the primary key; the reference and parent columns that copied the old key are dropped and new ones added for the new key (they are identified by the key field they copy, so a moved key is a new column), then the keys are re-added | destructive (the links must be populated from the parent before the foreign keys return; the help says so) |
 | `@sql(unique)` added | `ADD CONSTRAINT … UNIQUE` | may fail |
 | `@sql(unique)` removed, `@sql(index)` changed | `DROP CONSTRAINT` / `DROP INDEX`, `CREATE INDEX` | clean |
-| `@sql(type)` changed | `ALTER COLUMN … TYPE … USING` | destructive |
+| `@sql(type)` changed | `ALTER COLUMN … TYPE … USING` | clean when the spelled types are a known lossless widening, else destructive |
 | `@sql(strategy)` changed | drop the old shape (columns or child table), create the new | destructive, help says to move the data between the two statements |
 | `@sql(table|column|schema)` changed | `RENAME TABLE` / `RENAME COLUMN` / `ALTER TABLE … SET SCHEMA` after `CREATE SCHEMA` | clean |
 | Declaration added | `CREATE TABLE` when it has a table | clean |
@@ -2646,9 +2660,9 @@ The same gate applies, so undoing an added column is destructive and says so.
 The human report lists each file and its steps (`add column "customer"."tier"    clean`), then a
 trailer with the step and file counts and how many are destructive or may fail; each risky step
 also renders as its own diagnostic with the changed side's excerpt. The JSON document is `diff`'s
-for the sql rulebook plus `steps` (`file`, `kind`, `sql`, `risk`, `path`, `line`) and `files`
-(`path`, `content`), and the same `errors` array when the sides cannot be compared or a side has
-SQL errors.
+for the sql rulebook plus `steps` (`file`, `kind`, `sql`, `risk`, `path`, `line`, and `code`,
+`message`, `help` for a step that is not clean, null otherwise) and `files` (`path`, `content`).
+`errors` holds only errors: `SCH2503` when the sides cannot be compared, or a side's SQL errors.
 
 ### Worked example
 
@@ -2679,7 +2693,6 @@ record Customer {
 `schemata migrate old new` writes `migrate/s.sql`:
 
 ```
--- migrate/s.sql
 BEGIN;
 
 ALTER TABLE "s"."customer" DROP CONSTRAINT "ck_customer_age_min";
