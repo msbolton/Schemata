@@ -2,6 +2,7 @@ package io.schemata.migrate
 
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Schema
+import io.schemata.target.sql.Column
 import io.schemata.target.sql.ColumnOrigin
 import io.schemata.target.sql.Ddl
 import io.schemata.target.sql.Naming
@@ -271,9 +272,18 @@ private class NamespacePlan(
                     c.name,
                     columnSubject(oldSide, p.old, c),
                     "every value the column holds",
-                    destructiveHelp(p.old.origin, c.origin),
+                    p.rekeyed[c]?.let { rekeyHelp(p, it) }
+                        ?: destructiveHelp(p.old.origin, c.origin),
                 )
             }
+
+    /**
+     * A key moved to other fields leaves the columns that copied it holding the old key's values,
+     * so they go and the copies of the new key take their place, empty until filled from the
+     * parent.
+     */
+    private fun rekeyHelp(p: Pairing, into: List<Column>): String =
+        "populate ${into.joinToString(", ") { "${Naming.quote(p.new.name)}.${Naming.quote(it.name)}" }} from the parent before the foreign keys return, then rerun with --allow-destructive"
 
     /** Child tables first, though `CASCADE` would take them with their parent anyway. */
     private fun tableDrops(early: Boolean): List<Step> =

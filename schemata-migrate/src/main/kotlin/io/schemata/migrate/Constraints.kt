@@ -157,6 +157,15 @@ internal class Constraints(
                         null,
                         null,
                     )
+                else if (fk.columns.any { it in rekeyed(p) })
+                    AddConstraint(
+                        at,
+                        constraint,
+                        subjectOf(context.new, table, fk.columns),
+                        Risk.MAY_FAIL,
+                        "a row references a missing parent",
+                        "populate ${fk.columns.filter { it in rekeyed(p) }.joinToString(", ") { "${Naming.quote(fk.table)}.${Naming.quote(it)}" }} from the parent before applying",
+                    )
                 else if (fk.columns.any { it in nullAdded(p) })
                     AddConstraint(
                         at,
@@ -265,6 +274,10 @@ internal class Constraints(
         return chains.none { tightening.tightens(it) || tightening.retypes(it) } &&
             chains.any { tightening.loosens(it, presence) }
     }
+
+    /** The NEW names of the columns that copy a moved key in place of a dropped copy. */
+    private fun rekeyed(p: Pairing): Set<String> =
+        p.rekeyed.values.flatten().map { it.name }.toSet()
 
     /** Columns added in this migration without a default: every existing row holds NULL there. */
     private fun nullAdded(p: Pairing): Set<String> =

@@ -17,7 +17,7 @@ data class FieldContext(
     val forceNullable: Boolean = false,
     val embedding: List<QualifiedName> = emptyList(),
     val parentTable: String = table,
-    val parentKeys: List<Pair<String, ColumnType>> = emptyList(),
+    val parentKeys: List<ParentKey> = emptyList(),
     val path: List<OriginStep> = emptyList(),
     val where: String,
 ) {
@@ -46,6 +46,14 @@ data class FieldContext(
     fun columnOrigin(field: Field, part: String? = null): ColumnOrigin =
         ColumnOrigin.FieldPath(path + OriginStep.FieldOrdinal(field.ordinal), part)
 }
+
+/**
+ * One key column a child table copies from the table it hangs off: its [column] name and [type],
+ * and [id], the identity the copy's origin carries (`parent:<id>`). A record's own key column is
+ * identified by its key field's ordinal, so moving the key to another field is a new column rather
+ * than a rename; a child table's own key columns keep their copy's id, or are `position` or `key`.
+ */
+data class ParentKey(val column: String, val type: ColumnType, val id: String)
 
 /** A foreign key together with the namespaces it links, so it can be placed in the later file. */
 class PendingForeignKey(

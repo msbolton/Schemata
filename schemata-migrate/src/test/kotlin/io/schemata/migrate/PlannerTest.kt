@@ -219,7 +219,7 @@ class PlannerTest {
     }
 
     @Test
-    fun `a moved key retypes the child's parent column after dropping its foreign key`() {
+    fun `a moved key drops the child's parent column and adds the new one`() {
         val old =
             """
             namespace s
@@ -234,18 +234,31 @@ class PlannerTest {
             old.replace("@sql(key) #1 id: uuid", "#1 id: uuid")
                 .replace("#2 code:", "@sql(key) #2 code:")
         val steps = plan(old, new)
+        assertTrue(steps.none { it is AlterColumnType || it is RenameColumn }, steps.toString())
+        val add = steps.filterIsInstance<AddColumn>().single()
+        assertEquals("order_code", add.column.name)
+        val drop = steps.filterIsInstance<DropColumn>().single()
+        assertEquals("order_id", drop.column)
+        assertEquals(Risk.DESTRUCTIVE, drop.risk)
+        assertEquals(
+            "populate \"order_lines\".\"order_code\" from the parent before the foreign keys return, then rerun with --allow-destructive",
+            drop.help,
+        )
         val fkDrop =
             steps.indexOfFirst { it is DropConstraint && it.name == "fk_order_lines_order" }
-        val pkDrop = steps.indexOfFirst { it is DropConstraint && it.name == "pk_order" }
-        val alter = steps.indexOfFirst { it is AlterColumnType && it.at.table == "order_lines" }
         val fkAdd =
             steps.indexOfFirst {
                 it is AddConstraint &&
                     it.constraint is Constraint.Foreign &&
                     it.constraint.name == "fk_order_lines_order"
             }
-        assertTrue(fkDrop >= 0 && pkDrop >= 0 && fkAdd >= 0, steps.toString())
-        assertTrue(fkDrop < alter && pkDrop < alter && alter < fkAdd, steps.toString())
+        assertTrue(fkDrop in 0 until fkAdd, steps.toString())
+        val fk = steps[fkAdd] as AddConstraint
+        assertEquals(Risk.MAY_FAIL, fk.risk)
+        assertEquals(
+            "populate \"order_lines\".\"order_code\" from the parent before applying",
+            fk.help,
+        )
     }
 
     @Test
@@ -305,6 +318,80 @@ class PlannerTest {
         assertTrue(
             steps.any { it is AddConstraint && it.constraint.name == "ck_order_payment_kind" }
         )
+    }
+
+    @Test
+    fun `a union member's type change drops its variant columns and adds the new ones`() {
+        val old =
+            """
+            namespace s
+            record Card { #1 last4: string(max = 4) }
+            record Voucher { #1 code: string(max = 16) }
+            union Payment = #1 Card | #2 string
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 payment: Payment
+              #3 card: Card?
+              #4 voucher: Voucher?
+            }
+            """
+        val new = old.replace("= #1 Card | #2 string", "= #1 Voucher | #2 string")
+        val steps = plan(old, new)
+        assertTrue(steps.none { it is RenameColumn || it is AlterColumnType }, steps.toString())
+        val drop = steps.filterIsInstance<DropColumn>().single()
+        assertEquals("payment_card_last4", drop.column)
+        assertEquals(Risk.DESTRUCTIVE, drop.risk)
+        assertEquals(
+            "payment_voucher_code",
+            steps.filterIsInstance<AddColumn>().single().column.name,
+        )
+    }
+
+    @Test
+    fun `an embedded record swapped for another is a drop and an add`() {
+        val old =
+            """
+            namespace s
+            record Address { #1 street: string(max = 50) }
+            record Location { #1 street: string(max = 80) }
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 billing: Address
+              #3 spare: Address?
+              #4 other: Location?
+            }
+            """
+        val new = old.replace("#2 billing: Address", "#2 billing: Location")
+        val steps = plan(old, new)
+        assertTrue(steps.none { it is RenameColumn || it is AlterColumnType }, steps.toString())
+        val drop = steps.indexOfFirst { it is DropColumn && it.column == "billing_street" }
+        val add = steps.indexOfFirst { it is AddColumn && it.column.name == "billing_street" }
+        assertTrue(drop in 0 until add, steps.toString())
+        assertEquals(Risk.DESTRUCTIVE, steps[drop].risk)
+        assertEquals(ColumnType.VARCHAR(80), (steps[add] as AddColumn).column.type)
+    }
+
+    @Test
+    fun `a list element record swapped drops the child table`() {
+        val old =
+            """
+            namespace s
+            record Line { #1 sku: string(max = 8) }
+            record Item { #1 sku: string(max = 16) }
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 lines: list<Line>
+              #3 line: Line?
+              #4 item: Item?
+            }
+            """
+        val new = old.replace("list<Line>", "list<Item>")
+        val steps = plan(old, new)
+        val drop = steps.indexOfFirst { it is DropTable && it.at.table == "order_lines" }
+        val create = steps.indexOfFirst { it is CreateTable && it.table.name == "order_lines" }
+        assertTrue(drop in 0 until create, steps.toString())
+        assertEquals(Risk.DESTRUCTIVE, steps[drop].risk)
+        assertTrue(steps.none { it is AlterColumnType || it is RenameTable }, steps.toString())
     }
 
     @Test

@@ -127,15 +127,17 @@ sealed interface ColumnOrigin {
      * [path] is the field chain from the table's record (an embedded `shipping.street` is two
      * steps, a union variant column has the member's ordinal between the field and the member's own
      * fields). [part] distinguishes the several columns one chain can produce: `kind` for a union's
-     * discriminator, `k0`, `k1`, ... for the columns a reference copies from its target's key, null
-     * for a chain that produces exactly one column.
+     * discriminator, `k<ordinal>` for the column a reference copies from the target's key field of
+     * that ordinal (so a key moved to another field is a new column, not a rename), null for a
+     * chain that produces exactly one column.
      */
     data class FieldPath(val path: List<OriginStep>, val part: String? = null) : ColumnOrigin
 
     /**
      * A column no field names: `position` and `key` (a child table's discriminator), `value` (a
-     * child table's scalar element), `parent:0`, `parent:1`, ... (a child table's copy of its
-     * parent's key columns).
+     * child table's scalar element), `parent:<id>` (a child table's copy of one of its parent's key
+     * columns: the key field's ordinal for a record's key, or the parent child table's own copy id,
+     * `position`, or `key`).
      */
     data class Role(val role: String) : ColumnOrigin
 }

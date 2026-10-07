@@ -211,7 +211,7 @@ object SqlLowering {
                     parentTable = tableName,
                     parentKeys =
                         entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, column) ->
-                            keyType(key)?.let { column to it }
+                            keyType(key)?.let { ParentKey(column, it, "${key.ordinal}") }
                         },
                     where = "",
                 )
@@ -916,15 +916,14 @@ object SqlLowering {
         private fun reference(ctx: FieldContext, field: Field, entry: Catalog.Entry): Contribution {
             val rawName = ctx.prefix + columnOf(field, ctx.where)
             val columns =
-                entry.keyFields.zip(entry.keyColumns).withIndex().mapNotNull { (index, keyPair) ->
-                    val (key, keyColumn) = keyPair
+                entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
                     val type = keyType(key) ?: return@mapNotNull null
                     Column(
                         name = identifier("${rawName}_$keyColumn", field.nameSpan),
                         type = type,
                         nullable = field.nullable || ctx.forceNullable,
                         doc = field.doc,
-                        origin = ctx.columnOrigin(field, "k$index"),
+                        origin = ctx.columnOrigin(field, "k${key.ordinal}"),
                         span = field.nameSpan,
                     )
                 }
@@ -1236,14 +1235,13 @@ object SqlLowering {
         ): Contribution {
             val rawName = "${ctx.prefix}${bare}_$literal"
             val columns =
-                entry.keyFields.zip(entry.keyColumns).withIndex().mapNotNull { (index, keyPair) ->
-                    val (key, keyColumn) = keyPair
+                entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, keyColumn) ->
                     val columnType = keyType(key) ?: return@mapNotNull null
                     Column(
                         name = identifier("${rawName}_$keyColumn", field.nameSpan),
                         type = columnType,
                         nullable = true,
-                        origin = ColumnOrigin.FieldPath(ctx.path, "k$index"),
+                        origin = ColumnOrigin.FieldPath(ctx.path, "k${key.ordinal}"),
                         span = field.nameSpan,
                     )
                 }
@@ -1491,13 +1489,12 @@ object SqlLowering {
                     field.nameSpan,
                 )
             val parentColumns =
-                ctx.parentKeys.withIndex().map { (index, parentKey) ->
-                    val (key, keyType) = parentKey
+                ctx.parentKeys.map { key ->
                     Column(
-                        identifier("${ctx.table}_$key", field.nameSpan),
-                        keyType,
+                        identifier("${ctx.table}_${key.column}", field.nameSpan),
+                        key.type,
                         nullable = false,
-                        origin = ColumnOrigin.Role("parent:$index"),
+                        origin = ColumnOrigin.Role("parent:${key.id}"),
                         span = field.nameSpan,
                     )
                 }
@@ -1510,7 +1507,7 @@ object SqlLowering {
                         columns = parentColumns.map { it.name },
                         targetSchema = schemaName,
                         targetTable = ctx.parentTable,
-                        targetColumns = ctx.parentKeys.map { it.first },
+                        targetColumns = ctx.parentKeys.map { it.column },
                         cascade = true,
                     ),
                     namespace.name,
@@ -1525,7 +1522,16 @@ object SqlLowering {
                         origin = ColumnOrigin.Role("position"),
                         span = field.nameSpan,
                     )
-            val childKeys = (parentColumns + discriminator).map { it.name to it.type }
+            // The child's own key copies keep their ids, so a grandchild's copies match by them.
+            val childKeys =
+                ctx.parentKeys.zip(parentColumns).map { (key, column) ->
+                    ParentKey(column.name, column.type, key.id)
+                } +
+                    ParentKey(
+                        discriminator.name,
+                        discriminator.type,
+                        if (mapKey == null) "position" else "key",
+                    )
             val childOrigin =
                 TableOrigin(
                     ctx.tableOrigin.record,
@@ -1612,7 +1618,7 @@ object SqlLowering {
                 Table(
                     name = childName,
                     columns = parentColumns + discriminator + merged.columns,
-                    primaryKey = childKeys.map { it.first },
+                    primaryKey = childKeys.map { it.column },
                     primaryKeyName = identifier("pk_$childName", field.nameSpan),
                     checks = merged.checks,
                     uniques = merged.uniques,

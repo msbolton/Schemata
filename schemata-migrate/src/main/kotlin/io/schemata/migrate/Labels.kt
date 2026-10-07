@@ -8,6 +8,7 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
+import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.target.sql.ColumnOrigin
 import io.schemata.target.sql.OriginStep
@@ -16,17 +17,28 @@ import io.schemata.target.sql.TableOrigin
 /**
  * The declarations a field chain passes through: [label] is its dotted suffix (`.shipping.street`,
  * a union member printing as `.#1`), [fields] every field it steps over with the record declaring
- * it, [named] every declaration those fields and members reference, and [record] the record the
- * chain ends in, whose fields a child table's own columns start from.
+ * it, [members] every union member it steps over with its union, [named] every declaration those
+ * fields and members reference, [last] the declaration the final step references (an enum for an
+ * enum column), and [record] the record the chain ends in, whose fields a child table's own columns
+ * start from.
  */
 internal class Chain(
     val label: String,
     val fields: List<Pair<RecordType, Field>>,
     val named: Set<QualifiedName>,
     val record: RecordType?,
+    val members: List<Pair<UnionType, UnionMember>> = emptyList(),
+    val last: QualifiedName? = null,
 ) {
     operator fun plus(other: Chain) =
-        Chain(label + other.label, fields + other.fields, named + other.named, other.record)
+        Chain(
+            label + other.label,
+            fields + other.fields,
+            named + other.named,
+            other.record,
+            members + other.members,
+            if (other.label.isEmpty()) last else other.last,
+        )
 }
 
 /**
@@ -58,10 +70,19 @@ object Labels {
         val rest = if (synthetic) origin.path.drop(1) else origin.path
         val own = walk(schema, tableChain.record, rest)
         return tableChain +
-            if (synthetic) Chain(".value" + own.label, own.fields, own.named, own.record) else own
+            if (synthetic)
+                Chain(
+                    ".value" + own.label,
+                    own.fields,
+                    own.named,
+                    own.record,
+                    own.members,
+                    own.last ?: tableChain.last,
+                )
+            else own
     }
 
-    private fun table(schema: Schema, record: QualifiedName, path: List<OriginStep>): Chain =
+    internal fun table(schema: Schema, record: QualifiedName, path: List<OriginStep>): Chain =
         walk(schema, schema.lookupOrNull(record) as? RecordType, path)
 
     /**
@@ -72,9 +93,11 @@ object Labels {
     private fun walk(schema: Schema, start: RecordType?, path: List<OriginStep>): Chain {
         val label = StringBuilder()
         val fields = mutableListOf<Pair<RecordType, Field>>()
+        val members = mutableListOf<Pair<UnionType, UnionMember>>()
         val named = mutableSetOf<QualifiedName>()
         var record: RecordType? = start
         var union: UnionType? = null
+        var last: QualifiedName? = null
         for (step in path) {
             when (step) {
                 is OriginStep.FieldOrdinal -> {
@@ -84,25 +107,29 @@ object Labels {
                     if (owner != null && field != null) fields += owner to field
                     val target = field?.type?.let { referenced(it) }
                     target?.let { named += it }
+                    last = target
                     val decl = target?.let { schema.lookupOrNull(it) }
                     record = decl as? RecordType
                     union = decl as? UnionType
                 }
                 is OriginStep.MemberOrdinal -> {
                     label.append(".#").append(step.ordinal)
-                    val member = union?.members?.firstOrNull { it.ordinal == step.ordinal }
+                    val owner = union
+                    val member = owner?.members?.firstOrNull { it.ordinal == step.ordinal }
+                    if (owner != null && member != null) members += owner to member
                     val target = member?.type?.let { referenced(it) }
                     target?.let { named += it }
+                    last = target
                     record = target?.let { schema.lookupOrNull(it) } as? RecordType
                     union = null
                 }
             }
         }
-        return Chain(label.toString(), fields, named, record)
+        return Chain(label.toString(), fields, named, record, members, last)
     }
 
     /** The declaration a type names directly or as its list element or map value. */
-    private fun referenced(type: Type): QualifiedName? =
+    internal fun referenced(type: Type): QualifiedName? =
         when (type) {
             is Ref -> type.target
             is ListOf -> (type.element as? Ref)?.target
