@@ -33,18 +33,22 @@ object Upgrader {
     /**
      * The 2.0 text of a 1.x file: Failed when it does not parse as 1.x, or when it writes something
      * the 2.0 surface cannot say; Formatted otherwise. A file that already reads as 2.0 comes back
-     * as it was.
+     * as it was, and one that is not 1.x (it does not start with `namespace`) fails with its 2.0
+     * syntax errors.
      */
     fun upgrade(input: String, path: String): FormatResult {
         val source = Formatter.normalize(input)
-        if (Parser.parse2(source, path).file != null) return FormatResult.Formatted(input)
+        val current = Parser.parse(source, path)
+        if (current.file != null) return FormatResult.Formatted(input)
+        if (current.diagnostics.none { it.code == LangCodes.LEGACY_SYNTAX })
+            return FormatResult.Failed(current.diagnostics)
         val parsed = Parser.parse1ForUpgrade(source, path)
         val file = parsed.file ?: return FormatResult.Failed(parsed.diagnostics)
         val mapper = Mapper(parsed.comments)
         val mapped = mapper.file(file)
         if (mapper.problems.isNotEmpty()) return FormatResult.Failed(mapper.problems)
         val text = Formatter.print(mapped, mapper.comments(), source)
-        return FormatResult.Formatted(Formatter.checked2(text, parsed, path))
+        return FormatResult.Formatted(Formatter.checked(text, parsed, path))
     }
 
     /** The AST mapping alone, for tests. */

@@ -15,7 +15,7 @@ class OptionsTest {
     @Test
     fun `min max and match lower to refinements`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nmodel M { name string { min 2, max 100, match \"^[a-z]+$\" }  age int32 { min 0, max 150 } }"
             )
         val m = r.schema!!.lookup(QualifiedName("s", listOf("M"))) as RecordType
@@ -28,7 +28,7 @@ class OptionsTest {
 
     @Test
     fun `list options split between the list and its elements`() {
-        val r = analyze2("schema s\nmodel M { tags string[] { minItems 1, maxItems 10, max 20 } }")
+        val r = analyze("schema s\nmodel M { tags string[] { minItems 1, maxItems 10, max 20 } }")
         val t =
             (r.schema!!.lookup(QualifiedName("s", listOf("M"))) as RecordType).fields[0].type
                 as ListOf
@@ -40,7 +40,7 @@ class OptionsTest {
     @Test
     fun `id unique and index become field flags and a composite key keeps its order`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nmodel M { a uuid { id }  b string { unique }  c int32 { index }  @@id(b, a) }"
             )
         val m = r.schema!!.lookup(QualifiedName("s", listOf("M"))) as RecordType
@@ -54,7 +54,7 @@ class OptionsTest {
     @Test
     fun `an option the type cannot carry is SCH1049`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nmodel M { n int32 { match \"x\" }  tags string[] { id }  s string { minItems 1 } }"
             )
         assertEquals(listOf("SCH1049", "SCH1049", "SCH1049"), r.diagnostics.map { it.code.id })
@@ -62,7 +62,7 @@ class OptionsTest {
 
     @Test
     fun `decimal keeps precision and scale as its type`() {
-        val r = analyze2("schema s\nmodel M { total decimal(19, 4) { max 1000 } }")
+        val r = analyze("schema s\nmodel M { total decimal(19, 4) { max 1000 } }")
         val s =
             (r.schema!!.lookup(QualifiedName("s", listOf("M"))) as RecordType).fields[0].type
                 as Scalar
@@ -71,7 +71,7 @@ class OptionsTest {
         assertEquals(BigDecimal(1000), s.refinements.max)
     }
 
-    private fun codes(text: String) = analyze2(text).diagnostics.map { it.code.id }
+    private fun codes(text: String) = analyze(text).diagnostics.map { it.code.id }
 
     private fun model(r: AnalysisResult, name: String = "M") =
         r.schema!!.lookup(QualifiedName("s", listOf(name))) as RecordType
@@ -79,7 +79,7 @@ class OptionsTest {
     @Test
     fun `model lists keep their field names in order`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nmodel M { a int32  b int32  c int32  @@unique(b, a)  @@index(c)  @@index(a, c) }"
             )
         assertEquals(emptyList(), r.diagnostics)
@@ -90,7 +90,7 @@ class OptionsTest {
 
     @Test
     fun `flagged fields form the key in declaration order without a model key`() {
-        val r = analyze2("schema s\nmodel M { b string { id }  x int32  a uuid { id } }")
+        val r = analyze("schema s\nmodel M { b string { id }  x int32  a uuid { id } }")
         assertEquals(listOf("b", "a"), model(r).keyFields().map { it.name })
     }
 
@@ -133,7 +133,7 @@ class OptionsTest {
     @Test
     fun `unique and index fit records unions and inline shapes but not lists or maps`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nmodel R { k uuid { id } }\nmodel C { x int32 }\nunion U = R | C\n" +
                     "model M { r R { unique }  c C { index }  u U { unique, index }  a { x int32 } { unique } }"
             )
@@ -153,7 +153,7 @@ class OptionsTest {
     @Test
     fun `union member options lower to the member's refinements`() {
         val r =
-            analyze2("schema s\nunion U = #1 string { max 5, match \"^a\" } | #2 int32 { min 0 }")
+            analyze("schema s\nunion U = #1 string { max 5, match \"^a\" } | #2 int32 { min 0 }")
         assertEquals(emptyList(), r.diagnostics)
         val u = r.schema!!.lookup(QualifiedName("s", listOf("U"))) as UnionType
         val s = (u.members[0].type as Scalar).refinements
@@ -166,7 +166,7 @@ class OptionsTest {
 
     @Test
     fun `bytes take a length and uuid takes no bound`() {
-        val r = analyze2("schema s\nmodel M { b bytes { max 16 } }")
+        val r = analyze("schema s\nmodel M { b bytes { max 16 } }")
         assertEquals(BigDecimal(16), (model(r).fields[0].type as Scalar).refinements.max)
         assertEquals(listOf("SCH1049"), codes("schema s\nmodel M { u uuid { max 1 } }"))
     }
@@ -174,7 +174,7 @@ class OptionsTest {
     @Test
     fun `options on a type argument bound that argument and flags there are SCH1049`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nmodel M { m map<string { max 10 }, int32 { min 0 }> { maxItems 5 } }"
             )
         assertEquals(emptyList(), r.diagnostics)
@@ -192,7 +192,7 @@ class OptionsTest {
     @Test
     fun `options on an alias apply at every use and a use may not bound it again`() {
         val r =
-            analyze2(
+            analyze(
                 "schema s\nalias Email = string { max 254 }\nmodel M { e Email  f Email { unique } }"
             )
         assertEquals(emptyList(), r.diagnostics)

@@ -216,11 +216,13 @@ class ChangeContext(val old: Schema, val new: Schema) {
             .orEmpty()
             .flatMap { it.selfAndNested() }
 
-    /** `@sql(key)` on a field or the record itself, Catalog's rule for a table-backed record. */
+    /**
+     * `{ id }` on a field or `@@id(…)` on the record itself, Catalog's rule for a table-backed
+     * record.
+     */
     fun isKeyed(side: Side, record: QualifiedName): Boolean {
         val decl = schema(side).lookupOrNull(record) as? RecordType ?: return false
-        return decl.annotations["sql"]["key"] is AnnotationValue.Names ||
-            decl.fields.any { it.annotations.flag("sql", "key") }
+        return decl.compositeKey.isNotEmpty() || decl.fields.any { it.key }
     }
 
     /** A top-level record (not nested in another declaration) not opted out with `@xsd(root)`. */

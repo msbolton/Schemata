@@ -64,7 +64,7 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
                 ?.firstOrNull { it.name == symbol.name }
                 ?.let {
                     val tail = analysis.written(rest(it.nameSpan, it.span))
-                    block("field ${symbol.owner}.${it.name}$tail", it.doc)
+                    block("field ${symbol.owner}.${it.name} $tail", it.doc)
                 }
         }
         is Symbol.EnumValue -> {
@@ -94,7 +94,7 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
             val declaring =
                 analysis.files.sortedBy { it.path }.filter { it.namespace.name == symbol.name }
             if (declaring.isEmpty()) null
-            else block("namespace ${symbol.name}", declaring.firstNotNullOfOrNull { it.doc })
+            else block("schema ${symbol.name}", declaring.firstNotNullOfOrNull { it.doc })
         }
         is Symbol.ImportAlias -> {
             val import =

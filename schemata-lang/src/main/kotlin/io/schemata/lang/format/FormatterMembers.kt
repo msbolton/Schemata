@@ -2,18 +2,15 @@ package io.schemata.lang.format
 
 import io.schemata.lang.Span
 import io.schemata.lang.ast.Annotation
-import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.EnumValueDecl
-import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.OperationDecl
 import io.schemata.lang.ast.PayloadDecl
-import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.ReservedItem
 import io.schemata.lang.ast.UnionDecl
 import io.schemata.lang.ast.UnionMemberDecl
 
 /**
- * One printed member of a record or enum body, in source order. [isNested] marks a nested
+ * One printed member of a model, enum, or service body, in source order. [isNested] marks a nested
  * declaration, which gets a blank line on each side when the body is assembled.
  */
 internal class BodyMember(span: Span, val isNested: Boolean, val lines: List<String>) {
@@ -46,19 +43,6 @@ internal fun Formatter.Printer.canInlineMember(
         comments.leading[span].isNullOrEmpty() &&
         comments.trailing[span].isNullOrEmpty() &&
         canInline(annotations)
-
-internal fun Formatter.Printer.canOneLineRecord(d: RecordDecl): Boolean =
-    d.nested.isEmpty() &&
-        d.reserved.isEmpty() &&
-        comments.headerTrailing[d.span].isNullOrEmpty() &&
-        comments.endOfBlock[d.span].isNullOrEmpty() &&
-        d.fields.all { canInlineMember(it.span, it.doc, it.annotations) }
-
-internal fun Formatter.Printer.canOneLineEnum(d: EnumDecl): Boolean =
-    d.reserved.isEmpty() &&
-        comments.headerTrailing[d.span].isNullOrEmpty() &&
-        comments.endOfBlock[d.span].isNullOrEmpty() &&
-        d.values.all { canInlineMember(it.span, it.doc, it.annotations) }
 
 /**
  * A union has no closing token, so a comment after its last member reads back as the union's own
@@ -105,33 +89,6 @@ internal fun Formatter.Printer.memberPrelude(
     val ordinalText = ordinal?.let { "#$it" } ?: ""
     val ordinalPart = if (ordWidth > 0) ordinalText.padEnd(ordWidth) + " " else ""
     return MemberPrelude(prefix, annPrefix, ordinalPart)
-}
-
-internal fun Formatter.Printer.fieldOneLine(f: FieldDecl): String {
-    val annPrefix = if (f.annotations.isNotEmpty()) annotation(f.annotations[0]) + " " else ""
-    val ordinal = f.ordinal?.let { "#$it " } ?: ""
-    val default = f.default?.let { " = ${slice(it.span)}" } ?: ""
-    return "$annPrefix$ordinal${f.name}: ${typeExpr(f.type)}$default"
-}
-
-internal fun Formatter.Printer.fieldMultilineLines(
-    f: FieldDecl,
-    indent: String,
-    ordWidth: Int,
-    nameWidth: Int,
-): List<String> {
-    val prelude = memberPrelude(f.span, f.doc, f.annotations, f.ordinal, indent, ordWidth)
-    val namePart = "${f.name}:".padEnd(nameWidth) + " "
-    val default = f.default?.let { " = ${slice(it.span)}" } ?: ""
-    val line =
-        indent +
-            prelude.annPrefix +
-            prelude.ordinalPart +
-            namePart +
-            typeExpr(f.type) +
-            default +
-            trailing(f.span)
-    return prelude.prefixLines + line
 }
 
 internal fun Formatter.Printer.valueOneLine(v: EnumValueDecl): String {

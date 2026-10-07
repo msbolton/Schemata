@@ -1,7 +1,7 @@
 package io.schemata.lang.format
 
 import io.schemata.lang.Span
-import io.schemata.lang.antlr.Schemata2Lexer
+import io.schemata.lang.antlr.Schemata1Lexer
 import io.schemata.lang.antlr.SchemataLexer
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.Declaration
@@ -73,9 +73,9 @@ object Comments {
     fun collect(tokens: CommonTokenStream): List<Comment> =
         collect(tokens, SchemataLexer.LINE_COMMENT, SchemataLexer.BLOCK_COMMENT)
 
-    /** [collect] for a token stream of the 2.0 lexer, whose token types are numbered apart. */
-    fun collect2(tokens: CommonTokenStream): List<Comment> =
-        collect(tokens, Schemata2Lexer.LINE_COMMENT, Schemata2Lexer.BLOCK_COMMENT)
+    /** [collect] for a token stream of the 1.x lexer, whose token types are numbered apart. */
+    fun collectV1(tokens: CommonTokenStream): List<Comment> =
+        collect(tokens, Schemata1Lexer.LINE_COMMENT, Schemata1Lexer.BLOCK_COMMENT)
 
     private fun collect(tokens: CommonTokenStream, line: Int, block: Int): List<Comment> {
         tokens.fill()
@@ -202,8 +202,8 @@ object Comments {
             }
 
         /**
-         * A model's block attributes (`@@x`, which only the 2.0 surface writes) are members of its
-         * body, each on its own line, so a comment can trail or lead one like a field.
+         * A model's block attributes (`@@x`) are members of its body, each on its own line, so a
+         * comment can trail or lead one like a field.
          */
         private fun members(d: RecordDecl): List<Element> =
             d.fields.map(::field) +
@@ -272,7 +272,18 @@ object Comments {
                     addTrailing(onAnnotationLine.span, onAnnotationLine.span, c)
                 before(c, file.span) -> fileLeading += c
                 else -> {
-                    val next = file.annotations.firstOrNull { before(c, it.span) }?.span
+                    // A 1.x file's annotations come before `namespace`; a 2.0 header's attributes
+                    // follow `schema`, so a comment above the header leads the header itself.
+                    val ns = file.namespace.span
+                    val next =
+                        file.annotations
+                            .firstOrNull {
+                                before(c, it.span) &&
+                                    (it.span.startLine < ns.startLine ||
+                                        (it.span.startLine == ns.startLine &&
+                                            it.span.startColumn < ns.startColumn))
+                            }
+                            ?.span
                     leading.getOrPut(next ?: file.namespace.span) { mutableListOf() } += c
                 }
             }

@@ -99,7 +99,7 @@ object RefinementChecker {
                     "only decimal takes positional refinements",
                     it.span,
                     diagnostics,
-                    help = "name the refinement: `${builtin.typeName}(max = …)`",
+                    help = "write the bound as an option: `${builtin.typeName} { max … }`",
                 )
                 ok = false
             }
@@ -152,7 +152,7 @@ object RefinementChecker {
                 "only decimal takes positional refinements",
                 it.span,
                 diagnostics,
-                help = "name the refinement: `$kind(max = …)`",
+                help = "write the bound as an option: `{ maxItems … }`",
             )
             ok = false
         }
@@ -189,7 +189,7 @@ object RefinementChecker {
                     help =
                         "write one of the allowed refinements, for example `$typeName(${sorted.first()} = …)`"
                 }
-                report(CoreCodes.UNKNOWN_REFINEMENT, message, item.span, diagnostics, help)
+                report(CoreCodes.INVALID_REFINEMENT, message, item.span, diagnostics, help)
                 ok = false
                 continue
             }

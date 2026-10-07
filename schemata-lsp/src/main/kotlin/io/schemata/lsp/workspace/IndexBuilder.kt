@@ -125,24 +125,40 @@ class IndexBuilder private constructor(recorded: Recorded) {
         }
     }
 
-    /** `@sql(unique = (a, b))` on a record: each name that is one of its fields refers to it. */
+    /**
+     * Field names a record's attributes list: `@@id(a, b)`, `@@unique(a, b)`, and `@@index(a, b)`
+     * name them bare, and a tuple such as `@@sql(unique: (a, b))` in parentheses; each name that is
+     * one of the record's fields refers to it.
+     */
     private fun tupleNames(record: RecordDecl, owner: QualifiedName) {
         val fields = record.fields.map { it.name }.toSet()
-        record.annotations
-            .flatMap { it.args }
-            .map {
-                when (it) {
-                    is AnnotationArg.Named -> it.value
-                    is AnnotationArg.Positional -> it.value
+        record.annotations.forEach { annotation ->
+            annotation.args
+                .map {
+                    when (it) {
+                        is AnnotationArg.Named -> it.value
+                        is AnnotationArg.Positional -> it.value
+                    }
                 }
-            }
-            .filterIsInstance<AnnotationValue.Tuple>()
-            .forEach { tuple ->
-                tuple.names.zip(tuple.nameSpans).forEach { (name, span) ->
-                    if (name in fields) sites += Site(span, Symbol.Field(owner, name), false)
+                .forEach { value ->
+                    val names =
+                        when (value) {
+                            is AnnotationValue.Tuple -> value.names.zip(value.nameSpans)
+                            is AnnotationValue.Lit ->
+                                (value.literal as? Literal.NameLit)
+                                    ?.takeIf { annotation.block && annotation.name in fieldLists }
+                                    ?.let { listOf(it.name to it.span) }
+                                    .orEmpty()
+                        }
+                    names.forEach { (name, span) ->
+                        if (name in fields) sites += Site(span, Symbol.Field(owner, name), false)
+                    }
                 }
-            }
+        }
     }
+
+    /** The block attributes whose bare names are fields of their model. */
+    private val fieldLists = setOf("id", "unique", "index")
 
     companion object {
         fun build(files: List<SourceFile>, recorded: Recorded): ReferenceIndex {

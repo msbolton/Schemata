@@ -16,23 +16,22 @@ class DiagnosticTest {
 
     @Test
     fun `parser diagnostics carry lang codes`() {
-        val syntax = Parser.parse("namespace a\nrecord R { x uuid }", "t").diagnostics.single()
+        val syntax = Parser.parse("schema a\nmodel R { x: uuid }", "t").diagnostics.single()
         assertEquals(LangCodes.SYNTAX, syntax.code)
-        val reserved = Parser.parse("namespace a\nstream S {}", "t").diagnostics.single()
+        val reserved = Parser.parse("schema a\noperation S {}", "t").diagnostics.single()
         assertEquals(LangCodes.RESERVED_KEYWORD, reserved.code)
     }
 
     @Test
     fun `out-of-range numeric literals are diagnostics`() {
-        val big =
-            Parser.parse("namespace a\nrecord R { x: int64(max = 99999999999999999999) }", "t")
+        val big = Parser.parse("schema a\nmodel R { x int64 = 99999999999999999999 }", "t")
         assertNull(big.file)
         assertEquals(LangCodes.NUMERIC_LITERAL_RANGE, big.diagnostics.single().code)
         assertEquals(
             "number '99999999999999999999' is out of range",
             big.diagnostics.single().message,
         )
-        val ord = Parser.parse("namespace a\nrecord R { #99999999999 x: bool }", "t")
+        val ord = Parser.parse("schema a\nmodel R { #99999999999 x bool }", "t")
         assertEquals("ordinal '#99999999999' is out of range", ord.diagnostics.single().message)
     }
 
@@ -51,16 +50,16 @@ class DiagnosticTest {
 
     @Test
     fun `an error at the end of input has a span of width one`() {
-        val result = Parser.parse("namespace a\nrecord R {", "a.schemata")
+        val result = Parser.parse("schema a\nmodel R {", "a.schemata")
         val error = result.diagnostics.single { it.code.id == "SCH0001" }
         assertEquals(error.span.startLine, error.span.endLine)
         assertEquals(error.span.startColumn, error.span.endColumn)
-        assertEquals(11, error.span.startColumn)
+        assertEquals(10, error.span.startColumn)
     }
 
     @Test
     fun `an error at the end of a file that ends in a newline sits on the line after it`() {
-        val result = Parser.parse("namespace a\nrecord R {\n", "a.schemata")
+        val result = Parser.parse("schema a\nmodel R {\n", "a.schemata")
         val error = result.diagnostics.single { it.code.id == "SCH0001" }
         assertEquals(Span("a.schemata", 3, 1, 3, 1), error.span)
     }
@@ -69,7 +68,7 @@ class DiagnosticTest {
     fun `a control character in a doc comment is reported on the character`() {
         val result =
             Parser.parse(
-                "namespace a\n/// bad \u0001 here\nrecord R {\n  ///\ttab \u001F\n  #1 x: bool\n}",
+                "schema a\n/// bad \u0001 here\nmodel R {\n  ///\ttab \u001F\n  #1 x bool\n}",
                 "a.schemata",
             )
         assertNull(result.file)

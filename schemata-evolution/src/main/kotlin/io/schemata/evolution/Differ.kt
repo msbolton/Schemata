@@ -1,5 +1,6 @@
 package io.schemata.evolution
 
+import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
@@ -80,8 +81,8 @@ object Differ {
             new.nameSpan,
             DeclarationOwner(old),
             DeclarationOwner(new),
-            old.annotations,
-            new.annotations,
+            withKeyFacts(old),
+            withKeyFacts(new),
             out,
         )
         if (old.doc != new.doc) out += DocChanged(path(new), new.nameSpan, DeclarationOwner(new))
@@ -131,8 +132,8 @@ object Differ {
             new.nameSpan,
             FieldOwner(oldRecord, old),
             FieldOwner(record, new),
-            old.annotations,
-            new.annotations,
+            withKeyFacts(old),
+            withKeyFacts(new),
             out,
         )
         if (old.doc != new.doc) out += DocChanged(p, new.nameSpan, FieldOwner(record, new))
@@ -285,6 +286,35 @@ object Differ {
             is EnumType -> decl.reserved
             is UnionType -> null
         }
+
+    /**
+     * A field's annotations plus its `{ id }`, `{ unique }`, and `{ index }` facts, which the SQL
+     * target lowers to its key, unique constraints, and indexes. They are compared as the `sql`
+     * keys `key`, `unique`, and `index`, so the SQL rulebook judges a fact added or removed as the
+     * DDL change it is and every other rulebook passes it as an annotation it does not read.
+     */
+    private fun withKeyFacts(field: Field): Annotations {
+        val facts = buildMap {
+            if (field.key) put("key", AnnotationValue.Flag)
+            if (field.unique) put("unique", AnnotationValue.Flag)
+            if (field.index) put("index", AnnotationValue.Flag)
+        }
+        return withSql(field.annotations, facts)
+    }
+
+    /** A declaration's annotations plus a record's `@@id(a, b)`, as the `sql` key `key`. */
+    private fun withKeyFacts(decl: TypeDecl): Annotations {
+        val key = (decl as? RecordType)?.compositeKey.orEmpty()
+        if (key.isEmpty()) return decl.annotations
+        return withSql(decl.annotations, mapOf("key" to AnnotationValue.Names(key)))
+    }
+
+    private fun withSql(
+        annotations: Annotations,
+        facts: Map<String, AnnotationValue>,
+    ): Annotations =
+        if (facts.isEmpty()) annotations
+        else Annotations(annotations.entries + ("sql" to annotations["sql"] + facts))
 
     private fun annotations(
         path: String,

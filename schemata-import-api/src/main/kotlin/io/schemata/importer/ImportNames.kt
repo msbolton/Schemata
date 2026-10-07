@@ -1,6 +1,5 @@
 package io.schemata.importer
 
-import io.schemata.lang.Names
 import io.schemata.target.Names as TargetNames
 
 /**
@@ -14,10 +13,29 @@ object ImportNames {
     private val nonAlnumRun = Regex("[^A-Za-z0-9]+")
     private val camelBoundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
-    // Every Schemata keyword lexes as its own token, never as an identifier, so a name spelled like
-    // one would not parse where a declared name is expected; `null` is not a keyword, but the
-    // language reserves it as a field, enum value, and namespace segment name all the same.
-    private val keywords: Set<String> = Names.keywords + "null"
+    // Every keyword of the surface the emitter writes lexes as its own token, never as an
+    // identifier, so a name spelled like one would not parse where a declared name is expected;
+    // `null` is not a keyword, but the language reserves it as a field, enum value, and namespace
+    // segment name all the same. The emitter still writes the 1.x surface, which `upgrade` turns
+    // into 2.0 (renaming a 2.0 keyword with its SQL name kept), so its names avoid the 1.x
+    // keywords (SCH-88).
+    private val keywords: Set<String> =
+        setOf(
+            "namespace",
+            "import",
+            "as",
+            "record",
+            "enum",
+            "union",
+            "alias",
+            "reserved",
+            "true",
+            "false",
+            "service",
+            "operation",
+            "stream",
+            "null",
+        )
 
     fun isLowerSnake(s: String): Boolean = lowerSnakePattern.matches(s) && s !in keywords
 

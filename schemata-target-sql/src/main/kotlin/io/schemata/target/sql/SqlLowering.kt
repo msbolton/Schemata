@@ -24,7 +24,6 @@ import io.schemata.target.Lowered
 import io.schemata.target.NameClaims
 import io.schemata.target.TypeText
 import io.schemata.target.collidingNamespaces
-import io.schemata.target.flag
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 
@@ -143,7 +142,7 @@ object SqlLowering {
                         "record '${r.name}' has no primary key and is not used by any field",
                         r.nameSpan,
                         help =
-                            "mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless record only lowers when a field embeds it",
+                            "mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only lowers when a field embeds it",
                     )
                 }
             }
@@ -332,46 +331,10 @@ object SqlLowering {
         }
 
         /**
-         * Reports the key's form: the `@sql(key)` fields in declaration order, or the fields a
-         * record-level `@sql(key = (...))` names, each once. Only keyed records reach here; the key
-         * itself comes from the [Catalog].
+         * Reports a key the table cannot carry: a nullable key field, or one that is not a single
+         * scalar column. Only keyed records reach here; the key itself comes from the [Catalog].
          */
         private fun keys(record: RecordType) {
-            val fieldKeys = record.fields.filter { it.annotations.flag("sql", "key") }
-            val recordKeyNames =
-                (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
-            if (fieldKeys.isNotEmpty() && recordKeyNames != null) {
-                error(
-                    SqlCodes.KEY_COLUMN,
-                    "record '${record.name}' declares @sql(key) on both the record and its fields",
-                    record.nameSpan,
-                    help =
-                        "keep one form: `@sql(key)` on fields, or `@sql(key = (…))` on the record",
-                )
-            }
-            recordKeyNames
-                ?.filter { name -> record.fields.none { it.name == name } }
-                ?.forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': @sql(key) names '$it', which is not a field of the record",
-                        record.nameSpan,
-                        help = "name a declared field",
-                    )
-                }
-            recordKeyNames
-                ?.groupingBy { it }
-                ?.eachCount()
-                ?.filterValues { it > 1 }
-                ?.keys
-                ?.forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': @sql(key) names '$it' more than once",
-                        record.nameSpan,
-                        help = "list each key field once",
-                    )
-                }
             val keyFields = catalog[record.qualifiedName]!!.keyFields
             keyFields
                 .filter { it.nullable }
@@ -447,9 +410,9 @@ object SqlLowering {
                 if (redundant) {
                     error(
                         SqlCodes.REDUNDANT_CONSTRAINT,
-                        "field '${record.name}.${field.name}': @sql($key) duplicates the primary key; dropped",
+                        "field '${record.name}.${field.name}': { $key } duplicates the primary key; dropped",
                         field.nameSpan,
-                        help = "remove the annotation; the primary key already enforces it",
+                        help = "remove the option; the primary key already enforces it",
                     )
                 }
                 !redundant
@@ -534,10 +497,9 @@ object SqlLowering {
 
         /**
          * A reference to a record: the default is a reference for a keyed target and an embed for a
-         * keyless one. `embed` flattens either kind's columns under the prefix with no foreign key,
-         * even a keyed target's own key columns; `json` lowers the whole reference to jsonb;
-         * `table` keeps the default reference for a keyed target and is not allowed for a keyless
-         * one, which has no table to reference.
+         * keyless one, which `{ embed }` on the field also asks for; `json` lowers the whole
+         * reference to jsonb; `table` keeps the default reference for a keyed target and is not
+         * allowed for a keyless one, which has no table to reference.
          */
         private fun recordField(
             ctx: FieldContext,
@@ -554,7 +516,6 @@ object SqlLowering {
                         "record",
                         "remove `strategy = json` to get the default mapping for this field",
                     )
-                "embed" -> embed(ctx, field, target, columnOf(field, ctx.where))
                 "table" ->
                     if (entry != null) reference(ctx, field, entry)
                     else forbiddenStrategy(ctx, field, "table", "a keyless record", "embed or json")
@@ -587,7 +548,7 @@ object SqlLowering {
          * record one; `table` asks for a child table either way, with a single `value` column
          * carrying a scalar or enum element's own checks instead of an array's stripped bounds;
          * `json` lowers the whole list to jsonb, the only strategy that reaches a union, nested
-         * list, or nested map element; `embed` has no meaning for a list.
+         * list, or nested map element.
          */
         private fun listField(
             ctx: FieldContext,
@@ -595,10 +556,6 @@ object SqlLowering {
             strategy: String?,
             type: ListOf,
         ): Contribution {
-            collectionConstraints(ctx, field)
-            if (strategy == "embed") {
-                return forbiddenStrategy(ctx, field, "embed", "a list", alternatives(type.element))
-            }
             if (strategy == "json") return json(ctx, field, "list", jsonHelp(type.element))
             return when (val element = type.element) {
                 is Scalar ->
@@ -644,8 +601,7 @@ object SqlLowering {
         /**
          * A map: the default and `json` both lower it to jsonb, since Postgres has no typed map;
          * `table` asks for a child table keyed by the parent and the map's own key, with the value
-         * lowered the way a list's scalar, enum, or record element is, under a `value` column;
-         * `embed` has no meaning for a map.
+         * lowered the way a list's scalar, enum, or record element is, under a `value` column.
          */
         private fun mapField(
             ctx: FieldContext,
@@ -653,10 +609,6 @@ object SqlLowering {
             strategy: String?,
             type: MapOf,
         ): Contribution {
-            collectionConstraints(ctx, field)
-            if (strategy == "embed") {
-                return forbiddenStrategy(ctx, field, "embed", "a map", alternatives(type.value))
-            }
             if (strategy == null || strategy == "json")
                 return json(ctx, field, "map", jsonHelp(type.value))
             // The resolver only admits string, int32, and int64 keys; the fallback is never taken.
@@ -700,24 +652,6 @@ object SqlLowering {
         }
 
         /**
-         * `@sql(unique)` or `@sql(index)` on a list or map would constrain the whole collection
-         * rather than its elements, whichever shape it lowers to, so either is an error.
-         */
-        private fun collectionConstraints(ctx: FieldContext, field: Field) {
-            listOf("unique", "index")
-                .filter { field.annotations.flag("sql", it) }
-                .forEach {
-                    error(
-                        SqlCodes.STRATEGY_NOT_ALLOWED,
-                        "${ctx.where}: @sql($it) is not allowed on a list or map field",
-                        field.span,
-                        help =
-                            "move `@sql($it)` to a field of the element record, or index the child table's columns",
-                    )
-                }
-        }
-
-        /**
          * Whether a list's element or a map's value could lower to a child table: a scalar, enum,
          * or record can, a union or a nested list or map cannot.
          */
@@ -728,13 +662,6 @@ object SqlLowering {
                 is ListOf,
                 is MapOf -> false
             }
-
-        /**
-         * The strategies a list or map could take instead of `embed`: `table` only reaches a
-         * scalar, enum, or record element, so a union or collection element is left with `json`.
-         */
-        private fun alternatives(element: Type): String =
-            if (tableable(element)) "table or json" else "json"
 
         /**
          * The help for a list or map's `json` lowering: `table` when the element or value could
@@ -969,7 +896,7 @@ object SqlLowering {
          * Defaults, docs, and constraint names all carry over, renamed to the embedded columns. A
          * nullable embed forces every produced column nullable and, when two or more of them would
          * otherwise be required, adds one CHECK that those are all present or all absent together.
-         * `@sql(unique)` or `@sql(index)` on the field itself covers every column it produced.
+         * `{ unique }` or `{ index }` on the field itself covers every column it produced.
          * Embedding the same record again inside itself is reported instead of recursing forever.
          */
         private fun embed(
@@ -1044,7 +971,7 @@ object SqlLowering {
          * none (a keyless record with no fields) needs no such check. The union's own
          * [Contribution.required] names only the kind column: a member's columns never make the
          * enclosing table's presence checks, since a member is optional by construction and its own
-         * CHECK already enforces it. `@sql(unique)` or `@sql(index)` on the field covers the kind
+         * CHECK already enforces it. `{ unique }` or `{ index }` on the field covers the kind
          * column and every member column. A member that is itself a union has no kind column of its
          * own to nest a second one under, so it has no embed strategy and must be lowered with
          * `strategy = json` instead (SCH-28).
@@ -1664,9 +1591,8 @@ object SqlLowering {
             )
 
         /**
-         * The unique [field] asks for over [columns], if any, through `{ unique }` or
-         * `@sql(unique)`. A list or map field never gets one; [collectionConstraints] has already
-         * reported the annotation, and the analyzer the option.
+         * The unique [field] asks for over [columns], if any, through `{ unique }`. A list or map
+         * field never gets one; the analyzer has already reported the option there.
          */
         private fun uniqueOf(
             ctx: FieldContext,
@@ -1674,10 +1600,7 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if (
-                (field.unique || field.annotations.flag("sql", "unique")) &&
-                    constrainable(field, columns)
-            )
+            if (field.unique && constrainable(field, columns))
                 listOf(Unique(identifier("uq_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
@@ -1688,10 +1611,7 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if (
-                (field.index || field.annotations.flag("sql", "index")) &&
-                    constrainable(field, columns)
-            )
+            if (field.index && constrainable(field, columns))
                 listOf(Index(identifier("ix_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 

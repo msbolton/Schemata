@@ -50,6 +50,14 @@ object LangCodes {
     val MALFORMED_PATH =
         DiagnosticCode("SCH0007", Severity.ERROR, Category.SYNTAX, "a binding's path is malformed")
 
+    val LEGACY_SYNTAX =
+        DiagnosticCode(
+            "SCH0008",
+            Severity.ERROR,
+            Category.SYNTAX,
+            "a 1.x schema; run schemata upgrade",
+        )
+
     val all: List<DiagnosticCode> =
         listOf(
             SYNTAX,
@@ -59,5 +67,6 @@ object LangCodes {
             CONTROL_CHARACTER,
             UNKNOWN_VERB,
             MALFORMED_PATH,
+            LEGACY_SYNTAX,
         )
 }

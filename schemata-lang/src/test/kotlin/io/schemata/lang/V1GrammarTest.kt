@@ -1,7 +1,7 @@
 package io.schemata.lang
 
-import io.schemata.lang.antlr.SchemataLexer
-import io.schemata.lang.antlr.SchemataParser
+import io.schemata.lang.antlr.Schemata1Lexer
+import io.schemata.lang.antlr.Schemata1Parser
 import io.schemata.lang.internal.CollectingErrorListener
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -11,7 +11,8 @@ import kotlin.test.assertTrue
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 
-class GrammarTest {
+/** The 1.x grammar, which `schemata upgrade` reads. */
+class V1GrammarTest {
     /** The worked example from the language reference. */
     private val example =
         """
@@ -66,15 +67,15 @@ class GrammarTest {
         """
             .trimIndent()
 
-    private fun parse(source: String): Pair<SchemataParser.FileContext, List<Diagnostic>> {
-        val listener = CollectingErrorListener("test.schemata")
+    private fun parse(source: String): Pair<Schemata1Parser.FileContext, List<Diagnostic>> {
+        val listener = CollectingErrorListener("test.schemata", CollectingErrorListener.V1_HELP)
         val lexer =
-            SchemataLexer(CharStreams.fromString(source)).apply {
+            Schemata1Lexer(CharStreams.fromString(source)).apply {
                 removeErrorListeners()
                 addErrorListener(listener)
             }
         val parser =
-            SchemataParser(CommonTokenStream(lexer)).apply {
+            Schemata1Parser(CommonTokenStream(lexer)).apply {
                 removeErrorListeners()
                 addErrorListener(listener)
             }
@@ -82,7 +83,7 @@ class GrammarTest {
     }
 
     private fun tokens(source: String): List<Int> =
-        SchemataLexer(CharStreams.fromString(source)).allTokens.map { it.type }
+        Schemata1Lexer(CharStreams.fromString(source)).allTokens.map { it.type }
 
     @Test
     fun `parses the worked example with no diagnostics`() {
@@ -228,8 +229,8 @@ class GrammarTest {
 
     @Test
     fun `triple slash lexes as DOC_COMMENT, double slash lexes as a hidden LINE_COMMENT`() {
-        assertEquals(listOf(SchemataLexer.DOC_COMMENT), tokens("/// doc"))
-        assertEquals(listOf(SchemataLexer.LINE_COMMENT), tokens("// plain"))
+        assertEquals(listOf(Schemata1Lexer.DOC_COMMENT), tokens("/// doc"))
+        assertEquals(listOf(Schemata1Lexer.LINE_COMMENT), tokens("// plain"))
     }
 
     @Test

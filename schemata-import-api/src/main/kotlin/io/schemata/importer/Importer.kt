@@ -3,7 +3,7 @@ package io.schemata.importer
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Severity
 import io.schemata.lang.format.FormatResult
-import io.schemata.lang.format.Formatter
+import io.schemata.lang.upgrade.Upgrader
 
 /**
  * One input file. [relative] is its path relative to the root the command walked
@@ -43,16 +43,17 @@ fun importResult(units: List<SchemataUnit>, diagnostics: List<Diagnostic>): Impo
 
 /**
  * Every unit as formatted source, one file per namespace, with references that would be ambiguous
- * written in full (see [qualifyAmbiguousRefs]). The formatter proves the emitted text parses; its
- * rejection is an emitter bug, not a user error.
+ * written in full (see [qualifyAmbiguousRefs]). The emitter writes the 1.x surface, which the
+ * upgrader turns into formatted 2.0 (SCH-88); its rejection proves an emitter bug, not a user
+ * error.
  */
 fun emitUnits(units: List<SchemataUnit>): List<ImportedFile> =
     qualifyAmbiguousRefs(units).map { unit ->
         val text = SchemataEmitter.emit(unit)
         val path = unit.namespace.replace('.', '/') + ".schemata"
-        val formatted = Formatter.format(text, path)
+        val formatted = Upgrader.upgrade(text, path)
         check(formatted is FormatResult.Formatted) {
-            "the formatter rejected the emitted output for '${unit.namespace}': $formatted"
+            "the upgrader rejected the emitted output for '${unit.namespace}': $formatted"
         }
         ImportedFile(path, formatted.text)
     }

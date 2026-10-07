@@ -5,10 +5,10 @@ object Names {
     /** The words the lexer reads as keywords, so none of them can name a declaration or field. */
     val keywords: Set<String> =
         setOf(
-            "namespace",
+            "schema",
             "import",
             "as",
-            "record",
+            "model",
             "enum",
             "union",
             "alias",

@@ -8,8 +8,12 @@ import org.antlr.v4.runtime.RecognitionException
 import org.antlr.v4.runtime.Recognizer
 import org.antlr.v4.runtime.Token
 
-/** Turns ANTLR syntax errors into [Diagnostic]s that name [file]. */
-internal class CollectingErrorListener(private val file: String) : BaseErrorListener() {
+/**
+ * Turns ANTLR syntax errors into [Diagnostic]s that name [file], each with [help], which says how
+ * the surface being read writes its common forms.
+ */
+internal class CollectingErrorListener(private val file: String, private val help: String) :
+    BaseErrorListener() {
     private val collected = mutableListOf<Diagnostic>()
     val diagnostics: List<Diagnostic>
         get() = collected
@@ -35,8 +39,16 @@ internal class CollectingErrorListener(private val file: String) : BaseErrorList
                 LangCodes.SYNTAX,
                 msg,
                 Span(file, line, column, line, column + width - 1),
-                help =
-                    "the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`",
+                help = help,
             )
+    }
+
+    companion object {
+        const val HELP =
+            "the parser stopped at the caret; a field is written `name Type`, a declaration `model Name { … }`, `enum Name { a b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`"
+
+        /** For the 1.x surface, which `schemata upgrade` reads. */
+        const val V1_HELP =
+            "the parser stopped at the caret; a 1.x field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`"
     }
 }

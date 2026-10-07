@@ -7,6 +7,7 @@ import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.Refinement
 import io.schemata.lang.ast.ReservedItem
 import io.schemata.lang.ast.ServiceDecl
+import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
 
 /**
@@ -36,7 +37,7 @@ object NoteText {
                 separator(text)?.let {
                     "f: ${text.substring(0, it)} = ${text.substring(it + SEPARATOR.length)}"
                 } ?: "f: $text"
-        val file = Parser.parse("namespace n\nrecord R { $field }\n", "note").file ?: return null
+        val file = v1("namespace n\nrecord R { $field }\n") ?: return null
         val record = file.declarations.singleOrNull() as? RecordDecl ?: return null
         val decl = record.fields.singleOrNull() ?: return null
         if (record.nested.isNotEmpty() || record.reserved.isNotEmpty()) return null
@@ -99,10 +100,16 @@ object NoteText {
     private val ORDINAL = Regex("#\\d+")
 
     /**
+     * [text] parsed as the 1.x surface, which every target still writes its notes in (`string(max =
+     * 5)`), or null when it does not parse.
+     */
+    private fun v1(text: String): SourceFile? = Parser.parse1ForUpgrade(text, "note").file
+
+    /**
      * [body] parsed as the members of a service, when the made-up file holds that service alone.
      */
     private fun service(body: String): ServiceDecl? {
-        val file = Parser.parse("namespace n\nservice S { $body }\n", "note").file ?: return null
+        val file = v1("namespace n\nservice S { $body }\n") ?: return null
         if (file.declarations.isNotEmpty()) return null
         return file.services.singleOrNull()
     }

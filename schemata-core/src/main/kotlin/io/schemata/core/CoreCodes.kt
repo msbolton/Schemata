@@ -5,8 +5,9 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 
 /**
- * Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields) and `SCH1008` (unsupported constructs)
- * are retired and must not be reused.
+ * Core catalog, `SCH1xxx`. `SCH1007` (record-typed fields), `SCH1008` (unsupported constructs), and
+ * `SCH1037` (an unknown refinement key, now an unknown option's SCH1049) are retired and must not
+ * be reused.
  */
 object CoreCodes {
     private fun error(id: String, description: String) =
@@ -52,7 +53,6 @@ object CoreCodes {
     val ANNOTATION_VALUE =
         error("SCH1018", "an annotation's arguments have the wrong shape or value")
     val DUPLICATE_ANNOTATION = error("SCH1036", "an annotation key is given twice")
-    val UNKNOWN_REFINEMENT = error("SCH1037", "a refinement key is unknown for the type")
     val INVALID_REFINEMENT = error("SCH1038", "a refinement value is invalid for the type")
     val REFINEMENT_NOT_ALLOWED = error("SCH1039", "refinements are written on a non-builtin type")
     val MISSING_REFINEMENT = error("SCH1040", "decimal is missing its precision and scale")
@@ -105,7 +105,6 @@ object CoreCodes {
             ANNOTATION_ELEMENT,
             ANNOTATION_VALUE,
             DUPLICATE_ANNOTATION,
-            UNKNOWN_REFINEMENT,
             INVALID_REFINEMENT,
             REFINEMENT_NOT_ALLOWED,
             MISSING_REFINEMENT,

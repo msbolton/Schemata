@@ -25,6 +25,7 @@ class NamesTest {
         assertFalse(Names.isIdentifier("9lives"))
         assertFalse(Names.isIdentifier("has space"))
         assertFalse(Names.isIdentifier(""))
-        assertFalse(Names.isIdentifier("record"))
+        assertFalse(Names.isIdentifier("model"))
+        assertTrue(Names.isIdentifier("record"))
     }
 }

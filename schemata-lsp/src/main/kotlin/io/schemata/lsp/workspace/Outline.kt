@@ -7,7 +7,6 @@ import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.OperationDecl
 import io.schemata.lang.ast.PayloadDecl
 import io.schemata.lang.ast.RecordDecl
-import io.schemata.lang.ast.Refinement
 import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
@@ -139,21 +138,18 @@ internal fun payloadsText(op: OperationDecl, slice: (Span) -> String): String {
     return "($request)$response"
 }
 
-/** A type as the formatter prints it: `list<Line>(min = 1)?`, with no stray whitespace. */
+/**
+ * A type as the formatter prints it: `map<string, Line>`, `decimal(19, 4)`, `Line?[]?`, with no
+ * stray whitespace. A payload or type argument names its type, so it has no inline shape to print.
+ */
 internal fun typeText(type: TypeExpr, slice: (Span) -> String): String {
     val args =
         if (type.args.isEmpty()) ""
         else "<" + type.args.joinToString(", ") { typeText(it, slice) } + ">"
     val refinements =
         if (type.refinements.isEmpty()) ""
-        else
-            "(" +
-                type.refinements.joinToString(", ") {
-                    when (it) {
-                        is Refinement.Named -> "${it.name} = ${slice(it.value.span)}"
-                        is Refinement.Positional -> slice(it.value.span)
-                    }
-                } +
-                ")"
-    return type.name + args + refinements + (if (type.nullable) "?" else "")
+        else "(" + type.refinements.joinToString(", ") { slice(it.value.span) } + ")"
+    val nullable = if (type.nullable) "?" else ""
+    val list = if (!type.list) "" else "[]" + if (type.listNullable) "?" else ""
+    return type.name + args + refinements + nullable + list
 }

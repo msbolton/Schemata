@@ -12,8 +12,8 @@ class FormatterServicesTest {
     fun `services format canonically and idempotently`() {
         val input =
             """
-            namespace t
-            record A { #1 x: int32 }
+            schema t
+            model A { #1 x int32 }
             // before
             /// Orders.
             service   Orders   {
@@ -28,9 +28,9 @@ class FormatterServicesTest {
                 .trimIndent() + "\n"
         val expected =
             """
-            namespace t
+            schema t
 
-            record A { #1 x: int32 }
+            model A { #1 x int32 }
 
             // before
             /// Orders.
@@ -53,9 +53,9 @@ class FormatterServicesTest {
     @Test
     fun `a service keeps its position among declarations and its comments`() {
         val input =
-            "namespace t\nrecord A { #1 x: int32 }\nservice S {\n  // inside\n  #1 a(A): A\n  // end\n}\nrecord B { #1 y: int32 }\n"
+            "schema t\nmodel A { #1 x int32 }\nservice S {\n  // inside\n  #1 a(A): A\n  // end\n}\nmodel B { #1 y int32 }\n"
         assertEquals(
-            "namespace t\n\nrecord A { #1 x: int32 }\n\nservice S {\n  // inside\n  #1 a(A): A\n  // end\n}\n\nrecord B { #1 y: int32 }\n",
+            "schema t\n\nmodel A { #1 x int32 }\n\nservice S {\n  // inside\n  #1 a(A): A\n  // end\n}\n\nmodel B { #1 y int32 }\n",
             fmt(input),
         )
     }
@@ -63,9 +63,9 @@ class FormatterServicesTest {
     @Test
     fun `annotations docs and header comments on a service and its operations`() {
         val input =
-            "namespace t\nrecord A { #1 x: int32 }\n@deprecated service S { // header\n  /// Gets.\n  @deprecated #1 a(A): A /* c */\n  @a(x = 1, y = 2) // on ann\n  #2 b() delete \"/b\"\n} // after\nservice E {\n  // only\n}\n"
+            "schema t\nmodel A { #1 x int32 }\n@deprecated service S { // header\n  /// Gets.\n  @deprecated #1 a(A): A /* c */\n  @a(x: 1, y: 2) // on ann\n  #2 b() delete \"/b\"\n} // after\nservice E {\n  // only\n}\n"
         val expected =
-            "namespace t\n\nrecord A { #1 x: int32 }\n\n@deprecated\nservice S {  // header\n  /// Gets.\n  @deprecated #1 a(A): A  /* c */\n  @a(x = 1, y = 2)  // on ann\n  #2 b()  delete \"/b\"\n}  // after\n\nservice E {\n  // only\n}\n"
+            "schema t\n\nmodel A { #1 x int32 }\n\n@deprecated\nservice S {  // header\n  /// Gets.\n  @deprecated #1 a(A): A  /* c */\n  @a(x: 1, y: 2)  // on ann\n  #2 b()  delete \"/b\"\n}  // after\n\nservice E {\n  // only\n}\n"
         val once = fmt(input)
         assertEquals(expected, once)
         assertEquals(expected, fmt(once))
@@ -76,7 +76,7 @@ class FormatterServicesTest {
         val long =
             "#1 find_the_order_by_its_identifier(OrderIdentifierRequest): OrderIdentifierResponse  get \"/orders/by-identifier/{identifier}/details\""
         val input =
-            "namespace t\nrecord OrderIdentifierRequest { #1 identifier: string }\nrecord OrderIdentifierResponse { #1 x: int32 }\nservice S {\n  $long\n}\n"
+            "schema t\nmodel OrderIdentifierRequest { #1 identifier string }\nmodel OrderIdentifierResponse { #1 x int32 }\nservice S {\n  $long\n}\n"
         val out = fmt(input)
         assertTrue(
             "  #1 find_the_order_by_its_identifier(OrderIdentifierRequest): OrderIdentifierResponse\n    get \"/orders/by-identifier/{identifier}/details\"\n" in

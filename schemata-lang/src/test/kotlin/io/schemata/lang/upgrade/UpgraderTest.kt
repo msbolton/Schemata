@@ -157,7 +157,7 @@ class UpgraderTest {
             up(
                 "@sql(schema = \"x\")  // first\n@doc(\"y\")  // second\nnamespace s\nimport a.b\nrecord M { @sql(key) #1 a: uuid #2 tags: list<string(pattern = \"^a\")> }\nservice S { #1 get(M): M }"
             )
-        val again = Formatter.format2(out, "t.schemata")
+        val again = Formatter.format(out, "t.schemata")
         assertEquals(FormatResult.Formatted(out), again, out)
         assertTrue(
             out.startsWith("// first\nschema s @sql(schema: \"x\") @doc(\"y\")  // second\n"),
@@ -251,7 +251,11 @@ class UpgraderTest {
     fun `map moves refinements into options and flags`() {
         val file =
             Upgrader.map(
-                Parser.parse("namespace s\nrecord M { @sql(key) a: string(max = 5) }", "t").file!!
+                Parser.parse1ForUpgrade(
+                        "namespace s\nrecord M { @sql(key) a: string(max = 5) }",
+                        "t",
+                    )
+                    .file!!
             )
         val a = (file.declarations.single() as RecordDecl).fields.single()
         assertEquals(listOf("id", "max"), a.options.map(Option::name))

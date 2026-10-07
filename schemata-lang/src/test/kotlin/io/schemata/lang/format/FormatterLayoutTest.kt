@@ -4,9 +4,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class Formatter2Test {
+class FormatterLayoutTest {
     private fun fmt(text: String) =
-        (Formatter.format2(text.trimIndent(), "t.schemata") as FormatResult.Formatted).text
+        (Formatter.format(text.trimIndent(), "t.schemata") as FormatResult.Formatted).text
 
     @Test
     fun `fields align in four columns and block attributes close the body`() {
@@ -189,9 +189,8 @@ class Formatter2Test {
 
     @Test
     fun `a 1 file does not format as 2`() {
-        assertTrue(
-            Formatter.format2("namespace s\nrecord R { a: int32 }", "t.schemata")
-                is FormatResult.Failed
-        )
+        val r = Formatter.format("namespace s\nrecord R { a: int32 }", "t.schemata")
+        assertTrue(r is FormatResult.Failed)
+        assertEquals(listOf("SCH0008"), r.diagnostics.map { it.code.id })
     }
 }
