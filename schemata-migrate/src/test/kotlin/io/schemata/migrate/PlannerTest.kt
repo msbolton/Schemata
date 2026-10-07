@@ -185,6 +185,70 @@ class PlannerTest {
     }
 
     @Test
+    fun `a field retyped and made nullable re-adds its check as may-fail`() {
+        val old =
+            """
+            namespace s
+            enum Status { #1 a #2 b }
+            record Item {
+              @sql(key) #1 id: uuid
+              #2 x: string
+            }
+            """
+        val steps = plan(old, old.replace("#2 x: string", "#2 x: Status?"))
+        val add = steps.filterIsInstance<AddConstraint>().single()
+        assertEquals("ck_item_x_enum", add.constraint.name)
+        assertEquals(Risk.MAY_FAIL, add.risk)
+    }
+
+    @Test
+    fun `a retyped column drops its checks before the type change`() {
+        val old =
+            """
+            namespace s
+            record Item {
+              @sql(key) #1 id: uuid
+              #2 code: string(pattern = "^[a-z]+$")
+            }
+            """
+        val steps = plan(old, old.replace(Regex("string\\(pattern = .*\\)"), "int32"))
+        val drop = steps.indexOfFirst { it is DropConstraint && it.name.startsWith("ck_item_code") }
+        val alter = steps.indexOfFirst { it is AlterColumnType }
+        assertTrue(drop in 0 until alter, steps.toString())
+        assertEquals(Risk.DESTRUCTIVE, steps[alter].risk)
+    }
+
+    @Test
+    fun `a moved key retypes the child's parent column after dropping its foreign key`() {
+        val old =
+            """
+            namespace s
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 code: string(max = 8)
+              #3 lines: list<Line>
+              record Line { #1 sku: string(max = 8) }
+            }
+            """
+        val new =
+            old.replace("@sql(key) #1 id: uuid", "#1 id: uuid")
+                .replace("#2 code:", "@sql(key) #2 code:")
+        val steps = plan(old, new)
+        val fkDrop =
+            steps.indexOfFirst { it is DropConstraint && it.name == "fk_order_lines_order" }
+        val pkDrop = steps.indexOfFirst { it is DropConstraint && it.name == "pk_order" }
+        val alter = steps.indexOfFirst { it is AlterColumnType && it.at.table == "order_lines" }
+        val fkAdd =
+            steps.indexOfFirst {
+                it is AddConstraint &&
+                    it.constraint is Constraint.Foreign &&
+                    it.constraint.name == "fk_order_lines_order"
+            }
+        assertTrue(fkDrop >= 0 && pkDrop >= 0 && fkAdd >= 0, steps.toString())
+        assertTrue(fkDrop < alter && pkDrop < alter && alter < fkAdd, steps.toString())
+    }
+
+    @Test
     fun `a renumbered field drops the old column before adding the new one`() {
         val steps = plan(base, base.replace("#3 note: string?", "#4 note: string?"))
         assertEquals(listOf(DropColumn::class, AddColumn::class), steps.map { it::class })

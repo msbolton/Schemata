@@ -93,6 +93,8 @@ private class NamespacePlan(
                     columnDrops(p, early = true, At(schemaName, p.old.name))
             }
         // Table renames precede creates, so a created table may take a renamed table's old name.
+        // Constraint and index drops precede type changes, since Postgres re-checks every check and
+        // foreign key on a column whose type changes.
         return schemaSteps +
             tableDrops(early = true) +
             earlyColumnDrops +
@@ -100,12 +102,12 @@ private class NamespacePlan(
             added.map { CreateTable(schemaName, it, tableSubject(newSide, it)) } +
             columnRenames() +
             adds +
+            constraints.drops +
+            constraints.indexDrops +
             types() +
             defaults() +
             nullability() +
             queuedNotNull +
-            constraints.drops +
-            constraints.indexDrops +
             constraints.renames +
             constraints.indexRenames +
             constraints.adds +

@@ -182,13 +182,21 @@ internal class Constraints(
     private fun source(fk: ForeignKey): Pairing? =
         context.oldTable(At(fk.schema, fk.table))?.let { context.pairing(it.origin) }
 
-    /** [fk] as NEW would spell it, or null when either table or any column it names is gone. */
+    /**
+     * [fk] as NEW would spell it, or null when either table or any column it names is gone. A
+     * foreign key over a column whose type changes, on either side, is dropped and re-added too:
+     * Postgres re-checks it on each `ALTER COLUMN … TYPE`, and the two sides change one at a time.
+     */
     private fun carried(fk: ForeignKey): ForeignKey? {
         val source = source(fk) ?: return null
         val target =
             context.oldTable(At(fk.targetSchema, fk.targetTable))?.let {
                 context.pairing(it.origin)
             } ?: return null
+        if (
+            fk.columns.any { it in source.retyped } || fk.targetColumns.any { it in target.retyped }
+        )
+            return null
         return fk.copy(
             name = "",
             schema = source.newSchema,
@@ -223,7 +231,7 @@ internal class Constraints(
             is Constraint.PrimaryKey -> duplicates
             is Constraint.UniqueKey -> if (columns.any { it in nullAdded(p) }) clean else duplicates
             is Constraint.CheckConstraint ->
-                if (checkIsClean(p, columns)) clean
+                if (checkIsClean(p, columns, constraint.check.expression)) clean
                 else
                     AddConstraint(
                         p.at,
@@ -237,9 +245,15 @@ internal class Constraints(
         }
     }
 
-    private fun checkIsClean(p: Pairing, columns: List<String>): Boolean {
+    /**
+     * A check over a column whose type changed can reject the converted values, whatever else
+     * changed with it, so only a check over new columns or one the change purely widens is clean.
+     */
+    private fun checkIsClean(p: Pairing, columns: List<String>, expression: String): Boolean {
         val added = p.added.map { it.name }.toSet()
         if (columns.isNotEmpty() && columns.all { it in added }) return true
+        val retyped = p.retyped.mapNotNull { p.names[it] }.toSet()
+        if (columns.any { it in retyped }) return false
         val chains =
             columns.mapNotNull { name ->
                 p.new.columns
@@ -247,7 +261,9 @@ internal class Constraints(
                     ?.let { Labels.chain(context.new.schema, p.new.origin, it.origin) }
             }
         val tightening = context.tightening
-        return chains.none { tightening.tightens(it) } && chains.any { tightening.loosens(it) }
+        val presence = isPresence(expression)
+        return chains.none { tightening.tightens(it) || tightening.retypes(it) } &&
+            chains.any { tightening.loosens(it, presence) }
     }
 
     /** Columns added in this migration without a default: every existing row holds NULL there. */
@@ -276,10 +292,14 @@ internal class Constraints(
 
     /**
      * An OLD constraint's definition as NEW would spell it, or null when it names a dropped column.
+     * A primary key over a retyped column is dropped and re-added: its drop cascades to the foreign
+     * keys other files hold on it, which those files drop and re-add over the new type.
      */
     private fun carried(constraint: Constraint, p: Pairing): Any? =
         when (constraint) {
-            is Constraint.PrimaryKey -> carry(constraint.columns, p.names)?.let { "primary" to it }
+            is Constraint.PrimaryKey ->
+                if (constraint.columns.any { it in p.retyped }) null
+                else carry(constraint.columns, p.names)?.let { "primary" to it }
             is Constraint.UniqueKey ->
                 carry(constraint.unique.columns, p.names)?.let { "unique" to it }
             is Constraint.CheckConstraint ->
@@ -353,6 +373,25 @@ internal class Constraints(
     }
 
     companion object {
+        private val PRESENCE =
+            Regex(
+                """\(\("" IS NULL( AND "" IS NULL)*\) OR \("" IS NOT NULL( AND "" IS NOT NULL)*\)\)"""
+            )
+
+        /**
+         * True for the all-or-none check a nullable embed or composite reference carries: `(("a" IS
+         * NULL AND "b" IS NULL) OR ("a" IS NOT NULL AND "b" IS NOT NULL))`.
+         */
+        fun isPresence(expression: String): Boolean {
+            val out = StringBuilder()
+            var last = 0
+            identifiers(expression).forEach { (range, _) ->
+                out.append(expression, last, range.first).append("\"\"")
+                last = range.last + 1
+            }
+            return PRESENCE.matches(out.append(expression.substring(last)))
+        }
+
         /**
          * Every double-quoted identifier in a CHECK expression, with where it stands; single-quoted
          * literals are skipped so a quote inside one is never mistaken for an identifier.

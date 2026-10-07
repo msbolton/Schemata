@@ -8,6 +8,7 @@ import io.schemata.evolution.EnumValueRemoved
 import io.schemata.evolution.EnumValueRenamed
 import io.schemata.evolution.FieldNullabilityChanged
 import io.schemata.evolution.FieldRefinementChanged
+import io.schemata.evolution.FieldTypeChanged
 import io.schemata.evolution.UnionMemberAdded
 import io.schemata.evolution.UnionMemberRemoved
 import io.schemata.target.sql.Column
@@ -35,6 +36,10 @@ internal class Pairing(
 
     /** Old column name to new, for every column both have; a dropped column has no entry. */
     val names: Map<String, String> = changed.associate { (o, n) -> o.name to n.name }
+
+    /** The OLD names of the columns whose type changes. */
+    val retyped: Set<String> =
+        changed.filter { (o, n) -> o.type != n.type }.map { it.first.name }.toSet()
 
     /** Where every step after the schema move and the renames addresses the table. */
     val at = At(newSchema, new.name)
@@ -69,15 +74,19 @@ internal class Context(val old: Side, val new: Side) {
 
 /**
  * Which field chains a migration narrows, from the evolution differ: a tightened refinement, an
- * enum value removed or renamed, a union member removed. A loosened refinement, a field made
- * nullable, an enum value or union member added widen instead. Fields are keyed by their record and
- * ordinal, so an embedded record's field is found under whichever table embeds it.
+ * enum value removed or renamed, a union member removed. A loosened refinement, an enum value or
+ * union member added widen instead. A field made nullable widens only its presence check, the one
+ * that lets its columns be NULL together; every other check on its path still holds whatever the
+ * field's type now is. A retyped field ([retypes]) widens nothing. Fields are keyed by their record
+ * and ordinal, so an embedded record's field is found under whichever table embeds it.
  */
 internal class Tightening(old: Schema, new: Schema) {
     private val tightFields = mutableSetOf<Pair<QualifiedName, Int>>()
     private val tightDecls = mutableSetOf<QualifiedName>()
     private val looseFields = mutableSetOf<Pair<QualifiedName, Int>>()
     private val looseDecls = mutableSetOf<QualifiedName>()
+    private val nullableFields = mutableSetOf<Pair<QualifiedName, Int>>()
+    private val retypedFields = mutableSetOf<Pair<QualifiedName, Int>>()
 
     init {
         Differ.diff(old, new).forEach { change ->
@@ -87,7 +96,9 @@ internal class Tightening(old: Schema, new: Schema) {
                         change.record.qualifiedName to change.to.ordinal
                 is FieldNullabilityChanged ->
                     if (change.to.nullable)
-                        looseFields += change.record.qualifiedName to change.to.ordinal
+                        nullableFields += change.record.qualifiedName to change.to.ordinal
+                is FieldTypeChanged ->
+                    retypedFields += change.record.qualifiedName to change.to.ordinal
                 is EnumValueRemoved -> tightDecls += change.enum.qualifiedName
                 is EnumValueRenamed -> tightDecls += change.enum.qualifiedName
                 is UnionMemberRemoved -> tightDecls += change.union.qualifiedName
@@ -100,7 +111,12 @@ internal class Tightening(old: Schema, new: Schema) {
 
     fun tightens(chain: Chain): Boolean = touches(chain, tightFields, tightDecls)
 
-    fun loosens(chain: Chain): Boolean = touches(chain, looseFields, looseDecls)
+    /** [presence] for a check that only says which columns are NULL together. */
+    fun loosens(chain: Chain, presence: Boolean): Boolean =
+        touches(chain, looseFields, looseDecls) ||
+            (presence && touches(chain, nullableFields, emptySet()))
+
+    fun retypes(chain: Chain): Boolean = touches(chain, retypedFields, emptySet())
 
     private fun touches(
         chain: Chain,
