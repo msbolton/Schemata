@@ -1113,7 +1113,7 @@ object SqlLowering {
             member: UnionMember,
         ): Contribution {
             // The member's columns hang off the union field, then the member, in the field chain.
-            val ctx =
+            val memberCtx =
                 ctx.copy(
                     path =
                         ctx.path +
@@ -1121,15 +1121,15 @@ object SqlLowering {
                             OriginStep.MemberOrdinal(member.ordinal)
                 )
             return when (val type = member.type) {
-                is Scalar -> unionScalar(ctx, field, bare, literal, kindName, type)
+                is Scalar -> unionScalar(memberCtx, field, bare, literal, kindName, type)
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
-                        is EnumType -> unionEnum(ctx, field, bare, literal, kindName, target)
+                        is EnumType -> unionEnum(memberCtx, field, bare, literal, kindName, target)
                         is RecordType -> {
                             val entry = catalog[target.qualifiedName]
                             if (entry != null) {
-                                unionReference(ctx, field, bare, literal, kindName, entry)
-                            } else unionEmbed(ctx, field, bare, literal, kindName, target)
+                                unionReference(memberCtx, field, bare, literal, kindName, entry)
+                            } else unionEmbed(memberCtx, field, bare, literal, kindName, target)
                         }
                         // A union member that is itself a union already failed the field in
                         // `union`.
@@ -1529,7 +1529,7 @@ object SqlLowering {
             val childOrigin =
                 TableOrigin(
                     ctx.tableOrigin.record,
-                    ctx.path + OriginStep.FieldOrdinal(field.ordinal),
+                    ctx.tableOrigin.path + ctx.path + OriginStep.FieldOrdinal(field.ordinal),
                 )
             val childCtx =
                 FieldContext(

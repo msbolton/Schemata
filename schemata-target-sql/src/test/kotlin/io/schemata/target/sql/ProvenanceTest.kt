@@ -36,7 +36,8 @@ class ProvenanceTest {
           #6 tags: list<string>
           @sql(strategy = table) #7 notes: map<string, string>
 
-          record Line { #1 sku: string #2 qty: int32 }
+          record Line { #1 sku: string #2 qty: int32 #3 parts: list<Part> }
+          record Part { #1 name: string }
         }
         """
             .trimIndent()
@@ -66,6 +67,16 @@ class ProvenanceTest {
         assertEquals(TableOrigin(order), table("order").origin)
         assertEquals(TableOrigin(order, listOf(FieldOrdinal(5))), table("order_lines").origin)
         assertEquals(TableOrigin(order, listOf(FieldOrdinal(7))), table("order_notes").origin)
+    }
+
+    @Test
+    fun `a nested child table keeps its parent's path and no two tables share an origin`() {
+        assertEquals(
+            TableOrigin(order, listOf(FieldOrdinal(5), FieldOrdinal(3))),
+            table("order_lines_parts").origin,
+        )
+        val origins = model.schemas.single().tables.map { it.origin }
+        assertEquals(origins.size, origins.toSet().size)
     }
 
     @Test
