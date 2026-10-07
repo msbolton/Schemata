@@ -110,3 +110,13 @@ internal fun emit(
     }
     if (report.exitCode != 0) throw ProgramResult(report.exitCode)
 }
+
+/** Writes [content] to [destination], creating its parent directories. */
+internal fun writeOutput(destination: Path, content: String) {
+    try {
+        destination.createParentDirectories()
+        destination.writeText(content)
+    } catch (e: IOException) {
+        throw CliktError("cannot write $destination: ${e.message}")
+    }
+}

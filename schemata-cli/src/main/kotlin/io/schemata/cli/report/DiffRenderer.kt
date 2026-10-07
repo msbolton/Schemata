@@ -127,7 +127,7 @@ object DiffRenderer {
         return Json.document(obj(fields))
     }
 
-    private fun errorJson(d: Diagnostic): Json.Obj =
+    internal fun errorJson(d: Diagnostic): Json.Obj =
         Json.Obj(
             "code" to d.code.id,
             "message" to d.message,
@@ -137,9 +137,9 @@ object DiffRenderer {
         )
 
     /** [Json.Obj] built from a field list known only at runtime, such as one entry per target. */
-    private fun obj(fields: List<Pair<String, Any?>>): Json.Obj = Json.Obj(*fields.toTypedArray())
+    internal fun obj(fields: List<Pair<String, Any?>>): Json.Obj = Json.Obj(*fields.toTypedArray())
 
-    private fun summaryJson(comparison: Comparison, target: String): Json.Obj {
+    internal fun summaryJson(comparison: Comparison, target: String): Json.Obj {
         val verdicts = comparison.judged.flatMap { it.verdicts }.filter { it.target == target }
         return Json.Obj(
             "breaking" to verdicts.count { it.verdict is Verdict.Breaking },
@@ -147,7 +147,7 @@ object DiffRenderer {
         )
     }
 
-    private fun changeJson(j: Judged): Json.Obj {
+    internal fun changeJson(j: Judged): Json.Obj {
         val c = j.change
         return Json.Obj(
             "kind" to c.kind,

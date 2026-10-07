@@ -59,7 +59,7 @@ ship in 1.x.
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,
 SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, and JSON Schema targets,
-SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target. A minor release may add
+SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target, SCH27 for migration. A minor release may add
 warnings, so a `--strict` build can fail after an upgrade; every new code is in that release's
 notes. A set that compiled without errors keeps compiling without errors, unless it compiled only
 because of a compiler bug, which the notes name.

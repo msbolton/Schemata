@@ -5,6 +5,7 @@ import io.schemata.core.CoreCodes
 import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
 import io.schemata.lang.LangCodes
+import io.schemata.migrate.MigrateCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -19,7 +20,8 @@ class DiagnosticCoverageTest {
                 CoreCodes.all +
                 Pipeline.targets.flatMap { it.codes } +
                 ImportCodes.all +
-                EvolutionCodes.all)
+                EvolutionCodes.all +
+                MigrateCodes.all)
             .map { it.id }
             .toSet()
 

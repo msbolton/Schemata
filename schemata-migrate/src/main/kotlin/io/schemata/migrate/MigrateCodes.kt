@@ -37,7 +37,8 @@ object MigrateCodes {
             .map { step ->
                 val code =
                     when (step.risk) {
-                        Risk.DESTRUCTIVE -> if (allowDestructive) DESTRUCTIVE_ALLOWED else DESTRUCTIVE
+                        Risk.DESTRUCTIVE ->
+                            if (allowDestructive) DESTRUCTIVE_ALLOWED else DESTRUCTIVE
                         else -> MAY_FAIL
                     }
                 Diagnostic(code, message(step), step.subject.span, step.help)

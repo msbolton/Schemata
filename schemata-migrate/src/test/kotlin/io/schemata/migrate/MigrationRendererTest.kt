@@ -27,7 +27,9 @@ class MigrationRendererTest {
             sqlOf(base, base.replace("#3 note:", "#3 comment:")),
         )
         assertEquals(
-            listOf("ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"name\" TYPE varchar(200) USING \"name\"::varchar(200);"),
+            listOf(
+                "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"name\" TYPE varchar(200) USING \"name\"::varchar(200);"
+            ),
             sqlOf(base, base.replace("string(max = 100)", "string(max = 200)")),
         )
         assertEquals(
@@ -88,7 +90,10 @@ class MigrationRendererTest {
                 .trimIndent() + "\n",
             MigrationRenderer.render(migration.namespaces.single(), allowDestructive = true),
         )
-        assertEquals(listOf("migrate/s.sql"), MigrationRenderer.files(migration, true).map { it.first })
+        assertEquals(
+            listOf("migrate/s.sql"),
+            MigrationRenderer.files(migration, true).map { it.first },
+        )
     }
 
     @Test

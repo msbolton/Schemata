@@ -27,6 +27,7 @@ fun main(args: Array<String>) =
             TargetsCommand(),
             ImportCommand(),
             DiffCommand(),
+            MigrateCommand(),
             LspCommand(),
         )
         .main(args)

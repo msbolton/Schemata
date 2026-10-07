@@ -22,6 +22,7 @@ dependencies {
     implementation(project(":schemata-import-proto"))
     implementation(project(":schemata-import-sql"))
     implementation(project(":schemata-evolution"))
+    implementation(project(":schemata-migrate"))
     implementation(project(":schemata-lsp"))
     implementation(libs.clikt)
     testImplementation(project(":schemata-testkit"))

@@ -34,13 +34,24 @@ class GuideLinksTest {
     @Test
     fun `the stability page names every code family and every target`() {
         val text = File(Guide.dir, "stability.md").readText()
-        listOf("SCH0", "SCH1", "SCH20", "SCH21", "SCH22", "SCH23", "SCH24", "SCH25", "SCH26")
+        listOf(
+                "SCH0",
+                "SCH1",
+                "SCH20",
+                "SCH21",
+                "SCH22",
+                "SCH23",
+                "SCH24",
+                "SCH25",
+                "SCH26",
+                "SCH27",
+            )
             .forEach { assertTrue(text.contains(it), "$it is not mentioned") }
         val families =
             "Every family stays where it is: SCH0 for syntax, SCH1 for the language and core " +
                 "checks, SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, " +
                 "and JSON Schema targets, SCH24 for import, SCH25 for evolution, SCH26 for the " +
-                "OpenAPI target."
+                "OpenAPI target, SCH27 for migration."
         assertTrue(
             text.replace(Regex("\\s+"), " ").contains(families),
             "the families sentence is missing or changed",

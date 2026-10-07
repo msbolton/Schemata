@@ -145,3 +145,10 @@ Retired, never reused: SCH2103, SCH2104.
 | SCH2602 | error | semantic | two services, operations, or schemas lower to one OpenAPI name | operations 'S.a' and 'Other.x' both lower to post "/S/a"<br>operations 'b' and 'a' both lower to operationId 'S_a'<br>services 'A' and 'B' both lower to tag 'Same'<br>operations 'get' and 'cancel' both lower to path "/orders/{}" with different parameter names | bind one of them to another path or verb<br>rename one, or set `@openapi(name = "…")` on one<br>set a different `@openapi(name = "…")` on one of them<br>use the same parameter names in both paths |
 | SCH2603 | error | semantic | an @openapi value is not a valid id, URL, or key | @openapi(name = "a b") is not a valid operationId<br>@openapi(server = "not a url") is not a valid URL<br>@openapi(name = "a b") is not a valid tag | use letters, digits, `_`, `.`, and `-`<br>use an absolute URL such as `https://api.example.com`, or a path such as `/v1` |
 | SCH2604 | warning | lossy | something OpenAPI cannot express was dropped by the lowering | @jsonschema(name) on field 'text' does not rename the parameter | a parameter is named by the field; rename the field to rename it |
+
+## Migration (SCH27xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2701 | error | lossy | a migration step loses data; a warning under --allow-destructive | s.Customer.note: DROP COLUMN "note" loses every value the column holds | rerun with --allow-destructive once the data is migrated or no longer needed |
+| SCH2702 | warning | lossy | a migration step can fail on existing rows | s.Customer.note: SET NOT NULL on "note" fails when a row holds NULL | run UPDATE "s"."customer" SET "note" = … WHERE "note" IS NULL before applying |

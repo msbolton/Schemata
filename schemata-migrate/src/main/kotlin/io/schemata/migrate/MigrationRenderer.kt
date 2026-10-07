@@ -9,7 +9,10 @@ object MigrationRenderer {
 
     private fun t(at: At) = "${q(at.schema)}.${q(at.table)}"
 
-    /** The SQL of one step, one or more complete statements each on its own line, no trailing newline. */
+    /**
+     * The SQL of one step, one or more complete statements each on its own line, no trailing
+     * newline.
+     */
     fun sql(step: Step): String =
         when (step) {
             is CreateSchema -> Ddl.createSchema(step.schema)
@@ -27,11 +30,14 @@ object MigrationRenderer {
                 val type = Ddl.spell(step.type)
                 "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} TYPE $type USING ${q(step.column)}::$type;"
             }
-            is SetNotNull -> "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} SET NOT NULL;"
-            is DropNotNull -> "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} DROP NOT NULL;"
+            is SetNotNull ->
+                "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} SET NOT NULL;"
+            is DropNotNull ->
+                "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} DROP NOT NULL;"
             is SetDefault ->
                 "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} SET DEFAULT ${step.default};"
-            is DropDefault -> "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} DROP DEFAULT;"
+            is DropDefault ->
+                "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} DROP DEFAULT;"
             is Backfill ->
                 "UPDATE ${t(step.at)} SET ${q(step.column)} = ${step.default} WHERE ${q(step.column)} IS NULL;"
             is DropConstraint -> {
@@ -43,7 +49,8 @@ object MigrationRenderer {
                 when (val c = step.constraint) {
                     is Constraint.PrimaryKey ->
                         "ALTER TABLE ${t(step.at)} ADD ${Ddl.primaryKey(c.name, c.columns)};"
-                    is Constraint.UniqueKey -> "ALTER TABLE ${t(step.at)} ADD ${Ddl.unique(c.unique)};"
+                    is Constraint.UniqueKey ->
+                        "ALTER TABLE ${t(step.at)} ADD ${Ddl.unique(c.unique)};"
                     is Constraint.CheckConstraint ->
                         "ALTER TABLE ${t(step.at)} ADD ${Ddl.check(c.check)};"
                     is Constraint.Foreign -> Ddl.addForeignKey(c.fk)
@@ -56,7 +63,8 @@ object MigrationRenderer {
             is RenameIndex ->
                 "ALTER INDEX ${q(step.schema)}.${q(step.from)} RENAME TO ${q(step.to)};"
             is Comment ->
-                if (step.column == null) Ddl.commentOnTable(step.at.schema, step.at.table, step.text)
+                if (step.column == null)
+                    Ddl.commentOnTable(step.at.schema, step.at.table, step.text)
                 else Ddl.commentOnColumn(step.at.schema, step.at.table, step.column, step.text)
         }
 

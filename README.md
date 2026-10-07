@@ -126,6 +126,7 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
     schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
     schemata lsp
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no error, even
