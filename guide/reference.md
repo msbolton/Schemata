@@ -2607,18 +2607,22 @@ Every step is `clean`, `may fail`, or `destructive`:
   you rerun with `--allow-destructive`, which writes the step under a one-line comment naming the
   code and reports it as a warning instead.
 
-Within a namespace the steps run in a fixed order: the schema; table renames, then new tables;
-column renames; added columns; constraint and index drops; type changes; defaults; backfills and
-nullability; constraints and indexes added, foreign keys last; drops of columns, then tables;
-comments. Constraint and index drops precede type changes because Postgres re-checks checks and
-foreign keys on a column whose type changes. Three cases move a drop earlier still: a dropped
-column or table whose name an added or renamed one takes, a constraint or index naming a column
-whose type changes, and a rename cycle, which routes through a temporary name
-`<name>__schemata_tmp`. Primary keys, uniques, and indexes share the schema's relation names, so
-their renames are ordered together per schema and run before any new table is created.
-Primary-key and unique drops are `DROP CONSTRAINT … CASCADE`, so a foreign key in another
-namespace's file never blocks them; a foreign key between two namespaces is dropped `IF EXISTS` in
-the earlier of their two files and re-added in the later.
+Within a namespace the steps run in a fixed order: the schema created; table renames; primary-key,
+unique, and index renames (these share the schema's relation names with tables, so they move
+before any new table could take a vacated name); new tables; column renames; added columns;
+constraint and index drops; type changes; defaults; enum value renames (one
+`UPDATE … SET col = CASE col WHEN 'old' THEN 'new' … END` per column, so a swap or a chain of
+renames never merges two values); backfills and nullability; constraints added, foreign keys last;
+indexes added; column drops; table drops; comments; the schema dropped. Constraint and index drops
+precede type changes because Postgres re-checks checks and foreign keys on a column whose type
+changes. Three cases move a drop earlier still: a dropped column or table whose name an added or
+renamed one takes, a constraint or index naming a column whose type changes, and a rename cycle,
+which routes through a temporary name `<name>__schemata_tmp`. A required column that replaces a
+dropped shape (a strategy change) or copies a moved key is made `NOT NULL` only after the drops and
+the keys, so its data can be moved or filled first. Primary-key and unique drops are
+`DROP CONSTRAINT … CASCADE`, so a foreign key in another namespace's file never blocks them; a
+foreign key between two namespaces is dropped `IF EXISTS` in the earlier of their two files and
+re-added in the later.
 
 | Change | Steps | Risk |
 |---|---|---|
@@ -2636,7 +2640,7 @@ the earlier of their two files and re-added in the later.
 | Default added, changed, or removed | `SET DEFAULT` / `DROP DEFAULT` | clean (a removal on a non-null column stays clean here; inserts are the application's concern) |
 | Enum value added | drop and re-add the enum check | clean |
 | Enum value removed | drop and re-add the enum check | may fail |
-| Enum value renamed (emitted name changes) | `UPDATE … SET col = 'new' WHERE col = 'old'`, then drop and re-add the enum check | clean |
+| Enum value renamed (emitted name changes) | `UPDATE … SET col = CASE col WHEN 'old' THEN 'new' … END WHERE col IN (…)`, one statement per column covering every renamed value, then drop and re-add the enum check | clean |
 | Union member added | `ADD COLUMN` per variant column, re-add the kind and variant checks | clean |
 | Union member removed | `DROP COLUMN` per variant column, re-add the checks | destructive |
 | Union member type changed, or a field's referenced record or union changed | the columns and child tables under that field or member are a new identity: drop the old (destructive), add the new | destructive |
