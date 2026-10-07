@@ -1,6 +1,7 @@
 package io.schemata.lang.format
 
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.FormatParse
 import io.schemata.lang.Parser
 import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
@@ -51,7 +52,47 @@ object Formatter {
         return FormatResult.Formatted(text)
     }
 
-    private fun CommentTable.count(): Int =
+    /**
+     * Prints a 2.0 file in the canonical layout. The output always ends its lines with `\n` and
+     * never starts with a byte-order mark, as [format]'s does.
+     */
+    fun format2(input: String, path: String): FormatResult {
+        val source = normalize(input)
+        val parsed = Parser.parseForFormat2(source, path)
+        val file = parsed.file ?: return FormatResult.Failed(parsed.diagnostics)
+        return FormatResult.Formatted(checked2(print(file, parsed.comments, source), parsed, path))
+    }
+
+    /**
+     * The 2.0 text of [file], whose spans and [comments] point into [source]. The upgrader prints a
+     * mapped 1.x file through this as well, so literals are always sliced from the text they were
+     * parsed from.
+     */
+    internal fun print(file: SourceFile, comments: CommentTable, source: String): String =
+        Printer2(source, comments).file(file)
+
+    /** [input] without a byte-order mark and with every line ending turned into `\n`. */
+    internal fun normalize(input: String): String =
+        input.removePrefix("\uFEFF").replace("\r\n", "\n").replace('\r', '\n')
+
+    /**
+     * [text] after checking that it reads back as 2.0 and keeps every comment of [parsed]: either
+     * failing is a printer bug, never the user's.
+     */
+    internal fun checked2(text: String, parsed: FormatParse, path: String): String {
+        val reparsed = Parser.parseForFormat2(text, path)
+        check(reparsed.file != null) {
+            "formatter produced unparsable output for $path: ${reparsed.diagnostics}"
+        }
+        val before = parsed.comments.count()
+        val after = reparsed.comments.count()
+        check(before == after) {
+            "formatter changed the comment count for $path: input had $before, output has $after"
+        }
+        return text
+    }
+
+    internal fun CommentTable.count(): Int =
         fileLeading.size +
             leading.values.sumOf { it.size } +
             trailing.values.sumOf { it.size } +
@@ -59,18 +100,13 @@ object Formatter {
             endOfBlock.values.sumOf { it.size } +
             fileTrailing.size
 
-    internal class Printer(val source: String, val comments: CommentTable) {
+    internal open class Printer(val source: String, val comments: CommentTable) {
         val lines = source.lines()
 
         fun file(f: SourceFile): String = buildString {
             comments.fileLeading.forEach { appendLine(it.text) }
             f.doc?.let { docLines(it, "").forEach { l -> appendLine(l) } }
-            f.annotations.forEach { a ->
-                comments.leading[a.span]?.forEach { appendLine(it.text) }
-                appendLine(annotation(a) + trailing(a.span))
-            }
-            comments.leading[f.namespace.span]?.forEach { appendLine(it.text) }
-            appendLine("namespace ${f.namespace.name}" + trailing(f.namespace.span))
+            header(f).forEach { appendLine(it) }
             if (f.imports.isNotEmpty()) {
                 appendLine()
                 f.imports.forEach { i ->
@@ -96,11 +132,21 @@ object Formatter {
             }
         }
 
+        /** The file's annotations, each on its own line, then `namespace`, with their comments. */
+        internal open fun header(f: SourceFile): List<String> = buildList {
+            f.annotations.forEach { a ->
+                comments.leading[a.span]?.forEach { add(it.text) }
+                add(annotation(a) + trailing(a.span))
+            }
+            comments.leading[f.namespace.span]?.forEach { add(it.text) }
+            add("namespace ${f.namespace.name}" + trailing(f.namespace.span))
+        }
+
         // Every element prints as: leading comments, doc lines, own-line annotations, then the
         // element. A declaration returns its lines joined with '\n' and a trailing '\n'. Record,
         // enum and union print their own trailing comment as part of their body; only alias needs
         // it added here.
-        fun declaration(d: Declaration, indent: String): String = buildString {
+        open fun declaration(d: Declaration, indent: String): String = buildString {
             comments.leading[d.span]?.forEach { appendLine(indent + it.text) }
             d.doc?.let { docLines(it, indent).forEach { l -> appendLine(l) } }
             d.annotations.forEach { appendLine(indent + annotation(it) + trailing(it.span)) }
@@ -153,7 +199,7 @@ object Formatter {
             return line.substring(start, end)
         }
 
-        internal fun typeExpr(t: TypeExpr): String {
+        internal open fun typeExpr(t: TypeExpr): String {
             val args =
                 if (t.args.isEmpty()) "" else "<" + t.args.joinToString(", ") { typeExpr(it) } + ">"
             val refinements =
@@ -168,7 +214,7 @@ object Formatter {
                 is Refinement.Positional -> slice(r.value.span)
             }
 
-        internal fun annotation(a: Annotation): String {
+        internal open fun annotation(a: Annotation): String {
             val args =
                 if (a.args.isEmpty()) ""
                 else "(" + a.args.joinToString(", ") { annotationArg(it) } + ")"
@@ -199,7 +245,7 @@ object Formatter {
                     annotations[0].args.size <= 1 &&
                     comments.trailing[annotations[0].span].isNullOrEmpty())
 
-        internal fun record(d: RecordDecl, indent: String): String {
+        internal open fun record(d: RecordDecl, indent: String): String {
             val canOneLine = canOneLineRecord(d)
             val oneLineMembers =
                 if (canOneLine) d.fields.joinToString(" ") { fieldOneLine(it) } else ""
@@ -227,7 +273,7 @@ object Formatter {
             return block(indent, "record ${d.name}", d.span, canOneLine, oneLineMembers, members)
         }
 
-        internal fun enum(d: EnumDecl, indent: String): String {
+        internal open fun enum(d: EnumDecl, indent: String): String {
             val canOneLine = canOneLineEnum(d)
             val oneLineMembers =
                 if (canOneLine) d.values.joinToString(", ") { valueOneLine(it) } else ""

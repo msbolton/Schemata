@@ -60,7 +60,8 @@ object Parser {
         return ParseResult(if (diagnostics.hasErrors) null else file, diagnostics)
     }
 
-    fun parseForFormat(input: String, path: String): FormatParse {
+    /** The 1.x parse with comments attached; the formatter and the upgrader read it. */
+    fun parse1ForUpgrade(input: String, path: String): FormatParse {
         val source = stripBom(input)
         val listener = CollectingErrorListener(path)
         val (parser, tokens) = lexAndParse(source, listener)
@@ -74,6 +75,31 @@ object Parser {
         return FormatParse(
             file,
             Comments.attach(file, Comments.collect(tokens), source),
+            diagnostics,
+        )
+    }
+
+    /** The parse `fmt` reads, which is still the 1.x surface: the same as [parse1ForUpgrade]. */
+    fun parseForFormat(input: String, path: String): FormatParse = parse1ForUpgrade(input, path)
+
+    /** The 2.0 parse with comments attached, for the 2.0 formatter. */
+    fun parseForFormat2(input: String, path: String): FormatParse {
+        val source = stripBom(input)
+        val listener = CollectingErrorListener(path)
+        val lexer = Schemata2Lexer(CharStreams.fromString(source))
+        val tokens = CommonTokenStream(lexer)
+        val parser = Schemata2Parser(tokens)
+        installErrorListener(listener, lexer, parser)
+        val tree = parser.file()
+        if (listener.diagnostics.hasErrors)
+            return FormatParse(null, CommentTable.EMPTY, listener.diagnostics)
+        val builderDiagnostics = mutableListOf<Diagnostic>()
+        val file = Ast2Builder(path, builderDiagnostics).build(tree)
+        val diagnostics = listener.diagnostics + builderDiagnostics
+        if (diagnostics.hasErrors) return FormatParse(null, CommentTable.EMPTY, diagnostics)
+        return FormatParse(
+            file,
+            Comments.attach(file, Comments.collect2(tokens), source),
             diagnostics,
         )
     }
