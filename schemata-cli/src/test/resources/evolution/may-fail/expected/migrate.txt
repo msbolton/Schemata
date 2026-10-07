@@ -1,0 +1,31 @@
+s.sql
+  drop constraint "customer"."ck_customer_age_min"    clean
+  set not null "customer"."email"    may fail
+  add constraint "customer"."uq_customer_code"    may fail
+  add constraint "customer"."ck_customer_age_min"    may fail
+
+4 steps in 1 file
+0 destructive, 3 may fail
+
+warning[SCH2702] (lossy): s.Customer.email: SET NOT NULL on "email" fails when a row holds NULL
+ --> new/s.schemata:5:6
+  |
+5 |   #2 email: string(max = 254)
+  |      ^^^^^
+  = help: run UPDATE "s"."customer" SET "email" = … WHERE "email" IS NULL before applying
+
+warning[SCH2702] (lossy): s.Customer.age: CONSTRAINT "ck_customer_age_min" fails when a row violates it
+ --> new/s.schemata:6:6
+  |
+6 |   #3 age: int32(min = 18)
+  |      ^^^
+  = help: fix or delete the rows the new constraint rejects before applying
+
+warning[SCH2702] (lossy): s.Customer.code: UNIQUE "uq_customer_code" fails when rows duplicate the key
+ --> new/s.schemata:7:19
+  |
+7 |   @sql(unique) #4 code: string(max = 8)
+  |                   ^^^^
+  = help: remove duplicate rows before applying
+
+0 errors, 3 warnings

@@ -1,0 +1,8 @@
+namespace s
+
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 email: string(max = 254)
+  #3 age: int32(min = 18)
+  @sql(unique) #4 code: string(max = 8)
+}

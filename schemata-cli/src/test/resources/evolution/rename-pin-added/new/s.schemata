@@ -1,6 +1,6 @@
 namespace s
 
 record Order {
-  #1 id: uuid
+  @sql(key) #1 id: uuid
   @proto(name = "note") @sql(column = "note") @xsd(name = "note") @jsonschema(name = "note") #9 comment: string(max = 500)?
 }

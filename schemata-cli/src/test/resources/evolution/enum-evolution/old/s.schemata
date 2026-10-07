@@ -5,3 +5,8 @@ enum Status {
   #2 paid
   #3 cancelled
 }
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 status: Status
+}

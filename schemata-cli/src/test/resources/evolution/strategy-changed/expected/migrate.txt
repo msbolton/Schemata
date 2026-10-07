@@ -1,0 +1,44 @@
+s.sql
+  create table "order_tags"    clean
+  add column "order"."billing"    clean
+  set not null "order"."billing"    may fail
+  add constraint "order_tags"."fk_order_tags_order"    clean
+  drop column "order"."tags"    destructive
+  drop column "order"."billing_street"    destructive
+  drop column "order"."billing_city"    destructive
+
+7 steps in 1 file
+3 destructive, 1 may fail
+
+warning[SCH2702] (lossy): s.Order.billing: SET NOT NULL on "billing" fails when a row holds NULL
+ --> new/s.schemata:6:28
+  |
+6 |   @sql(strategy = json) #3 billing: Address
+  |                            ^^^^^^^
+  = help: run UPDATE "s"."order" SET "billing" = … WHERE "billing" IS NULL before applying
+
+warning[SCH2701] (lossy): s.Order.tags: DROP COLUMN "tags" loses every value the column holds
+ --> old/s.schemata:5:6
+  |
+5 |   #2 tags: list<string(max = 16)>
+  |      ^^^^
+  = help: move the data into "order_tags" between this statement and the one that creates it, then
+          rerun with --allow-destructive
+
+warning[SCH2701] (lossy): s.Order.billing.street: DROP COLUMN "billing_street" loses every value the column holds
+  --> old/s.schemata:10:6
+   |
+10 |   #1 street: string(max = 200)
+   |      ^^^^^^
+   = help: move the data into "order"."billing" between this statement and the one that creates it,
+           then rerun with --allow-destructive
+
+warning[SCH2701] (lossy): s.Order.billing.city: DROP COLUMN "billing_city" loses every value the column holds
+  --> old/s.schemata:11:6
+   |
+11 |   #2 city: string(max = 100)
+   |      ^^^^
+   = help: move the data into "order"."billing" between this statement and the one that creates it,
+           then rerun with --allow-destructive
+
+0 errors, 4 warnings

@@ -1,7 +1,7 @@
 namespace s
 
 record Customer {
-  id: uuid
+  @sql(key) id: uuid
   age: int32
   name: string(max = 100)
 }

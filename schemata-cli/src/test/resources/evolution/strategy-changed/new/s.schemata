@@ -1,0 +1,12 @@
+namespace s
+
+record Order {
+  @sql(key) #1 id: uuid
+  @sql(strategy = table) #2 tags: list<string(max = 16)>
+  @sql(strategy = json) #3 billing: Address
+}
+
+record Address {
+  #1 street: string(max = 200)
+  #2 city: string(max = 100)
+}

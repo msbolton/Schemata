@@ -1,0 +1,26 @@
+s.Order
+  field 'tags': @sql(strategy) added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'billing': @sql(strategy) changed    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+2 changes
+proto: 0 breaking, 0 notes
+sql: 2 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: sql: s.Order.tags: @sql(strategy) changed breaks how existing rows map onto tables
+ --> new/s.schemata:5:29
+  |
+5 |   @sql(strategy = table) #2 tags: list<string(max = 16)>
+  |                             ^^^^
+  = help: avoid changing @sql(strategy) once the table holds data
+
+error[SCH2501]: sql: s.Order.billing: @sql(strategy) changed breaks how existing rows map onto tables
+ --> new/s.schemata:6:28
+  |
+6 |   @sql(strategy = json) #3 billing: Address
+  |                            ^^^^^^^
+  = help: avoid changing @sql(strategy) once the table holds data
+
+2 errors, 0 warnings

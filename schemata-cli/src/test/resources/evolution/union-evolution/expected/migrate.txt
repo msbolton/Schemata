@@ -1,0 +1,35 @@
+not migrated: a side has sql errors
+
+error[SCH2106]: record 'BankTransfer' has no primary key and is not used by any field
+ --> new/s.schemata:5:8
+  |
+5 | record BankTransfer { #1 iban: string(max = 34) }
+  |        ^^^^^^^^^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'Cash' has no primary key and is not used by any field
+ --> new/s.schemata:7:8
+  |
+7 | record Cash {}
+  |        ^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'Wallet' has no primary key and is not used by any field
+ --> old/s.schemata:9:8
+  |
+9 | record Wallet { #1 provider: string(max = 32) }
+  |        ^^^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'Voucher' has no primary key and is not used by any field
+  --> old/s.schemata:11:8
+   |
+11 | record Voucher { #1 code: string(max = 16) }
+   |        ^^^^^^^
+   = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+           record only lowers when a field embeds it
+
+4 errors, 0 warnings

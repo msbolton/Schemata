@@ -1,0 +1,11 @@
+not migrated: a side has sql errors
+
+error[SCH2106]: record 'Note' has no primary key and is not used by any field
+  --> old/s.schemata:12:10
+   |
+12 |   record Note { #1 text: string(max = 200) }
+   |          ^^^^
+   = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+           record only lowers when a field embeds it
+
+1 error, 0 warnings

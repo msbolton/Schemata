@@ -1,0 +1,14 @@
+s.sql
+  drop column "customer"."note"    destructive
+
+1 step in 1 file
+1 destructive, 0 may fail
+
+warning[SCH2701] (lossy): s.Customer.note: DROP COLUMN "note" loses every value the column holds
+ --> old/s.schemata:5:6
+  |
+5 |   #2 note: string(max = 200)?
+  |      ^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+0 errors, 1 warning
