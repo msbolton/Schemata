@@ -1,0 +1,5 @@
+{
+  "changes": [{"kind":"doc.changed","path":"s.Customer.name","old":null,"new":null,"file":"new/s.schemata","line":6,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible","openapi":"compatible"}},{"kind":"doc.changed","path":"s.Customer.note","old":null,"new":null,"file":"new/s.schemata","line":8,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible","openapi":"compatible"}},{"kind":"doc.changed","path":"s.Customer","old":null,"new":null,"file":"new/s.schemata","line":4,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible","openapi":"compatible"}}],
+  "summary": {"proto":{"breaking":0,"notes":0},"sql":{"breaking":0,"notes":0},"xsd":{"breaking":0,"notes":0},"jsonschema":{"breaking":0,"notes":0},"openapi":{"breaking":0,"notes":0}},
+  "exitCode": 0
+}

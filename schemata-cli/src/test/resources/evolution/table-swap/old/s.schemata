@@ -1,0 +1,15 @@
+namespace s
+
+@sql(table = "alpha")
+record First {
+  @sql(key) #1 id: uuid
+  @sql(unique) #2 code: string(max = 8)
+  @sql(index) #3 label: string(max = 32)
+}
+
+@sql(table = "beta")
+record Second {
+  @sql(key) #1 id: uuid
+  @sql(unique) #2 code: string(max = 8)
+  @sql(index) #3 label: string(max = 32)
+}

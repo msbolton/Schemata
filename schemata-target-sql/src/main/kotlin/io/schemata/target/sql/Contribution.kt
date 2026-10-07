@@ -1,5 +1,6 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.Field
 import io.schemata.core.ir.QualifiedName
 
 /**
@@ -11,24 +12,48 @@ import io.schemata.core.ir.QualifiedName
  */
 data class FieldContext(
     val table: String,
+    val tableOrigin: TableOrigin,
     val prefix: String = "",
     val forceNullable: Boolean = false,
     val embedding: List<QualifiedName> = emptyList(),
     val parentTable: String = table,
-    val parentKeys: List<Pair<String, ColumnType>> = emptyList(),
+    val parentKeys: List<ParentKey> = emptyList(),
+    val path: List<OriginStep> = emptyList(),
     val where: String,
 ) {
-    fun nested(field: String, nullable: Boolean, into: QualifiedName, where: String) =
+    fun nested(
+        field: String,
+        nullable: Boolean,
+        into: QualifiedName,
+        where: String,
+        step: OriginStep,
+    ) =
         FieldContext(
             table = table,
+            tableOrigin = tableOrigin,
             prefix = "$prefix${field}_",
             forceNullable = forceNullable || nullable,
             embedding = embedding + into,
             parentTable = parentTable,
             parentKeys = parentKeys,
+            path = path + step,
             where = where,
         )
+
+    /**
+     * The origin of a column [field] produces directly; [part] tells several such columns apart.
+     */
+    fun columnOrigin(field: Field, part: String? = null): ColumnOrigin =
+        ColumnOrigin.FieldPath(path + OriginStep.FieldOrdinal(field.ordinal), part)
 }
+
+/**
+ * One key column a child table copies from the table it hangs off: its [column] name and [type],
+ * and [id], the identity the copy's origin carries (`parent:<id>`). A record's own key column is
+ * identified by its key field's ordinal, so moving the key to another field is a new column rather
+ * than a rename; a child table's own key columns keep their copy's id, or are `position` or `key`.
+ */
+data class ParentKey(val column: String, val type: ColumnType, val id: String)
 
 /** A foreign key together with the namespaces it links, so it can be placed in the later file. */
 class PendingForeignKey(

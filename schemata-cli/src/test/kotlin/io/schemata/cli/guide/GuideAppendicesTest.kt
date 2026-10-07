@@ -7,6 +7,7 @@ import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.LangCodes
+import io.schemata.migrate.MigrateCodes
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -79,6 +80,7 @@ class GuideAppendicesTest {
                 Pipeline.targetNamed("openapi")!!.codes,
                 emptyList(),
             ),
+            Module("Migration (SCH27xx)", "SCH27", MigrateCodes.all, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {

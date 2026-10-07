@@ -4,6 +4,7 @@ import io.schemata.cli.Pipeline
 import io.schemata.cli.SourceInput
 import io.schemata.cli.analyzeSide
 import io.schemata.cli.cannotDiff
+import io.schemata.cli.migrate
 import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.Palette
 import io.schemata.cli.report.Report
@@ -36,6 +37,11 @@ class Fixture(val dir: File) {
 
     val strict: Boolean = header?.contains("strict") == true
 
+    /** True for a `# migrate=old,new` fixture: planned through `schemata migrate`. */
+    val isMigrate: Boolean = header?.contains("migrate=") == true
+
+    val allowDestructive: Boolean = header?.contains("allow-destructive") == true
+
     /**
      * True for a `# diff=old,new` fixture: compared through [Evolution], not compiled or checked.
      */
@@ -45,13 +51,13 @@ class Fixture(val dir: File) {
         header?.let { Regex("targets=([a-z,]+)").find(it) }?.groupValues?.get(1)?.split(',')
 
     val targets: List<Target<*>> =
-        if (isDiff) emptyList()
+        if (isDiff || isMigrate) emptyList()
         else
             targetNames?.map { Pipeline.targetNamed(it) ?: error("$name: unknown target '$it'") }
                 ?: Pipeline.targets
 
     val rulebooks: List<Rulebook> =
-        if (!isDiff) emptyList()
+        if (!isDiff || isMigrate) emptyList()
         else
             targetNames?.map { Rulebooks.named(it) ?: error("$name: unknown target '$it'") }
                 ?: Rulebooks.all
@@ -83,10 +89,10 @@ class Fixture(val dir: File) {
      * collide once both sides' sources share one [Sources] lookup.
      */
     val oldSources: List<SourceInput> =
-        if (isDiff) schemataFiles(File(dir, "old"), "old") else emptyList()
+        if (isDiff || isMigrate) schemataFiles(File(dir, "old"), "old") else emptyList()
 
     val newSources: List<SourceInput> =
-        if (isDiff) schemataFiles(File(dir, "new"), "new") else emptyList()
+        if (isDiff || isMigrate) schemataFiles(File(dir, "new"), "new") else emptyList()
 
     val expected: String
         get() = expectedFile.readText().let { if (header != null) it.substringAfter('\n') else it }
@@ -95,7 +101,7 @@ class Fixture(val dir: File) {
     fun render(): String {
         val full =
             when {
-                isDiff -> {
+                isDiff || isMigrate -> {
                     val report = Report.of(diffDiagnostics(), emptyList(), emptyList(), strict)
                     HumanRenderer.render(
                         report,
@@ -136,7 +142,7 @@ class Fixture(val dir: File) {
 
     private fun diagnostics(): List<Diagnostic> =
         when {
-            isDiff -> diffDiagnostics()
+            isDiff || isMigrate -> diffDiagnostics()
             foreign.isNotEmpty() -> importDiagnostics()
             else -> Pipeline.check(sources, targets, strict).diagnostics
         }
@@ -151,6 +157,7 @@ class Fixture(val dir: File) {
         val new = analyzeSide(newSources)
         val cannotDiff = cannotDiff(old, new)
         if (cannotDiff.isNotEmpty()) return cannotDiff
+        if (isMigrate) return migrate(old.schema!!, new.schema!!, allowDestructive).diagnostics
         return Evolution.compare(old.schema!!, new.schema!!, rulebooks).diagnostics
     }
 

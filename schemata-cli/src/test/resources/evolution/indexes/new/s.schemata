@@ -1,0 +1,8 @@
+namespace s
+
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 email: string(max = 254)
+  @sql(unique) #3 ref: string(max = 8)
+  @sql(index) #4 city: string(max = 64)?
+}

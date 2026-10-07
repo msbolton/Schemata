@@ -1,0 +1,7 @@
+namespace s
+
+record Job {
+  @sql(key) #1 id: uuid
+  #2 name: string(max = 64)
+  #3 retries: string = "3"
+}

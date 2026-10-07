@@ -1,0 +1,10 @@
+s.sql
+  rename table "order" to "purchase"    clean
+  rename constraint "purchase"."pk_order" to "pk_purchase"    clean
+  rename constraint "purchase"."uq_order_number" to "uq_purchase_number"    clean
+  create table "order"    clean
+
+4 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

@@ -3,4 +3,12 @@ namespace s
 record Customer {
   #1 id: uuid
   @sql(key) #2 code: string(max = 16)
+  #3 notes: list<Note>
+
+  record Note { #1 text: string(max = 200) }
+}
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 customer: Customer
 }

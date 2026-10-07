@@ -1,0 +1,22 @@
+s.sql
+  drop table "customer"    destructive
+  drop table "note"    destructive
+
+2 steps in 1 file
+2 destructive, 0 may fail
+
+warning[SCH2701] (lossy): s.Customer: DROP TABLE "customer" loses every row of the table
+ --> old/s.schemata:3:8
+  |
+3 | record Customer {
+  |        ^^^^^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+warning[SCH2701] (lossy): s.Order.Note: DROP TABLE "note" loses every row of the table
+  --> old/s.schemata:12:10
+   |
+12 |   record Note { @sql(key) #1 text: string(max = 200) }
+   |          ^^^^
+   = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+0 errors, 2 warnings

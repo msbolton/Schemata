@@ -1,0 +1,7 @@
+@sql(schema = "crm")
+namespace b
+
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 name: string(max = 100)
+}

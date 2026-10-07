@@ -1,0 +1,9 @@
+s.sql
+  set default "settings"."retries"    clean
+  set default "settings"."timeout"    clean
+  drop default "settings"."region"    clean
+
+3 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

@@ -1,7 +1,6 @@
 package io.schemata.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.arguments.argument
@@ -20,11 +19,7 @@ import io.schemata.importer.Importer
 import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
-import java.io.IOException
-import java.nio.file.Path
 import kotlin.io.path.Path
-import kotlin.io.path.createParentDirectories
-import kotlin.io.path.writeText
 
 class ImportCommand : CliktCommand(name = "import") {
     override fun help(context: Context) =
@@ -74,17 +69,8 @@ class ImportCommand : CliktCommand(name = "import") {
             )
         val report = importReport(result, reporting.strict)
         if (report.errors == 0) {
-            result.files.forEach { write(out.resolve("import").resolve(it.path), it.content) }
+            result.files.forEach { writeOutput(out.resolve("import").resolve(it.path), it.content) }
         }
         emit(this, report, Sources.of(files), reporting, out.toString())
-    }
-}
-
-private fun write(destination: Path, content: String) {
-    try {
-        destination.createParentDirectories()
-        destination.writeText(content)
-    } catch (e: IOException) {
-        throw CliktError("cannot write $destination: ${e.message}")
     }
 }

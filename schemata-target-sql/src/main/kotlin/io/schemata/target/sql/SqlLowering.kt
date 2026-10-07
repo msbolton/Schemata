@@ -206,11 +206,12 @@ object SqlLowering {
             val ctx =
                 FieldContext(
                     table = tableName,
+                    tableOrigin = TableOrigin(record.qualifiedName),
                     embedding = listOf(record.qualifiedName),
                     parentTable = tableName,
                     parentKeys =
                         entry.keyFields.zip(entry.keyColumns).mapNotNull { (key, column) ->
-                            keyType(key)?.let { column to it }
+                            keyType(key)?.let { ParentKey(column, it, "${key.ordinal}") }
                         },
                     where = "",
                 )
@@ -273,6 +274,8 @@ object SqlLowering {
                     uniques = uniques.map { it.second },
                     indexes = indexes.map { it.second },
                     doc = record.doc,
+                    origin = ctx.tableOrigin,
+                    span = record.nameSpan,
                 )
             return RecordTables(
                 table,
@@ -886,6 +889,8 @@ object SqlLowering {
                     notes =
                         if (override != null) listOf(TypeText.of(field.type, field.nullable))
                         else emptyList(),
+                    origin = ctx.columnOrigin(field),
+                    span = field.nameSpan,
                 )
             return Contribution(
                 columns = listOf(column),
@@ -918,6 +923,8 @@ object SqlLowering {
                         type = type,
                         nullable = field.nullable || ctx.forceNullable,
                         doc = field.doc,
+                        origin = ctx.columnOrigin(field, "k${key.ordinal}"),
+                        span = field.nameSpan,
                     )
                 }
             if (columns.isEmpty()) return Contribution.NONE
@@ -972,7 +979,14 @@ object SqlLowering {
             rawName: String,
         ): Contribution {
             if (recursionError(ctx, field, target)) return Contribution.NONE
-            val inner = ctx.nested(rawName, field.nullable, target.qualifiedName, ctx.where)
+            val inner =
+                ctx.nested(
+                    rawName,
+                    field.nullable,
+                    target.qualifiedName,
+                    ctx.where,
+                    OriginStep.FieldOrdinal(field.ordinal),
+                )
             val parts =
                 target.fields.map {
                     contribute(inner.copy(where = "field '${target.name}.${it.name}'"), it)
@@ -1049,6 +1063,12 @@ object SqlLowering {
                     type = ColumnType.TEXT,
                     nullable = field.nullable || ctx.forceNullable,
                     doc = field.doc,
+                    origin =
+                        ColumnOrigin.FieldPath(
+                            ctx.path + OriginStep.FieldOrdinal(field.ordinal),
+                            "kind",
+                        ),
+                    span = field.nameSpan,
                 )
             val kindCheck =
                 Check(
@@ -1090,17 +1110,25 @@ object SqlLowering {
             literal: String,
             kindName: String,
             member: UnionMember,
-        ): Contribution =
-            when (val type = member.type) {
-                is Scalar -> unionScalar(ctx, field, bare, literal, kindName, type)
+        ): Contribution {
+            // The member's columns hang off the union field, then the member, in the field chain.
+            val memberCtx =
+                ctx.copy(
+                    path =
+                        ctx.path +
+                            OriginStep.FieldOrdinal(field.ordinal) +
+                            OriginStep.MemberOrdinal(member.ordinal)
+                )
+            return when (val type = member.type) {
+                is Scalar -> unionScalar(memberCtx, field, bare, literal, kindName, type)
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
-                        is EnumType -> unionEnum(ctx, field, bare, literal, kindName, target)
+                        is EnumType -> unionEnum(memberCtx, field, bare, literal, kindName, target)
                         is RecordType -> {
                             val entry = catalog[target.qualifiedName]
                             if (entry != null) {
-                                unionReference(ctx, field, bare, literal, kindName, entry)
-                            } else unionEmbed(ctx, field, bare, literal, kindName, target)
+                                unionReference(memberCtx, field, bare, literal, kindName, entry)
+                            } else unionEmbed(memberCtx, field, bare, literal, kindName, target)
                         }
                         // A union member that is itself a union already failed the field in
                         // `union`.
@@ -1111,6 +1139,7 @@ object SqlLowering {
                 is ListOf,
                 is MapOf -> Contribution.NONE
             }
+        }
 
         /** A raw scalar member: one nullable column named `<field>_<member>`. */
         private fun unionScalar(
@@ -1136,7 +1165,14 @@ object SqlLowering {
             }
             val mapped =
                 SqlTypes.scalar(scalar.copy(refinements = refinements), name, overridden = false)
-            val column = Column(name = name, type = mapped.type, nullable = true)
+            val column =
+                Column(
+                    name = name,
+                    type = mapped.type,
+                    nullable = true,
+                    origin = ColumnOrigin.FieldPath(ctx.path),
+                    span = field.nameSpan,
+                )
             val checks =
                 mapped.checks.map { (suffix, expression) ->
                     Check(
@@ -1163,7 +1199,14 @@ object SqlLowering {
             val rawName = "${ctx.prefix}${bare}_$literal"
             val name = identifier(rawName, field.nameSpan)
             val mapped = SqlTypes.enum(target.values.map { it.name }, name)
-            val column = Column(name = name, type = mapped.type, nullable = true)
+            val column =
+                Column(
+                    name = name,
+                    type = mapped.type,
+                    nullable = true,
+                    origin = ColumnOrigin.FieldPath(ctx.path),
+                    span = field.nameSpan,
+                )
             val checks =
                 mapped.checks.map { (suffix, expression) ->
                     Check(
@@ -1198,6 +1241,8 @@ object SqlLowering {
                         name = identifier("${rawName}_$keyColumn", field.nameSpan),
                         type = columnType,
                         nullable = true,
+                        origin = ColumnOrigin.FieldPath(ctx.path, "k${key.ordinal}"),
+                        span = field.nameSpan,
                     )
                 }
             if (columns.isEmpty()) return Contribution.NONE
@@ -1235,7 +1280,14 @@ object SqlLowering {
         ): Contribution {
             if (recursionError(ctx, field, target)) return Contribution.NONE
             val rawName = "${ctx.prefix}${bare}_$literal"
-            val inner = ctx.nested("${bare}_$literal", true, target.qualifiedName, ctx.where)
+            // ctx.path already ends in the member step, so the nested context only extends the
+            // prefix.
+            val inner =
+                ctx.copy(
+                    prefix = "${ctx.prefix}${bare}_${literal}_",
+                    forceNullable = true,
+                    embedding = ctx.embedding + target.qualifiedName,
+                )
             val merged =
                 merge(
                     target.fields.map {
@@ -1321,6 +1373,8 @@ object SqlLowering {
                     default = field.default?.let { Naming.literal(it) },
                     doc = field.doc,
                     notes = if (lossy) listOf(TypeText.of(type, field.nullable)) else emptyList(),
+                    origin = ctx.columnOrigin(field),
+                    span = field.nameSpan,
                 )
             return Contribution(
                 columns = listOf(column),
@@ -1357,6 +1411,8 @@ object SqlLowering {
                     default = field.default?.let { Naming.literal(it) },
                     doc = field.doc,
                     notes = listOf(TypeText.of(field.type, field.nullable)),
+                    origin = ctx.columnOrigin(field),
+                    span = field.nameSpan,
                 )
             return Contribution(
                 columns = listOf(column),
@@ -1433,11 +1489,13 @@ object SqlLowering {
                     field.nameSpan,
                 )
             val parentColumns =
-                ctx.parentKeys.map { (key, keyType) ->
+                ctx.parentKeys.map { key ->
                     Column(
-                        identifier("${ctx.table}_$key", field.nameSpan),
-                        keyType,
+                        identifier("${ctx.table}_${key.column}", field.nameSpan),
+                        key.type,
                         nullable = false,
+                        origin = ColumnOrigin.Role("parent:${key.id}"),
+                        span = field.nameSpan,
                     )
                 }
             val parentFk =
@@ -1449,7 +1507,7 @@ object SqlLowering {
                         columns = parentColumns.map { it.name },
                         targetSchema = schemaName,
                         targetTable = ctx.parentTable,
-                        targetColumns = ctx.parentKeys.map { it.first },
+                        targetColumns = ctx.parentKeys.map { it.column },
                         cascade = true,
                     ),
                     namespace.name,
@@ -1457,11 +1515,32 @@ object SqlLowering {
                 )
             val discriminator =
                 mapKey?.let { keyColumn(ctx, field, it) }
-                    ?: Column("position", ColumnType.INTEGER, nullable = false)
-            val childKeys = (parentColumns + discriminator).map { it.name to it.type }
+                    ?: Column(
+                        "position",
+                        ColumnType.INTEGER,
+                        nullable = false,
+                        origin = ColumnOrigin.Role("position"),
+                        span = field.nameSpan,
+                    )
+            // The child's own key copies keep their ids, so a grandchild's copies match by them.
+            val childKeys =
+                ctx.parentKeys.zip(parentColumns).map { (key, column) ->
+                    ParentKey(column.name, column.type, key.id)
+                } +
+                    ParentKey(
+                        discriminator.name,
+                        discriminator.type,
+                        if (mapKey == null) "position" else "key",
+                    )
+            val childOrigin =
+                TableOrigin(
+                    ctx.tableOrigin.record,
+                    ctx.tableOrigin.path + ctx.path + OriginStep.FieldOrdinal(field.ordinal),
+                )
             val childCtx =
                 FieldContext(
                     table = childName,
+                    tableOrigin = childOrigin,
                     embedding = if (rows) ctx.embedding + record!!.qualifiedName else ctx.embedding,
                     parentTable = childName,
                     parentKeys = childKeys,
@@ -1499,7 +1578,17 @@ object SqlLowering {
                                 if (entry != null) reference(childCtx, valueField, entry)
                                 else embed(childCtx, valueField, element.record, "value")
                         }
-                    listOf(Triple(ctx.where, field.nameSpan, value))
+                    // The synthetic value field is no declared field; its columns are a role.
+                    val asRole =
+                        if (element is Element.Record) value
+                        else
+                            value.copy(
+                                columns =
+                                    value.columns.map {
+                                        it.copy(origin = ColumnOrigin.Role("value"))
+                                    }
+                            )
+                    listOf(Triple(ctx.where, field.nameSpan, asRole))
                 }
             val position = if (mapKey == null) "position" else "map key"
             columnCollisions(
@@ -1529,12 +1618,14 @@ object SqlLowering {
                 Table(
                     name = childName,
                     columns = parentColumns + discriminator + merged.columns,
-                    primaryKey = childKeys.map { it.first },
+                    primaryKey = childKeys.map { it.column },
                     primaryKeyName = identifier("pk_$childName", field.nameSpan),
                     checks = merged.checks,
                     uniques = merged.uniques,
                     indexes = merged.indexes,
                     doc = record?.doc,
+                    origin = childOrigin,
+                    span = field.nameSpan,
                 )
             return Contribution(
                 children =
@@ -1555,6 +1646,8 @@ object SqlLowering {
                 SqlTypes.scalar(type.copy(refinements = refinements), "key", overridden = false)
                     .type,
                 nullable = false,
+                origin = ColumnOrigin.Role("key"),
+                span = field.nameSpan,
             )
         }
 

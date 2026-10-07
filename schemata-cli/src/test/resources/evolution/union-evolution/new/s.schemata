@@ -11,3 +11,17 @@ record Wallet { #1 provider: string(max = 32) }
 record Voucher { #1 code: string(max = 16) }
 
 union Payment = #1 Card | #2 Wallet | #4 Voucher
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 payment: Payment
+}
+
+record Holdings {
+  @sql(key) #1 id: uuid
+  #2 card: Card?
+  #3 transfer: BankTransfer?
+  #4 cash: Cash?
+  #5 wallet: Wallet?
+  #6 voucher: Voucher?
+}

@@ -1,0 +1,8 @@
+namespace c
+
+import a
+
+record Ticket {
+  @sql(key) #1 id: uuid
+  #2 customer: Customer
+}

@@ -1,0 +1,13 @@
+a.sql
+  drop constraint "order"."fk_order_buyer"    clean
+  alter type "order"."buyer_id" to text    clean
+b.sql
+  drop constraint "customer"."pk_customer"    clean
+  alter type "customer"."id" to text    clean
+  add constraint "customer"."pk_customer"    clean
+  add constraint "order"."fk_order_buyer"    clean
+
+6 steps in 2 files
+0 destructive, 0 may fail
+
+no diagnostics

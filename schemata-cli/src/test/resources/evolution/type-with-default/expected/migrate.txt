@@ -1,0 +1,16 @@
+s.sql
+  drop default "job"."retries"    clean
+  alter type "job"."retries" to integer    destructive
+  set default "job"."retries"    clean
+
+3 steps in 1 file
+1 destructive, 0 may fail
+
+warning[SCH2701] (lossy): s.Job.retries: ALTER COLUMN "retries" TYPE integer loses values that do not fit integer (the cast fails or truncates)
+ --> new/s.schemata:6:6
+  |
+6 |   #3 retries: int32 = 3
+  |      ^^^^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+0 errors, 1 warning

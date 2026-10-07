@@ -1,0 +1,51 @@
+not migrated: a side has sql errors
+
+error[SCH2106]: record 'Filter' has no primary key and is not used by any field
+ --> new/orders.schemata:5:8
+  |
+5 | record Filter { #1 status: string(max = 20)? }
+  |        ^^^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'PlaceOrder' has no primary key and is not used by any field
+ --> new/orders.schemata:7:8
+  |
+7 | record PlaceOrder { #1 customer_id: uuid }
+  |        ^^^^^^^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'Count' has no primary key and is not used by any field
+  --> new/orders.schemata:14:8
+   |
+14 | record Count { #1 n: int64 }
+   |        ^^^^^
+   = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+           record only lowers when a field embeds it
+
+error[SCH2106]: record 'Filter' has no primary key and is not used by any field
+ --> old/orders.schemata:5:8
+  |
+5 | record Filter { #1 status: string(max = 20)? }
+  |        ^^^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'PlaceOrder' has no primary key and is not used by any field
+ --> old/orders.schemata:7:8
+  |
+7 | record PlaceOrder { #1 customer_id: uuid }
+  |        ^^^^^^^^^^
+  = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+          record only lowers when a field embeds it
+
+error[SCH2106]: record 'Count' has no primary key and is not used by any field
+  --> old/orders.schemata:14:8
+   |
+14 | record Count { #1 n: int64 }
+   |        ^^^^^
+   = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
+           record only lowers when a field embeds it
+
+6 errors, 0 warnings

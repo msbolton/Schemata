@@ -1,6 +1,6 @@
 namespace s
 
-record Settings {
+@sql(key = (region)) record Settings {
   #1 retries: int32 = 3
   #2 timeout: int32 = 60
   #3 region: string(max = 16)

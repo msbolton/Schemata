@@ -2,12 +2,12 @@ namespace s
 
 @jsonschema(open)
 record Event {
-  #1 id: uuid
+  @sql(key) #1 id: uuid
   #2 note: string?
 }
 
 @jsonschema(open)
 record Audit {
-  #1 id: uuid
+  @sql(key) #1 id: uuid
   #2 actor: string?
 }

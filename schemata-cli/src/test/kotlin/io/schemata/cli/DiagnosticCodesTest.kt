@@ -4,6 +4,7 @@ import io.schemata.core.CoreCodes
 import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
 import io.schemata.lang.LangCodes
+import io.schemata.migrate.MigrateCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -15,7 +16,8 @@ class DiagnosticCodesTest {
             CoreCodes.all +
             Pipeline.targets.flatMap { it.codes } +
             ImportCodes.all +
-            EvolutionCodes.all
+            EvolutionCodes.all +
+            MigrateCodes.all
 
     @Test
     fun `every code id is unique across modules`() {
@@ -39,6 +41,7 @@ class DiagnosticCodesTest {
         assertTrue(ImportCodes.all.all { it.id.startsWith("SCH24") })
         assertTrue(EvolutionCodes.all.all { it.id.startsWith("SCH25") })
         assertTrue(Pipeline.targetNamed("openapi")!!.codes.all { it.id.startsWith("SCH26") })
+        assertTrue(MigrateCodes.all.all { it.id.startsWith("SCH27") })
     }
 
     @Test

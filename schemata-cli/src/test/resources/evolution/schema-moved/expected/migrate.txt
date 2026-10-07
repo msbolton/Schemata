@@ -1,0 +1,9 @@
+b.sql
+  create schema "crm"    clean
+  move table "customer" to schema "crm"    clean
+  drop schema "b"    clean
+
+3 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

@@ -1,8 +1,8 @@
 namespace s
 
-record Item {
+@sql(key = (sku)) record Item {
   #1 sku: string(max = 16)
   @xsd(attribute) #2 quantity: int32
 }
 
-record Batch { #1 id: uuid }
+@sql(key = (id)) record Batch { #1 id: uuid }

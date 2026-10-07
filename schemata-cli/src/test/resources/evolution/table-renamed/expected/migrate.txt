@@ -1,0 +1,13 @@
+s.sql
+  rename table "order" to "purchase"    clean
+  rename table "order_lines" to "purchase_lines"    clean
+  rename constraint "purchase"."pk_order" to "pk_purchase"    clean
+  rename constraint "purchase_lines"."pk_order_lines" to "pk_purchase_lines"    clean
+  rename column "purchase_lines"."order_id" to "purchase_id"    clean
+  rename constraint "purchase_lines"."fk_order_lines_order" to "fk_purchase_lines_purchase"    clean
+  rename constraint "purchase_lines"."ck_order_lines_qty_min" to "ck_purchase_lines_qty_min"    clean
+
+7 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

@@ -6,3 +6,8 @@ enum Status {
   #4 refunded
   reserved #3, "cancelled"
 }
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 status: Status
+}

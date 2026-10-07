@@ -1,0 +1,6 @@
+namespace b
+
+record Customer {
+  @sql(key) #1 id: string
+  #2 name: string(max = 100)
+}

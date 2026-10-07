@@ -1,0 +1,9 @@
+s.sql
+  drop constraint "item"."ck_item_size_enum"    clean
+  rename values "item"."size" 'small' to 'large', 'large' to 'small'    clean
+  add constraint "item"."ck_item_size_enum"    clean
+
+3 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

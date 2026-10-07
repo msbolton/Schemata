@@ -1,0 +1,54 @@
+s.Size
+  value 'small' renamed to 'large'    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  value 'large' renamed to 'small'    proto: compatible, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+
+2 changes
+proto: 0 breaking, 0 notes
+sql: 2 breaking, 0 notes
+xsd: 2 breaking, 0 notes
+jsonschema: 2 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Size.large: the enum value was renamed from 'small' to 'large' breaks old documents that still store the old value
+ --> new/s.schemata:4:6
+  |
+4 |   #1 large
+  |      ^^^^^
+  = help: add a new value instead of renaming this one
+
+error[SCH2501]: sql: s.Size.large: the enum value was renamed from 'small' to 'large' breaks the CHECK constraint for rows that still store the old value
+ --> new/s.schemata:4:6
+  |
+4 |   #1 large
+  |      ^^^^^
+  = help: add a new value instead of renaming this one
+
+error[SCH2501]: xsd: s.Size.large: the enum value was renamed from 'small' to 'large' breaks old documents that still store the old value
+ --> new/s.schemata:4:6
+  |
+4 |   #1 large
+  |      ^^^^^
+  = help: add a new value instead of renaming this one
+
+error[SCH2501]: jsonschema: s.Size.small: the enum value was renamed from 'large' to 'small' breaks old documents that still store the old value
+ --> new/s.schemata:5:6
+  |
+5 |   #2 small
+  |      ^^^^^
+  = help: add a new value instead of renaming this one
+
+error[SCH2501]: sql: s.Size.small: the enum value was renamed from 'large' to 'small' breaks the CHECK constraint for rows that still store the old value
+ --> new/s.schemata:5:6
+  |
+5 |   #2 small
+  |      ^^^^^
+  = help: add a new value instead of renaming this one
+
+error[SCH2501]: xsd: s.Size.small: the enum value was renamed from 'large' to 'small' breaks old documents that still store the old value
+ --> new/s.schemata:5:6
+  |
+5 |   #2 small
+  |      ^^^^^
+  = help: add a new value instead of renaming this one
+
+6 errors, 0 warnings

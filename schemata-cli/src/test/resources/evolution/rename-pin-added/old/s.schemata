@@ -1,6 +1,6 @@
 namespace s
 
 record Order {
-  #1 id: uuid
+  @sql(key) #1 id: uuid
   #9 note: string(max = 500)?
 }

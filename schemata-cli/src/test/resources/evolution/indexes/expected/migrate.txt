@@ -1,0 +1,10 @@
+s.sql
+  rename constraint "customer"."uq_customer_code" to "uq_customer_ref"    clean
+  rename column "customer"."code" to "ref"    clean
+  drop index "ix_customer_email"    clean
+  create index "ix_customer_city"    clean
+
+4 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

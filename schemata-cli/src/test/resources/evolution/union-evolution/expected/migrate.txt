@@ -1,0 +1,42 @@
+s.sql
+  add column "order"."payment_wallet_provider"    clean
+  add column "order"."payment_voucher_code"    clean
+  drop constraint "order"."ck_order_payment_kind"    clean
+  drop constraint "order"."ck_order_payment_bank_transfer"    clean
+  add constraint "order"."ck_order_payment_kind"    may fail
+  add constraint "order"."ck_order_payment_wallet"    may fail
+  add constraint "order"."ck_order_payment_voucher"    may fail
+  drop column "order"."payment_bank_transfer_iban"    destructive
+
+8 steps in 1 file
+1 destructive, 3 may fail
+
+warning[SCH2702] (lossy): s.Order.payment: CONSTRAINT "ck_order_payment_kind" fails when a row violates it
+  --> new/s.schemata:17:6
+   |
+17 |   #2 payment: Payment
+   |      ^^^^^^^
+   = help: fix or delete the rows the new constraint rejects before applying
+
+warning[SCH2702] (lossy): s.Order.payment: CONSTRAINT "ck_order_payment_voucher" fails when a row violates it
+  --> new/s.schemata:17:6
+   |
+17 |   #2 payment: Payment
+   |      ^^^^^^^
+   = help: fix or delete the rows the new constraint rejects before applying
+
+warning[SCH2702] (lossy): s.Order.payment: CONSTRAINT "ck_order_payment_wallet" fails when a row violates it
+  --> new/s.schemata:17:6
+   |
+17 |   #2 payment: Payment
+   |      ^^^^^^^
+   = help: fix or delete the rows the new constraint rejects before applying
+
+warning[SCH2701] (lossy): s.Order.payment.#2.iban: DROP COLUMN "payment_bank_transfer_iban" loses every value the column holds
+ --> old/s.schemata:5:26
+  |
+5 | record BankTransfer { #1 iban: string(max = 34) }
+  |                          ^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+0 errors, 4 warnings
