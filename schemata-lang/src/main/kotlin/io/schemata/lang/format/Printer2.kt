@@ -8,7 +8,7 @@ import io.schemata.lang.ast.AnnotationValue
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.FieldDecl
-import io.schemata.lang.ast.Option
+import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
@@ -135,8 +135,21 @@ internal class Printer2(source: String, comments: CommentTable) :
 
     private fun annotationValue(v: AnnotationValue): String =
         when (v) {
-            is AnnotationValue.Lit -> slice(v.literal.span)
+            is AnnotationValue.Lit -> literal(v.literal)
             is AnnotationValue.Tuple -> "(" + v.names.joinToString(", ") + ")"
+        }
+
+    /**
+     * A literal as written, sliced from the source, except that a bare name prints as its name
+     * (which the upgrader may have renamed) and a string with no source position (line 0, one the
+     * upgrader wrote) prints from its value.
+     */
+    private fun literal(l: Literal): String =
+        when {
+            l is Literal.NameLit -> l.name
+            l is Literal.StringLit && l.span.startLine == 0 ->
+                "\"" + l.value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+            else -> slice(l.span)
         }
 
     private fun postfix(t: TypeExpr): String {
@@ -144,13 +157,6 @@ internal class Printer2(source: String, comments: CommentTable) :
         if (!t.list) return nullable
         return nullable + "[]" + if (t.listNullable) "?" else ""
     }
-
-    private fun options(options: List<Option>): String =
-        "{ " +
-            options.joinToString(", ") { o ->
-                o.name + (o.value?.let { " " + slice(it.span) } ?: "")
-            } +
-            " }"
 
     /**
      * A braced body keyed by [key] for its comments: [open] is everything before its `{` on the
@@ -216,7 +222,7 @@ internal class Printer2(source: String, comments: CommentTable) :
         val parts = mutableListOf<String>()
         if (f.options.isNotEmpty()) parts += options(f.options)
         trailingAttributes.forEach { parts += annotation(it) }
-        f.default?.let { parts += "= " + slice(it.span) }
+        f.default?.let { parts += "= " + literal(it) }
         return parts.joinToString("") { " $it" }
     }
 

@@ -316,6 +316,7 @@ internal class Ast2Builder(
                         build(it.typeExpr()),
                         memberDoc,
                         it.span(),
+                        options(it.optionBlock()),
                     )
                 },
             doc = doc,

@@ -10,6 +10,7 @@ import io.schemata.lang.ast.AnnotationArg
 import io.schemata.lang.ast.AnnotationValue
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.Option
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.Refinement
 import io.schemata.lang.ast.ServiceDecl
@@ -207,6 +208,14 @@ object Formatter {
                 else "(" + t.refinements.joinToString(", ") { refinement(it) } + ")"
             return t.name + args + refinements + (if (t.nullable) "?" else "")
         }
+
+        /** A `{ … }` option block, `{ a, b 1, match "x" }`; only the 2.0 surface writes one. */
+        internal fun options(options: List<Option>): String =
+            "{ " +
+                options.joinToString(", ") { o ->
+                    o.name + (o.value?.let { " " + slice(it.span) } ?: "")
+                } +
+                " }"
 
         private fun refinement(r: Refinement): String =
             when (r) {

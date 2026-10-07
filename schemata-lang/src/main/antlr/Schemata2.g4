@@ -29,7 +29,8 @@ enumBody      : (enumValue ','?)* reservedStmt* ;
 enumValue     : doc? attribute* ORDINAL? IDENT ;
 
 unionDecl     : doc? attribute* UNION IDENT '=' unionMember ('|' unionMember)* ;
-unionMember   : doc? ORDINAL? typeExpr ;
+// A member's options bound its type, as a field's bound the field's: `| string { max 34 }`.
+unionMember   : doc? ORDINAL? typeExpr optionBlock? ;
 
 // Options on an alias apply to every use of it.
 aliasDecl     : doc? attribute* ALIAS IDENT '=' typeExpr optionBlock? ;

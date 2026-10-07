@@ -6,6 +6,7 @@ import io.schemata.lang.ast.AnnotationValue
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.ast.UnionDecl
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -356,6 +357,18 @@ class Parser2Test {
         assertNull(parse("schema s\nalias S = { x int32 }").file)
         assertNull(parse("schema s\nalias E = enum { a b }").file)
         assertNull(parse("schema s\nmodel M { m map<string, { x int32 }> }").file)
+    }
+
+    @Test
+    fun `a union member may carry options`() {
+        val u =
+            parse("schema s\nunion U = Card | #2 string { max 34, match \"^[A-Z]+$\" }")
+                .file!!
+                .declarations
+                .single() as UnionDecl
+        assertEquals(emptyList(), u.members[0].options)
+        assertEquals(listOf("max", "match"), u.members[1].options.map { it.name })
+        assertEquals("string", u.members[1].type.name)
     }
 
     @Test

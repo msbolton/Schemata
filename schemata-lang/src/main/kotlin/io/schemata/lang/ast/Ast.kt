@@ -160,12 +160,14 @@ data class EnumValueDecl(
     val span: Span,
 )
 
+/** [options] are the `{ … }` block written after the member's type (`string { max 34 }`). */
 data class UnionMemberDecl(
     val ordinal: Int?,
     val ordinalSpan: Span?,
     val type: TypeExpr,
     val doc: String?,
     val span: Span,
+    val options: List<Option> = emptyList(),
 )
 
 sealed interface ReservedItem {

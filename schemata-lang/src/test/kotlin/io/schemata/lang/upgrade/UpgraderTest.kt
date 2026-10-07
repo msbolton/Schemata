@@ -167,20 +167,68 @@ class UpgraderTest {
 
     @Test
     fun `a refinement with no 2 spelling fails the upgrade`() {
-        val r = Upgrader.upgrade("namespace s\nunion U = string(max = 5) | int32", "t.schemata")
+        val r =
+            Upgrader.upgrade(
+                "namespace s\nservice S { #1 get(string(max = 5)): string }",
+                "t.schemata",
+            )
         assertTrue(r is FormatResult.Failed && r.diagnostics.single().code.id == "SCH0001", "$r")
     }
 
     @Test
-    fun `a name that is a 2 keyword fails the upgrade`() {
-        val r = Upgrader.upgrade("namespace schema\nrecord R { model: string }", "t.schemata")
-        assertTrue(r is FormatResult.Failed, "$r")
+    fun `a refined union member upgrades to member options`() {
         assertEquals(
-            listOf(
-                "`schema` is a keyword in 2.0 and cannot be a name",
-                "`model` is a keyword in 2.0 and cannot be a name",
+            "schema s\n\nunion U = #1 string { max 5, match \"^a\" } | #2 int32\n",
+            up("namespace s\nunion U = #1 string(max = 5, pattern = \"^a\") | #2 int32"),
+        )
+    }
+
+    @Test
+    fun `a namespace named schema becomes schema_ with its sql name preserved`() {
+        assertEquals(
+            "schema schema_ @sql(schema: \"schema\")\n\nmodel R { a int32 }\n",
+            up("namespace schema\nrecord R { a: int32 }"),
+        )
+        assertEquals(
+            "schema shop.schema_ @sql(schema: \"x\")\n\nmodel R { a int32 }\n",
+            up("@sql(schema = \"x\")\nnamespace shop.schema\nrecord R { a: int32 }"),
+        )
+        assertEquals(
+            "schema schema_.orders\n\nimport schema_\n\nmodel R { a schema_.T }\n",
+            up("namespace schema.orders\nimport schema\nrecord R { a: schema.T }"),
+        )
+    }
+
+    @Test
+    fun `a model named model is renamed and its references follow`() {
+        assertEquals(
+            """
+            schema s
+
+            import other as model_
+
+            enum E { model_ other }
+
+            model model_ {
+              model_ string @sql(column: "model")
+              e      E      = model_
+
+              @@sql(table: "model")
+            }
+
+            model R { a model_  b model_.T[]  c model_[] }
+            """
+                .trimIndent() + "\n",
+            up(
+                """
+                namespace s
+                import other as model
+                enum E { model, other }
+                record model { model: string e: E = model }
+                record R { a: model b: list<model.T> c: list<model> }
+                """
+                    .trimIndent()
             ),
-            r.diagnostics.map { it.message },
         )
     }
 

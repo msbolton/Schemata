@@ -152,7 +152,8 @@ internal fun Formatter.Printer.valueMultilineLines(
 
 internal fun Formatter.Printer.unionMemberOneLine(m: UnionMemberDecl): String {
     val ordinal = m.ordinal?.let { "#$it " } ?: ""
-    return "$ordinal${typeExpr(m.type)}"
+    val options = if (m.options.isEmpty()) "" else " " + options(m.options)
+    return "$ordinal${typeExpr(m.type)}$options"
 }
 
 /**

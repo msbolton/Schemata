@@ -59,13 +59,14 @@ class UpgradeCommandTest {
     }
 
     @Test
-    fun `a 1 name that is a 2 keyword is reported and left unchanged`() {
-        val text = "namespace t\nrecord R { model: string }\n"
-        val f = write("a.schemata", text)
-        val r = UpgradeCommand().test(listOf("--color", "never", f.path))
-        assertEquals(1, r.statusCode)
-        assertTrue("`model` is a keyword in 2.0" in r.stderr, r.stderr)
-        assertEquals(text, f.readText())
+    fun `a 1 name that is a 2 keyword is renamed with its sql name kept`() {
+        val f = write("a.schemata", "namespace t\nrecord R { model: string }\n")
+        val r = UpgradeCommand().test(listOf(f.path))
+        assertEquals(0, r.statusCode, r.stderr)
+        assertEquals(
+            "schema t\n\nmodel R { model_ string @sql(column: \"model\") }\n",
+            f.readText(),
+        )
     }
 
     @Test

@@ -72,8 +72,11 @@ object Options {
             ResolvedKind.ENUM,
         )
 
-    // A reference to a record is its key's columns, so it can be unique or indexed as well.
-    private val constrainable = keyable + ResolvedKind.RECORD
+    // Anything that is one value per row can be unique or indexed: a scalar or an enum, a reference
+    // (its key's columns), and an embedded record, union, or inline shape (its columns together).
+    // Only a list or a map, many values, cannot.
+    private val constrainable =
+        keyable + ResolvedKind.RECORD + ResolvedKind.UNION + ResolvedKind.SHAPE
 
     private val embeddable = setOf(ResolvedKind.RECORD, ResolvedKind.UNION, ResolvedKind.SHAPE)
 
@@ -84,7 +87,8 @@ object Options {
      * Lowers [options] written on a field of type [type]: returns the refinements to merge into the
      * type (or its element, for a list) and the flags, reporting SCH1049 for an option the type
      * cannot carry. `min`/`max` on a list constrain its elements; `minItems`/`maxItems` the list or
-     * map itself; `match` needs a string; `id` needs a scalar or enum (not a list, map, or shape).
+     * map itself; `match` needs a string; `id` needs a scalar or enum (not a list, map, or shape);
+     * `unique` and `index` need anything but a list or a map.
      */
     fun lower(
         options: List<Option>,
@@ -146,7 +150,7 @@ object Options {
                             "embed" -> (subject in embeddable) to "a record or a union"
                             else ->
                                 (collection == null && resolvedKind in constrainable) to
-                                    "a scalar, an enum, or a record"
+                                    "a single value, not a list or a map"
                         }
                     if (!fits) {
                         val on = if (option.name == "embed" && listed) subjectName else ownName

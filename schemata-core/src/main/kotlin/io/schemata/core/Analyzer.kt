@@ -30,6 +30,7 @@ import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.UnionDecl
+import io.schemata.lang.ast.UnionMemberDecl
 import io.schemata.lang.hasErrors
 
 /** [schema] is null exactly when [diagnostics] contains an error. */
@@ -193,6 +194,7 @@ object Analyzer {
                     decl,
                     qualifiedName,
                     scope,
+                    index,
                     resolver,
                     annotations,
                     options,
@@ -498,6 +500,7 @@ object Analyzer {
         decl: UnionDecl,
         qualifiedName: QualifiedName,
         scope: Scope,
+        declarations: DeclarationIndex,
         resolver: Resolver,
         annotations: AnnotationChecker,
         options: AnalysisOptions,
@@ -520,7 +523,8 @@ object Analyzer {
         val seen = mutableSetOf<Type>()
         val members =
             decl.members.mapIndexedNotNull { index, member ->
-                val resolved = resolver.resolve(member.type, scope) ?: return@mapIndexedNotNull null
+                val written = resolver.resolve(member.type, scope) ?: return@mapIndexedNotNull null
+                val resolved = memberOptions(member, written, declarations, diagnostics)
                 val type = resolved.type
                 val ok =
                     when {
@@ -571,6 +575,34 @@ object Analyzer {
             decl.nameSpan,
             unionAnnotations,
         )
+    }
+
+    /**
+     * A union member's options bound its type as a field's options bound the field's, by the same
+     * table; the field flags among them (`id`, `unique`, `index`, `embed`) speak of a field's
+     * column or reference, which a member does not have, and are reported.
+     */
+    private fun memberOptions(
+        member: UnionMemberDecl,
+        resolved: Resolved,
+        declarations: DeclarationIndex,
+        diagnostics: MutableList<Diagnostic>,
+    ): Resolved {
+        if (member.options.isEmpty()) return resolved
+        val (flags, bounds) = member.options.partition { it.name in Options.FIELD_FLAGS }
+        flags.forEach {
+            diagnostics +=
+                error(
+                    CoreCodes.OPTION_NOT_APPLICABLE,
+                    "option '${it.name}' belongs to a field, not to a union member",
+                    it.span,
+                    help = "move it to the options of the field that uses the union",
+                )
+        }
+        return Options.refine(bounds, member.type, resolved, { declarations.find(it)?.decl }) {
+                diagnostics += it
+            }
+            .first
     }
 
     private fun error(code: DiagnosticCode, message: String, span: Span, help: String? = null) =

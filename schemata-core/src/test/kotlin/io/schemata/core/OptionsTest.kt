@@ -4,6 +4,7 @@ import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.keyFields
 import java.math.BigDecimal
 import kotlin.test.Test
@@ -127,7 +128,40 @@ class OptionsTest {
             listOf("SCH1049"),
             codes("schema s\nmodel R { k uuid { id } }\nmodel M { r R { id } }"),
         )
-        assertEquals(listOf("SCH1049"), codes("schema s\nmodel M { a { x int32 } { unique } }"))
+    }
+
+    @Test
+    fun `unique and index fit records unions and inline shapes but not lists or maps`() {
+        val r =
+            analyze2(
+                "schema s\nmodel R { k uuid { id } }\nmodel C { x int32 }\nunion U = R | C\n" +
+                    "model M { r R { unique }  c C { index }  u U { unique, index }  a { x int32 } { unique } }"
+            )
+        assertEquals(emptyList(), r.diagnostics)
+        val m = model(r)
+        assertEquals(listOf(true, false, true, true), m.fields.map { it.unique })
+        assertEquals(listOf(false, true, true, false), m.fields.map { it.index })
+        assertEquals(
+            listOf("SCH1049", "SCH1049", "SCH1049"),
+            codes(
+                "schema s\nmodel R { k uuid { id } }\n" +
+                    "model M { l R[] { unique }  m map<string, int32> { index }  s string[] { unique } }"
+            ),
+        )
+    }
+
+    @Test
+    fun `union member options lower to the member's refinements`() {
+        val r =
+            analyze2("schema s\nunion U = #1 string { max 5, match \"^a\" } | #2 int32 { min 0 }")
+        assertEquals(emptyList(), r.diagnostics)
+        val u = r.schema!!.lookup(QualifiedName("s", listOf("U"))) as UnionType
+        val s = (u.members[0].type as Scalar).refinements
+        assertEquals(BigDecimal(5), s.max)
+        assertEquals("^a", s.pattern)
+        assertEquals(BigDecimal.ZERO, (u.members[1].type as Scalar).refinements.min)
+        assertEquals(listOf("SCH1049"), codes("schema s\nunion U = string { id } | int32"))
+        assertEquals(listOf("SCH1049"), codes("schema s\nunion U = string { minItems 1 } | int32"))
     }
 
     @Test

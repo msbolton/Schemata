@@ -167,6 +167,14 @@ class Formatter2Test {
     }
 
     @Test
+    fun `a union member's options print after its type`() {
+        assertEquals(
+            "schema s\n\nunion U = #1 string { max 34 } | #2 Card\n",
+            fmt("schema s\nunion U = #1 string {max 34}|#2 Card"),
+        )
+    }
+
+    @Test
     fun `a nested model and a reserved statement keep their places`() {
         val out =
             fmt(

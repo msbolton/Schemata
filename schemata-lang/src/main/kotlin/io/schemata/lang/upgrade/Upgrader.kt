@@ -68,9 +68,14 @@ object Upgrader {
  *   every annotation becomes a block attribute, closing the body.
  * - Everything else (the namespace, imports, enums, unions, services, reserved, docs) keeps its
  *   text; the printer decides the 2.0 keywords and punctuation.
- * - What 2.0 cannot say is reported, not printed: a name spelled `schema` or `model` (keywords in
- *   2.0), a refinement on a union member or a payload (2.0 gives them no options), and a positional
- *   refinement on anything but `decimal(p, s)`.
+ * - A union member's refinements become the member's options (`| string { max 34 }`).
+ * - A name spelled `schema` or `model`, keywords in 2.0, becomes `schema_` or `model_`, wherever it
+ *   is declared or referred to. A renamed namespace's last segment, record, or field keeps its SQL
+ *   name through `@sql(schema: …)`, `@@sql(table: …)`, or `@sql(column: …)`, unless it already has
+ *   one.
+ * - What 2.0 cannot say is reported, not printed: a refinement on a payload (2.0 gives it no
+ *   options), a positional refinement on anything but `decimal(p, s)`, and a bound given as a bare
+ *   name.
  */
 private class Mapper(private val table: CommentTable) {
     /** What the 2.0 surface cannot say, reported instead of printing something that misreads. */
@@ -98,87 +103,114 @@ private class Mapper(private val table: CommentTable) {
         )
     }
 
+    /**
+     * A namespace whose last segment is renamed keeps its SQL schema name, which is that segment,
+     * through `@sql(schema: …)` on the header unless the file already names one.
+     */
     fun file(f: SourceFile): SourceFile {
-        name(f.namespace.name, f.namespace.nameSpan)
-        f.annotations.forEach(::annotationNames)
-        f.imports.forEach { i ->
-            name(i.namespace, i.namespaceSpan)
-            i.alias?.let { name(it, i.aliasSpan!!) }
-        }
+        val annotations = f.annotations.map(::renamed).toMutableList()
+        val last = f.namespace.name.substringAfterLast('.')
+        if (last in NEW_KEYWORDS && annotations.none { sqlNames(it, "schema") })
+            annotations += sqlName("schema", last, f.namespace.nameSpan)
         return f.copy(
+            namespace = f.namespace.copy(name = renamed(f.namespace.name)),
+            annotations = annotations,
+            imports =
+                f.imports.map {
+                    it.copy(namespace = renamed(it.namespace), alias = it.alias?.let(::renamed))
+                },
             declarations = f.declarations.map(::declaration),
             services = f.services.map(::service),
         )
     }
 
     /**
-     * `schema` and `model` are keywords in 2.0 but plain identifiers in 1.x, so a 1.x name spelled
-     * like one, or a qualified name with such a segment, has no 2.0 spelling.
+     * [text] with each dot-separated segment that is a 2.0 keyword (`schema`, `model`) suffixed
+     * with `_`. Every name is renamed by this one rule, declarations and references alike, so a
+     * reference keeps pointing at what it named.
      */
-    private fun name(text: String, span: Span) {
-        val keyword = text.split('.').firstOrNull { it in NEW_KEYWORDS } ?: return
-        problems +=
-            Diagnostic(
-                LangCodes.SYNTAX,
-                "`$keyword` is a keyword in 2.0 and cannot be a name",
-                span,
-                help = "rename it in the 1.x file, then upgrade",
-            )
-    }
+    private fun renamed(text: String): String =
+        text.split('.').joinToString(".") { if (it in NEW_KEYWORDS) it + "_" else it }
 
-    private fun annotationNames(a: Annotation) {
-        for (arg in a.args) {
-            val value =
-                when (arg) {
-                    is AnnotationArg.Named -> arg.value
-                    is AnnotationArg.Positional -> arg.value
+    private fun renamed(a: Annotation): Annotation =
+        a.copy(
+            args =
+                a.args.map {
+                    when (it) {
+                        is AnnotationArg.Named -> it.copy(value = renamed(it.value))
+                        is AnnotationArg.Positional -> it.copy(value = renamed(it.value))
+                    }
                 }
-            when (value) {
-                is AnnotationValue.Lit -> literalName(value.literal)
-                is AnnotationValue.Tuple ->
-                    value.names.zip(value.nameSpans).forEach { (n, at) -> name(n, at) }
-            }
-        }
-    }
+        )
 
-    private fun literalName(literal: Literal) {
-        if (literal is Literal.NameLit) name(literal.name, literal.span)
+    private fun renamed(v: AnnotationValue): AnnotationValue =
+        when (v) {
+            is AnnotationValue.Lit -> v.copy(literal = renamed(v.literal))
+            is AnnotationValue.Tuple -> v.copy(names = v.names.map(::renamed))
+        }
+
+    private fun renamed(l: Literal): Literal =
+        if (l is Literal.NameLit) l.copy(name = renamed(l.name)) else l
+
+    /** Whether [a] is an `@sql` naming [key] already. */
+    private fun sqlNames(a: Annotation, key: String): Boolean =
+        a.name == "sql" && a.args.any { it is AnnotationArg.Named && it.name == key }
+
+    /**
+     * `@sql(key: "value")`, written by the upgrader to keep a renamed name's SQL name. It has no
+     * source text, so its positions are line 0, which the printer reads as "print from the value".
+     */
+    private fun sqlName(key: String, value: String, near: Span): Annotation {
+        val at = Span(near.file, 0, 0, 0, 0)
+        val literal = AnnotationValue.Lit(Literal.StringLit(value, at), at)
+        return Annotation("sql", listOf(AnnotationArg.Named(key, literal, at)), at)
     }
 
     private fun declaration(d: Declaration): Declaration {
-        name(d.name, d.nameSpan)
-        d.annotations.forEach(::annotationNames)
+        val name = renamed(d.name)
+        val annotations = d.annotations.map(::renamed)
         return when (d) {
-            is RecordDecl -> record(d)
-            is EnumDecl -> enum(d)
-            is UnionDecl -> d.copy(members = d.members.map { it.copy(type = optionless(it.type)) })
-            is AliasDecl -> d.copy(type = slotted(d.type))
+            is RecordDecl -> record(d.copy(annotations = annotations))
+            is EnumDecl ->
+                d.copy(
+                    name = name,
+                    annotations = annotations,
+                    values =
+                        d.values.map {
+                            it.copy(
+                                name = renamed(it.name),
+                                annotations = it.annotations.map(::renamed),
+                            )
+                        },
+                )
+            is UnionDecl ->
+                d.copy(
+                    name = name,
+                    annotations = annotations,
+                    members =
+                        d.members.map {
+                            val (type, options) = type(it.type)
+                            it.copy(type = type, options = options)
+                        },
+                )
+            is AliasDecl -> d.copy(name = name, annotations = annotations, type = slotted(d.type))
         }
     }
 
-    private fun enum(d: EnumDecl): EnumDecl {
-        d.values.forEach {
-            name(it.name, it.nameSpan)
-            it.annotations.forEach(::annotationNames)
-        }
-        return d
-    }
-
-    private fun service(s: ServiceDecl): ServiceDecl {
-        name(s.name, s.nameSpan)
-        s.annotations.forEach(::annotationNames)
-        return s.copy(
+    private fun service(s: ServiceDecl): ServiceDecl =
+        s.copy(
+            name = renamed(s.name),
+            annotations = s.annotations.map(::renamed),
             operations =
                 s.operations.map { op ->
-                    name(op.name, op.nameSpan)
-                    op.annotations.forEach(::annotationNames)
                     op.copy(
+                        name = renamed(op.name),
+                        annotations = op.annotations.map(::renamed),
                         request = op.request?.let(::payload),
                         response = op.response?.let(::payload),
                     )
-                }
+                },
         )
-    }
 
     private fun payload(p: PayloadDecl): PayloadDecl = p.copy(type = optionless(p.type))
 
@@ -202,7 +234,11 @@ private class Mapper(private val table: CommentTable) {
             keys += id(key.value as AnnotationValue.Tuple, if (rest.isEmpty()) a.span else key.span)
             if (rest.isNotEmpty()) others += a.copy(args = rest, block = true)
         }
+        // A renamed record keeps its SQL table name, which is its name (already snake case).
+        if (d.name in NEW_KEYWORDS && (keys + others).none { sqlNames(it, "table") })
+            others += sqlName("table", d.name, d.nameSpan).copy(block = true)
         return d.copy(
+            name = renamed(d.name),
             fields = d.fields.map(::field),
             nested = d.nested.map(::declaration),
             annotations = keys + others,
@@ -220,12 +256,9 @@ private class Mapper(private val table: CommentTable) {
         )
 
     private fun field(f: FieldDecl): FieldDecl {
-        name(f.name, f.nameSpan)
-        f.annotations.forEach(::annotationNames)
-        f.default?.let(::literalName)
         val flags = mutableListOf<Option>()
         val kept = mutableListOf<Annotation>()
-        for (a in f.annotations) {
+        for (a in f.annotations.map(::renamed)) {
             if (a.name != "sql") {
                 kept += a
                 continue
@@ -239,8 +272,13 @@ private class Mapper(private val table: CommentTable) {
             if (rest.isEmpty() && a.args.isNotEmpty()) moved += a.span to f.span
             else kept += a.copy(args = rest)
         }
+        // A renamed field keeps its SQL column name, which is its name.
+        if (f.name in NEW_KEYWORDS && kept.none { sqlNames(it, "column") })
+            kept += sqlName("column", f.name, f.nameSpan)
         val (type, options) = type(f.type)
         return f.copy(
+            name = renamed(f.name),
+            default = f.default?.let(::renamed),
             type = type,
             options = flags + options,
             annotations = kept.map { trailing(it, f) },
@@ -291,14 +329,14 @@ private class Mapper(private val table: CommentTable) {
         return type.copy(options = options)
     }
 
-    /** [t] mapped where 2.0 takes no options: a union member or a payload. */
+    /** [t] mapped where 2.0 takes no options: a payload. */
     private fun optionless(t: TypeExpr): TypeExpr {
         val (type, options) = type(t)
         if (options.isNotEmpty()) {
             problems +=
                 Diagnostic(
                     LangCodes.SYNTAX,
-                    "a union member or a payload takes no options in 2.0, so `${t.name}`'s refinements have no place",
+                    "a payload takes no options in 2.0, so `${t.name}`'s refinements have no place",
                     t.span,
                     help =
                         "declare an alias with the refinements, `alias Name = ${t.name}(…)`, and use it here",
@@ -311,7 +349,6 @@ private class Mapper(private val table: CommentTable) {
      * [t] in its 2.0 form, and the options its named refinements become for the slot it sits in.
      */
     private fun type(t: TypeExpr): Pair<TypeExpr, List<Option>> {
-        name(t.name, t.nameSpan)
         val positional = t.refinements.filterIsInstance<Refinement.Positional>()
         val decimal =
             t.name == "decimal" &&
@@ -327,10 +364,20 @@ private class Mapper(private val table: CommentTable) {
                 )
         }
         val collection = (t.name == "list" || t.name == "map") && t.args.isNotEmpty()
-        val own =
-            t.refinements.filterIsInstance<Refinement.Named>().map {
-                Option(optionName(it.name, collection), it.value, it.span)
+        val named = t.refinements.filterIsInstance<Refinement.Named>()
+        // An option's value is a number, a string, or a boolean, never a bare name.
+        named
+            .filter { it.value is Literal.NameLit }
+            .forEach {
+                problems +=
+                    Diagnostic(
+                        LangCodes.SYNTAX,
+                        "`${it.name}` takes a number or a string, and 2.0 has no spelling for a name here",
+                        it.value.span,
+                        help = "write the bound as a literal, or remove it",
+                    )
             }
+        val own = named.map { Option(optionName(it.name, collection), it.value, it.span) }
         if (t.name == "list" && t.args.size == 1) {
             val (element, elementOptions) = type(t.args.single())
             if (!element.list) {
@@ -342,7 +389,11 @@ private class Mapper(private val table: CommentTable) {
                 refinements = positional,
             ) to own
         }
-        return t.copy(args = t.args.map(::slotted), refinements = positional) to own
+        return t.copy(
+            name = renamed(t.name),
+            args = t.args.map(::slotted),
+            refinements = positional,
+        ) to own
     }
 
     private companion object {
