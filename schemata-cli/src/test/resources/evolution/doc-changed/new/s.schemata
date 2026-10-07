@@ -1,0 +1,9 @@
+namespace s
+
+/// A person or company that buys.
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 name: string(max = 100)
+  /// Free text from support.
+  #3 note: string?
+}

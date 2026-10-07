@@ -1,0 +1,13 @@
+namespace s
+
+@sql(table = "purchase")
+record Order {
+  @sql(key) #1 id: uuid
+  @sql(unique) #2 number: string(max = 16)
+}
+
+@sql(table = "order")
+record Basket {
+  @sql(key) #1 id: uuid
+  @sql(unique) #2 number: string(max = 16)
+}

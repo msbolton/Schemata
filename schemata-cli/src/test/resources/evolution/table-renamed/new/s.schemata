@@ -1,0 +1,10 @@
+namespace s
+
+@sql(table = "purchase")
+record Order {
+  @sql(key) #1 id: uuid
+  #2 note: string(max = 100)?
+  #3 lines: list<Line>
+
+  record Line { #1 sku: string(max = 16) #2 qty: int32(min = 1) }
+}

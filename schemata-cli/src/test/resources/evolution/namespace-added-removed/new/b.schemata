@@ -1,0 +1,9 @@
+namespace b
+
+import a
+
+record Invoice {
+  @sql(key) #1 id: uuid
+  #2 customer: Customer
+  #3 total: decimal(19, 4)
+}

@@ -1,0 +1,6 @@
+namespace s
+
+record Order {
+  @sql(key) #1 id: uuid
+  @sql(unique) #2 number: string(max = 16)
+}

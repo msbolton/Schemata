@@ -1,0 +1,9 @@
+s.sql
+  comment on "customer"    clean
+  comment on "customer"."name"    clean
+  comment on "customer"."note"    clean
+
+3 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

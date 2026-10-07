@@ -1,0 +1,19 @@
+b.sql
+  create schema "b"    clean
+  create table "invoice"    clean
+  add constraint "invoice"."fk_invoice_customer"    clean
+c.sql
+  drop table "ticket"    destructive
+  drop schema "c"    clean
+
+5 steps in 2 files
+1 destructive, 0 may fail
+
+warning[SCH2701] (lossy): c.Ticket: DROP TABLE "ticket" loses every row of the table
+ --> old/c.schemata:5:8
+  |
+5 | record Ticket {
+  |        ^^^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+0 errors, 1 warning

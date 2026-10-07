@@ -1,0 +1,8 @@
+namespace a
+
+import b
+
+record Order {
+  @sql(key) #1 id: uuid
+  #2 buyer: Customer
+}

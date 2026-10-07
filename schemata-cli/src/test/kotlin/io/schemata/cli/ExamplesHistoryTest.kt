@@ -19,11 +19,11 @@ import org.junit.jupiter.api.TestFactory
  * Each example, diffed between its first commit and HEAD, should show nothing but `doc.changed`:
  * the examples only ever gained prose and formatting over their history, never a breaking change,
  * so this is the roadmap's own done-when for the corpus. The same history must also migrate under
- * the SQL target without a destructive step, from the first revision that lowers cleanly (an
- * example that only gained its keys later starts there). A dynamic test is skipped with
- * `assumeTrue` only when `git` is unavailable or the repository holds no history for the example (a
- * shallow clone); a side that fails to analyze fails the test, so drift in the language cannot turn
- * the check into a silent skip.
+ * the SQL target without a destructive step, each revision that lowers cleanly to the next one, the
+ * last to the working tree (an example that only gained its keys later starts there). A dynamic
+ * test is skipped with `assumeTrue` only when `git` is unavailable or the repository holds no
+ * history for the example (a shallow clone); a side that fails to analyze fails the test, so drift
+ * in the language cannot turn the check into a silent skip.
  */
 class ExamplesHistoryTest {
     private val repoRoot = File("..")
@@ -70,23 +70,24 @@ class ExamplesHistoryTest {
         )
         val revisions = git("log", "--format=%H", "--reverse", "--", relative)
         assertNotNull(revisions, "git log failed for $relative")
-        val from =
+        val lowering =
             revisions
                 .lineSequence()
                 .filter { it.isNotBlank() }
                 .mapNotNull { commit -> lowered(revision(commit, relative))?.let { commit to it } }
-                .firstOrNull()
-        assertNotNull(from, "no revision of $relative analyzes and lowers under sql")
-        val (base, schema) = from
-        val migrated = migrate(schema, new.schema!!, allowDestructive = false)
-        assertTrue(
-            migrated.lowered,
-            "$relative: a revision has sql errors: ${migrated.diagnostics}",
-        )
-        assertTrue(
-            migrated.diagnostics.none { it.code.id == MigrateCodes.DESTRUCTIVE.id },
-            "$relative migrates destructively between $base and HEAD: ${migrated.diagnostics}",
-        )
+                .toList()
+        assertTrue(lowering.isNotEmpty(), "no revision of $relative analyzes and lowers under sql")
+        (lowering + ("the working tree" to new.schema!!)).zipWithNext().forEach { (from, to) ->
+            val migrated = migrate(from.second, to.second, allowDestructive = false)
+            assertTrue(
+                migrated.lowered,
+                "$relative: a revision has sql errors: ${migrated.diagnostics}",
+            )
+            assertTrue(
+                migrated.diagnostics.none { it.code.id == MigrateCodes.DESTRUCTIVE.id },
+                "$relative migrates destructively from ${from.first} to ${to.first}: ${migrated.diagnostics}",
+            )
+        }
     }
 
     /** The `.schemata` files of [relative] at [sha], paths kept under `old/`. */

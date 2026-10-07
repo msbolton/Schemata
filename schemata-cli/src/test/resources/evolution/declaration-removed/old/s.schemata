@@ -9,7 +9,7 @@ record Order {
   @sql(key) #1 id: uuid
   #2 total: decimal(19, 4)
 
-  record Note { #1 text: string(max = 200) }
+  record Note { @sql(key) #1 text: string(max = 200) }
 }
 
 enum Status { #1 open, #2 closed }

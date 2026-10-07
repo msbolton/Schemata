@@ -1,11 +1,22 @@
-not migrated: a side has sql errors
+s.sql
+  drop table "customer"    destructive
+  drop table "note"    destructive
 
-error[SCH2106]: record 'Note' has no primary key and is not used by any field
+2 steps in 1 file
+2 destructive, 0 may fail
+
+warning[SCH2701] (lossy): s.Customer: DROP TABLE "customer" loses every row of the table
+ --> old/s.schemata:3:8
+  |
+3 | record Customer {
+  |        ^^^^^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+warning[SCH2701] (lossy): s.Order.Note: DROP TABLE "note" loses every row of the table
   --> old/s.schemata:12:10
    |
-12 |   record Note { #1 text: string(max = 200) }
+12 |   record Note { @sql(key) #1 text: string(max = 200) }
    |          ^^^^
-   = help: mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless
-           record only lowers when a field embeds it
+   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
-1 error, 0 warnings
+0 errors, 2 warnings

@@ -1,0 +1,13 @@
+s.Customer
+  field 'name': doc changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'note': doc changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  doc changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+3 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+no diagnostics

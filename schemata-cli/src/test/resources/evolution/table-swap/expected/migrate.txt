@@ -1,0 +1,18 @@
+s.sql
+  rename table "alpha" to "alpha__schemata_tmp"    clean
+  rename table "beta" to "alpha"    clean
+  rename table "alpha__schemata_tmp" to "beta"    clean
+  rename constraint "beta"."pk_alpha" to "pk_alpha__schemata_tmp"    clean
+  rename constraint "alpha"."pk_beta" to "pk_alpha"    clean
+  rename constraint "beta"."pk_alpha__schemata_tmp" to "pk_beta"    clean
+  rename constraint "beta"."uq_alpha_code" to "uq_alpha_code__schemata_tmp"    clean
+  rename constraint "alpha"."uq_beta_code" to "uq_alpha_code"    clean
+  rename constraint "beta"."uq_alpha_code__schemata_tmp" to "uq_beta_code"    clean
+  rename index "ix_alpha_label" to "ix_alpha_label__schemata_tmp"    clean
+  rename index "ix_beta_label" to "ix_alpha_label"    clean
+  rename index "ix_alpha_label__schemata_tmp" to "ix_beta_label"    clean
+
+12 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

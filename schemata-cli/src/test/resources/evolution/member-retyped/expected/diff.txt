@@ -1,0 +1,39 @@
+s.Payment
+  member type changed from Card to Voucher    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+
+1 change
+proto: 1 breaking, 0 notes
+sql: 1 breaking, 0 notes
+xsd: 1 breaking, 0 notes
+jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Payment.#1: the union member's type changed breaks documents whose discriminator selects the old case
+ --> new/s.schemata:7:17
+  |
+7 | union Payment = #1 Voucher | #2 string(max = 34)
+  |                 ^^^^^^^^^^
+  = help: add a new member instead of changing this one's type
+
+error[SCH2501]: proto: s.Payment.#1: union member type changed breaks decoders of the old oneof case
+ --> new/s.schemata:7:17
+  |
+7 | union Payment = #1 Voucher | #2 string(max = 34)
+  |                 ^^^^^^^^^^
+  = help: add a new member instead of changing this one's type
+
+error[SCH2501]: sql: s.Payment.#1: the union member's type changed breaks rows whose discriminator selects the old case
+ --> new/s.schemata:7:17
+  |
+7 | union Payment = #1 Voucher | #2 string(max = 34)
+  |                 ^^^^^^^^^^
+  = help: add a new member instead of changing this one's type
+
+error[SCH2501]: xsd: s.Payment.#1: the union member's type changed breaks documents whose discriminator selects the old case
+ --> new/s.schemata:7:17
+  |
+7 | union Payment = #1 Voucher | #2 string(max = 34)
+  |                 ^^^^^^^^^^
+  = help: add a new member instead of changing this one's type
+
+4 errors, 0 warnings
