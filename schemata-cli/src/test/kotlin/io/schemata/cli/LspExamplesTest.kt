@@ -72,7 +72,7 @@ class LspExamplesTest {
             session.diagnostics(orders) { it.isEmpty() }
             session.change(
                 orders,
-                text.replace("#2  customer:  Customer", "#2  customer:  Custmer"),
+                text.replace("customer:  Customer", "customer:  Custmer"),
             )
             val shown = session.diagnostics(orders) { it.isNotEmpty() }
             // The misspelled name is unknown, and the import it no longer uses is reported too.
