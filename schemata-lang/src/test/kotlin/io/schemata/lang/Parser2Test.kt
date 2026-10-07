@@ -169,7 +169,6 @@ class Parser2Test {
             model(
                 """
             schema s
-            /// M
             @deprecated("old")
             model M {
               a int32
@@ -229,5 +228,87 @@ class Parser2Test {
     @Test
     fun `a 1x refinement is a syntax error`() {
         assertNull(parse("schema s\nmodel M { name string(max = 5) }").file)
+    }
+
+    @Test
+    fun `an attribute on its own line below the header leads the next model`() {
+        val f = parse("schema s\n@deprecated(\"x\")\nmodel M { a int32 }").file!!
+        assertEquals(emptyList(), f.annotations)
+        val m = f.declarations.single()
+        assertEquals(listOf("deprecated"), m.annotations.map { it.name })
+        assertEquals(Span("t.schemata", 2, 1, 3, 19), m.span)
+    }
+
+    @Test
+    fun `an attribute on the header line stays on the header`() {
+        val f =
+            parse("schema s @sql(schema: \"x\")\n@proto(package: \"p\")\nmodel M { a int32 }")
+                .file!!
+        assertEquals(listOf("sql"), f.annotations.map { it.name })
+        assertEquals(listOf("proto"), f.declarations.single().annotations.map { it.name })
+    }
+
+    @Test
+    fun `an attribute on its own line between two fields leads the second`() {
+        val (a, b) =
+            model(
+                    """
+                schema s
+                model M {
+                  a int32 @index_hint
+                  @deprecated("x")
+                  b int32
+                }
+                """
+                )
+                .fields
+        assertEquals(listOf("index_hint"), a.annotations.map { it.name })
+        assertEquals(listOf("deprecated"), b.annotations.map { it.name })
+        assertEquals(Span("t.schemata", 3, 3, 3, 21), a.span)
+        assertEquals(Span("t.schemata", 4, 3, 5, 9), b.span)
+    }
+
+    @Test
+    fun `an attribute after the last field with nothing to lead is an error`() {
+        val r =
+            parse("schema s\nmodel M {\n  a int32\n  @deprecated(\"x\")\n  @@sql(table: \"m\")\n}")
+        assertNull(r.file)
+        val d = r.diagnostics.single()
+        assertEquals(LangCodes.SYNTAX, d.code)
+        assertEquals("an attribute here has nothing to attach to", d.message)
+        assertEquals(Span("t.schemata", 4, 3, 4, 18), d.span)
+    }
+
+    @Test
+    fun `an attribute below the header and above an import is an error`() {
+        val r = parse("schema s\n@deprecated(\"x\")\nimport t\nmodel M { a int32 }")
+        assertNull(r.file)
+        assertEquals(listOf(LangCodes.SYNTAX), r.diagnostics.map { it.code })
+    }
+
+    @Test
+    fun `a multi-line inline shape is trailed on the line of its closing brace`() {
+        val m =
+            model(
+                """
+                schema s
+                model M {
+                  s {
+                    a int32
+                  } @deprecated("x")
+                  @index_hint
+                  enum E { a }
+                }
+                """
+            )
+        assertEquals(listOf("deprecated"), m.fields.single().annotations.map { it.name })
+        assertEquals(listOf("index_hint"), m.nested.single().annotations.map { it.name })
+    }
+
+    @Test
+    fun `attributes before a default stay on the field`() {
+        val f =
+            model("schema s\nmodel M {\n  a int32\n    @deprecated(\"x\") = 1\n}").fields.single()
+        assertEquals(listOf("deprecated"), f.annotations.map { it.name })
     }
 }

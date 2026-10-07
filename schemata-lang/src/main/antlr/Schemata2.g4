@@ -2,9 +2,10 @@ grammar Schemata2;
 
 // ---- parser ---------------------------------------------------------------
 
-// The header's attributes follow the schema name. With no import between the header and the first
-// declaration, an attribute there is read as the header's (the loop is greedy); a doc comment on
-// the declaration, or an import, ends the header.
+// The header's attributes follow the schema name. The loop is greedy, so it also takes attributes
+// written on later lines above the first declaration; attributes attach by line, and the AST
+// builder keeps on the header only those starting on the `schema` line and hands the rest to the
+// first declaration or service.
 file          : doc? schemaDecl importDecl* topLevel* EOF ;
 schemaDecl    : SCHEMA qualifiedName attribute* ;
 importDecl    : IMPORT qualifiedName (AS IDENT)? ;
@@ -17,8 +18,8 @@ declaration   : modelDecl | enumDecl | unionDecl | aliasDecl ;
 modelDecl     : doc? attribute* MODEL IDENT '{' modelMember* blockAttribute* '}' ;
 modelMember   : field | declaration | reservedStmt ;
 // `[#n] name Type [{ options }] [@attributes] [= default]`. A field's trailing attributes are read
-// greedily, so an attribute after a field and before a nested declaration is the field's unless a
-// doc comment starts the declaration.
+// greedily; the AST builder keeps on the field those starting on its line (the line of its type,
+// options, or inline shape's closing `}`) and hands the rest to the next member.
 field         : doc? ORDINAL? IDENT typeExpr optionBlock? attribute* ('=' literal)? ;
 
 enumDecl      : doc? attribute* ENUM IDENT '{' enumBody '}' ;

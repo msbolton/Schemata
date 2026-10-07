@@ -1,6 +1,7 @@
 package io.schemata.lang.internal
 
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.LangCodes
 import io.schemata.lang.Span
 import io.schemata.lang.antlr.Schemata2Parser
 import io.schemata.lang.ast.AliasDecl
@@ -33,46 +34,123 @@ import org.antlr.v4.runtime.tree.TerminalNode
  * Parse tree of the 2.0 surface → the same AST the 1.x surface builds, plus what only 2.0 can say:
  * option blocks, postfix lists, and inline enums and shapes. The `schema` header becomes the
  * [NamespaceDecl] and its attributes the file's annotations; a model's `@@` block attributes join
- * its leading attributes in [RecordDecl.annotations], after them. `operation` is reserved and
- * becomes a diagnostic in [diagnostics] rather than a node.
+ * its leading attributes in [RecordDecl.annotations], after them. An attribute trailing the header
+ * or a field belongs to it only when it starts on the same line; on a later line it leads the next
+ * declaration or member. `operation` is reserved and becomes a diagnostic in [diagnostics] rather
+ * than a node.
  */
-internal class Ast2Builder(private val file: String, diagnostics: MutableList<Diagnostic>) {
+internal class Ast2Builder(
+    private val file: String,
+    private val diagnostics: MutableList<Diagnostic>,
+) {
     private val support = AstSupport(file, diagnostics)
 
+    /**
+     * Attributes attach by line. The grammar reads the attributes after the header, or after a
+     * field, greedily, so the builder keeps only those that start on the line they trail; the rest
+     * lead whatever comes next (see [byLine]).
+     */
     fun build(ctx: Schemata2Parser.FileContext): SourceFile {
+        val doc = doc(ctx.doc())
+        val header = ctx.schemaDecl()
+        val name = header.qualifiedName()
+        val (own, below) = byLine(header.attribute(), name.stop.line)
+        val annotations = own.map { build(it) }
+        var leading = below.map { build(it) }
+        // Attributes below the header lead the first declaration or service. An import cannot
+        // carry one, and neither can a reserved word or the end of the file.
+        val first = ctx.topLevel().firstOrNull()
+        if (
+            ctx.importDecl().isNotEmpty() ||
+                first == null ||
+                (first.declaration() == null && first.serviceDecl() == null)
+        ) {
+            nothingToAttach(leading)
+            leading = emptyList()
+        }
+        val imports =
+            ctx.importDecl().map {
+                ImportDecl(
+                    namespace = it.qualifiedName().text,
+                    alias = it.IDENT()?.text,
+                    namespaceSpan = it.qualifiedName().span(),
+                    aliasSpan = it.IDENT()?.symbol?.span(),
+                    span = it.span(),
+                )
+            }
         // One pass over the top level, so diagnostics come out in source order whether they sit in
         // a declaration or a service.
         val services = mutableListOf<ServiceDecl>()
-        val header = ctx.schemaDecl()
-        val name = header.qualifiedName()
+        val declarations =
+            ctx.topLevel().mapIndexedNotNull { index, top ->
+                val lead = if (index == 0) leading else emptyList()
+                val service = top.serviceDecl()
+                if (service != null) {
+                    val built = build(service)
+                    services +=
+                        built.copy(
+                            annotations = lead + built.annotations,
+                            span = widen(built.span, lead),
+                        )
+                    null
+                } else build(top)?.let { lead(it, lead) }
+            }
         return SourceFile(
             path = file,
-            doc = doc(ctx.doc()),
+            doc = doc,
+            annotations = annotations,
             namespace =
                 NamespaceDecl(name.text, name.span(), support.span(header.start, name.stop)),
-            annotations = header.attribute().map { build(it) },
-            imports =
-                ctx.importDecl().map {
-                    ImportDecl(
-                        namespace = it.qualifiedName().text,
-                        alias = it.IDENT()?.text,
-                        namespaceSpan = it.qualifiedName().span(),
-                        aliasSpan = it.IDENT()?.symbol?.span(),
-                        span = it.span(),
-                    )
-                },
-            declarations =
-                ctx.topLevel().mapNotNull { top ->
-                    val service = top.serviceDecl()
-                    if (service != null) {
-                        services += build(service)
-                        null
-                    } else build(top)
-                },
+            imports = imports,
+            declarations = declarations,
             span = ctx.span(),
             services = services,
         )
     }
+
+    /**
+     * Splits [attributes] at the first one that starts on a line other than [line], the line of the
+     * construct they trail: the first part is that construct's, the rest lead what follows.
+     */
+    private fun <T : ParserRuleContext> byLine(
+        attributes: List<T>,
+        line: Int,
+    ): Pair<List<T>, List<T>> {
+        val split = attributes.indexOfFirst { it.start.line != line }
+        return if (split < 0) attributes to emptyList()
+        else attributes.subList(0, split) to attributes.subList(split, attributes.size)
+    }
+
+    /** Reported at the first of [orphans], attributes on their own line with nothing below them. */
+    private fun nothingToAttach(orphans: List<Annotation>) {
+        val first = orphans.firstOrNull() ?: return
+        diagnostics +=
+            Diagnostic(
+                LangCodes.SYNTAX,
+                "an attribute here has nothing to attach to",
+                first.span,
+                help =
+                    "write a trailing attribute on the line of what it trails, or put it on the line above the declaration or field it describes",
+            )
+    }
+
+    /** [declaration] with [leading] before its own attributes, its span grown to cover them. */
+    private fun lead(declaration: Declaration, leading: List<Annotation>): Declaration {
+        if (leading.isEmpty()) return declaration
+        val annotations = leading + declaration.annotations
+        val span = widen(declaration.span, leading)
+        return when (declaration) {
+            is RecordDecl -> declaration.copy(annotations = annotations, span = span)
+            is EnumDecl -> declaration.copy(annotations = annotations, span = span)
+            is UnionDecl -> declaration.copy(annotations = annotations, span = span)
+            is AliasDecl -> declaration.copy(annotations = annotations, span = span)
+        }
+    }
+
+    private fun widen(span: Span, leading: List<Annotation>): Span =
+        leading.firstOrNull()?.let {
+            span.copy(startLine = it.span.startLine, startColumn = it.span.startColumn)
+        } ?: span
 
     private fun build(ctx: Schemata2Parser.TopLevelContext): Declaration? {
         ctx.reservedFutureDecl()?.let {
@@ -112,31 +190,70 @@ internal class Ast2Builder(private val file: String, diagnostics: MutableList<Di
         val reserved: List<ReservedItem>,
     )
 
+    /**
+     * A field's attributes on a later line than the field lead the next member; a reserved
+     * statement cannot carry them, and neither can the end of the body.
+     */
     private fun members(ctx: List<Schemata2Parser.ModelMemberContext>): Members {
         val fields = mutableListOf<FieldDecl>()
         val nested = mutableListOf<Declaration>()
         val reserved = mutableListOf<ReservedItem>()
+        var leading = emptyList<Annotation>()
         for (member in ctx) {
-            member.field()?.let { fields += build(it) }
-            member.declaration()?.let { nested += build(it) }
-            member.reservedStmt()?.let { reserved += build(it) }
+            val field = member.field()
+            val declaration = member.declaration()
+            if (field != null) {
+                val (built, below) = build(field, leading)
+                fields += built
+                leading = below
+            } else if (declaration != null) {
+                nested += lead(build(declaration), leading)
+                leading = emptyList()
+            } else {
+                nothingToAttach(leading)
+                leading = emptyList()
+                reserved += build(member.reservedStmt())
+            }
         }
+        nothingToAttach(leading)
         return Members(fields, nested, reserved)
     }
 
-    private fun build(ctx: Schemata2Parser.FieldContext): FieldDecl =
-        FieldDecl(
-            doc = doc(ctx.doc()),
-            ordinal = ctx.ORDINAL()?.let { support.ordinal(it) },
-            ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
-            name = ctx.IDENT().text,
-            nameSpan = ctx.IDENT().symbol.span(),
-            type = build(ctx.typeExpr()),
-            options = options(ctx.optionBlock()),
-            annotations = ctx.attribute().map { build(it) },
-            default = ctx.literal()?.let { build(it) },
-            span = ctx.span(),
-        )
+    /**
+     * The field, with [leading] carried down from the member above, and the attributes it passes on
+     * to the member below. The field's line is that of the last token before its attributes: the
+     * type's, or the closing `}` of its options or of a multi-line inline shape. When a default
+     * follows the attributes they all sit inside the field, so none is passed on.
+     */
+    private fun build(
+        ctx: Schemata2Parser.FieldContext,
+        leading: List<Annotation>,
+    ): Pair<FieldDecl, List<Annotation>> {
+        val doc = doc(ctx.doc())
+        val beforeAttributes = (ctx.optionBlock() ?: ctx.typeExpr()).stop
+        val (own, below) =
+            if (ctx.literal() != null) ctx.attribute() to emptyList()
+            else byLine(ctx.attribute(), beforeAttributes.line)
+        val field =
+            FieldDecl(
+                doc = doc,
+                ordinal = ctx.ORDINAL()?.let { support.ordinal(it) },
+                ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
+                name = ctx.IDENT().text,
+                nameSpan = ctx.IDENT().symbol.span(),
+                type = build(ctx.typeExpr()),
+                options = options(ctx.optionBlock()),
+                annotations = leading + own.map { build(it) },
+                default = ctx.literal()?.let { build(it) },
+                span =
+                    widen(
+                        if (below.isEmpty()) ctx.span()
+                        else support.span(ctx.start, own.lastOrNull()?.stop ?: beforeAttributes),
+                        leading,
+                    ),
+            )
+        return field to below.map { build(it) }
+    }
 
     private fun build(ctx: Schemata2Parser.EnumDeclContext): EnumDecl {
         val doc = doc(ctx.doc())
