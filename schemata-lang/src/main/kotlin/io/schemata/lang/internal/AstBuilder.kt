@@ -1,8 +1,6 @@
 package io.schemata.lang.internal
 
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.LangCodes
-import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.antlr.SchemataParser
 import io.schemata.lang.ast.AliasDecl
@@ -35,10 +33,9 @@ import org.antlr.v4.runtime.tree.TerminalNode
  * Parse tree → AST. Constructs the grammar accepts but the language reserves (`operation`,
  * `stream`) become diagnostics in [diagnostics] rather than nodes.
  */
-internal class AstBuilder(
-    private val file: String,
-    private val diagnostics: MutableList<Diagnostic>,
-) {
+internal class AstBuilder(private val file: String, diagnostics: MutableList<Diagnostic>) {
+    private val support = AstSupport(file, diagnostics)
+
     fun build(ctx: SchemataParser.FileContext): SourceFile {
         // One pass over the top level, so diagnostics come out in source order whether they sit in
         // a declaration or a service.
@@ -76,15 +73,7 @@ internal class AstBuilder(
 
     private fun build(ctx: SchemataParser.TopLevelContext): Declaration? {
         ctx.reservedFutureDecl()?.let { reserved ->
-            val keyword = reserved.start
-            diagnostics +=
-                Diagnostic(
-                    LangCodes.RESERVED_KEYWORD,
-                    "'${keyword.text}' is reserved for a future version of Schemata",
-                    keyword.span(),
-                    help =
-                        "rename the declaration; reserved words are listed in the language reference",
-                )
+            support.reservedFuture(reserved.start)
             return null
         }
         return ctx.declaration()?.let { build(it) }
@@ -214,66 +203,13 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.PayloadContext): PayloadDecl =
         PayloadDecl(build(ctx.typeExpr()), ctx.STREAM() != null, ctx.span())
 
-    /**
-     * The verb is an identifier in the grammar so that `get` and `post` stay legal names elsewhere;
-     * here it must be an HTTP method (SCH0006). The path must be `/`-separated segments of
-     * unreserved URL characters or `{lower_snake}` parameters (SCH0007).
-     */
-    private fun build(ctx: SchemataParser.BindingContext): BindingDecl {
-        val verbNode = ctx.IDENT()
-        val verb = verbNode.text
-        if (verb !in VERBS) {
-            diagnostics +=
-                Diagnostic(
-                    LangCodes.UNKNOWN_VERB,
-                    "'$verb' is not an HTTP verb",
-                    verbNode.symbol.span(),
-                    help = "use one of get, post, put, patch, delete, head, options",
-                )
-        }
-        val literal = ctx.STRING_LITERAL()
-        val pathSpan = literal.symbol.span()
-        val path = string(literal, pathSpan)
-        val parameters = mutableListOf<String>()
-        val problem = pathProblem(path, parameters)
-        if (problem != null) {
-            diagnostics +=
-                Diagnostic(
-                    LangCodes.MALFORMED_PATH,
-                    "path ${SchemataText.string(path)} is malformed: $problem",
-                    pathSpan,
-                    help = "write the path as /segment/{param}; parameters are lower_snake",
-                )
-        }
-        return BindingDecl(verb, verbNode.symbol.span(), path, pathSpan, parameters, ctx.span())
-    }
-
-    /**
-     * Null when [path] is well formed; otherwise what is wrong, with [parameters] filled as far as
-     * it got.
-     */
-    private fun pathProblem(path: String, parameters: MutableList<String>): String? {
-        if (!path.startsWith("/")) return "it must start with /"
-        if (path.length > 1 && path.endsWith("/")) return "it must not end with /"
-        val body = path.substring(1)
-        if (body.isEmpty()) return null
-        for (segment in body.split("/")) {
-            if (segment.isEmpty()) return "it has an empty segment"
-            if (segment.startsWith("{") && segment.endsWith("}")) {
-                val name = segment.substring(1, segment.length - 1)
-                if (!LOWER_SNAKE.matches(name)) return "parameter \"$name\" is not lower_snake"
-                parameters += name
-            } else if (!SEGMENT.matches(segment)) {
-                return "segment \"$segment\" holds a character outside A-Z a-z 0-9 . _ ~ -"
-            }
-        }
-        return null
-    }
+    private fun build(ctx: SchemataParser.BindingContext): BindingDecl =
+        support.binding(ctx.IDENT(), ctx.STRING_LITERAL(), ctx.span())
 
     private fun build(ctx: SchemataParser.ReservedStmtContext): List<ReservedItem> =
         ctx.reservedItem().map { item ->
             item.STRING_LITERAL()?.let {
-                ReservedItem.Name(string(it, it.symbol.span()), item.span())
+                ReservedItem.Name(support.string(it, it.symbol.span()), item.span())
             }
                 ?: run {
                     val ordinals = item.ORDINAL().map { ordinal(it) }
@@ -331,25 +267,13 @@ internal class AstBuilder(
     private fun build(ctx: SchemataParser.LiteralContext): Literal {
         val span = ctx.span()
         ctx.INT_LITERAL()?.let {
-            val value =
-                it.text.toLongOrNull()
-                    ?: run {
-                        diagnostics +=
-                            Diagnostic(
-                                LangCodes.NUMERIC_LITERAL_RANGE,
-                                "number '${it.text}' is out of range",
-                                span,
-                                help = "use a value that fits in 64 bits",
-                            )
-                        0L
-                    }
-            return Literal.IntLit(value, span)
+            return support.int(it, span)
         }
         ctx.FLOAT_LITERAL()?.let {
             return Literal.FloatLit(it.text, span)
         }
         ctx.STRING_LITERAL()?.let {
-            return Literal.StringLit(string(it, span), span)
+            return Literal.StringLit(support.string(it, span), span)
         }
         ctx.TRUE()?.let {
             return Literal.BoolLit(true, span)
@@ -360,114 +284,18 @@ internal class AstBuilder(
         return Literal.NameLit(ctx.IDENT().text, span)
     }
 
-    /**
-     * The text of a doc comment, which every target writes out; each control character XML cannot
-     * carry is reported as SCH0005, as in a string.
-     */
-    private fun doc(ctx: SchemataParser.DocContext?): String? =
-        ctx?.DOC_COMMENT()?.joinToString("\n") { node ->
-            val token = node.symbol
-            Strings.rawControls(token.text).forEach {
-                report(it, token.line, token.charPositionInLine + 1, "a doc comment")
-            }
-            node.text.removePrefix("///").removePrefix(" ").trimEnd()
-        }
+    private fun doc(ctx: SchemataParser.DocContext?): String? = support.doc(ctx?.DOC_COMMENT())
 
-    private fun ordinal(node: TerminalNode): Int =
-        node.text.removePrefix("#").toIntOrNull()
-            ?: run {
-                diagnostics +=
-                    Diagnostic(
-                        LangCodes.NUMERIC_LITERAL_RANGE,
-                        "ordinal '${node.text}' is out of range",
-                        node.symbol.span(),
-                        help = "use an ordinal that fits in 32 bits",
-                    )
-                0
-            }
-
-    /**
-     * A string token's value; each escape the language does not define is reported as SCH0004, and
-     * each control character XML cannot carry as SCH0005.
-     */
-    private fun string(node: TerminalNode, span: Span): String {
-        val text = node.text
-        val result = Strings.unescape(text.substring(1, text.length - 1))
-        result.bad.forEach { report(it, span) }
-        return result.value
-    }
+    private fun ordinal(node: TerminalNode): Int = support.ordinal(node)
 
     /**
      * The string of a `pattern` refinement is taken as written; any other literal is built as
      * usual.
      */
     private fun patternLiteral(ctx: SchemataParser.LiteralContext): Literal =
-        ctx.STRING_LITERAL()?.let {
-            val span = ctx.span()
-            Strings.rawControls(it.text.substring(1, it.text.length - 1)).forEach { bad ->
-                report(bad, span)
-            }
-            Literal.StringLit(Strings.unquotePattern(it.text), span)
-        } ?: build(ctx)
+        ctx.STRING_LITERAL()?.let { support.pattern(it, ctx.span()) } ?: build(ctx)
 
-    /** [span] is a string literal's; its body starts one column in, after the quote. */
-    private fun report(bad: BadText, span: Span) {
-        // A string cannot span lines, so the bad text sits on the line the string starts on.
-        report(bad, span.startLine, span.startColumn + 1, "a string")
-    }
+    private fun ParserRuleContext.span(): Span = support.span(this)
 
-    /** [column] is where offset 0 of the text [bad] was found in sits; [what] names that text. */
-    private fun report(bad: BadText, line: Int, column: Int, what: String) {
-        val start = column + bad.offset
-        val where = Span(file, line, start, line, start + bad.length - 1)
-        diagnostics +=
-            when (val reason = bad.reason) {
-                BadText.UnknownEscape ->
-                    Diagnostic(
-                        LangCodes.BAD_ESCAPE,
-                        "unknown escape '${bad.text}' in a string",
-                        where,
-                        help = ESCAPE_HELP,
-                    )
-                BadText.NotScalar ->
-                    Diagnostic(
-                        LangCodes.BAD_ESCAPE,
-                        "'${bad.text}' is not a Unicode scalar value",
-                        where,
-                        help = ESCAPE_HELP,
-                    )
-                is BadText.Control ->
-                    Diagnostic(
-                        LangCodes.CONTROL_CHARACTER,
-                        "control character U+%04X in %s".format(reason.point, what),
-                        where,
-                        help =
-                            "write text; only tab, newline, and carriage return are allowed as control characters",
-                    )
-            }
-    }
-
-    private fun ParserRuleContext.span(): Span {
-        val stop = stop ?: start
-        val endColumn =
-            if (stop.type == Token.EOF) stop.charPositionInLine + 1
-            else stop.charPositionInLine + stop.text.codePointLength()
-        return Span(file, start.line, start.charPositionInLine + 1, stop.line, endColumn)
-    }
-
-    private fun Token.span(): Span =
-        Span(file, line, charPositionInLine + 1, line, charPositionInLine + text.codePointLength())
-
-    private companion object {
-        const val ESCAPE_HELP =
-            "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}"
-        val VERBS = setOf("get", "post", "put", "patch", "delete", "head", "options")
-        val LOWER_SNAKE = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
-        val SEGMENT = Regex("[A-Za-z0-9._~-]+")
-    }
-
-    // ANTLR counts columns in Unicode code points; a token's own text is a normal UTF-16 Java
-    // string, so an astral character inside it (an emoji, say) counts as one column here too,
-    // rather than the two UTF-16 units `String.length` would give it.
-    private fun String.codePointLength(): Int = codePointCount(0, length)
+    private fun Token.span(): Span = support.span(this)
 }

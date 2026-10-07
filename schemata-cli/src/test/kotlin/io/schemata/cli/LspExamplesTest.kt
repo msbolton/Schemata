@@ -70,10 +70,7 @@ class LspExamplesTest {
         session(examples).use { session ->
             session.open(orders, text)
             session.diagnostics(orders) { it.isEmpty() }
-            session.change(
-                orders,
-                text.replace("customer:  Customer", "customer:  Custmer"),
-            )
+            session.change(orders, text.replace("customer:  Customer", "customer:  Custmer"))
             val shown = session.diagnostics(orders) { it.isNotEmpty() }
             // The misspelled name is unknown, and the import it no longer uses is reported too.
             assertEquals(setOf("SCH1006", "SCH1012"), shown.map { it.code.left }.toSet())
