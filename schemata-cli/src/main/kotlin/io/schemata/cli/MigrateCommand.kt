@@ -73,19 +73,8 @@ class MigrateCommand : CliktCommand(name = "migrate") {
         val files =
             if (migrated.lowered) MigrationRenderer.files(migrated.migration, allowDestructive)
             else emptyList()
-        val provisional =
-            Report.of(migrated.diagnostics, emptyList(), emptyList(), strict = reporting.strict)
-        val writes = provisional.errors == 0 && files.isNotEmpty()
-        val report =
-            Report.of(
-                migrated.diagnostics,
-                written = if (writes) files.map { Written("migrate", it.first) } else emptyList(),
-                skipped =
-                    if (!writes && files.isNotEmpty())
-                        listOf(Skipped("migrate", provisional.errors))
-                    else emptyList(),
-                strict = reporting.strict,
-            )
+        val report = migrateReport(migrated, files, reporting.strict)
+        val writes = report.written.isNotEmpty()
         if (writes) files.forEach { (path, content) -> writeOutput(out.resolve(path), content) }
         when (reporting.format) {
             Format.JSON -> {
@@ -104,6 +93,25 @@ class MigrateCommand : CliktCommand(name = "migrate") {
 }
 
 /**
+ * The report for a `migrate` run: the files are written only when nothing promotes to an error
+ * (strict promotes every warning), else the run is reported as skipped with that error count.
+ */
+internal fun migrateReport(
+    migrated: Migrated,
+    files: List<Pair<String, String>>,
+    strict: Boolean,
+): Report {
+    val errors =
+        migrated.diagnostics.count {
+            it.severity == Severity.ERROR || (strict && it.severity == Severity.WARNING)
+        }
+    val written = if (errors == 0) files.map { Written("migrate", it.first) } else emptyList()
+    val skipped =
+        if (errors > 0 && files.isNotEmpty()) listOf(Skipped("migrate", errors)) else emptyList()
+    return Report.of(migrated.diagnostics, written, skipped, strict)
+}
+
+/**
  * Everything `schemata migrate` computes before rendering, so tests and fixtures see the same
  * thing.
  */
@@ -111,7 +119,10 @@ internal data class Migrated(
     val migration: Migration,
     /** The SQL rulebook's judgement of the same two schemas, for the JSON `changes`. */
     val comparison: Comparison,
-    /** SQL lowering diagnostics of either side when present, else the migration's. */
+    /**
+     * The SQL lowering's errors on either side when there are any, else the migration's own
+     * diagnostics; the lowering's warnings belong to `compile`.
+     */
     val diagnostics: List<Diagnostic>,
     /** False when a side had an SQL error: nothing is planned. */
     val lowered: Boolean,
@@ -134,12 +145,7 @@ internal fun migrate(old: Schema, new: Schema, allowDestructive: Boolean): Migra
     val errors =
         (oldLowered.diagnostics + newLowered.diagnostics).filter { it.severity == Severity.ERROR }
     if (errors.isNotEmpty())
-        return Migrated(
-            Migration(emptyList()),
-            comparison,
-            oldLowered.diagnostics + newLowered.diagnostics,
-            lowered = false,
-        )
+        return Migrated(Migration(emptyList()), comparison, errors, lowered = false)
     val migration = Planner.plan(Side(old, oldLowered.model), Side(new, newLowered.model))
     return Migrated(
         migration,

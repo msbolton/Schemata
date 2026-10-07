@@ -3,6 +3,7 @@ package io.schemata.cli.report
 import io.schemata.cli.Migrated
 import io.schemata.evolution.SqlRules
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.Severity
 import io.schemata.migrate.AddColumn
 import io.schemata.migrate.AddConstraint
 import io.schemata.migrate.AlterColumnType
@@ -18,6 +19,7 @@ import io.schemata.migrate.DropIndex
 import io.schemata.migrate.DropNotNull
 import io.schemata.migrate.DropSchema
 import io.schemata.migrate.DropTable
+import io.schemata.migrate.MigrateCodes
 import io.schemata.migrate.Migration
 import io.schemata.migrate.MigrationRenderer
 import io.schemata.migrate.RenameColumn
@@ -58,8 +60,9 @@ object MigrateRenderer {
 
     /**
      * `diff`'s document for the sql rulebook plus `steps` (`file`, `kind`, `sql`, `risk`, `path`,
-     * `line`) and `files` (`path`, `content`); `errors` as `diff` when the sides cannot be compared
-     * or a side has SQL errors.
+     * `line`, and `code`, `message`, `help` for a step that is not clean, null otherwise) and
+     * `files` (`path`, `content`); `errors`, shaped as `diff`'s, holds only errors: why the sides
+     * cannot be compared, or a side's SQL errors.
      */
     internal fun json(
         migrated: Migrated,
@@ -68,7 +71,9 @@ object MigrateRenderer {
         errors: List<Diagnostic> = emptyList(),
     ): String {
         val comparison = migrated.comparison
-        val shown = errors.ifEmpty { if (migrated.lowered) emptyList() else migrated.diagnostics }
+        val shown =
+            (errors.ifEmpty { if (migrated.lowered) emptyList() else migrated.diagnostics })
+                .filter { it.severity == Severity.ERROR }
         val fields =
             mutableListOf<Pair<String, Any?>>(
                 "changes" to comparison.judged.map { DiffRenderer.changeJson(it) },
@@ -90,15 +95,26 @@ object MigrateRenderer {
         return Json.document(DiffRenderer.obj(fields))
     }
 
-    private fun stepJson(file: String, step: Step): Json.Obj =
-        Json.Obj(
+    private fun stepJson(file: String, step: Step): Json.Obj {
+        val risky = step.risk != Risk.CLEAN
+        val code =
+            when (step.risk) {
+                Risk.CLEAN -> null
+                Risk.MAY_FAIL -> MigrateCodes.MAY_FAIL.id
+                Risk.DESTRUCTIVE -> MigrateCodes.DESTRUCTIVE.id
+            }
+        return Json.Obj(
             "file" to file,
             "kind" to step::class.simpleName!!.replaceFirstChar { it.lowercase() },
             "sql" to MigrationRenderer.sql(step),
             "risk" to risk(step.risk),
             "path" to step.subject.path,
             "line" to step.subject.span.startLine,
+            "code" to code,
+            "message" to if (risky) MigrateCodes.message(step) else null,
+            "help" to if (risky) step.help else null,
         )
+    }
 
     private fun risk(r: Risk) =
         when (r) {

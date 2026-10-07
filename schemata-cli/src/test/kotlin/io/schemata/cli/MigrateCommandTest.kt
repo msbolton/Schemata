@@ -135,4 +135,97 @@ class MigrateCommandTest {
         assertEquals(1, run.exitCode)
         assertTrue(run.stderr.contains("error[SCH2503]: NEW:"), run.stderr)
     }
+
+    @Test
+    fun `allow-destructive under strict exits 1 and writes nothing`() {
+        val new = old.replace("  #3 note: string?\n", "")
+        val run = migrate(old, new, "--allow-destructive", "--strict")
+        assertEquals(1, run.exitCode)
+        assertNull(run.fileOrNull("migrate/s.sql"))
+    }
+
+    @Test
+    fun `a may-fail step writes the file and exits 2`() {
+        val new = old.replace("#3 note: string?", "#3 note: string")
+        val run = migrate(old, new)
+        assertEquals(2, run.exitCode)
+        assertTrue(run.file("migrate/s.sql").contains("SET NOT NULL"))
+        assertTrue(run.stderr.contains("warning[SCH2702]"), run.stderr)
+    }
+
+    @Test
+    fun `a nested namespace writes under its path`() {
+        val nested = old.replace("namespace s", "namespace shop.orders")
+        val run =
+            migrate(
+                nested,
+                nested.replace("#3 note: string?", "#3 note: string?\n  #4 tier: int32?"),
+            )
+        assertEquals(0, run.exitCode, run.stderr)
+        assertTrue(run.file("migrate/shop/orders.sql").contains("ADD COLUMN \"tier\""))
+    }
+
+    @Test
+    fun `json gives a blocked destructive step its code message and help`() {
+        val new = old.replace("  #3 note: string?\n", "")
+        val run = migrate(old, new, "--format", "json")
+        assertEquals(1, run.exitCode)
+        val json = run.stdout
+        assertTrue(json.contains("\"risk\":\"destructive\",\"path\":\"s.Customer.note\""), json)
+        assertTrue(json.contains("\"code\":\"SCH2701\""), json)
+        assertTrue(
+            json.contains(
+                "\"message\":\"s.Customer.note: DROP COLUMN \\\"note\\\" loses every value the column holds\""
+            ),
+            json,
+        )
+        assertTrue(
+            json.contains(
+                "\"help\":\"rerun with --allow-destructive once the data is migrated or no longer needed\""
+            ),
+            json,
+        )
+        assertTrue(json.contains("\"files\": []"), json)
+        assertFalse(json.contains("\"errors\""), json)
+        assertTrue(json.contains("\"exitCode\": 1"), json)
+    }
+
+    @Test
+    fun `json leaves a clean step's code message and help null`() {
+        val new = old.replace("#3 note: string?", "#3 note: string?\n  #4 tier: int32?")
+        val json = migrate(old, new, "--format", "json").stdout
+        assertTrue(json.contains("\"code\":null,\"message\":null,\"help\":null"), json)
+    }
+
+    @Test
+    fun `json for a side that does not analyse has no steps or files and the SCH2503 error`() {
+        val run =
+            migrate(
+                old,
+                "namespace s\nrecord Customer { #1 id: uuid #1 dup: uuid }",
+                "--format",
+                "json",
+            )
+        assertEquals(1, run.exitCode)
+        val json = run.stdout
+        assertTrue(json.contains("\"steps\": []"), json)
+        assertTrue(json.contains("\"files\": []"), json)
+        assertTrue(json.contains("\"errors\": [{\"code\":\"SCH2503\""), json)
+    }
+
+    @Test
+    fun `json for a side with sql errors lists only the errors`() {
+        // keyless and unused: SCH2106; a unique over the primary key: a warning compile reports
+        val new =
+            old.replace("@sql(key) #1 id", "@sql(key) @sql(unique) #1 id") +
+                "\nrecord Orphan { #1 x: int32 }\n"
+        val run = migrate(old, new, "--format", "json")
+        assertEquals(1, run.exitCode)
+        val json = run.stdout
+        assertTrue(json.contains("\"steps\": []"), json)
+        assertTrue(json.contains("\"files\": []"), json)
+        assertTrue(json.contains("\"code\":\"SCH2106\""), json)
+        val errors = json.lines().single { it.trimStart().startsWith("\"errors\"") }
+        assertEquals(1, Regex("\"code\":").findAll(errors).count(), errors)
+    }
 }
