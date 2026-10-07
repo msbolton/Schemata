@@ -17,10 +17,11 @@ declaration   : modelDecl | enumDecl | unionDecl | aliasDecl ;
 // Block attributes (`@@x`) close a model body and belong to the model.
 modelDecl     : doc? attribute* MODEL IDENT '{' modelMember* blockAttribute* '}' ;
 modelMember   : field | declaration | reservedStmt ;
-// `[#n] name Type [{ options }] [@attributes] [= default]`. A field's trailing attributes are read
-// greedily; the AST builder keeps on the field those starting on its line (the line of its type,
-// options, or inline shape's closing `}`) and hands the rest to the next member.
-field         : doc? ORDINAL? IDENT typeExpr optionBlock? attribute* ('=' literal)? ;
+// `[@attributes] [#n] name Type [{ options }] [@attributes] [= default]`. Attributes above a field
+// lead it, as they lead an enum value or an operation. Its trailing attributes are read greedily;
+// the AST builder keeps on the field those starting on its line (the line of its type, options,
+// or inline shape's closing `}`) and hands the rest to the next member.
+field         : doc? attribute* ORDINAL? IDENT fieldType optionBlock? attribute* ('=' literal)? ;
 
 enumDecl      : doc? attribute* ENUM IDENT '{' enumBody '}' ;
 // Commas between values are optional, so a 1.x-style list still reads.
@@ -51,14 +52,17 @@ binding       : IDENT STRING_LITERAL ;
 reservedFutureDecl : OPERATION IDENT? block? ;
 block         : '{' (block | ~('{' | '}'))* '}' ;
 
-// A type: a name with optional arguments, an inline enum, or an inline shape; then `?` for a
-// nullable element and `[]` (optionally `?`) for a list of it. `decimal(19, 4)` keeps its
-// parenthesised precision and scale because they are part of the type. A field is
-// `IDENT typeExpr optionBlock?`, so after a field's name the first `{ … }` is an inline shape and
-// the one after a type is its options.
+// A type: a name with optional arguments, then `?` for a nullable element and `[]` (optionally
+// `?`) for a list of it. `decimal(19, 4)` keeps its parenthesised precision and scale because they
+// are part of the type.
 typeExpr      : typeCore QUESTION? ('[' ']' QUESTION?)? ;
-typeCore      : qualifiedName typeArgs? decimalArgs?
-              | ENUM '{' enumBody '}'
+typeCore      : qualifiedName typeArgs? decimalArgs? ;
+// Only a field's type may be an inline enum or shape, directly or as the element of its list; a
+// union member, an alias, a payload, or a type argument names its type. A field is
+// `IDENT fieldType optionBlock?`, so after a field's name the first `{ … }` is an inline shape and
+// the one after a type is its options.
+fieldType     : (typeCore | inlineType) QUESTION? ('[' ']' QUESTION?)? ;
+inlineType    : ENUM '{' enumBody '}'
               | '{' modelMember* blockAttribute* '}' ;
 typeArgs      : '<' typeArg (',' typeArg)* '>' ;
 // Options on a type argument constrain a map's key or value.

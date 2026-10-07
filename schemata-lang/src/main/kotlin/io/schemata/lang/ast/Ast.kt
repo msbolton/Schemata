@@ -188,9 +188,10 @@ sealed interface ReservedItem {
  * [listNullable] is false. [options] are those written on a type argument (`map<string { max 10 },
  * int32>`) or after an alias's type.
  *
- * In type position an inline enum (`enum { a b }`) fills [inlineEnum] and an inline shape (`{
- * street string }`) fills [inlineShape]; either one is named `""` until the analyzer hoists it. For
- * both, [name] is `""`, [nameSegments] is empty, and [nameSpan] covers the opening `enum` or `{`.
+ * As a field's type, or the element of a field's list, an inline enum (`enum { a b }`) fills
+ * [inlineEnum] and an inline shape (`{ street string }`) fills [inlineShape]; either one is named
+ * `""` until the analyzer hoists it. For both, [name] is `""`, [nameSegments] is empty, and
+ * [nameSpan] covers the opening `enum` or `{`.
  */
 data class TypeExpr(
     val name: String,

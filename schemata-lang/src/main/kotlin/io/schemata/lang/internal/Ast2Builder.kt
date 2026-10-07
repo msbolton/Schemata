@@ -221,19 +221,23 @@ internal class Ast2Builder(
 
     /**
      * The field, with [leading] carried down from the member above, and the attributes it passes on
-     * to the member below. The field's line is that of the last token before its attributes: the
-     * type's, or the closing `}` of its options or of a multi-line inline shape. When a default
-     * follows the attributes they all sit inside the field, so none is passed on.
+     * to the member below. Carried attributes come first, then those written above the field. The
+     * field's line is that of the last token before its trailing attributes: the type's, or the
+     * closing `}` of its options or of a multi-line inline shape. When a default follows the
+     * trailing attributes they all sit inside the field, so none is passed on.
      */
     private fun build(
         ctx: Schemata2Parser.FieldContext,
         leading: List<Annotation>,
     ): Pair<FieldDecl, List<Annotation>> {
         val doc = doc(ctx.doc())
-        val beforeAttributes = (ctx.optionBlock() ?: ctx.typeExpr()).stop
+        val nameAt = ctx.children.indexOf(ctx.IDENT())
+        val (above, trailing) = ctx.attribute().partition { ctx.children.indexOf(it) < nameAt }
+        val beforeTrailing = (ctx.optionBlock() ?: ctx.fieldType()).stop
         val (own, below) =
-            if (ctx.literal() != null) ctx.attribute() to emptyList()
-            else byLine(ctx.attribute(), beforeAttributes.line)
+            if (ctx.literal() != null) trailing to emptyList()
+            else byLine(trailing, beforeTrailing.line)
+        val annotations = leading + above.map { build(it) }
         val field =
             FieldDecl(
                 doc = doc,
@@ -241,14 +245,14 @@ internal class Ast2Builder(
                 ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
                 name = ctx.IDENT().text,
                 nameSpan = ctx.IDENT().symbol.span(),
-                type = build(ctx.typeExpr()),
+                type = build(ctx.fieldType()),
                 options = options(ctx.optionBlock()),
-                annotations = leading + own.map { build(it) },
+                annotations = annotations + own.map { build(it) },
                 default = ctx.literal()?.let { build(it) },
                 span =
                     widen(
                         if (below.isEmpty()) ctx.span()
-                        else support.span(ctx.start, own.lastOrNull()?.stop ?: beforeAttributes),
+                        else support.span(ctx.start, own.lastOrNull()?.stop ?: beforeTrailing),
                         leading,
                     ),
             )
@@ -389,51 +393,27 @@ internal class Ast2Builder(
                 }
         }
 
-    /**
-     * A `?` before `[]` makes the element nullable and one after it the list; with no `[]` the only
-     * `?` is the type's own. [optionBlock] is the one written after the type, when its position
-     * allows one (a type argument or an alias).
-     */
+    /** [optionBlock] is the one written after the type, in a type argument or an alias. */
     private fun build(
         ctx: Schemata2Parser.TypeExprContext,
         optionBlock: Schemata2Parser.OptionBlockContext? = null,
-    ): TypeExpr {
-        val open = ctx.children.indexOfFirst { it is TerminalNode && it.text == "[" }
-        val list = open >= 0
-        val questions = ctx.QUESTION().map { ctx.children.indexOf(it) }
-        val nullable = questions.any { !list || it < open }
-        val listNullable = list && questions.any { it > open }
-        val core = ctx.typeCore()
-        val name = core.qualifiedName()
-        if (name != null) {
-            return TypeExpr(
-                name = name.text,
-                nameSpan = name.span(),
-                nameSegments = name.IDENT().map { it.symbol.span() },
-                args =
-                    core.typeArgs()?.typeArg()?.map { build(it.typeExpr(), it.optionBlock()) }
-                        ?: emptyList(),
-                refinements =
-                    core.decimalArgs()?.INT_LITERAL()?.map {
-                        val span = it.symbol.span()
-                        Refinement.Positional(support.int(it, span), span)
-                    } ?: emptyList(),
-                nullable = nullable,
-                span = ctx.span(),
-                list = list,
-                listNullable = listNullable,
-                options = options(optionBlock),
-            )
+    ): TypeExpr = named(ctx.typeCore(), postfix(ctx, ctx.QUESTION()), ctx.span(), optionBlock)
+
+    private fun build(ctx: Schemata2Parser.FieldTypeContext): TypeExpr {
+        val postfix = postfix(ctx, ctx.QUESTION())
+        ctx.typeCore()?.let {
+            return named(it, postfix, ctx.span(), null)
         }
         // An inline enum or shape has no name until the analyzer hoists it; the opening `enum` or
         // `{` stands in for one wherever a span for the name is needed.
-        val opening = core.start.span()
+        val inline = ctx.inlineType()
+        val opening = inline.start.span()
         val inlineEnum =
-            core.enumBody()?.let { enumDecl("", opening, it, null, emptyList(), core.span()) }
+            inline.enumBody()?.let { enumDecl("", opening, it, null, emptyList(), inline.span()) }
         val inlineShape =
             if (inlineEnum != null) null
             else {
-                val members = members(core.modelMember())
+                val members = members(inline.modelMember())
                 RecordDecl(
                     name = "",
                     nameSpan = opening,
@@ -441,8 +421,8 @@ internal class Ast2Builder(
                     nested = members.nested,
                     reserved = members.reserved,
                     doc = null,
-                    annotations = core.blockAttribute().map { build(it) },
-                    span = core.span(),
+                    annotations = inline.blockAttribute().map { build(it) },
+                    span = inline.span(),
                 )
             }
         return TypeExpr(
@@ -451,13 +431,57 @@ internal class Ast2Builder(
             nameSegments = emptyList(),
             args = emptyList(),
             refinements = emptyList(),
-            nullable = nullable,
+            nullable = postfix.nullable,
             span = ctx.span(),
-            list = list,
-            listNullable = listNullable,
-            options = options(optionBlock),
+            list = postfix.list,
+            listNullable = postfix.listNullable,
             inlineEnum = inlineEnum,
             inlineShape = inlineShape,
+        )
+    }
+
+    /** What the `?`, `[]`, `?` after a type say. */
+    private class Postfix(val nullable: Boolean, val list: Boolean, val listNullable: Boolean)
+
+    /**
+     * A `?` before `[]` makes the element nullable and one after it the list; with no `[]` the only
+     * `?` is the type's own.
+     */
+    private fun postfix(ctx: ParserRuleContext, questions: List<TerminalNode>): Postfix {
+        val open = ctx.children.indexOfFirst { it is TerminalNode && it.text == "[" }
+        val list = open >= 0
+        val at = questions.map { ctx.children.indexOf(it) }
+        return Postfix(
+            nullable = at.any { !list || it < open },
+            list = list,
+            listNullable = list && at.any { it > open },
+        )
+    }
+
+    private fun named(
+        core: Schemata2Parser.TypeCoreContext,
+        postfix: Postfix,
+        span: Span,
+        optionBlock: Schemata2Parser.OptionBlockContext?,
+    ): TypeExpr {
+        val name = core.qualifiedName()
+        return TypeExpr(
+            name = name.text,
+            nameSpan = name.span(),
+            nameSegments = name.IDENT().map { it.symbol.span() },
+            args =
+                core.typeArgs()?.typeArg()?.map { build(it.typeExpr(), it.optionBlock()) }
+                    ?: emptyList(),
+            refinements =
+                core.decimalArgs()?.INT_LITERAL()?.map {
+                    val literal = it.symbol.span()
+                    Refinement.Positional(support.int(it, literal), literal)
+                } ?: emptyList(),
+            nullable = postfix.nullable,
+            span = span,
+            list = postfix.list,
+            listNullable = postfix.listNullable,
+            options = options(optionBlock),
         )
     }
 

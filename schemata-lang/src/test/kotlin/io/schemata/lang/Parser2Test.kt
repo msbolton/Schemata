@@ -311,4 +311,53 @@ class Parser2Test {
             model("schema s\nmodel M {\n  a int32\n    @deprecated(\"x\") = 1\n}").fields.single()
         assertEquals(listOf("deprecated"), f.annotations.map { it.name })
     }
+
+    @Test
+    fun `an attribute leads the first member`() {
+        val a = model("schema s\nmodel M {\n  @x\n  a int32\n}").fields.single()
+        assertEquals(listOf("x"), a.annotations.map { it.name })
+        assertEquals(Span("t.schemata", 3, 3, 4, 9), a.span)
+    }
+
+    @Test
+    fun `doc then attribute then field parses with the attribute on the field`() {
+        val (a, b) = model("schema s\nmodel M {\n  a int32\n  /// d\n  @x\n  b int32\n}").fields
+        assertEquals(emptyList(), a.annotations)
+        assertEquals(listOf("x"), b.annotations.map { it.name })
+        assertEquals("d", b.doc)
+        assertEquals(Span("t.schemata", 4, 3, 6, 9), b.span)
+    }
+
+    @Test
+    fun `a doc comment between a carried attribute and its owner keeps the owner's span and attribute`() {
+        val (a, b) =
+            model("schema s\nmodel M {\n  a int32\n  @x\n  /// d\n  @y\n  b int32\n}").fields
+        assertEquals(emptyList(), a.annotations)
+        assertEquals(Span("t.schemata", 3, 3, 3, 9), a.span)
+        assertEquals(listOf("x", "y"), b.annotations.map { it.name })
+        assertEquals("d", b.doc)
+        assertEquals(Span("t.schemata", 4, 3, 7, 9), b.span)
+    }
+
+    @Test
+    fun `an inline shape in a union member or an alias is a syntax error`() {
+        assertNull(parse("schema s\nmodel A { a int32 }\nunion U = A | { x int32 }").file)
+        assertNull(parse("schema s\nalias S = { x int32 }").file)
+        assertNull(parse("schema s\nalias E = enum { a b }").file)
+        assertNull(parse("schema s\nmodel M { m map<string, { x int32 }> }").file)
+    }
+
+    @Test
+    fun `an inline enum as a list element parses on a field`() {
+        val t = model("schema s\nmodel M { tags enum { a b }[] }").fields.single().type
+        assertEquals(listOf("a", "b"), t.inlineEnum!!.values.map { it.name })
+        assertTrue(t.list && !t.nullable && !t.listNullable)
+    }
+
+    @Test
+    fun `an attribute inside an enum body leads the next value`() {
+        val e = parse("schema s\nenum E { a @x b }").file!!.declarations.single() as EnumDecl
+        assertEquals(emptyList(), e.values[0].annotations)
+        assertEquals(listOf("x"), e.values[1].annotations.map { it.name })
+    }
 }
