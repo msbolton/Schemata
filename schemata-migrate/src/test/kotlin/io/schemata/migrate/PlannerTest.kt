@@ -468,4 +468,173 @@ class PlannerTest {
             kinds,
         )
     }
+
+    @Test
+    fun `a retyped column with a default drops it before the type change and sets the new one after`() {
+        val old = base.replace("#3 note: string?", "#3 retries: string = \"3\"")
+        val new = base.replace("#3 note: string?", "#3 retries: int32 = 3")
+        val steps = plan(old, new)
+        assertEquals(
+            listOf(DropDefault::class, AlterColumnType::class, SetDefault::class),
+            steps.map { it::class },
+        )
+        assertEquals("3", (steps[2] as SetDefault).default)
+        assertEquals(
+            "values that do not fit integer (the cast fails or truncates)",
+            steps[1].reason,
+        )
+    }
+
+    @Test
+    fun `a type override is judged by the type it spells`() {
+        val old = base.replace("#3 note: string?", "@sql(type = \"integer\") #3 n: int32")
+        val new = old.replace("\"integer\"", "\"bigint\"")
+        assertEquals(Risk.CLEAN, (plan(old, new).single() as AlterColumnType).risk)
+        assertEquals(Risk.DESTRUCTIVE, (plan(new, old).single() as AlterColumnType).risk)
+    }
+
+    @Test
+    fun `two tables swapping names route their keys through a temporary name`() {
+        val old =
+            """
+            namespace s
+            record A { @sql(key) #1 id: uuid }
+            record B { @sql(key) #1 id: uuid }
+            """
+        val new =
+            old.replace("record A", "@sql(table = \"b\") record A")
+                .replace("record B", "@sql(table = \"a\") record B")
+        val keys = plan(old, new).filterIsInstance<RenameConstraint>().map { it.from to it.to }
+        assertEquals(
+            listOf(
+                "pk_a" to "pk_a__schemata_tmp",
+                "pk_b" to "pk_a",
+                "pk_a__schemata_tmp" to "pk_b",
+            ),
+            keys,
+        )
+    }
+
+    @Test
+    fun `a renamed table's key moves out of the way before a new table takes its name`() {
+        val old =
+            """
+            namespace s
+            record Order { @sql(key) #1 id: uuid }
+            """
+        val new =
+            """
+            namespace s
+            @sql(table = "purchase") record Order { @sql(key) #1 id: uuid }
+            record Basket { @sql(key) #1 id: uuid }
+            """
+                .replace("record Basket", "@sql(table = \"order\") record Basket")
+        val steps = plan(old, new)
+        val rename = steps.indexOfFirst { it is RenameConstraint && it.from == "pk_order" }
+        val create = steps.indexOfFirst { it is CreateTable && it.table.name == "order" }
+        assertTrue(rename in 0 until create, steps.toString())
+    }
+
+    @Test
+    fun `a key widened in place is re-added clean with its foreign keys`() {
+        val old =
+            """
+            namespace s
+            record Order {
+              @sql(key) #1 id: int32
+              #2 lines: list<Line>
+              record Line { #1 sku: string(max = 8) }
+            }
+            """
+        val steps = plan(old, old.replace("#1 id: int32", "#1 id: int64"))
+        val adds = steps.filterIsInstance<AddConstraint>()
+        assertEquals(3, adds.size, steps.toString())
+        assertTrue(adds.all { it.risk == Risk.CLEAN }, adds.toString())
+        val narrowed = plan(old.replace("int32", "int64"), old)
+        val fk =
+            narrowed.filterIsInstance<AddConstraint>().single {
+                it.constraint is Constraint.Foreign
+            }
+        assertEquals(Risk.MAY_FAIL, fk.risk)
+        assertEquals("fix or delete the rows whose parent is missing before applying", fk.help)
+    }
+
+    @Test
+    fun `a strategy change sets the new shape not null after the old shape is dropped`() {
+        val old =
+            """
+            namespace s
+            record Address { #1 street: string(max = 50) }
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 billing: Address
+            }
+            """
+        val new = old.replace("#2 billing:", "@sql(strategy = json) #2 billing:")
+        val steps = plan(old, new)
+        val drop = steps.indexOfFirst { it is DropColumn }
+        val notNull = steps.indexOfFirst { it is SetNotNull }
+        assertTrue(drop in 0 until notNull, steps.toString())
+    }
+
+    @Test
+    fun `a renamed enum value is rewritten before its check returns and is clean`() {
+        val old =
+            """
+            namespace s
+            enum Status { #1 pending, #2 paid }
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 status: Status
+            }
+            """
+        val steps = plan(old, old.replace("#2 paid", "#2 settled"))
+        assertEquals(
+            listOf(DropConstraint::class, RenameValue::class, AddConstraint::class),
+            steps.map { it::class },
+        )
+        val rename = steps[1] as RenameValue
+        assertEquals(
+            Triple("status", "paid", "settled"),
+            Triple(rename.column, rename.from, rename.to),
+        )
+        assertTrue(steps.all { it.risk == Risk.CLEAN }, steps.toString())
+    }
+
+    @Test
+    fun `a foreign key between two files is dropped by the earlier file`() {
+        val b =
+            """
+            namespace b
+            record Customer { @sql(key) #1 id: uuid }
+            """
+        val a =
+            """
+            namespace a
+            import b
+            record Order {
+              @sql(key) #1 id: uuid
+              #2 buyer: Customer
+            }
+            """
+        val migration =
+            Planner.plan(
+                side(mapOf("a.schemata" to a, "b.schemata" to b)),
+                side(mapOf("a.schemata" to a, "b.schemata" to b.replace("id: uuid", "id: string"))),
+            )
+        val files = migration.namespaces.associate { it.path to it.steps }
+        val drop = files.getValue("a.sql").filterIsInstance<DropConstraint>().single()
+        assertEquals("fk_order_buyer", drop.name)
+        assertTrue(drop.ifExists)
+        val alter = files.getValue("a.sql").indexOfFirst { it is AlterColumnType }
+        assertTrue(files.getValue("a.sql").indexOf(drop) < alter)
+        assertTrue(
+            files.getValue("b.sql").none { it is DropConstraint && it.name == "fk_order_buyer" }
+        )
+        assertTrue(
+            files.getValue("b.sql").any {
+                it is AddConstraint && it.constraint.name == "fk_order_buyer"
+            }
+        )
+    }
 }

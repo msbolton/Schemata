@@ -4,7 +4,7 @@ s.sql
 1 step in 1 file
 1 destructive, 0 may fail
 
-warning[SCH2701] (lossy): s.Customer.visits: ALTER COLUMN "visits" TYPE integer loses values that do not fit integer
+warning[SCH2701] (lossy): s.Customer.visits: ALTER COLUMN "visits" TYPE integer loses values that do not fit integer (the cast fails or truncates)
  --> new/s.schemata:5:6
   |
 5 |   #2 visits: int32

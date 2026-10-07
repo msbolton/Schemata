@@ -19,7 +19,7 @@ warning[SCH2702] (lossy): s.Account.nickname: SET NOT NULL on "nickname" fails w
   |      ^^^^^^^^
   = help: run UPDATE "s"."account" SET "nickname" = … WHERE "nickname" IS NULL before applying
 
-warning[SCH2701] (lossy): s.Account.code: ALTER COLUMN "code" TYPE varchar(5) loses values that do not fit varchar(5)
+warning[SCH2701] (lossy): s.Account.code: ALTER COLUMN "code" TYPE varchar(5) loses values that do not fit varchar(5) (the cast fails or truncates)
  --> new/s.schemata:6:6
   |
 6 |   #3 code: string(max = 5)

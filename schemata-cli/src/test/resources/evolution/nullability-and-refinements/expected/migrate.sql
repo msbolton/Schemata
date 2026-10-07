@@ -3,7 +3,7 @@ BEGIN;
 
 ALTER TABLE "s"."account" DROP CONSTRAINT "pk_account" CASCADE;
 ALTER TABLE "s"."account" DROP CONSTRAINT "ck_account_score_max";
--- SCH2701: s.Account.code: ALTER COLUMN "code" TYPE varchar(5) loses values that do not fit varchar(5)
+-- SCH2701: s.Account.code: ALTER COLUMN "code" TYPE varchar(5) loses values that do not fit varchar(5) (the cast fails or truncates)
 ALTER TABLE "s"."account" ALTER COLUMN "code" TYPE varchar(5) USING "code"::varchar(5);
 ALTER TABLE "s"."account" ALTER COLUMN "tier" SET DEFAULT 1;
 ALTER TABLE "s"."account" ALTER COLUMN "nickname" SET NOT NULL;

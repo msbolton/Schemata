@@ -31,4 +31,14 @@ class WideningTest {
         assertFalse(Widening.lossless(ColumnType.RAW("citext"), ColumnType.TEXT))
         assertFalse(Widening.lossless(ColumnType.INTEGER, ColumnType.TEXT))
     }
+
+    @Test
+    fun `an override is judged by the type it spells`() {
+        assertTrue(Widening.lossless(ColumnType.RAW("integer"), ColumnType.RAW("bigint")))
+        assertTrue(Widening.lossless(ColumnType.INTEGER, ColumnType.RAW("int8")))
+        assertTrue(Widening.lossless(ColumnType.RAW("varchar(20)"), ColumnType.RAW("varchar(40)")))
+        assertTrue(Widening.lossless(ColumnType.RAW("citext"), ColumnType.RAW("CITEXT")))
+        assertFalse(Widening.lossless(ColumnType.RAW("bigint"), ColumnType.RAW("integer")))
+        assertFalse(Widening.lossless(ColumnType.RAW("citext"), ColumnType.RAW("text")))
+    }
 }

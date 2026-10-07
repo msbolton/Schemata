@@ -8,17 +8,23 @@ import io.schemata.target.sql.TableOrigin
 /**
  * The constraint and index steps of one namespace, by the phase each runs in. [early] holds, per
  * table, the drops of constraints and indexes naming a column that is dropped ahead of the renames
- * and adds because a new column takes its name.
+ * and adds because a new column takes its name. Primary keys, uniques, and indexes are relations of
+ * the schema, so their renames are ordered together ([relationRenames]) and run before any table is
+ * created; [relationDrops] are the drops of those whose name a rename or a created table takes.
+ * [movedKeyDrops] are the drops of foreign keys this file lists between two namespaces, each with
+ * the path of the earlier file, which makes the drop.
  */
 internal class ConstraintSteps(
     val early: Map<TableOrigin, List<Step>>,
+    val relationDrops: List<Step>,
+    val relationRenames: List<Step>,
     val drops: List<Step>,
     val indexDrops: List<Step>,
     val renames: List<Step>,
-    val indexRenames: List<Step>,
     val adds: List<Step>,
     val foreignKeyAdds: List<Step>,
     val indexAdds: List<Step>,
+    val movedKeyDrops: List<Pair<String, Step>>,
 )
 
 /**
@@ -31,15 +37,17 @@ internal class ConstraintSteps(
  */
 internal class Constraints(
     private val context: Context,
+    private val path: String,
     private val schemaName: String,
     private val earlyColumns: Map<TableOrigin, Set<String>>,
 ) {
     private val early = mutableMapOf<TableOrigin, MutableList<Step>>()
     private val drops = mutableListOf<Step>()
     private val keyDrops = mutableListOf<Step>()
+    private val movedKeyDrops = mutableListOf<Pair<String, Step>>()
     private val indexDrops = mutableListOf<Step>()
     private val renames = mutableListOf<Rename>()
-    private val indexRenames = mutableListOf<Rename>()
+    private val relationRenames = mutableListOf<Rename>()
     private val adds = mutableListOf<Step>()
     private val keyAdds = mutableListOf<Step>()
     private val indexAdds = mutableListOf<Step>()
@@ -57,16 +65,30 @@ internal class Constraints(
                 indexAdds += CreateIndex(At(schemaName, t.name), it, tableSubject(context.new, t))
             }
         }
+        // A drop whose name a rename or a created table's key, unique, or index takes goes first.
+        val taken =
+            relationRenames.map { it.to }.toSet() +
+                added.flatMap { t ->
+                    listOfNotNull(t.primaryKeyName) +
+                        t.uniques.map { it.name } +
+                        t.indexes.map { it.name }
+                }
+        val (relationDrops, laterDrops) =
+            drops.partition { it is DropConstraint && it.cascade && it.name in taken }
+        val (relationIndexDrops, laterIndexDrops) =
+            indexDrops.partition { it is DropIndex && it.name in taken }
         // A foreign key may hang off a key or unique dropped below, so it goes first.
         return ConstraintSteps(
             early,
-            keyDrops + drops,
-            indexDrops,
+            relationDrops + relationIndexDrops,
+            ordered(relationRenames),
+            keyDrops + laterDrops,
+            laterIndexDrops,
             ordered(renames),
-            ordered(indexRenames),
             adds,
             keyAdds,
             indexAdds,
+            movedKeyDrops,
         )
     }
 
@@ -91,8 +113,11 @@ internal class Constraints(
         }
         constraints.renamed.forEach { (o, n) ->
             val subject = subjectOf(new, p.new, columnsOf(n, p.new))
-            renames +=
-                Rename(p.at, o.name, n.name) { f, t -> RenameConstraint(p.at, f, t, subject) }
+            val relation = o is Constraint.PrimaryKey || o is Constraint.UniqueKey
+            (if (relation) relationRenames else renames) +=
+                Rename(if (relation) schemaName else p.at, o.name, n.name) { f, t ->
+                    RenameConstraint(p.at, f, t, subject)
+                }
         }
         constraints.added.forEach { adds += add(p, it) }
 
@@ -108,7 +133,7 @@ internal class Constraints(
         }
         indexes.renamed.forEach { (o, n) ->
             val subject = subjectOf(new, p.new, n.columns)
-            indexRenames +=
+            relationRenames +=
                 Rename(schemaName, o.name, n.name) { f, t ->
                     RenameIndex(schemaName, f, t, subject)
                 }
@@ -119,23 +144,30 @@ internal class Constraints(
     }
 
     /**
-     * A foreign key is planned in the file that lists it, after both tables it links exist. One
-     * whose own table is dropped goes with that table's `DROP TABLE … CASCADE`; every foreign key
-     * drop is `IF EXISTS`, since a `CASCADE` in an earlier file may already have taken it.
+     * A foreign key is added in the file that lists it, after both tables it links exist. One whose
+     * own table is dropped goes with that table's `DROP TABLE … CASCADE`; every foreign key drop is
+     * `IF EXISTS`, since a `CASCADE` in an earlier file may already have taken it. A key between
+     * two namespaces is dropped by the earlier of their files, so neither file's type changes meet
+     * it: when that is the source table's own file the table is addressed as that file has left it,
+     * otherwise as OLD had it, since the source's file has not run yet.
      */
     private fun foreignKeys(oldKeys: List<ForeignKey>, newKeys: List<ForeignKey>) {
         val surviving = oldKeys.filter { source(it) != null }
         val keys = match(surviving, newKeys, { it.name }, { carried(it) }) { it.copy(name = "") }
         keys.dropped.forEach { fk ->
             val p = source(fk)!!
-            keyDrops +=
+            val sourcePath = context.oldPath(fk.schema)
+            val earlier = minOf(sourcePath, context.oldPath(fk.targetSchema))
+            val at = if (earlier == sourcePath) p.at else At(fk.schema, fk.table)
+            val drop =
                 DropConstraint(
-                    p.at,
+                    at,
                     fk.name,
                     ifExists = true,
                     cascade = false,
                     subjectOf(context.old, p.old, fk.columns),
                 )
+            if (earlier == path) keyDrops += drop else movedKeyDrops += earlier to drop
         }
         keys.renamed.forEach { (o, n) ->
             val at = At(n.schema, n.table)
@@ -153,6 +185,15 @@ internal class Constraints(
                         at,
                         constraint,
                         tableSubject(context.new, table),
+                        Risk.CLEAN,
+                        null,
+                        null,
+                    )
+                else if (rekeyedLosslessly(fk, keys.dropped))
+                    AddConstraint(
+                        at,
+                        constraint,
+                        subjectOf(context.new, table, fk.columns),
                         Risk.CLEAN,
                         null,
                         null,
@@ -187,23 +228,40 @@ internal class Constraints(
         }
     }
 
+    /**
+     * Whether NEW's [fk] is one of [dropped] that came back only because a column it names on
+     * either side changed type losslessly: every value it linked still links.
+     */
+    private fun rekeyedLosslessly(fk: ForeignKey, dropped: List<ForeignKey>): Boolean {
+        val definition = fk.copy(name = "")
+        return dropped.any { o ->
+            carried(o, retyped = false) == definition &&
+                source(o)!!.lossless(definition.columns) &&
+                target(o)!!.lossless(definition.targetColumns)
+        }
+    }
+
     /** The surviving table an OLD foreign key hangs off, or null when that table is dropped. */
     private fun source(fk: ForeignKey): Pairing? =
         context.oldTable(At(fk.schema, fk.table))?.let { context.pairing(it.origin) }
 
+    /** The surviving table an OLD foreign key points at, or null when that table is dropped. */
+    private fun target(fk: ForeignKey): Pairing? =
+        context.oldTable(At(fk.targetSchema, fk.targetTable))?.let { context.pairing(it.origin) }
+
     /**
      * [fk] as NEW would spell it, or null when either table or any column it names is gone. A
-     * foreign key over a column whose type changes, on either side, is dropped and re-added too:
-     * Postgres re-checks it on each `ALTER COLUMN … TYPE`, and the two sides change one at a time.
+     * foreign key over a column whose type changes, on either side, is dropped and re-added too
+     * ([retyped] false ignores that): Postgres re-checks it on each `ALTER COLUMN … TYPE`, and the
+     * two sides change one at a time.
      */
-    private fun carried(fk: ForeignKey): ForeignKey? {
+    private fun carried(fk: ForeignKey, retyped: Boolean = true): ForeignKey? {
         val source = source(fk) ?: return null
-        val target =
-            context.oldTable(At(fk.targetSchema, fk.targetTable))?.let {
-                context.pairing(it.origin)
-            } ?: return null
+        val target = target(fk) ?: return null
         if (
-            fk.columns.any { it in source.retyped } || fk.targetColumns.any { it in target.retyped }
+            retyped &&
+                (fk.columns.any { it in source.retyped } ||
+                    fk.targetColumns.any { it in target.retyped })
         )
             return null
         return fk.copy(
@@ -237,7 +295,7 @@ internal class Constraints(
                 "remove duplicate rows before applying",
             )
         return when (constraint) {
-            is Constraint.PrimaryKey -> duplicates
+            is Constraint.PrimaryKey -> if (rekeyedLosslessly(p, constraint)) clean else duplicates
             is Constraint.UniqueKey -> if (columns.any { it in nullAdded(p) }) clean else duplicates
             is Constraint.CheckConstraint ->
                 if (checkIsClean(p, columns, constraint.check.expression)) clean
@@ -273,6 +331,15 @@ internal class Constraints(
         val presence = isPresence(expression)
         return chains.none { tightening.tightens(it) || tightening.retypes(it) } &&
             chains.any { tightening.loosens(it, presence) }
+    }
+
+    /**
+     * Whether [key] is OLD's primary key over the same columns, dropped only because some of them
+     * changed type losslessly, so no two rows can have come to collide.
+     */
+    private fun rekeyedLosslessly(p: Pairing, key: Constraint.PrimaryKey): Boolean {
+        if (p.old.primaryKeyName == null || p.old.primaryKey.isEmpty()) return false
+        return carry(p.old.primaryKey, p.names) == key.columns && p.lossless(key.columns)
     }
 
     /** The NEW names of the columns that copy a moved key in place of a dropped copy. */

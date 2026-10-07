@@ -24,12 +24,14 @@ import io.schemata.migrate.RenameColumn
 import io.schemata.migrate.RenameConstraint
 import io.schemata.migrate.RenameIndex
 import io.schemata.migrate.RenameTable
+import io.schemata.migrate.RenameValue
 import io.schemata.migrate.Risk
 import io.schemata.migrate.SetDefault
 import io.schemata.migrate.SetNotNull
 import io.schemata.migrate.SetSchema
 import io.schemata.migrate.Step
 import io.schemata.target.sql.Ddl
+import io.schemata.target.sql.Naming
 
 /** `schemata migrate`'s own output: the human step list, and the JSON document. */
 object MigrateRenderer {
@@ -107,7 +109,7 @@ object MigrateRenderer {
 
     private fun plural(n: Int, noun: String) = if (n == 1) "1 $noun" else "$n ${noun}s"
 
-    private fun q(name: String) = "\"$name\""
+    private fun q(name: String) = Naming.quote(name)
 
     private fun describe(step: Step): String =
         when (step) {
@@ -127,6 +129,8 @@ object MigrateRenderer {
             is SetDefault -> "set default ${q(step.at.table)}.${q(step.column)}"
             is DropDefault -> "drop default ${q(step.at.table)}.${q(step.column)}"
             is Backfill -> "backfill ${q(step.at.table)}.${q(step.column)}"
+            is RenameValue ->
+                "rename value ${q(step.at.table)}.${q(step.column)} ${Naming.literal(step.from)} to ${Naming.literal(step.to)}"
             is DropConstraint -> "drop constraint ${q(step.at.table)}.${q(step.name)}"
             is AddConstraint -> "add constraint ${q(step.at.table)}.${q(step.constraint.name)}"
             is RenameConstraint ->

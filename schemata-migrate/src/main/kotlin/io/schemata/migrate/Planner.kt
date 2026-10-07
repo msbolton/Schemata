@@ -1,9 +1,11 @@
 package io.schemata.migrate
 
+import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Schema
 import io.schemata.target.sql.Column
 import io.schemata.target.sql.ColumnOrigin
+import io.schemata.target.sql.ColumnType
 import io.schemata.target.sql.Ddl
 import io.schemata.target.sql.Naming
 import io.schemata.target.sql.OriginStep
@@ -26,9 +28,15 @@ object Planner {
         val context = Context(old, new)
         val oldByPath = old.model.schemas.associateBy { it.path }
         val newByPath = new.model.schemas.associateBy { it.path }
+        val plans =
+            (oldByPath.keys + newByPath.keys).sorted().map { path ->
+                path to NamespacePlan(context, path, oldByPath[path], newByPath[path])
+            }
+        // A foreign key between two files is dropped by the earlier one, which runs first.
+        val moved = plans.flatMap { (_, plan) -> plan.constraints.movedKeyDrops }
         val namespaces =
-            (oldByPath.keys + newByPath.keys).sorted().mapNotNull { path ->
-                val steps = NamespacePlan(context, oldByPath[path], newByPath[path]).steps()
+            plans.mapNotNull { (path, plan) ->
+                val steps = plan.steps(moved.filter { it.first == path }.map { it.second })
                 if (steps.isEmpty()) null
                 else
                     NamespaceMigration(
@@ -47,6 +55,7 @@ internal const val DESTRUCTIVE_HELP =
 /** The steps for one namespace present on either side or both, in the order they apply. */
 private class NamespacePlan(
     private val context: Context,
+    path: String,
     private val old: RelationalSchema?,
     private val new: RelationalSchema?,
 ) {
@@ -82,40 +91,51 @@ private class NamespacePlan(
             p.old.origin to p.dropped.map { it.name }.filter { it in taken }.toSet()
         }
 
-    fun steps(): List<Step> {
+    val constraints: ConstraintSteps =
+        Constraints(context, path, schemaName, earlyColumns)
+            .plan(matched, added, old?.foreignKeys.orEmpty(), new?.foreignKeys.orEmpty())
+
+    /**
+     * Every step, with [movedKeyDrops] (foreign keys another file lists whose drop this earlier
+     * file makes) among the constraint drops.
+     */
+    fun steps(movedKeyDrops: List<Step>): List<Step> {
         val (schemaSteps, dropSchema) = schemas()
-        val (adds, queuedNotNull) = adds()
-        val constraints =
-            Constraints(context, schemaName, earlyColumns)
-                .plan(matched, added, old?.foreignKeys.orEmpty(), new?.foreignKeys.orEmpty())
+        val (adds, queuedNotNull, lateNotNull) = adds()
         val earlyColumnDrops =
             matched.flatMap { p ->
                 constraints.early[p.old.origin].orEmpty() +
                     columnDrops(p, early = true, At(schemaName, p.old.name))
             }
-        // Table renames precede creates, so a created table may take a renamed table's old name.
+        // Table renames precede creates, so a created table may take a renamed table's old name;
+        // the primary keys, uniques, and indexes share the schema's relation names with it, so
+        // they are renamed (and any whose name is about to be taken dropped) before it too.
         // Constraint and index drops precede type changes, since Postgres re-checks every check and
         // foreign key on a column whose type changes.
         return schemaSteps +
             tableDrops(early = true) +
             earlyColumnDrops +
             tableRenames() +
+            constraints.relationDrops +
+            constraints.relationRenames +
             added.map { CreateTable(schemaName, it, tableSubject(newSide, it)) } +
             columnRenames() +
             adds +
+            movedKeyDrops +
             constraints.drops +
             constraints.indexDrops +
             types() +
             defaults() +
+            valueRenames() +
             nullability() +
             queuedNotNull +
             constraints.renames +
-            constraints.indexRenames +
             constraints.adds +
             constraints.foreignKeyAdds +
             constraints.indexAdds +
             matched.flatMap { columnDrops(it, early = false, it.at) } +
             tableDrops(early = false) +
+            lateNotNull +
             comments() +
             dropSchema
     }
@@ -184,21 +204,72 @@ private class NamespacePlan(
     /**
      * A column that is required and has no default cannot be added as such to a table that has
      * rows, so it is added nullable and made NOT NULL afterwards, a step that fails unless the
-     * table is empty or the rows are filled in first.
+     * table is empty or the rows are filled in first. When the column is the new shape of a field
+     * whose old shape is dropped (a strategy change), its NOT NULL waits until after the drops, so
+     * the data can be moved between the create and the drop before anything can fail.
      */
-    private fun adds(): Pair<List<Step>, List<Step>> {
+    private fun adds(): Triple<List<Step>, List<Step>, List<Step>> {
         val adds = mutableListOf<Step>()
         val queued = mutableListOf<Step>()
+        val late = mutableListOf<Step>()
         matched.forEach { p ->
             p.added.forEach { c ->
                 val subject = columnSubject(newSide, p.new, c)
                 if (!c.nullable && c.default == null) {
                     adds += AddColumn(p.at, c.copy(nullable = true), subject)
-                    queued += mayFailNotNull(p.at, c.name, subject)
+                    val notNull = mayFailNotNull(p.at, c.name, subject)
+                    if (reshaped(p, c)) late += notNull else queued += notNull
                 } else adds += AddColumn(p.at, c, subject)
             }
         }
-        return adds to queued
+        return Triple(adds, queued, late)
+    }
+
+    /** Whether [column] replaces a dropped shape of the same field: a column or a child table. */
+    private fun reshaped(p: Pairing, column: Column): Boolean {
+        val to = chainOf(p.new.origin, column.origin) ?: return false
+        val from =
+            p.dropped.mapNotNull { chainOf(p.old.origin, it.origin) } +
+                dropped.map { chainOf(it.origin, null)!! }
+        return from.any { related(it, to) }
+    }
+
+    private fun related(
+        a: Pair<QualifiedName, List<OriginStep>>,
+        b: Pair<QualifiedName, List<OriginStep>>,
+    ) = a.first == b.first && (a.second.startsWith(b.second) || b.second.startsWith(a.second))
+
+    /**
+     * A renamed enum value is rewritten in every column that stores it, after the old check is
+     * dropped and before the new one is added, so the new check finds only its own names.
+     */
+    private fun valueRenames(): List<Step> =
+        matched.flatMap { p ->
+            p.changed.flatMap { (o, n) ->
+                val enum = storedEnum(newSide, p.new, n) ?: return@flatMap emptyList()
+                if (storedEnum(oldSide, p.old, o) != enum) return@flatMap emptyList()
+                val subject = columnSubject(newSide, p.new, n)
+                context.tightening.renamedValues(enum).map { (from, to) ->
+                    RenameValue(p.at, n.name, from, to, n.type is ColumnType.ARRAY, subject)
+                }
+            }
+        }
+
+    /**
+     * The enum whose names [column] stores, as a text column or an array of them: a field or union
+     * member that references the enum, or a child table's `value`.
+     */
+    private fun storedEnum(side: Side, table: Table, column: Column): QualifiedName? {
+        val stores =
+            when (val origin = column.origin) {
+                is ColumnOrigin.FieldPath -> origin.part == null
+                is ColumnOrigin.Role -> origin.role == "value"
+            }
+        if (!stores) return null
+        val type = column.type
+        if (type != ColumnType.TEXT && type != ColumnType.ARRAY(ColumnType.TEXT)) return null
+        val last = Labels.chain(side.schema, table.origin, column.origin).last ?: return null
+        return last.takeIf { side.schema.lookupOrNull(it) is EnumType }
     }
 
     private fun mayFailNotNull(at: At, column: String, subject: Subject): Step {
@@ -214,29 +285,42 @@ private class NamespacePlan(
         )
     }
 
-    /** A type change is clean when every value survives it, and loses the rest otherwise. */
+    /**
+     * A type change is clean when every value survives it, and loses the rest otherwise. Postgres
+     * recasts a column's stored default by assignment, not by the `USING` expression, and rejects
+     * the change when no such cast exists (`'3'` to integer), so a retyped column's default is
+     * dropped first and NEW's is set after.
+     */
     private fun types(): List<Step> =
         matched.flatMap { p ->
             p.changed
                 .filter { (o, n) -> o.type != n.type }
-                .map { (o, n) ->
+                .flatMap { (o, n) ->
+                    val subject = columnSubject(newSide, p.new, n)
                     val lossless = Widening.lossless(o.type, n.type)
-                    AlterColumnType(
-                        p.at,
-                        n.name,
-                        n.type,
-                        columnSubject(newSide, p.new, n),
-                        if (lossless) Risk.CLEAN else Risk.DESTRUCTIVE,
-                        if (lossless) null else "values that do not fit ${Ddl.spell(n.type)}",
-                        if (lossless) null else DESTRUCTIVE_HELP,
+                    listOfNotNull(
+                        o.default?.let { DropDefault(p.at, n.name, subject) },
+                        AlterColumnType(
+                            p.at,
+                            n.name,
+                            n.type,
+                            subject,
+                            if (lossless) Risk.CLEAN else Risk.DESTRUCTIVE,
+                            if (lossless) null
+                            else
+                                "values that do not fit ${Ddl.spell(n.type)} (the cast fails or truncates)",
+                            if (lossless) null else DESTRUCTIVE_HELP,
+                        ),
+                        n.default?.let { SetDefault(p.at, n.name, it, subject) },
                     )
                 }
         }
 
+    /** A retyped column's default is already settled by [types]. */
     private fun defaults(): List<Step> =
         matched.flatMap { p ->
             p.changed
-                .filter { (o, n) -> o.default != n.default }
+                .filter { (o, n) -> o.type == n.type && o.default != n.default }
                 .map { (_, n) ->
                     val subject = columnSubject(newSide, p.new, n)
                     n.default?.let { SetDefault(p.at, n.name, it, subject) }
@@ -316,14 +400,7 @@ private class NamespacePlan(
                         }
                     }
                 }
-        val into =
-            targets
-                .filter { (to, _) ->
-                    to.first == from.first &&
-                        (to.second.startsWith(from.second) || from.second.startsWith(to.second))
-                }
-                .map { it.second }
-                .distinct()
+        val into = targets.filter { (to, _) -> related(to, from) }.map { it.second }.distinct()
         if (into.isEmpty()) return DESTRUCTIVE_HELP
         return "move the data into ${into.joinToString(", ")} between this statement and the one that creates it, then rerun with --allow-destructive"
     }

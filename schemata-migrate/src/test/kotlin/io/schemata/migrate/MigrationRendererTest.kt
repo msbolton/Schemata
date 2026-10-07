@@ -104,4 +104,33 @@ class MigrationRendererTest {
         assert(sql[0].startsWith("CREATE TABLE \"s\".\"tag\" (\n")) { sql[0] }
         assertEquals("COMMENT ON TABLE \"s\".\"tag\" IS 'Tags.';", sql[1])
     }
+
+    @Test
+    fun `a renamed enum value is rewritten in a column and in an array`() {
+        val at = At("s", "order")
+        val subject = Subject("s.Order.status", io.schemata.lang.Span("s.schemata", 1, 1, 1, 1))
+        assertEquals(
+            "UPDATE \"s\".\"order\" SET \"status\" = 'settled' WHERE \"status\" = 'paid';",
+            MigrationRenderer.sql(RenameValue(at, "status", "paid", "settled", false, subject)),
+        )
+        assertEquals(
+            "UPDATE \"s\".\"order\" SET \"tags\" = array_replace(\"tags\", 'paid', 'settled') WHERE 'paid' = ANY(\"tags\");",
+            MigrationRenderer.sql(RenameValue(at, "tags", "paid", "settled", true, subject)),
+        )
+    }
+
+    @Test
+    fun `a retyped column with a default is spelled drop alter set`() {
+        assertEquals(
+            listOf(
+                "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"retries\" DROP DEFAULT;",
+                "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"retries\" TYPE integer USING \"retries\"::integer;",
+                "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"retries\" SET DEFAULT 3;",
+            ),
+            sqlOf(
+                base.replace("#3 note: string?", "#3 retries: string = \"3\""),
+                base.replace("#3 note: string?", "#3 retries: int32 = 3"),
+            ),
+        )
+    }
 }

@@ -1,11 +1,11 @@
 s.sql
   create table "order_tags"    clean
   add column "order"."billing"    clean
-  set not null "order"."billing"    may fail
   add constraint "order_tags"."fk_order_tags_order"    clean
   drop column "order"."tags"    destructive
   drop column "order"."billing_street"    destructive
   drop column "order"."billing_city"    destructive
+  set not null "order"."billing"    may fail
 
 7 steps in 1 file
 3 destructive, 1 may fail

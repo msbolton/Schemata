@@ -8,14 +8,14 @@ s.sql
 5 steps in 1 file
 2 destructive, 0 may fail
 
-warning[SCH2701] (lossy): s.Customer.age: ALTER COLUMN "age" TYPE integer loses values that do not fit integer
+warning[SCH2701] (lossy): s.Customer.age: ALTER COLUMN "age" TYPE integer loses values that do not fit integer (the cast fails or truncates)
  --> new/s.schemata:5:3
   |
 5 |   age: int32
   |   ^^^
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
-warning[SCH2701] (lossy): s.Customer.name: ALTER COLUMN "name" TYPE varchar(100) loses values that do not fit varchar(100)
+warning[SCH2701] (lossy): s.Customer.name: ALTER COLUMN "name" TYPE varchar(100) loses values that do not fit varchar(100) (the cast fails or truncates)
  --> new/s.schemata:6:3
   |
 6 |   name: string(max = 100)

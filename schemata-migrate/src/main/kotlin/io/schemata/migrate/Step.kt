@@ -141,6 +141,19 @@ data class Backfill(
 ) : Step
 
 /**
+ * `UPDATE … SET col = 'to' WHERE col = 'from'` for an enum value renamed under its ordinal; [array]
+ * rewrites the value inside an array column instead.
+ */
+data class RenameValue(
+    val at: At,
+    val column: String,
+    val from: String,
+    val to: String,
+    val array: Boolean,
+    override val subject: Subject,
+) : Step
+
+/**
  * [cascade] for a primary key or unique, so a foreign key another namespace's file still holds on
  * it never blocks the drop; that file drops its own foreign key `IF EXISTS` and re-adds it.
  */

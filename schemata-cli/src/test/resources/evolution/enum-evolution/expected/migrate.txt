@@ -1,8 +1,9 @@
 s.sql
   drop constraint "order"."ck_order_status_enum"    clean
+  rename value "order"."status" 'paid' to 'settled'    clean
   add constraint "order"."ck_order_status_enum"    may fail
 
-2 steps in 1 file
+3 steps in 1 file
 0 destructive, 1 may fail
 
 warning[SCH2702] (lossy): s.Order.status: CONSTRAINT "ck_order_status_enum" fails when a row violates it

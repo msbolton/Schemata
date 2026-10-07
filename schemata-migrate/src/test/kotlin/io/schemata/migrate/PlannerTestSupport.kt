@@ -9,10 +9,13 @@ import io.schemata.target.sql.SqlAnnotations
 import io.schemata.target.sql.SqlLowering
 
 /** Analyses one `.schemata` text and lowers it with the SQL target; fails on any error. */
-fun side(source: String): Side {
+fun side(source: String): Side = side(mapOf("s.schemata" to source))
+
+/** Analyses several `.schemata` files, by name, and lowers them; fails on any error. */
+fun side(files: Map<String, String>): Side {
     val analyzed =
         Analyzer.analyze(
-            listOf(Parser.parse(source.trimIndent(), "s.schemata").file!!),
+            files.map { (name, text) -> Parser.parse(text.trimIndent(), name).file!! },
             AnalysisOptions(
                 annotations = AnnotationRegistry(CoreAnnotations.specs + SqlAnnotations.specs)
             ),

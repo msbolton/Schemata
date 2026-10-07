@@ -40,6 +40,14 @@ object MigrationRenderer {
                 "ALTER TABLE ${t(step.at)} ALTER COLUMN ${q(step.column)} DROP DEFAULT;"
             is Backfill ->
                 "UPDATE ${t(step.at)} SET ${q(step.column)} = ${step.default} WHERE ${q(step.column)} IS NULL;"
+            is RenameValue -> {
+                val c = q(step.column)
+                val from = Naming.literal(step.from)
+                val to = Naming.literal(step.to)
+                if (step.array)
+                    "UPDATE ${t(step.at)} SET $c = array_replace($c, $from, $to) WHERE $from = ANY($c);"
+                else "UPDATE ${t(step.at)} SET $c = $to WHERE $c = $from;"
+            }
             is DropConstraint -> {
                 val exists = if (step.ifExists) "IF EXISTS " else ""
                 val cascade = if (step.cascade) " CASCADE" else ""

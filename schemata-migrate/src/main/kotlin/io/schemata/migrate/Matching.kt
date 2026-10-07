@@ -70,6 +70,12 @@ internal class Pairing(
     val retyped: Set<String> =
         changed.filter { (o, n) -> o.type != n.type }.map { it.first.name }.toSet()
 
+    /** Whether every one of the NEW [columns] that changed type changed losslessly. */
+    fun lossless(columns: List<String>): Boolean =
+        changed
+            .filter { (o, n) -> n.name in columns && o.type != n.type }
+            .all { (o, n) -> Widening.lossless(o.type, n.type) }
+
     /** Where every step after the schema move and the renames addresses the table. */
     val at = At(newSchema, new.name)
 }
@@ -115,6 +121,9 @@ internal class Context(val old: Side, val new: Side) {
 
     private fun renewed(side: Side, table: Table, column: Column): Boolean =
         tightening.renews(Labels.chain(side.schema, table.origin, column.origin))
+
+    /** The OLD file path of the namespace whose schema is [schema]. */
+    fun oldPath(schema: String): String = old.model.schemas.first { it.schemaName == schema }.path
 
     fun oldTable(at: At): Table? = oldByAt[at]?.table
 
