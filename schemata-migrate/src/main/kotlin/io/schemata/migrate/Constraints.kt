@@ -3,9 +3,15 @@ package io.schemata.migrate
 import io.schemata.target.sql.ForeignKey
 import io.schemata.target.sql.Naming
 import io.schemata.target.sql.Table
+import io.schemata.target.sql.TableOrigin
 
-/** The constraint and index steps of one namespace, by the phase each runs in. */
+/**
+ * The constraint and index steps of one namespace, by the phase each runs in. [early] holds, per
+ * table, the drops of constraints and indexes naming a column that is dropped ahead of the renames
+ * and adds because a new column takes its name.
+ */
 internal class ConstraintSteps(
+    val early: Map<TableOrigin, List<Step>>,
     val drops: List<Step>,
     val indexDrops: List<Step>,
     val renames: List<Step>,
@@ -23,12 +29,17 @@ internal class ConstraintSteps(
  * none is added. A created table's own keys and checks are part of its `CREATE TABLE`; only its
  * indexes and foreign keys are added here.
  */
-internal class Constraints(private val context: Context, private val schemaName: String) {
+internal class Constraints(
+    private val context: Context,
+    private val schemaName: String,
+    private val earlyColumns: Map<TableOrigin, Set<String>>,
+) {
+    private val early = mutableMapOf<TableOrigin, MutableList<Step>>()
     private val drops = mutableListOf<Step>()
     private val keyDrops = mutableListOf<Step>()
     private val indexDrops = mutableListOf<Step>()
-    private val renames = mutableListOf<Step>()
-    private val indexRenames = mutableListOf<Step>()
+    private val renames = mutableListOf<Rename>()
+    private val indexRenames = mutableListOf<Rename>()
     private val adds = mutableListOf<Step>()
     private val keyAdds = mutableListOf<Step>()
     private val indexAdds = mutableListOf<Step>()
@@ -48,10 +59,11 @@ internal class Constraints(private val context: Context, private val schemaName:
         }
         // A foreign key may hang off a key or unique dropped below, so it goes first.
         return ConstraintSteps(
+            early,
             keyDrops + drops,
             indexDrops,
-            renames,
-            indexRenames,
+            ordered(renames),
+            ordered(indexRenames),
             adds,
             keyAdds,
             indexAdds,
@@ -65,13 +77,22 @@ internal class Constraints(private val context: Context, private val schemaName:
             match(constraintsOf(p.old), constraintsOf(p.new), { it.name }, { carried(it, p) }) {
                 definition(it)
             }
+        // A column dropped early goes before the table's renames, under the table's old name.
+        val gone = earlyColumns[p.old.origin].orEmpty()
+        val earlyAt = At(schemaName, p.old.name)
         constraints.dropped.forEach {
-            drops +=
-                DropConstraint(p.at, it.name, false, subjectOf(old, p.old, columnsOf(it, p.old)))
+            val columns = columnsOf(it, p.old)
+            val cascade = it is Constraint.PrimaryKey || it is Constraint.UniqueKey
+            val subject = subjectOf(old, p.old, columns)
+            if (columns.any { c -> c in gone })
+                early.getOrPut(p.old.origin) { mutableListOf() } +=
+                    DropConstraint(earlyAt, it.name, false, cascade, subject)
+            else drops += DropConstraint(p.at, it.name, false, cascade, subject)
         }
         constraints.renamed.forEach { (o, n) ->
+            val subject = subjectOf(new, p.new, columnsOf(n, p.new))
             renames +=
-                RenameConstraint(p.at, o.name, n.name, subjectOf(new, p.new, columnsOf(n, p.new)))
+                Rename(p.at, o.name, n.name) { f, t -> RenameConstraint(p.at, f, t, subject) }
         }
         constraints.added.forEach { adds += add(p, it) }
 
@@ -80,11 +101,17 @@ internal class Constraints(private val context: Context, private val schemaName:
                 it.columns
             }
         indexes.dropped.forEach {
-            indexDrops += DropIndex(schemaName, it.name, subjectOf(old, p.old, it.columns))
+            val drop = DropIndex(schemaName, it.name, subjectOf(old, p.old, it.columns))
+            if (it.columns.any { c -> c in gone })
+                early.getOrPut(p.old.origin) { mutableListOf() } += drop
+            else indexDrops += drop
         }
         indexes.renamed.forEach { (o, n) ->
+            val subject = subjectOf(new, p.new, n.columns)
             indexRenames +=
-                RenameIndex(schemaName, o.name, n.name, subjectOf(new, p.new, n.columns))
+                Rename(schemaName, o.name, n.name) { f, t ->
+                    RenameIndex(schemaName, f, t, subject)
+                }
         }
         indexes.added.forEach {
             indexAdds += CreateIndex(p.at, it, subjectOf(new, p.new, it.columns))
@@ -102,17 +129,18 @@ internal class Constraints(private val context: Context, private val schemaName:
         keys.dropped.forEach { fk ->
             val p = source(fk)!!
             keyDrops +=
-                DropConstraint(p.at, fk.name, true, subjectOf(context.old, p.old, fk.columns))
+                DropConstraint(
+                    p.at,
+                    fk.name,
+                    ifExists = true,
+                    cascade = false,
+                    subjectOf(context.old, p.old, fk.columns),
+                )
         }
         keys.renamed.forEach { (o, n) ->
-            val table = context.newTable(At(n.schema, n.table))!!
-            renames +=
-                RenameConstraint(
-                    At(n.schema, n.table),
-                    o.name,
-                    n.name,
-                    subjectOf(context.new, table, n.columns),
-                )
+            val at = At(n.schema, n.table)
+            val subject = subjectOf(context.new, context.newTable(at)!!, n.columns)
+            renames += Rename(at, o.name, n.name) { f, t -> RenameConstraint(at, f, t, subject) }
         }
         keys.added.forEach { fk ->
             val at = At(fk.schema, fk.table)

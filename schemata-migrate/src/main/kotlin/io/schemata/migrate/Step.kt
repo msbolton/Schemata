@@ -140,10 +140,15 @@ data class Backfill(
     override val subject: Subject,
 ) : Step
 
+/**
+ * [cascade] for a primary key or unique, so a foreign key another namespace's file still holds on
+ * it never blocks the drop; that file drops its own foreign key `IF EXISTS` and re-adds it.
+ */
 data class DropConstraint(
     val at: At,
     val name: String,
     val ifExists: Boolean,
+    val cascade: Boolean,
     override val subject: Subject,
 ) : Step
 

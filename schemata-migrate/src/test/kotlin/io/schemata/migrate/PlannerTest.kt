@@ -113,6 +113,7 @@ class PlannerTest {
         val steps = plan(old, new)
         assertEquals(listOf(DropConstraint::class, AddConstraint::class), steps.map { it::class })
         assertEquals(Risk.MAY_FAIL, steps[1].risk)
+        assertEquals(false, (steps[0] as DropConstraint).cascade)
         val loosened = plan(new, old)
         assertEquals(Risk.CLEAN, loosened[1].risk)
     }
@@ -127,6 +128,7 @@ class PlannerTest {
         val drop = steps.filterIsInstance<DropConstraint>().single()
         val add = steps.filterIsInstance<AddConstraint>().single()
         assertEquals("pk_customer", drop.name)
+        assertTrue(drop.cascade)
         assertEquals(Constraint.PrimaryKey("pk_customer", listOf("name")), add.constraint)
         assertEquals(Risk.MAY_FAIL, add.risk)
     }
@@ -177,9 +179,36 @@ class PlannerTest {
         val steps = plan(old, base.replace("  #3 note: string?\n", ""))
         val kinds = steps.map { it::class }
         assertTrue(kinds.indexOf(DropConstraint::class) < kinds.indexOf(DropColumn::class))
+        val drop = steps.first { it is DropConstraint } as DropConstraint
+        assertEquals("uq_customer_code", drop.name)
+        assertTrue(drop.cascade)
+    }
+
+    @Test
+    fun `a renumbered field drops the old column before adding the new one`() {
+        val steps = plan(base, base.replace("#3 note: string?", "#4 note: string?"))
+        assertEquals(listOf(DropColumn::class, AddColumn::class), steps.map { it::class })
+        assertEquals("note", (steps[0] as DropColumn).column)
+        assertEquals("note", (steps[1] as AddColumn).column.name)
+        assertEquals(Risk.DESTRUCTIVE, steps[0].risk)
+    }
+
+    @Test
+    fun `two fields swapping names rename through a temporary name`() {
+        val old =
+            """
+            namespace s
+            record Pair {
+              @sql(key) #3 id: uuid
+              #1 a: int32
+              #2 b: int32
+            }
+            """
+        val new = old.replace("#1 a: int32", "#1 b: int32").replace("#2 b: int32", "#2 a: int32")
+        val renames = plan(old, new).map { it as RenameColumn }
         assertEquals(
-            "uq_customer_code",
-            (steps.first { it is DropConstraint } as DropConstraint).name,
+            listOf("a" to "a__schemata_tmp", "b" to "a", "a__schemata_tmp" to "b"),
+            renames.map { it.from to it.to },
         )
     }
 

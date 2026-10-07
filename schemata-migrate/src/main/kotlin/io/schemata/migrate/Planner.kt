@@ -2,15 +2,6 @@ package io.schemata.migrate
 
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Schema
-import io.schemata.evolution.Differ
-import io.schemata.evolution.EnumValueAdded
-import io.schemata.evolution.EnumValueRemoved
-import io.schemata.evolution.EnumValueRenamed
-import io.schemata.evolution.FieldNullabilityChanged
-import io.schemata.evolution.FieldRefinementChanged
-import io.schemata.evolution.UnionMemberAdded
-import io.schemata.evolution.UnionMemberRemoved
-import io.schemata.target.sql.Column
 import io.schemata.target.sql.ColumnOrigin
 import io.schemata.target.sql.Ddl
 import io.schemata.target.sql.Naming
@@ -52,116 +43,6 @@ object Planner {
 internal const val DESTRUCTIVE_HELP =
     "rerun with --allow-destructive once the data is migrated or no longer needed"
 
-/** A table and the schema it lives in, on one side. */
-internal data class Placed(val schema: String, val table: Table)
-
-/** A table both sides have, with its columns matched by origin. */
-internal class Pairing(
-    val oldSchema: String,
-    val old: Table,
-    val newSchema: String,
-    val new: Table,
-) {
-    private val oldByOrigin = old.columns.associateBy { it.origin }
-    private val newByOrigin = new.columns.associateBy { it.origin }
-
-    /** Old and new column for every column both have, in NEW's order. */
-    val changed: List<Pair<Column, Column>> =
-        new.columns.mapNotNull { n -> oldByOrigin[n.origin]?.let { it to n } }
-    val added: List<Column> = new.columns.filter { it.origin !in oldByOrigin }
-    val dropped: List<Column> = old.columns.filter { it.origin !in newByOrigin }
-
-    /** Old column name to new, for every column both have; a dropped column has no entry. */
-    val names: Map<String, String> = changed.associate { (o, n) -> o.name to n.name }
-
-    /** Where every step after the schema move and the renames addresses the table. */
-    val at = At(newSchema, new.name)
-}
-
-/** What every namespace's plan shares: both sides' tables by origin and by address. */
-internal class Context(val old: Side, val new: Side) {
-    private val oldByOrigin = placed(old).associateBy { it.table.origin }
-    private val newByOrigin = placed(new).associateBy { it.table.origin }
-    private val oldByAt = placed(old).associateBy { At(it.schema, it.table.name) }
-    private val newByAt = placed(new).associateBy { At(it.schema, it.table.name) }
-    private val pairings = mutableMapOf<TableOrigin, Pairing?>()
-
-    val tightening = Tightening(old.schema, new.schema)
-
-    fun pairing(origin: TableOrigin): Pairing? =
-        pairings.getOrPut(origin) {
-            val o = oldByOrigin[origin] ?: return@getOrPut null
-            val n = newByOrigin[origin] ?: return@getOrPut null
-            Pairing(o.schema, o.table, n.schema, n.table)
-        }
-
-    fun oldTable(at: At): Table? = oldByAt[at]?.table
-
-    fun newTable(at: At): Table? = newByAt[at]?.table
-
-    fun existed(table: Table): Boolean = table.origin in oldByOrigin
-
-    private fun placed(side: Side) =
-        side.model.schemas.flatMap { s -> s.tables.map { Placed(s.schemaName, it) } }
-}
-
-/**
- * Which field chains a migration narrows, from the evolution differ: a tightened refinement, an
- * enum value removed or renamed, a union member removed. A loosened refinement, a field made
- * nullable, an enum value or union member added widen instead. Fields are keyed by their record and
- * ordinal, so an embedded record's field is found under whichever table embeds it.
- */
-internal class Tightening(old: Schema, new: Schema) {
-    private val tightFields = mutableSetOf<Pair<QualifiedName, Int>>()
-    private val tightDecls = mutableSetOf<QualifiedName>()
-    private val looseFields = mutableSetOf<Pair<QualifiedName, Int>>()
-    private val looseDecls = mutableSetOf<QualifiedName>()
-
-    init {
-        Differ.diff(old, new).forEach { change ->
-            when (change) {
-                is FieldRefinementChanged ->
-                    (if (change.tightened) tightFields else looseFields) +=
-                        change.record.qualifiedName to change.to.ordinal
-                is FieldNullabilityChanged ->
-                    if (change.to.nullable)
-                        looseFields += change.record.qualifiedName to change.to.ordinal
-                is EnumValueRemoved -> tightDecls += change.enum.qualifiedName
-                is EnumValueRenamed -> tightDecls += change.enum.qualifiedName
-                is UnionMemberRemoved -> tightDecls += change.union.qualifiedName
-                is EnumValueAdded -> looseDecls += change.enum.qualifiedName
-                is UnionMemberAdded -> looseDecls += change.union.qualifiedName
-                else -> {}
-            }
-        }
-    }
-
-    fun tightens(chain: Chain): Boolean = touches(chain, tightFields, tightDecls)
-
-    fun loosens(chain: Chain): Boolean = touches(chain, looseFields, looseDecls)
-
-    private fun touches(
-        chain: Chain,
-        fields: Set<Pair<QualifiedName, Int>>,
-        decls: Set<QualifiedName>,
-    ): Boolean =
-        chain.fields.any { (record, field) -> (record.qualifiedName to field.ordinal) in fields } ||
-            chain.named.any { it in decls }
-}
-
-/** Subjects for a side's tables and columns: the IR path and the declaring name's span. */
-internal fun tableSubject(side: Side, table: Table) =
-    Subject(Labels.table(side.schema, table.origin), table.span)
-
-internal fun columnSubject(side: Side, table: Table, column: Column) =
-    Subject(Labels.column(side.schema, table.origin, column.origin), column.span)
-
-/** The first of [columns] the table has, else the table itself. */
-internal fun subjectOf(side: Side, table: Table, columns: List<String>): Subject =
-    columns
-        .firstNotNullOfOrNull { name -> table.columns.firstOrNull { it.name == name } }
-        ?.let { columnSubject(side, table, it) } ?: tableSubject(side, table)
-
 /** The steps for one namespace present on either side or both, in the order they apply. */
 private class NamespacePlan(
     private val context: Context,
@@ -177,15 +58,47 @@ private class NamespacePlan(
     private val dropped: List<Table> =
         old?.tables.orEmpty().filter { context.pairing(it.origin) == null }
 
+    /**
+     * A field renumbered under the same name is a removal and an addition that share a name, so the
+     * dropped column or table whose name a new or renamed one takes goes first, ahead of every
+     * rename and add; a table only collides while it stays in the same schema.
+     */
+    private val earlyTables: Set<TableOrigin> = run {
+        val taken =
+            added.map { it.name } +
+                matched.filter { it.old.name != it.new.name }.map { it.new.name }
+        dropped
+            .filter { old!!.schemaName == schemaName && it.name in taken }
+            .map { it.origin }
+            .toSet()
+    }
+
+    private val earlyColumns: Map<TableOrigin, Set<String>> =
+        matched.associate { p ->
+            val taken =
+                p.added.map { it.name } +
+                    p.changed.filter { (o, n) -> o.name != n.name }.map { it.second.name }
+            p.old.origin to p.dropped.map { it.name }.filter { it in taken }.toSet()
+        }
+
     fun steps(): List<Step> {
         val (schemaSteps, dropSchema) = schemas()
         val (adds, queuedNotNull) = adds()
         val constraints =
-            Constraints(context, schemaName)
+            Constraints(context, schemaName, earlyColumns)
                 .plan(matched, added, old?.foreignKeys.orEmpty(), new?.foreignKeys.orEmpty())
+        val earlyColumnDrops =
+            matched.flatMap { p ->
+                constraints.early[p.old.origin].orEmpty() +
+                    columnDrops(p, early = true, At(schemaName, p.old.name))
+            }
+        // Table renames precede creates, so a created table may take a renamed table's old name.
         return schemaSteps +
+            tableDrops(early = true) +
+            earlyColumnDrops +
+            tableRenames() +
             added.map { CreateTable(schemaName, it, tableSubject(newSide, it)) } +
-            renames() +
+            columnRenames() +
             adds +
             types() +
             defaults() +
@@ -198,8 +111,8 @@ private class NamespacePlan(
             constraints.adds +
             constraints.foreignKeyAdds +
             constraints.indexAdds +
-            columnDrops() +
-            tableDrops() +
+            matched.flatMap { columnDrops(it, early = false, it.at) } +
+            tableDrops(early = false) +
             comments() +
             dropSchema
     }
@@ -239,19 +152,31 @@ private class NamespacePlan(
         return Subject(namespace.name, namespace.span)
     }
 
-    private fun renames(): List<Step> =
-        matched
-            .filter { it.old.name != it.new.name }
-            .map {
-                RenameTable(At(schemaName, it.old.name), it.new.name, tableSubject(newSide, it.new))
-            } +
+    private fun tableRenames(): List<Step> =
+        ordered(
+            matched
+                .filter { it.old.name != it.new.name }
+                .map { p ->
+                    val subject = tableSubject(newSide, p.new)
+                    Rename(schemaName, p.old.name, p.new.name) { from, to ->
+                        RenameTable(At(schemaName, from), to, subject)
+                    }
+                }
+        )
+
+    private fun columnRenames(): List<Step> =
+        ordered(
             matched.flatMap { p ->
                 p.changed
                     .filter { (o, n) -> o.name != n.name }
                     .map { (o, n) ->
-                        RenameColumn(p.at, o.name, n.name, columnSubject(newSide, p.new, n))
+                        val subject = columnSubject(newSide, p.new, n)
+                        Rename(p.at, o.name, n.name) { from, to ->
+                            RenameColumn(p.at, from, to, subject)
+                        }
                     }
             }
+        )
 
     /**
      * A column that is required and has no default cannot be added as such to a table that has
@@ -335,22 +260,23 @@ private class NamespacePlan(
             }
         }
 
-    private fun columnDrops(): List<Step> =
-        matched.flatMap { p ->
-            p.dropped.map { c ->
+    private fun columnDrops(p: Pairing, early: Boolean, at: At): List<Step> =
+        p.dropped
+            .filter { (it.name in earlyColumns[p.old.origin].orEmpty()) == early }
+            .map { c ->
                 DropColumn(
-                    p.at,
+                    at,
                     c.name,
                     columnSubject(oldSide, p.old, c),
                     "every value the column holds",
                     destructiveHelp(p.old.origin, c.origin),
                 )
             }
-        }
 
     /** Child tables first, though `CASCADE` would take them with their parent anyway. */
-    private fun tableDrops(): List<Step> =
+    private fun tableDrops(early: Boolean): List<Step> =
         dropped
+            .filter { (it.origin in earlyTables) == early }
             .sortedWith(compareByDescending<Table> { it.origin.path.size }.thenBy { it.name })
             .map {
                 DropTable(
