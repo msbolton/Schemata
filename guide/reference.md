@@ -1080,7 +1080,7 @@ except that an operation's binding moves to a line of its own (section 16). Doc-
 its indentation beyond one space after `///`. A file that does not parse is reported like `check`
 would and left untouched.
 
-`lsp` runs the language server for an editor; section 21 describes it. It takes no options and
+`lsp` runs the language server for an editor; section 22 describes it. It takes no options and
 writes nothing but protocol messages to stdout.
 
 The exit code tells you what happened without reading the output: `0` when there is nothing to
@@ -2560,7 +2560,173 @@ openapi: 0 breaking, 0 notes
 no diagnostics
 ```
 
-## 21. Editor support
+## 21. Migrating a database
+
+    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+
+`migrate OLD NEW` writes the Postgres DDL that carries a database created from OLD's `compile`
+output to one identical to NEW's. Both sides load as `diff` loads them, and the same `SCH2503`
+applies when a side does not analyse. The SQL target then lowers both sides; an SQL error on
+either side is reported and nothing is written, exactly as `compile` behaves. One file is written
+per namespace with a relational change, `--out/migrate/<namespace as a path>.sql`, each wrapped in
+`BEGIN;` … `COMMIT;` so a failing statement rolls that namespace back; a run with no change prints
+`no changes`. Apply the files in path order: a foreign key between two namespaces is written to the
+file that sorts later, the same rule `compile` follows. The tool never connects to a database; run
+the files with `psql`, or hand them to the migration tool you already use.
+
+### Identity
+
+Tables and columns are matched by what produced them — the record, and the chain of fields (and
+union members) from that record — never by name. So a field renamed under its ordinal is a
+`RENAME COLUMN`, a record renamed with `@sql(table)` is a `RENAME TABLE` whose primary key and
+child table follow, and a rename pinned by `@sql(column)` is no step at all. A record renamed by
+its declaration is a new table and a dropped one, as evolution's identity rule says. Number a
+schema before relying on `migrate`, for the same reason as `diff`. A column added later sits at the
+end of its table, so a migrated database can differ from a freshly created one only in column
+order, which no migration changes.
+
+### Steps and their risk
+
+Every step is `clean`, `may fail`, or `destructive`:
+
+- **clean** — applying it keeps every row and every value.
+- **may fail** (`SCH2702`, a warning) — the statement is right but Postgres can reject it on the
+  rows the database holds: `SET NOT NULL` where a row is NULL, a tightened check, a new unique or
+  primary key, a required column added without a default. The help names the backfill to run
+  first. `--strict` makes these errors, for a CI that wants only unconditionally safe migrations.
+- **destructive** (`SCH2701`) — the statement loses data: a dropped column or table, a narrowing
+  type change, a union member removed, a strategy change. It is an error and nothing is written
+  until you rerun with `--allow-destructive`, which writes the step under a one-line comment
+  naming the code and reports it as a warning instead.
+
+Within a namespace the steps run in a fixed order: renames, new tables, added columns, type
+changes, defaults, nullability, constraints and indexes, foreign keys, then drops. Three cases move
+a drop earlier: a dropped column or table whose name an added or renamed one takes, the constraints
+and indexes of a column whose type changes, and a rename cycle, which routes through a temporary
+name `<name>__schemata_tmp`. Primary-key and unique drops are `DROP CONSTRAINT … CASCADE`, so a
+foreign key in another namespace's file never blocks them; that file drops its own key
+`IF EXISTS` and re-adds it.
+
+| Change | Steps | Risk |
+|---|---|---|
+| Field added, nullable or defaulted | `ADD COLUMN` (with `DEFAULT` when the field has one; `NOT NULL` when defaulted and non-null) | clean |
+| Field added, required, no default | `ADD COLUMN` nullable, then `SET NOT NULL` | may fail (SCH2702, help names the backfill) |
+| Field removed | `DROP COLUMN` (and the constraints that named it) | destructive |
+| Field renamed (emitted name changes) | `RENAME COLUMN`; checks that embed the name are dropped and re-added | clean |
+| Scalar widened (`int32`→`int64`, `float32`→`float64`, longer `varchar`, wider `numeric` at the same scale, `uuid`→`text`) | `ALTER COLUMN … TYPE … USING "col"::<type>` | clean |
+| Scalar narrowed or recast otherwise | `ALTER COLUMN … TYPE … USING` | destructive |
+| Nullable → non-null, with default | `Backfill` (`UPDATE … SET col = default WHERE col IS NULL`), `SET NOT NULL` | clean |
+| Nullable → non-null, no default | `SET NOT NULL` | may fail |
+| Non-null → nullable | `DROP NOT NULL` | clean |
+| Refinement tightened | drop and re-add the check | may fail |
+| Refinement loosened | drop and re-add the check | clean |
+| Default added, changed, or removed | `SET DEFAULT` / `DROP DEFAULT` | clean (a removal on a non-null column stays clean here; inserts are the application's concern) |
+| Enum value added | drop and re-add the enum check | clean |
+| Enum value removed | drop and re-add the enum check | may fail |
+| Enum value renamed (emitted name changes) | `UPDATE … SET col = 'new' WHERE col = 'old'`, then drop and re-add the enum check | clean |
+| Union member added | `ADD COLUMN` per variant column, re-add the kind and variant checks | clean |
+| Union member removed | `DROP COLUMN` per variant column, re-add the checks | destructive |
+| Union member type changed | drop the old variant columns, add the new | destructive |
+| `@sql(key)` added, removed, or moved | drop the primary key (and the foreign keys that referenced it), add the new; child tables' parent columns follow | may fail (duplicates or nulls in the new key) |
+| `@sql(unique)` added | `ADD CONSTRAINT … UNIQUE` | may fail |
+| `@sql(unique)` removed, `@sql(index)` changed | `DROP CONSTRAINT` / `DROP INDEX`, `CREATE INDEX` | clean |
+| `@sql(type)` changed | `ALTER COLUMN … TYPE … USING` | destructive |
+| `@sql(strategy)` changed | drop the old shape (columns or child table), create the new | destructive, help says to move the data between the two statements |
+| `@sql(table|column|schema)` changed | `RENAME TABLE` / `RENAME COLUMN` / `ALTER TABLE … SET SCHEMA` after `CREATE SCHEMA` | clean |
+| Declaration added | `CREATE TABLE` when it has a table | clean |
+| Declaration removed | `DROP TABLE` when it had one, child tables first | destructive |
+| Namespace added or removed | as its declarations; a removed namespace ends with `DROP SCHEMA` when empty | as its declarations |
+| Doc changed | `COMMENT ON` | clean |
+
+A backward migration is the forward migration with the sides swapped: `schemata migrate NEW OLD`.
+The same gate applies, so undoing an added column is destructive and says so.
+
+### Reporting
+
+The human report lists each file and its steps (`add column "customer"."tier"    clean`), then a
+trailer with the step and file counts and how many are destructive or may fail; each risky step
+also renders as its own diagnostic with the changed side's excerpt. The JSON document is `diff`'s
+for the sql rulebook plus `steps` (`file`, `kind`, `sql`, `risk`, `path`, `line`) and `files`
+(`path`, `content`), and the same `errors` array when the sides cannot be compared or a side has
+SQL errors.
+
+### Worked example
+
+From `schemata-cli/src/test/resources/evolution/may-fail/old/s.schemata`:
+```
+namespace s
+
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 email: string(max = 254)?
+  #3 age: int32(min = 0)
+  #4 code: string(max = 8)
+}
+```
+
+From `schemata-cli/src/test/resources/evolution/may-fail/new/s.schemata`:
+```
+namespace s
+
+record Customer {
+  @sql(key) #1 id: uuid
+  #2 email: string(max = 254)
+  #3 age: int32(min = 18)
+  @sql(unique) #4 code: string(max = 8)
+}
+```
+
+`schemata migrate old new` writes `migrate/s.sql`:
+
+```
+-- migrate/s.sql
+BEGIN;
+
+ALTER TABLE "s"."customer" DROP CONSTRAINT "ck_customer_age_min";
+ALTER TABLE "s"."customer" ALTER COLUMN "email" SET NOT NULL;
+ALTER TABLE "s"."customer" ADD CONSTRAINT "uq_customer_code" UNIQUE ("code");
+ALTER TABLE "s"."customer" ADD CONSTRAINT "ck_customer_age_min" CHECK ("age" >= 18);
+
+COMMIT;
+```
+
+and reports:
+
+```
+s.sql
+  drop constraint "customer"."ck_customer_age_min"    clean
+  set not null "customer"."email"    may fail
+  add constraint "customer"."uq_customer_code"    may fail
+  add constraint "customer"."ck_customer_age_min"    may fail
+
+4 steps in 1 file
+0 destructive, 3 may fail
+
+warning[SCH2702] (lossy): s.Customer.email: SET NOT NULL on "email" fails when a row holds NULL
+ --> new/s.schemata:5:6
+  |
+5 |   #2 email: string(max = 254)
+  |      ^^^^^
+  = help: run UPDATE "s"."customer" SET "email" = … WHERE "email" IS NULL before applying
+
+warning[SCH2702] (lossy): s.Customer.age: CONSTRAINT "ck_customer_age_min" fails when a row violates it
+ --> new/s.schemata:6:6
+  |
+6 |   #3 age: int32(min = 18)
+  |      ^^^
+  = help: fix or delete the rows the new constraint rejects before applying
+
+warning[SCH2702] (lossy): s.Customer.code: UNIQUE "uq_customer_code" fails when rows duplicate the key
+ --> new/s.schemata:7:19
+  |
+7 |   @sql(unique) #4 code: string(max = 8)
+  |                   ^^^^
+  = help: remove duplicate rows before applying
+
+0 errors, 3 warnings
+```
+
+## 22. Editor support
 
 `schemata lsp` is a language server: an editor starts it and talks to it over its standard input
 and output. It reports the diagnostics `schemata check` reports about the schemas themselves, with
