@@ -95,12 +95,12 @@ class FormatterTest {
 
     @Test
     fun `a comment inside a member's type trails the member and formatting is idempotent`() {
-        val union = "schema t\nunion U = #1 list<\n// why\nA> | #2 B\n"
-        val unionOut = "schema t\n\nunion U =\n  #1 list<A> |  // why\n  #2 B\n"
+        val union = "schema t\nunion U = #1 map<string,\n// why\nA> | #2 B\n"
+        val unionOut = "schema t\n\nunion U =\n  #1 map<string, A> |  // why\n  #2 B\n"
         assertEquals(unionOut, fmt(union))
         assertEquals(unionOut, fmt(unionOut))
-        val record = "schema t\nmodel R {\n#1 a bool\n#2 b list<\n// why\nint32>\n}\n"
-        val recordOut = "schema t\n\nmodel R {\n  #1 a bool\n  #2 b list<int32>  // why\n}\n"
+        val record = "schema t\nmodel R {\n#1 a bool\n#2 b map<string,\n// why\nint32>\n}\n"
+        val recordOut = "schema t\n\nmodel R {\n  #1 a bool\n  #2 b map<string, int32>  // why\n}\n"
         assertEquals(recordOut, fmt(record))
         assertEquals(recordOut, fmt(recordOut))
     }
@@ -115,20 +115,20 @@ class FormatterTest {
 
     @Test
     fun `a comment trailing a union's last member reads as the union's own and keeps one line`() {
-        val input = "schema t\nunion U = #1 A | #2 list<\n// why\nB>\n"
-        val expected = "schema t\n\nunion U = #1 A | #2 list<B>  // why\n"
+        val input = "schema t\nunion U = #1 A | #2 map<string,\n// why\nB>\n"
+        val expected = "schema t\n\nunion U = #1 A | #2 map<string, B>  // why\n"
         assertEquals(expected, fmt(input))
         assertEquals(expected, fmt(expected))
     }
 
     @Test
     fun `two line comments due on one line keep the last there and the first above`() {
-        val record = "schema t\nmodel R {\n#1 a list<\n// c\nint32> // d\n}\n"
-        val recordOut = "schema t\n\nmodel R {\n  // c\n  #1 a list<int32>  // d\n}\n"
+        val record = "schema t\nmodel R {\n#1 a map<string,\n// c\nint32> // d\n}\n"
+        val recordOut = "schema t\n\nmodel R {\n  // c\n  #1 a map<string, int32>  // d\n}\n"
         assertEquals(recordOut, fmt(record))
         assertEquals(recordOut, fmt(recordOut))
-        val union = "schema t\nunion U = #1 A | #2 list<\n// m\nB> // u\n"
-        val unionOut = "schema t\n\nunion U =\n  #1 A |\n  // m\n  #2 list<B>  // u\n"
+        val union = "schema t\nunion U = #1 A | #2 map<string,\n// m\nB> // u\n"
+        val unionOut = "schema t\n\nunion U =\n  #1 A |\n  // m\n  #2 map<string, B>  // u\n"
         assertEquals(unionOut, fmt(union))
         assertEquals(unionOut, fmt(unionOut))
     }

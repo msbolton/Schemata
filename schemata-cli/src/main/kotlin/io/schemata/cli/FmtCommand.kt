@@ -11,6 +11,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
+import io.schemata.lang.Diagnostic
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
 import java.io.File
@@ -66,22 +67,26 @@ internal fun CliktCommand.rewriteInPlace(
             continue
         }
         val s = SourceInput(loaded.path, content)
+        // emit exits the command on a non-zero report; every source still needs a chance to be
+        // rewritten, so the exit is deferred to the loop's own final throw.
+        fun report(diagnostics: List<Diagnostic>) {
+            val report =
+                Report.of(
+                    PipelineResult(diagnostics, emptyList()),
+                    strict = false,
+                    checkOnly = true,
+                )
+            try {
+                emit(this, report, Sources.of(listOf(s)), reporting, out = "")
+            } catch (_: ProgramResult) {}
+        }
         when (val r = rewrite(s.content, s.path)) {
             is FormatResult.Failed -> {
                 failed = true
-                val report =
-                    Report.of(
-                        PipelineResult(r.diagnostics, emptyList()),
-                        strict = false,
-                        checkOnly = true,
-                    )
-                // emit exits the command on a non-zero report; every source still needs a
-                // chance to be rewritten, so the exit is deferred to the loop's own final throw.
-                try {
-                    emit(this, report, Sources.of(listOf(s)), reporting, out = "")
-                } catch (_: ProgramResult) {}
+                report(r.diagnostics)
             }
-            is FormatResult.Formatted ->
+            is FormatResult.Formatted -> {
+                if (r.warnings.isNotEmpty()) report(r.warnings)
                 if (r.text != s.content) {
                     differs = true
                     if (check)
@@ -95,6 +100,7 @@ internal fun CliktCommand.rewriteInPlace(
                         echo("$verb ${s.path}", err = json)
                     }
                 }
+            }
         }
     }
     if (failed || (check && differs)) throw ProgramResult(1)

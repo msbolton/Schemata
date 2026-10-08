@@ -9,8 +9,11 @@ class CatalogStyleTest {
     private fun all() =
         Fixture.all().flatMap { f ->
             val diagnostics =
-                if (f.foreign.isNotEmpty()) f.importDiagnostics()
-                else Pipeline.check(f.sources, f.targets, f.strict).diagnostics
+                when {
+                    f.isUpgrade -> f.diagnostics()
+                    f.foreign.isNotEmpty() -> f.importDiagnostics()
+                    else -> Pipeline.check(f.sources, f.targets, f.strict).diagnostics
+                }
             diagnostics.map { f.name to it }
         }
 

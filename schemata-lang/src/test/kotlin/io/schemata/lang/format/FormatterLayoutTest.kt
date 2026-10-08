@@ -193,4 +193,56 @@ class FormatterLayoutTest {
         assertTrue(r is FormatResult.Failed)
         assertEquals(listOf("SCH0008"), r.diagnostics.map { it.code.id })
     }
+
+    @Test
+    fun `a comment inside an option block survives and formatting is idempotent`() {
+        val input =
+            "schema s\nmodel M {\n  #1 a int32 { min 0,  // low\n    max 9 }\n  #2 b int32\n}\n"
+        val once = fmt(input)
+        assertTrue("// low" in once, once)
+        assertEquals(once, fmt(once))
+        assertEquals(
+            "schema s\n\nmodel M {\n  #1 a int32 { min 0, max 9 }  // low\n  #2 b int32\n}\n",
+            once,
+        )
+    }
+
+    @Test
+    fun `list of T prints as T brackets unless T is a list or a bounded map`() {
+        assertEquals(
+            """
+            schema s
+
+            alias Tags = string[] { max 20 }
+
+            model M {
+              #1 a string?[]?                              { minItems 1, max 5 }
+              #2 b list<int32[]>
+              #3 c list<map<string, int32> { maxItems 3 }> { maxItems 10 }
+              #4 d map<string, int32[]>
+              #5 e int32[]                                 { maxItems 2, min 0 }
+            }
+            """
+                .trimIndent() + "\n",
+            fmt(
+                """
+                schema s
+                alias Tags = list<string { max 20 }>
+                model M {
+                  #1 a list<string?>? { minItems 1, max 5 }
+                  #2 b list<list<int32>>
+                  #3 c list<map<string, int32> { maxItems 3 }> { maxItems 10 }
+                  #4 d map<string, list<int32>>
+                  #5 e list<int32 { min 0 }> { maxItems 2 }
+                }
+            """
+            ),
+        )
+    }
+
+    @Test
+    fun `an element option the list already gives keeps list of T`() {
+        val text = "schema s\n\nmodel M { #1 a list<int32 { min 0 }> { min 1 } }\n"
+        assertEquals(text, fmt(text))
+    }
 }

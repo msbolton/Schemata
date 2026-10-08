@@ -197,11 +197,16 @@ object SchemataEmitter {
                 is UnitType.Ref -> t.name to emptyList()
                 is UnitType.ListOf -> {
                     val own = sizes(t.refinements)
-                    if (t.element is UnitType.ListOf) {
+                    val element = t.element
+                    // a map's own size bound would share the list's block: keep `list<…>`
+                    if (
+                        element is UnitType.ListOf ||
+                            (element is UnitType.MapOf && element.refinements.isNotEmpty())
+                    ) {
                         "list<${slotted(t.element, t.nullableElement)}>" to own
                     } else {
-                        val (element, elementOptions) = slot(t.element, t.nullableElement)
-                        "$element[]" to own + elementOptions
+                        val (text, elementOptions) = slot(element, t.nullableElement)
+                        "$text[]" to own + elementOptions
                     }
                 }
                 is UnitType.MapOf ->

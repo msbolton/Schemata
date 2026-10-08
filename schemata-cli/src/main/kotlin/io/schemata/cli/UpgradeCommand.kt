@@ -11,8 +11,9 @@ import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.lang.upgrade.Upgrader
 
 /**
- * `schemata upgrade`: rewrites 1.x files in the 2.0 surface, as `fmt` rewrites layout. A file that
- * already reads as 2.0 is left as it is and not named.
+ * `schemata upgrade`: rewrites 1.x files in the 2.0 surface, as `fmt` rewrites layout, and warns
+ * about each name it renames because 2.0 keeps it as a keyword. A file that already reads as 2.0 is
+ * left as it is and not named.
  */
 class UpgradeCommand : CliktCommand(name = "upgrade") {
     override fun help(context: Context) =
@@ -28,8 +29,15 @@ class UpgradeCommand : CliktCommand(name = "upgrade") {
     private val reporting by FormatOptions()
     private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
 
-    override fun run() =
+    /**
+     * Every file's schema name is read first, so a rename onto a schema another file declares is
+     * reported rather than merging the two.
+     */
+    override fun run() {
+        val schemas =
+            loadSources(inputs).mapNotNull { Upgrader.schemaName(it.content, it.path) }.toSet()
         rewriteInPlace(inputs, check, reporting, "upgraded") { content, path ->
-            Upgrader.upgrade(content, path)
+            Upgrader.upgrade(content, path, schemas)
         }
+    }
 }

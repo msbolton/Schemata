@@ -207,7 +207,13 @@ class UpgraderTest {
 
             import other as model_value
 
-            enum E { model_value other }
+            enum E {
+              @proto(name: "E_MODEL")
+              @xsd(name: "model")
+              @jsonschema(name: "model")
+              model_value
+              other
+            }
 
             model R { model_value string @sql(column: "model")  e E = model_value  t model_value.T }
 
@@ -260,5 +266,92 @@ class UpgraderTest {
         val a = (file.declarations.single() as RecordDecl).fields.single()
         assertEquals(listOf("id", "max"), a.options.map(Option::name))
         assertTrue(a.type.refinements.isEmpty() && a.annotations.isEmpty())
+    }
+
+    @Test
+    fun `every keyword rename is reported as a warning naming both spellings`() {
+        val r =
+            Upgrader.upgrade(
+                "namespace s.schema\nimport other as model\nenum E { model, other }\n" +
+                    "record R { model: string }\nservice S { #1 schema(R): R }",
+                "t.schemata",
+            )
+        assertTrue(r is FormatResult.Formatted, "$r")
+        assertEquals(
+            listOf(
+                "schema 's.schema' is renamed 's.schema_value', since 2.0 keeps `schema` as a keyword",
+                "import alias 'model' is renamed 'model_value', since 2.0 keeps `model` as a keyword",
+                "enum value 'model' is renamed 'model_value', since 2.0 keeps `model` as a keyword",
+                "field 'model' is renamed 'model_value', since 2.0 keeps `model` as a keyword",
+                "operation 'schema' is renamed 'schema_value', since 2.0 keeps `schema` as a keyword",
+            ),
+            r.warnings.map { it.message },
+        )
+        assertTrue(r.warnings.all { it.code.id == "SCH0009" })
+        assertTrue(r.warnings[2].help!!.contains("WHERE <column> = 'model'"), r.warnings[2].help)
+    }
+
+    @Test
+    fun `a renamed enum value keeps the overrides it already has`() {
+        val text =
+            up(
+                """
+                namespace s
+                @proto(name = "Kind")
+                enum E { @xsd(name = "M") model, other }
+                record R { e: E }
+                """
+            )
+        assertTrue("@xsd(name: \"M\")" in text, text)
+        assertTrue("@proto(name: \"KIND_MODEL\")" in text, text)
+        assertEquals(1, Regex("@xsd").findAll(text).count(), text)
+    }
+
+    @Test
+    fun `a schema renamed onto another file's schema is an upgrade error`() {
+        val r =
+            Upgrader.upgrade(
+                "namespace shop.schema\nrecord R { a: int32 }",
+                "t.schemata",
+                setOf("shop.schema", "shop.schema_value"),
+            )
+        assertTrue(r is FormatResult.Failed, "$r")
+        assertEquals(
+            "cannot rename schema 'shop.schema': another file declares 'shop.schema_value', and the two would merge",
+            r.diagnostics.single().message,
+        )
+        val alone =
+            Upgrader.upgrade(
+                "namespace shop.schema\nrecord R { a: int32 }",
+                "t.schemata",
+                setOf("shop.schema"),
+            )
+        assertTrue(alone is FormatResult.Formatted, "$alone")
+    }
+
+    @Test
+    fun `a list of size-bounded maps keeps its outer list`() {
+        assertEquals(
+            "schema s\n\nmodel R { m list<map<string, int32> { maxItems 3 }> { maxItems 10 } }\n",
+            up("namespace s\nrecord R { m: list<map<string, int32>(max = 3)>(max = 10) }"),
+        )
+    }
+
+    @Test
+    fun `header comments keep their order when annotations move onto the header`() {
+        val text =
+            up(
+                "// on sql\n@sql(schema = \"x\")\n// on namespace\nnamespace s\nrecord R { a: int32 }"
+            )
+        assertTrue(text.indexOf("// on sql") < text.indexOf("// on namespace"), text)
+    }
+
+    @Test
+    fun `the round-trip shape ignores layout and sees a changed type`() {
+        fun shape(text: String) = Upgrader.shape(Parser.parse(text, "t.schemata").file!!)
+        val one = "schema s\nmodel R { a int32 @deprecated(\"x\")  b string }\n"
+        val many = "schema s\n\nmodel R {\n  @deprecated(\"x\")\n  a int32\n  b   string\n}\n"
+        assertEquals(shape(one), shape(many))
+        assertTrue(shape(one) != shape(one.replace("b string", "b int32")))
     }
 }

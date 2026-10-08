@@ -58,6 +58,14 @@ object LangCodes {
             "a 1.x schema; run schemata upgrade",
         )
 
+    val KEYWORD_RENAMED =
+        DiagnosticCode(
+            "SCH0009",
+            Severity.WARNING,
+            Category.LOSSY,
+            "upgrade renamed a name 2.0 keeps as a keyword",
+        )
+
     val all: List<DiagnosticCode> =
         listOf(
             SYNTAX,
@@ -68,5 +76,6 @@ object LangCodes {
             UNKNOWN_VERB,
             MALFORMED_PATH,
             LEGACY_SYNTAX,
+            KEYWORD_RENAMED,
         )
 }

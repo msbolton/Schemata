@@ -18,6 +18,8 @@ import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Diagnostic
+import io.schemata.lang.format.FormatResult
+import io.schemata.lang.upgrade.Upgrader
 import io.schemata.target.Target
 import java.io.File
 
@@ -41,6 +43,9 @@ class Fixture(val dir: File) {
     val isMigrate: Boolean = header?.contains("migrate=") == true
 
     val allowDestructive: Boolean = header?.contains("allow-destructive") == true
+
+    /** True for a `# upgrade` fixture: its 1.x sources are run through `schemata upgrade`. */
+    val isUpgrade: Boolean = header?.trim() == "# upgrade"
 
     /**
      * True for a `# diff=old,new` fixture: compared through [Evolution], not compiled or checked.
@@ -111,6 +116,16 @@ class Fixture(val dir: File) {
                         width = 400,
                     )
                 }
+                isUpgrade -> {
+                    val report = Report.of(upgradeDiagnostics(), emptyList(), emptyList(), strict)
+                    HumanRenderer.render(
+                        report,
+                        Sources.of(sources),
+                        Palette.NONE,
+                        out = "",
+                        width = 400,
+                    )
+                }
                 foreign.isNotEmpty() -> {
                     val report = Report.of(importDiagnostics(), emptyList(), emptyList(), strict)
                     HumanRenderer.render(
@@ -140,8 +155,9 @@ class Fixture(val dir: File) {
 
     fun helps(): List<Pair<String, String?>> = diagnostics().map { it.code.id to it.help }
 
-    private fun diagnostics(): List<Diagnostic> =
+    fun diagnostics(): List<Diagnostic> =
         when {
+            isUpgrade -> upgradeDiagnostics()
             isDiff || isMigrate -> diffDiagnostics()
             foreign.isNotEmpty() -> importDiagnostics()
             else -> Pipeline.check(sources, targets, strict).diagnostics
@@ -160,6 +176,18 @@ class Fixture(val dir: File) {
         if (isMigrate) return migrate(old.schema!!, new.schema!!, allowDestructive).diagnostics
         return Evolution.compare(old.schema!!, new.schema!!, rulebooks).diagnostics
     }
+
+    /**
+     * What `schemata upgrade` reports for each source: its errors when it cannot upgrade, else its
+     * warnings.
+     */
+    private fun upgradeDiagnostics(): List<Diagnostic> =
+        sources.flatMap { source ->
+            when (val r = Upgrader.upgrade(source.content, source.path)) {
+                is FormatResult.Failed -> r.diagnostics
+                is FormatResult.Formatted -> r.warnings
+            }
+        }
 
     /** What the importer for [foreign]'s format reports, as `schemata import` would. */
     fun importDiagnostics(): List<Diagnostic> {

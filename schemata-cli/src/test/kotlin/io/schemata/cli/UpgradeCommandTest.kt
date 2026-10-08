@@ -61,8 +61,12 @@ class UpgradeCommandTest {
     @Test
     fun `a 1 name that is a 2 keyword is renamed with its sql name kept`() {
         val f = write("a.schemata", "namespace t\nrecord R { model: string }\n")
-        val r = UpgradeCommand().test(listOf(f.path))
+        val r = UpgradeCommand().test(listOf("--color", "never", f.path))
         assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(
+            "warning[SCH0009] (lossy): field 'model' is renamed 'model_value'" in r.stderr,
+            r.stderr,
+        )
         assertEquals(
             "schema t\n\nmodel R { model_value string @sql(column: \"model\") }\n",
             f.readText(),
@@ -78,5 +82,41 @@ class UpgradeCommandTest {
         assertTrue(r.stdout.trimStart().startsWith("{"), r.stdout)
         assertFalse("+schema t" in r.stdout, r.stdout)
         assertTrue("+schema t" in r.stderr, r.stderr)
+    }
+
+    @Test
+    fun `a schema renamed onto another file's schema fails and the other file still upgrades`() {
+        val renamed = write("a.schemata", "namespace shop.schema\nrecord A { #1 x: int32 }\n")
+        val other = write("b.schemata", "namespace shop.schema_value\nrecord B { #1 y: int32 }\n")
+        val r = UpgradeCommand().test(listOf("--color", "never", dir.path))
+        assertEquals(1, r.statusCode)
+        assertTrue("cannot rename schema 'shop.schema'" in r.stderr, r.stderr)
+        assertEquals("namespace shop.schema\nrecord A { #1 x: int32 }\n", renamed.readText())
+        assertTrue(other.readText().startsWith("schema shop.schema_value"), other.readText())
+    }
+
+    @Test
+    fun `a 1 embed of a keyed record upgrades and still copies its columns on Postgres`() {
+        val f =
+            write(
+                "a.schemata",
+                "namespace t\nrecord Customer { @sql(key) #1 id: uuid  #2 name: string(max = 40) }\n" +
+                    "record Order { @sql(key) #1 id: uuid  @sql(strategy = embed) #2 customer: Customer }\n",
+            )
+        assertEquals(0, UpgradeCommand().test(listOf(f.path)).statusCode)
+        assertTrue("#2 customer Customer { embed }" in f.readText(), f.readText())
+        val result =
+            Pipeline.compile(
+                listOf(SourceInput(f.path, f.readText())),
+                listOf(Pipeline.targetNamed("sql")!!),
+            )
+        assertFalse(result.hasErrors, result.diagnostics.joinToString("\n") { it.message })
+        val sql = result.files.single().file.content
+        assertTrue(
+            "\"customer_id\" uuid NOT NULL" in sql &&
+                "\"customer_name\" varchar(40) NOT NULL" in sql,
+            sql,
+        )
+        assertFalse("fk_order_customer" in sql, sql)
     }
 }

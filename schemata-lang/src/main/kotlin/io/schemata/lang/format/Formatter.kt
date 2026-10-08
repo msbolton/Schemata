@@ -20,7 +20,9 @@ import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
 
 sealed interface FormatResult {
-    data class Formatted(val text: String) : FormatResult
+    /** [warnings] are what `upgrade` reports about a file it could rewrite. */
+    data class Formatted(val text: String, val warnings: List<Diagnostic> = emptyList()) :
+        FormatResult
 
     data class Failed(val diagnostics: List<Diagnostic>) : FormatResult
 }
@@ -34,14 +36,16 @@ object Formatter {
     internal const val INDENT = "  "
 
     /**
-     * Prints [input] in the canonical layout. The output always ends its lines with `\n`, whatever
-     * the source used, comments included, and never starts with a byte-order mark.
+     * Prints [input] in the canonical layout, with `list<T>` written `T[]` wherever that says the
+     * same ([CanonicalLists]). The output always ends its lines with `\n`, whatever the source
+     * used, comments included, and never starts with a byte-order mark.
      */
     fun format(input: String, path: String): FormatResult {
         val source = normalize(input)
         val parsed = Parser.parseForFormat(source, path)
         val file = parsed.file ?: return FormatResult.Failed(parsed.diagnostics)
-        return FormatResult.Formatted(checked(print(file, parsed.comments, source), parsed, path))
+        val text = print(CanonicalLists.file(file), parsed.comments, source)
+        return FormatResult.Formatted(checked(text, parsed, path))
     }
 
     /**
@@ -112,7 +116,12 @@ object Formatter {
          * comment can: any other prints on its own line above the header.
          */
         internal fun header(f: SourceFile): List<String> {
-            val spans = listOf(f.namespace.span) + f.annotations.map { it.span }
+            // in source order, so the upgrader's annotations written ahead of `namespace` keep
+            // their comments ahead of the namespace's
+            val spans =
+                (listOf(f.namespace.span) + f.annotations.map { it.span }).sortedWith(
+                    compareBy({ it.startLine }, { it.startColumn })
+                )
             val above = spans.flatMap { comments.leading[it].orEmpty() }.toMutableList()
             val ending = spans.flatMap { comments.trailing[it].orEmpty() }
             val lineComments = ending.filter { it.text.startsWith("//") }

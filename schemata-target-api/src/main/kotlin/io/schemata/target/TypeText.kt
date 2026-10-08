@@ -15,7 +15,8 @@ object TypeText {
      * The type as a user would write it, with the options its bounds are written as: `string? { max
      * 254 }`, `Line[] { minItems 1 }`, `map<string, int32>`. A list's element options share the
      * list's block after its own; a list of lists keeps the outer `list<…>`, since a type takes one
-     * `[]`; a map's key and value carry their own.
+     * `[]`, and so does a list of maps with a size bound of their own, which would otherwise share
+     * the list's block with the list's; a map's key and value carry their own.
      */
     fun of(type: Type, nullable: Boolean = false): String {
         val (core, options) = slot(type, nullable)
@@ -40,11 +41,12 @@ object TypeText {
                 }
                 is ListOf -> {
                     val own = bounds(type.refinements, "minItems", "maxItems")
-                    if (type.element is ListOf) {
+                    val element = type.element
+                    if (element is ListOf || (element is MapOf && element.refinements.hasBounds)) {
                         "list<${of(type.element, type.nullableElement)}>" to own
                     } else {
-                        val (element, elementOptions) = slot(type.element, type.nullableElement)
-                        "$element[]" to own + elementOptions
+                        val (text, elementOptions) = slot(element, type.nullableElement)
+                        "$text[]" to own + elementOptions
                     }
                 }
                 is MapOf ->

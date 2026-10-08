@@ -32,11 +32,14 @@ import io.schemata.lang.format.Formatter
 object Upgrader {
     /**
      * The 2.0 text of a 1.x file: Failed when it does not parse as 1.x, or when it writes something
-     * the 2.0 surface cannot say; Formatted otherwise. A file that already reads as 2.0 comes back
-     * as it was, and one that is not 1.x (it does not start with `namespace`) fails with its 2.0
-     * syntax errors.
+     * the 2.0 surface cannot say; Formatted otherwise, with a warning for each name renamed because
+     * 2.0 keeps it as a keyword. A file that already reads as 2.0 comes back as it was, and one
+     * that is not 1.x (it does not start with `namespace`) fails with its 2.0 syntax errors.
+     * [schemas] holds the schema names every file of the upgrade declares, as written, so a rename
+     * onto another file's schema is reported rather than merging the two. The printed text is read
+     * back and must say exactly what the mapping said; a difference is reported, never written.
      */
-    fun upgrade(input: String, path: String): FormatResult {
+    fun upgrade(input: String, path: String, schemas: Set<String> = emptySet()): FormatResult {
         val source = Formatter.normalize(input)
         val current = Parser.parse(source, path)
         if (current.file != null) return FormatResult.Formatted(input)
@@ -44,15 +47,71 @@ object Upgrader {
             return FormatResult.Failed(current.diagnostics)
         val parsed = Parser.parse1ForUpgrade(source, path)
         val file = parsed.file ?: return FormatResult.Failed(parsed.diagnostics)
-        val mapper = Mapper(parsed.comments)
+        val mapper = Mapper(parsed.comments, schemas - file.namespace.name)
         val mapped = mapper.file(file)
         if (mapper.problems.isNotEmpty()) return FormatResult.Failed(mapper.problems)
-        val text = Formatter.print(mapped, mapper.comments(), source)
-        return FormatResult.Formatted(Formatter.checked(text, parsed, path))
+        val text =
+            Formatter.checked(Formatter.print(mapped, mapper.comments(), source), parsed, path)
+        val reread = Parser.parse(text, path).file
+        if (reread == null || shape(reread) != shape(mapped))
+            return FormatResult.Failed(
+                listOf(
+                    Diagnostic(
+                        LangCodes.SYNTAX,
+                        "upgrade would print a file that reads differently from the 1.x one",
+                        file.namespace.span,
+                        help = "report this file to the Schemata maintainers; nothing was written",
+                    )
+                )
+            )
+        return FormatResult.Formatted(text, mapper.warnings)
+    }
+
+    /** The schema name [input] declares, read as 2.0 or else as 1.x, or null when neither reads. */
+    fun schemaName(input: String, path: String): String? {
+        val source = Formatter.normalize(input)
+        return Parser.parse(source, path).file?.namespace?.name
+            ?: Parser.parse1ForUpgrade(source, path).file?.namespace?.name
     }
 
     /** The AST mapping alone, for tests. */
-    fun map(file: SourceFile): SourceFile = Mapper(CommentTable.EMPTY).file(file)
+    fun map(file: SourceFile): SourceFile = Mapper(CommentTable.EMPTY, emptySet()).file(file)
+
+    /**
+     * [file] with every position left out, so two trees that say the same thing compare equal
+     * however they are laid out. The attributes of a field compare as a set of texts: whether one
+     * leads the field or trails it is layout.
+     */
+    internal fun shape(file: SourceFile): String = SPAN.replace(normalized(file).toString(), "")
+
+    private fun normalized(file: SourceFile): SourceFile =
+        file.copy(declarations = file.declarations.map(::normalized))
+
+    private fun normalized(d: Declaration): Declaration =
+        when (d) {
+            is RecordDecl ->
+                d.copy(
+                    fields =
+                        d.fields.map { f ->
+                            f.copy(
+                                annotations =
+                                    f.annotations.sortedBy { it.toString().replace(SPAN, "") },
+                                type =
+                                    f.type.copy(
+                                        inlineShape =
+                                            f.type.inlineShape?.let { normalized(it) as RecordDecl }
+                                    ),
+                            )
+                        },
+                    nested = d.nested.map(::normalized),
+                )
+            else -> d
+        }
+
+    private val SPAN =
+        Regex(
+            "Span\\(file=[^,]*, startLine=-?\\d+, startColumn=-?\\d+, endLine=-?\\d+, endColumn=-?\\d+\\)"
+        )
 }
 
 /**
@@ -63,7 +122,8 @@ object Upgrader {
  *   precision and scale, which are part of the type.
  * - `list<T>` becomes `T[]`: `list<T?>` is `T?[]` and `list<T>?` is `T[]?`. The element's options
  *   follow the list's own, in the same block, since a field has one. A list of lists keeps its
- *   outer `list<…>`, as a type takes one `[]`.
+ *   outer `list<…>`, as a type takes one `[]`, and so does a list of maps with a size bound of
+ *   their own, which would otherwise share the list's block with the list's.
  * - On a field, `@sql(key)`, `@sql(unique)`, `@sql(index)` and `@sql(strategy = embed)` become the
  *   options `id`, `unique`, `index` and `embed`, ahead of the bounds; an `@sql` left with no
  *   arguments is dropped. Every other field annotation trails the field, except one carrying a
@@ -77,15 +137,30 @@ object Upgrader {
  *   wherever it is declared or referred to. Only a lower_snake name can be spelled like a keyword,
  *   so the names that reach SQL are a namespace's segments and a field's: a namespace keeps its SQL
  *   schema name through `@sql(schema: …)` and a field its column through `@sql(column: …)`, unless
- *   it already names one. A rename onto a name already declared in the same scope is reported
- *   instead.
+ *   it already names one. A renamed enum value keeps its Protobuf, XSD, and JSON Schema names
+ *   through `name` pins. Every rename is reported as a warning naming what it changes; a rename
+ *   onto a name already declared in the same scope, or onto another file's schema, is reported as
+ *   an error instead.
  * - What 2.0 cannot say is reported, not printed: a refinement on a payload (2.0 gives it no
  *   options), a positional refinement on anything but `decimal(p, s)`, and a bound given as a bare
  *   name.
  */
-private class Mapper(private val table: CommentTable) {
+private class Mapper(private val table: CommentTable, private val otherSchemas: Set<String>) {
     /** What the 2.0 surface cannot say, reported instead of printing something that misreads. */
     val problems = mutableListOf<Diagnostic>()
+
+    /** Each name renamed because 2.0 keeps it as a keyword, with what the rename changes. */
+    val warnings = mutableListOf<Diagnostic>()
+
+    private fun renameWarning(old: String, at: Span, what: String, help: String) {
+        warnings +=
+            Diagnostic(
+                LangCodes.KEYWORD_RENAMED,
+                "$what '$old' is renamed '${renamed(old)}', since 2.0 keeps `${old.split('.').first { it in NEW_KEYWORDS }}` as a keyword",
+                at,
+                help = help,
+            )
+    }
 
     /** Comments trailing an annotation the mapping dropped, and the element they now lead. */
     private val moved = mutableListOf<Pair<Span, Span>>()
@@ -116,8 +191,41 @@ private class Mapper(private val table: CommentTable) {
     fun file(f: SourceFile): SourceFile {
         val annotations = f.annotations.map(::renamed).toMutableList()
         val segments = f.namespace.name.split('.')
-        if (segments.any { it in NEW_KEYWORDS } && annotations.none { sqlNames(it, "schema") })
-            annotations += sqlName("schema", segments.last(), f.namespace.nameSpan)
+        if (segments.any { it in NEW_KEYWORDS }) {
+            val name = f.namespace.name
+            if (renamed(name) in otherSchemas)
+                problems +=
+                    Diagnostic(
+                        LangCodes.SYNTAX,
+                        "cannot rename schema '$name': another file declares '${renamed(name)}', and the two would merge",
+                        f.namespace.nameSpan,
+                        help = "rename one of the two schemas in the 1.x files, then upgrade",
+                    )
+            else
+                renameWarning(
+                    name,
+                    f.namespace.nameSpan,
+                    "schema",
+                    "the Postgres schema keeps its name through @sql(schema: …); the Protobuf package, " +
+                        "XSD namespace, and JSON Schema id follow the new name unless the file pins them",
+                )
+            if (annotations.none { sqlNames(it, "schema") })
+                annotations += sqlName("schema", segments.last(), f.namespace.nameSpan)
+        }
+        f.imports
+            .mapNotNull { i ->
+                i.alias
+                    ?.takeIf { it in NEW_KEYWORDS }
+                    ?.let { it to (i.aliasSpan ?: i.namespaceSpan) }
+            }
+            .forEach { (alias, at) ->
+                renameWarning(
+                    alias,
+                    at,
+                    "import alias",
+                    "the alias is local to this file, so nothing emitted changes",
+                )
+            }
         collisions(
             f.declarations.map { it.name to it.nameSpan } +
                 f.services.map { it.name to it.nameSpan }
@@ -207,10 +315,22 @@ private class Mapper(private val table: CommentTable) {
                     annotations = annotations,
                     values =
                         d.values.map {
-                            it.copy(
-                                name = renamed(it.name),
-                                annotations = it.annotations.map(::renamed),
-                            )
+                            val kept = it.annotations.map(::renamed)
+                            val pins =
+                                if (it.name !in NEW_KEYWORDS) emptyList()
+                                else {
+                                    renameWarning(
+                                        it.name,
+                                        it.nameSpan,
+                                        "enum value",
+                                        "Protobuf, XSD, and JSON Schema keep '${it.name}' through the name " +
+                                            "pins written beside it; Postgres stores '${renamed(it.name)}', so " +
+                                            "update stored rows before migrating: UPDATE … SET <column> = " +
+                                            "'${renamed(it.name)}' WHERE <column> = '${it.name}'",
+                                    )
+                                    valuePins(d, it.name, kept, it.nameSpan)
+                                }
+                            it.copy(name = renamed(it.name), annotations = kept + pins)
                         },
                 )
             }
@@ -228,8 +348,62 @@ private class Mapper(private val table: CommentTable) {
         }
     }
 
+    /**
+     * The name overrides that keep a renamed enum value's emitted name on the targets that take
+     * one: `@proto(name: …)` with the prefixed name Protobuf derives (`STATUS_SCHEMA`), and
+     * `@xsd(name: …)` and `@jsonschema(name: …)` with the value itself, each unless [kept] already
+     * gives one.
+     */
+    private fun valuePins(
+        enum: EnumDecl,
+        value: String,
+        kept: List<Annotation>,
+        near: Span,
+    ): List<Annotation> {
+        val protoEnum =
+            enum.annotations
+                .firstOrNull { it.name == "proto" }
+                ?.args
+                ?.filterIsInstance<AnnotationArg.Named>()
+                ?.firstOrNull { it.name == "name" }
+                ?.let { ((it.value as? AnnotationValue.Lit)?.literal as? Literal.StringLit)?.value }
+                ?: enum.name
+        val protoValue = "${upperSnake(protoEnum)}_${value.uppercase()}"
+        return listOf("proto" to protoValue, "xsd" to value, "jsonschema" to value)
+            .filter { (target, _) -> kept.none { it.name == target && hasArg(it, "name") } }
+            .map { (target, name) -> pin(target, name, near) }
+    }
+
+    private fun hasArg(a: Annotation, key: String): Boolean =
+        a.args.any { it is AnnotationArg.Named && it.name == key }
+
+    /** `@target(name: "value")`, written by the upgrader with no source text, as [sqlName] is. */
+    private fun pin(target: String, value: String, near: Span): Annotation {
+        val at = Span(near.file, 0, 0, 0, 0)
+        val literal = AnnotationValue.Lit(Literal.StringLit(value, at), at)
+        return Annotation(target, listOf(AnnotationArg.Named("name", literal, at)), at)
+    }
+
+    /** `OrderStatus` → `ORDER_STATUS`, as Protobuf prefixes an enum's values. */
+    private fun upperSnake(name: String): String =
+        name
+            .split(Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"))
+            .joinToString("_")
+            .uppercase()
+
     private fun service(s: ServiceDecl): ServiceDecl {
         collisions(s.operations.map { it.name to it.nameSpan })
+        s.operations
+            .filter { it.name in NEW_KEYWORDS }
+            .forEach {
+                renameWarning(
+                    it.name,
+                    it.nameSpan,
+                    "operation",
+                    "its rpc path and operationId follow the new name; pin them with @proto(name: …) " +
+                        "and @openapi(name: …) to keep the old ones",
+                )
+            }
         return s.copy(
             name = renamed(s.name),
             annotations = s.annotations.map(::renamed),
@@ -305,8 +479,16 @@ private class Mapper(private val table: CommentTable) {
             else kept += a.copy(args = rest)
         }
         // A renamed field keeps its SQL column name, which is its name.
-        if (f.name in NEW_KEYWORDS && kept.none { sqlNames(it, "column") })
-            kept += sqlName("column", f.name, f.nameSpan)
+        if (f.name in NEW_KEYWORDS) {
+            renameWarning(
+                f.name,
+                f.nameSpan,
+                "field",
+                "the Postgres column keeps its name through @sql(column: …); the Protobuf, XSD, and " +
+                    "JSON names follow the new name unless pinned with @proto, @xsd, or @jsonschema(name: …)",
+            )
+            if (kept.none { sqlNames(it, "column") }) kept += sqlName("column", f.name, f.nameSpan)
+        }
         val (type, options) = type(f.type)
         return f.copy(
             name = renamed(f.name),
@@ -412,7 +594,9 @@ private class Mapper(private val table: CommentTable) {
         val own = named.map { Option(optionName(it.name, collection), it.value, it.span) }
         if (t.name == "list" && t.args.size == 1) {
             val (element, elementOptions) = type(t.args.single())
-            if (!element.list) {
+            // a map's own size bound would share the list's block with the list's: keep `list<…>`
+            val boundedMap = element.name == "map" && elementOptions.isNotEmpty()
+            if (!element.list && !boundedMap) {
                 val list = element.copy(list = true, listNullable = t.nullable, span = t.span)
                 return list to own + elementOptions
             }
