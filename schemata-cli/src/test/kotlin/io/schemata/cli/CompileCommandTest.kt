@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.io.TempDir
 
 class CompileCommandTest {
     private val orders =
@@ -32,10 +33,13 @@ class CompileCommandTest {
         """
             .trimIndent()
 
+    // JUnit removes this directory after each test, so the sources and outputs never outlive it.
+    @TempDir lateinit var tmp: java.nio.file.Path
+
     private fun tempSources(
         vararg files: Pair<String, String>
     ): Pair<java.nio.file.Path, java.nio.file.Path> {
-        val dir = Files.createTempDirectory("schemata-cli")
+        val dir = Files.createTempDirectory(tmp, "schemata-cli")
         val src = dir.resolve("src").createDirectories()
         files.forEach { (name, text) -> src.resolve(name).writeText(text) }
         return src to dir.resolve("out")
@@ -201,7 +205,7 @@ class CompileCommandTest {
 
     @Test
     fun `rejects a directory with no schemata files`() {
-        val dir = Files.createTempDirectory("schemata-empty")
+        val dir = Files.createTempDirectory(tmp, "schemata-empty")
         val result = CompileCommand().test("--target proto $dir")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("no .schemata files"), result.stderr)

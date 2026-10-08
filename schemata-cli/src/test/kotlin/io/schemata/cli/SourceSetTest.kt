@@ -5,11 +5,15 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.junit.jupiter.api.io.TempDir
 
 class SourceSetTest {
+    // JUnit removes this directory after each test.
+    @TempDir lateinit var tmp: java.nio.file.Path
+
     @Test
     fun `expands directories recursively, sorts, and deduplicates`() {
-        val root = Files.createTempDirectory("schemata-src")
+        val root = Files.createTempDirectory(tmp, "schemata-src")
         root.resolve("b.schemata").writeText("schema b")
         root.resolve("sub").createDirectories()
         root.resolve("sub/a.schemata").writeText("schema a")

@@ -8,7 +8,16 @@ plugins {
     id("com.diffplug.spotless")
 }
 
-version = buildsrc.convention.GitVersion.of(providers, rootDir)
+// Git is asked once per build, by whichever project configures first, and the answer is kept on
+// the root project for the other modules.
+version =
+    synchronized(rootProject) {
+        val key = "schemata.gitVersion"
+        if (!rootProject.extra.has(key)) {
+            rootProject.extra[key] = buildsrc.convention.GitVersion.of(providers, rootDir)
+        }
+        rootProject.extra[key] as String
+    }
 
 kotlin { jvmToolchain(21) }
 

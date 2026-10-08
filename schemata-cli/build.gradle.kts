@@ -76,6 +76,9 @@ tasks.jar {
 tasks.shadowJar {
     archiveBaseName = "schemata"
     archiveClassifier = ""
+    // A development version carries the commit as `+<sha>`; leaving it out of the file name keeps
+    // build/libs at one jar rather than one per commit. Release versions have no `+`.
+    archiveVersion = project.version.toString().replace(Regex("""\+[0-9a-f]{7}"""), "")
     mergeServiceFiles()
 }
 
@@ -147,8 +150,8 @@ val downloadV1Jar by
         }
     }
 
-// The archive path is fixed by configuration, not execution, so reading it here is safe.
-val fatJar = tasks.shadowJar.get().archiveFile
+// Mapped from the task provider, so the shadow jar task is not realized while configuring.
+val fatJar = tasks.shadowJar.flatMap { it.archiveFile }
 
 tasks.test {
     dependsOn(downloadV1Jar)
@@ -168,7 +171,7 @@ tasks.test {
     inputs
         .dir(rootProject.layout.projectDirectory.dir("examples"))
         .withPathSensitivity(PathSensitivity.RELATIVE)
-    systemProperty("schemata.fatJar", fatJar.get().asFile.absolutePath)
+    systemProperty("schemata.fatJar", fatJar.map { it.asFile.absolutePath })
     systemProperty("schemata.version", project.version.toString())
     providers.gradleProperty("schemata.nativeBinary").orNull?.let {
         // Resolved against the repository root, so the workflow and a developer

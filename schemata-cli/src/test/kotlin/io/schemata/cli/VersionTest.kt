@@ -6,8 +6,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class VersionTest {
+    // `0.0.0-unknown` is what a source tree without git (a release tarball) builds as; on a git
+    // checkout the version is a tag or `0.0.0-dev+<sha>`.
     private val grammar =
-        Regex("""\d+\.\d+\.\d+(-rc\.\d+)?(-dev\+[0-9a-f]{7})?(-dirty)?|0\.0\.0-unknown|unknown""")
+        Regex("""\d+\.\d+\.\d+(-rc\.\d+)?(-dev\+[0-9a-f]{7})?(-dirty)?|0\.0\.0-unknown""")
 
     @Test
     fun `--version prints the program name and the version`() {
