@@ -1,0 +1,11 @@
+s.sql
+  create table "membership"    clean
+  drop constraint "order"."fk_order_customer"    clean
+  add constraint "order"."fk_order_customer"    clean
+  add constraint "membership"."fk_membership_customer"    clean
+  create index "ix_membership_region_code"    clean
+
+5 steps in 1 file
+0 destructive, 0 may fail
+
+no diagnostics

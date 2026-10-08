@@ -66,6 +66,12 @@ object CoreCodes {
         error("SCH1047", "an operation's request or response is not a record or a union")
     val BINDING = error("SCH1048", "an operation's HTTP binding does not fit its request")
     val OPTION_NOT_APPLICABLE = error("SCH1049", "an option on a type that cannot carry it")
+    val BACK_REFERENCE_TARGET =
+        error("SCH1050", "a back-reference names no forward reference to its model")
+    val AMBIGUOUS_BACK_REFERENCE =
+        error("SCH1051", "a back-reference could follow more than one forward reference")
+    val SET_NULL_REQUIRED =
+        error("SCH1052", "a required reference sets itself null when its target is deleted")
     val HOISTED_NAME_COLLISION =
         error("SCH1053", "an inline shape's or enum's name collides with a declaration")
 
@@ -117,6 +123,9 @@ object CoreCodes {
             PAYLOAD_KIND,
             BINDING,
             OPTION_NOT_APPLICABLE,
+            BACK_REFERENCE_TARGET,
+            AMBIGUOUS_BACK_REFERENCE,
+            SET_NULL_REQUIRED,
             HOISTED_NAME_COLLISION,
         )
 }

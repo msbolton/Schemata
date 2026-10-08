@@ -308,6 +308,10 @@ object Options {
         return resolved.copy(type = merge(resolved.type, expr, lowered)) to lowered
     }
 
+    /**
+     * [type] with [lowered]'s bounds merged in and, for `{ embed }`, the reference (or a listed
+     * element's) marked embedded: the option is a fact about the reference, kept on [Ref.relation].
+     */
     private fun merge(type: Type, expr: TypeExpr, lowered: Lowered): Type =
         when (type) {
             is Scalar -> type.copy(refinements = type.refinements.with(lowered.own))
@@ -315,15 +319,21 @@ object Options {
                 type.copy(
                     refinements = type.refinements.with(lowered.own),
                     element =
-                        if (listed(expr) && type.element is Scalar)
-                            type.element.copy(
-                                refinements = type.element.refinements.with(lowered.element)
-                            )
-                        else type.element,
+                        when {
+                            !listed(expr) -> type.element
+                            type.element is Scalar ->
+                                type.element.copy(
+                                    refinements = type.element.refinements.with(lowered.element)
+                                )
+                            type.element is Ref && lowered.embed -> embedded(type.element)
+                            else -> type.element
+                        },
                 )
             is MapOf -> type.copy(refinements = type.refinements.with(lowered.own))
-            is Ref -> type
+            is Ref -> if (lowered.embed) embedded(type) else type
         }
+
+    private fun embedded(ref: Ref): Ref = ref.copy(relation = ref.relation.copy(embed = true))
 
     private fun Refinements.with(other: Refinements): Refinements =
         copy(min = other.min ?: min, max = other.max ?: max, pattern = other.pattern ?: pattern)

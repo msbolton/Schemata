@@ -14,12 +14,14 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.keyFields
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Span
 
 /**
  * Every keyed record's table, resolved before any field is lowered so references and child tables
- * can point at tables in any namespace. [used] holds every record some field or union member refers
- * to, so an unused keyless record can be reported.
+ * can point at tables in any namespace. [used] holds every record some stored field or union member
+ * refers to, so an unused keyless record can be reported; a back-reference stores nothing and uses
+ * nothing.
  *
  * Table and key column names pass through [identifier] here, once; lowering reuses them rather than
  * deriving them again, so a truncation is reported a single time.
@@ -106,7 +108,7 @@ class Catalog(
 
     private fun targets(decl: TypeDecl): List<QualifiedName> =
         when (decl) {
-            is RecordType -> decl.fields.flatMap { refs(it.type) }
+            is RecordType -> decl.storedFields.flatMap { refs(it.type) }
             is UnionType -> decl.members.flatMap { refs(it.type) }
             else -> emptyList()
         }

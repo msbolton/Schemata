@@ -61,10 +61,13 @@ object Analyzer {
         val resolver = Resolver(index, sorted, diagnostics, options.references)
         val annotations = AnnotationChecker(options.annotations, diagnostics)
         val groups = sorted.groupBy { it.namespace.name }.toSortedMap()
-        val lowered =
+        val declared =
             groups.map { (name, group) ->
                 analyzeNamespace(name, group, index, resolver, annotations, options, diagnostics)
             }
+        // relations after every namespace's declarations: a back-reference is judged against the
+        // model it references, wherever that is declared
+        val lowered = Relations.analyze(Schema(declared)) { diagnostics += it }.namespaces
         // services after every namespace's declarations: a payload may name another namespace's
         // record, and a path parameter is judged by its field's lowered type
         val declarations =

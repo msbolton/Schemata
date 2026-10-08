@@ -1,0 +1,12 @@
+schema s
+
+model Customer {
+  #1 id     uuid    { id }
+  #2 bought Order[] @relation
+}
+
+model Order {
+  #1 id     uuid     { id }
+  #2 buyer  Customer
+  #3 seller Customer
+}

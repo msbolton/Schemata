@@ -4,12 +4,17 @@ import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
+import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.Operation
 import io.schemata.core.ir.RecordType
+import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Relation
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Service
+import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
@@ -288,19 +293,38 @@ object Differ {
         }
 
     /**
-     * A field's annotations plus its `{ id }`, `{ unique }`, and `{ index }` facts, which the SQL
-     * target lowers to its key, unique constraints, and indexes. They are compared as the `sql`
-     * keys `key`, `unique`, and `index`, so the SQL rulebook judges a fact added or removed as the
-     * DDL change it is and every other rulebook passes it as an annotation it does not read.
+     * A field's annotations plus its `{ id }`, `{ unique }`, `{ index }`, and `{ embed }` facts,
+     * which the SQL target lowers to its key, unique constraints, indexes, and an embedded record's
+     * columns. They are compared as the `sql` keys `key`, `unique`, `index`, and `strategy`
+     * (`embed`, unless the field names a strategy of its own), so the SQL rulebook judges a fact
+     * added or removed as the DDL change it is and every other rulebook passes it as an annotation
+     * it does not read. A reference's `@relation(onDelete: …)` other than the default `restrict` is
+     * compared as `@relation(onDelete)`.
      */
     private fun withKeyFacts(field: Field): Annotations {
+        val relation = relationOf(field.type)
         val facts = buildMap {
             if (field.key) put("key", AnnotationValue.Flag)
             if (field.unique) put("unique", AnnotationValue.Flag)
             if (field.index) put("index", AnnotationValue.Flag)
+            if (relation?.embed == true && "strategy" !in field.annotations["sql"])
+                put("strategy", AnnotationValue.Name("embed"))
         }
-        return withSql(field.annotations, facts)
+        val withFacts = withSql(field.annotations, facts)
+        val onDelete = relation?.onDelete?.takeIf { it != OnDelete.RESTRICT } ?: return withFacts
+        return Annotations(
+            withFacts.entries +
+                ("relation" to mapOf("onDelete" to AnnotationValue.Name(onDelete.name.lowercase())))
+        )
     }
+
+    /** The relation a field's reference, or its list's element reference, carries. */
+    private fun relationOf(type: Type): Relation? =
+        when (type) {
+            is Ref -> type.relation
+            is ListOf -> (type.element as? Ref)?.relation
+            else -> null
+        }
 
     /** A declaration's annotations plus a record's `@@id(a, b)`, as the `sql` key `key`. */
     private fun withKeyFacts(decl: TypeDecl): Annotations {

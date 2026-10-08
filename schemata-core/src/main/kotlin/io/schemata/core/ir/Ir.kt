@@ -169,6 +169,13 @@ fun RecordType.keyFields(): List<Field> =
         compositeKey.mapNotNull { n -> fields.firstOrNull { it.name == n } }
     else fields.filter { it.key }
 
+/**
+ * The fields a target stores or sends: every field but the virtual back-references, which name a
+ * relation the other side already holds and so occupy no column, element, or property anywhere.
+ */
+val RecordType.storedFields: List<Field>
+    get() = fields.filterNot { it.virtual }
+
 data class EnumType(
     override val qualifiedName: QualifiedName,
     override val name: String,
@@ -196,7 +203,9 @@ data class UnionType(
  * [ordinal] is the field's stable identity: the explicit `#n`, else declaration order. [default]
  * has been checked against the type and its refinements; [aliasName] records a transparent alias.
  * [key], [unique], and [index] are the field's `{ id }`, `{ unique }`, and `{ index }` options:
- * language-level facts every target may read.
+ * language-level facts every target may read. A [virtual] field is a back-reference written
+ * `@relation(<forward>)`: it is kept in the IR so tools can follow the relation from both ends, but
+ * no target emits it. [backReferenceOf] is then the forward field's name on the referenced model.
  */
 data class Field(
     val ordinal: Int,
@@ -212,6 +221,8 @@ data class Field(
     val key: Boolean = false,
     val unique: Boolean = false,
     val index: Boolean = false,
+    val virtual: Boolean = false,
+    val backReferenceOf: String? = null,
 )
 
 data class EnumValue(
@@ -281,8 +292,24 @@ data class MapOf(
     val refinements: Refinements = Refinements(),
 ) : Type
 
-/** A reference to a record, enum, or union by qualified name; resolve with [Schema.lookup]. */
-data class Ref(val target: QualifiedName) : Type
+/**
+ * A reference to a record, enum, or union by qualified name; resolve with [Schema.lookup].
+ * [relation] says how a reference to a keyed model behaves; it is the default everywhere else.
+ */
+data class Ref(val target: QualifiedName, val relation: Relation = Relation()) : Type
+
+/** What deleting a referenced row does to the rows that reference it. */
+enum class OnDelete {
+    RESTRICT,
+    CASCADE,
+    SET_NULL,
+}
+
+/**
+ * How a reference to a keyed model behaves: copied inline instead of by key ([embed], from `{ embed
+ * }`), and what deleting the target does ([onDelete], from `@relation(onDelete: …)`).
+ */
+data class Relation(val embed: Boolean = false, val onDelete: OnDelete = OnDelete.RESTRICT)
 
 /** Bounds are exact so integer, float, decimal, length and count limits share one shape. */
 data class Refinements(

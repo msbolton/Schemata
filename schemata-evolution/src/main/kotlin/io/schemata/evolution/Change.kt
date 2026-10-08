@@ -354,3 +354,25 @@ fun changeWord(change: AnnotationChanged): String =
         change.to == null -> "removed"
         else -> "changed"
     }
+
+/**
+ * Whether [change] touches only a back-reference: a virtual field added or removed, or changed
+ * while it is virtual on both sides. A back-reference is emitted by no target, so every rulebook
+ * passes such a change as compatible before judging anything else.
+ */
+fun touchesOnlyBackReference(change: Change): Boolean =
+    when (change) {
+        is FieldAdded -> change.field.virtual
+        is FieldRemoved -> change.field.virtual
+        is FieldRenamed -> change.from.virtual && change.to.virtual
+        is FieldTypeChanged -> change.from.virtual && change.to.virtual
+        is FieldNullabilityChanged -> change.from.virtual && change.to.virtual
+        is FieldDefaultChanged -> change.from.virtual && change.to.virtual
+        is FieldRefinementChanged -> change.from.virtual && change.to.virtual
+        is AnnotationChanged -> virtual(change.oldOwner) && virtual(change.newOwner)
+        is DeprecationChanged -> virtual(change.owner)
+        is DocChanged -> virtual(change.owner)
+        else -> false
+    }
+
+private fun virtual(owner: Owner): Boolean = owner is FieldOwner && owner.field.virtual

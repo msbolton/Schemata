@@ -10,10 +10,12 @@ import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Relation
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
@@ -78,6 +80,8 @@ class SqlStructureTest {
         doc: String? = null,
         annotations: Annotations = Annotations.NONE,
         compositeKey: List<String> = emptyList(),
+        uniques: List<List<String>> = emptyList(),
+        indexes: List<List<String>> = emptyList(),
     ) =
         RecordType(
             qn(ns, name),
@@ -91,6 +95,8 @@ class SqlStructureTest {
             at(line),
             annotations,
             compositeKey = compositeKey,
+            uniques = uniques,
+            indexes = indexes,
         )
 
     private fun enum(ns: String, name: String, vararg values: String, line: Int = 30) =
@@ -179,7 +185,7 @@ class SqlStructureTest {
                     "customers",
                     "customer",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
                 ForeignKey(
                     "fk_order_parent",
@@ -189,7 +195,7 @@ class SqlStructureTest {
                     "orders",
                     "order",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
             ),
             orders.foreignKeys,
@@ -237,7 +243,7 @@ class SqlStructureTest {
                     "a",
                     "plan",
                     listOf("tenant_id", "plan_code"),
-                    false,
+                    OnDelete.RESTRICT,
                 )
             ),
             lowered.model.schemas.single().foreignKeys,
@@ -277,9 +283,18 @@ class SqlStructureTest {
                     "alpha",
                     "a",
                     listOf("id"),
-                    false,
+                    OnDelete.RESTRICT,
                 ),
-                ForeignKey("fk_a_b", "alpha", "a", listOf("b_id"), "beta", "b", listOf("id"), false),
+                ForeignKey(
+                    "fk_a_b",
+                    "alpha",
+                    "a",
+                    listOf("b_id"),
+                    "beta",
+                    "b",
+                    listOf("id"),
+                    OnDelete.RESTRICT,
+                ),
             ),
             schemaOf(lowered, "beta").foreignKeys,
         )
@@ -510,7 +525,7 @@ class SqlStructureTest {
                     "a",
                     "order",
                     listOf("id"),
-                    cascade = true,
+                    onDelete = OnDelete.CASCADE,
                 ),
                 ForeignKey(
                     "fk_order_items_order",
@@ -520,7 +535,7 @@ class SqlStructureTest {
                     "a",
                     "order",
                     listOf("id"),
-                    cascade = true,
+                    onDelete = OnDelete.CASCADE,
                 ),
                 ForeignKey(
                     "fk_order_items_value",
@@ -530,7 +545,7 @@ class SqlStructureTest {
                     "a",
                     "item",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
             ),
             schema.foreignKeys,
@@ -644,7 +659,7 @@ class SqlStructureTest {
                 "a",
                 "order_lines",
                 listOf("order_id", "position"),
-                true,
+                OnDelete.CASCADE,
             ),
             schema.foreignKeys[1],
         )
@@ -801,7 +816,7 @@ class SqlStructureTest {
                     "a",
                     "account",
                     listOf("id"),
-                    false,
+                    OnDelete.RESTRICT,
                 ),
                 ForeignKey(
                     "fk_order_refund_account",
@@ -811,7 +826,7 @@ class SqlStructureTest {
                     "a",
                     "account",
                     listOf("id"),
-                    false,
+                    OnDelete.RESTRICT,
                 ),
             ),
             lowered.model.schemas.single().foreignKeys,
@@ -1044,7 +1059,7 @@ class SqlStructureTest {
                     "a",
                     "item",
                     listOf("sku"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 )
             ),
             schema.foreignKeys,
@@ -1104,7 +1119,7 @@ class SqlStructureTest {
                     "a",
                     "employee",
                     listOf("id"),
-                    cascade = true,
+                    onDelete = OnDelete.CASCADE,
                 ),
                 ForeignKey(
                     "fk_employee_reports_value",
@@ -1114,7 +1129,7 @@ class SqlStructureTest {
                     "a",
                     "employee",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
             ),
             schema.foreignKeys,
@@ -1274,6 +1289,105 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", money, r))
         assertEquals(emptyList(), messages(lowered))
         assertEquals(emptyList(), table(lowered, "r").checks)
+    }
+
+    @Test
+    fun `composite unique and index cover their fields' columns in order`() {
+        val customer = record("a", "Customer", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val membership =
+            record(
+                "a",
+                "Membership",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "customer", Ref(qn("a", "Customer"))),
+                field(3, "code", Scalar(Builtin.STRING)),
+                field(4, "region", Scalar(Builtin.STRING)),
+                uniques = listOf(listOf("customer", "code")),
+                indexes = listOf(listOf("region", "code")),
+            )
+        val lowered = lower(namespace("a", customer, membership))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "membership")
+        assertEquals(
+            listOf(Unique("uq_membership_customer_code", listOf("customer_id", "code"))),
+            t.uniques,
+        )
+        assertEquals(
+            listOf(Index("ix_membership_region_code", listOf("region", "code"))),
+            t.indexes,
+        )
+        val ddl = SqlRenderer.render(lowered.model).single().content
+        assertTrue(
+            ddl.contains(
+                "CONSTRAINT \"uq_membership_customer_code\" UNIQUE (\"customer_id\", \"code\")"
+            )
+        )
+        assertTrue(
+            ddl.contains(
+                "CREATE INDEX \"ix_membership_region_code\" ON \"a\".\"membership\" (\"region\", \"code\");"
+            )
+        )
+    }
+
+    @Test
+    fun `a composite unique over the primary key is dropped and one over a child table is reported`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "tenant", Scalar(Builtin.UUID)),
+                field(2, "code", Scalar(Builtin.STRING)),
+                field(
+                    3,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING), false),
+                    annotations = sql("strategy" to AnnotationValue.Name("table")),
+                ),
+                compositeKey = listOf("tenant", "code"),
+                uniques = listOf(listOf("tenant", "code"), listOf("code", "tags")),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(
+            setOf(
+                "record 'R': @@unique(tenant, code) duplicates the primary key; dropped",
+                "record 'R': @@unique(code, tags) names 'tags', which has no column on the record's table",
+            ),
+            lowered.diagnostics.map { it.message }.toSet(),
+        )
+        assertEquals(emptyList(), table(lowered, "r").uniques)
+    }
+
+    @Test
+    fun `embed on a reference to a keyed record is a forbidden strategy`() {
+        val customer = record("a", "Customer", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "customer", Ref(qn("a", "Customer"), Relation(embed = true))),
+            )
+        val lowered = lower(namespace("a", customer, r))
+        assertEquals(listOf("SCH2110"), lowered.diagnostics.map { it.code.id })
+        assertEquals(
+            "field 'R.customer': strategy 'embed' is not allowed for a keyed record",
+            lowered.diagnostics.single().message,
+        )
+    }
+
+    @Test
+    fun `embed on a reference to a keyless record embeds as the default does`() {
+        val money = record("a", "Money", field(1, "cents", Scalar(Builtin.INT64)))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "price", Ref(qn("a", "Money"), Relation(embed = true))),
+            )
+        val lowered = lower(namespace("a", money, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(listOf("id", "price_cents"), table(lowered, "r").columns.map { it.name })
     }
 
     @Test

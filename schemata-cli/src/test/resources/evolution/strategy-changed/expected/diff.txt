@@ -1,6 +1,6 @@
 s.Order
   field 'tags': @sql(strategy) added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
-  field 'billing': @sql(strategy) added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'billing': @sql(strategy) changed    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 2 changes
 proto: 0 breaking, 0 notes

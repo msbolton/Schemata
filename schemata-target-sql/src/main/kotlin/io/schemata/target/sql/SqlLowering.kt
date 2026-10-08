@@ -8,9 +8,11 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Relation as RefRelation
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
@@ -240,10 +242,14 @@ object SqlLowering {
                 if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
             val uniques =
                 constraints(record, "unique", owned(parts) { it.uniques }, primaryKey) {
-                    it.columns
-                }
+                        it.columns
+                    }
+                    .map { (field, u) -> field.nameSpan to u } +
+                    compositeUniques(record, tableName, parts, primaryKey)
             val indexes =
                 constraints(record, "index", owned(parts) { it.indexes }, primaryKey) { it.columns }
+                    .map { (field, ix) -> field.nameSpan to ix } +
+                    compositeIndexes(record, tableName, parts, primaryKey)
             claim(
                 TableClaim("table '$tableName'", record.nameSpan, entry.tableNameRaw),
                 tableName,
@@ -258,8 +264,8 @@ object SqlLowering {
                         TableClaim("child table '${t.name}'", field.nameSpan, null),
                         t.name,
                         t.primaryKeyName,
-                        t.uniques.map { field to it },
-                        t.indexes.map { field to it },
+                        t.uniques.map { field.nameSpan to it },
+                        t.indexes.map { field.nameSpan to it },
                     )
                 }
             }
@@ -287,6 +293,91 @@ object SqlLowering {
             parts: List<Pair<Field, Contribution>>,
             of: (Contribution) -> List<T>,
         ): List<Pair<Field, T>> = parts.flatMap { (field, part) -> of(part).map { field to it } }
+
+        /** `@@unique(a, b)`: one table-level UNIQUE over the named fields' columns, in order. */
+        private fun compositeUniques(
+            record: RecordType,
+            table: String,
+            parts: List<Pair<Field, Contribution>>,
+            primaryKey: List<String>,
+        ): List<Pair<Span, Unique>> =
+            composite(record, "unique", record.uniques, parts, primaryKey).map { (names, columns) ->
+                record.nameSpan to
+                    Unique(
+                        identifier("uq_${table}_${names.joinToString("_")}", record.nameSpan),
+                        columns,
+                    )
+            }
+
+        /** `@@index(a, b)`: one index over the named fields' columns, in order. */
+        private fun compositeIndexes(
+            record: RecordType,
+            table: String,
+            parts: List<Pair<Field, Contribution>>,
+            primaryKey: List<String>,
+        ): List<Pair<Span, Index>> =
+            composite(record, "index", record.indexes, parts, primaryKey).map { (names, columns) ->
+                record.nameSpan to
+                    Index(
+                        identifier("ix_${table}_${names.joinToString("_")}", record.nameSpan),
+                        columns,
+                    )
+            }
+
+        /**
+         * Each of [lists] (a model's `@@unique` or `@@index` field-name lists) with the columns its
+         * fields lowered to on the record's own table: a scalar's column, a reference's key
+         * columns, an embed's columns. A field with no column there (a child table, a field that
+         * failed to lower) leaves the constraint nothing to stand on, so it is reported and
+         * dropped; one over exactly the primary key is redundant and dropped with a warning, as a
+         * field's own `{ unique }` is.
+         */
+        private fun composite(
+            record: RecordType,
+            key: String,
+            lists: List<List<String>>,
+            parts: List<Pair<Field, Contribution>>,
+            primaryKey: List<String>,
+        ): List<Pair<List<String>, List<String>>> =
+            lists.mapNotNull { names ->
+                val display = "@@$key(${names.joinToString(", ")})"
+                val columns =
+                    names.map { name ->
+                        val own = parts.firstOrNull { it.first.name == name }?.second?.columns
+                        if (own.isNullOrEmpty()) {
+                            error(
+                                SqlCodes.STRATEGY_NOT_ALLOWED,
+                                "record '${record.name}': $display names '$name', which has no column on the record's table",
+                                record.nameSpan,
+                                help = "name fields stored in the table's own columns",
+                            )
+                            return@mapNotNull null
+                        }
+                        own.map { it.name }
+                    }
+                val flat = columns.flatten()
+                if (primaryKey.isNotEmpty() && flat == primaryKey) {
+                    error(
+                        SqlCodes.REDUNDANT_CONSTRAINT,
+                        "record '${record.name}': $display duplicates the primary key; dropped",
+                        record.nameSpan,
+                        help = "remove it; the primary key already enforces it",
+                    )
+                    return@mapNotNull null
+                }
+                names to flat
+            }
+
+        /**
+         * The relation a list's element or a map's value reference carries, so a child table's
+         * `value` reference acts on delete as the field asked.
+         */
+        private fun elementRelation(type: Type): RefRelation =
+            when (type) {
+                is ListOf -> (type.element as? Ref)?.relation
+                is MapOf -> (type.value as? Ref)?.relation
+                else -> null
+            } ?: RefRelation()
 
         /** Something that puts [columns] on a table, described by [subject]; [span] locates it. */
         private class ColumnSource(val subject: String, val span: Span, val columns: List<String>)
@@ -435,8 +526,8 @@ object SqlLowering {
             claimant: TableClaim,
             tableName: String,
             primaryKeyName: String?,
-            uniques: List<Pair<Field, Unique>>,
-            indexes: List<Pair<Field, Index>>,
+            uniques: List<Pair<Span, Unique>>,
+            indexes: List<Pair<Span, Index>>,
         ) {
             val previous = claimedTables.putIfAbsent(tableName, claimant)
             if (previous != null) {
@@ -455,23 +546,23 @@ object SqlLowering {
             val span = claimant.span
             relations += Relation(tableName, claimant.kind, span)
             primaryKeyName?.let { relations += Relation(it, "primary key of '$tableName'", span) }
-            uniques.forEach { (field, u) ->
-                relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
-            }
-            indexes.forEach { (field, ix) ->
-                relations += Relation(ix.name, "index '${ix.name}'", field.nameSpan)
-            }
+            uniques.forEach { (at, u) -> relations += Relation(u.name, "unique '${u.name}'", at) }
+            indexes.forEach { (at, ix) -> relations += Relation(ix.name, "index '${ix.name}'", at) }
         }
 
-        /** Everything [field] adds to the table [ctx] names, after [strategyOf] its override. */
+        /**
+         * Everything [field] adds to the table [ctx] names, after [strategyOf] its override. A
+         * back-reference adds nothing: the forward reference on the other model holds the key.
+         */
         private fun contribute(ctx: FieldContext, field: Field): Contribution {
+            if (field.virtual) return Contribution.NONE
             val strategy = strategyOf(field)
             return when (val type = field.type) {
                 is Scalar -> scalarField(ctx, field, strategy, type, null)
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
                         is EnumType -> scalarField(ctx, field, strategy, null, target)
-                        is RecordType -> recordField(ctx, field, strategy, target)
+                        is RecordType -> recordField(ctx, field, strategy, type, target)
                         is UnionType -> unionField(ctx, field, strategy, target)
                     }
                 is ListOf -> listField(ctx, field, strategy, type)
@@ -499,15 +590,26 @@ object SqlLowering {
          * A reference to a record: the default is a reference for a keyed target and an embed for a
          * keyless one, which `{ embed }` on the field also asks for; `json` lowers the whole
          * reference to jsonb; `table` keeps the default reference for a keyed target and is not
-         * allowed for a keyless one, which has no table to reference.
+         * allowed for a keyless one, which has no table to reference. A keyed target's rows live in
+         * its own table, so `{ embed }` on a reference to one is not allowed: copying its columns
+         * would leave the copy and the table to drift apart.
          */
         private fun recordField(
             ctx: FieldContext,
             field: Field,
             strategy: String?,
+            ref: Ref,
             target: RecordType,
         ): Contribution {
             val entry = catalog[target.qualifiedName]
+            if (ref.relation.embed && entry != null)
+                return forbiddenStrategy(
+                    ctx,
+                    field,
+                    "embed",
+                    "a keyed record",
+                    "a reference or json",
+                )
             return when (strategy) {
                 "json" ->
                     json(
@@ -583,14 +685,26 @@ object SqlLowering {
                                 )
                             } else array(ctx, field, type, null, elementTarget)
                         is RecordType ->
-                            child(
-                                ctx,
-                                field,
-                                type.refinements,
-                                Element.Record(elementTarget),
-                                type.nullableElement,
-                                null,
+                            if (
+                                element.relation.embed &&
+                                    catalog[elementTarget.qualifiedName] != null
                             )
+                                forbiddenStrategy(
+                                    ctx,
+                                    field,
+                                    "embed",
+                                    "a list of keyed records",
+                                    "a child table of references or json",
+                                )
+                            else
+                                child(
+                                    ctx,
+                                    field,
+                                    type.refinements,
+                                    Element.Record(elementTarget),
+                                    type.nullableElement,
+                                    null,
+                                )
                         is UnionType -> noRelationalMapping(ctx, field, "a list of unions")
                     }
                 is ListOf,
@@ -836,9 +950,9 @@ object SqlLowering {
 
         /**
          * A reference to a keyed record: one column per key column of the target, named
-         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table. A
-         * nullable reference over a composite key adds a CHECK that its columns are all null or all
-         * set.
+         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table that
+         * acts on delete as the reference's `@relation(onDelete: …)` says. A nullable reference
+         * over a composite key adds a CHECK that its columns are all null or all set.
          */
         private fun reference(ctx: FieldContext, field: Field, entry: Catalog.Entry): Contribution {
             val rawName = ctx.prefix + columnOf(field, ctx.where)
@@ -865,7 +979,7 @@ object SqlLowering {
                     targetSchema = entry.schemaName,
                     targetTable = entry.tableName,
                     targetColumns = entry.keyColumns,
-                    cascade = false,
+                    onDelete = (field.type as? Ref)?.relation?.onDelete ?: OnDelete.RESTRICT,
                 )
             // A composite foreign key with only some of its columns null is not checked at all, so
             // a nullable reference over more than one column is all-or-none.
@@ -1183,7 +1297,7 @@ object SqlLowering {
                     targetSchema = entry.schemaName,
                     targetTable = entry.tableName,
                     targetColumns = entry.keyColumns,
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 )
             return Contribution(
                 columns = columns,
@@ -1435,7 +1549,7 @@ object SqlLowering {
                         targetSchema = schemaName,
                         targetTable = ctx.parentTable,
                         targetColumns = ctx.parentKeys.map { it.column },
-                        cascade = true,
+                        onDelete = OnDelete.CASCADE,
                     ),
                     namespace.name,
                     namespace.name,
@@ -1488,7 +1602,8 @@ object SqlLowering {
                             when (element) {
                                 is Element.Scalar -> element.scalar
                                 is Element.Enum -> Ref(element.enum.qualifiedName)
-                                is Element.Record -> Ref(element.record.qualifiedName)
+                                is Element.Record ->
+                                    Ref(element.record.qualifiedName, elementRelation(field.type))
                             },
                             elementNullable,
                             null,

@@ -1,5 +1,6 @@
 package io.schemata.migrate
 
+import io.schemata.core.ir.OnDelete
 import io.schemata.target.sql.ColumnType
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -114,6 +115,24 @@ class PlannerTest {
         assertEquals(false, (steps[0] as DropConstraint).cascade)
         val loosened = plan(new, old)
         assertEquals(Risk.CLEAN, loosened[1].risk)
+    }
+
+    @Test
+    fun `on delete changed drops and re-adds the foreign key cleanly`() {
+        val old =
+            """
+            schema s
+            model Customer { #1 id uuid { id } }
+            model Order { #1 id uuid { id }  #2 customer Customer? }
+            """
+        val new = old.replace("Customer? }", "Customer? @relation(onDelete: set_null) }")
+        val steps = plan(old, new)
+        assertEquals(listOf(DropConstraint::class, AddConstraint::class), steps.map { it::class })
+        val add = steps[1] as AddConstraint
+        assertEquals(Risk.CLEAN, add.risk)
+        val fk = (add.constraint as Constraint.Foreign).fk
+        assertEquals(OnDelete.SET_NULL, fk.onDelete)
+        assertTrue(MigrationRenderer.sql(add).endsWith(" ON DELETE SET NULL;"))
     }
 
     @Test

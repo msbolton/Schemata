@@ -1,0 +1,8 @@
+schema s
+
+model Customer { #1 id uuid { id } }
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer @relation(onDelete: set_null)
+}

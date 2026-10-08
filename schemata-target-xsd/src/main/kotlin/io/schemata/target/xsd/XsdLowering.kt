@@ -19,6 +19,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
@@ -212,7 +213,8 @@ object XsdLowering {
             var mixed = false
             val all = record.annotations.flag("xsd", "all")
             val single = mutableMapOf<String, Field>()
-            record.fields.forEach { f ->
+            // A back-reference is virtual: the forward reference's element carries the relation.
+            record.storedFields.forEach { f ->
                 val particle: XsdParticle? =
                     when {
                         f.annotations.flag("xsd", "mixed") -> {
@@ -251,7 +253,7 @@ object XsdLowering {
                     }
                 }
             }
-            record.fields.forEach {
+            record.storedFields.forEach {
                 checkWildcardKeys(record, it)
                 checkListKey(record, it)
             }
@@ -816,7 +818,7 @@ object XsdLowering {
         private fun keyAttribute(value: Ref): Pair<RecordType, Field>? {
             val record = schema.lookup(value.target) as? RecordType ?: return null
             val field =
-                record.fields.firstOrNull { f ->
+                record.storedFields.firstOrNull { f ->
                     f.annotations.flag("xsd", "attribute") &&
                         attributeShape(f.type) == null &&
                         (f.annotations.string("xsd", "name")?.takeIf(XsdNames::isNCName)

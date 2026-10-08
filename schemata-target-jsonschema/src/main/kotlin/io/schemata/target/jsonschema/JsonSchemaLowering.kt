@@ -20,6 +20,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
@@ -226,7 +227,8 @@ class DocumentLowering(
             )
             val own =
                 when (decl) {
-                    is RecordType -> record(decl, decl.fields)
+                    // a back-reference is virtual: no property carries it
+                    is RecordType -> record(decl, decl.storedFields)
                     is EnumType -> enum(decl)
                     is UnionType -> union(decl)
                 }

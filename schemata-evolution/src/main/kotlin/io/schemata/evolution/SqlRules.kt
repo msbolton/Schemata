@@ -6,13 +6,17 @@ import io.schemata.core.ir.kindWord
 /**
  * What each kind of [Change] means for Postgres: whether data already in a table survives the DDL
  * change without loss and without a failing constraint. Unlike wire formats, a Postgres column
- * either keeps every existing row readable and valid or it does not, so this rulebook never returns
- * [Verdict.Note].
+ * either keeps every existing row readable and valid or it does not, so the only [Verdict.Note]
+ * this rulebook returns is for a foreign key's `ON DELETE`, which changes no stored row but changes
+ * what a later delete does.
  */
 object SqlRules : Rulebook {
     override val target = "sql"
 
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
+
+    private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is NamespaceAdded -> Verdict.Compatible
             is NamespaceRemoved -> namespaceRemoved(change, ctx)
@@ -193,6 +197,12 @@ object SqlRules : Rulebook {
      * never waved through by default.
      */
     private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        if (change.target == "relation" && change.key == "onDelete")
+            return Verdict.Note(
+                "${change.path}: on delete changed; existing rows are unaffected, future deletes " +
+                    "behave differently",
+                "check that the code deleting rows expects the new behaviour",
+            )
         if (change.target != "sql") return Verdict.Compatible
         if (change.newOwner is ServiceOwner || change.newOwner is OperationOwner)
             return Verdict.Compatible

@@ -63,5 +63,25 @@ object CoreAnnotations {
             ),
             // The name an inline shape or enum written as the field's type is hoisted under.
             AnnotationSpec("", "name", setOf(Element.FIELD), ValueKind.STRING, Role.NAME),
+            // A reference's relation: a back-reference names the forward field on the referenced
+            // model (`@relation(customer)`, or bare when only one field can be meant), a forward
+            // reference says what deleting its target does (`@relation(onDelete: cascade)`). The
+            // checker reads both forms itself; see [RELATION_ON_DELETE].
+            AnnotationSpec(
+                "",
+                RELATION,
+                setOf(Element.FIELD),
+                ValueKind.NAME,
+                Role.REPRESENTATION,
+                optional = true,
+            ),
         )
+
+    const val RELATION = "relation"
+
+    /** The named argument of a forward reference's `@relation`. */
+    const val ON_DELETE = "onDelete"
+
+    /** What `onDelete:` may say, as written. */
+    val RELATION_ON_DELETE: Set<String> = setOf("cascade", "restrict", "set_null")
 }

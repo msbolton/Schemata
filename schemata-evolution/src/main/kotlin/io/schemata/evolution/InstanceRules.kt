@@ -21,6 +21,9 @@ class InstanceRules(
     private val removedDeclarationBreaks: (ChangeContext, TypeDecl) -> Boolean,
 ) : Rulebook {
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
+
+    private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is NamespaceAdded -> Verdict.Compatible
             is NamespaceRemoved -> namespaceRemoved(change, ctx)

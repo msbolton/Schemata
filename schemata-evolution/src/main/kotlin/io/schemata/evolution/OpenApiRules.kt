@@ -18,6 +18,9 @@ object OpenApiRules : Rulebook {
     override val target = "openapi"
 
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
+
+    private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is ServiceAdded -> Verdict.Compatible
             is ServiceRemoved ->

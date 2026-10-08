@@ -21,6 +21,7 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
@@ -213,8 +214,10 @@ object ProtoLowering {
             val here = enclosing + record.name
             val where = "record '${record.name}'"
             val name = names.of(record)
+            // A back-reference is virtual: the forward reference on the other message carries it.
+            val stored = record.storedFields
             val fieldNames =
-                record.fields.associateWith {
+                stored.associateWith {
                     names.overrideName(
                         it.annotations,
                         "field '${record.name}.${it.name}'",
@@ -223,12 +226,12 @@ object ProtoLowering {
                 }
             scope(
                 record.nested.flatMap { symbols(it) } +
-                    record.fields.map {
+                    stored.map {
                         Symbol(fieldNames.getValue(it), "field '${it.name}'", it.nameSpan)
                     }
             )
             jsonNames(record, fieldNames)
-            val fields = record.fields.map { field(record, it, here, fieldNames) }
+            val fields = stored.map { field(record, it, here, fieldNames) }
             val nested = record.nested.map { decl(it, here) }
             reservedNumbers(where, record.reserved.ordinals, record.nameSpan, bounded = true)
             return ProtoMessage(
@@ -666,7 +669,7 @@ object ProtoLowering {
          */
         private fun jsonNames(record: RecordType, fieldNames: Map<Field, String>) {
             val first = mutableMapOf<String, Field>()
-            for (field in record.fields) {
+            for (field in record.storedFields) {
                 val protoName = fieldNames.getValue(field)
                 val json = ProtoNames.jsonName(protoName)
                 val previous = first.putIfAbsent(json, field) ?: continue

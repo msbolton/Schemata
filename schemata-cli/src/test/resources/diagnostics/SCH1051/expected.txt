@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH1051]: field 'Customer.bought' could follow any of 'Order.buyer', 'Order.seller' back
+ --> s.schemata:5:6
+  = help: add @relation(…) naming one of buyer, seller
+
+1 error, 0 warnings

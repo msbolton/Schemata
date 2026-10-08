@@ -19,6 +19,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Verb
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.target.Lowered
 import io.schemata.target.deprecated
@@ -150,7 +151,7 @@ private class NamespaceLowering(
                 }
         val remaining =
             if (request == null || request.stream) emptyList()
-            else record?.fields.orEmpty().filter { it !in pathFields }
+            else record?.storedFields.orEmpty().filter { it !in pathFields }
         val queryFields =
             if (verb.parameterised) remaining.filter { queryable(op, it) } else emptyList()
         val body: BodyPlan? =
@@ -303,7 +304,7 @@ private class NamespaceLowering(
             val decl = schema.lookup(qn)
             val types =
                 when (decl) {
-                    is RecordType -> decl.fields.map { it.type }
+                    is RecordType -> decl.storedFields.map { it.type }
                     is UnionType -> decl.members.map { it.type }
                     is EnumType -> emptyList()
                 }
