@@ -74,7 +74,7 @@ warning[SCH2701] (lossy): s.Order.customer: DROP COLUMN "customer_id" loses ever
    |
 11 | model Order { #1 id uuid { id }  #2 customer Customer }
    |                                     ^^^^^^^^
-   = help: populate "order"."customer_code" from the parent before the keys are re-added, then
-           rerun with --allow-destructive
+   = help: populate "order"."customer_code" from the parent before the keys are re-added, then rerun
+           with --allow-destructive
 
 0 errors, 8 warnings
