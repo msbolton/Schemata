@@ -43,6 +43,13 @@ import io.schemata.target.unionMemberStem
  * allows it; a strategy a shape forbids, or any strategy at all on a scalar, is an error.
  * `reserved` ordinals and names have no relational meaning and are accepted without a diagnostic.
  */
+/** The help for a `json` lowering the field could do without. */
+private const val DROP_JSON_HELP =
+    "remove `strategy: json` to get the default mapping for this field"
+
+/** The help for a `json` lowering that is the only mapping the shape has. */
+private const val JSONB_ONLY_HELP = "keep jsonb; Postgres has no typed mapping for this shape"
+
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
         val diagnostics = mutableListOf<Diagnostic>()
@@ -89,7 +96,10 @@ object SqlLowering {
                     )
                     .lower()
             }
-        return Lowered(RelationalModel(placeForeignKeys(schema, lowered)), diagnostics)
+        // A keyless model's fields lower once per field that embeds it, so a problem in one of them
+        // (a bad override, an unsupported pattern) is found once per embedding; the reports are
+        // identical, and the model has the problem once.
+        return Lowered(RelationalModel(placeForeignKeys(schema, lowered)), diagnostics.distinct())
     }
 
     /**
@@ -166,7 +176,12 @@ object SqlLowering {
                 }
             }
             relationCollisions()
-            return RelationalSchema(pathOf(namespace), schemaName, tables) to foreignKeys
+            return RelationalSchema(
+                pathOf(namespace),
+                schemaName,
+                tables,
+                namespace = namespace.name,
+            ) to foreignKeys
         }
 
         /**
@@ -365,7 +380,10 @@ object SqlLowering {
                                 SqlCodes.STRATEGY_NOT_ALLOWED,
                                 "model '${record.name}': $display names '$name', which has no column on the model's table",
                                 record.nameSpan,
-                                help = "name fields stored in the table's own columns",
+                                // a list or map lowered to a child table, or a field that failed to
+                                // lower, has no column here for a composite constraint to cover
+                                help =
+                                    "name only fields stored in the model's own columns; '$name' is stored elsewhere or not at all",
                             )
                             return@mapNotNull null
                         }
@@ -452,12 +470,7 @@ object SqlLowering {
                             ?.takeIf { PostgresPattern.firstUnsupported(it) != null }
                             ?.let { type.refinements.copy(pattern = null) } ?: type.refinements
                     override?.let { ColumnType.RAW(it) }
-                        ?: SqlTypes.scalar(
-                                type.copy(refinements = refinements),
-                                field.name,
-                                overridden = false,
-                            )
-                            .type
+                        ?: SqlTypes.scalar(type.copy(refinements = refinements), field.name).type
                 }
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
@@ -590,13 +603,7 @@ object SqlLowering {
         ): Contribution {
             val entry = catalog[target.qualifiedName]?.takeUnless { ref.relation.embed }
             return when (strategy) {
-                "json" ->
-                    json(
-                        ctx,
-                        field,
-                        "model",
-                        "remove `strategy: json` to get the default mapping for this field",
-                    )
+                "json" -> json(ctx, field, "model", DROP_JSON_HELP)
                 "table" ->
                     when {
                         entry != null -> reference(ctx, field, entry)
@@ -768,7 +775,7 @@ object SqlLowering {
         private fun jsonHelp(element: Type): String =
             if (tableable(element))
                 "use `@sql(strategy: table)` to lower the entries to a child table"
-            else "keep jsonb; Postgres has no typed mapping for this shape"
+            else JSONB_ONLY_HELP
 
         /** Whether a union has a member that is itself a union, which has no relational mapping. */
         private fun hasUnionMember(type: UnionType): Boolean =
@@ -780,8 +787,7 @@ object SqlLowering {
          * The help for a union's `json` lowering: only mandatory when a member is itself a union.
          */
         private fun jsonHelp(type: UnionType): String =
-            if (hasUnionMember(type)) "keep jsonb; Postgres has no typed mapping for this shape"
-            else "remove `strategy: json` to get the default mapping for this field"
+            if (hasUnionMember(type)) JSONB_ONLY_HELP else DROP_JSON_HELP
 
         /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
         private fun forbiddenStrategy(
@@ -896,11 +902,12 @@ object SqlLowering {
                         )
                         return Contribution.NONE
                     }
-                    SqlTypes.scalar(
-                        scalar.copy(refinements = refinements),
-                        name,
-                        overridden = override != null,
-                    )
+                    val typed = SqlTypes.scalar(scalar.copy(refinements = refinements), name)
+                    // An `@sql(type)` override replaces the type, so a string's max can no longer
+                    // ride on `varchar(n)`: it is spelled out as a CHECK like any other bound.
+                    if (override != null && scalar.builtin == Builtin.STRING)
+                        SqlTypes.Mapped(typed.type, SqlTypes.stringChecks(name, refinements))
+                    else typed
                 } else {
                     SqlTypes.enum(enum!!.values.map { it.name }, name)
                 }
@@ -1054,7 +1061,10 @@ object SqlLowering {
                 "${ctx.where}: embedding '${target.name}' here would recurse ($cycle)",
                 field.span,
                 help =
-                    "use `@sql(strategy: json)` on this field, or give '${target.name}' a key so it becomes a table",
+                    if (catalog[target.qualifiedName] != null)
+                        "reference '${target.name}' by key instead of embedding it: remove `{ embed }` from this field, or use `@sql(strategy: json)`"
+                    else
+                        "use `@sql(strategy: json)` on this field, or give '${target.name}' a key so it becomes a table",
             )
             return true
         }
@@ -1190,8 +1200,7 @@ object SqlLowering {
                 )
                 return Contribution.NONE
             }
-            val mapped =
-                SqlTypes.scalar(scalar.copy(refinements = refinements), name, overridden = false)
+            val mapped = SqlTypes.scalar(scalar.copy(refinements = refinements), name)
             val column =
                 Column(
                     name = name,
@@ -1375,7 +1384,7 @@ object SqlLowering {
                             refinements =
                                 scalar.refinements.copy(min = null, max = null, pattern = null)
                         )
-                    SqlTypes.scalar(bare, name, overridden = false).type
+                    SqlTypes.scalar(bare, name).type
                 } else SqlTypes.enum(enum!!.values.map { it.name }, name).type
             val elementHasBounds = scalar?.refinements?.hasBounds ?: false
             val elementLossy = elementHasBounds || type.nullableElement
@@ -1602,25 +1611,17 @@ object SqlLowering {
                             field.span,
                             field.nameSpan,
                         )
+                    // The synthetic value field is no declared field; its column is a role.
+                    val valueCtx = childCtx.copy(role = "value")
                     val value =
                         when (element) {
-                            is Element.Scalar -> column(childCtx, valueField, element.scalar, null)
-                            is Element.Enum -> column(childCtx, valueField, null, element.enum)
+                            is Element.Scalar -> column(valueCtx, valueField, element.scalar, null)
+                            is Element.Enum -> column(valueCtx, valueField, null, element.enum)
                             is Element.Record ->
                                 if (entry != null) reference(childCtx, valueField, entry)
                                 else embed(childCtx, valueField, element.record, "value")
                         }
-                    // The synthetic value field is no declared field; its columns are a role.
-                    val asRole =
-                        if (element is Element.Record) value
-                        else
-                            value.copy(
-                                columns =
-                                    value.columns.map {
-                                        it.copy(origin = ColumnOrigin.Role("value"))
-                                    }
-                            )
-                    listOf(Triple(ctx.where, field.nameSpan, asRole))
+                    listOf(Triple(ctx.where, field.nameSpan, value))
                 }
             val position = if (mapKey == null) "position" else "map key"
             columnCollisions(
@@ -1685,8 +1686,7 @@ object SqlLowering {
             val refinements = screenPattern(ctx.where, field.nameSpan, type.refinements)
             return Column(
                 "key",
-                SqlTypes.scalar(type.copy(refinements = refinements), "key", overridden = false)
-                    .type,
+                SqlTypes.scalar(type.copy(refinements = refinements), "key").type,
                 nullable = false,
                 origin = ColumnOrigin.Role("key"),
                 span = field.nameSpan,

@@ -18,11 +18,8 @@ object SqlTypes {
     /** [checks] pairs a name suffix (`min`, `max`, `pattern`, `enum`) with its expression. */
     class Mapped(val type: ColumnType, val checks: List<Pair<String, String>>)
 
-    /**
-     * [overridden] is true when an `@sql(type)` override will replace [Mapped.type]: a string's
-     * `max`-only bound can no longer ride on `VARCHAR(n)`, so it is spelled out as a CHECK instead.
-     */
-    fun scalar(scalar: Scalar, column: String, overridden: Boolean = false): Mapped {
+    /** A scalar's column type and the checks its refinements need over [column]. */
+    fun scalar(scalar: Scalar, column: String): Mapped {
         val q = quote(column)
         val r = scalar.refinements
         return when (scalar.builtin) {
@@ -32,7 +29,7 @@ object SqlTypes {
             Builtin.FLOAT32 -> Mapped(ColumnType.REAL, bounds(q, r))
             Builtin.FLOAT64 -> Mapped(ColumnType.DOUBLE, bounds(q, r))
             Builtin.DECIMAL -> Mapped(ColumnType.NUMERIC(r.precision!!, r.scale!!), bounds(q, r))
-            Builtin.STRING -> string(q, r, overridden)
+            Builtin.STRING -> string(q, r)
             Builtin.BYTES -> Mapped(ColumnType.BYTEA, lengths("octet_length($q)", r))
             Builtin.UUID -> Mapped(ColumnType.UUID, emptyList())
             Builtin.DATE -> Mapped(ColumnType.DATE, emptyList())
@@ -49,16 +46,24 @@ object SqlTypes {
             listOf("enum" to "${quote(column)} IN (${values.joinToString(", ") { literal(it) }})"),
         )
 
-    private fun string(q: String, r: Refinements, overridden: Boolean): Mapped {
+    private fun string(q: String, r: Refinements): Mapped {
         val max = r.max
         val fitsVarchar = max != null && max >= BigDecimal.ONE && max <= VARCHAR_LIMIT
-        if (!overridden && fitsVarchar && r.min == null && r.pattern == null)
+        if (fitsVarchar && r.min == null && r.pattern == null)
             return Mapped(ColumnType.VARCHAR(max!!.toInt()), emptyList())
-        val checks =
-            lengths("char_length($q)", r) +
-                listOfNotNull(r.pattern?.let { "pattern" to "$q ~ ${literal(it)}" })
-        return Mapped(ColumnType.TEXT, checks)
+        return Mapped(ColumnType.TEXT, textChecks(q, r))
     }
+
+    /**
+     * Every bound and pattern of a string spelled as a CHECK over [column], with no `varchar(n)` to
+     * carry the max: what a string needs when an `@sql(type)` override replaces its type.
+     */
+    fun stringChecks(column: String, r: Refinements): List<Pair<String, String>> =
+        textChecks(quote(column), r)
+
+    private fun textChecks(q: String, r: Refinements): List<Pair<String, String>> =
+        lengths("char_length($q)", r) +
+            listOfNotNull(r.pattern?.let { "pattern" to "$q ~ ${literal(it)}" })
 
     private fun bounds(q: String, r: Refinements): List<Pair<String, String>> =
         listOfNotNull(

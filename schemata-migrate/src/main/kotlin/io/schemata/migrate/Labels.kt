@@ -101,6 +101,13 @@ object Labels {
         for (step in path) {
             when (step) {
                 is OriginStep.FieldOrdinal -> {
+                    // The synthetic `value` field a child table's element is reached through; no
+                    // declared field is numbered 0, and the record it leads into is already
+                    // `record`.
+                    if (step.ordinal == 0) {
+                        label.append(".value")
+                        continue
+                    }
                     val owner = record
                     val field = owner?.fields?.firstOrNull { it.ordinal == step.ordinal }
                     label.append('.').append(field?.name ?: "#${step.ordinal}")

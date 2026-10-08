@@ -2,6 +2,7 @@ package io.schemata.migrate
 
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
+import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.UnionType
@@ -17,8 +18,10 @@ import io.schemata.evolution.UnionMemberRemoved
 import io.schemata.evolution.UnionMemberTypeChanged
 import io.schemata.target.sql.Column
 import io.schemata.target.sql.ColumnOrigin
+import io.schemata.target.sql.RelationalSchema
 import io.schemata.target.sql.Table
 import io.schemata.target.sql.TableOrigin
+import java.math.BigDecimal
 import java.util.Collections
 import java.util.IdentityHashMap
 
@@ -139,8 +142,20 @@ internal class Context(val old: Side, val new: Side) {
     private fun renewed(side: Side, table: Table, column: Column): Boolean =
         tightening.renews(Labels.chain(side.schema, table.origin, column.origin))
 
+    private val oldPaths = old.model.schemas.associate { it.schemaName to it.path }
+    private val namespaces =
+        listOf(old, new).associate { side ->
+            side to side.schema.namespaces.associateBy { it.name }
+        }
+
     /** The OLD file path of the namespace whose schema is [schema]. */
-    fun oldPath(schema: String): String = old.model.schemas.first { it.schemaName == schema }.path
+    fun oldPath(schema: String): String = oldPaths.getValue(schema)
+
+    /** The namespace [file] was lowered from, as [side]'s schema declares it. */
+    fun namespaceSubject(side: Side, file: RelationalSchema): Subject {
+        val namespace = namespaces.getValue(side).getValue(file.namespace)
+        return Subject(namespace.name, namespace.span)
+    }
 
     fun oldTable(at: At): Table? = oldByAt[at]?.table
 
@@ -185,6 +200,10 @@ internal class Tightening(old: Schema, new: Schema) {
                         nullableFields += change.record.qualifiedName to change.to.ordinal
                 is FieldTypeChanged -> {
                     retypedFields += change.record.qualifiedName to change.to.ordinal
+                    // The differ reports a retype without the bounds that moved with it; a check
+                    // is judged on those, so a widening that also loosens a bound is read here.
+                    if (boundsLoosened(change.from.type, change.to.type))
+                        looseFields += change.record.qualifiedName to change.to.ordinal
                     if (retargets(old, change.from.type, new, change.to.type))
                         retargetedFields += change.record.qualifiedName to change.to.ordinal
                 }
@@ -232,6 +251,26 @@ internal class Tightening(old: Schema, new: Schema) {
     ): Boolean =
         chain.fields.any { (record, field) -> (record.qualifiedName to field.ordinal) in fields } ||
             chain.named.any { it in decls }
+}
+
+/**
+ * Whether a scalar's type change leaves its `min` and `max` no tighter and moves at least one, with
+ * the pattern as it was: a bound dropped or moved outward.
+ */
+private fun boundsLoosened(from: Type, to: Type): Boolean {
+    if (from !is Scalar || to !is Scalar) return false
+    val a = from.refinements
+    val b = to.refinements
+    if (a.pattern != b.pattern) return false
+    // a bound is no tighter when it is gone or still admits everything the old one did
+    fun noTighter(
+        old: BigDecimal?,
+        new: BigDecimal?,
+        outward: (BigDecimal, BigDecimal) -> Boolean,
+    ) = new == null || (old != null && outward(new, old))
+    val minNoTighter = noTighter(a.min, b.min) { new, old -> new <= old }
+    val maxNoTighter = noTighter(a.max, b.max) { new, old -> new >= old }
+    return minNoTighter && maxNoTighter && (a.min != b.min || a.max != b.max)
 }
 
 /**

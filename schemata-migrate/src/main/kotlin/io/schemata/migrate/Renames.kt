@@ -3,12 +3,22 @@ package io.schemata.migrate
 import io.schemata.target.sql.Naming
 
 /**
+ * The names a rename competes for: those of a schema (its tables, keys, uniques, and indexes share
+ * its relation namespace) or those of one table (its columns and checks).
+ */
+internal sealed interface RenameScope {
+    data class InSchema(val schema: String) : RenameScope
+
+    data class InTable(val at: At) : RenameScope
+}
+
+/**
  * One rename among the names of [scope] (a table's columns or constraints, a schema's tables or
  * indexes). [step] builds the statement from the name it moves from and the name it moves to, which
  * differ from [from] and [to] when the rename goes through a temporary name.
  */
 internal class Rename(
-    val scope: Any,
+    val scope: RenameScope,
     val from: String,
     val to: String,
     val step: (String, String) -> Step,

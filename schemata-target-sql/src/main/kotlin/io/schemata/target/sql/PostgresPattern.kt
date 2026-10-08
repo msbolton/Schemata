@@ -4,7 +4,7 @@ package io.schemata.target.sql
  * Walks a Java pattern once and names, exactly as it is written, the first construct it knows
  * Postgres's ARE (advanced regular expression) dialect lacks or reads differently; null when it
  * finds none. It reports Unicode properties, possessive quantifiers, named groups, class
- * intersections and nested classes, embedded options anywhere but a leading `(?imnsx)` group,
+ * intersections and nested classes, embedded options anywhere but a leading `(?insx)` group,
  * repetition counts above 255, and the escapes `\b\B\Q\E\h\H\R\X\G\z\Z\v\V\k`. Everything else
  * passes unexamined, among it lookahead, lookbehind, lazy quantifiers, back-references, `\d\s\w`,
  * `\a\e`, `\A`, `\x..`, `\u....`, character classes, and POSIX bracket expressions (`[[:alpha:]]`).
@@ -117,7 +117,7 @@ object PostgresPattern {
 
         /**
          * `(?letters)` is the director form ARE accepts only as the whole pattern's prefix, and
-         * there only with letters from `imnsx`; `(?letters:` (a Perl-style scoped flag group) is
+         * there only with letters from `insx`; `(?letters:` (a Perl-style scoped flag group) is
          * never accepted. Neither is a group ARE knows some other way (already handled by [group]
          * before this is reached), so no letters at all means this is just a plain `(` and `?`, not
          * a report.
@@ -210,7 +210,7 @@ object PostgresPattern {
 
         private companion object {
             const val UNSUPPORTED = "bBQEhHRXGzZvVk"
-            const val LEADING_OPTIONS = "imnsx"
+            const val LEADING_OPTIONS = "insx"
             val MAX_COUNT = 255.toBigInteger()
             val BOUNDS = Regex("([0-9]+)(?:,([0-9]*))?")
         }
