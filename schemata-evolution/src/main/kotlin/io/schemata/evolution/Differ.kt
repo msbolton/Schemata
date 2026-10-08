@@ -18,6 +18,7 @@ import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.declaresKey
 import io.schemata.core.ir.selfAndNested
 import io.schemata.lang.Span
 
@@ -171,8 +172,8 @@ object Differ {
             new.nameSpan,
             FieldOwner(oldRecord, old),
             FieldOwner(record, new),
-            withKeyFacts(old),
-            withKeyFacts(new),
+            withKeyFacts(oldSchema, old),
+            withKeyFacts(newSchema, new),
             out,
         )
         if (old.doc != new.doc) out += DocChanged(p, new.nameSpan, FieldOwner(record, new))
@@ -203,10 +204,8 @@ object Differ {
             else -> null
         }
 
-    private fun keyed(schema: Schema, name: QualifiedName): Boolean {
-        val record = schema.lookupOrNull(name) as? RecordType ?: return false
-        return record.compositeKey.isNotEmpty() || record.fields.any { it.key }
-    }
+    private fun keyed(schema: Schema, name: QualifiedName): Boolean =
+        (schema.lookupOrNull(name) as? RecordType)?.declaresKey() == true
 
     private fun values(new: EnumType, old: EnumType, out: MutableList<Change>) {
         val oldValues = old.values.associateBy { it.ordinal }
@@ -362,16 +361,20 @@ object Differ {
      * columns. They are compared as the `sql` keys `key`, `unique`, `index`, and `strategy`
      * (`embed`, unless the field names a strategy of its own), so the SQL rulebook judges a fact
      * added or removed as the DDL change it is and every other rulebook passes it as an annotation
-     * it does not read. A reference's `@relation(onDelete: …)` other than the default `restrict` is
-     * compared as `@relation(onDelete)`.
+     * it does not read. `{ embed }` is a fact only on a reference to a model that has a key in
+     * [schema]: a keyless model is copied either way, so the option changes no table. A reference's
+     * `@relation(onDelete: …)` other than the default `restrict` is compared as
+     * `@relation(onDelete)`.
      */
-    private fun withKeyFacts(field: Field): Annotations {
+    private fun withKeyFacts(schema: Schema, field: Field): Annotations {
         val relation = relationOf(field.type)
+        val target = referenced(field.type)
+        val copiesKeyed = relation?.embed == true && target != null && keyed(schema, target)
         val facts = buildMap {
             if (field.key) put("key", AnnotationValue.Flag)
             if (field.unique) put("unique", AnnotationValue.Flag)
             if (field.index) put("index", AnnotationValue.Flag)
-            if (relation?.embed == true && "strategy" !in field.annotations["sql"])
+            if (copiesKeyed && "strategy" !in field.annotations["sql"])
                 put("strategy", AnnotationValue.Name("embed"))
         }
         val withFacts = withSql(field.annotations, facts)

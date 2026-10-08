@@ -1,0 +1,10 @@
+schema s
+
+model Customer {
+  #1 tenant uuid
+  #2 code   string { max 16 }
+
+  @@id(tenant, code)
+}
+
+model Order { #1 id uuid { id }  #2 customer Customer }

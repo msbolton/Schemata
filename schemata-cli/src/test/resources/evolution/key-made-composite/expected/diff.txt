@@ -1,0 +1,68 @@
+s.Customer
+  field 'tenant': { id } removed    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  @@id added    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+
+2 changes
+proto: 2 breaking, 0 notes
+sql: 2 breaking, 0 notes
+xsd: 2 breaking, 0 notes
+jsonschema: 2 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Customer: @@id added breaks the reference fields of s.Order, which carry this model's key: old documents carry the old key
+ --> new/s.schemata:3:7
+  |
+3 | model Customer {
+  |       ^^^^^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+error[SCH2501]: proto: s.Customer: @@id added breaks the reference fields of s.Order, which carry this model's key: the wire shape changes
+ --> new/s.schemata:3:7
+  |
+3 | model Customer {
+  |       ^^^^^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+error[SCH2501]: sql: s.Customer: @@id added breaks the primary key used to address existing rows
+ --> new/s.schemata:3:7
+  |
+3 | model Customer {
+  |       ^^^^^^^^
+  = help: avoid changing @@id once the table holds data
+
+error[SCH2501]: xsd: s.Customer: @@id added breaks the reference fields of s.Order, which carry this model's key: old documents carry the old key
+ --> new/s.schemata:3:7
+  |
+3 | model Customer {
+  |       ^^^^^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+error[SCH2501]: jsonschema: s.Customer.tenant: { id } removed breaks the reference fields of s.Order, which carry this model's key: old documents carry the old key
+ --> new/s.schemata:4:6
+  |
+4 |   #1 tenant uuid
+  |      ^^^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+error[SCH2501]: proto: s.Customer.tenant: { id } removed breaks the reference fields of s.Order, which carry this model's key: the wire shape changes
+ --> new/s.schemata:4:6
+  |
+4 |   #1 tenant uuid
+  |      ^^^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+error[SCH2501]: sql: s.Customer.tenant: { id } removed breaks the primary key used to address existing rows
+ --> new/s.schemata:4:6
+  |
+4 |   #1 tenant uuid
+  |      ^^^^^^
+  = help: avoid changing { id } once the table holds data
+
+error[SCH2501]: xsd: s.Customer.tenant: { id } removed breaks the reference fields of s.Order, which carry this model's key: old documents carry the old key
+ --> new/s.schemata:4:6
+  |
+4 |   #1 tenant uuid
+  |      ^^^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+8 errors, 0 warnings

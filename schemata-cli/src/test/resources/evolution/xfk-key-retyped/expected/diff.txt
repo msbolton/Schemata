@@ -15,21 +15,21 @@ error[SCH2501]: sql: b.Customer.id: type changed from uuid to string breaks exis
   |                  ^^^^^^^^^^^^^^^^^^^
   = help: add a new column instead of changing this one's type
 
-warning[SCH2502] (lossy): jsonschema: b.Customer.id: type changed from uuid to string; referenced by 1 model; their emitted key fields change with it
+warning[SCH2502] (lossy): jsonschema: b.Customer.id: type changed from uuid to string; the reference fields of a.Order carry this key and change type with it
  --> new/b.schemata:3:18
   |
 3 | model Customer { #1 id string { id }  #2 name string { max 100 } }
   |                  ^^^^^^^^^^^^^^^^^^^
   = help: regenerate the code and schemas of the referencing models along with this one
 
-warning[SCH2502] (lossy): proto: b.Customer.id: type changed from uuid to string; referenced by 1 model; their emitted key fields change with it
+warning[SCH2502] (lossy): proto: b.Customer.id: type changed from uuid to string; the reference fields of a.Order carry this key and change type with it
  --> new/b.schemata:3:18
   |
 3 | model Customer { #1 id string { id }  #2 name string { max 100 } }
   |                  ^^^^^^^^^^^^^^^^^^^
   = help: regenerate the code and schemas of the referencing models along with this one
 
-warning[SCH2502] (lossy): xsd: b.Customer.id: type changed from uuid to string; referenced by 1 model; their emitted key fields change with it
+warning[SCH2502] (lossy): xsd: b.Customer.id: type changed from uuid to string; the reference fields of a.Order carry this key and change type with it
  --> new/b.schemata:3:18
   |
 3 | model Customer { #1 id string { id }  #2 name string { max 100 } }

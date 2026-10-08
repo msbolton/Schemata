@@ -21,6 +21,14 @@ class InstanceRules(
     private val removedDeclarationBreaks: (ChangeContext, TypeDecl) -> Boolean,
 ) : Rulebook {
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible
+        else ReferencedKeys.judge(target, change, ctx, judge(change, ctx))
+
+    /**
+     * The verdict on [change] itself, without what it does to the models that reference the model
+     * it touches: OpenAPI judges its components with this and weighs those models itself.
+     */
+    fun own(change: Change, ctx: ChangeContext): Verdict =
         if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
 
     private fun judge(change: Change, ctx: ChangeContext): Verdict =
@@ -133,10 +141,7 @@ class InstanceRules(
     }
 
     private fun fieldTypeChanged(change: FieldTypeChanged, ctx: ChangeContext): Verdict =
-        wrapTypeVerdict(
-            change,
-            referencedKey(change, ctx, typeVerdict(ctx).of(change.from.type, change.to.type)),
-        )
+        wrapTypeVerdict(change, typeVerdict(ctx).of(change.from.type, change.to.type))
 
     /**
      * Scalars widen by [TypeCompat.instanceWidening]; a reference is compatible only while it names

@@ -1,6 +1,10 @@
 package io.schemata.evolution
 
 import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Annotations
+import io.schemata.core.ir.Builtin
+import io.schemata.core.ir.Ref
+import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -64,17 +68,30 @@ class RelationRulesTest {
     }
 
     @Test
-    fun `embed then json is a strategy change`() {
+    fun `embed then json on a keyless model is a strategy change from the default`() {
         val address = "model Address { #1 street string }\n"
         val old = analysed(customer.format("#2 home Address { embed }") + address)
         val new = analysed(customer.format("#2 home Address @sql(strategy: json)") + address)
         val change = assertIs<AnnotationChanged>(Differ.diff(old, new).single())
         assertEquals("sql" to "strategy", change.target to change.key)
+        assertEquals(null to AnnotationValue.Name("json"), change.from to change.to)
+        assertIs<Verdict.Breaking>(SqlRules.classify(change, ChangeContext(old, new)))
+    }
+
+    @Test
+    fun `embed then json on a keyed model is a strategy change from embed`() {
+        val old =
+            analysed(customerKey + "model Order { #1 id uuid { id }  #2 c Customer { embed } }\n")
+        val new =
+            analysed(
+                customerKey +
+                    "model Order { #1 id uuid { id }  #2 c Customer @sql(strategy: json) }\n"
+            )
+        val change = Differ.diff(old, new).filterIsInstance<AnnotationChanged>().single()
         assertEquals(
             AnnotationValue.Name("embed") to AnnotationValue.Name("json"),
             change.from to change.to,
         )
-        assertIs<Verdict.Breaking>(SqlRules.classify(change, ChangeContext(old, new)))
     }
 
     private val customerKey = "schema s\nmodel Customer { #1 id uuid { id } }\n"
@@ -131,11 +148,9 @@ class RelationRulesTest {
                     address +
                     "model Order { #1 id uuid { id }  #2 a Address { embed } }\n"
             )
-        val changes = Differ.diff(old, new)
-        assertTrue(changes.none { it is FieldTypeChanged })
-        val verdicts = judged(old, new)
-        listOf("proto", "xsd", "jsonschema", "openapi").forEach { target ->
-            assertTrue(verdicts.getValue(target).all { it is Verdict.Compatible }, target)
+        assertTrue(Differ.diff(old, new).isEmpty())
+        judged(old, new).forEach { (target, list) ->
+            assertTrue(list.all { it is Verdict.Compatible }, target)
         }
     }
 
@@ -195,8 +210,8 @@ class RelationRulesTest {
         listOf("proto", "xsd", "jsonschema").forEach { target ->
             val note = assertIs<Verdict.Note>(verdicts.getValue(target).single(), target)
             assertEquals(
-                "s.Customer.id: type changed from int32 to int64; referenced by 2 models; " +
-                    "their emitted key fields change with it",
+                "s.Customer.id: type changed from int32 to int64; the reference fields of " +
+                    "s.Order and s.Invoice carry this key and change type with it",
                 note.message,
             )
         }
@@ -210,5 +225,159 @@ class RelationRulesTest {
         judged(old, new).forEach { (target, list) ->
             assertEquals(listOf<Verdict>(Verdict.Compatible), list, target)
         }
+    }
+
+    private val referencedBy = "model Order { #1 id uuid { id }  #2 customer Customer }\n"
+
+    private fun customerWith(body: String) = "schema s\nmodel Customer { $body }\n"
+
+    @Test
+    fun `a key added to a referenced keyless model breaks the document targets`() {
+        val old = analysed(customerWith("#1 id uuid  #2 name string") + referencedBy)
+        val new = analysed(customerWith("#1 id uuid { id }  #2 name string") + referencedBy)
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            val breaking = assertIs<Verdict.Breaking>(verdicts.getValue(target).single(), target)
+            assertTrue(
+                breaking.message.startsWith(
+                    "s.Customer.id: { id } added breaks the reference fields of s.Order"
+                ),
+                breaking.message,
+            )
+        }
+        assertIs<Verdict.Compatible>(verdicts.getValue("openapi").single())
+        assertIs<Verdict.Breaking>(verdicts.getValue("sql").single())
+    }
+
+    @Test
+    fun `a key removed from a referenced model breaks the document targets`() {
+        val old = analysed(customerWith("#1 id uuid { id }  #2 name string") + referencedBy)
+        val new = analysed(customerWith("#1 id uuid  #2 name string") + referencedBy)
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            assertIs<Verdict.Breaking>(verdicts.getValue(target).single(), target)
+        }
+    }
+
+    @Test
+    fun `a key moved to another field breaks the document targets twice`() {
+        val old = analysed(customerWith("#1 id uuid { id }  #2 code string") + referencedBy)
+        val new = analysed(customerWith("#1 id uuid  #2 code string { id }") + referencedBy)
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            assertEquals(2, verdicts.getValue(target).count { it is Verdict.Breaking }, target)
+        }
+    }
+
+    @Test
+    fun `a key made composite breaks every document target`() {
+        val old = analysed(customerWith("#1 a uuid { id }  #2 b string") + referencedBy)
+        val new = analysed(customerWith("#1 a uuid  #2 b string  @@id(a, b)") + referencedBy)
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            val list = verdicts.getValue(target)
+            assertEquals(2, list.size, target)
+            assertTrue(list.all { it is Verdict.Breaking }, target)
+        }
+    }
+
+    @Test
+    fun `a key field renamed is a note on proto and breaks the other document targets`() {
+        val old = analysed(customerWith("#1 id uuid { id }") + referencedBy)
+        val new = analysed(customerWith("#1 code uuid { id }") + referencedBy)
+        val verdicts = judged(old, new)
+        val note = assertIs<Verdict.Note>(verdicts.getValue("proto").single())
+        assertTrue(
+            note.message.contains("the reference fields of s.Order are named after it"),
+            note.message,
+        )
+        listOf("xsd", "jsonschema").forEach { target ->
+            val breaking = assertIs<Verdict.Breaking>(verdicts.getValue(target).single(), target)
+            assertTrue(
+                breaking.message.endsWith(
+                    "; it also breaks the reference fields of s.Order, which are named after it"
+                ),
+                breaking.message,
+            )
+        }
+    }
+
+    @Test
+    fun `a pinned key field rename still breaks the referencing documents`() {
+        val pin = Annotations(mapOf("jsonschema" to mapOf("name" to AnnotationValue.Str("id"))))
+        val order =
+            record(
+                "s",
+                "Order",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "customer", Ref(qn("s", "Customer"))),
+            )
+        val old = record("s", "Customer", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val new =
+            record(
+                "s",
+                "Customer",
+                field(1, "code", Scalar(Builtin.UUID), annotations = pin, key = true),
+            )
+        val breaking =
+            verdicts(
+                    JsonSchemaRules,
+                    listOf(namespace("s", listOf(old, order))),
+                    listOf(namespace("s", listOf(new, order))),
+                )
+                .filterIsInstance<Verdict.Breaking>()
+                .single()
+        assertTrue(
+            breaking.message.startsWith("s.Customer.code: the key field was renamed breaks"),
+            breaking.message,
+        )
+    }
+
+    @Test
+    fun `a key change counts union members and map values and skips embedded copies`() {
+        val rest =
+            "union Party = #1 Customer | #2 Vendor\nmodel Vendor { #1 id uuid { id } }\n" +
+                "model Book { #1 id uuid { id }  #2 by_name map<string, Customer> }\n" +
+                "model Copy { #1 id uuid { id }  #2 customer Customer { embed } }\n"
+        val old = analysed(customerWith("#1 id uuid { id }  #2 code string") + rest)
+        val new = analysed(customerWith("#1 id uuid  #2 code string { id }") + rest)
+        val breaking = assertIs<Verdict.Breaking>(judged(old, new).getValue("xsd").first())
+        assertTrue(
+            breaking.message.contains("the reference fields of s.Party and s.Book,"),
+            breaking.message,
+        )
+    }
+
+    @Test
+    fun `a key change on an unreferenced model is compatible on the document targets`() {
+        val old = analysed(customerWith("#1 id uuid { id }  #2 code string"))
+        val new = analysed(customerWith("#1 id uuid  #2 code string { id }"))
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema", "openapi").forEach { target ->
+            assertTrue(verdicts.getValue(target).all { it is Verdict.Compatible }, target)
+        }
+    }
+
+    @Test
+    fun `on openapi a key change breaks only when a service reaches a referencing model`() {
+        val service = "service Orders { #1 get(Order): Order }\n"
+        val old =
+            analysed(customerWith("#1 id uuid { id }  #2 code string") + referencedBy + service)
+        val new =
+            analysed(customerWith("#1 id uuid  #2 code string { id }") + referencedBy + service)
+        val verdicts = judged(old, new).getValue("openapi")
+        assertEquals(2, verdicts.count { it is Verdict.Breaking })
+    }
+
+    @Test
+    fun `a redundant block id written over the same key changes no reference`() {
+        val old = analysed(customerWith("#1 a uuid { id }  #2 b string { id }") + referencedBy)
+        val new =
+            analysed(
+                customerWith("#1 a uuid { id }  #2 b string { id }  @@id(a, b)") + referencedBy
+            )
+        judged(old, new)
+            .filterKeys { it != "sql" }
+            .forEach { (target, list) -> assertTrue(list.all { it is Verdict.Compatible }, target) }
     }
 }

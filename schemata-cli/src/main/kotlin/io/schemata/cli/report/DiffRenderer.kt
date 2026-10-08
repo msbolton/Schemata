@@ -256,7 +256,7 @@ object DiffRenderer {
 
     /**
      * One change's line. A member's annotation, deprecation, or doc change names the member first
-     * (`field 'id': @sql(key) removed`); a change to something OLD had marked `@deprecated` says so
+     * (`field 'id': { id } removed`); a change to something OLD had marked `@deprecated` says so
      * (`deprecated field 'note' removed`).
      */
     private fun describe(j: Judged): String {

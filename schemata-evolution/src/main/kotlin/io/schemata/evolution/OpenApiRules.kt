@@ -17,8 +17,16 @@ import io.schemata.core.ir.service
 object OpenApiRules : Rulebook {
     override val target = "openapi"
 
+    /**
+     * A change to a key reaches the models referencing it; only the ones OLD's document carries
+     * count.
+     */
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
-        if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
+        if (touchesOnlyBackReference(change)) Verdict.Compatible
+        else
+            ReferencedKeys.judge(target, change, ctx, judge(change, ctx)) {
+                ctx.reachableFromServices(Side.OLD, it)
+            }
 
     private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
@@ -71,7 +79,7 @@ object OpenApiRules : Rulebook {
 
     /** A data change, judged as JSON Schema judges it when OLD's document carries [decl]. */
     private fun data(change: Change, decl: QualifiedName, ctx: ChangeContext): Verdict =
-        if (ctx.reachableFromServices(Side.OLD, decl)) JsonSchemaRules.classify(change, ctx)
+        if (ctx.reachableFromServices(Side.OLD, decl)) JsonSchemaRules.rules.own(change, ctx)
         else Verdict.Compatible
 
     /** Only a namespace with services had a document; its declarations go with it. */

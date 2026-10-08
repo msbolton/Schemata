@@ -187,23 +187,3 @@ internal fun embeds(type: Type): Boolean =
         is MapOf -> embeds(type.value)
         else -> false
     }
-
-/**
- * The verdict for a key field retyped while other models reference it: they write its key, so their
- * own key fields change type with it. [inner] is the verdict on the retyped field itself, which
- * this only raises from compatible to a note or adds to a note, never softens a break.
- */
-internal fun referencedKey(change: FieldTypeChanged, ctx: ChangeContext, inner: Verdict): Verdict {
-    if (inner is Verdict.Breaking) return inner
-    val record = change.record
-    if (!(change.to.key || change.to.name in record.compositeKey)) return inner
-    val count = ctx.referencingModels(record.qualifiedName)
-    if (count == 0) return inner
-    val what = if (count == 1) "1 model" else "$count models"
-    val message = "referenced by $what; their emitted key fields change with it"
-    val help = "regenerate the code and schemas of the referencing models along with this one"
-    return when (inner) {
-        is Verdict.Note -> Verdict.Note("${inner.message}; $message", help)
-        else -> Verdict.Note(message, help)
-    }
-}

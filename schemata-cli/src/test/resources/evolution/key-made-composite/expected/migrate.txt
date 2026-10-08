@@ -1,0 +1,27 @@
+s.sql
+  add column "order"."customer_code"    clean
+  drop constraint "order"."fk_order_customer"    clean
+  drop constraint "customer"."pk_customer"    clean
+  set not null "order"."customer_code"    may fail
+  add constraint "customer"."pk_customer"    may fail
+  add constraint "order"."fk_order_customer"    clean
+
+6 steps in 1 file
+0 destructive, 2 may fail
+
+warning[SCH2702] (lossy): s.Customer.tenant: PRIMARY KEY "pk_customer" fails when rows duplicate the key
+ --> new/s.schemata:4:6
+  |
+4 |   #1 tenant uuid
+  |      ^^^^^^
+  = help: remove duplicate rows before applying
+
+warning[SCH2702] (lossy): s.Order.customer: SET NOT NULL on "customer_code" fails when a row holds NULL
+  --> new/s.schemata:10:37
+   |
+10 | model Order { #1 id uuid { id }  #2 customer Customer }
+   |                                     ^^^^^^^^
+   = help: run UPDATE "s"."order" SET "customer_code" = … WHERE "customer_code" IS NULL before
+           applying
+
+0 errors, 2 warnings

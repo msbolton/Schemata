@@ -1,0 +1,8 @@
+schema s
+
+model Customer {
+  #1 id   uuid   { id }
+  #2 name string { max 100 }
+}
+
+model Order { #1 id uuid { id }  #2 customer Customer }

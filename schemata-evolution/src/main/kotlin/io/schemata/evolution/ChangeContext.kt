@@ -16,6 +16,7 @@ import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.declaresKey
 import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.service
 import io.schemata.core.ir.services
@@ -221,19 +222,30 @@ class ChangeContext(val old: Schema, val new: Schema) {
      * record.
      */
     fun isKeyed(side: Side, record: QualifiedName): Boolean {
-        val decl = schema(side).lookupOrNull(record) as? RecordType ?: return false
-        return decl.compositeKey.isNotEmpty() || decl.fields.any { it.key }
+        return (schema(side).lookupOrNull(record) as? RecordType)?.declaresKey() == true
     }
 
     /**
-     * How many models on NEW's side hold a stored reference to [record] by its key: a field typed
-     * as it, or a list or map of it, that is neither a back-reference nor `{ embed }`.
+     * The declarations that hold a stored reference to [record] by its key, NEW's in NEW's order
+     * and then any only OLD has: a model's field typed as it, or a list of it, or a map to it, that
+     * is neither a back-reference nor `{ embed }`, and a union's member standing for it unless that
+     * member is `{ embed }`.
      */
-    fun referencingModels(record: QualifiedName): Int =
-        new.namespaces
+    fun keyReferences(record: QualifiedName): List<QualifiedName> =
+        (keyReferences(new, record) + keyReferences(old, record)).distinct()
+
+    private fun keyReferences(schema: Schema, record: QualifiedName): List<QualifiedName> =
+        schema.namespaces
             .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
-            .filterIsInstance<RecordType>()
-            .count { r -> r.fields.any { f -> !f.virtual && keyReferenceTo(f.type, record) } }
+            .filter { decl ->
+                when (decl) {
+                    is RecordType ->
+                        decl.fields.any { f -> !f.virtual && keyReferenceTo(f.type, record) }
+                    is UnionType -> decl.members.any { keyReferenceTo(it.type, record) }
+                    is EnumType -> false
+                }
+            }
+            .map { it.qualifiedName }
 
     private fun keyReferenceTo(type: Type, record: QualifiedName): Boolean =
         when (type) {
@@ -256,7 +268,7 @@ class ChangeContext(val old: Schema, val new: Schema) {
 
     /**
      * [record] is backed by its own Postgres table: it is keyed directly, or it is the element type
-     * of some `list<Record>` field elsewhere on [side] whose `@sql(strategy)` is absent or `table`,
+     * of some `Model[]` field elsewhere on [side] whose `@sql(strategy: …)` is absent or `table`,
      * which gives that field's elements a child table of their own.
      */
     fun hasTable(side: Side, record: QualifiedName): Boolean =

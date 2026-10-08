@@ -19,7 +19,8 @@ object ProtoRules : Rulebook {
     override val target = "proto"
 
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
-        if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
+        if (touchesOnlyBackReference(change)) Verdict.Compatible
+        else ReferencedKeys.judge(target, change, ctx, judge(change, ctx))
 
     private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
@@ -165,7 +166,7 @@ object ProtoRules : Rulebook {
                 ),
             )
         }
-        return wrapTypeVerdict(change, referencedKey(change, ctx, verdict))
+        return wrapTypeVerdict(change, verdict)
     }
 
     /**
