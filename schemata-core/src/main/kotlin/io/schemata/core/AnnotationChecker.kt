@@ -78,7 +78,7 @@ class AnnotationChecker(
                             CoreCodes.ANNOTATION_VALUE,
                             "@$target arguments are a bare key or key: value",
                             arg.span,
-                            help = "write `@$target(key)` or `@$target(key: value)`",
+                            help = "write `@$target(name)` or `@$target(name: value)`",
                         )
                         return
                     }
