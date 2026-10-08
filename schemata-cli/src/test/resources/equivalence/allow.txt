@@ -1,6 +1,7 @@
 # Every output that `schemata upgrade` plus the 2.0 compiler writes differently from the 1.4.0
-# compiler, for the examples and corpus cases as they stood at v1.4.0. One line per path and
-# reason: the case directory, the target's output path (or `diagnostics`), then the reason.
+# compiler, for every 1.x schema as it stood at v1.4.0: the examples, the corpus, both sides of each
+# evolution case, and the diagnostics fixtures. One line per path and reason: the case directory,
+# the target's output path (or `diagnostics`, or a fixture's `codes`), then the reason.
 #
 #   reference by key   a field typed as a keyed model carries the key, and the key's type is
 #                      declared beside the model (Protobuf, XSD, JSON Schema, OpenAPI)
@@ -9,53 +10,211 @@
 #   message text       a diagnostic says model or schema, spells a type as 2.0 does, or warns
 #                      about a field a reference now emits
 #   keyword rename     an identifier that is a 2.0 keyword is renamed `<name>_value`
+#   retired check      a diagnostics fixture whose 1.x check 2.0 moved into an option or dropped;
+#                      the fixture was deleted with it (its `codes` differ)
+#   upgrade refuses    a diagnostics fixture writing something 2.0 cannot say, which `upgrade`
+#                      reports instead of converting (its `codes` differ)
 
-corpus/attributes/proto/corpus/attributes.proto  type notes
 corpus/attributes/diagnostics  message text
+corpus/attributes/proto/corpus/attributes.proto  type notes
+corpus/children/diagnostics  message text
 corpus/children/proto/corpus/children.proto  type notes
 corpus/children/sql/corpus/children.sql  type notes
-corpus/children/diagnostics  message text
-corpus/collections/proto/corpus/collections.proto  type notes
 corpus/collections/diagnostics  message text
+corpus/collections/proto/corpus/collections.proto  type notes
+corpus/crossref/diagnostics  message text
 corpus/crossref/jsonschema/x/alpha.schema.json  reference by key
 corpus/crossref/proto/x/alpha.proto  reference by key
 corpus/crossref/proto/x/alpha.proto  type notes
 corpus/crossref/xsd/x/alpha.xsd  reference by key
-corpus/crossref/diagnostics  message text
-corpus/embedding/proto/corpus/embedding.proto  type notes
 corpus/embedding/diagnostics  message text
-corpus/jsonschema/proto/s.proto  type notes
+corpus/embedding/proto/corpus/embedding.proto  type notes
 corpus/jsonschema/diagnostics  message text
-corpus/keys/proto/corpus/keys.proto  type notes
+corpus/jsonschema/proto/s.proto  type notes
 corpus/keys/diagnostics  message text
+corpus/keys/proto/corpus/keys.proto  type notes
 corpus/nested/diagnostics  message text
+corpus/references/diagnostics  message text
 corpus/references/jsonschema/corpus/references.schema.json  reference by key
 corpus/references/proto/corpus/references.proto  reference by key
 corpus/references/proto/corpus/references.proto  type notes
 corpus/references/xsd/corpus/references.xsd  reference by key
-corpus/references/diagnostics  message text
-corpus/scalars/proto/corpus/scalars.proto  type notes
 corpus/scalars/diagnostics  message text
-corpus/services/proto/corpus/services.proto  type notes
+corpus/scalars/proto/corpus/scalars.proto  type notes
 corpus/services/diagnostics  message text
+corpus/services/proto/corpus/services.proto  type notes
 corpus/shadow/diagnostics  message text
-corpus/strings/proto/corpus/strings.proto  type notes
 corpus/strings/diagnostics  message text
-corpus/types/proto/corpus/types.proto  type notes
+corpus/strings/proto/corpus/strings.proto  type notes
 corpus/types/diagnostics  message text
-corpus/unions/proto/corpus/unions.proto  type notes
+corpus/types/proto/corpus/types.proto  type notes
 corpus/unions/diagnostics  message text
-corpus/variants/proto/corpus/variants.proto  type notes
+corpus/unions/proto/corpus/unions.proto  type notes
 corpus/variants/diagnostics  message text
+corpus/variants/proto/corpus/variants.proto  type notes
+corpus/worked-example/diagnostics  message text
 corpus/worked-example/jsonschema/shop/orders.schema.json  reference by key
 corpus/worked-example/proto/shop/customers.proto  type notes
 corpus/worked-example/proto/shop/orders.proto  reference by key
 corpus/worked-example/proto/shop/orders.proto  type notes
 corpus/worked-example/xsd/shop/orders.xsd  reference by key
-corpus/worked-example/diagnostics  message text
+diagnostics/SCH1038-positional-collection/codes  upgrade refuses
+diagnostics/SCH1038-positional/codes  upgrade refuses
+diagnostics/SCH1038-precision-literal/codes  upgrade refuses
+diagnostics/SCH1039-alias/codes  retired check
+diagnostics/SCH1039-kind/codes  retired check
+diagnostics/SCH2107-both/codes  retired check
+diagnostics/SCH2107-twice/codes  retired check
+diagnostics/SCH2107-unknown/codes  retired check
+diagnostics/SCH2110-constraint/codes  retired check
+diagnostics/SCH2110-strategy/codes  retired check
+evolution/child-table-removed/old/diagnostics  message text
+evolution/child-table-removed/old/proto/s.proto  type notes
+evolution/declaration-removed/old/diagnostics  message text
+evolution/declaration-removed/old/proto/s.proto  type notes
+evolution/defaults/new/diagnostics  message text
+evolution/defaults/new/proto/s.proto  type notes
+evolution/defaults/old/diagnostics  message text
+evolution/defaults/old/proto/s.proto  type notes
+evolution/doc-changed/new/diagnostics  message text
+evolution/doc-changed/new/proto/s.proto  type notes
+evolution/doc-changed/old/diagnostics  message text
+evolution/doc-changed/old/proto/s.proto  type notes
+evolution/implicit-ordinals/new/diagnostics  message text
+evolution/implicit-ordinals/new/proto/s.proto  type notes
+evolution/implicit-ordinals/old/diagnostics  message text
+evolution/implicit-ordinals/old/proto/s.proto  type notes
+evolution/indexes/new/diagnostics  message text
+evolution/indexes/new/proto/s.proto  type notes
+evolution/indexes/old/diagnostics  message text
+evolution/indexes/old/proto/s.proto  type notes
+evolution/key-moved/new/diagnostics  message text
+evolution/key-moved/new/jsonschema/s.schema.json  reference by key
+evolution/key-moved/new/proto/s.proto  reference by key
+evolution/key-moved/new/proto/s.proto  type notes
+evolution/key-moved/new/xsd/s.xsd  reference by key
+evolution/key-moved/old/diagnostics  message text
+evolution/key-moved/old/jsonschema/s.schema.json  reference by key
+evolution/key-moved/old/proto/s.proto  reference by key
+evolution/key-moved/old/proto/s.proto  type notes
+evolution/key-moved/old/xsd/s.xsd  reference by key
+evolution/may-fail/new/diagnostics  message text
+evolution/may-fail/new/proto/s.proto  type notes
+evolution/may-fail/old/diagnostics  message text
+evolution/may-fail/old/proto/s.proto  type notes
+evolution/member-retyped/new/diagnostics  message text
+evolution/member-retyped/new/proto/s.proto  type notes
+evolution/member-retyped/old/diagnostics  message text
+evolution/member-retyped/old/proto/s.proto  type notes
+evolution/namespace-added-removed/new/diagnostics  message text
+evolution/namespace-added-removed/new/jsonschema/b.schema.json  reference by key
+evolution/namespace-added-removed/new/proto/a.proto  reference by key
+evolution/namespace-added-removed/new/proto/a.proto  type notes
+evolution/namespace-added-removed/new/proto/b.proto  reference by key
+evolution/namespace-added-removed/new/proto/b.proto  type notes
+evolution/namespace-added-removed/new/xsd/b.xsd  reference by key
+evolution/namespace-added-removed/old/diagnostics  message text
+evolution/namespace-added-removed/old/jsonschema/c.schema.json  reference by key
+evolution/namespace-added-removed/old/proto/a.proto  reference by key
+evolution/namespace-added-removed/old/proto/a.proto  type notes
+evolution/namespace-added-removed/old/proto/c.proto  reference by key
+evolution/namespace-added-removed/old/proto/c.proto  type notes
+evolution/namespace-added-removed/old/xsd/c.xsd  reference by key
+evolution/no-changes/new/diagnostics  message text
+evolution/no-changes/new/jsonschema/shop/orders.schema.json  reference by key
+evolution/no-changes/new/proto/shop/customers.proto  type notes
+evolution/no-changes/new/proto/shop/orders.proto  reference by key
+evolution/no-changes/new/proto/shop/orders.proto  type notes
+evolution/no-changes/new/xsd/shop/orders.xsd  reference by key
+evolution/no-changes/old/diagnostics  message text
+evolution/no-changes/old/jsonschema/shop/orders.schema.json  reference by key
+evolution/no-changes/old/proto/shop/customers.proto  type notes
+evolution/no-changes/old/proto/shop/orders.proto  reference by key
+evolution/no-changes/old/proto/shop/orders.proto  type notes
+evolution/no-changes/old/xsd/shop/orders.xsd  reference by key
+evolution/nullability-and-refinements/new/diagnostics  message text
+evolution/nullability-and-refinements/new/proto/s.proto  type notes
+evolution/nullability-and-refinements/new/sql/s.sql  type notes
+evolution/nullability-and-refinements/old/diagnostics  message text
+evolution/nullability-and-refinements/old/proto/s.proto  type notes
+evolution/nullability-and-refinements/old/sql/s.sql  type notes
+evolution/rename-pin-added/new/diagnostics  message text
+evolution/rename-pin-added/new/proto/s.proto  type notes
+evolution/rename-pin-added/old/diagnostics  message text
+evolution/rename-pin-added/old/proto/s.proto  type notes
+evolution/rename-pinned/new/diagnostics  message text
+evolution/rename-pinned/new/proto/s.proto  type notes
+evolution/rename-pinned/old/diagnostics  message text
+evolution/rename-pinned/old/proto/s.proto  type notes
+evolution/reserved-removal/old/diagnostics  message text
+evolution/reserved-removal/old/proto/s.proto  type notes
+evolution/schema-moved/new/diagnostics  message text
+evolution/schema-moved/new/jsonschema/a.schema.json  reference by key
+evolution/schema-moved/new/proto/a.proto  reference by key
+evolution/schema-moved/new/proto/a.proto  type notes
+evolution/schema-moved/new/proto/b.proto  reference by key
+evolution/schema-moved/new/proto/b.proto  type notes
+evolution/schema-moved/new/xsd/a.xsd  reference by key
+evolution/schema-moved/old/diagnostics  message text
+evolution/schema-moved/old/jsonschema/a.schema.json  reference by key
+evolution/schema-moved/old/proto/a.proto  reference by key
+evolution/schema-moved/old/proto/a.proto  type notes
+evolution/schema-moved/old/proto/b.proto  reference by key
+evolution/schema-moved/old/proto/b.proto  type notes
+evolution/schema-moved/old/xsd/a.xsd  reference by key
+evolution/services/new/diagnostics  message text
+evolution/services/new/proto/s.proto  type notes
+evolution/services/old/diagnostics  message text
+evolution/services/old/proto/s.proto  type notes
+evolution/strategy-changed/new/diagnostics  message text
+evolution/strategy-changed/new/proto/s.proto  type notes
+evolution/strategy-changed/old/diagnostics  message text
+evolution/strategy-changed/old/proto/s.proto  type notes
+evolution/strategy-changed/old/sql/s.sql  type notes
+evolution/table-name-reused/new/diagnostics  message text
+evolution/table-name-reused/new/proto/s.proto  type notes
+evolution/table-name-reused/old/diagnostics  message text
+evolution/table-name-reused/old/proto/s.proto  type notes
+evolution/table-renamed/new/diagnostics  message text
+evolution/table-renamed/new/proto/s.proto  type notes
+evolution/table-renamed/old/diagnostics  message text
+evolution/table-renamed/old/proto/s.proto  type notes
+evolution/table-swap/new/diagnostics  message text
+evolution/table-swap/new/proto/s.proto  type notes
+evolution/table-swap/old/diagnostics  message text
+evolution/table-swap/old/proto/s.proto  type notes
+evolution/type-with-default/new/diagnostics  message text
+evolution/type-with-default/new/proto/s.proto  type notes
+evolution/type-with-default/old/diagnostics  message text
+evolution/type-with-default/old/proto/s.proto  type notes
+evolution/union-evolution/new/diagnostics  message text
+evolution/union-evolution/new/proto/s.proto  type notes
+evolution/union-evolution/old/diagnostics  message text
+evolution/union-evolution/old/proto/s.proto  type notes
+evolution/unreserved-removal/old/diagnostics  message text
+evolution/unreserved-removal/old/proto/s.proto  type notes
+evolution/xfk-key-retyped/new/diagnostics  message text
+evolution/xfk-key-retyped/new/jsonschema/a.schema.json  reference by key
+evolution/xfk-key-retyped/new/proto/a.proto  reference by key
+evolution/xfk-key-retyped/new/proto/a.proto  type notes
+evolution/xfk-key-retyped/new/proto/b.proto  reference by key
+evolution/xfk-key-retyped/new/proto/b.proto  type notes
+evolution/xfk-key-retyped/new/xsd/a.xsd  reference by key
+evolution/xfk-key-retyped/old/diagnostics  message text
+evolution/xfk-key-retyped/old/jsonschema/a.schema.json  reference by key
+evolution/xfk-key-retyped/old/proto/a.proto  reference by key
+evolution/xfk-key-retyped/old/proto/a.proto  type notes
+evolution/xfk-key-retyped/old/proto/b.proto  reference by key
+evolution/xfk-key-retyped/old/proto/b.proto  type notes
+evolution/xfk-key-retyped/old/xsd/a.xsd  reference by key
+evolution/xsd-representation/new/diagnostics  message text
+evolution/xsd-representation/new/proto/s.proto  type notes
+evolution/xsd-representation/old/diagnostics  message text
+evolution/xsd-representation/old/proto/s.proto  type notes
+examples/contacts/diagnostics  message text
 examples/contacts/proto/contacts.proto  type notes
 examples/contacts/sql/contacts.sql  type notes
-examples/contacts/diagnostics  message text
+examples/ledger/diagnostics  message text
 examples/ledger/jsonschema/ledger/accounts.schema.json  reference by key
 examples/ledger/jsonschema/ledger/journal.schema.json  reference by key
 examples/ledger/jsonschema/ledger/reports.schema.json  reference by key
@@ -68,13 +227,12 @@ examples/ledger/proto/ledger/reports.proto  type notes
 examples/ledger/xsd/ledger/accounts.xsd  reference by key
 examples/ledger/xsd/ledger/journal.xsd  reference by key
 examples/ledger/xsd/ledger/reports.xsd  reference by key
-examples/ledger/diagnostics  message text
+examples/services/diagnostics  message text
 examples/services/proto/shop/catalog.proto  type notes
 examples/services/proto/shop/orders.proto  type notes
-examples/services/diagnostics  message text
+examples/shop/diagnostics  message text
 examples/shop/jsonschema/shop/orders.schema.json  reference by key
 examples/shop/proto/shop/customers.proto  type notes
 examples/shop/proto/shop/orders.proto  reference by key
 examples/shop/proto/shop/orders.proto  type notes
 examples/shop/xsd/shop/orders.xsd  reference by key
-examples/shop/diagnostics  message text
