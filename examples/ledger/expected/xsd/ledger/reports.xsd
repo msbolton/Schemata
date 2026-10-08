@@ -2,12 +2,10 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:tns="urn:schemata:ledger.reports"
            xmlns:ns1="urn:schemata:ledger.accounts"
-           xmlns:ns2="urn:schemata:ledger.journal"
            targetNamespace="urn:schemata:ledger.reports"
            elementFormDefault="qualified"
            attributeFormDefault="unqualified">
   <xs:import namespace="urn:schemata:ledger.accounts" schemaLocation="accounts.xsd"/>
-  <xs:import namespace="urn:schemata:ledger.journal" schemaLocation="journal.xsd"/>
   <xs:complexType name="CloseType">
     <xs:annotation>
       <xs:documentation>A close of one account for one period.</xs:documentation>
@@ -28,8 +26,14 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="account" type="ns1:AccountType"/>
-      <xs:element name="last" type="ns2:EntryType" minOccurs="0"/>
+      <xs:element name="account" type="ns1:AccountKeyType"/>
+      <xs:element name="last_id" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
       <xs:element name="totals" type="tns:CloseTotalsType"/>
     </xs:sequence>
   </xs:complexType>

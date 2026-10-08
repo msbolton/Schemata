@@ -224,22 +224,32 @@ SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced
 The child table holding `lines` has no way to enforce a minimum row count. Enforce it in
 application code; child tables carry no row-count constraints.
 
-`orders.xsd` imports `customers.xsd` for the cross-namespace `customer` reference.
+`Customer` is keyed by `id`, so `customer` is a reference: an order carries the customer's key,
+not a copy of the customer. Every target spells it the way Postgres does, as one field named
+`customer_id` typed like `Customer.id`. Write `customer Customer { embed }` to copy the whole
+record instead.
 
-From `examples/shop/expected/xsd/shop/orders.xsd`:
-```xml
-  <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
+From `examples/shop/expected/proto/shop/orders.proto`:
+```proto
+  string customer_id = 2;  // schemata: uuid
 ```
 
-JSON Schema references `Customer` the same way, but the `$ref` is the absolute `$id` of the
-`shop.customers` document, since references across documents cannot be relative.
+From `examples/shop/expected/sql/shop/orders.sql`:
+```sql
+  "customer_id" uuid NOT NULL,
+```
 
 From `examples/shop/expected/jsonschema/shop/orders.schema.json`:
 ```json
-        "customer": {
-          "$ref": "urn:schemata:shop.customers#/$defs/Customer"
+        "customer_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         },
 ```
+
+Since nothing in `orders` holds a `Customer` any more, neither `orders.proto` nor `orders.xsd`
+imports `customers`.
 
 The `Payment` union lowers to a `oneOf`, one single-property closed object per arm, tagged by the
 member's name; here is the `card` arm.
@@ -348,22 +358,32 @@ model Close {
 java -jar schemata-<version>.jar compile --out out examples/ledger
 ```
 
-`reports.proto` imports both other namespaces and references their types by full package path.
+`Account` has a composite key, so `account` carries both of its key fields in one `AccountKey`
+message, declared beside `Account` in `accounts.proto`. `last` references `Entry`, keyed by one
+uuid, so it is `last_id`. Nothing from `ledger.journal` is copied in, so only `accounts.proto` is
+imported.
 
 From `examples/ledger/expected/proto/ledger/reports.proto`:
 ```proto
 import "ledger/accounts.proto";
-import "ledger/journal.proto";
 
 // A close of one account for one period.
 message Close {
   string id = 1;  // schemata: uuid
   string period = 2;  // schemata: string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
-  .ledger.accounts.v1.Account account = 3;
-  .ledger.journal.v1.Entry last = 4;  // schemata: Entry?
+  .ledger.accounts.v1.AccountKey account = 3;
+  optional string last_id = 4;  // schemata: uuid?
 ```
 
-`reports.sql` carries that same reference as two foreign keys, one into each schema.
+From `examples/ledger/expected/proto/ledger/accounts.proto`:
+```proto
+message AccountKey {
+  int64 tenant_id = 1;
+  string code = 2;  // schemata: string(max = 16)
+}
+```
+
+`reports.sql` carries the same two references as two foreign keys, one into each schema.
 
 From `examples/ledger/expected/sql/ledger/reports.sql`:
 ```sql
@@ -375,13 +395,18 @@ The first foreign key reaches into `ledger`, the second into `ledger_journal`: o
 `ledger_reports.close` carries keys into two different Postgres schemas, because `account` comes
 from `ledger.accounts` and `last` comes from `ledger.journal`.
 
-`reports.xsd` imports both other namespaces too, one `xs:import` per schema, the same two
-namespaces `account` and `last` reach into.
+`reports.xsd` follows suit: `account` is an `AccountKeyType` from `accounts.xsd`, the one schema
+it imports, and `last_id` is a uuid-patterned string.
 
 From `examples/ledger/expected/xsd/ledger/reports.xsd`:
 ```xml
   <xs:import namespace="urn:schemata:ledger.accounts" schemaLocation="accounts.xsd"/>
-  <xs:import namespace="urn:schemata:ledger.journal" schemaLocation="journal.xsd"/>
+```
+
+From `examples/ledger/expected/xsd/ledger/reports.xsd`:
+```xml
+      <xs:element name="account" type="ns1:AccountKeyType"/>
+      <xs:element name="last_id" minOccurs="0">
 ```
 
 Warnings from `examples/ledger/expected/proto-warnings.txt`:

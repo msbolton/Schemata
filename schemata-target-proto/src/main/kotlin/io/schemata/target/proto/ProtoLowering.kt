@@ -30,6 +30,7 @@ import io.schemata.target.Names
 import io.schemata.target.OverrideNames
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.deprecated
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 
@@ -52,7 +53,9 @@ object ProtoLowering {
     /** Field numbers proto keeps for its own implementation. */
     private val IMPLEMENTATION_NUMBERS = 19000..19999
 
-    fun lower(schema: Schema): Lowered<ProtoModel> {
+    fun lower(written: Schema): Lowered<ProtoModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val names =
             OverrideNames(

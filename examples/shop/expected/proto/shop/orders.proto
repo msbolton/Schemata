@@ -3,7 +3,6 @@ syntax = "proto3";
 package shop.orders;
 
 import "google/protobuf/timestamp.proto";
-import "shop/customers.proto";
 
 enum Status {
   STATUS_UNSPECIFIED = 0;
@@ -35,7 +34,7 @@ message Payment {
 // A customer's order. One row per checkout.
 message Order {
   string id = 1;  // schemata: uuid
-  .shop.customers.Customer customer = 2;
+  string customer_id = 2;  // schemata: uuid
   Status status = 3;  // schemata: default = STATUS_PENDING
   repeated Line lines = 4;  // schemata: list<Line>(min = 1)
   string total = 5;  // schemata: decimal(19, 4)

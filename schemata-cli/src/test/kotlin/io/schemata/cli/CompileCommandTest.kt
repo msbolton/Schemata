@@ -102,7 +102,7 @@ class CompileCommandTest {
     }
 
     @Test
-    fun `the worked example compiles to proto with exit 2 and 17 lossy warnings`() {
+    fun `the worked example compiles to proto with exit 2 and 18 lossy warnings`() {
         val corpus = java.io.File("src/test/resources/corpus/worked-example")
         val (src, out) =
             tempSources(
@@ -116,11 +116,11 @@ class CompileCommandTest {
             out.resolve("proto/shop/orders.proto").readText(),
         )
         assertEquals(
-            17,
+            18,
             result.stderr.lines().count { it.startsWith("warning[SCH2001]") },
             result.stderr,
         )
-        assertTrue(result.stderr.contains("0 errors, 17 warnings"), result.stderr)
+        assertTrue(result.stderr.contains("0 errors, 18 warnings"), result.stderr)
     }
 
     @Test

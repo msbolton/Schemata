@@ -29,12 +29,16 @@ import io.schemata.target.TypeText
 import io.schemata.target.bool
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.flag
+import io.schemata.target.isKeyRecord
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 
 /** Lowers the IR to an [XsdModel]; every decision and every lossy report lives here. */
 object XsdLowering {
-    fun lower(schema: Schema): Lowered<XsdModel> {
+    fun lower(written: Schema): Lowered<XsdModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val uris = LinkedHashMap<String, String>()
         schema.namespaces.forEach { ns ->
@@ -139,7 +143,12 @@ object XsdLowering {
             val elements = mutableListOf<XsdElement>()
             namespace.declarations.forEach { decl ->
                 types += types(decl, emptyList())
-                if (decl is RecordType && decl.annotations.bool("xsd", "root") != false) {
+                // A key record is the shape of a reference, never a document of its own.
+                if (
+                    decl is RecordType &&
+                        decl.annotations.bool("xsd", "root") != false &&
+                        !schema.isKeyRecord(decl)
+                ) {
                     elements += globalElement(decl)
                 }
             }

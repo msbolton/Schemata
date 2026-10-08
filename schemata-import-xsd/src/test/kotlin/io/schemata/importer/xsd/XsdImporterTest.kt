@@ -299,7 +299,8 @@ class XsdImporterTest {
         val fields =
             listOf(
                 "id uuid",
-                "customer shop.customers.Customer",
+                // the order holds the customer's key, as the XSD target writes a reference
+                "customer_id uuid",
                 "status Status = pending",
                 "lines OrderLine[] { minItems 1 }",
                 "total decimal(19, 4)",

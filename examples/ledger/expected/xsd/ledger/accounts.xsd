@@ -87,5 +87,17 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+  <xs:complexType name="AccountKeyType">
+    <xs:sequence>
+      <xs:element name="tenant_id" type="xs:long"/>
+      <xs:element name="code">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="16"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
   <xs:element name="account" type="tns:AccountType"/>
 </xs:schema>

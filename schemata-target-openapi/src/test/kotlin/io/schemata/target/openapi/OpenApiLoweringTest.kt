@@ -88,6 +88,34 @@ internal fun compile(vararg sources: String): Schema {
     return analysis.schema!!
 }
 
+private const val RELATIONS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id }  #2 name string }
+
+model Tag { #1 code string { id, max 16 } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+  #3 billing  Customer { embed }
+  #4 tags     Tag[]
+  #5 pair     Pair
+  #6 pairs    Pair[]
+  #7 backup   Customer?
+}
+
+model ByCustomer { #1 customer Customer }
+
+service Orders {
+  #1 get(Order): Order  post "/orders"
+  #2 list(ByCustomer): Order  get "/orders"
+}
+"""
+
 class OpenApiLoweringTest {
     private fun lower(vararg sources: String): Lowered<OpenApiModel> =
         OpenApiLowering.lower(compile(*sources))
@@ -776,5 +804,51 @@ class OpenApiLoweringTest {
         assertEquals(listOf(Tag("S", null)), doc.tags)
         assertEquals(emptyList(), doc.paths)
         assertEquals(emptyList(), doc.components)
+    }
+
+    private val relations by lazy { lower(RELATIONS).model.documents.single() }
+
+    private fun component(key: String) =
+        relations.components.single { it.key == "shop.$key" }.schema as ObjectSchema
+
+    private fun property(key: String, name: String) =
+        component(key).properties.single { it.name == name }
+
+    @Test
+    fun `a reference to a keyed model emits its key`() {
+        val id = property("Customer", "id").schema
+        assertEquals(
+            listOf("id", "customer_id", "billing", "tags", "pair", "pairs", "backup_id"),
+            component("Order").properties.map { it.name },
+        )
+        assertEquals(id, property("Order", "customer_id").schema)
+        assertEquals(
+            ArraySchema(ScalarSchema("string", maxLength = 16)),
+            property("Order", "tags").schema,
+        )
+        val list = relations.paths.single().operations.single { it.verb == Verb.GET }
+        assertEquals(listOf("customer_id"), list.parameters.map { it.name })
+        assertEquals(id, list.parameters.single().schema)
+    }
+
+    @Test
+    fun `embed restores the record`() {
+        assertEquals(
+            RefSchema("#/components/schemas/shop.Customer"),
+            property("Order", "billing").schema,
+        )
+    }
+
+    @Test
+    fun `a composite-key reference emits one key object`() {
+        // a key carries no copy of its model: only what the payloads hold is a component
+        assertEquals(
+            listOf("shop.Order", "shop.Customer", "shop.PairKey"),
+            relations.components.map { it.key },
+        )
+        assertEquals(listOf("a", "b"), component("PairKey").properties.map { it.name })
+        val key = RefSchema("#/components/schemas/shop.PairKey")
+        assertEquals(key, property("Order", "pair").schema)
+        assertEquals(ArraySchema(key), property("Order", "pairs").schema)
     }
 }

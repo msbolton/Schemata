@@ -32,6 +32,7 @@ import io.schemata.target.deprecated
 import io.schemata.target.flag
 import io.schemata.target.json.JsonString
 import io.schemata.target.json.JsonValue
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 import java.math.BigDecimal
@@ -46,7 +47,9 @@ object JsonSchemaLowering {
             idCollision = JsonSchemaCodes.ID_COLLISION,
         )
 
-    fun lower(schema: Schema): Lowered<JsonSchemaModel> {
+    fun lower(written: Schema): Lowered<JsonSchemaModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val ids = LinkedHashMap<String, String>()
         schema.namespaces.forEach { ns ->

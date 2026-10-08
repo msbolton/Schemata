@@ -28,3 +28,8 @@ message Account {
     optional string daily = 2;  // schemata: decimal(19, 4)?
   }
 }
+
+message AccountKey {
+  int64 tenant_id = 1;
+  string code = 2;  // schemata: string(max = 16)
+}

@@ -30,6 +30,7 @@ import io.schemata.target.jsonschema.LoweringCodes
 import io.schemata.target.jsonschema.RefSchema
 import io.schemata.target.jsonschema.SchemaNames
 import io.schemata.target.jsonschema.withCommon
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 
 /**
@@ -46,7 +47,9 @@ object OpenApiLowering {
             idCollision = OpenApiCodes.COLLISION,
         )
 
-    fun lower(schema: Schema): Lowered<OpenApiModel> {
+    fun lower(written: Schema): Lowered<OpenApiModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val names = SchemaNames(schema, codes, diagnostics)
         val documents =

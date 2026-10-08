@@ -1,5 +1,9 @@
 package io.schemata.target.jsonschema
 
+import io.schemata.core.AnalysisOptions
+import io.schemata.core.Analyzer
+import io.schemata.core.annotations.AnnotationRegistry
+import io.schemata.core.annotations.CoreAnnotations
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
@@ -23,12 +27,49 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
+import io.schemata.lang.Parser
 import io.schemata.lang.Span
 import io.schemata.target.json.JsonNumber
 import io.schemata.target.json.JsonString
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+
+private const val RELATIONS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id }  #2 name string }
+
+model Tag { #1 code string { id, max 16 } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+  #3 billing  Customer { embed }
+  #4 tags     Tag[]
+  #5 pair     Pair
+  #6 pairs    Pair[]
+  #7 backup   Customer?
+}
+"""
+
+/** Analyses [sources], one file each, with every annotation the JSON Schema lowering reads. */
+private fun compile(vararg sources: String): Schema {
+    val files = sources.mapIndexed { i, text -> Parser.parse(text, "f$i.schemata").file!! }
+    val analysis =
+        Analyzer.analyze(
+            files,
+            AnalysisOptions(
+                annotations =
+                    AnnotationRegistry(CoreAnnotations.specs + JsonSchemaAnnotations.specs)
+            ),
+        )
+    assertEquals(emptyList(), analysis.diagnostics.map { "${it.code.id} ${it.message}" })
+    return analysis.schema!!
+}
 
 class JsonSchemaLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
@@ -651,5 +692,51 @@ class JsonSchemaLoweringTest {
             ),
             schema.properties[0].schema,
         )
+    }
+
+    private val relations by lazy {
+        JsonSchemaLowering.lower(compile(RELATIONS)).model.documents.single()
+    }
+
+    private fun relation(key: String) =
+        relations.defs.single { it.key == key }.schema as ObjectSchema
+
+    private fun property(key: String, name: String) =
+        relation(key).properties.single { it.name == name }
+
+    @Test
+    fun `a reference to a keyed model emits its key`() {
+        val id = property("Customer", "id").schema
+        val code = property("Tag", "code").schema
+        assertEquals(
+            listOf("id", "customer_id", "billing", "tags", "pair", "pairs", "backup_id"),
+            relation("Order").properties.map { it.name },
+        )
+        assertEquals(Property("customer_id", id, required = true), property("Order", "customer_id"))
+        assertEquals(ArraySchema(code), property("Order", "tags").schema)
+        assertEquals(
+            Property(
+                "backup_id",
+                (id as ScalarSchema).copy(common = Common(nullable = true)),
+                false,
+            ),
+            property("Order", "backup_id"),
+        )
+    }
+
+    @Test
+    fun `embed restores the record`() {
+        assertEquals(RefSchema("#/\$defs/Customer"), property("Order", "billing").schema)
+    }
+
+    @Test
+    fun `a composite-key reference emits one key object`() {
+        assertEquals(
+            listOf("Customer", "Tag", "Pair", "PairKey", "Order"),
+            relations.defs.map { it.key },
+        )
+        assertEquals(relation("Pair").properties, relation("PairKey").properties)
+        assertEquals(RefSchema("#/\$defs/PairKey"), property("Order", "pair").schema)
+        assertEquals(ArraySchema(RefSchema("#/\$defs/PairKey")), property("Order", "pairs").schema)
     }
 }

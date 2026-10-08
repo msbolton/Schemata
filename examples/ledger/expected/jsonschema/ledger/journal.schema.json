@@ -129,7 +129,7 @@
       "type": "object",
       "properties": {
         "account": {
-          "$ref": "urn:schemata:ledger.accounts#/$defs/Account"
+          "$ref": "urn:schemata:ledger.accounts#/$defs/AccountKey"
         },
         "amount": {
           "type": "string",

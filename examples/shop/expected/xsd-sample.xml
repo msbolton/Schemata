@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<order xmlns="urn:schemata:shop.orders" xmlns:c="urn:schemata:shop.customers">
+<order xmlns="urn:schemata:shop.orders">
   <id>3fa85f64-5717-4562-b3fc-2c963f66afa6</id>
-  <customer>
-    <c:id>11111111-2222-3333-4444-555555555555</c:id>
-    <c:name>Ada Lovelace</c:name>
-  </customer>
+  <customer_id>11111111-2222-3333-4444-555555555555</customer_id>
   <status>paid</status>
   <lines>
     <sku>WIDGET-1</sku>

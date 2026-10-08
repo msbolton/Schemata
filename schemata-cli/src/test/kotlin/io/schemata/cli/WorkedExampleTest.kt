@@ -191,6 +191,7 @@ class WorkedExampleTest {
                 "orders.schemata:12 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf",
                 "orders.schemata:14 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf",
                 "orders.schemata:22 field 'Order.id': uuid has no Protobuf representation; lowered to string",
+                "orders.schemata:23 field 'Order.customer_id': uuid has no Protobuf representation; lowered to string",
                 "orders.schemata:24 field 'Order.status': default STATUS_PENDING is not carried by proto3",
                 "orders.schemata:25 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf",
                 "orders.schemata:26 field 'Order.total': decimal has no Protobuf representation; lowered to string",
@@ -224,7 +225,7 @@ class WorkedExampleTest {
                 .toSet()
         assertEquals(setOf("SCH2001", "SCH2105"), codes)
         assertEquals(
-            17,
+            18,
             Regex("\"code\":\"SCH2001\"").findAll(result.stdout).count(),
             result.stdout,
         )

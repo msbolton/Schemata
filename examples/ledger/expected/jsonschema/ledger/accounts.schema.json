@@ -86,6 +86,25 @@
         "overdraft"
       ],
       "additionalProperties": false
+    },
+    "AccountKey": {
+      "type": "object",
+      "properties": {
+        "tenant_id": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        "code": {
+          "type": "string",
+          "maxLength": 16
+        }
+      },
+      "required": [
+        "tenant_id",
+        "code"
+      ],
+      "additionalProperties": false
     }
   }
 }

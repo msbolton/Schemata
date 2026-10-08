@@ -43,7 +43,7 @@ message Entry {
   Reference ref = 5;
 
   message Line {
-    .ledger.accounts.v1.Account account = 1;
+    .ledger.accounts.v1.AccountKey account = 1;
     string amount = 2;  // schemata: decimal(19, 4)
     Side side = 3;
   }

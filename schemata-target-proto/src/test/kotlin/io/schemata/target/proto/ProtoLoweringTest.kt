@@ -65,6 +65,27 @@ service Orders {
 
 private const val CATALOG = "schema shop.catalog\n\nmodel Money { #1 amount int64 }\n"
 
+private const val RELATIONS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id }  #2 name string }
+
+model Tag { #1 code string { id, max 16 } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+  #3 billing  Customer { embed }
+  #4 tags     Tag[]
+  #5 pair     Pair
+  #6 pairs    Pair[]
+  #7 backup   Customer?
+}
+"""
+
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
 
@@ -1421,6 +1442,79 @@ class ProtoLoweringTest {
         assertEquals(
             listOf("SCH2004 proto name 'R' is already used by record 'R' (t.schemata:3)"),
             out.codes(),
+        )
+    }
+
+    private fun shape(message: ProtoMessage) =
+        message.fields.map { listOf(it.number, it.name, it.type, it.label) }
+
+    @Test
+    fun `a reference to a keyed model emits its key`() {
+        val order = message(lower(RELATIONS).file("shop.proto"), "Order")
+        assertEquals(
+            listOf(
+                listOf(2, "customer_id", ProtoType.Scalar("string"), Label.NONE),
+                listOf(4, "tags", ProtoType.Scalar("string"), Label.REPEATED),
+                listOf(7, "backup_id", ProtoType.Scalar("string"), Label.OPTIONAL),
+            ),
+            shape(order).filter { it[0] in setOf(2, 4, 7) },
+        )
+    }
+
+    @Test
+    fun `embed restores the record`() {
+        val order = message(lower(RELATIONS).file("shop.proto"), "Order")
+        assertEquals(
+            listOf(3, "billing", ProtoType.Named("Customer"), Label.NONE),
+            shape(order).single { it[0] == 3 },
+        )
+    }
+
+    @Test
+    fun `a composite-key reference emits one key object`() {
+        val file = lower(RELATIONS).file("shop.proto")
+        assertEquals(
+            listOf("Customer", "Tag", "Pair", "PairKey", "Order"),
+            file.declarations.map { it.name },
+        )
+        assertEquals(
+            listOf(
+                listOf(1, "a", ProtoType.Scalar("int32"), Label.NONE),
+                listOf(2, "b", ProtoType.Scalar("int32"), Label.NONE),
+            ),
+            shape(message(file, "PairKey")),
+        )
+        assertEquals(
+            listOf(
+                listOf(5, "pair", ProtoType.Named("PairKey"), Label.NONE),
+                listOf(6, "pairs", ProtoType.Named("PairKey"), Label.REPEATED),
+            ),
+            shape(message(file, "Order")).filter { it[0] in setOf(5, 6) },
+        )
+    }
+
+    @Test
+    fun `a key record in another package is imported and spelled absolutely`() {
+        val file =
+            lower(
+                    "schema a\n\nmodel Pair { #1 x int32 { id }  #2 y int32 { id } }\n",
+                    "schema b\n\nimport a\n\nmodel Use { #1 pair Pair }\n",
+                )
+                .file("b.proto")
+        assertEquals(listOf("a.proto"), file.imports)
+        assertEquals(
+            listOf(listOf(1, "pair", ProtoType.Named(".a.PairKey"), Label.NONE)),
+            shape(message(file, "Use")),
+        )
+    }
+
+    @Test
+    fun `a reference field that repeats a key's name collides`() {
+        val out =
+            lower("schema t\n\nmodel C { #1 id uuid { id } }\n\nmodel R { #1 c C  #2 c_id uuid }\n")
+        assertEquals(
+            listOf("SCH2004 proto name 'c_id' is already used by field 'c_id' (t.schemata:5)"),
+            out.codes().filter { it.startsWith("SCH2004") },
         )
     }
 
