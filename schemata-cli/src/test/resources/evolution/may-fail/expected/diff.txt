@@ -1,5 +1,5 @@
 s.Customer
-  field 'email' nullability changed from string(max = 254)? to string(max = 254)    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'email' nullability changed from string? { max 254 } to string { max 254 }    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
   field 'age' refinement tightened    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
   field 'code': @sql(unique) added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
 

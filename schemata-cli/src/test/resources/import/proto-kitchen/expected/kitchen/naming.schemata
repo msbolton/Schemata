@@ -2,10 +2,10 @@ schema kitchen.naming
 
 /// A message whose name is not upper camel case.
 model LineItem {
-  #1 foo_baz      string @proto(name: "FooBaz")
-  #2 record_value string @proto(name: "record")
+  #1 foo_baz   string @proto(name: "FooBaz")
+  #2 record    string
   /// a trailing comment joins the doc
-  #3 http_code    int32  @proto(name: "HTTPCode")
+  #3 http_code int32  @proto(name: "HTTPCode")
 
   @@proto(name: "line_item")
 }

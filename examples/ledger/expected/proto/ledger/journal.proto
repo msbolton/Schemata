@@ -18,11 +18,11 @@ enum Side {
 }
 
 message Invoice {
-  string number = 1;  // schemata: string(max = 32)
+  string number = 1;  // schemata: string { max 32 }
 }
 
 message Payment {
-  string reference = 1;  // schemata: string(max = 64)
+  string reference = 1;  // schemata: string { max 64 }
 }
 
 // What an entry refers back to; a bare source when nothing else applies.
@@ -38,8 +38,8 @@ message Reference {
 message Entry {
   string id = 1;  // schemata: uuid
   string posted = 2;  // schemata: date
-  optional string memo = 3;  // schemata: string(max = 500)?
-  repeated Line lines = 4;  // schemata: list<Line>(min = 2)
+  optional string memo = 3;  // schemata: string? { max 500 }
+  repeated Line lines = 4;  // schemata: Line[] { minItems 2 }
   Reference ref = 5;
 
   message Line {

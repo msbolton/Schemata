@@ -11,3 +11,14 @@ table keys.plan
   column code character varying(32) not null
   column name text not null
   constraint pk_plan PRIMARY KEY (tenant_id, code)
+table keys.seat
+  column id uuid not null
+  column account_id uuid not null
+  column number integer not null
+  column holder_id uuid
+  column row character varying(4) not null
+  constraint fk_seat_account FOREIGN KEY (account_id) REFERENCES keys.account(id) ON DELETE CASCADE
+  constraint fk_seat_holder FOREIGN KEY (holder_id) REFERENCES keys.account(id) ON DELETE SET NULL
+  constraint pk_seat PRIMARY KEY (id)
+  constraint uq_seat_account_number UNIQUE (account_id, number)
+  index ix_seat_row_number btree ("row", number)

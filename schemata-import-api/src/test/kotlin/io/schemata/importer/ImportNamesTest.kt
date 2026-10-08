@@ -35,12 +35,21 @@ class ImportNamesTest {
         assertEquals("true_value", ImportNames.lowerSnake("true"))
         assertEquals("false_value", ImportNames.lowerSnake("false"))
         assertEquals("stream_value", ImportNames.lowerSnake("stream"))
-        assertEquals("record_value", ImportNames.lowerSnake("Record"))
+        assertEquals("model_value", ImportNames.lowerSnake("Model"))
+        assertEquals("schema_value", ImportNames.lowerSnake("schema"))
+        assertFalse(ImportNames.isNamespaceSegment("schema"))
         assertEquals("true_value", ImportNames.lowerSnake("True"))
         assertEquals("v2fa", ImportNames.lowerSnake("2fa"))
         assertTrue(ImportNames.isLowerSnake("true_value"))
         assertFalse(ImportNames.isLowerSnake("a__b"))
         assertFalse(ImportNames.isLowerSnake("a_"))
+    }
+
+    @Test
+    fun `words that are not keywords stay as they are`() {
+        assertEquals("record", ImportNames.lowerSnake("record"))
+        assertEquals("namespace", ImportNames.lowerSnake("namespace"))
+        assertTrue(ImportNames.isLowerSnake("record"))
     }
 
     @Test

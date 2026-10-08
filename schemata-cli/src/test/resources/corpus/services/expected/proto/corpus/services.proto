@@ -10,12 +10,12 @@ message OrderId {
 
 message ListOrders {
   optional Status status = 1;
-  int32 limit = 2;  // schemata: int32(min = 1, max = 200); default = 50
+  int32 limit = 2;  // schemata: int32 { min 1, max 200 }; default = 50
 }
 
 message PlaceOrder {
   string customer_id = 1;  // schemata: uuid
-  repeated Order.Line lines = 2;  // schemata: list<Line>(min = 1)
+  repeated Order.Line lines = 2;  // schemata: Line[] { minItems 1 }
 }
 
 message Order {
@@ -25,8 +25,8 @@ message Order {
   string total = 4;  // schemata: decimal(12, 2)
 
   message Line {
-    string sku = 1;  // schemata: string(max = 64)
-    int32 quantity = 2;  // schemata: int32(min = 1)
+    string sku = 1;  // schemata: string { max 64 }
+    int32 quantity = 2;  // schemata: int32 { min 1 }
   }
 }
 

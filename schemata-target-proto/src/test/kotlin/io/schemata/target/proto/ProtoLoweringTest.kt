@@ -698,11 +698,11 @@ class ProtoLoweringTest {
         val fields = message(lowered.model.files.single(), "R").fields
         assertEquals(
             listOf(
-                listOf("string(max = 5)?"),
-                listOf("int32(min = 0)", "default = 3"),
-                listOf("list<string(max = 5)?>(max = 5)?"),
+                listOf("string? { max 5 }"),
+                listOf("int32 { min 0 }", "default = 3"),
+                listOf("string?[]? { maxItems 5, max 5 }"),
                 listOf("map<string, uuid?>?"),
-                listOf("decimal(5, 1, min = 1)", "default = 2"),
+                listOf("decimal(5, 1) { min 1 }", "default = 2"),
                 listOf("default = E_X"),
             ),
             fields.map { it.notes },
@@ -710,16 +710,16 @@ class ProtoLoweringTest {
         assertEquals(
             listOf(
                 "30 SCH2001 enum 'E': proto3 requires a zero value; synthesized E_UNSPECIFIED = 0",
-                "11 SCH2001 field 'R.s': refinements on string(max = 5) are not enforced by Protobuf",
-                "12 SCH2001 field 'R.n': refinements on int32(min = 0) are not enforced by Protobuf",
+                "11 SCH2001 field 'R.s': refinements on string { max 5 } are not enforced by Protobuf",
+                "12 SCH2001 field 'R.n': refinements on int32 { min 0 } are not enforced by Protobuf",
                 "12 SCH2001 field 'R.n': default 3 is not carried by proto3",
-                "13 SCH2001 field 'R.l': refinements on list<string(max = 5)?>(max = 5) are not enforced by Protobuf",
+                "13 SCH2001 field 'R.l': refinements on string?[] { maxItems 5, max 5 } are not enforced by Protobuf",
                 "13 SCH2001 field 'R.l': a nullable list has no Protobuf representation; lowered to repeated",
                 "13 SCH2001 field 'R.l': nullable list elements have no Protobuf representation; lowered to repeated",
                 "14 SCH2001 field 'R.m': a nullable map has no Protobuf representation; lowered to map",
                 "14 SCH2001 field 'R.m': nullable map values have no Protobuf representation; lowered to map",
                 "14 SCH2001 field 'R.m': uuid has no Protobuf representation; lowered to string",
-                "15 SCH2001 field 'R.d': refinements on decimal(5, 1, min = 1) are not enforced by Protobuf",
+                "15 SCH2001 field 'R.d': refinements on decimal(5, 1) { min 1 } are not enforced by Protobuf",
                 "15 SCH2001 field 'R.d': decimal has no Protobuf representation; lowered to string",
                 "15 SCH2001 field 'R.d': default 2 is not carried by proto3",
                 "16 SCH2001 field 'R.e': default E_X is not carried by proto3",
@@ -739,10 +739,10 @@ class ProtoLoweringTest {
             )
         val lowered = ProtoLowering.lower(schema(ns("a", u)))
         val members = message(lowered.model.files.single(), "U").oneofs.single().fields
-        assertEquals(listOf(listOf("string(max = 5)"), listOf("uuid")), members.map { it.notes })
+        assertEquals(listOf(listOf("string { max 5 }"), listOf("uuid")), members.map { it.notes })
         assertEquals(
             listOf(
-                "41 SCH2001 member 'U.string': refinements on string(max = 5) are not enforced by Protobuf",
+                "41 SCH2001 member 'U.string': refinements on string { max 5 } are not enforced by Protobuf",
                 "42 SCH2001 member 'U.uuid': uuid has no Protobuf representation; lowered to string",
             ),
             messages(lowered),
@@ -1084,8 +1084,8 @@ class ProtoLoweringTest {
         val lowered = ProtoLowering.lower(schema(ns("a", r)))
         assertEquals(
             listOf(
-                "11 SCH2005 field 'R.grid': proto cannot nest collections; list<list<int32>> has a collection element",
-                "12 SCH2005 field 'R.index': proto cannot nest collections; map<string, list<string>> has a collection element",
+                "11 SCH2005 field 'R.grid': proto cannot nest collections; list<int32[]> has a collection element",
+                "12 SCH2005 field 'R.index': proto cannot nest collections; map<string, string[]> has a collection element",
             ),
             messages(lowered),
         )

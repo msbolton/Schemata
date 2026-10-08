@@ -487,7 +487,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", line, item, order))
         assertEquals(
             listOf(
-                "12 SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres"
+                "12 SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres"
             ),
             messages(lowered),
         )
@@ -584,7 +584,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", color, r))
         assertEquals(
             listOf(
-                "13 SCH2105 field 'R.codes': refinements on list<string(max = 3)>(max = 5)? are not enforced by Postgres",
+                "13 SCH2105 field 'R.codes': refinements on string[]? { maxItems 5, max 3 } are not enforced by Postgres",
                 "15 SCH2105 field 'R.meta': map contents are not typed by Postgres; lowered to jsonb",
                 "16 SCH2105 field 'R.extra': map contents are not typed by Postgres; lowered to jsonb",
             ),
@@ -607,7 +607,7 @@ class SqlStructureTest {
             listOf(
                 emptyList(),
                 emptyList(),
-                listOf("list<string(max = 3)>(max = 5)?"),
+                listOf("string[]? { maxItems 5, max 3 }"),
                 emptyList(),
                 listOf("map<string, int32>"),
                 listOf("map<string, Color?>?"),
@@ -1179,7 +1179,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", item, line, order))
         assertEquals(
             listOf(
-                "13 SCH2105 field 'Order.lines': nullable elements of list<Line?> are not represented by a child table"
+                "13 SCH2105 field 'Order.lines': nullable elements of Line?[] are not represented by a child table"
             ),
             messages(lowered),
         )

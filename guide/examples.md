@@ -66,12 +66,12 @@ From `examples/contacts/expected/sql/contacts.sql`:
 Warnings from `examples/contacts/expected/proto-warnings.txt`:
 ```text
 SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
-SCH2001 field 'Contact.name': refinements on string(max = 100) are not enforced by Protobuf
-SCH2001 field 'Contact.email': refinements on string(max = 254, pattern = "^[^@]+@[^@]+$") are not enforced by Protobuf
-SCH2001 field 'Contact.age': refinements on int32(min = 0, max = 150) are not enforced by Protobuf
+SCH2001 field 'Contact.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Contact.email': refinements on string { max 254, match "^[^@]+@[^@]+$" } are not enforced by Protobuf
+SCH2001 field 'Contact.age': refinements on int32 { min 0, max 150 } are not enforced by Protobuf
 SCH2001 field 'Contact.kind': default KIND_PERSONAL is not carried by proto3
 SCH2001 field 'Contact.born': date has no Protobuf representation; lowered to string
-SCH2001 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Protobuf
+SCH2001 field 'Contact.tags': refinements on string[] { max 20 } are not enforced by Protobuf
 ```
 
 Nothing is lost by the synthesized zero value; proto3 already reads an unset enum as 0, so keep
@@ -83,7 +83,7 @@ application code.
 
 Warnings from `examples/contacts/expected/sql-warnings.txt`:
 ```text
-SCH2105 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Postgres
+SCH2105 field 'Contact.tags': refinements on string[] { max 20 } are not enforced by Postgres
 ```
 
 Postgres stores `tags` as a plain array with no per-element length check. Enforce the bound in
@@ -192,19 +192,19 @@ From `examples/shop/expected/sql/shop/orders.sql`:
 Warnings from `examples/shop/expected/proto-warnings.txt`:
 ```text
 SCH2001 field 'Customer.id': uuid has no Protobuf representation; lowered to string
-SCH2001 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf
+SCH2001 field 'Customer.name': refinements on string { max 100 } are not enforced by Protobuf
 SCH2001 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0
-SCH2001 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf
-SCH2001 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf
-SCH2001 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf
+SCH2001 field 'Card.last4': refinements on string { max 4 } are not enforced by Protobuf
+SCH2001 field 'Card.brand': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'BankTransfer.iban': refinements on string { max 34 } are not enforced by Protobuf
 SCH2001 field 'Order.status': default STATUS_PENDING is not carried by proto3
-SCH2001 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
+SCH2001 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Protobuf
 SCH2001 field 'Order.total': decimal has no Protobuf representation; lowered to string
-SCH2001 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf
-SCH2001 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf
-SCH2001 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf
-SCH2001 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf
-SCH2001 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf
+SCH2001 field 'Order.note': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 field 'Line.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32 { min 1 } are not enforced by Protobuf
+SCH2001 field 'Address.street': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Address.country': refinements on string { min 2, max 2 } are not enforced by Protobuf
 ```
 
 `id` has no Protobuf uuid type, so it lowers to a plain string; parse it back to a uuid in
@@ -218,7 +218,7 @@ dropped in `contacts`; enforce them in application code.
 
 Warnings from `examples/shop/expected/sql-warnings.txt`:
 ```text
-SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres
+SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres
 ```
 
 The child table holding `lines` has no way to enforce a minimum row count. Enforce it in
@@ -370,7 +370,7 @@ import "ledger/accounts.proto";
 // A close of one account for one period.
 message Close {
   string id = 1;  // schemata: uuid
-  string period = 2;  // schemata: string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
+  string period = 2;  // schemata: string { max 7, match "^[0-9]{4}-[0-9]{2}$" }
   .ledger.accounts.v1.AccountKey account = 3;
   optional string last_id = 4;  // schemata: uuid?
 ```
@@ -379,7 +379,7 @@ From `examples/ledger/expected/proto/ledger/accounts.proto`:
 ```proto
 message AccountKey {
   int64 tenant_id = 1;
-  string code = 2;  // schemata: string(max = 16)
+  string code = 2;  // schemata: string { max 16 }
 }
 ```
 
@@ -412,18 +412,18 @@ From `examples/ledger/expected/xsd/ledger/reports.xsd`:
 Warnings from `examples/ledger/expected/proto-warnings.txt`:
 ```text
 SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
-SCH2001 field 'Account.code': refinements on string(max = 16) are not enforced by Protobuf
-SCH2001 field 'Account.name': refinements on string(max = 120) are not enforced by Protobuf
+SCH2001 field 'Account.code': refinements on string { max 16 } are not enforced by Protobuf
+SCH2001 field 'Account.name': refinements on string { max 120 } are not enforced by Protobuf
 SCH2001 field 'Account.opened': date has no Protobuf representation; lowered to string
 SCH2001 field 'Account.balances': decimal has no Protobuf representation; lowered to string
 SCH2001 enum 'Source': proto3 requires a zero value; synthesized SOURCE_UNSPECIFIED = 0
 SCH2001 enum 'Side': proto3 requires a zero value; synthesized SIDE_UNSPECIFIED = 0
-SCH2001 field 'Invoice.number': refinements on string(max = 32) are not enforced by Protobuf
-SCH2001 field 'Payment.reference': refinements on string(max = 64) are not enforced by Protobuf
+SCH2001 field 'Invoice.number': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'Payment.reference': refinements on string { max 64 } are not enforced by Protobuf
 SCH2001 field 'Entry.id': uuid has no Protobuf representation; lowered to string
-SCH2001 field 'Entry.memo': refinements on string(max = 500) are not enforced by Protobuf
-SCH2001 field 'Entry.lines': refinements on list<Line>(min = 2) are not enforced by Protobuf
-SCH2001 field 'Close.period': refinements on string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$") are not enforced by Protobuf
+SCH2001 field 'Entry.memo': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 field 'Entry.lines': refinements on Line[] { minItems 2 } are not enforced by Protobuf
+SCH2001 field 'Close.period': refinements on string { max 7, match "^[0-9]{4}-[0-9]{2}$" } are not enforced by Protobuf
 ```
 
 The `Kind`, `Source`, and `Side` enums each get a synthesized zero value, the same as `Kind` did in
@@ -437,7 +437,7 @@ by Protobuf; enforce them in application code.
 
 Warnings from `examples/ledger/expected/sql-warnings.txt`:
 ```text
-SCH2105 field 'Entry.lines': refinements on list<Line>(min = 2) are not enforced by Postgres
+SCH2105 field 'Entry.lines': refinements on Line[] { minItems 2 } are not enforced by Postgres
 ```
 
 The child table holding `lines` cannot enforce a minimum of two. Enforce it in application code;

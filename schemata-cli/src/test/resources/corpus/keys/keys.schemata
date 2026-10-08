@@ -13,3 +13,14 @@ model Plan {
 
   @@id(tenant_id, code)
 }
+
+model Seat {
+  #1 id      uuid     { id }
+  #2 account Account  @relation(onDelete: cascade)
+  #3 number  int32
+  #4 holder  Account? @relation(onDelete: set_null)
+  #5 row     string   { max 4 }
+
+  @@unique(account, number)
+  @@index(row, number)
+}

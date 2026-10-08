@@ -16,6 +16,6 @@ message Maps {
   map<bool, string> flags = 6;
   map<string, string> prices = 7;  // schemata: map<string, decimal(19, 4)>
   repeated int32 sizes = 8 [packed = true];
-  repeated string limited = 9;  // schemata: list<string(max = 3)>(max = 2)
+  repeated string limited = 9;  // schemata: string[] { maxItems 2, max 3 }
   repeated Item items = 10;
 }

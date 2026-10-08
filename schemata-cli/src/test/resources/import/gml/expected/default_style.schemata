@@ -3126,7 +3126,7 @@ model CategoryExtent {
   @@xsd(name: "CategoryExtent")
 }
 
-enum Aggregation { set bag sequence array @xsd(name: "record") record_value table }
+enum Aggregation { set bag sequence array record table }
 
 model MultiSolid {
   meta_data_property    MetaDataProperty[]  @xsd(name: "metaDataProperty")

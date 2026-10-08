@@ -4,48 +4,48 @@ import ref.geo
 
 /// One column of every kind.
 model Everything {
-  id           uuid                { id }
-  flag         bool                = false
-  small        int32               @sql(type: "smallint")
-  count        int32               { min 0, max 100 } = 3
-  big          int64?              { min 1 }
-  under        int32               { max 9 }
-  score        int32               { min 1, max 5 }
-  ratio        float32
-  exact        float64             { max 1.5 }
-  price        decimal(10, 2)      = 1.50
-  whole        decimal(12, 0)?
-  amount       decimal(38, 9)?
-  cash         decimal(19, 4)?     @sql(type: "money")
+  id         uuid                { id }
+  flag       bool                = false
+  small      int32               @sql(type: "smallint")
+  count      int32               { min 0, max 100 } = 3
+  big        int64?              { min 1 }
+  under      int32               { max 9 }
+  score      int32               { min 1, max 5 }
+  ratio      float32
+  exact      float64             { max 1.5 }
+  price      decimal(10, 2)      = 1.50
+  whole      decimal(12, 0)?
+  amount     decimal(38, 9)?
+  cash       decimal(19, 4)?     @sql(type: "money")
   /// Two to eight characters.
-  label        string              { min 2, max 8 } = "n/a"
-  name         string              { max 64 }
-  code         string?             { min 3, max 3 } @sql(type: "char(3)")
-  email        string              { match "^[^@]+@[^@]+$" }
-  handle       string?             { match "^[a-z]+$" }
-  nick         string?             @sql(type: "citext")
-  addr         string?             @sql(type: "inet")
-  spot         string?             @sql(type: "point")
-  blob         bytes?              { max 1024 }
-  day          date?
-  tod          time?
-  zoned        time?               @sql(type: "timetz")
-  at           instant
-  stamp        instant?            @sql(type: "timestamp")
-  took         duration?
-  seq          int32               @sql(type: "serial")
-  ticket       int64               @sql(type: "bigserial")
-  n            int32
-  doubled      int32?
-  raw          string?             @sql(type: "json")
-  doc          string?             @sql(type: "jsonb")
-  legacy       uuid?               @sql(type: "varchar(36)")
-  tags         string[]            { max 16 }
-  plain        int32[]?
-  attributes   map<string, string>
-  history      Visit[]?            @sql(strategy: json)
-  mixed_case   string?             @sql(column: "Mixed Case")
-  record_value string?             @sql(column: "record")
+  label      string              { min 2, max 8 } = "n/a"
+  name       string              { max 64 }
+  code       string?             { min 3, max 3 } @sql(type: "char(3)")
+  email      string              { match "^[^@]+@[^@]+$" }
+  handle     string?             { match "^[a-z]+$" }
+  nick       string?             @sql(type: "citext")
+  addr       string?             @sql(type: "inet")
+  spot       string?             @sql(type: "point")
+  blob       bytes?              { max 1024 }
+  day        date?
+  tod        time?
+  zoned      time?               @sql(type: "timetz")
+  at         instant
+  stamp      instant?            @sql(type: "timestamp")
+  took       duration?
+  seq        int32               @sql(type: "serial")
+  ticket     int64               @sql(type: "bigserial")
+  n          int32
+  doubled    int32?
+  raw        string?             @sql(type: "json")
+  doc        string?             @sql(type: "jsonb")
+  legacy     uuid?               @sql(type: "varchar(36)")
+  tags       string[]            { max 16 }
+  plain      int32[]?
+  attributes map<string, string>
+  history    Visit[]?            @sql(strategy: json)
+  mixed_case string?             @sql(column: "Mixed Case")
+  record     string?
 
   model Visit {}
 }
@@ -66,7 +66,7 @@ model Order {
   /// Who placed it.
   customer    Customer                    { unique }
   backup      Customer?
-  parent      Order?
+  parent      Order?                      @relation(onDelete: set_null)
   origin      ref.geo.Region?             @sql(column: "origin")
   region      ref.geo.Region?
   /// How it was paid.
@@ -112,6 +112,7 @@ model Order {
 
   model Stop { street string  zip string }
 
+  @@index(away_street, away_zip)
   @@sql(table: "Order")
 }
 

@@ -10,7 +10,7 @@ message Strings {
   string carriage_return = 4;  // schemata: default = "r\rr"
   string quote = 5;  // schemata: default = "q\"q"
   string emoji = 6;  // schemata: default = "😀"
-  string code = 7;  // schemata: string(pattern = "^\"[A-Z]{2}\d{4}\"$")
+  string code = 7;  // schemata: string { match "^\"[A-Z]{2}\d{4}\"$" }
 
   reserved "legacy", "old_note";
 }

@@ -29,13 +29,13 @@ class ProtoTypesTest {
             ProtoTypes.text(Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4))),
         )
         assertEquals(
-            "decimal(19, 4, min = 0)",
+            "decimal(19, 4) { min 0 }",
             ProtoTypes.text(
                 Scalar(Builtin.DECIMAL, Refinements(min = big(0), precision = 19, scale = 4))
             ),
         )
         assertEquals(
-            "string(min = 2, max = 8, pattern = \"^[a-z]+$\")",
+            "string { min 2, max 8, match \"^[a-z]+$\" }",
             ProtoTypes.text(
                 Scalar(
                     Builtin.STRING,
@@ -44,15 +44,15 @@ class ProtoTypesTest {
             ),
         )
         assertEquals(
-            "string(pattern = \"say \\\"\\d\\\"\")",
+            "string { match \"say \\\"\\d\\\"\" }",
             ProtoTypes.text(Scalar(Builtin.STRING, Refinements(pattern = "say \"\\d\""))),
         )
         assertEquals(
-            "float64(min = -1.5)",
+            "float64 { min -1.5 }",
             ProtoTypes.text(Scalar(Builtin.FLOAT64, Refinements(min = BigDecimal("-1.5")))),
         )
         assertEquals(
-            "list<string(max = 3)?>(max = 2)",
+            "string?[] { maxItems 2, max 3 }",
             ProtoTypes.text(
                 ListOf(
                     Scalar(Builtin.STRING, Refinements(max = big(3))),
@@ -62,7 +62,7 @@ class ProtoTypesTest {
             ),
         )
         assertEquals(
-            "map<string, Line?>(min = 1)",
+            "map<string, Line?> { minItems 1 }",
             ProtoTypes.text(
                 MapOf(
                     Scalar(Builtin.STRING),

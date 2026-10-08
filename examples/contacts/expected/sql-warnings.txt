@@ -1,1 +1,1 @@
-SCH2105 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Postgres
+SCH2105 field 'Contact.tags': refinements on string[] { max 20 } are not enforced by Postgres

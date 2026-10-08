@@ -1,6 +1,6 @@
 # import=sql
-warning[SCH2405] (lossy): table 'orders': unique constraint over (a, b) dropped; Schemata keys one field
- --> s.sql:1:1
+warning[SCH2405] (lossy): table 'orders': unique constraint over (a, customer_code) dropped; no fields hold exactly its columns
+ --> s.sql:6:1
   = help: add the missing part by hand; Schemata cannot express it
 
 0 errors, 1 warning

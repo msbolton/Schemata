@@ -13,7 +13,7 @@ import io.schemata.target.TypeText
 
 /** Text for lossy notes and the scalar keyword table. */
 object ProtoTypes {
-    /** The type as a user would write it: `string(max = 254)?`, `list<Line>(min = 1)`. */
+    /** The type as a user would write it: `string? { max 254 }`, `Line[] { minItems 1 }`. */
     fun text(type: Type, nullable: Boolean = false): String = TypeText.of(type, nullable)
 
     fun text(value: Value): String =

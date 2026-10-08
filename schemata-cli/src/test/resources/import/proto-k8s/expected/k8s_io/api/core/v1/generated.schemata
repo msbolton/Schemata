@@ -7,7 +7,7 @@ model ObjectMeta {
   #1  name             string?
   /// Namespace defines the space within which each name must be unique.
   /// +optional
-  #3  namespace_value  string?             @proto(name: "namespace")
+  #3  namespace        string?
   /// An opaque value that represents the internal version of this object.
   /// +optional
   #6  resource_version string?             @proto(name: "resourceVersion")

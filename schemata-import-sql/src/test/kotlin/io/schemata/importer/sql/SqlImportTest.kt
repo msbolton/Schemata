@@ -230,7 +230,7 @@ class SqlImportTest {
                     """
                     CREATE TABLE t.t (
                       id uuid PRIMARY KEY,
-                      tags text[] NOT NULL,  -- schemata: list<string(max = 16)>
+                      tags text[] NOT NULL,  -- schemata: string[] { max 16 }
                       plain integer[],
                       attributes jsonb NOT NULL,  -- schemata: map<string, string>
                       legacy jsonb NOT NULL,  -- schemata: Address
@@ -343,7 +343,7 @@ class SqlImportTest {
                   owner  Person
                   parent Account?
                   backup Person?
-                  buyer  Account?          @sql(column: "buyer")
+                  buyer  Account?          @relation(onDelete: set_null) @sql(column: "buyer")
                   ledger corp.books.Ledger
                 }
 
@@ -354,8 +354,7 @@ class SqlImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 column 'Account.buyer': foreign key column is not named after the field and key; kept as the field name",
-                "SCH2403 column 'Account.buyer': ON DELETE SET NULL dropped",
+                "SCH2403 column 'Account.buyer': foreign key column is not named after the field and key; kept as the field name"
             ),
             messages(r),
         )
@@ -536,7 +535,7 @@ class SqlImportTest {
                     CREATE TABLE t.t (
                       id uuid PRIMARY KEY,
                       home jsonb NOT NULL,  -- schemata: other.ns.Address
-                      stops jsonb  -- schemata: list<other.ns.Address>
+                      stops jsonb  -- schemata: other.ns.Address[]
                     );
                     """
             )
@@ -757,15 +756,76 @@ class SqlImportTest {
 
                 model OrderLines { order_id uuid { id }  position int32 { id } }
 
-                model OrderNotes { order_id uuid { id }  position int32 { id }  owner Order }
+                model OrderNotes {
+                  order_id uuid  { id }
+                  position int32 { id }
+                  owner    Order @relation(onDelete: cascade)
+                }
                 """
             ),
             text(r, "t.schemata"),
         )
         assertEquals(
             listOf(
-                "SCH2405 table 'order_lines': foreign key over (order_id) dropped; a key field cannot be a reference",
-                "SCH2403 column 'OrderNotes.owner_id': ON DELETE CASCADE dropped",
+                "SCH2405 table 'order_lines': foreign key over (order_id) dropped; a key field cannot be a reference"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `on delete reads back as the reference's relation`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.customer (id uuid PRIMARY KEY);
+                    CREATE TABLE t.membership (
+                      id uuid PRIMARY KEY,
+                      owner_id uuid NOT NULL REFERENCES t.customer (id) ON DELETE CASCADE,
+                      sponsor_id uuid REFERENCES t.customer (id) ON DELETE SET NULL,
+                      payer_id uuid NOT NULL REFERENCES t.customer (id) ON DELETE SET NULL,
+                      agent_id uuid NOT NULL REFERENCES t.customer (id) ON DELETE RESTRICT,
+                      clerk_id uuid NOT NULL REFERENCES t.customer (id) ON DELETE NO ACTION,
+                      code text NOT NULL,
+                      UNIQUE (owner_id, code)
+                    );
+                    CREATE TABLE t.membership_guests (
+                      membership_id uuid NOT NULL REFERENCES t.membership (id) ON DELETE CASCADE,
+                      position integer NOT NULL,
+                      value_id uuid REFERENCES t.customer (id) ON DELETE SET NULL,
+                      PRIMARY KEY (membership_id, position)
+                    );
+                    CREATE INDEX ON t.membership (code, sponsor_id);
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                schema t
+
+                model Customer { id uuid { id } }
+
+                model Membership {
+                  id      uuid        { id }
+                  owner   Customer    @relation(onDelete: cascade)
+                  sponsor Customer?   @relation(onDelete: set_null)
+                  payer   Customer
+                  agent   Customer
+                  clerk   Customer
+                  code    string
+                  guests  Customer?[] @relation(onDelete: set_null)
+
+                  @@unique(owner, code)
+                  @@index(code, sponsor)
+                }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 column 'Membership.payer_id': ON DELETE SET NULL dropped; the reference cannot be null"
             ),
             messages(r),
         )
@@ -911,6 +971,9 @@ class SqlImportTest {
                     CREATE INDEX ON t.plan (a) WHERE a > 0;
                     CREATE INDEX ON t.plan USING gin (b);
                     CREATE INDEX ON t.plan ((lower(email)));
+                    CREATE INDEX ON t.plan (b, a);
+                    CREATE UNIQUE INDEX ON t.plan (created, email);
+                    CREATE INDEX ON t.plan (a, pay_kind);
                     CREATE TABLE t.loose (a integer);
                     """
             )
@@ -931,6 +994,9 @@ class SqlImportTest {
                   union Pay = uuid
 
                   @@id(code, tenant_id)
+                  @@unique(a, b)
+                  @@unique(created, email)
+                  @@index(b, a)
                 }
 
                 model Loose { a int32? }
@@ -941,10 +1007,10 @@ class SqlImportTest {
         assertEquals(
             listOf(
                 "SCH2405 t.sql: CREATE INDEX on an expression dropped",
-                "SCH2405 table 'plan': unique constraint over (a, b) dropped; Schemata keys one field",
                 "SCH2405 table 'plan': partial index over (a) dropped",
                 "SCH2405 table 'plan': index using gin over (b) dropped",
-                "SCH2403 table 'loose': no primary key; add @sql(key) before compiling to SQL",
+                "SCH2405 table 'plan': index over (a, pay_kind) dropped; no fields hold exactly its columns",
+                "SCH2403 table 'loose': no primary key; add { id } to a field before compiling to SQL",
             ),
             messages(r),
         )
@@ -1096,7 +1162,7 @@ class SqlImportTest {
                     CREATE TABLE x.t (
                       id uuid PRIMARY KEY,
                       c jsonb NOT NULL CHECK ("c" @> '{}'),
-                      f uuid REFERENCES x.t (id) ON DELETE SET NULL ON UPDATE CASCADE DEFERRABLE,
+                      f uuid REFERENCES x.t (id) ON DELETE SET DEFAULT ON UPDATE CASCADE DEFERRABLE,
                       d integer GENERATED ALWAYS AS (1) STORED
                     ) INHERITS (base);
                     ALTER TABLE x.t OWNER TO app;
@@ -1124,7 +1190,7 @@ class SqlImportTest {
                 "SCH2405 table 't': INHERITS dropped",
                 "SCH2404 column 'T.c': jsonb imported as string with @sql(type)",
                 "SCH2403 column 'T.f': foreign key column is not named after the field and key; kept as the field name",
-                "SCH2403 column 'T.f': ON DELETE SET NULL dropped",
+                "SCH2403 column 'T.f': ON DELETE SET DEFAULT dropped",
                 "SCH2403 column 'T.f': ON UPDATE CASCADE dropped",
                 "SCH2403 column 'T.f': DEFERRABLE dropped",
                 "SCH2405 table 't': check constraint dropped: (\"c\" @> '{}')",

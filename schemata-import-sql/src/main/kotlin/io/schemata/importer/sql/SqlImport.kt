@@ -217,7 +217,8 @@ private class FixedDecl(val value: UnitDecl) : Nested {
 /**
  * A record being lowered: its fields as [Slot]s, which keys, uniques, and indexes still mark, and
  * its nested declarations. Nested names avoid [reserved] (the namespace's records) and every
- * enclosing record's name.
+ * enclosing record's name. [key] is a primary key whose fields are not in key order, and [uniques]
+ * and [indexes] the constraints over more than one field, each as the fields' names.
  */
 private class RecordSpec(
     override var name: String,
@@ -227,6 +228,9 @@ private class RecordSpec(
     val slots = mutableListOf<Slot>()
     val nested = mutableListOf<Nested>()
     val annotations = mutableListOf<UnitAnnotation>()
+    var key: List<String> = emptyList()
+    val uniques = mutableListOf<List<String>>()
+    val indexes = mutableListOf<List<String>>()
     var doc: String? = null
     private val names = mutableSetOf<String>()
     private val fieldNames = mutableSetOf<String>()
@@ -262,12 +266,22 @@ private class RecordSpec(
     }
 
     override fun decl(): UnitRecord =
-        UnitRecord(name, slots.map { it.build() }, nested.map { it.decl() }, doc, annotations)
+        UnitRecord(
+            name,
+            slots.map { it.build() },
+            nested.map { it.decl() },
+            doc,
+            annotations,
+            key = key,
+            uniques = uniques,
+            indexes = indexes,
+        )
 }
 
 /**
  * One field being lowered. [columns] are the columns it stands for, which a unique, index, or
  * primary key must match; [inner] are the records whose own fields stand for some of them.
+ * [onDelete] is a reference's `ON DELETE` action as the language spells it.
  */
 private class Slot(
     val name: String,
@@ -286,6 +300,7 @@ private class Slot(
     var column: String? = null
     var sqlType: String? = null
     var strategy: String? = null
+    var onDelete: String? = null
 
     fun build(): UnitField =
         UnitField(
@@ -295,13 +310,17 @@ private class Slot(
             default,
             doc,
             buildList {
-                if (key) add(UnitAnnotation("sql", "key", null))
                 column?.let { add(UnitAnnotation("sql", "column", SchemataText.string(it))) }
                 sqlType?.let { add(UnitAnnotation("sql", "type", SchemataText.string(it))) }
                 strategy?.let { add(UnitAnnotation("sql", "strategy", it)) }
-                if (unique) add(UnitAnnotation("sql", "unique", null))
-                if (index) add(UnitAnnotation("sql", "index", null))
             },
+            options =
+                buildList {
+                    if (key) add("id" to null)
+                    if (unique) add("unique" to null)
+                    if (index) add("index" to null)
+                },
+            onDelete = onDelete,
         )
 }
 
@@ -637,7 +656,7 @@ private class Lowering(
                 val target = refTarget(ctx, fk, mcols.first().column)
                 if (target != null) {
                     fk.consumed = true
-                    actions(ctx, fk, mcols.first().column)
+                    actions(ctx, fk, mcols.first().column, nullable = null)
                     return refTo(ctx, target) to null
                 }
             }
@@ -811,15 +830,33 @@ private class Lowering(
         return UnitType.Ref("$namespace.$name")
     }
 
-    /** What a foreign key does that the regenerated one will not: each `ON …` and deferral. */
-    private fun actions(ctx: TableCtx, fk: FkInfo, first: SqlColumn) {
-        fk.fk.onDelete
-            ?.takeIf { it != "NO ACTION" }
-            ?.let { say(ctx, first, ImportCodes.APPROXIMATED, "ON DELETE $it dropped") }
+    /**
+     * The `ON DELETE` action of a reference over [fk] as `@relation(onDelete: …)` spells it, or
+     * null for none. [nullable] is whether the reference may be null, or null when it cannot carry
+     * an action at all (a union member's, a map value's). What the regenerated foreign key will not
+     * do is reported: an `ON UPDATE`, a deferral, `SET DEFAULT`, an action where none can be
+     * carried, or `SET NULL` on a reference that cannot be null. `RESTRICT` and `NO ACTION` both
+     * refuse to delete a row still referenced, the language's default, so they read as no action.
+     */
+    private fun actions(ctx: TableCtx, fk: FkInfo, first: SqlColumn, nullable: Boolean?): String? {
+        val action = fk.fk.onDelete
+        val onDelete =
+            when (action) {
+                "CASCADE" -> "cascade".takeIf { nullable != null }
+                "SET NULL" -> "set_null".takeIf { nullable == true }
+                else -> null
+            }
+        if (onDelete == null && action != null && action != "NO ACTION" && action != "RESTRICT") {
+            val why =
+                if (action == "SET NULL" && nullable == false) "; the reference cannot be null"
+                else ""
+            say(ctx, first, ImportCodes.APPROXIMATED, "ON DELETE $action dropped$why")
+        }
         fk.fk.onUpdate
             ?.takeIf { it != "NO ACTION" }
             ?.let { say(ctx, first, ImportCodes.APPROXIMATED, "ON UPDATE $it dropped") }
         fk.fk.extras.forEach { say(ctx, first, ImportCodes.APPROXIMATED, "$it dropped") }
+        return onDelete
     }
 
     /**
@@ -858,20 +895,24 @@ private class Lowering(
                 )
                 spec.fieldName(first.local).first to first.local
             }
-        actions(ctx, fk, first.column)
+        val nullable = fkCols.all { it.nullable }
+        val onDelete = actions(ctx, fk, first.column, nullable)
         ctx.info.checks
             .firstOrNull { !it.consumed && allOrNone(it.expr)?.toSet() == fk.columns.toSet() }
             ?.consumed = true
         return Slot(
                 name,
                 refTo(ctx, target),
-                fkCols.all { it.nullable },
+                nullable,
                 null,
                 ctx.info.columnDocs[first.name],
                 fk.columns,
                 scalar = false,
             )
-            .also { it.column = column }
+            .also {
+                it.column = column
+                it.onDelete = onDelete
+            }
     }
 
     // ---- scalars ----
@@ -1189,6 +1230,7 @@ private class Lowering(
         reportDropped(tableCtx)
         var element: UnitType? = null
         var nullableElement = false
+        var onDelete: String? = null
         var record: RecordSpec? = null
         var elementCtx = tableCtx
         if (value != null) {
@@ -1207,14 +1249,21 @@ private class Lowering(
                         "foreign key column is not named after the field and key; kept as the field name",
                     )
                 }
-                actions(tableCtx, valueFk, valueCols.first().column)
+                nullableElement = valueCols.all { it.nullable }
+                // Only a list's element reference can say what deleting its target does.
+                onDelete =
+                    actions(
+                        tableCtx,
+                        valueFk,
+                        valueCols.first().column,
+                        nullableElement.takeUnless { child.map },
+                    )
                 t.checks
                     .firstOrNull {
                         !it.consumed && allOrNone(it.expr)?.toSet() == valueFk.columns.toSet()
                     }
                     ?.consumed = true
                 element = refTo(tableCtx, target)
-                nullableElement = valueCols.all { it.nullable }
             }
         }
         if (element == null) {
@@ -1275,6 +1324,7 @@ private class Lowering(
                 scalar = false,
             )
         slot.column = column
+        slot.onDelete = onDelete
         if (
             child.map || record == null && element !is UnitType.Ref || isEnumElement(spec, element)
         ) {
@@ -1292,8 +1342,8 @@ private class Lowering(
     // ---- keys, uniques, indexes, and what is left ----
 
     /**
-     * The primary key on the fields its columns lowered to: flags on each when they are in key
-     * order among the fields, else the record-level tuple.
+     * The primary key on the fields its columns lowered to: `{ id }` on each when they are in key
+     * order among the fields, else `@@id(a, b)`.
      */
     private fun keys(ctx: TableCtx, spec: RecordSpec) {
         val pk = ctx.info.pk
@@ -1301,7 +1351,7 @@ private class Lowering(
             sayTable(
                 ctx.info,
                 ImportCodes.APPROXIMATED,
-                "no primary key; add @sql(key) before compiling to SQL",
+                "no primary key; add { id } to a field before compiling to SQL",
             )
             return
         }
@@ -1310,7 +1360,7 @@ private class Lowering(
             sayTable(
                 ctx.info,
                 ImportCodes.APPROXIMATED,
-                "primary key names a column not in the table; add @sql(key) before compiling to SQL",
+                "primary key names a column not in the table; add { id } to a field before compiling to SQL",
             )
             return
         }
@@ -1318,37 +1368,43 @@ private class Lowering(
         if (positions.zipWithNext().all { (a, b) -> a < b }) {
             slots.forEach { it!!.key = true }
         } else {
-            spec.annotations +=
-                UnitAnnotation("sql", "key", slots.joinToString(", ", "(", ")") { it!!.name })
+            spec.key = slots.map { it!!.name }
         }
     }
 
     /**
-     * Each unique and plain index on the one field whose columns it covers; one over the primary
-     * key adds nothing and goes silently; any other is dropped.
+     * Each unique and plain index on the fields whose columns it covers: `{ unique }` or `{ index
+     * }` on the one field covering all of them, else `@@unique(a, b)` or `@@index(a, b)` over the
+     * record's fields, named in the order of their first column in the constraint. One over the
+     * primary key adds nothing and goes silently; one whose columns no set of fields covers
+     * exactly, or that covers a list's or a map's (which have no columns of their own here), is
+     * dropped.
      */
     private fun constraints(ctx: TableCtx, spec: RecordSpec?) {
         val pk = ctx.info.pk?.toSet()
-        val all =
-            spec
-                ?.let { allSlots(it) }
-                .orEmpty()
-                .filter {
-                    it.columns.isNotEmpty() &&
-                        it.type !is UnitType.ListOf &&
-                        it.type !is UnitType.MapOf
-                }
+        val all = spec?.let { allSlots(it) }.orEmpty().filter(::constrainable)
         fun match(columns: List<String>) =
             all.firstOrNull {
                 it.columns.size == columns.size && it.columns.toSet() == columns.toSet()
             }
+        /** The record's own fields that together hold exactly [columns], or null. */
+        fun fields(columns: List<String>): List<String>? {
+            val slots =
+                columns
+                    .map { c -> spec?.slots?.firstOrNull { c in it.columns } ?: return null }
+                    .distinct()
+            if (slots.size < 2 || !slots.all(::constrainable)) return null
+            if (slots.flatMap { it.columns }.toSet() != columns.toSet()) return null
+            return slots.map { it.name }
+        }
         for (u in ctx.info.uniques) {
             if (u.toSet() == pk) continue
             match(u)?.let { it.unique = true }
+                ?: fields(u)?.let { spec!!.uniques += it }
                 ?: sayTable(
                     ctx.info,
                     ImportCodes.DROPPED,
-                    "unique constraint over (${u.joinToString(", ")}) dropped; Schemata keys one field",
+                    "unique constraint over (${u.joinToString(", ")}) dropped; no fields hold exactly its columns",
                 )
         }
         for (ix in ctx.info.indexes) {
@@ -1370,16 +1426,21 @@ private class Lowering(
                 ix.columns.toSet() == pk -> {}
                 else ->
                     match(ix.columns)?.let { if (ix.unique) it.unique = true else it.index = true }
+                        ?: fields(ix.columns)?.let {
+                            if (ix.unique) spec!!.uniques += it else spec!!.indexes += it
+                        }
                         ?: sayTable(
                             ctx.info,
                             ImportCodes.DROPPED,
-                            if (ix.unique)
-                                "unique index over ($listed) dropped; Schemata keys one field"
-                            else "index over ($listed) dropped; Schemata indexes one field",
+                            "${unique}index over ($listed) dropped; no fields hold exactly its columns",
                         )
             }
         }
     }
+
+    /** Whether a unique or an index can name [slot]: it has columns of its own. */
+    private fun constrainable(slot: Slot): Boolean =
+        slot.columns.isNotEmpty() && slot.type !is UnitType.ListOf && slot.type !is UnitType.MapOf
 
     private fun allSlots(spec: RecordSpec): List<Slot> =
         spec.slots.flatMap { s -> listOf(s) + s.inner.flatMap { allSlots(it) } }

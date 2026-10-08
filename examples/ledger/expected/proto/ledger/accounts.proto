@@ -14,8 +14,8 @@ enum Kind {
 // An account, keyed by tenant and code.
 message Account {
   int64 tenant_id = 1;
-  string code = 2;  // schemata: string(max = 16)
-  string name = 3;  // schemata: string(max = 120)
+  string code = 2;  // schemata: string { max 16 }
+  string name = 3;  // schemata: string { max 120 }
   Kind kind = 4;
   string opened = 5;  // schemata: date
   optional string closed = 6;  // schemata: date?
@@ -31,5 +31,5 @@ message Account {
 
 message AccountKey {
   int64 tenant_id = 1;
-  string code = 2;  // schemata: string(max = 16)
+  string code = 2;  // schemata: string { max 16 }
 }

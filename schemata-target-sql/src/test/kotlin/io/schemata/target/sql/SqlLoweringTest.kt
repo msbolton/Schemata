@@ -318,7 +318,10 @@ class SqlLoweringTest {
             listOf(ColumnType.RAW("varchar(36)"), ColumnType.RAW("citext")),
             t.columns.map { it.type },
         )
-        assertEquals(listOf(listOf("uuid?"), listOf("string(max = 4)")), t.columns.map { it.notes })
+        assertEquals(
+            listOf(listOf("uuid?"), listOf("string { max 4 }")),
+            t.columns.map { it.notes },
+        )
         assertEquals(listOf(Check("ck_r_code_max", "char_length(\"code\") <= 4")), t.checks)
     }
 

@@ -1,5 +1,5 @@
 s.Account
-  field 'nickname' nullability changed from string(max = 40)? to string(max = 40)    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'nickname' nullability changed from string? { max 40 } to string { max 40 }    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
   field 'tier' nullability changed from int32? to int32    proto: note, sql: breaking, xsd: compatible, jsonschema: breaking, openapi: compatible
   field 'tier' default added    proto: note, sql: compatible, xsd: note, jsonschema: compatible, openapi: compatible
   field 'code' refinement tightened    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible

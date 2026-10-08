@@ -45,10 +45,10 @@ CREATE TABLE store.everything (
   raw json,
   doc jsonb,
   legacy varchar(36),  -- schemata: uuid?
-  tags text[] NOT NULL,  -- schemata: list<string(max = 16)>
+  tags text[] NOT NULL,  -- schemata: string[] { max 16 }
   plain integer[],
   attributes jsonb NOT NULL,  -- schemata: map<string, string>
-  history jsonb,  -- schemata: list<Visit>
+  history jsonb,  -- schemata: Visit[]
   "Mixed Case" text,
   "record" text,
   CHECK (count <> 13)

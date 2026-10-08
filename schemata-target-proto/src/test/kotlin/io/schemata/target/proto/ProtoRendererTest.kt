@@ -93,7 +93,7 @@ class ProtoRendererTest {
                                             2,
                                             "cash",
                                             scalar("string"),
-                                            notes = listOf("string(max = 5)"),
+                                            notes = listOf("string { max 5 }"),
                                         ),
                                     ),
                                 )

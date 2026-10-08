@@ -388,7 +388,7 @@ object XsdLowering {
                         (r.min?.toInt() ?: 0) to r.max?.toInt()
                     }
                     else -> {
-                        notAllowed(record, field, "any", "a string, string?, or list<string>")
+                        notAllowed(record, field, "any", "a string, string?, or string[]")
                         return null
                     }
                 }
@@ -410,7 +410,7 @@ object XsdLowering {
             path: List<String>,
         ): XsdElement? {
             if (!isPlainString(field.type) && !isStringList(field, nullableElements = true)) {
-                notAllowed(record, field, "any_type", "a string, string?, or list<string>")
+                notAllowed(record, field, "any_type", "a string, string?, or string[]")
                 return null
             }
             return field(record, field, path).copy(type = XsdTypeRef.Builtin("xs:anyType"))

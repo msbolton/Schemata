@@ -93,8 +93,8 @@ class ProtoImportTest {
                     message M {
                       string f = 1;  // schemata: decimal(10, 2)
                       optional string d = 2;  // schemata: date?
-                      int32 o = 3;  // schemata: int32(min = 0); default = 3
-                      repeated string l = 4;  // schemata: list<string(max = 3)>(max = 2)
+                      int32 o = 3;  // schemata: int32 { min 0 }; default = 3
+                      repeated string l = 4;  // schemata: string[] { maxItems 2, max 3 }
                       map<string, string> m = 5;  // schemata: map<string, decimal(19, 4)>
                       Status s = 6;  // schemata: default = STATUS_PENDING
                     }
@@ -160,7 +160,7 @@ class ProtoImportTest {
                     """
                     syntax = "proto3";
                     message M {
-                      string f = 1;  // schemata: string(pattern = "^a; b$"); default = "x; y"
+                      string f = 1;  // schemata: string { match "^a; b$" }; default = "x; y"
                     }
                     """
             )
@@ -353,7 +353,7 @@ class ProtoImportTest {
                 "t.proto" to
                     """
                     syntax = "proto3";
-                    message foo_bar { string FooBaz = 1; string record = 2; }
+                    message foo_bar { string FooBaz = 1; string model = 2; string record = 3; }
                     """
             )
         assertEquals(
@@ -361,8 +361,9 @@ class ProtoImportTest {
             schema t
 
             model FooBar {
-              #1 foo_baz      string @proto(name: "FooBaz")
-              #2 record_value string @proto(name: "record")
+              #1 foo_baz     string @proto(name: "FooBaz")
+              #2 model_value string @proto(name: "model")
+              #3 record      string
 
               @@proto(name: "foo_bar")
             }

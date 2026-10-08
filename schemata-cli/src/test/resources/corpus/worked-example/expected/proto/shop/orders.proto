@@ -13,12 +13,12 @@ enum Status {
 }
 
 message Card {
-  string last4 = 1;  // schemata: string(max = 4)
-  string brand = 2;  // schemata: string(max = 32)
+  string last4 = 1;  // schemata: string { max 4 }
+  string brand = 2;  // schemata: string { max 32 }
 }
 
 message BankTransfer {
-  string iban = 1;  // schemata: string(max = 34)
+  string iban = 1;  // schemata: string { max 34 }
 }
 
 message Cash {}
@@ -36,25 +36,25 @@ message Order {
   string id = 1;  // schemata: uuid
   string customer_id = 2;  // schemata: uuid
   Status status = 3;  // schemata: default = STATUS_PENDING
-  repeated Line lines = 4;  // schemata: list<Line>(min = 1)
+  repeated Line lines = 4;  // schemata: Line[] { minItems 1 }
   string total = 5;  // schemata: decimal(19, 4)
   Payment payment = 6;
   Address shipping = 7;
   .google.protobuf.Timestamp placed_at = 8;
-  optional string note = 9;  // schemata: string(max = 500)?
+  optional string note = 9;  // schemata: string? { max 500 }
   .google.protobuf.Timestamp created = 10 [deprecated = true];  // schemata: instant?
 
   // One purchasable item.
   message Line {
-    string sku = 1;  // schemata: string(max = 64)
-    int32 quantity = 2;  // schemata: int32(min = 1)
+    string sku = 1;  // schemata: string { max 64 }
+    int32 quantity = 2;  // schemata: int32 { min 1 }
     string price = 3;  // schemata: decimal(19, 4)
   }
 
   message Address {
-    string street = 1;  // schemata: string(max = 200)
-    string city = 2;  // schemata: string(max = 100)
-    string country = 3;  // schemata: string(min = 2, max = 2)
+    string street = 1;  // schemata: string { max 200 }
+    string city = 2;  // schemata: string { max 100 }
+    string country = 3;  // schemata: string { min 2, max 2 }
   }
 
   reserved 11;

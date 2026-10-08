@@ -3,7 +3,7 @@ warning[SCH2403] (lossy): column 'Orders.customer_id': DEFERRABLE dropped
  --> s.sql:4:3
   = help: review the imported declaration; the regenerated schema will differ here
 
-warning[SCH2403] (lossy): column 'Orders.customer_id': ON DELETE CASCADE dropped
+warning[SCH2403] (lossy): column 'Orders.customer_id': ON DELETE SET DEFAULT dropped
  --> s.sql:4:3
   = help: review the imported declaration; the regenerated schema will differ here
 

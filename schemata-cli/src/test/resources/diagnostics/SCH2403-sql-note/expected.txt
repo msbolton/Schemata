@@ -3,7 +3,7 @@ warning[SCH2403] (lossy): column 'Orders.qty': note 'int32(' does not read as a 
  --> s.sql:3:3
   = help: review the imported declaration; the regenerated schema will differ here
 
-warning[SCH2403] (lossy): column 'Orders.sku': note 'list<string>' does not fit a text column; ignored
+warning[SCH2403] (lossy): column 'Orders.sku': note 'string[]' does not fit a text column; ignored
  --> s.sql:4:3
   = help: review the imported declaration; the regenerated schema will differ here
 

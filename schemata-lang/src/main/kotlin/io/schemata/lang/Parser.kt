@@ -76,10 +76,7 @@ object Parser {
         )
     }
 
-    /**
-     * The 1.x surface with comments attached, read only by `schemata upgrade` (and by readers of
-     * text the 1.x surface wrote, such as the type notes in emitted targets).
-     */
+    /** The 1.x surface with comments attached, read only by `schemata upgrade`. */
     fun parse1ForUpgrade(input: String, path: String): FormatParse {
         val source = stripBom(input)
         val listener = CollectingErrorListener(path, CollectingErrorListener.V1_HELP)

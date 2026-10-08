@@ -144,7 +144,7 @@ class WorkedExampleTest {
         )
         assertEquals(
             listOf(
-                "orders.schemata:25 SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres"
+                "orders.schemata:25 SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres"
             ),
             result.diagnostics.map {
                 "${it.span.file}:${it.span.startLine} ${it.code.id} ${it.message}"
@@ -185,23 +185,23 @@ class WorkedExampleTest {
         assertEquals(
             listOf(
                 "customers.schemata:3 field 'Customer.id': uuid has no Protobuf representation; lowered to string",
-                "customers.schemata:3 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf",
+                "customers.schemata:3 field 'Customer.name': refinements on string { max 100 } are not enforced by Protobuf",
                 "orders.schemata:10 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0",
-                "orders.schemata:12 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf",
-                "orders.schemata:12 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf",
-                "orders.schemata:14 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf",
+                "orders.schemata:12 field 'Card.last4': refinements on string { max 4 } are not enforced by Protobuf",
+                "orders.schemata:12 field 'Card.brand': refinements on string { max 32 } are not enforced by Protobuf",
+                "orders.schemata:14 field 'BankTransfer.iban': refinements on string { max 34 } are not enforced by Protobuf",
                 "orders.schemata:22 field 'Order.id': uuid has no Protobuf representation; lowered to string",
                 "orders.schemata:23 field 'Order.customer_id': uuid has no Protobuf representation; lowered to string",
                 "orders.schemata:24 field 'Order.status': default STATUS_PENDING is not carried by proto3",
-                "orders.schemata:25 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf",
+                "orders.schemata:25 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Protobuf",
                 "orders.schemata:26 field 'Order.total': decimal has no Protobuf representation; lowered to string",
-                "orders.schemata:30 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf",
-                "orders.schemata:35 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf",
-                "orders.schemata:35 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf",
+                "orders.schemata:30 field 'Order.note': refinements on string { max 500 } are not enforced by Protobuf",
+                "orders.schemata:35 field 'Line.sku': refinements on string { max 64 } are not enforced by Protobuf",
+                "orders.schemata:35 field 'Line.quantity': refinements on int32 { min 1 } are not enforced by Protobuf",
                 "orders.schemata:35 field 'Line.price': decimal has no Protobuf representation; lowered to string",
-                "orders.schemata:38 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf",
-                "orders.schemata:39 field 'Address.city': refinements on string(max = 100) are not enforced by Protobuf",
-                "orders.schemata:40 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf",
+                "orders.schemata:38 field 'Address.street': refinements on string { max 200 } are not enforced by Protobuf",
+                "orders.schemata:39 field 'Address.city': refinements on string { max 100 } are not enforced by Protobuf",
+                "orders.schemata:40 field 'Address.country': refinements on string { min 2, max 2 } are not enforced by Protobuf",
             ),
             result.diagnostics.map { "${it.span.file}:${it.span.startLine} ${it.message}" },
         )
