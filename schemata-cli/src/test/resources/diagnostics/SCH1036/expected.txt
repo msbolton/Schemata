@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1036]: @deprecated is given more than once
- --> s.schemata:2:29
+ --> s.schemata:3:38
   = help: keep one of them
 
 1 error, 0 warnings

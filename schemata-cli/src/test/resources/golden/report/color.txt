@@ -1,7 +1,7 @@
 [33mwarning[0m[SCH2001] (lossy) (proto): [1mproto3 requires a zero value[0m
- [34m-->[0m shop/orders.schemata:3:8
+ [34m-->[0m shop/orders.schemata:3:7
   [34m|[0m
-[34m3[0m [34m|[0m record Order {
-  [34m|[0m        ^^^^^
+[34m3[0m [34m|[0m model Order {
+  [34m|[0m       ^^^^^
 
 0 errors, 1 warning

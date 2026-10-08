@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH1042]: record fields cannot have a default
- --> s.schemata:3:22
-  = help: remove the default; give the record's own fields defaults instead
+error[SCH1042]: model fields cannot have a default
+ --> s.schemata:5:20
+  = help: remove the default; give the model's own fields defaults instead
 
 1 error, 0 warnings

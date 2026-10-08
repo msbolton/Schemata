@@ -11,12 +11,12 @@ class HoverTest {
     @TempDir lateinit var dir: Path
 
     private val text =
-        "/// The storefront.\nnamespace shop\n\n" +
+        "/// The storefront.\nschema shop\n\n" +
             "/// A customer's order.\n/// One row per checkout.\n" +
-            "record Order {\n" +
-            "  #1 status:  Status = pending\n" +
-            "  /// Free text.\n  #2 note:    string(max = 500)?\n" +
-            "  #3 total:   Money\n}\n\n" +
+            "model Order {\n" +
+            "  #1 status  Status = pending\n" +
+            "  /// Free text.\n  #2 note    string? { max 500 }\n" +
+            "  #3 total   Money\n}\n\n" +
             "enum Status {\n  /// Not yet paid.\n  #1 pending,\n  #2 paid\n}\n\n" +
             "alias Money = decimal(19,   4)\n"
 
@@ -29,7 +29,7 @@ class HoverTest {
         val a = f.open("shop/a.schemata", text)
         val hover = f.queries.hover(a, f.at(a, "Order"))!!
         assertEquals(
-            block("record shop.Order", "A customer's order.\nOne row per checkout."),
+            block("model shop.Order", "A customer's order.\nOne row per checkout."),
             hover.markdown,
         )
         assertEquals(f.range(a, "Order"), hover.range)
@@ -40,11 +40,11 @@ class HoverTest {
         val f = Fixture(dir)
         val a = f.open("shop/a.schemata", text)
         assertEquals(
-            block("field shop.Order.note: string(max = 500)?", "Free text."),
+            block("field shop.Order.note string? { max 500 }", "Free text."),
             f.queries.hover(a, f.at(a, "note"))!!.markdown,
         )
         assertEquals(
-            block("field shop.Order.status: Status = pending"),
+            block("field shop.Order.status Status = pending"),
             f.queries.hover(a, f.at(a, "status"))!!.markdown,
         )
     }
@@ -78,12 +78,9 @@ class HoverTest {
         val f = Fixture(dir)
         f.open("shop/a.schemata", text)
         val b =
-            f.open(
-                "shop/b.schemata",
-                "namespace shop.b\nimport shop as s\nrecord R { #1 o: s.Order }\n",
-            )
+            f.open("shop/b.schemata", "schema shop.b\nimport shop as s\nmodel R { #1 o s.Order }\n")
         assertEquals(
-            block("namespace shop", "The storefront."),
+            block("schema shop", "The storefront."),
             f.queries.hover(b, f.at(b, "import shop", offset = 7))!!.markdown,
         )
         assertEquals(block("import shop as s"), f.queries.hover(b, f.at(b, "s.Order"))!!.markdown)
@@ -94,8 +91,8 @@ class HoverTest {
         val f = Fixture(dir)
         val a = f.open("shop/a.schemata", text)
         assertEquals(
-            block("string") + "\n\nUnicode text; refinements: min, max (length), pattern",
-            f.queries.hover(a, f.at(a, "string(max"))!!.markdown,
+            block("string") + "\n\nUnicode text; options: min, max (length), match",
+            f.queries.hover(a, f.at(a, "string?"))!!.markdown,
         )
     }
 
@@ -103,9 +100,9 @@ class HoverTest {
     fun `there is no hover on a keyword, an ordinal, or a broken file`() {
         val f = Fixture(dir)
         val a = f.open("shop/a.schemata", text)
-        assertNull(f.queries.hover(a, f.at(a, "record")))
+        assertNull(f.queries.hover(a, f.at(a, "model")))
         assertNull(f.queries.hover(a, f.at(a, "#1")))
-        f.workspace.change(a, "namespace shop\nrecord Order {")
+        f.workspace.change(a, "schema shop\nmodel Order {")
         assertNull(f.queries.hover(a, TextPosition(1, 8)))
     }
 
@@ -138,12 +135,12 @@ class HoverTest {
         val a =
             f.open(
                 "t/a.schemata",
-                "namespace t\nrecord A { #1 x: int32 }\n" +
-                    "service S {\n  put( stream   A ) :  list< A >( min=1 )\n" +
+                "schema t\nmodel A { #1 x int32 }\n" +
+                    "service S {\n  put( stream   A ) :  A [ ]\n" +
                     "    put   \"/a\"\n}\n",
             )
         assertEquals(
-            block("put(stream A): list<A>(min = 1)  put \"/a\""),
+            block("put(stream A): A[]  put \"/a\""),
             f.queries.hover(a, f.at(a, "put("))!!.markdown,
         )
     }
@@ -151,10 +148,24 @@ class HoverTest {
     @Test
     fun `a builtin written as a payload shows its description`() {
         val f = Fixture(dir)
-        val a = f.open("t/a.schemata", "namespace t\nservice S { #1 get(uuid) }\n")
+        val a = f.open("t/a.schemata", "schema t\nservice S { #1 get(uuid) }\n")
         assertEquals(
             block("uuid") + "\n\na universally unique identifier",
             f.queries.hover(a, f.at(a, "uuid"))!!.markdown,
+        )
+    }
+
+    @Test
+    fun `hover on an inline shape names its hoisted type`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "schema shop\nmodel Order {\n  #1 address { street string }\n}\n",
+            )
+        assertEquals(
+            block("model shop.Order.OrderAddress"),
+            f.queries.hover(a, f.at(a, "{ street"))!!.markdown,
         )
     }
 }

@@ -1,3 +1,5 @@
-namespace s
-record A { #1 x: bool }
-record R { #1 a: A = 1 }
+schema s
+
+model A { #1 x bool }
+
+model R { #1 a A = 1 }

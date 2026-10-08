@@ -1,5 +1,5 @@
 error[SCH0004]: unknown escape '\q' in a string
- --> s.schemata:2:29
+ --> s.schemata:2:27
   = help: write \\ for a backslash; the escapes are \" \\ \n \t \r \u{…}
 
 1 error, 0 warnings

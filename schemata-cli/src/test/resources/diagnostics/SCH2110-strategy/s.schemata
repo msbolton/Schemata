@@ -1,2 +1,0 @@
-namespace s
-record R { @sql(key) #1 id: int32  @sql(strategy = embed) #2 numbers: list<int32> }

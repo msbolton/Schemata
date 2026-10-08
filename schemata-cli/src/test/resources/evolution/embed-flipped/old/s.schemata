@@ -1,0 +1,12 @@
+schema s
+
+model Customer {
+  #1 id   uuid   { id }
+  #2 name string { max 64 }
+}
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+  #3 billing  Customer { embed }
+}

@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH2004] (proto): namespaces a and b both lower to package 'p'
- --> b.schemata:2:1
-  = help: set `@proto(package = "…")` on one namespace
+error[SCH2004] (proto): schemas a and b both lower to package 'p'
+ --> b.schemata:1:1
+  = help: set `@proto(package: "…")` on one schema
 
 1 error, 0 warnings

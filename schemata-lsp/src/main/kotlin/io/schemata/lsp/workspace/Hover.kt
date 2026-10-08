@@ -3,6 +3,7 @@ package io.schemata.lsp.workspace
 import io.schemata.core.DeclarationIndex
 import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
+import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.RecordDecl
 
@@ -11,22 +12,23 @@ object BuiltinDocs {
     val text: Map<String, String> =
         mapOf(
             "bool" to "true or false",
-            "int32" to "a 32-bit signed integer; refinements: min, max",
-            "int64" to "a 64-bit signed integer; refinements: min, max",
-            "float32" to "a 32-bit IEEE 754 floating-point number; refinements: min, max",
-            "float64" to "a 64-bit IEEE 754 floating-point number; refinements: min, max",
+            "int32" to "a 32-bit signed integer; options: min, max",
+            "int64" to "a 64-bit signed integer; options: min, max",
+            "float32" to "a 32-bit IEEE 754 floating-point number; options: min, max",
+            "float64" to "a 64-bit IEEE 754 floating-point number; options: min, max",
             "decimal" to
-                "an exact decimal number, written decimal(precision, scale); refinements: min, max",
-            "string" to "Unicode text; refinements: min, max (length), pattern",
-            "bytes" to "a byte sequence; refinements: min, max (length)",
+                "an exact decimal number, written decimal(precision, scale); options: min, max",
+            "string" to "Unicode text; options: min, max (length), match",
+            "bytes" to "a byte sequence; options: min, max (length)",
             "uuid" to "a universally unique identifier",
             "date" to "a calendar date with no time or zone",
             "time" to "a time of day with no date or zone",
             "instant" to "a point in time, in UTC",
             "duration" to "a length of time",
-            "list" to "list<T>: an ordered collection; refinements: min, max (item count)",
+            "list" to
+                "T[]: an ordered collection, written list<T> only for a list of lists; options: minItems, maxItems (item count)",
             "map" to
-                "map<K, V>: entries keyed by string, int32, or int64; refinements: min, max (entry count)",
+                "map<K, V>: entries keyed by string, int32, or int64; options: minItems, maxItems (entry count)",
         )
 }
 
@@ -46,6 +48,9 @@ private fun SetAnalysis.written(span: Span): String =
 private fun rest(after: Span, whole: Span): Span =
     Span(whole.file, after.endLine, after.endColumn + 1, whole.endLine, whole.endColumn)
 
+private fun kindWord(decl: Declaration): String =
+    if (decl is RecordDecl) "model" else DeclarationIndex.kindOf(decl)
+
 /** What to show for [symbol], or null when the set no longer declares it. */
 internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
     when (symbol) {
@@ -54,17 +59,17 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
             at?.let {
                 val decl = it.decl
                 val tail = if (decl is AliasDecl) " = " + analysis.written(decl.type.span) else ""
-                block("${DeclarationIndex.kindOf(decl)} ${symbol.name}$tail", decl.doc)
+                block("${kindWord(decl)} ${symbol.name}$tail", decl.doc)
             }
         }
         is Symbol.Field -> {
-            val record = analysis.index.declarations[symbol.owner]?.decl as? RecordDecl
-            record
+            val model = analysis.index.declarations[symbol.owner]?.decl as? RecordDecl
+            model
                 ?.fields
                 ?.firstOrNull { it.name == symbol.name }
                 ?.let {
                     val tail = analysis.written(rest(it.nameSpan, it.span))
-                    block("field ${symbol.owner}.${it.name}$tail", it.doc)
+                    block("field ${symbol.owner}.${it.name} $tail", it.doc)
                 }
         }
         is Symbol.EnumValue -> {
@@ -94,7 +99,7 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
             val declaring =
                 analysis.files.sortedBy { it.path }.filter { it.namespace.name == symbol.name }
             if (declaring.isEmpty()) null
-            else block("namespace ${symbol.name}", declaring.firstNotNullOfOrNull { it.doc })
+            else block("schema ${symbol.name}", declaring.firstNotNullOfOrNull { it.doc })
         }
         is Symbol.ImportAlias -> {
             val import =

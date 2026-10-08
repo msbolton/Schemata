@@ -1,16 +1,16 @@
-namespace kitchen.maps
+schema kitchen.maps
 
-record Item { #1 name: string }
+model Item { #1 name string }
 
 /// Maps and lists.
-record Maps {
-  #1  counts:    map<string, int32>
-  #2  by_id:     map<int64, Item>
-  #3  by_small:  map<int64, string>
-  #4  by_big:    map<int64, string>
-  #5  by_signed: map<int32, string>
-  #7  prices:    map<string, decimal(19, 4)>
-  #8  sizes:     list<int32>
-  #9  limited:   list<string(max = 3)>(max = 2)
-  #10 items:     list<Item>
+model Maps {
+  #1  counts    map<string, int32>
+  #2  by_id     map<int64, Item>
+  #3  by_small  map<int64, string>
+  #4  by_big    map<int64, string>
+  #5  by_signed map<int32, string>
+  #7  prices    map<string, decimal(19, 4)>
+  #8  sizes     int32[]
+  #9  limited   string[]                    { maxItems 2, max 3 }
+  #10 items     Item[]
 }

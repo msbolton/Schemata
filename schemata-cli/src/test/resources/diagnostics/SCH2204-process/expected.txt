@@ -1,6 +1,6 @@
 # targets=xsd
 error[SCH2204] (xsd): field 'R.body': @xsd(process) needs @xsd(any) or @xsd(any_attribute) on the same field
- --> s.schemata:2:12
+ --> s.schemata:3:11
   = help: add @xsd(any) or @xsd(any_attribute), or remove @xsd(process)
 
 1 error, 0 warnings

@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH1038]: max must not be negative
- --> s.schemata:2:29
+error[SCH1038]: maxItems must not be negative
+ --> s.schemata:3:25
   = help: use 0 or more
 
 1 error, 0 warnings

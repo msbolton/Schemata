@@ -1,5 +1,4 @@
-@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:UnqualifiedDataTypes-2")
-namespace ubl_unqualified_data_types_2_1
+schema ubl_unqualified_data_types_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:UnqualifiedDataTypes-2")
 
 import ccts_cct_schema_module_2_1
 
@@ -9,9 +8,8 @@ import ccts_cct_schema_module_2_1
 /// 1.0
 /// A number of monetary units specified using a given unit of currency.
 /// Amount
-@xsd(root = false)
-record Amount {
-  value:                         decimal(38, 9)
+model Amount {
+  value                         decimal(38, 9)
   /// UNDT000001-SC2
   /// SC
   /// Amount. Currency. Identifier
@@ -21,9 +19,7 @@ record Amount {
   /// Identifier
   /// string
   /// Reference UNECE Rec 9, using 3-letter alphabetic codes.
-  @xsd(name = "currencyID")
-  @xsd(attribute)
-  currency_id:                   string
+  currency_id                   string         @xsd(name: "currencyID") @xsd(attribute)
   /// UNDT000001-SC3
   /// SC
   /// Amount Currency. Code List Version. Identifier
@@ -32,9 +28,9 @@ record Amount {
   /// Code List Version
   /// Identifier
   /// string
-  @xsd(name = "currencyCodeListVersionID")
-  @xsd(attribute)
-  currency_code_list_version_id: string?
+  currency_code_list_version_id string?        @xsd(name: "currencyCodeListVersionID") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000002
@@ -44,9 +40,8 @@ record Amount {
 /// A set of finite-length sequences of binary octets.
 /// Binary Object
 /// binary
-@xsd(root = false)
-record BinaryObject {
-  value:              bytes
+model BinaryObject {
+  value              bytes
   /// UNDT000002-SC3
   /// SC
   /// Binary Object. Mime. Code
@@ -55,9 +50,7 @@ record BinaryObject {
   /// Mime
   /// Code
   /// string
-  @xsd(name = "mimeCode")
-  @xsd(attribute)
-  mime_code:          string
+  mime_code          string  @xsd(name: "mimeCode") @xsd(attribute)
   /// UNDT000002-SC2
   /// SC
   /// Binary Object. Format. Text
@@ -66,7 +59,7 @@ record BinaryObject {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format:             string?
+  format             string? @xsd(attribute)
   /// UNDT000002-SC4
   /// SC
   /// Binary Object. Encoding. Code
@@ -75,9 +68,7 @@ record BinaryObject {
   /// Encoding
   /// Code
   /// string
-  @xsd(name = "encodingCode")
-  @xsd(attribute)
-  encoding_code:      string?
+  encoding_code      string? @xsd(name: "encodingCode") @xsd(attribute)
   /// UNDT000002-SC5
   /// SC
   /// Binary Object. Character Set. Code
@@ -86,9 +77,7 @@ record BinaryObject {
   /// Character Set
   /// Code
   /// string
-  @xsd(name = "characterSetCode")
-  @xsd(attribute)
-  character_set_code: string?
+  character_set_code string? @xsd(name: "characterSetCode") @xsd(attribute)
   /// UNDT000002-SC6
   /// SC
   /// Binary Object. Uniform Resource. Identifier
@@ -97,7 +86,7 @@ record BinaryObject {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(attribute) uri:                string?
+  uri                string? @xsd(attribute)
   /// UNDT000002-SC7
   /// SC
   /// Binary Object. Filename.Text
@@ -106,7 +95,9 @@ record BinaryObject {
   /// Filename
   /// Text
   /// string
-  @xsd(attribute) filename:           string?
+  filename           string? @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000003
@@ -116,9 +107,8 @@ record BinaryObject {
 /// A diagram, graph, mathematical curve, or similar representation.
 /// Graphic
 /// binary
-@xsd(root = false)
-record Graphic {
-  value:              bytes
+model Graphic {
+  value              bytes
   /// UNDT000003-SC3
   /// SC
   /// Graphic. Mime. Code
@@ -127,9 +117,7 @@ record Graphic {
   /// Mime
   /// Code
   /// normalizedString
-  @xsd(name = "mimeCode")
-  @xsd(attribute)
-  mime_code:          string
+  mime_code          string  @xsd(name: "mimeCode") @xsd(attribute)
   /// UNDT000002-SC2
   /// SC
   /// Binary Object. Format. Text
@@ -138,7 +126,7 @@ record Graphic {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format:             string?
+  format             string? @xsd(attribute)
   /// UNDT000002-SC4
   /// SC
   /// Binary Object. Encoding. Code
@@ -147,9 +135,7 @@ record Graphic {
   /// Encoding
   /// Code
   /// string
-  @xsd(name = "encodingCode")
-  @xsd(attribute)
-  encoding_code:      string?
+  encoding_code      string? @xsd(name: "encodingCode") @xsd(attribute)
   /// UNDT000002-SC5
   /// SC
   /// Binary Object. Character Set. Code
@@ -158,9 +144,7 @@ record Graphic {
   /// Character Set
   /// Code
   /// string
-  @xsd(name = "characterSetCode")
-  @xsd(attribute)
-  character_set_code: string?
+  character_set_code string? @xsd(name: "characterSetCode") @xsd(attribute)
   /// UNDT000002-SC6
   /// SC
   /// Binary Object. Uniform Resource. Identifier
@@ -169,7 +153,7 @@ record Graphic {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(attribute) uri:                string?
+  uri                string? @xsd(attribute)
   /// UNDT000002-SC7
   /// SC
   /// Binary Object. Filename.Text
@@ -178,7 +162,9 @@ record Graphic {
   /// Filename
   /// Text
   /// string
-  @xsd(attribute) filename:           string?
+  filename           string? @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000004
@@ -188,9 +174,8 @@ record Graphic {
 /// A diagram, graph, mathematical curve, or similar representation.
 /// Picture
 /// binary
-@xsd(root = false)
-record Picture {
-  value:              bytes
+model Picture {
+  value              bytes
   /// UNDT000004-SC3
   /// SC
   /// Picture. Mime. Code
@@ -199,9 +184,7 @@ record Picture {
   /// Mime
   /// Code
   /// normalizedString
-  @xsd(name = "mimeCode")
-  @xsd(attribute)
-  mime_code:          string
+  mime_code          string  @xsd(name: "mimeCode") @xsd(attribute)
   /// UNDT000002-SC2
   /// SC
   /// Binary Object. Format. Text
@@ -210,7 +193,7 @@ record Picture {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format:             string?
+  format             string? @xsd(attribute)
   /// UNDT000002-SC4
   /// SC
   /// Binary Object. Encoding. Code
@@ -219,9 +202,7 @@ record Picture {
   /// Encoding
   /// Code
   /// string
-  @xsd(name = "encodingCode")
-  @xsd(attribute)
-  encoding_code:      string?
+  encoding_code      string? @xsd(name: "encodingCode") @xsd(attribute)
   /// UNDT000002-SC5
   /// SC
   /// Binary Object. Character Set. Code
@@ -230,9 +211,7 @@ record Picture {
   /// Character Set
   /// Code
   /// string
-  @xsd(name = "characterSetCode")
-  @xsd(attribute)
-  character_set_code: string?
+  character_set_code string? @xsd(name: "characterSetCode") @xsd(attribute)
   /// UNDT000002-SC6
   /// SC
   /// Binary Object. Uniform Resource. Identifier
@@ -241,7 +220,7 @@ record Picture {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(attribute) uri:                string?
+  uri                string? @xsd(attribute)
   /// UNDT000002-SC7
   /// SC
   /// Binary Object. Filename.Text
@@ -250,7 +229,9 @@ record Picture {
   /// Filename
   /// Text
   /// string
-  @xsd(attribute) filename:           string?
+  filename           string? @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000005
@@ -260,9 +241,8 @@ record Picture {
 /// An audio representation.
 /// Sound
 /// binary
-@xsd(root = false)
-record Sound {
-  value:              bytes
+model Sound {
+  value              bytes
   /// UNDT000005-SC3
   /// SC
   /// Sound. Mime. Code
@@ -271,9 +251,7 @@ record Sound {
   /// Mime
   /// Code
   /// normalizedString
-  @xsd(name = "mimeCode")
-  @xsd(attribute)
-  mime_code:          string
+  mime_code          string  @xsd(name: "mimeCode") @xsd(attribute)
   /// UNDT000002-SC2
   /// SC
   /// Binary Object. Format. Text
@@ -282,7 +260,7 @@ record Sound {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format:             string?
+  format             string? @xsd(attribute)
   /// UNDT000002-SC4
   /// SC
   /// Binary Object. Encoding. Code
@@ -291,9 +269,7 @@ record Sound {
   /// Encoding
   /// Code
   /// string
-  @xsd(name = "encodingCode")
-  @xsd(attribute)
-  encoding_code:      string?
+  encoding_code      string? @xsd(name: "encodingCode") @xsd(attribute)
   /// UNDT000002-SC5
   /// SC
   /// Binary Object. Character Set. Code
@@ -302,9 +278,7 @@ record Sound {
   /// Character Set
   /// Code
   /// string
-  @xsd(name = "characterSetCode")
-  @xsd(attribute)
-  character_set_code: string?
+  character_set_code string? @xsd(name: "characterSetCode") @xsd(attribute)
   /// UNDT000002-SC6
   /// SC
   /// Binary Object. Uniform Resource. Identifier
@@ -313,7 +287,7 @@ record Sound {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(attribute) uri:                string?
+  uri                string? @xsd(attribute)
   /// UNDT000002-SC7
   /// SC
   /// Binary Object. Filename.Text
@@ -322,7 +296,9 @@ record Sound {
   /// Filename
   /// Text
   /// string
-  @xsd(attribute) filename:           string?
+  filename           string? @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000006
@@ -332,9 +308,8 @@ record Sound {
 /// A video representation.
 /// Video
 /// binary
-@xsd(root = false)
-record Video {
-  value:              bytes
+model Video {
+  value              bytes
   /// UNDT000006-SC3
   /// SC
   /// Video. Mime. Code
@@ -343,9 +318,7 @@ record Video {
   /// Mime
   /// Code
   /// normalizedString
-  @xsd(name = "mimeCode")
-  @xsd(attribute)
-  mime_code:          string
+  mime_code          string  @xsd(name: "mimeCode") @xsd(attribute)
   /// UNDT000002-SC2
   /// SC
   /// Binary Object. Format. Text
@@ -354,7 +327,7 @@ record Video {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format:             string?
+  format             string? @xsd(attribute)
   /// UNDT000002-SC4
   /// SC
   /// Binary Object. Encoding. Code
@@ -363,9 +336,7 @@ record Video {
   /// Encoding
   /// Code
   /// string
-  @xsd(name = "encodingCode")
-  @xsd(attribute)
-  encoding_code:      string?
+  encoding_code      string? @xsd(name: "encodingCode") @xsd(attribute)
   /// UNDT000002-SC5
   /// SC
   /// Binary Object. Character Set. Code
@@ -374,9 +345,7 @@ record Video {
   /// Character Set
   /// Code
   /// string
-  @xsd(name = "characterSetCode")
-  @xsd(attribute)
-  character_set_code: string?
+  character_set_code string? @xsd(name: "characterSetCode") @xsd(attribute)
   /// UNDT000002-SC6
   /// SC
   /// Binary Object. Uniform Resource. Identifier
@@ -385,7 +354,7 @@ record Video {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(attribute) uri:                string?
+  uri                string? @xsd(attribute)
   /// UNDT000002-SC7
   /// SC
   /// Binary Object. Filename.Text
@@ -394,7 +363,9 @@ record Video {
   /// Filename
   /// Text
   /// string
-  @xsd(attribute) filename:           string?
+  filename           string? @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000007
@@ -405,9 +376,8 @@ record Video {
 /// Code
 /// string
 /// Other supplementary components in the CCT are captured as part of the token and name for the schema module containing the code list and thus, are not declared as attributes.
-@xsd(root = false)
-record Code {
-  value:            string
+model Code {
+  value            string
   /// UNDT000007-SC2
   /// SC
   /// Code List. Identifier
@@ -416,9 +386,7 @@ record Code {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "listID")
-  @xsd(attribute)
-  list_id:          string?
+  list_id          string? @xsd(name: "listID") @xsd(attribute)
   /// UNDT000007-SC3
   /// SC
   /// Code List. Agency. Identifier
@@ -428,9 +396,7 @@ record Code {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "listAgencyID")
-  @xsd(attribute)
-  list_agency_id:   string?
+  list_agency_id   string? @xsd(name: "listAgencyID") @xsd(attribute)
   /// UNDT000007-SC4
   /// SC
   /// Code List. Agency Name. Text
@@ -439,9 +405,7 @@ record Code {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "listAgencyName")
-  @xsd(attribute)
-  list_agency_name: string?
+  list_agency_name string? @xsd(name: "listAgencyName") @xsd(attribute)
   /// UNDT000007-SC5
   /// SC
   /// Code List. Name. Text
@@ -450,9 +414,7 @@ record Code {
   /// Name
   /// Text
   /// string
-  @xsd(name = "listName")
-  @xsd(attribute)
-  list_name:        string?
+  list_name        string? @xsd(name: "listName") @xsd(attribute)
   /// UNDT000007-SC6
   /// SC
   /// Code List. Version. Identifier
@@ -461,9 +423,7 @@ record Code {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "listVersionID")
-  @xsd(attribute)
-  list_version_id:  string?
+  list_version_id  string? @xsd(name: "listVersionID") @xsd(attribute)
   /// UNDT000007-SC7
   /// SC
   /// Code. Name. Text
@@ -472,7 +432,7 @@ record Code {
   /// Name
   /// Text
   /// string
-  @xsd(attribute) name:             string?
+  name             string? @xsd(attribute)
   /// UNDT000007-SC8
   /// SC
   /// Language. Identifier
@@ -481,9 +441,7 @@ record Code {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "languageID")
-  @xsd(attribute)
-  language_id:      string?
+  language_id      string? @xsd(name: "languageID") @xsd(attribute)
   /// UNDT000007-SC9
   /// SC
   /// Code List. Uniform Resource. Identifier
@@ -492,9 +450,7 @@ record Code {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "listURI")
-  @xsd(attribute)
-  list_uri:         string?
+  list_uri         string? @xsd(name: "listURI") @xsd(attribute)
   /// UNDT000007-SC10
   /// SC
   /// Code List Scheme. Uniform Resource. Identifier
@@ -503,9 +459,9 @@ record Code {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "listSchemeURI")
-  @xsd(attribute)
-  list_scheme_uri:  string?
+  list_scheme_uri  string? @xsd(name: "listSchemeURI") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT000008
@@ -516,8 +472,11 @@ record Code {
 /// Date Time
 /// string
 /// Can be used for a date and/or time.
-@xsd(root = false)
-record DateTime { value: instant }
+model DateTime {
+  value instant
+
+  @@xsd(root: false)
+}
 
 /// UBLUDT000009
 /// UDT
@@ -526,8 +485,11 @@ record DateTime { value: instant }
 /// One calendar day according the Gregorian calendar.
 /// Date
 /// string
-@xsd(root = false)
-record Date { value: date }
+model Date {
+  value date
+
+  @@xsd(root: false)
+}
 
 /// UBLUDT0000010
 /// UDT
@@ -536,8 +498,11 @@ record Date { value: date }
 /// An instance of time that occurs every day.
 /// Time
 /// string
-@xsd(root = false)
-record Time { value: time }
+model Time {
+  value time
+
+  @@xsd(root: false)
+}
 
 /// UBLUDT0000011
 /// UDT
@@ -547,9 +512,8 @@ record Time { value: time }
 /// Identifier
 /// string
 /// Other supplementary components in the CCT are captured as part of the token and name for the schema module containing the identifier list and thus, are not declared as attributes.
-@xsd(root = false)
-record Identifier {
-  value:              string
+model Identifier {
+  value              string
   /// UNDT000011-SC2
   /// SC
   /// Identification Scheme. Identifier
@@ -558,9 +522,7 @@ record Identifier {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "schemeID")
-  @xsd(attribute)
-  scheme_id:          string?
+  scheme_id          string? @xsd(name: "schemeID") @xsd(attribute)
   /// UNDT000011-SC3
   /// SC
   /// Identification Scheme. Name. Text
@@ -569,9 +531,7 @@ record Identifier {
   /// Name
   /// Text
   /// string
-  @xsd(name = "schemeName")
-  @xsd(attribute)
-  scheme_name:        string?
+  scheme_name        string? @xsd(name: "schemeName") @xsd(attribute)
   /// UNDT000011-SC4
   /// SC
   /// Identification Scheme Agency. Identifier
@@ -581,9 +541,7 @@ record Identifier {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "schemeAgencyID")
-  @xsd(attribute)
-  scheme_agency_id:   string?
+  scheme_agency_id   string? @xsd(name: "schemeAgencyID") @xsd(attribute)
   /// UNDT000011-SC5
   /// SC
   /// Identification Scheme Agency. Name. Text
@@ -592,9 +550,7 @@ record Identifier {
   /// Agency Name
   /// Text
   /// string
-  @xsd(name = "schemeAgencyName")
-  @xsd(attribute)
-  scheme_agency_name: string?
+  scheme_agency_name string? @xsd(name: "schemeAgencyName") @xsd(attribute)
   /// UNDT000011-SC6
   /// SC
   /// Identification Scheme. Version. Identifier
@@ -603,9 +559,7 @@ record Identifier {
   /// Version
   /// Identifier
   /// string
-  @xsd(name = "schemeVersionID")
-  @xsd(attribute)
-  scheme_version_id:  string?
+  scheme_version_id  string? @xsd(name: "schemeVersionID") @xsd(attribute)
   /// UNDT000011-SC7
   /// SC
   /// Identification Scheme Data. Uniform Resource. Identifier
@@ -614,9 +568,7 @@ record Identifier {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeDataURI")
-  @xsd(attribute)
-  scheme_data_uri:    string?
+  scheme_data_uri    string? @xsd(name: "schemeDataURI") @xsd(attribute)
   /// UNDT000011-SC8
   /// SC
   /// Identification Scheme. Uniform Resource. Identifier
@@ -625,9 +577,9 @@ record Identifier {
   /// Uniform Resource Identifier
   /// Identifier
   /// string
-  @xsd(name = "schemeURI")
-  @xsd(attribute)
-  scheme_uri:         string?
+  scheme_uri         string? @xsd(name: "schemeURI") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000012
@@ -637,8 +589,11 @@ record Identifier {
 /// A list of two mutually exclusive Boolean values that express the only possible states of a property.
 /// Indicator
 /// string
-@xsd(root = false)
-record Indicator { value: bool }
+model Indicator {
+  value bool
+
+  @@xsd(root: false)
+}
 
 /// UBLUDT0000013
 /// UDT
@@ -648,9 +603,8 @@ record Indicator { value: bool }
 /// Measure
 /// Type
 /// decimal
-@xsd(root = false)
-record Measure {
-  value:                     decimal(38, 9)
+model Measure {
+  value                     decimal(38, 9)
   /// UNDT000013-SC2
   /// SC
   /// Measure. Unit. Code
@@ -660,9 +614,7 @@ record Measure {
   /// Code
   /// normalizedString
   /// Reference UNECE Rec. 20 and X12 355
-  @xsd(name = "unitCode")
-  @xsd(attribute)
-  unit_code:                 string
+  unit_code                 string         @xsd(name: "unitCode") @xsd(attribute)
   /// UNDT000013-SC3
   /// SC
   /// Measure Unit. Code List Version. Identifier
@@ -671,9 +623,9 @@ record Measure {
   /// Code List Version
   /// Identifier
   /// string
-  @xsd(name = "unitCodeListVersionID")
-  @xsd(attribute)
-  unit_code_list_version_id: string?
+  unit_code_list_version_id string?        @xsd(name: "unitCodeListVersionID") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000014
@@ -683,9 +635,8 @@ record Measure {
 /// Numeric information that is assigned or is determined by calculation, counting, or sequencing. It does not require a unit of quantity or unit of measure.
 /// Numeric
 /// string
-@xsd(root = false)
-record Numeric {
-  value:  decimal(38, 9)
+model Numeric {
+  value  decimal(38, 9)
   /// UNDT000014-SC2
   /// SC
   /// Numeric. Format. Text
@@ -694,7 +645,9 @@ record Numeric {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format: string?
+  format string?        @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000015
@@ -704,9 +657,8 @@ record Numeric {
 /// Numeric information that is assigned or is determined by calculation, counting, or sequencing. It does not require a unit of quantity or unit of measure.
 /// Value
 /// string
-@xsd(root = false)
-record Value {
-  value:  decimal(38, 9)
+model Value {
+  value  decimal(38, 9)
   /// UNDT000014-SC2
   /// SC
   /// Numeric. Format. Text
@@ -715,7 +667,9 @@ record Value {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format: string?
+  format string?        @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000016
@@ -725,9 +679,8 @@ record Value {
 /// Numeric information that is assigned or is determined by calculation, counting, or sequencing and is expressed as a percentage. It does not require a unit of quantity or unit of measure.
 /// Percent
 /// string
-@xsd(root = false)
-record Percent {
-  value:  decimal(38, 9)
+model Percent {
+  value  decimal(38, 9)
   /// UNDT000014-SC2
   /// SC
   /// Numeric. Format. Text
@@ -736,7 +689,9 @@ record Percent {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format: string?
+  format string?        @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000017
@@ -746,9 +701,8 @@ record Percent {
 /// A numeric expression of a rate that is assigned or is determined by calculation, counting, or sequencing. It does not require a unit of quantity or unit of measure.
 /// Rate
 /// string
-@xsd(root = false)
-record Rate {
-  value:  decimal(38, 9)
+model Rate {
+  value  decimal(38, 9)
   /// UNDT000014-SC2
   /// SC
   /// Numeric. Format. Text
@@ -757,7 +711,9 @@ record Rate {
   /// Format
   /// Text
   /// string
-  @xsd(attribute) format: string?
+  format string?        @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000018
@@ -767,9 +723,8 @@ record Rate {
 /// A counted number of non-monetary units, possibly including a fractional part.
 /// Quantity
 /// decimal
-@xsd(root = false)
-record Quantity {
-  value:                      decimal(38, 9)
+model Quantity {
+  value                      decimal(38, 9)
   /// UNDT000018-SC2
   /// SC
   /// Quantity. Unit. Code
@@ -778,9 +733,7 @@ record Quantity {
   /// Unit Code
   /// Code
   /// string
-  @xsd(name = "unitCode")
-  @xsd(attribute)
-  unit_code:                  string?
+  unit_code                  string?        @xsd(name: "unitCode") @xsd(attribute)
   /// UNDT000018-SC3
   /// SC
   /// Quantity Unit. Code List. Identifier
@@ -789,9 +742,7 @@ record Quantity {
   /// Code List
   /// Identifier
   /// string
-  @xsd(name = "unitCodeListID")
-  @xsd(attribute)
-  unit_code_list_id:          string?
+  unit_code_list_id          string?        @xsd(name: "unitCodeListID") @xsd(attribute)
   /// UNDT000018-SC4
   /// SC
   /// Quantity Unit. Code List Agency. Identifier
@@ -801,9 +752,7 @@ record Quantity {
   /// Identifier
   /// string
   /// Defaults to the UN/EDIFACT data element 3055 code list.
-  @xsd(name = "unitCodeListAgencyID")
-  @xsd(attribute)
-  unit_code_list_agency_id:   string?
+  unit_code_list_agency_id   string?        @xsd(name: "unitCodeListAgencyID") @xsd(attribute)
   /// UNDT000018-SC5
   /// SC
   /// Quantity Unit. Code List Agency Name. Text
@@ -812,9 +761,9 @@ record Quantity {
   /// Code List Agency Name
   /// Text
   /// string
-  @xsd(name = "unitCodeListAgencyName")
-  @xsd(attribute)
-  unit_code_list_agency_name: string?
+  unit_code_list_agency_name string?        @xsd(name: "unitCodeListAgencyName") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000019
@@ -824,9 +773,8 @@ record Quantity {
 /// A character string (i.e. a finite set of characters), generally in the form of words of a language.
 /// Text
 /// string
-@xsd(root = false)
-record Text {
-  value:              string
+model Text {
+  value              string
   /// UNDT000019-SC2
   /// SC
   /// Language. Identifier
@@ -835,9 +783,7 @@ record Text {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "languageID")
-  @xsd(attribute)
-  language_id:        string?
+  language_id        string? @xsd(name: "languageID") @xsd(attribute)
   /// UNDT000019-SC3
   /// SC
   /// Language. Locale. Identifier
@@ -846,9 +792,9 @@ record Text {
   /// Locale
   /// Identifier
   /// string
-  @xsd(name = "languageLocaleID")
-  @xsd(attribute)
-  language_locale_id: string?
+  language_locale_id string? @xsd(name: "languageLocaleID") @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 /// UBLUDT0000020
@@ -858,9 +804,8 @@ record Text {
 /// A character string that constitutes the distinctive designation of a person, place, thing or concept.
 /// Name
 /// string
-@xsd(root = false)
-record Name {
-  value:              string
+model Name {
+  value              string
   /// UNDT000019-SC2
   /// SC
   /// Language. Identifier
@@ -869,9 +814,7 @@ record Name {
   /// Identification
   /// Identifier
   /// string
-  @xsd(name = "languageID")
-  @xsd(attribute)
-  language_id:        string?
+  language_id        string? @xsd(name: "languageID") @xsd(attribute)
   /// UNDT000019-SC3
   /// SC
   /// Language. Locale. Identifier
@@ -880,7 +823,7 @@ record Name {
   /// Locale
   /// Identifier
   /// string
-  @xsd(name = "languageLocaleID")
-  @xsd(attribute)
-  language_locale_id: string?
+  language_locale_id string? @xsd(name: "languageLocaleID") @xsd(attribute)
+
+  @@xsd(root: false)
 }

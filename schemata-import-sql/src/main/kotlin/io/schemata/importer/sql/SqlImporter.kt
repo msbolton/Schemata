@@ -79,7 +79,7 @@ object SqlImporter : Importer {
                     diagnostics,
                     file,
                     ImportCodes.RENAMED,
-                    "${file.path}: namespace '$name' was derived from the file name",
+                    "${file.path}: schema name '$name' was derived from the file name",
                     SqlPos(1, 1),
                 )
             }
@@ -88,7 +88,7 @@ object SqlImporter : Importer {
                     diagnostics,
                     file,
                     ImportCodes.UNRESOLVED,
-                    "${file.path}: schema '$schema' and schema '$other' both lower to namespace '$name'",
+                    "${file.path}: schema '$schema' and schema '$other' both lower to schema '$name'",
                     SqlPos(1, 1),
                     ImportCodes.RENAME_HELP,
                 )

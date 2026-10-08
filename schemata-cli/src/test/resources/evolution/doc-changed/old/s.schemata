@@ -1,9 +1,9 @@
-namespace s
+schema s
 
 /// A person who buys.
-record Customer {
-  @sql(key) #1 id: uuid
+model Customer {
+  #1 id   uuid    { id }
   /// The name printed on invoices.
-  #2 name: string(max = 100)
-  #3 note: string?
+  #2 name string  { max 100 }
+  #3 note string?
 }

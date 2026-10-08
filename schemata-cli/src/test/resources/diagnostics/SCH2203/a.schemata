@@ -1,3 +1,3 @@
-@xsd(namespace = "urn:x")
-namespace a
-record A { #1 x: bool }
+schema a @xsd(namespace: "urn:x")
+
+model A { #1 x bool }

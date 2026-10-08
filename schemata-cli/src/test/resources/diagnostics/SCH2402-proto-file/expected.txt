@@ -1,5 +1,5 @@
 # import=proto
-warning[SCH2402] (lossy): order-book.proto: namespace 'order_book' was derived from the file name
+warning[SCH2402] (lossy): order-book.proto: schema name 'order_book' was derived from the file name
  --> order-book.proto:1:1
   = help: set --namespace to choose it, or keep it and rename later
 

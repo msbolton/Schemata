@@ -1,5 +1,5 @@
 error[SCH1044]: default may not be null
- --> s.schemata:2:27
+ --> s.schemata:3:25
   = help: add `?` to the field's type and drop the default; a nullable field is null when absent
 
 1 error, 0 warnings

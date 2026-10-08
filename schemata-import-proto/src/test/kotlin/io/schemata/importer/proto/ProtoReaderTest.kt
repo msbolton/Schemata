@@ -31,7 +31,7 @@ class ProtoReaderTest {
                   string sku_code = 1;
                   optional int32 legacy_id = 2 [deprecated = true, json_name = "legacyId"];
                   string id = 3;  // schemata: uuid
-                  repeated Line lines = 4;  // schemata: list<Line>(min = 1)
+                  repeated Line lines = 4;  // schemata: Line[] { minItems 1 }
                   map<string, int32> counts = 5;
                   .google.protobuf.Timestamp placed_at = 6;  // schemata: instant?
                   oneof kind {
@@ -75,7 +75,7 @@ class ProtoReaderTest {
             legacy.options,
         )
         assertEquals("uuid", order.fields[2].note)
-        assertEquals("list<Line>(min = 1)", order.fields[3].note)
+        assertEquals("Line[] { minItems 1 }", order.fields[3].note)
         assertEquals(Label.REPEATED, order.fields[3].label)
         val counts = order.fields[4]
         assertEquals("map", counts.type)

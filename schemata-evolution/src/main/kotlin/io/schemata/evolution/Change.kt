@@ -32,11 +32,11 @@ sealed interface Change {
 }
 
 data class NamespaceAdded(override val path: String, override val span: Span) : Change {
-    override val kind = "namespace.added"
+    override val kind = "schema.added"
 }
 
 data class NamespaceRemoved(override val path: String, override val span: Span) : Change {
-    override val kind = "namespace.removed"
+    override val kind = "schema.removed"
 }
 
 data class DeclarationAdded(
@@ -44,7 +44,7 @@ data class DeclarationAdded(
     override val span: Span,
     val decl: TypeDecl,
 ) : Change {
-    override val kind = "declaration.added"
+    override val kind = "model.added"
 }
 
 data class DeclarationRemoved(
@@ -52,7 +52,7 @@ data class DeclarationRemoved(
     override val span: Span,
     val decl: TypeDecl,
 ) : Change {
-    override val kind = "declaration.removed"
+    override val kind = "model.removed"
 }
 
 data class DeclarationKindChanged(
@@ -61,7 +61,7 @@ data class DeclarationKindChanged(
     val from: TypeDecl,
     val to: TypeDecl,
 ) : Change {
-    override val kind = "declaration.kindChanged"
+    override val kind = "model.kindChanged"
 }
 
 data class FieldAdded(
@@ -354,3 +354,52 @@ fun changeWord(change: AnnotationChanged): String =
         change.to == null -> "removed"
         else -> "changed"
     }
+
+/** A model-level constraint's key in the `sql` annotations [Differ] derives: `@@unique(a, b)`. */
+fun constraintKey(kind: String, columns: List<String>): String =
+    "@@$kind(${columns.joinToString(", ")})"
+
+/**
+ * How the schema text spells the thing [change] adds, removes, or changes: `{ id }` or `@@id` for a
+ * key, `{ unique }`, `{ index }`, `{ embed }`, `@@unique(a, b)`, or else `@<target>(<key>)`. The
+ * SQL facts [Differ] derives from the language's own options carry the `sql` target's keys, so they
+ * are spelled as the language writes them.
+ */
+fun annotationLabel(change: AnnotationChanged): String {
+    if (change.target == "sql") {
+        val embed = AnnotationValue.Name("embed")
+        when {
+            change.key.startsWith("@@") -> return change.key
+            change.key == "key" ->
+                return if (change.newOwner is DeclarationOwner) "@@id" else "{ id }"
+            change.key == "unique" -> return "{ unique }"
+            change.key == "index" -> return "{ index }"
+            change.key == "strategy" &&
+                ((change.from == null && change.to == embed) ||
+                    (change.to == null && change.from == embed)) -> return "{ embed }"
+        }
+    }
+    return "@${change.target}(${change.key})"
+}
+
+/**
+ * Whether [change] touches only a back-reference: a virtual field added or removed, or changed
+ * while it is virtual on both sides. A back-reference is emitted by no target, so every rulebook
+ * passes such a change as compatible before judging anything else.
+ */
+fun touchesOnlyBackReference(change: Change): Boolean =
+    when (change) {
+        is FieldAdded -> change.field.virtual
+        is FieldRemoved -> change.field.virtual
+        is FieldRenamed -> change.from.virtual && change.to.virtual
+        is FieldTypeChanged -> change.from.virtual && change.to.virtual
+        is FieldNullabilityChanged -> change.from.virtual && change.to.virtual
+        is FieldDefaultChanged -> change.from.virtual && change.to.virtual
+        is FieldRefinementChanged -> change.from.virtual && change.to.virtual
+        is AnnotationChanged -> virtual(change.oldOwner) && virtual(change.newOwner)
+        is DeprecationChanged -> virtual(change.owner)
+        is DocChanged -> virtual(change.owner)
+        else -> false
+    }
+
+private fun virtual(owner: Owner): Boolean = owner is FieldOwner && owner.field.virtual

@@ -13,25 +13,22 @@ import kotlin.test.assertTrue
 class CompileCommandTest {
     private val orders =
         """
-        namespace shop.orders
+        schema shop.orders
 
-        record User {
-          @sql(key) id:    uuid
-          email: string?
-          name:  string
-          age:   int32
+        model User {
+          id    uuid    { id }
+          email string?
+          name  string
+          age   int32
         }
         """
             .trimIndent()
 
     private val customers =
         """
-        namespace shop.customers
+        schema shop.customers
 
-        record Customer {
-          @sql(key) id:   uuid
-          name: string
-        }
+        model Customer { id uuid { id }  name string }
         """
             .trimIndent()
 
@@ -89,11 +86,11 @@ class CompileCommandTest {
             tempSources(
                 "p.schemata" to
                     """
-                    namespace p
+                    schema p
 
-                    record Orphan { #1 name: string }
+                    model Orphan { #1 name string }
 
-                    record R { @sql(key) #1 id: uuid }
+                    model R { #1 id uuid { id } }
                     """
                         .trimIndent()
             )
@@ -105,7 +102,7 @@ class CompileCommandTest {
     }
 
     @Test
-    fun `the worked example compiles to proto with exit 2 and 17 lossy warnings`() {
+    fun `the worked example compiles to proto with exit 2 and 18 lossy warnings`() {
         val corpus = java.io.File("src/test/resources/corpus/worked-example")
         val (src, out) =
             tempSources(
@@ -119,21 +116,31 @@ class CompileCommandTest {
             out.resolve("proto/shop/orders.proto").readText(),
         )
         assertEquals(
-            17,
+            18,
             result.stderr.lines().count { it.startsWith("warning[SCH2001]") },
             result.stderr,
         )
-        assertTrue(result.stderr.contains("0 errors, 17 warnings"), result.stderr)
+        assertTrue(result.stderr.contains("0 errors, 18 warnings"), result.stderr)
     }
 
     @Test
     fun `exits 1 and shows the excerpt on a syntax error`() {
-        val (src, out) = tempSources("bad.schemata" to "namespace a\nrecord R { x uuid }")
+        val (src, out) = tempSources("bad.schemata" to "schema a\nmodel R { x: uuid }")
         val result = CompileCommand().test("--target proto --out $out $src")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("error[SCH0001]: "), result.stderr)
-        assertTrue(result.stderr.contains("2 | record R { x uuid }"), result.stderr)
+        assertTrue(result.stderr.contains("2 | model R { x: uuid }"), result.stderr)
         assertFalse(Files.exists(out))
+    }
+
+    @Test
+    fun `a 1x file is one SCH0008 that names the upgrade`() {
+        val (src, out) = tempSources("old.schemata" to "namespace a\nrecord R { x: uuid }\n")
+        val result = CompileCommand().test("--target proto --out $out $src")
+        assertEquals(1, result.statusCode)
+        assertTrue(result.stderr.contains("error[SCH0008]: this is a 1.x schema"), result.stderr)
+        assertTrue(result.stderr.contains("help: run schemata upgrade on this file"), result.stderr)
+        assertTrue(result.stderr.contains("1 error, 0 warnings"), result.stderr)
     }
 
     @Test
@@ -142,8 +149,7 @@ class CompileCommandTest {
         // 0, which used to make HumanRenderer.column() call String.take(-1) and throw.
         val (src, out) =
             tempSources(
-                "bad.schemata" to
-                    "namespace shop.orders\n\nrecord OrderLine {\n  #1 record: string\n}\n"
+                "bad.schemata" to "schema shop.orders\n\nmodel OrderLine {\n  #1 model string\n}\n"
             )
         val result = CompileCommand().test("--target proto --out $out $src")
         assertEquals(1, result.statusCode, result.stderr)
@@ -153,7 +159,7 @@ class CompileCommandTest {
 
     @Test
     fun `--strict rejects implicit ordinals and promotes warnings`() {
-        val (src, out) = tempSources("s.schemata" to "namespace s\nrecord R { x: bool }")
+        val (src, out) = tempSources("s.schemata" to "schema s\n\nmodel R { x bool }")
         val result = CompileCommand().test("--target proto --strict --out $out $src")
         assertEquals(1, result.statusCode)
         assertTrue(
@@ -187,7 +193,7 @@ class CompileCommandTest {
 
     @Test
     fun `rejects an unknown target`() {
-        val (src, _) = tempSources("a.schemata" to "namespace a")
+        val (src, _) = tempSources("a.schemata" to "schema a")
         val result = CompileCommand().test("--target avro $src")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("unknown target 'avro'"), result.stderr)
@@ -238,11 +244,11 @@ class CompileCommandTest {
             tempSources(
                 "e.schemata" to
                     """
-                    namespace e
+                    schema e
 
-                    enum Color { #1 red, #2 green }
+                    enum Color { #1 red #2 green }
 
-                    record R { @sql(key) #1 id: uuid  #2 color: Color }
+                    model R { #1 id uuid { id }  #2 color Color }
                     """
                         .trimIndent()
             )

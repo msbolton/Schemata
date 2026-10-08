@@ -126,7 +126,10 @@ data class BindingDecl(
     val span: Span,
 )
 
-/** [ordinal] is null when the field has no `#n`; the checker decides all-or-nothing. */
+/**
+ * [ordinal] is null when the field has no `#n`; the checker decides all-or-nothing. [options] are
+ * the `{ … }` block written after the field's type (`id uuid { id }`), in source order.
+ */
 data class FieldDecl(
     val ordinal: Int?,
     val ordinalSpan: Span?,
@@ -137,7 +140,15 @@ data class FieldDecl(
     val doc: String?,
     val annotations: List<Annotation>,
     val span: Span,
+    val options: List<Option> = emptyList(),
 )
+
+/**
+ * One `name` or `name literal` inside a `{ … }` option block: `id`, `max 500`, `match "^[a-z]+$"`.
+ * [value] is null for a bare flag. Which names exist and what each may be written on is the
+ * analyzer's business.
+ */
+data class Option(val name: String, val value: Literal?, val span: Span)
 
 data class EnumValueDecl(
     val ordinal: Int?,
@@ -149,12 +160,14 @@ data class EnumValueDecl(
     val span: Span,
 )
 
+/** [options] are the `{ … }` block written after the member's type (`string { max 34 }`). */
 data class UnionMemberDecl(
     val ordinal: Int?,
     val ordinalSpan: Span?,
     val type: TypeExpr,
     val doc: String?,
     val span: Span,
+    val options: List<Option> = emptyList(),
 )
 
 sealed interface ReservedItem {
@@ -171,6 +184,16 @@ sealed interface ReservedItem {
  * or `cust.Customer`), and [nameSegments] holds one span per identifier of it, in order, since
  * whitespace or a comment may sit between segments. Whether it resolves, and whether the
  * refinements are legal for it, is the analyzer's business.
+ *
+ * A postfix list `T[]` sets [list]; then [nullable] is the element's `?` (`T?[]`) and
+ * [listNullable] the list's own (`T[]?`). Without `[]`, [nullable] is the type's `?` and
+ * [listNullable] is false. [options] are those written on a type argument (`map<string { max 10 },
+ * int32>`) or after an alias's type.
+ *
+ * As a field's type, or the element of a field's list, an inline enum (`enum { a b }`) fills
+ * [inlineEnum] and an inline shape (`{ street string }`) fills [inlineShape]; either one is named
+ * `""` until the analyzer hoists it. For both, [name] is `""`, [nameSegments] is empty, and
+ * [nameSpan] covers the opening `enum` or `{`.
  */
 data class TypeExpr(
     val name: String,
@@ -180,6 +203,11 @@ data class TypeExpr(
     val refinements: List<Refinement>,
     val nullable: Boolean,
     val span: Span,
+    val list: Boolean = false,
+    val listNullable: Boolean = false,
+    val options: List<Option> = emptyList(),
+    val inlineEnum: EnumDecl? = null,
+    val inlineShape: RecordDecl? = null,
 )
 
 sealed interface Refinement {
@@ -192,7 +220,16 @@ sealed interface Refinement {
     data class Positional(override val value: Literal, override val span: Span) : Refinement
 }
 
-data class Annotation(val name: String, val args: List<AnnotationArg>, val span: Span)
+/**
+ * [block] is true for a model-level `@@name(...)` attribute, which closes a model body; a leading
+ * or trailing `@name(...)` (and every 1.x annotation) leaves it false.
+ */
+data class Annotation(
+    val name: String,
+    val args: List<AnnotationArg>,
+    val span: Span,
+    val block: Boolean = false,
+)
 
 sealed interface AnnotationArg {
     val span: Span

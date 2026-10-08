@@ -1,3 +1,7 @@
-namespace s
-@jsonschema(name = "B") record A {}
-record B {}
+schema s
+
+model A {
+  @@jsonschema(name: "B")
+}
+
+model B {}

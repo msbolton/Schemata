@@ -1,6 +1,10 @@
 # targets=proto
 error[SCH1038]: only decimal takes positional refinements
- --> s.schemata:2:29
-  = help: name the refinement: `list(max = …)`
+ --> s.schemata:2:27
+  = help: write the bound as an option: `{ maxItems … }`
 
-1 error, 0 warnings
+error[SCH1038]: only decimal takes positional refinements
+ --> s.schemata:2:30
+  = help: write the bound as an option: `{ maxItems … }`
+
+2 errors, 0 warnings

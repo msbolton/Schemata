@@ -1,3 +1,5 @@
+import java.net.URI
+import java.security.MessageDigest
 import org.gradle.api.tasks.PathSensitivity
 
 plugins {
@@ -99,11 +101,62 @@ graalvmNative {
     }
 }
 
+// The released 1.4.0 jar, which the upgrade equivalence test compiles every 1.x case with. It is
+// pinned by its digest; when it cannot be fetched (an offline build) the test skips, so the task
+// warns instead of failing, unless `-Pschemata.requireV1Jar=true` (as CI passes) makes a missing
+// jar fail the build. A digest mismatch always fails. A stalled connection gives up after its
+// timeouts rather than hanging the build.
+val v1Jar = layout.buildDirectory.file("v1/schemata-1.4.0.jar")
+val requireV1Jar =
+    providers.gradleProperty("schemata.requireV1Jar").map { it == "true" }.orElse(false)
+val downloadV1Jar by
+    tasks.registering {
+        val url = "https://github.com/msbolton/Schemata/releases/download/v1.4.0/schemata-1.4.0.jar"
+        val sha256 = "8d7b05ba29eb0ea4386f7f47b753544d83667cf6dfd54f13e7742648320d8c5e"
+        val target = v1Jar
+        val required = requireV1Jar
+        outputs.file(target)
+        doLast {
+            val file = target.get().asFile
+            fun digest(f: File) =
+                MessageDigest.getInstance("SHA-256").digest(f.readBytes()).joinToString("") {
+                    "%02x".format(it)
+                }
+            if (file.isFile && digest(file) == sha256) return@doLast
+            file.parentFile.mkdirs()
+            val partial = File(file.parentFile, file.name + ".part")
+            try {
+                val connection = URI(url).toURL().openConnection()
+                connection.connectTimeout = 30_000
+                connection.readTimeout = 60_000
+                connection.getInputStream().use { input ->
+                    partial.outputStream().use { input.copyTo(it) }
+                }
+            } catch (e: java.io.IOException) {
+                partial.delete()
+                if (required.get()) throw GradleException("cannot fetch $url (${e.message})")
+                logger.warn("cannot fetch $url (${e.message}); the equivalence test will skip")
+                return@doLast
+            }
+            val actual = digest(partial)
+            if (actual != sha256) {
+                partial.delete()
+                throw GradleException("$url has sha256 $actual, expected $sha256")
+            }
+            if (!partial.renameTo(file)) throw GradleException("cannot move $partial to $file")
+        }
+    }
+
 // The archive path is fixed by configuration, not execution, so reading it here is safe.
 val fatJar = tasks.shadowJar.get().archiveFile
 
 tasks.test {
+    dependsOn(downloadV1Jar)
     inputs.file(fatJar)
+    // Absent offline; a file collection may name a missing file.
+    inputs.files(v1Jar).withPropertyName("v1Jar").withPathSensitivity(PathSensitivity.NONE)
+    systemProperty("schemata.v1Jar", v1Jar.get().asFile.absolutePath)
+    systemProperty("schemata.requireV1Jar", requireV1Jar.get().toString())
     // The guide, README, and example tests read these from the repository root, outside the
     // module's own sources, so a change to them alone must still rerun the tests.
     inputs

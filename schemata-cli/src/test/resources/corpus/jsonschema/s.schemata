@@ -1,23 +1,27 @@
 /// Annotation and lossy coverage for the JSON Schema target.
-@jsonschema(id = "https://example.com/schemas/s")
-namespace s
+schema s @jsonschema(id: "https://example.com/schemas/s")
 
 /// Lifecycle.
 enum Status {
   /// Not paid yet.
   #1 pending
   #2 paid
-  @jsonschema(name = "SHIPPED") #3 shipped
+  @jsonschema(name: "SHIPPED") #3 shipped
 }
 
-@jsonschema(open)
-record Event { #1 kind: string #2 payload: map<int64, string> }
+model Event {
+  #1 kind    string
+  #2 payload map<int64, string>
 
-@jsonschema(name = "Purchase")
-record Order {
-  #1 id:     uuid
-  @jsonschema(name = "orderTotal") #2 total:  decimal(19, 4, min = 0)
-  #3 blob:   bytes(max = 6)?
-  #4 status: Status = pending
-  #5 events: list<Event>(max = 10)
+  @@jsonschema(open)
+}
+
+model Order {
+  #1 id     uuid
+  #2 total  decimal(19, 4) { min 0 } @jsonschema(name: "orderTotal")
+  #3 blob   bytes?         { max 6 }
+  #4 status Status         = pending
+  #5 events Event[]        { maxItems 10 }
+
+  @@jsonschema(name: "Purchase")
 }

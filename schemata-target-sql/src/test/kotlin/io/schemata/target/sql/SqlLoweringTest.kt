@@ -1,7 +1,5 @@
 package io.schemata.target.sql
 
-import io.schemata.core.annotations.Element
-import io.schemata.core.annotations.ValueKind
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.BoolValue
@@ -55,7 +53,25 @@ class SqlLoweringTest {
         line: Int = 10 + ordinal,
         doc: String? = null,
         annotations: Annotations = Annotations.NONE,
-    ) = Field(ordinal, name, type, nullable, default, null, doc, at(line), at(line), annotations)
+        key: Boolean = false,
+        unique: Boolean = false,
+        index: Boolean = false,
+    ) =
+        Field(
+            ordinal,
+            name,
+            type,
+            nullable,
+            default,
+            null,
+            doc,
+            at(line),
+            at(line),
+            annotations,
+            key = key,
+            unique = unique,
+            index = index,
+        )
 
     private fun record(
         ns: String,
@@ -65,6 +81,7 @@ class SqlLoweringTest {
         line: Int = 3,
         doc: String? = null,
         annotations: Annotations = Annotations.NONE,
+        compositeKey: List<String> = emptyList(),
     ) =
         RecordType(
             qn(ns, name),
@@ -77,6 +94,7 @@ class SqlLoweringTest {
             at(line),
             at(line),
             annotations,
+            compositeKey = compositeKey,
         )
 
     private fun enum(ns: String, name: String, vararg values: String, line: Int = 30) =
@@ -123,12 +141,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(
-                    1,
-                    "a",
-                    Scalar(Builtin.BOOL),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "a", Scalar(Builtin.BOOL), key = true),
                 field(2, "b", Scalar(Builtin.INT32)),
                 field(3, "c", Scalar(Builtin.INT64)),
                 field(4, "d", Scalar(Builtin.FLOAT32)),
@@ -180,7 +193,7 @@ class SqlLoweringTest {
                     1,
                     "small",
                     Scalar(Builtin.INT32, Refinements(min = big(0), max = big(100))),
-                    annotations = sql("key" to AnnotationValue.Flag),
+                    key = true,
                 ),
                 field(2, "exact", Scalar(Builtin.FLOAT64, Refinements(max = BigDecimal("1.5")))),
                 field(3, "name", Scalar(Builtin.STRING, Refinements(min = big(2), max = big(8)))),
@@ -242,13 +255,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(
-                    1,
-                    "flag",
-                    Scalar(Builtin.BOOL),
-                    default = BoolValue(true),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "flag", Scalar(Builtin.BOOL), default = BoolValue(true), key = true),
                 field(2, "n", Scalar(Builtin.INT32), default = IntValue(3)),
                 field(
                     3,
@@ -300,7 +307,8 @@ class SqlLoweringTest {
                     2,
                     "code",
                     Scalar(Builtin.STRING, Refinements(max = big(4))),
-                    annotations = sql("type" to str("citext"), "key" to AnnotationValue.Flag),
+                    annotations = sql("type" to str("citext")),
+                    key = true,
                 ),
             )
         val lowered = lower(namespace("a", r))
@@ -310,7 +318,10 @@ class SqlLoweringTest {
             listOf(ColumnType.RAW("varchar(36)"), ColumnType.RAW("citext")),
             t.columns.map { it.type },
         )
-        assertEquals(listOf(listOf("uuid?"), listOf("string(max = 4)")), t.columns.map { it.notes })
+        assertEquals(
+            listOf(listOf("uuid?"), listOf("string { max 4 }")),
+            t.columns.map { it.notes },
+        )
         assertEquals(listOf(Check("ck_r_code_max", "char_length(\"code\") <= 4")), t.checks)
     }
 
@@ -320,13 +331,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "Product",
-                field(
-                    1,
-                    "sku",
-                    Scalar(Builtin.STRING),
-                    doc = "Stock keeping unit.",
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "sku", Scalar(Builtin.STRING), doc = "Stock keeping unit.", key = true),
                 doc = "A product.",
             )
         val t = table(lower(namespace("a", r)), "product")
@@ -335,18 +340,7 @@ class SqlLoweringTest {
 
     @Test
     fun `nothing is left at the boundary`() {
-        val leaf =
-            record(
-                "a",
-                "Leaf",
-                field(
-                    1,
-                    "x",
-                    Scalar(Builtin.BOOL),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-                line = 20,
-            )
+        val leaf = record("a", "Leaf", field(1, "x", Scalar(Builtin.BOOL), key = true), line = 20)
         val u =
             UnionType(
                 qn("a", "U"),
@@ -361,12 +355,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(
-                    0,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(0, "id", Scalar(Builtin.UUID), key = true),
                 field(1, "ref", Ref(qn("a", "Leaf"))),
                 field(2, "many", ListOf(Scalar(Builtin.STRING), false)),
                 field(3, "map", MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false)),
@@ -384,7 +373,7 @@ class SqlLoweringTest {
             listOf(
                 "13 SCH2105 field 'R.map': map contents are not typed by Postgres; lowered to jsonb",
                 "15 SCH2110 field 'R.flat': strategy 'json' is not allowed for a scalar",
-                "25 SCH2106 record 'N' has no primary key and is not used by any field",
+                "25 SCH2106 model 'N' has no primary key and is not used by any field",
             ),
             messages(lowered),
         )
@@ -400,23 +389,9 @@ class SqlLoweringTest {
         val specs = SqlTarget.annotationSpecs
         assertTrue(specs.all { it.target == "sql" })
         assertEquals(
-            listOf(
-                "column",
-                "index",
-                "key",
-                "key",
-                "schema",
-                "strategy",
-                "table",
-                "type",
-                "unique",
-            ),
+            listOf("column", "schema", "strategy", "table", "type"),
             specs.map { it.key }.sorted(),
         )
-        val keyOnField = specs.single { it.key == "key" && Element.FIELD in it.elements }
-        val keyOnRecord = specs.single { it.key == "key" && Element.RECORD in it.elements }
-        assertEquals(ValueKind.FLAG, keyOnField.valueKind)
-        assertEquals(ValueKind.NAME_TUPLE, keyOnRecord.valueKind)
     }
 
     @Test
@@ -425,30 +400,10 @@ class SqlLoweringTest {
             record(
                 "a",
                 "Account",
-                field(
-                    1,
-                    "tenant",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-                field(
-                    2,
-                    "email",
-                    Scalar(Builtin.STRING),
-                    annotations = sql("unique" to AnnotationValue.Flag),
-                ),
-                field(
-                    3,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-                field(
-                    4,
-                    "created",
-                    Scalar(Builtin.INSTANT),
-                    annotations = sql("index" to AnnotationValue.Flag),
-                ),
+                field(1, "tenant", Scalar(Builtin.UUID), key = true),
+                field(2, "email", Scalar(Builtin.STRING), unique = true),
+                field(3, "id", Scalar(Builtin.UUID), key = true),
+                field(4, "created", Scalar(Builtin.INSTANT), index = true),
             )
         val lowered = lower(namespace("a", r))
         assertEquals(emptyList(), messages(lowered))
@@ -459,7 +414,41 @@ class SqlLoweringTest {
     }
 
     @Test
-    fun `a record key names columns in its own order and must name fields`() {
+    fun `the language's key unique and index flags lower like the sql annotations`() {
+        val r =
+            record(
+                "a",
+                "Account",
+                field(1, "tenant", Scalar(Builtin.UUID)).copy(key = true),
+                field(2, "email", Scalar(Builtin.STRING)).copy(unique = true),
+                field(3, "id", Scalar(Builtin.UUID)).copy(key = true),
+                field(4, "created", Scalar(Builtin.INSTANT)).copy(index = true),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "account")
+        assertEquals(listOf("tenant", "id"), t.primaryKey)
+        assertEquals(listOf(Unique("uq_account_email", listOf("email"))), t.uniques)
+        assertEquals(listOf(Index("ix_account_created", listOf("created"))), t.indexes)
+    }
+
+    @Test
+    fun `a model key orders the primary key`() {
+        val r =
+            record(
+                    "a",
+                    "Plan",
+                    field(1, "tenant_id", Scalar(Builtin.UUID)).copy(key = true),
+                    field(2, "code", Scalar(Builtin.STRING)),
+                )
+                .copy(compositeKey = listOf("code", "tenant_id"))
+        val lowered = lower(namespace("a", r))
+        assertEquals(listOf("code", "tenant_id"), table(lowered, "plan").primaryKey)
+        assertEquals(emptyList(), messages(lowered))
+    }
+
+    @Test
+    fun `a record key names columns in its own order`() {
         val plan =
             record(
                 "a",
@@ -471,39 +460,11 @@ class SqlLoweringTest {
                     Scalar(Builtin.STRING),
                     annotations = sql("column" to str("plan_code")),
                 ),
-                annotations = sql("key" to AnnotationValue.Names(listOf("code", "tenant_id"))),
+                compositeKey = listOf("code", "tenant_id"),
             )
-        val bad =
-            record(
-                "a",
-                "Bad",
-                field(1, "x", Scalar(Builtin.BOOL)),
-                line = 8,
-                annotations = sql("key" to AnnotationValue.Names(listOf("x", "nope"))),
-            )
-        val both =
-            record(
-                "a",
-                "Both",
-                field(
-                    1,
-                    "x",
-                    Scalar(Builtin.BOOL),
-                    line = 12,
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-                line = 11,
-                annotations = sql("key" to AnnotationValue.Names(listOf("x"))),
-            )
-        val lowered = lower(namespace("a", plan, bad, both))
+        val lowered = lower(namespace("a", plan))
         assertEquals(listOf("plan_code", "tenant_id"), table(lowered, "plan").primaryKey)
-        assertEquals(
-            listOf(
-                "8 SCH2107 record 'Bad': @sql(key) names 'nope', which is not a field of the record",
-                "11 SCH2107 record 'Both' declares @sql(key) on both the record and its fields",
-            ),
-            messages(lowered),
-        )
+        assertEquals(emptyList(), messages(lowered))
     }
 
     @Test
@@ -511,7 +472,7 @@ class SqlLoweringTest {
         val lowered =
             lower(namespace("a", record("a", "Loose", field(1, "x", Scalar(Builtin.BOOL)))))
         assertEquals(
-            listOf("3 SCH2106 record 'Loose' has no primary key and is not used by any field"),
+            listOf("3 SCH2106 model 'Loose' has no primary key and is not used by any field"),
             messages(lowered),
         )
         assertEquals(emptyList(), lowered.model.schemas.single().tables)
@@ -525,18 +486,8 @@ class SqlLoweringTest {
             record(
                 "a",
                 "User",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-                field(
-                    2,
-                    long,
-                    Scalar(Builtin.INT32, Refinements(min = big(0))),
-                    annotations = sql("unique" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, long, Scalar(Builtin.INT32, Refinements(min = big(0))), unique = true),
             )
         val lowered = lower(namespace("a", r))
         val t = table(lowered, "user")
@@ -560,17 +511,7 @@ class SqlLoweringTest {
     @Test
     fun `long table names truncate the table and its pk name`() {
         val name = "A" + "b".repeat(69)
-        val r =
-            record(
-                "a",
-                name,
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-            )
+        val r = record("a", name, field(1, "id", Scalar(Builtin.UUID), key = true))
         val lowered = lower(namespace("a", r))
         val t = lowered.model.schemas.single().tables.single()
         val raw = "a" + "b".repeat(69)
@@ -591,36 +532,34 @@ class SqlLoweringTest {
 
     @Test
     fun `derived relation names collide across tables`() {
-        val key = sql("key" to AnnotationValue.Flag)
-        val unique = sql("unique" to AnnotationValue.Flag)
         val order =
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key),
-                field(2, "line_id", Scalar(Builtin.UUID), annotations = unique),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "line_id", Scalar(Builtin.UUID), unique = true),
                 line = 10,
             )
         val orderLine =
             record(
                 "a",
                 "OrderLine",
-                field(1, "order_id", Scalar(Builtin.UUID), line = 21, annotations = key),
-                field(2, "id", Scalar(Builtin.UUID), line = 22, annotations = unique),
+                field(1, "order_id", Scalar(Builtin.UUID), line = 21, key = true),
+                field(2, "id", Scalar(Builtin.UUID), line = 22, unique = true),
                 line = 20,
             )
         val pkFoo =
             record(
                 "a",
                 "PkFoo",
-                field(1, "id", Scalar(Builtin.UUID), line = 31, annotations = key),
+                field(1, "id", Scalar(Builtin.UUID), line = 31, key = true),
                 line = 30,
             )
         val foo =
             record(
                 "a",
                 "Foo",
-                field(1, "id", Scalar(Builtin.UUID), line = 41, annotations = key),
+                field(1, "id", Scalar(Builtin.UUID), line = 41, key = true),
                 line = 40,
             )
         val lowered = lower(namespace("a", order, orderLine, pkFoo, foo))
@@ -639,17 +578,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "K",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations =
-                        sql(
-                            "key" to AnnotationValue.Flag,
-                            "unique" to AnnotationValue.Flag,
-                            "index" to AnnotationValue.Flag,
-                        ),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true, unique = true, index = true),
             )
         val lowered = lower(namespace("a", r))
         val t = table(lowered, "k")
@@ -658,8 +587,8 @@ class SqlLoweringTest {
         assertEquals(emptyList(), t.indexes)
         assertEquals(
             listOf(
-                "11 SCH2113 field 'K.id': @sql(unique) duplicates the primary key; dropped",
-                "11 SCH2113 field 'K.id': @sql(index) duplicates the primary key; dropped",
+                "11 SCH2113 field 'K.id': { unique } duplicates the primary key; dropped",
+                "11 SCH2113 field 'K.id': { index } duplicates the primary key; dropped",
             ),
             messages(lowered),
         )
@@ -684,12 +613,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "s", Scalar(Builtin.STRING, Refinements(max = big(0)))),
                 field(3, "t", Scalar(Builtin.STRING, Refinements(max = big(20_000_000)))),
                 field(4, "d", Scalar(Builtin.DECIMAL, Refinements(precision = 1001, scale = 0))),
@@ -723,62 +647,12 @@ class SqlLoweringTest {
     }
 
     @Test
-    fun `key fields must be distinct and not nullable`() {
-        val dup =
-            record(
-                "a",
-                "Dup",
-                field(1, "a", Scalar(Builtin.UUID)),
-                field(2, "b", Scalar(Builtin.UUID)),
-                annotations = sql("key" to AnnotationValue.Names(listOf("a", "b", "a", "b", "a"))),
-            )
-        val opt =
-            record(
-                "a",
-                "Opt",
-                field(
-                    1,
-                    "x",
-                    Scalar(Builtin.UUID),
-                    nullable = true,
-                    line = 21,
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
-                line = 20,
-            )
-        val optRecord =
-            record(
-                "a",
-                "OptRecord",
-                field(1, "y", Scalar(Builtin.UUID), nullable = true, line = 31),
-                line = 30,
-                annotations = sql("key" to AnnotationValue.Names(listOf("y"))),
-            )
-        val lowered = lower(namespace("a", dup, opt, optRecord))
-        assertEquals(listOf("a", "b"), table(lowered, "dup").primaryKey)
-        assertEquals(
-            listOf(
-                "3 SCH2107 record 'Dup': @sql(key) names 'a' more than once",
-                "3 SCH2107 record 'Dup': @sql(key) names 'b' more than once",
-                "21 SCH2107 record 'Opt': key field 'x' is nullable",
-                "31 SCH2107 record 'OptRecord': key field 'y' is nullable",
-            ),
-            messages(lowered),
-        )
-    }
-
-    @Test
     fun `final names collide across overrides`() {
         val a =
             record(
                 "a",
                 "A",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 line = 3,
                 annotations = sql("table" to str("same")),
             )
@@ -786,12 +660,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "B",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 line = 6,
                 annotations = sql("table" to str("same")),
             )
@@ -799,13 +668,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "C",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    line = 10,
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), line = 10, key = true),
                 field(2, "x", Scalar(Builtin.BOOL), line = 11),
                 field(
                     3,
@@ -823,8 +686,8 @@ class SqlLoweringTest {
             )
         assertEquals(
             listOf(
-                "1 SCH2102 namespaces a and b.x both lower to schema 'a'",
-                "6 SCH2101 records A and B both lower to table 'same'",
+                "1 SCH2102 schemas a and b.x both lower to Postgres schema 'a'",
+                "6 SCH2101 models A and B both lower to table 'same'",
                 "12 SCH2111 field 'C.y' lowers to column 'x', already used by field 'C.x' (o.schemata:11)",
             ),
             messages(lowered),
@@ -833,7 +696,6 @@ class SqlLoweringTest {
 
     @Test
     fun `a key with an unsupported pattern types every column that copies it like its own`() {
-        val key = sql("key" to AnnotationValue.Flag)
         val line = record("a", "Line", field(1, "qty", Scalar(Builtin.INT32)), line = 20)
         val code =
             record(
@@ -843,7 +705,7 @@ class SqlLoweringTest {
                     1,
                     "code",
                     Scalar(Builtin.STRING, Refinements(max = big(10), pattern = "\\bx")),
-                    annotations = key,
+                    key = true,
                 ),
                 field(2, "lines", ListOf(Ref(qn("a", "Line")), false)),
             )
@@ -851,7 +713,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "Holder",
-                field(1, "id", Scalar(Builtin.UUID), line = 41, annotations = key),
+                field(1, "id", Scalar(Builtin.UUID), line = 41, key = true),
                 field(2, "code", Ref(qn("a", "Code")), line = 42),
                 field(3, "codes", ListOf(Ref(qn("a", "Code")), false), line = 43),
                 line = 40,
@@ -886,12 +748,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "x", Scalar(Builtin.BOOL), annotations = sql("column" to str(""))),
             )
         val lowered = lower(namespace("a", r))
@@ -905,12 +762,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "R",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "x", Scalar(Builtin.STRING, Refinements(max = big(5), pattern = "\\bx"))),
             )
         val lowered = lower(namespace("a", r))
@@ -926,12 +778,7 @@ class SqlLoweringTest {
             record(
                 "a",
                 "OrderLine",
-                field(
-                    1,
-                    "id",
-                    Scalar(Builtin.UUID),
-                    annotations = sql("key" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 annotations = sql("table" to str("")),
             )
         val lowered = lower(namespace("a", r))

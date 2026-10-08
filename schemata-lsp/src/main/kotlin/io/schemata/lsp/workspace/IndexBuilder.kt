@@ -1,5 +1,6 @@
 package io.schemata.lsp.workspace
 
+import io.schemata.core.Hoisting
 import io.schemata.core.IndexedDecl
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
@@ -26,6 +27,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
     private val sites = mutableListOf<Site>()
     private val builtins = mutableListOf<BuiltinSite>()
     private val declarations = linkedMapOf<QualifiedName, DeclaredAt>()
+    private val hoistedNames = mutableSetOf<QualifiedName>()
     private val services = linkedMapOf<QualifiedName, ServiceAt>()
     private val typeAt: Map<Span, IndexedDecl> = recorded.types.toMap()
 
@@ -43,7 +45,8 @@ class IndexBuilder private constructor(recorded: Recorded) {
         }
     }
 
-    private fun file(file: SourceFile) {
+    private fun file(source: SourceFile) {
+        val file = hoisted(source)
         val namespace = file.namespace.name
         sites += Site(file.namespace.nameSpan, Symbol.Namespace(namespace), definition = true)
         file.imports.forEach { import ->
@@ -81,11 +84,22 @@ class IndexBuilder private constructor(recorded: Recorded) {
         sites += Site(decl.nameSpan, Symbol.Declaration(name), definition = true)
         when (decl) {
             is RecordDecl -> {
-                decl.fields.forEach { field ->
-                    sites += Site(field.nameSpan, Symbol.Field(name, field.name), true)
-                    builtinsIn(field.type)
-                    enumDefault(field)
-                }
+                decl.fields
+                    .filterNot { it.synthetic() }
+                    .forEach { field ->
+                        sites += Site(field.nameSpan, Symbol.Field(name, field.name), true)
+                        builtinsIn(field.type)
+                        enumDefault(field)
+                        backReference(field)
+                        val inline = field.type.inlineShape ?: field.type.inlineEnum
+                        // An inline type is the nested declaration that has its opening `{` or
+                        // `enum` for a name span; a declared one that merely shares the name does
+                        // not.
+                        if (inline != null && decl.nested.any { it.nameSpan == inline.nameSpan }) {
+                            hoistedNames +=
+                                QualifiedName(namespace, parent + decl.name + inline.name)
+                        }
+                    }
                 tupleNames(decl, name)
                 decl.nested.forEach { declaration(file, namespace, parent + decl.name, it) }
             }
@@ -95,6 +109,25 @@ class IndexBuilder private constructor(recorded: Recorded) {
                 }
             is UnionDecl -> decl.members.forEach { builtinsIn(it.type) }
             is AliasDecl -> builtinsIn(decl.type)
+        }
+    }
+
+    /**
+     * The forward field a back-reference names, `@relation(customer)`, is a field of the model the
+     * back-reference's own type refers to.
+     */
+    private fun backReference(field: FieldDecl) {
+        val relation =
+            field.annotations.firstOrNull { it.name == "relation" && !it.block } ?: return
+        val named =
+            (relation.args.firstOrNull() as? AnnotationArg.Positional)?.value
+                as? AnnotationValue.Lit
+        val literal = named?.literal as? Literal.NameLit ?: return
+        val target = typeAt[field.type.nameSegments.lastOrNull() ?: return] ?: return
+        val record = target.decl as? RecordDecl ?: return
+        if (record.fields.any { it.name == literal.name }) {
+            val owner = target.qualifiedName
+            sites += Site(literal.span, Symbol.Field(owner, literal.name), definition = false)
         }
     }
 
@@ -125,26 +158,47 @@ class IndexBuilder private constructor(recorded: Recorded) {
         }
     }
 
-    /** `@sql(unique = (a, b))` on a record: each name that is one of its fields refers to it. */
+    /**
+     * Field names a record's attributes list: `@@id(a, b)`, `@@unique(a, b)`, and `@@index(a, b)`
+     * name them bare, and an attribute value written as a parenthesised tuple, `key: (a, b)`, names
+     * them in parentheses; each name that is one of the record's fields refers to it.
+     */
     private fun tupleNames(record: RecordDecl, owner: QualifiedName) {
         val fields = record.fields.map { it.name }.toSet()
-        record.annotations
-            .flatMap { it.args }
-            .map {
-                when (it) {
-                    is AnnotationArg.Named -> it.value
-                    is AnnotationArg.Positional -> it.value
+        record.annotations.forEach { annotation ->
+            annotation.args
+                .map {
+                    when (it) {
+                        is AnnotationArg.Named -> it.value
+                        is AnnotationArg.Positional -> it.value
+                    }
                 }
-            }
-            .filterIsInstance<AnnotationValue.Tuple>()
-            .forEach { tuple ->
-                tuple.names.zip(tuple.nameSpans).forEach { (name, span) ->
-                    if (name in fields) sites += Site(span, Symbol.Field(owner, name), false)
+                .forEach { value ->
+                    val names =
+                        when (value) {
+                            is AnnotationValue.Tuple -> value.names.zip(value.nameSpans)
+                            is AnnotationValue.Lit ->
+                                (value.literal as? Literal.NameLit)
+                                    ?.takeIf { annotation.block && annotation.name in fieldLists }
+                                    ?.let { listOf(it.name to it.span) }
+                                    .orEmpty()
+                        }
+                    names.forEach { (name, span) ->
+                        if (name in fields) sites += Site(span, Symbol.Field(owner, name), false)
+                    }
                 }
-            }
+        }
     }
 
+    /** The block attributes whose bare names are fields of their model. */
+    private val fieldLists = setOf("id", "unique", "index")
+
     companion object {
+        /**
+         * [file] as the analyzer sees it: inline enums and shapes are declarations of their own.
+         */
+        internal fun hoisted(file: SourceFile): SourceFile = Hoisting.apply(file) {}
+
         fun build(files: List<SourceFile>, recorded: Recorded): ReferenceIndex {
             val builder = IndexBuilder(recorded)
             files.sortedBy { it.path }.forEach(builder::file)
@@ -153,6 +207,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
                 builder.builtins,
                 builder.declarations,
                 builder.services,
+                builder.hoistedNames,
             )
         }
     }

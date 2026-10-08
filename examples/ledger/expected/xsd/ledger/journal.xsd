@@ -77,7 +77,7 @@
   </xs:complexType>
   <xs:complexType name="EntryLineType">
     <xs:sequence>
-      <xs:element name="account" type="ns1:AccountType"/>
+      <xs:element name="account" type="ns1:AccountKeyType"/>
       <xs:element name="amount">
         <xs:simpleType>
           <xs:restriction base="xs:decimal">

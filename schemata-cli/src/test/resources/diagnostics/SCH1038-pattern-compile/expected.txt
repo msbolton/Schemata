@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH1038]: pattern does not compile: Unclosed group
- --> s.schemata:2:25
+error[SCH1038]: match does not compile: Unclosed group
+ --> s.schemata:3:25
   = help: fix the regular expression; Postgres and Java must both accept it, so keep to the shared subset
 
 1 error, 0 warnings

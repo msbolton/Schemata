@@ -1,8 +1,3 @@
-@proto(package = "s.v1")
-@xsd(namespace = "urn:example:s1")
-@jsonschema(id = "https://example.com/schemas/s1")
-namespace s
+schema s @proto(package: "s.v1") @xsd(namespace: "urn:example:s1") @jsonschema(id: "https://example.com/schemas/s1")
 
-record Customer {
-  @sql(key) #1 id: uuid
-}
+model Customer { #1 id uuid { id } }

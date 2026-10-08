@@ -7,7 +7,7 @@ warning[SCH2405] (lossy): element 'voucher': substitution member with an inline 
  --> s.xsd:4:1
   = help: add the missing part by hand; Schemata cannot express it
 
-warning[SCH2403] (lossy): element 'voucher': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the record
+warning[SCH2403] (lossy): element 'voucher': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the model
  --> s.xsd:7:1
   = help: review the imported declaration; the regenerated schema will differ here
 

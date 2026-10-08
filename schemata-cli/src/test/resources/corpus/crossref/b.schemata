@@ -1,4 +1,15 @@
-namespace x.beta
+schema x.beta
 
-@xsd(name = "Beta")
-record B { @sql(key) #1 id: uuid }
+model B {
+  #1 id uuid { id }
+
+  @@xsd(name: "Beta")
+}
+
+model Note {
+  #1 text string
+
+  @@xsd(name: "Memo")
+  @@jsonschema(name: "Memo")
+  @@proto(name: "Memo")
+}

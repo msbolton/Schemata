@@ -1,4 +1,4 @@
-SCH2402 gpx.xsd: namespace 'gpx' was derived from the file name
+SCH2402 gpx.xsd: schema name 'gpx' was derived from the file name
 SCH2405 attribute 'version': fixed value imported as a default
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'magvar': decimal without totalDigits and fractionDigits imported as decimal(38, 9)

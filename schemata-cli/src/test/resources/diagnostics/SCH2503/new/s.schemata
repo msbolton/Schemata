@@ -1,2 +1,2 @@
-namespace s
-record R { #1 x: }
+schema s
+model R { #1 x }

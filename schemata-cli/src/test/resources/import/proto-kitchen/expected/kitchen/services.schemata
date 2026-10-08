@@ -1,9 +1,9 @@
-namespace kitchen.services
+schema kitchen.services
 
 import kitchen.maps
 import kitchen.enums
 
-record Request { #1 item: kitchen.maps.Item }
+model Request { #1 item kitchen.maps.Item }
 
 /// The ordering API.
 service Orders {
@@ -12,6 +12,6 @@ service Orders {
   /// Forget an item.
   @deprecated #5 forget(kitchen.maps.Item)  delete "/items/{name}"
   #4 submit(Request): kitchen.maps.Item
-  @proto(name = "GetURL") #7 get_url(Request): Request
+  @proto(name: "GetURL") #7 get_url(Request): Request
   reserved #6, "archive"
 }

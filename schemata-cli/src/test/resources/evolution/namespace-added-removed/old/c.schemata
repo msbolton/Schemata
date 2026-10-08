@@ -1,8 +1,5 @@
-namespace c
+schema c
 
 import a
 
-record Ticket {
-  @sql(key) #1 id: uuid
-  #2 customer: Customer
-}
+model Ticket { #1 id uuid { id }  #2 customer Customer }

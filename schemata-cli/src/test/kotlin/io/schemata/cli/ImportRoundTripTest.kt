@@ -66,19 +66,16 @@ class ImportRoundTripTest {
     fun `all records and list fields round trip`() {
         val source =
             """
-            namespace shop
+            schema shop
 
-            @xsd(all)
-            record Cfg {
-              a: int32
-              b: string?
-              @xsd(list)
-              tags: list<string>
-              @xsd(list)
-              @xsd(attribute)
-              sizes: list<int32>(min = 1, max = 4)?
-              @xsd(list)
-              kinds: list<Kind>?
+            model Cfg {
+              a     int32
+              b     string?
+              tags  string[] @xsd(list)
+              sizes int32[]? { minItems 1, maxItems 4 } @xsd(list) @xsd(attribute)
+              kinds Kind[]?  @xsd(list)
+
+              @@xsd(all)
             }
 
             enum Kind { small large }

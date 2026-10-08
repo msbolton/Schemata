@@ -1,4 +1,7 @@
-namespace s
-record A { #1 b: B }
-record B { #1 a: A }
-record R { @sql(key) #1 id: int32  #2 a: A }
+schema s
+
+model A { #1 b B }
+
+model B { #1 a A }
+
+model R { #1 id int32 { id }  #2 a A }

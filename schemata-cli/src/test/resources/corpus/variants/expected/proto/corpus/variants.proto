@@ -16,7 +16,7 @@ enum Status {
 }
 
 message Card {
-  string last4 = 1;  // schemata: string(max = 4)
+  string last4 = 1;  // schemata: string { max 4 }
 }
 
 message Cash {}
@@ -28,7 +28,7 @@ message Payment {
     Card card = 1;
     Cash cash = 2;
     string uuid = 3;  // schemata: uuid
-    string string = 4;  // schemata: string(max = 5)
+    string string = 4;  // schemata: string { max 5 }
   }
 }
 

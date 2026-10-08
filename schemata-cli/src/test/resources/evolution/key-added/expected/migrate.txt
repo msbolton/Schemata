@@ -1,0 +1,34 @@
+s.sql
+  drop column "order"."customer_id"    destructive
+  create table "customer"    clean
+  add column "order"."customer_id"    clean
+  add constraint "order"."fk_order_customer"    clean
+  drop column "order"."customer_name"    destructive
+  set not null "order"."customer_id"    may fail
+
+6 steps in 1 file
+2 destructive, 1 may fail
+
+warning[SCH2702] (lossy): s.Order.customer: SET NOT NULL on "customer_id" fails when a row holds NULL
+ --> new/s.schemata:8:37
+  |
+8 | model Order { #1 id uuid { id }  #2 customer Customer }
+  |                                     ^^^^^^^^
+  = help: run UPDATE "s"."order" SET "customer_id" = … WHERE "customer_id" IS NULL before applying
+
+warning[SCH2701] (lossy): s.Order.customer.id: DROP COLUMN "customer_id" loses every value the column holds
+ --> old/s.schemata:4:6
+  |
+4 |   #1 id   uuid
+  |      ^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+warning[SCH2701] (lossy): s.Order.customer.name: DROP COLUMN "customer_name" loses every value the column holds
+ --> old/s.schemata:5:6
+  |
+5 |   #2 name string { max 100 }
+  |      ^^^^
+  = help: move the data into "order"."customer_id" between this statement and the one that creates
+          it, then rerun with --allow-destructive
+
+0 errors, 3 warnings

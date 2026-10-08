@@ -430,7 +430,7 @@ class XsdImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 element 'counts': map wrapper without xs:unique imported as a nested record"
+                "SCH2403 element 'counts': map wrapper without xs:unique imported as a nested model"
             ),
             messages(imported),
         )
@@ -648,7 +648,7 @@ class XsdImportTest {
             </xs:schema>
             """
             )
-        // gpxType has no global element at all here, so Gpx also gets @xsd(root = false); the
+        // gpxType has no global element at all here, so Gpx also gets @xsd(root: false); the
         // interesting annotation is the name override, and its value is the bare remainder "gpx"
         // (not "Gpx"), since that's what regenerates "gpxType" exactly (and "gpx" unmodified, not
         // snake-cased, for the element too).
@@ -1021,11 +1021,11 @@ class XsdImportTest {
                 "SCH2403 union 'Payment': member element 'creditCard' has no Schemata equivalent; " +
                     "the regenerated element will be named 'card'",
                 "SCH2403 union 'Payment': members 'cash' and 'coins' share type 'Cash'; each " +
-                    "imported as a record holding it",
+                    "imported as a model holding it",
                 "SCH2403 union 'Payment': member element 'cash' has no Schemata equivalent; the " +
                     "regenerated element will be named 'cash2'",
                 "SCH2403 union 'Payment': members 'cash' and 'coins' share type 'Cash'; each " +
-                    "imported as a record holding it",
+                    "imported as a model holding it",
             ),
             messages(imported),
         )
@@ -1157,7 +1157,7 @@ class XsdImportTest {
         assertEquals(
             listOf(
                 "SCH2403 complex type 'SequenceRuleType': simpleContent extension of 'RuleType' " +
-                    "has no Schemata equivalent; imported as a record with a 'value' field",
+                    "has no Schemata equivalent; imported as a model with a 'value' field",
                 "SCH2404 element 'rule': facet maxLength dropped",
             ),
             messages(imported),
@@ -1232,7 +1232,7 @@ class XsdImportTest {
         assertEquals(
             listOf(
                 "SCH2403 complex type 'AmountType': simpleContent extension of 'AmountType' has " +
-                    "no Schemata equivalent; imported as a record with a 'value' field",
+                    "no Schemata equivalent; imported as a model with a 'value' field",
                 "SCH2403 complex type 'AmountType': decimal without totalDigits and " +
                     "fractionDigits imported as decimal(38, 9)",
             ),
@@ -1280,7 +1280,7 @@ class XsdImportTest {
                     "lower to field 'title'; the attribute is imported as 'title_attribute' and " +
                     "the regenerated attribute will be named so",
                 "SCH2403 complex type 'GridType': extension of 'BaseType' has no Schemata " +
-                    "equivalent; base fields flattened into the record",
+                    "equivalent; base fields flattened into the model",
                 "SCH2403 complex type 'GridType': attribute 'axisLabels' and element " +
                     "'axisLabels' both lower to field 'axis_labels'; the attribute is imported " +
                     "as 'axis_labels_attribute' and the regenerated attribute will be named so",
@@ -1379,7 +1379,7 @@ class XsdImportTest {
                 "SCH2403 element 'secondParameter': the regenerated root element will be named " +
                     "'second_parameter'",
                 "SCH2403 element 'SecondParameter': element 'secondParameter' already lowers to " +
-                    "record 'SecondParameter'; imported as 'SecondParameter2'",
+                    "model 'SecondParameter'; imported as 'SecondParameter2'",
                 "SCH2403 element 'SecondParameter': the regenerated root element will be named " +
                     "'second_parameter2'",
             ),
@@ -1655,9 +1655,9 @@ class XsdImportTest {
         assertEquals(
             listOf(
                 "SCH2403 complex type 'DerivedType': extension of 'BaseType' has no Schemata " +
-                    "equivalent; base fields flattened into the record",
+                    "equivalent; base fields flattened into the model",
                 "SCH2403 complex type 'ValueType': simpleContent extension of 'int' has no " +
-                    "Schemata equivalent; imported as a record with a 'value' field",
+                    "Schemata equivalent; imported as a model with a 'value' field",
             ),
             messages(imported),
         )
@@ -2014,7 +2014,7 @@ class XsdImportTest {
         assertEquals(listOf("id", "g"), record(imported, "Thing").fields.map { it.name })
         assertEquals(
             listOf(
-                "SCH2403 complex type 'ThingType': repeated group 'g' imported as record 'G' in " +
+                "SCH2403 complex type 'ThingType': repeated group 'g' imported as model 'G' in " +
                     "field 'g'"
             ),
             messages(imported),
@@ -2458,7 +2458,7 @@ class XsdImportTest {
         assertEquals(
             listOf(
                 "SCH2403 complex type 'MidType': extension of 'RootType' has no Schemata " +
-                    "equivalent; base fields flattened into the record",
+                    "equivalent; base fields flattened into the model",
                 "SCH2403 complex type 'LeafType': restriction of 'MidType' has no Schemata " +
                     "equivalent; its own content is used",
             ),
@@ -2687,10 +2687,10 @@ class XsdImportTest {
                 .associate { it.message to (it.span.file to it.span.startLine) }
         assertEquals(
             mapOf(
-                "complex type 'DerivedType': nested sequence imported as record 'XGroup' in " +
+                "complex type 'DerivedType': nested sequence imported as model 'XGroup' in " +
                     "field 'x_group'" to ("a.xsd" to 4),
                 "complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; " +
-                    "base fields flattened into the record" to ("b.xsd" to 6),
+                    "base fields flattened into the model" to ("b.xsd" to 6),
             ),
             spans,
         )
@@ -2749,11 +2749,11 @@ class XsdImportTest {
         assertEquals(
             listOf(
                 "SCH2403 complex type 'ExtType': simpleContent extension of 'BaseType' has no " +
-                    "Schemata equivalent; imported as a record with a 'value' field",
+                    "Schemata equivalent; imported as a model with a 'value' field",
                 "SCH2403 complex type 'ExtType': simpleContent extension of complex type " +
                     "'BaseType' imported as string",
                 "SCH2403 complex type 'ResType': simpleContent restriction of 'BaseType' has no " +
-                    "Schemata equivalent; imported as a record with a 'value' field",
+                    "Schemata equivalent; imported as a model with a 'value' field",
                 "SCH2403 complex type 'ResType': simpleContent restriction of complex type " +
                     "'BaseType' imported as string",
             ),

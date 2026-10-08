@@ -1,3 +1,3 @@
-namespace audit
+schema audit
 
-record Event { @sql(key) id: int64 at: instant }
+model Event { id int64 { id }  at instant }

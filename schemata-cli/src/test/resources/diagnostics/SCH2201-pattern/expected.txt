@@ -1,6 +1,6 @@
 # targets=xsd
 warning[SCH2201] (lossy) (xsd): field 'R.x': pattern uses (?, which XSD 1.0 cannot express; dropped
- --> s.schemata:2:12
+ --> s.schemata:3:11
   = help: rewrite the pattern without (?, or enforce it in application code
 
 0 errors, 1 warning

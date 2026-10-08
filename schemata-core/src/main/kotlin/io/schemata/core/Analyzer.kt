@@ -11,6 +11,7 @@ import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Reserved
+import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
@@ -21,11 +22,16 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
+import io.schemata.lang.ast.Annotation
+import io.schemata.lang.ast.AnnotationArg
+import io.schemata.lang.ast.AnnotationValue as AstValue
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.UnionDecl
+import io.schemata.lang.ast.UnionMemberDecl
 import io.schemata.lang.hasErrors
 
 /** [schema] is null exactly when [diagnostics] contains an error. */
@@ -51,15 +57,29 @@ object Analyzer {
         options: AnalysisOptions = AnalysisOptions.DEFAULT,
     ): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
-        val sorted = files.sortedBy { it.path }
+        val topLevel =
+            files
+                .groupBy { it.namespace.name }
+                .mapValues { (_, group) -> group.flatMap { f -> f.declarations.map { it.name } } }
+        val sorted =
+            files
+                .sortedBy { it.path }
+                .map {
+                    Hoisting.apply(it, topLevel.getValue(it.namespace.name).toSet()) { d ->
+                        diagnostics += d
+                    }
+                }
         val index = DeclarationIndex(sorted, diagnostics)
         val resolver = Resolver(index, sorted, diagnostics, options.references)
         val annotations = AnnotationChecker(options.annotations, diagnostics)
         val groups = sorted.groupBy { it.namespace.name }.toSortedMap()
-        val lowered =
+        val declared =
             groups.map { (name, group) ->
                 analyzeNamespace(name, group, index, resolver, annotations, options, diagnostics)
             }
+        // relations after every namespace's declarations: a back-reference is judged against the
+        // model it references, wherever that is declared
+        val lowered = Relations.analyze(Schema(declared)) { diagnostics += it }.namespaces
         // services after every namespace's declarations: a payload may name another namespace's
         // record, and a path parameter is judged by its field's lowered type
         val declarations =
@@ -109,7 +129,7 @@ object Analyzer {
                 diagnostics +=
                     error(
                         CoreCodes.NAMESPACE_SEGMENT_NAMING,
-                        "namespace segment '$segment' is reserved",
+                        "schema name segment '$segment' is reserved",
                         first.namespace.span,
                         help = "rename the segment, for example `${Suggest.lowerSnake(segment)}`",
                     )
@@ -118,7 +138,7 @@ object Analyzer {
                 diagnostics +=
                     error(
                         CoreCodes.NAMESPACE_SEGMENT_NAMING,
-                        "namespace segment '$segment' must be lower_snake",
+                        "schema name segment '$segment' must be lower_snake",
                         first.namespace.span,
                         help =
                             "write the segment in lower_snake" +
@@ -189,6 +209,7 @@ object Analyzer {
                     decl,
                     qualifiedName,
                     scope,
+                    index,
                     resolver,
                     annotations,
                     options,
@@ -215,17 +236,22 @@ object Analyzer {
         options: AnalysisOptions,
         diagnostics: MutableList<Diagnostic>,
     ): RecordType {
-        val recordAnnotations = annotations.check(record.annotations, Element.RECORD)
+        val (listAnnotations, tuned) =
+            record.annotations.partition { it.block && it.name in modelListNames }
+        val recordAnnotations = annotations.check(tuned, Element.RECORD)
         val inner = scope.copy(enclosing = scope.enclosing + record.name)
         val reserved = Ordinals.reserved(record.reserved, CoreCodes.FIELD_NAMING, diagnostics)
         val ordinals =
             Ordinals.assign(
-                "record",
+                "model",
                 "field",
                 record.name,
                 record.nameSpan,
                 record.fields.map {
-                    Ordinals.Element(it.ordinal, it.ordinalSpan, it.name, it.nameSpan)
+                    // an ordinal with no span is one Hoisting chose, never one that was written
+                    val written = it.ordinal.takeIf { _ -> it.ordinalSpan != null }
+                    val chosen = it.ordinal.takeIf { _ -> it.ordinalSpan == null }
+                    Ordinals.Element(written, it.ordinalSpan, it.name, it.nameSpan, chosen)
                 },
                 reserved,
                 options,
@@ -257,12 +283,17 @@ object Analyzer {
                     diagnostics +=
                         error(
                             CoreCodes.DUPLICATE_FIELD,
-                            "field '${field.name}' is declared more than once in record '${record.name}'",
+                            "field '${field.name}' is declared more than once in model '${record.name}'",
                             field.nameSpan,
                             help = "rename or remove one of the two fields",
                         )
                 }
-                val resolved = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
+                val written = resolver.resolve(field.type, inner) ?: return@mapIndexedNotNull null
+                // options bound the type before the default is judged against it
+                val (resolved, lowered) =
+                    Options.refine(field.options, field.type, written, { index.find(it)?.decl }) {
+                        diagnostics += it
+                    }
                 Field(
                     ordinal = ordinals[i],
                     name = field.name,
@@ -277,8 +308,13 @@ object Analyzer {
                     span = field.span,
                     nameSpan = field.nameSpan,
                     annotations = annotations.check(field.annotations, Element.FIELD),
+                    key = lowered.key,
+                    unique = lowered.unique,
+                    index = lowered.index,
                 )
             }
+        val lists = modelLists(record, listAnnotations, diagnostics)
+        keys(record, fields, lists.key, index, diagnostics)
         val nested =
             record.nested.mapNotNull {
                 analyzeDeclaration(it, inner, index, resolver, annotations, options, diagnostics)
@@ -294,7 +330,170 @@ object Analyzer {
             span = record.span,
             nameSpan = record.nameSpan,
             annotations = recordAnnotations,
+            compositeKey = lists.key,
+            uniques = lists.uniques,
+            indexes = lists.indexes,
         )
+    }
+
+    // `@@id`, `@@unique`, and `@@index` name a model's fields; they are language facts the
+    // analyzer reads itself, never annotations a target tunes, so the checker never sees them. A
+    // single-`@` `@id(...)` is not one of them and goes to the checker like any other annotation.
+    private val modelListNames = setOf("id", "unique", "index")
+
+    private class ModelLists(
+        val key: List<String>,
+        val uniques: List<List<String>>,
+        val indexes: List<List<String>>,
+    )
+
+    /**
+     * Reads `@@id(a, b)`, `@@unique(a, b)`, and `@@index(a, b)`: each names fields of the record,
+     * each field once. A record has at most one `@@id`; when it has one, it is the key, in its
+     * order, whatever `{ id }` its fields carry.
+     */
+    private fun modelLists(
+        record: RecordDecl,
+        written: List<Annotation>,
+        diagnostics: MutableList<Diagnostic>,
+    ): ModelLists {
+        var key = emptyList<String>()
+        var keyed = false
+        val uniques = mutableListOf<List<String>>()
+        val indexes = mutableListOf<List<String>>()
+        val declared = record.fields.map { it.name }.toSet()
+        for (annotation in written) {
+            val display = "@@${annotation.name}"
+            val example = "write `$display(a, b)` with the fields' names"
+            val names =
+                annotation.args.map { arg ->
+                    ((arg as? AnnotationArg.Positional)?.value as? AstValue.Lit)?.literal
+                        as? Literal.NameLit
+                }
+            if (names.isEmpty() || names.any { it == null }) {
+                diagnostics +=
+                    error(
+                        CoreCodes.ANNOTATION_VALUE,
+                        if (names.isEmpty()) "$display names no fields"
+                        else "$display takes field names",
+                        annotation.span,
+                        help = example,
+                    )
+                continue
+            }
+            val list = names.map { it!!.name }
+            var ok = true
+            names.filterNotNull().forEach { name ->
+                if (name.name !in declared) {
+                    diagnostics +=
+                        error(
+                            CoreCodes.ANNOTATION_VALUE,
+                            "$display names '${name.name}', which is not a field of model '${record.name}'",
+                            name.span,
+                            help = "name a declared field",
+                        )
+                    ok = false
+                }
+            }
+            list
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
+                .forEach {
+                    diagnostics +=
+                        error(
+                            CoreCodes.ANNOTATION_VALUE,
+                            "$display names '$it' more than once",
+                            annotation.span,
+                            help = "list each field once",
+                        )
+                    ok = false
+                }
+            if (!ok) continue
+            when (annotation.name) {
+                "id" ->
+                    if (keyed) {
+                        diagnostics +=
+                            error(
+                                CoreCodes.DUPLICATE_ANNOTATION,
+                                "@@id is given more than once",
+                                annotation.span,
+                                help = "keep one of them",
+                            )
+                    } else {
+                        key = list
+                        keyed = true
+                    }
+                "unique" -> uniques += list
+                "index" -> indexes += list
+            }
+        }
+        return ModelLists(key, uniques, indexes)
+    }
+
+    /**
+     * A key is one non-null scalar or enum value per field, whichever way it is written: `{ id }`
+     * is checked where the option is lowered, `@@id(…)` here against the fields it names. When a
+     * model writes `@@id(…)`, `{ id }` may sit on exactly the fields it names (repeating them) or
+     * on none, so the two spellings never disagree about which fields form the key.
+     */
+    private fun keys(
+        record: RecordDecl,
+        fields: List<Field>,
+        compositeKey: List<String>,
+        index: DeclarationIndex,
+        diagnostics: MutableList<Diagnostic>,
+    ) {
+        if (compositeKey.isEmpty()) return
+        val idSpan = record.annotations.first { it.block && it.name == "id" }.span
+        val display = "@@id(${compositeKey.joinToString(", ")})"
+        compositeKey.forEach { name ->
+            val field = fields.firstOrNull { it.name == name } ?: return@forEach
+            val type = field.type
+            val keyable =
+                type is Scalar || (type is Ref && index.find(type.target)?.decl is EnumDecl)
+            val problem =
+                when {
+                    !keyable -> "which is not a scalar or an enum"
+                    field.nullable -> "which is nullable"
+                    else -> null
+                }
+            if (problem != null)
+                diagnostics +=
+                    error(
+                        CoreCodes.ANNOTATION_VALUE,
+                        "$display names '$name', $problem; a key is one non-null scalar or enum value per field",
+                        idSpan,
+                        help = "name non-null scalar or enum fields only",
+                    )
+        }
+        val flagged = record.fields.filter { f -> f.options.any { it.name == "id" } }
+        if (flagged.isEmpty()) return
+        val flaggedNames = flagged.map { it.name }.toSet()
+        flagged
+            .filter { it.name !in compositeKey }
+            .forEach { field ->
+                diagnostics +=
+                    error(
+                        CoreCodes.OPTION_NOT_APPLICABLE,
+                        "field '${field.name}' has `{ id }`, but $display does not name it; the model's key is $display",
+                        field.options.first { it.name == "id" }.span,
+                        help = "remove `{ id }`, or name the field in @@id",
+                    )
+            }
+        compositeKey
+            .filter { it !in flaggedNames }
+            .mapNotNull { name -> record.fields.firstOrNull { it.name == name } }
+            .forEach { field ->
+                diagnostics +=
+                    error(
+                        CoreCodes.OPTION_NOT_APPLICABLE,
+                        "field '${field.name}' is in $display but has no `{ id }`, which other key fields carry",
+                        field.nameSpan,
+                        help = "write `{ id }` on every field $display names, or on none",
+                    )
+            }
     }
 
     private fun analyzeEnum(
@@ -384,6 +583,7 @@ object Analyzer {
         decl: UnionDecl,
         qualifiedName: QualifiedName,
         scope: Scope,
+        declarations: DeclarationIndex,
         resolver: Resolver,
         annotations: AnnotationChecker,
         options: AnalysisOptions,
@@ -406,7 +606,8 @@ object Analyzer {
         val seen = mutableSetOf<Type>()
         val members =
             decl.members.mapIndexedNotNull { index, member ->
-                val resolved = resolver.resolve(member.type, scope) ?: return@mapIndexedNotNull null
+                val written = resolver.resolve(member.type, scope) ?: return@mapIndexedNotNull null
+                val resolved = memberOptions(member, written, declarations, diagnostics)
                 val type = resolved.type
                 val ok =
                     when {
@@ -417,7 +618,7 @@ object Analyzer {
                                     "union member ${member.type.text()} must be a named type or a scalar",
                                     member.type.span,
                                     help =
-                                        "wrap the collection in a record, or drop the `?`; a union is absent through the field, not the member",
+                                        "wrap the collection in a model, or drop the `?`; a union is absent through the field, not the member",
                                 )
                             false
                         }
@@ -428,11 +629,12 @@ object Analyzer {
                                     "union '${decl.name}' may not contain itself",
                                     member.type.nameSpan,
                                     help =
-                                        "remove `${decl.name}` from its own members; wrap it in a record if the recursion is intended",
+                                        "remove `${decl.name}` from its own members; wrap it in a model if the recursion is intended",
                                 )
                             false
                         }
-                        !seen.add(type) -> {
+                        // `Customer` and `Customer { embed }` are one member written twice
+                        !seen.add(if (type is Ref) Ref(type.target) else type) -> {
                             diagnostics +=
                                 error(
                                     CoreCodes.DUPLICATE_UNION_MEMBER,
@@ -457,6 +659,36 @@ object Analyzer {
             decl.nameSpan,
             unionAnnotations,
         )
+    }
+
+    /**
+     * A union member's options bound its type as a field's options bound the field's, by the same
+     * table, and `{ embed }` copies a keyed model's record into the member as it does into a field.
+     * The other field flags (`id`, `unique`, `index`) speak of a field's column, which a member
+     * does not have, and are reported.
+     */
+    private fun memberOptions(
+        member: UnionMemberDecl,
+        resolved: Resolved,
+        declarations: DeclarationIndex,
+        diagnostics: MutableList<Diagnostic>,
+    ): Resolved {
+        if (member.options.isEmpty()) return resolved
+        val (flags, bounds) =
+            member.options.partition { it.name in Options.FIELD_FLAGS && it.name != "embed" }
+        flags.forEach {
+            diagnostics +=
+                error(
+                    CoreCodes.OPTION_NOT_APPLICABLE,
+                    "option '${it.name}' belongs to a field, not to a union member",
+                    it.span,
+                    help = "move it to the options of the field that uses the union",
+                )
+        }
+        return Options.refine(bounds, member.type, resolved, { declarations.find(it)?.decl }) {
+                diagnostics += it
+            }
+            .first
     }
 
     private fun error(code: DiagnosticCode, message: String, span: Span, help: String? = null) =

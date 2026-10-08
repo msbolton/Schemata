@@ -7,7 +7,7 @@ CREATE TABLE "contacts"."contact" (
   "age" integer,
   "kind" text NOT NULL DEFAULT 'personal',
   "born" date,
-  "tags" text[] NOT NULL,  -- schemata: list<string(max = 20)>
+  "tags" text[] NOT NULL,  -- schemata: string[] { max 20 }
   CONSTRAINT "pk_contact" PRIMARY KEY ("id"),
   CONSTRAINT "ck_contact_email_max" CHECK (char_length("email") <= 254),
   CONSTRAINT "ck_contact_email_pattern" CHECK ("email" ~ '^[^@]+@[^@]+$'),

@@ -1,5 +1,6 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
 import io.schemata.target.TargetModel
@@ -92,6 +93,11 @@ data class Unique(val name: String, val columns: List<String>)
 
 data class Index(val name: String, val columns: List<String>)
 
+/**
+ * [onDelete] is what deleting a target row does to the rows naming it: a reference's own
+ * `@relation(onDelete: …)`, and always [OnDelete.CASCADE] for a child table's key to its parent,
+ * whose rows belong to the parent row.
+ */
 data class ForeignKey(
     val name: String,
     val schema: String,
@@ -100,7 +106,7 @@ data class ForeignKey(
     val targetSchema: String,
     val targetTable: String,
     val targetColumns: List<String>,
-    val cascade: Boolean,
+    val onDelete: OnDelete,
 )
 
 /** One link of the field chain that produced a column or child table. */

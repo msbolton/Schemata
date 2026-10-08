@@ -21,6 +21,17 @@ class InstanceRules(
     private val removedDeclarationBreaks: (ChangeContext, TypeDecl) -> Boolean,
 ) : Rulebook {
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible
+        else ReferencedKeys.judge(target, change, ctx, judge(change, ctx))
+
+    /**
+     * The verdict on [change] itself, without what it does to the models that reference the model
+     * it touches: OpenAPI judges its components with this and weighs those models itself.
+     */
+    fun own(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible else judge(change, ctx)
+
+    private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is NamespaceAdded -> Verdict.Compatible
             is NamespaceRemoved -> namespaceRemoved(change, ctx)
@@ -83,14 +94,14 @@ class InstanceRules(
         return when {
             declarations.any { removedDeclarationBreaks(ctx, it) } ->
                 Verdict.Breaking(
-                    "${change.path}: the namespace was removed breaks documents validated " +
+                    "${change.path}: the schema was removed breaks documents validated " +
                         "against its declarations",
-                    "keep the namespace, or confirm nothing outside this schema still depends " +
+                    "keep the schema, or confirm nothing outside this schema still depends " +
                         "on it",
                 )
             declarations.isNotEmpty() ->
                 Verdict.Note(
-                    "${change.path}: the namespace was removed; none of its declarations was " +
+                    "${change.path}: the schema was removed; none of its declarations was " +
                         "reachable as a root element",
                     "confirm nothing outside this schema still depends on it",
                 )
@@ -114,7 +125,7 @@ class InstanceRules(
         return Verdict.Breaking(
             "${change.path}: the field was removed breaks old documents that still carry it",
             if (target == "xsd") "keep the field; an XSD document always carries every element"
-            else "keep the field, or mark the record @jsonschema(open)",
+            else "keep the field, or mark the model @jsonschema(open)",
         )
     }
 
@@ -125,7 +136,7 @@ class InstanceRules(
         return Verdict.Breaking(
             "${change.path}: the field was renamed from '$fromName' to '$toName' breaks old " +
                 "documents that still use the old name",
-            "pin the emitted name with @$target(name = \"$fromName\")",
+            "pin the emitted name with @$target(name: \"$fromName\")",
         )
     }
 
@@ -134,7 +145,7 @@ class InstanceRules(
 
     /**
      * Scalars widen by [TypeCompat.instanceWidening]; a reference is compatible only while it names
-     * the same declaration.
+     * the same declaration and is still either a key or an embedded copy.
      */
     private fun typeVerdict(ctx: ChangeContext) =
         StructuralTypeVerdict(
@@ -143,7 +154,12 @@ class InstanceRules(
             incompatible = "the new type cannot hold the old values",
             help = "add a new field instead of changing this one's type",
         ) { from, to ->
-            if (from.target == to.target) Verdict.Compatible
+            if (from.relation.embed != to.relation.embed)
+                Verdict.Breaking(
+                    "old documents: the reference changed between a key and an embedded model",
+                    "add a new field instead of flipping { embed } on this one",
+                )
+            else if (from.target == to.target) Verdict.Compatible
             else
                 Verdict.Breaking(
                     "old documents: the new type cannot hold the old values",
@@ -277,7 +293,7 @@ class InstanceRules(
         return Verdict.Breaking(
             "${change.path}: the emitted name changed from '$fromName' to '$toName' breaks old " +
                 "documents that still use the old name",
-            "pin the emitted name with @$target(name = \"$fromName\")",
+            "pin the emitted name with @$target(name: \"$fromName\")",
         )
     }
 
@@ -288,7 +304,7 @@ class InstanceRules(
         fromName: String,
         toName: String,
     ): Verdict {
-        val help = "pin the emitted name with @$target(name = \"$fromName\")"
+        val help = "pin the emitted name with @$target(name: \"$fromName\")"
         if (target != "xsd")
             return Verdict.Breaking(
                 "${change.path}: the emitted name changed from '$fromName' to '$toName' breaks " +
@@ -321,14 +337,14 @@ class InstanceRules(
         )
     }
 
-    /** `@xsd(root = false)` only matters when it takes away a root element OLD actually had. */
+    /** `@xsd(root: false)` only matters when it takes away a root element OLD actually had. */
     private fun rootChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         val qn = (change.newOwner as? DeclarationOwner)?.decl?.qualifiedName
         if (qn == null || !ctx.isRoot(Side.OLD, qn) || ctx.isRoot(Side.NEW, qn)) {
             return Verdict.Compatible
         }
         return Verdict.Breaking(
-            "${change.path}: @xsd(root = false) was added breaks validation against the old root " +
+            "${change.path}: @xsd(root: false) was added breaks validation against the old root " +
                 "element",
             "keep the declaration reachable as a root element, or confirm nothing validates " +
                 "against it directly",
@@ -341,7 +357,7 @@ class InstanceRules(
             Verdict.Breaking(
                 "${change.path}: @jsonschema(open) was removed breaks old documents whose extra " +
                     "properties are now rejected",
-                "keep the record open, or confirm no old document carries extra properties",
+                "keep the model open, or confirm no old document carries extra properties",
             )
         else Verdict.Compatible
 }

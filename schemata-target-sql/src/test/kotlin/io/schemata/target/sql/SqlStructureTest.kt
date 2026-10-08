@@ -10,10 +10,12 @@ import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Relation
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
@@ -49,7 +51,25 @@ class SqlStructureTest {
         line: Int = 10 + ordinal,
         doc: String? = null,
         annotations: Annotations = Annotations.NONE,
-    ) = Field(ordinal, name, type, nullable, default, null, doc, at(line), at(line), annotations)
+        key: Boolean = false,
+        unique: Boolean = false,
+        index: Boolean = false,
+    ) =
+        Field(
+            ordinal,
+            name,
+            type,
+            nullable,
+            default,
+            null,
+            doc,
+            at(line),
+            at(line),
+            annotations,
+            key = key,
+            unique = unique,
+            index = index,
+        )
 
     private fun record(
         ns: String,
@@ -59,6 +79,9 @@ class SqlStructureTest {
         line: Int = 3,
         doc: String? = null,
         annotations: Annotations = Annotations.NONE,
+        compositeKey: List<String> = emptyList(),
+        uniques: List<List<String>> = emptyList(),
+        indexes: List<List<String>> = emptyList(),
     ) =
         RecordType(
             qn(ns, name),
@@ -71,6 +94,9 @@ class SqlStructureTest {
             at(line),
             at(line),
             annotations,
+            compositeKey = compositeKey,
+            uniques = uniques,
+            indexes = indexes,
         )
 
     private fun enum(ns: String, name: String, vararg values: String, line: Int = 30) =
@@ -113,8 +139,6 @@ class SqlStructureTest {
     private fun table(lowered: io.schemata.target.Lowered<RelationalModel>, name: String) =
         lowered.model.schemas.single().tables.first { it.name == name }
 
-    private fun key() = sql("key" to AnnotationValue.Flag)
-
     private fun schemaOf(lowered: io.schemata.target.Lowered<RelationalModel>, name: String) =
         lowered.model.schemas.first { it.schemaName == name }
 
@@ -124,14 +148,14 @@ class SqlStructureTest {
             record(
                 "shop.customers",
                 "Customer",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "name", Scalar(Builtin.STRING)),
             )
         val order =
             record(
                 "shop.orders",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "customer", Ref(qn("shop.customers", "Customer"))),
                 field(3, "parent", Ref(qn("shop.orders", "Order")), nullable = true),
             )
@@ -161,7 +185,7 @@ class SqlStructureTest {
                     "customers",
                     "customer",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
                 ForeignKey(
                     "fk_order_parent",
@@ -171,7 +195,7 @@ class SqlStructureTest {
                     "orders",
                     "order",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
             ),
             orders.foreignKeys,
@@ -192,13 +216,13 @@ class SqlStructureTest {
                     Scalar(Builtin.STRING, Refinements(max = big(8))),
                     annotations = sql("column" to str("plan_code")),
                 ),
-                annotations = sql("key" to AnnotationValue.Names(listOf("tenant_id", "code"))),
+                compositeKey = listOf("tenant_id", "code"),
             )
         val sub =
             record(
                 "a",
                 "Subscription",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "plan", Ref(qn("a", "Plan"))),
             )
         val lowered = lower(namespace("a", plan, sub))
@@ -219,7 +243,7 @@ class SqlStructureTest {
                     "a",
                     "plan",
                     listOf("tenant_id", "plan_code"),
-                    false,
+                    OnDelete.RESTRICT,
                 )
             ),
             lowered.model.schemas.single().foreignKeys,
@@ -232,14 +256,14 @@ class SqlStructureTest {
             record(
                 "x.alpha",
                 "A",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "b", Ref(qn("x.beta", "B"))),
             )
         val b =
             record(
                 "x.beta",
                 "B",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "a", Ref(qn("x.alpha", "A"))),
             )
         val lowered =
@@ -259,9 +283,18 @@ class SqlStructureTest {
                     "alpha",
                     "a",
                     listOf("id"),
-                    false,
+                    OnDelete.RESTRICT,
                 ),
-                ForeignKey("fk_a_b", "alpha", "a", listOf("b_id"), "beta", "b", listOf("id"), false),
+                ForeignKey(
+                    "fk_a_b",
+                    "alpha",
+                    "a",
+                    listOf("b_id"),
+                    "beta",
+                    "b",
+                    listOf("id"),
+                    OnDelete.RESTRICT,
+                ),
             ),
             schemaOf(lowered, "beta").foreignKeys,
         )
@@ -284,52 +317,30 @@ class SqlStructureTest {
             record(
                 "a",
                 "Owner",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "price", Ref(qn("a", "Money"))),
                 line = 9,
             )
         val lowered = lower(namespace("a", used, loose, owner))
         assertEquals(
-            listOf("6 SCH2106 record 'Loose' has no primary key and is not used by any field"),
+            listOf("6 SCH2106 model 'Loose' has no primary key and is not used by any field"),
             messages(lowered).filter { "SCH2106" in it },
         )
         assertEquals(listOf("owner"), lowered.model.schemas.single().tables.map { it.name })
     }
 
     @Test
-    fun `a key field must be a scalar column`() {
-        val other = record("a", "Other", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
-        val r =
-            record(
-                "a",
-                "R",
-                field(1, "other", Ref(qn("a", "Other")), line = 11, annotations = key()),
-                line = 10,
-            )
-        val lowered = lower(namespace("a", other, r))
-        assertEquals(
-            listOf("11 SCH2107 record 'R': key field 'other' must be a scalar column"),
-            messages(lowered).filter { "SCH2107" in it },
-        )
-    }
-
-    @Test
-    fun `a record that declares a bad key still counts as keyed`() {
+    fun `a record whose key names no field still counts as keyed`() {
         val bad =
             record(
                 "a",
                 "Bad",
                 field(1, "x", Scalar(Builtin.BOOL)),
                 line = 8,
-                annotations = sql("key" to AnnotationValue.Names(listOf("nope"))),
+                compositeKey = listOf("nope"),
             )
         val lowered = lower(namespace("a", bad))
-        assertEquals(
-            listOf(
-                "8 SCH2107 record 'Bad': @sql(key) names 'nope', which is not a field of the record"
-            ),
-            messages(lowered),
-        )
+        assertEquals(emptyList(), messages(lowered))
         assertEquals(emptyList(), table(lowered, "bad").primaryKey)
     }
 
@@ -349,7 +360,7 @@ class SqlStructureTest {
                     2,
                     "zip",
                     Scalar(Builtin.STRING, Refinements(min = big(5), max = big(5))),
-                    annotations = sql("index" to AnnotationValue.Flag),
+                    index = true,
                 ),
                 field(3, "floor", Scalar(Builtin.INT32), nullable = true, default = IntValue(0)),
             )
@@ -364,7 +375,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Site",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "office", Ref(qn("a", "Address"))),
                 field(3, "where", Ref(qn("a", "Geo")), nullable = true),
             )
@@ -424,7 +435,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Tree",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "root", Ref(qn("a", "Node")), line = 22),
                 line = 20,
             )
@@ -447,19 +458,19 @@ class SqlStructureTest {
                 field(2, "qty", Scalar(Builtin.INT32, Refinements(min = big(1)))),
                 doc = "One item.",
             )
-        val item = record("a", "Item", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
+        val item = record("a", "Item", field(1, "id", Scalar(Builtin.UUID), key = true))
         val order =
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "lines", ListOf(Ref(qn("a", "Line")), false, Refinements(min = big(1)))),
                 field(3, "items", ListOf(Ref(qn("a", "Item")), false)),
             )
         val lowered = lower(namespace("a", line, item, order))
         assertEquals(
             listOf(
-                "12 SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres"
+                "12 SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres"
             ),
             messages(lowered),
         )
@@ -497,7 +508,7 @@ class SqlStructureTest {
                     "a",
                     "order",
                     listOf("id"),
-                    cascade = true,
+                    onDelete = OnDelete.CASCADE,
                 ),
                 ForeignKey(
                     "fk_order_items_order",
@@ -507,7 +518,7 @@ class SqlStructureTest {
                     "a",
                     "order",
                     listOf("id"),
-                    cascade = true,
+                    onDelete = OnDelete.CASCADE,
                 ),
                 ForeignKey(
                     "fk_order_items_value",
@@ -517,7 +528,7 @@ class SqlStructureTest {
                     "a",
                     "item",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
             ),
             schema.foreignKeys,
@@ -532,7 +543,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "tags", ListOf(Scalar(Builtin.STRING), false)),
                 field(
                     3,
@@ -556,7 +567,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", color, r))
         assertEquals(
             listOf(
-                "13 SCH2105 field 'R.codes': refinements on list<string(max = 3)>(max = 5)? are not enforced by Postgres",
+                "13 SCH2105 field 'R.codes': refinements on string[]? { maxItems 5, max 3 } are not enforced by Postgres",
                 "15 SCH2105 field 'R.meta': map contents are not typed by Postgres; lowered to jsonb",
                 "16 SCH2105 field 'R.extra': map contents are not typed by Postgres; lowered to jsonb",
             ),
@@ -579,7 +590,7 @@ class SqlStructureTest {
             listOf(
                 emptyList(),
                 emptyList(),
-                listOf("list<string(max = 3)>(max = 5)?"),
+                listOf("string[]? { maxItems 5, max 3 }"),
                 emptyList(),
                 listOf("map<string, int32>"),
                 listOf("map<string, Color?>?"),
@@ -603,7 +614,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "lines", ListOf(Ref(qn("a", "Line")), false)),
             )
         val lowered = lower(namespace("a", note, line, order))
@@ -631,7 +642,7 @@ class SqlStructureTest {
                 "a",
                 "order_lines",
                 listOf("order_id", "position"),
-                true,
+                OnDelete.CASCADE,
             ),
             schema.foreignKeys[1],
         )
@@ -648,7 +659,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Root",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "folders", ListOf(Ref(qn("a", "Folder")), false)),
                 line = 40,
             )
@@ -676,8 +687,7 @@ class SqlStructureTest {
                 field(1, "iban", Scalar(Builtin.STRING, Refinements(min = big(15), max = big(34)))),
             )
         val cash = record("a", "Cash")
-        val account =
-            record("a", "Account", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
+        val account = record("a", "Account", field(1, "id", Scalar(Builtin.UUID), key = true))
         val payment =
             union(
                 "a",
@@ -692,7 +702,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "payment", Ref(qn("a", "Payment"))),
                 field(3, "refund", Ref(qn("a", "Payment")), nullable = true),
             )
@@ -789,7 +799,7 @@ class SqlStructureTest {
                     "a",
                     "account",
                     listOf("id"),
-                    false,
+                    OnDelete.RESTRICT,
                 ),
                 ForeignKey(
                     "fk_order_refund_account",
@@ -799,7 +809,7 @@ class SqlStructureTest {
                     "a",
                     "account",
                     listOf("id"),
-                    false,
+                    OnDelete.RESTRICT,
                 ),
             ),
             lowered.model.schemas.single().foreignKeys,
@@ -815,16 +825,15 @@ class SqlStructureTest {
             record(
                 "a",
                 "Cust",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "name", Scalar(Builtin.STRING)),
             )
         val r =
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "home", Ref(qn("a", "Addr")), annotations = strategy("json")),
-                field(3, "cust", Ref(qn("a", "Cust")), annotations = strategy("embed")),
                 field(
                     4,
                     "tags",
@@ -847,7 +856,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", addr, cust, r))
         assertEquals(
             listOf(
-                "12 SCH2105 field 'R.home': record contents are not typed by Postgres; lowered to jsonb",
+                "12 SCH2105 field 'R.home': model contents are not typed by Postgres; lowered to jsonb",
                 "16 SCH2105 field 'R.lines': list contents are not typed by Postgres; lowered to jsonb",
             ),
             messages(lowered),
@@ -859,16 +868,10 @@ class SqlStructureTest {
             listOf(
                 "id" to ColumnType.UUID,
                 "home" to ColumnType.JSONB,
-                "cust_id" to ColumnType.UUID,
-                "cust_name" to ColumnType.TEXT,
                 "lines" to ColumnType.JSONB,
             ),
             t.columns.map { it.name to it.type },
         )
-        assertEquals(
-            emptyList(),
-            schema.foreignKeys.filter { it.table == "r" },
-        ) // embed of a keyed record: no FK
         val tags = schema.tables[2]
         assertEquals(listOf("r_id", "position", "value"), tags.columns.map { it.name })
         assertEquals(ColumnType.VARCHAR(8), tags.columns[2].type)
@@ -884,28 +887,14 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "home", Ref(qn("a", "Addr")), annotations = strategy("table")),
-                field(
-                    3,
-                    "tags",
-                    ListOf(Scalar(Builtin.STRING), false),
-                    annotations = strategy("embed"),
-                ),
-                field(
-                    4,
-                    "meta",
-                    MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false),
-                    annotations = strategy("embed"),
-                ),
                 field(5, "flag", Scalar(Builtin.BOOL), annotations = strategy("json")),
             )
         val lowered = lower(namespace("a", addr, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless record",
-                "13 SCH2110 field 'R.tags': strategy 'embed' is not allowed for a list",
-                "14 SCH2110 field 'R.meta': strategy 'embed' is not allowed for a map",
+                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless model",
                 "15 SCH2110 field 'R.flag': strategy 'json' is not allowed for a scalar",
             ),
             messages(lowered),
@@ -921,7 +910,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "choice", Ref(qn("a", "Outer")), line = 12),
             )
         val lowered = lower(namespace("a", a, inner, outer, r))
@@ -941,7 +930,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "choices", ListOf(Ref(qn("a", "U")), false)),
                 field(3, "grid", ListOf(ListOf(Scalar(Builtin.INT32), false), false)),
                 field(4, "ok", ListOf(Ref(qn("a", "U")), false), annotations = strategy("json")),
@@ -966,7 +955,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "choice", Ref(qn("a", "Payment")), annotations = strategy("table")),
             )
         val loweredForbidden = lower(namespace("a", payment, forbidden))
@@ -982,7 +971,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "choice", Ref(qn("a", "Outer")), annotations = strategy("json")),
             )
         val loweredOk = lower(namespace("a", a, inner, outer, ok))
@@ -1010,7 +999,7 @@ class SqlStructureTest {
                         "sku",
                         Scalar(Builtin.STRING, Refinements(max = big(8))),
                         line = 21,
-                        annotations = key(),
+                        key = true,
                     )
                 ),
                 Reserved.NONE,
@@ -1025,7 +1014,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "item", Ref(qn("a", "Order", "Item"))),
                 nested = listOf(item),
             )
@@ -1053,7 +1042,7 @@ class SqlStructureTest {
                     "a",
                     "item",
                     listOf("sku"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 )
             ),
             schema.foreignKeys,
@@ -1066,7 +1055,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "OrderLines",
-                field(1, "id", Scalar(Builtin.UUID), line = 4, annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), line = 4, key = true),
                 line = 3,
             )
         val line = record("a", "Line", field(1, "sku", Scalar(Builtin.STRING)), line = 20)
@@ -1074,7 +1063,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "lines", ListOf(Ref(qn("a", "Line")), false)),
                 line = 10,
             )
@@ -1093,7 +1082,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Employee",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "reports", ListOf(Ref(qn("a", "Employee")), false)),
             )
         val lowered = lower(namespace("a", employee))
@@ -1113,7 +1102,7 @@ class SqlStructureTest {
                     "a",
                     "employee",
                     listOf("id"),
-                    cascade = true,
+                    onDelete = OnDelete.CASCADE,
                 ),
                 ForeignKey(
                     "fk_employee_reports_value",
@@ -1123,7 +1112,7 @@ class SqlStructureTest {
                     "a",
                     "employee",
                     listOf("id"),
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 ),
             ),
             schema.foreignKeys,
@@ -1144,7 +1133,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "lines", ListOf(Ref(qn("a", "Step")), false)),
             )
         val lowered = lower(namespace("a", step, order))
@@ -1159,13 +1148,13 @@ class SqlStructureTest {
 
     @Test
     fun `a list of nullable records keeps a keyed element and reports a keyless one`() {
-        val item = record("a", "Item", field(1, "id", Scalar(Builtin.UUID), annotations = key()))
+        val item = record("a", "Item", field(1, "id", Scalar(Builtin.UUID), key = true))
         val line = record("a", "Line", field(1, "sku", Scalar(Builtin.STRING)), line = 20)
         val order =
             record(
                 "a",
                 "Order",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "items", ListOf(Ref(qn("a", "Item")), true)),
                 field(3, "lines", ListOf(Ref(qn("a", "Line")), true)),
                 line = 10,
@@ -1173,7 +1162,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", item, line, order))
         assertEquals(
             listOf(
-                "13 SCH2105 field 'Order.lines': nullable elements of list<Line?> are not represented by a child table"
+                "13 SCH2105 field 'Order.lines': nullable elements of Line?[] are not represented by a child table"
             ),
             messages(lowered),
         )
@@ -1197,7 +1186,7 @@ class SqlStructureTest {
             record(
                 "a",
                 "Host",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "u", Ref(qn("a", "U"))),
             )
         val lowered = lower(namespace("a", kind, u, host))
@@ -1221,25 +1210,10 @@ class SqlStructureTest {
             record(
                 "a",
                 "Site",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
-                field(
-                    2,
-                    "home",
-                    Ref(qn("a", "Addr")),
-                    annotations = sql("unique" to AnnotationValue.Flag),
-                ),
-                field(
-                    3,
-                    "pick",
-                    Ref(qn("a", "U")),
-                    annotations = sql("index" to AnnotationValue.Flag),
-                ),
-                field(
-                    4,
-                    "alt",
-                    Ref(qn("a", "U")),
-                    annotations = sql("unique" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "home", Ref(qn("a", "Addr")), unique = true),
+                field(3, "pick", Ref(qn("a", "U")), index = true),
+                field(4, "alt", Ref(qn("a", "U")), unique = true),
             )
         val lowered = lower(namespace("a", addr, u, site))
         assertEquals(emptyList(), messages(lowered))
@@ -1258,38 +1232,25 @@ class SqlStructureTest {
     }
 
     @Test
-    fun `unique and index are not allowed on a list or map field`() {
+    fun `unique and index on a list or map field constrain nothing`() {
         val r =
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
-                field(
-                    2,
-                    "tags",
-                    ListOf(Scalar(Builtin.STRING), false),
-                    annotations = sql("unique" to AnnotationValue.Flag),
-                ),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "tags", ListOf(Scalar(Builtin.STRING), false), unique = true),
                 field(
                     3,
                     "meta",
                     MapOf(Scalar(Builtin.STRING), Scalar(Builtin.INT32), false),
-                    annotations =
-                        sql(
-                            "index" to AnnotationValue.Flag,
-                            "strategy" to AnnotationValue.Name("table"),
-                        ),
+                    annotations = sql("strategy" to AnnotationValue.Name("table")),
+                    index = true,
                 ),
             )
         val lowered = lower(namespace("a", r))
-        assertEquals(
-            listOf(
-                "12 SCH2110 field 'R.tags': @sql(unique) is not allowed on a list or map field",
-                "13 SCH2110 field 'R.meta': @sql(index) is not allowed on a list or map field",
-            ),
-            messages(lowered),
-        )
+        assertEquals(emptyList(), messages(lowered))
         assertEquals(emptyList(), table(lowered, "r").uniques)
+        assertEquals(emptyList(), table(lowered, "r").indexes)
     }
 
     @Test
@@ -1305,12 +1266,159 @@ class SqlStructureTest {
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "price", Ref(qn("a", "Money")), nullable = true),
             )
         val lowered = lower(namespace("a", money, r))
         assertEquals(emptyList(), messages(lowered))
         assertEquals(emptyList(), table(lowered, "r").checks)
+    }
+
+    @Test
+    fun `composite unique and index cover their fields' columns in order`() {
+        val customer = record("a", "Customer", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val membership =
+            record(
+                "a",
+                "Membership",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "customer", Ref(qn("a", "Customer"))),
+                field(3, "code", Scalar(Builtin.STRING)),
+                field(4, "region", Scalar(Builtin.STRING)),
+                uniques = listOf(listOf("customer", "code")),
+                indexes = listOf(listOf("region", "code")),
+            )
+        val lowered = lower(namespace("a", customer, membership))
+        assertEquals(emptyList(), messages(lowered))
+        val t = table(lowered, "membership")
+        assertEquals(
+            listOf(Unique("uq_membership_customer_code", listOf("customer_id", "code"))),
+            t.uniques,
+        )
+        assertEquals(
+            listOf(Index("ix_membership_region_code", listOf("region", "code"))),
+            t.indexes,
+        )
+        val ddl = SqlRenderer.render(lowered.model).single().content
+        assertTrue(
+            ddl.contains(
+                "CONSTRAINT \"uq_membership_customer_code\" UNIQUE (\"customer_id\", \"code\")"
+            )
+        )
+        assertTrue(
+            ddl.contains(
+                "CREATE INDEX \"ix_membership_region_code\" ON \"a\".\"membership\" (\"region\", \"code\");"
+            )
+        )
+    }
+
+    @Test
+    fun `a composite unique over the primary key is dropped and one over a child table is reported`() {
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "tenant", Scalar(Builtin.UUID)),
+                field(2, "code", Scalar(Builtin.STRING)),
+                field(
+                    3,
+                    "tags",
+                    ListOf(Scalar(Builtin.STRING), false),
+                    annotations = sql("strategy" to AnnotationValue.Name("table")),
+                ),
+                compositeKey = listOf("tenant", "code"),
+                uniques = listOf(listOf("tenant", "code"), listOf("code", "tags")),
+            )
+        val lowered = lower(namespace("a", r))
+        assertEquals(
+            setOf(
+                "model 'R': @@unique(tenant, code) duplicates the primary key; dropped",
+                "model 'R': @@unique(code, tags) names 'tags', which has no column on the model's table",
+            ),
+            lowered.diagnostics.map { it.message }.toSet(),
+        )
+        assertEquals(emptyList(), table(lowered, "r").uniques)
+    }
+
+    @Test
+    fun `embed on a reference to a keyed record copies its columns with no foreign key`() {
+        val customer =
+            record(
+                "a",
+                "Customer",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "name", Scalar(Builtin.STRING)),
+            )
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "customer", Ref(qn("a", "Customer"), Relation(embed = true))),
+            )
+        val lowered = lower(namespace("a", customer, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf("id", "customer_id", "customer_name"),
+            table(lowered, "r").columns.map { it.name },
+        )
+        assertEquals(emptyList(), lowered.model.schemas.single().foreignKeys)
+    }
+
+    @Test
+    fun `embed on a list of a keyed record copies its rows into the child table`() {
+        val tag = record("a", "Tag", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "tags", ListOf(Ref(qn("a", "Tag"), Relation(embed = true)), false)),
+            )
+        val lowered = lower(namespace("a", tag, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf("r_id", "position", "id"),
+            table(lowered, "r_tags").columns.map { it.name },
+        )
+        assertEquals(
+            listOf("fk_r_tags_r"),
+            lowered.model.schemas.single().foreignKeys.map { it.name },
+        )
+    }
+
+    @Test
+    fun `unique on a list of a keyed record makes its child table a set`() {
+        val tag = record("a", "Tag", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "tags", ListOf(Ref(qn("a", "Tag")), false), unique = true),
+            )
+        val lowered = lower(namespace("a", tag, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf(Unique("uq_r_tags_value", listOf("r_id", "value_id"))),
+            table(lowered, "r_tags").uniques,
+        )
+        assertEquals(emptyList(), table(lowered, "r").uniques)
+    }
+
+    @Test
+    fun `embed on a reference to a keyless record embeds as the default does`() {
+        val money = record("a", "Money", field(1, "cents", Scalar(Builtin.INT64)))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "price", Ref(qn("a", "Money"), Relation(embed = true))),
+            )
+        val lowered = lower(namespace("a", money, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(listOf("id", "price_cents"), table(lowered, "r").columns.map { it.name })
     }
 
     @Test
@@ -1321,13 +1429,13 @@ class SqlStructureTest {
                 "Plan",
                 field(1, "tenant_id", Scalar(Builtin.UUID)),
                 field(2, "code", Scalar(Builtin.STRING)),
-                annotations = sql("key" to AnnotationValue.Names(listOf("tenant_id", "code"))),
+                compositeKey = listOf("tenant_id", "code"),
             )
         val sub =
             record(
                 "a",
                 "Subscription",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "plan", Ref(qn("a", "Plan")), nullable = true),
                 field(3, "base", Ref(qn("a", "Plan"))),
             )
@@ -1345,39 +1453,13 @@ class SqlStructureTest {
     }
 
     @Test
-    fun `embed on a list or map of unions suggests json only`() {
-        val u = union("a", "U", Scalar(Builtin.UUID), Scalar(Builtin.STRING), line = 30)
-        val r =
-            record(
-                "a",
-                "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
-                field(2, "us", ListOf(Ref(qn("a", "U")), false), annotations = strategy("embed")),
-                field(
-                    3,
-                    "byName",
-                    MapOf(Scalar(Builtin.STRING), Ref(qn("a", "U")), false),
-                    annotations = strategy("embed"),
-                ),
-            )
-        val lowered = lower(namespace("a", u, r))
-        assertEquals(
-            listOf(
-                "12 SCH2110 field 'R.us': strategy 'embed' is not allowed for a list",
-                "13 SCH2110 field 'R.byName': strategy 'embed' is not allowed for a map",
-            ),
-            messages(lowered),
-        )
-    }
-
-    @Test
     fun `a union field's doc goes on its kind column only`() {
         val u = union("a", "U", Scalar(Builtin.UUID), Scalar(Builtin.STRING), line = 30)
         val r =
             record(
                 "a",
                 "R",
-                field(1, "id", Scalar(Builtin.UUID), annotations = key()),
+                field(1, "id", Scalar(Builtin.UUID), key = true),
                 field(2, "pick", Ref(qn("a", "U")), doc = "Which one."),
             )
         val lowered = lower(namespace("a", u, r))

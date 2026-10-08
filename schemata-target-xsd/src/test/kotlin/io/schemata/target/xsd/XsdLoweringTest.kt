@@ -1,5 +1,9 @@
 package io.schemata.target.xsd
 
+import io.schemata.core.AnalysisOptions
+import io.schemata.core.Analyzer
+import io.schemata.core.annotations.AnnotationRegistry
+import io.schemata.core.annotations.CoreAnnotations
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.BoolValue
@@ -23,10 +27,66 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionMember
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
+import io.schemata.lang.Parser
 import io.schemata.lang.Span
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+private const val RELATIONS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id }  #2 name string }
+
+model Tag { #1 code string { id, max 16 } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+  #3 billing  Customer { embed }
+  #4 tags     Tag[]
+  #5 pair     Pair
+  #6 pairs    Pair[]
+  #7 backup   Customer?
+}
+"""
+
+/** Analyses [sources], one file each, with every annotation the XSD lowering reads. */
+private fun compile(vararg sources: String): Schema {
+    val files = sources.mapIndexed { i, text -> Parser.parse(text, "f$i.schemata").file!! }
+    val analysis =
+        Analyzer.analyze(
+            files,
+            AnalysisOptions(
+                annotations = AnnotationRegistry(CoreAnnotations.specs + XsdAnnotations.specs)
+            ),
+        )
+    assertEquals(emptyList(), analysis.diagnostics.map { "${it.code.id} ${it.message}" })
+    return analysis.schema!!
+}
+
+private const val MEMBERS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+union Party = Customer | Pair
+
+model Book {
+  #1 id    uuid { id }
+  #2 by    map<string, Customer>
+  #3 pairs map<string, Pair>
+  #4 party Party
+}
+"""
 
 class XsdLoweringTest {
     /** The sequences these tests read hold only elements; each read goes through the element. */
@@ -180,9 +240,9 @@ class XsdLoweringTest {
         val b = namespace("b", xsd("namespace" to AnnotationValue.Str("urn:x")), line = 5)
         val d = XsdLowering.lower(Schema(listOf(a, b))).diagnostics.single()
         assertEquals(XsdCodes.NAMESPACE_COLLISION, d.code)
-        assertEquals("namespaces a and b both lower to target namespace 'urn:x'", d.message)
+        assertEquals("schemas a and b both lower to target namespace 'urn:x'", d.message)
         assertEquals(5, d.span.startLine)
-        assertEquals("set `@xsd(namespace = \"…\")` on one of them", d.help)
+        assertEquals("set `@xsd(namespace: \"…\")` on one of them", d.help)
     }
 
     @Test
@@ -191,7 +251,7 @@ class XsdLoweringTest {
         val d = XsdLowering.lower(Schema(listOf(ns))).diagnostics.single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
         assertEquals(
-            "namespace 'shop.orders': @xsd(namespace = \"orders\") is not an absolute URI",
+            "schema 'shop.orders': @xsd(namespace: \"orders\") is not an absolute URI",
             d.message,
         )
         assertEquals("use an absolute URI, such as `urn:example:orders`", d.help)
@@ -363,10 +423,10 @@ class XsdLoweringTest {
                 .single()
         assertEquals(XsdCodes.NAME_COLLISION, d.code)
         assertEquals(
-            "record 'HttpStatus' lowers to element 'http_status', already used by record 'HTTPStatus' (orders.schemata:2)",
+            "model 'HttpStatus' lowers to element 'http_status', already used by model 'HTTPStatus' (orders.schemata:2)",
             d.message,
         )
-        assertEquals("rename one of them, or set `@xsd(name = \"…\")` on one", d.help)
+        assertEquals("rename one of them, or set `@xsd(name: \"…\")` on one", d.help)
     }
 
     @Test
@@ -395,7 +455,7 @@ class XsdLoweringTest {
                 .diagnostics
                 .single()
         assertEquals(
-            "record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (orders.schemata:2)",
+            "model 'Line' lowers to type 'OrderLineType', already used by model 'OrderLine' (orders.schemata:2)",
             d.message,
         )
     }
@@ -418,7 +478,7 @@ class XsdLoweringTest {
                 .diagnostics
                 .single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
-        assertEquals("field 'R.x': @xsd(name = \"1bad\") is not a valid XML name", d.message)
+        assertEquals("field 'R.x': @xsd(name: \"1bad\") is not a valid XML name", d.message)
         assertEquals(
             "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore",
             d.help,
@@ -515,7 +575,7 @@ class XsdLoweringTest {
             "field 'R.tags': a nullable list has no XSD representation; lowered to an optional repeated element",
             d.message,
         )
-        assertEquals("declare the list as `list<T>`; an absent list already means empty", d.help)
+        assertEquals("declare the list as `T[]`; an absent list already means empty", d.help)
     }
 
     @Test
@@ -1092,7 +1152,7 @@ class XsdLoweringTest {
             )
         val d = lowered.diagnostics.single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
-        assertEquals("record 'Order': @xsd(name = \"1bad\") is not a valid XML name", d.message)
+        assertEquals("model 'Order': @xsd(name: \"1bad\") is not a valid XML name", d.message)
         assertEquals(
             XsdTypeRef.Named("ns1", "OrderType", simple = false),
             (lowered.model.files[1].types.single() as XsdChoice).members.single().type,
@@ -1250,5 +1310,78 @@ class XsdLoweringTest {
             XsdTypeRef.Named("tns", "VType", simple = false),
             (m.type as XsdTypeRef.Anonymous).sequence.single().type,
         )
+    }
+
+    private val relations by lazy { XsdLowering.lower(compile(RELATIONS)).model.files.single() }
+
+    private fun complex(name: String) = relations.types.single { it.name == name } as XsdComplex
+
+    private fun element(type: String, name: String) =
+        complex(type).sequence.map { it as XsdElement }.single { it.name == name }
+
+    @Test
+    fun `a reference to a keyed model emits its key`() {
+        val id = element("CustomerType", "id")
+        val code = element("TagType", "code")
+        assertEquals(
+            listOf("id", "customer_id", "billing", "tags", "pairs", "pair", "backup_id").sorted(),
+            complex("OrderType").sequence.map { (it as XsdElement).name }.sorted(),
+        )
+        assertEquals(id.copy(name = "customer_id"), element("OrderType", "customer_id"))
+        assertEquals(code.type, element("OrderType", "tags").type)
+        assertEquals(null, element("OrderType", "tags").maxOccurs)
+        assertEquals(
+            id.copy(name = "backup_id", minOccurs = 0),
+            element("OrderType", "backup_id").copy(nillable = false),
+        )
+    }
+
+    @Test
+    fun `embed restores the record`() {
+        assertEquals(
+            XsdTypeRef.Named("tns", "CustomerType", simple = false),
+            element("OrderType", "billing").type,
+        )
+    }
+
+    @Test
+    fun `a composite-key reference emits one key object`() {
+        assertEquals(
+            listOf("CustomerType", "TagType", "PairType", "PairKeyType", "OrderType"),
+            relations.types.map { it.name },
+        )
+        assertEquals(complex("PairType").sequence, complex("PairKeyType").sequence)
+        val key = XsdTypeRef.Named("tns", "PairKeyType", simple = false)
+        assertEquals(key, element("OrderType", "pair").type)
+        assertEquals(key, element("OrderType", "pairs").type)
+        assertEquals(listOf("customer", "tag", "pair", "order"), relations.elements.map { it.name })
+    }
+
+    private val members by lazy { XsdLowering.lower(compile(MEMBERS)).model.files.single() }
+
+    private fun memberType(name: String) = members.types.single { it.name == name }
+
+    @Test
+    fun `a union member typed as a keyed model carries its key`() {
+        val id = (memberType("CustomerType") as XsdComplex).sequence.single() as XsdElement
+        val party = memberType("PartyType") as XsdChoice
+        assertEquals(
+            listOf(
+                id.copy(name = "customer"),
+                XsdElement("pair", XsdTypeRef.Named("tns", "PairKeyType", false)),
+            ),
+            party.members.map { it.copy(minOccurs = 1, maxOccurs = 1) },
+        )
+    }
+
+    @Test
+    fun `a map value typed as a keyed model carries its key`() {
+        val id = (memberType("CustomerType") as XsdComplex).sequence.single() as XsdElement
+        val book = (memberType("BookType") as XsdComplex).sequence.map { it as XsdElement }
+        val by = book.single { it.name == "by" }.type.toString()
+        val pairs = book.single { it.name == "pairs" }.type.toString()
+        assertTrue(by.contains(id.type.toString()), by)
+        assertFalse(by.contains("CustomerType"), by)
+        assertTrue(pairs.contains("PairKeyType"), pairs)
     }
 }

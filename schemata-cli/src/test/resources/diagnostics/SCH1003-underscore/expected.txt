@@ -1,9 +1,9 @@
 error[SCH1003]: field name 'a__b' must be lower_snake
- --> s.schemata:2:15
+ --> s.schemata:3:14
   = help: rename it `a_b`
 
 error[SCH1003]: field name 'c_' must be lower_snake
- --> s.schemata:2:30
+ --> s.schemata:3:29
   = help: rename it `c`
 
 2 errors, 0 warnings

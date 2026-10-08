@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1038]: scale 5 exceeds precision 2
- --> s.schemata:2:29
+ --> s.schemata:3:27
   = help: use a scale no larger than the precision
 
 1 error, 0 warnings

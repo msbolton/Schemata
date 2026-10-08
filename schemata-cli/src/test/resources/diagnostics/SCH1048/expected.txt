@@ -1,5 +1,5 @@
 error[SCH1048]: operation 'get': path parameter 'order' is not a field of 'OrderId'
- --> s.schemata:8:33
-  = help: name a scalar or enum field of the request record
+ --> s.schemata:6:33
+  = help: name a scalar or enum field of the request model
 
 1 error, 0 warnings

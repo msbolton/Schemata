@@ -1,0 +1,22 @@
+s.Customer
+  field 'orders' added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+s.Order
+  field 'customer': @relation(onDelete) added    proto: compatible, sql: note, xsd: compatible, jsonschema: compatible, openapi: compatible
+s.Membership
+  declaration added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+3 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 1 note
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+warning[SCH2502] (lossy): sql: s.Order.customer: on delete changed; existing rows are unaffected, future deletes behave differently
+  --> new/s.schemata:10:6
+   |
+10 |   #2 customer Customer? @relation(onDelete: set_null)
+   |      ^^^^^^^^
+   = help: check that the code deleting rows expects the new behaviour
+
+0 errors, 1 warning

@@ -17,7 +17,18 @@ import io.schemata.core.ir.service
 object OpenApiRules : Rulebook {
     override val target = "openapi"
 
+    /**
+     * A change to a key reaches the models referencing it; only the ones OLD's document carries
+     * count.
+     */
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible
+        else
+            ReferencedKeys.judge(target, change, ctx, judge(change, ctx)) {
+                ctx.reachableFromServices(Side.OLD, it)
+            }
+
+    private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is ServiceAdded -> Verdict.Compatible
             is ServiceRemoved ->
@@ -68,16 +79,16 @@ object OpenApiRules : Rulebook {
 
     /** A data change, judged as JSON Schema judges it when OLD's document carries [decl]. */
     private fun data(change: Change, decl: QualifiedName, ctx: ChangeContext): Verdict =
-        if (ctx.reachableFromServices(Side.OLD, decl)) JsonSchemaRules.classify(change, ctx)
+        if (ctx.reachableFromServices(Side.OLD, decl)) JsonSchemaRules.rules.own(change, ctx)
         else Verdict.Compatible
 
     /** Only a namespace with services had a document; its declarations go with it. */
     private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =
         if (ctx.old.namespaces.any { it.name == change.path && it.services.isNotEmpty() })
             Verdict.Breaking(
-                "${change.path}: the namespace was removed breaks clients that call its " +
+                "${change.path}: the schema was removed breaks clients that call its " +
                     "services' operations",
-                "keep the namespace's services until no client calls them",
+                "keep the schema's services until no client calls them",
             )
         else Verdict.Compatible
 
@@ -116,7 +127,7 @@ object OpenApiRules : Rulebook {
         if (what.isEmpty()) return Verdict.Compatible
         return Verdict.Breaking(
             "${change.path}: the operation was renamed, so $what",
-            if (fromId != toId) "pin the operationId with @openapi(name = \"$fromId\")"
+            if (fromId != toId) "pin the operationId with @openapi(name: \"$fromId\")"
             else "bind the operation to its old URL with $fromUrl",
         )
     }
@@ -176,7 +187,7 @@ object OpenApiRules : Rulebook {
             else "the operationId changes from $fromName to $toName"
         return Verdict.Breaking(
             "${change.path}: @openapi(name) ${changeWord(change)}, so $what",
-            "keep @openapi(name = \"$fromName\")",
+            "keep @openapi(name: \"$fromName\")",
         )
     }
 

@@ -3,11 +3,11 @@ warning[SCH2403] (lossy): element 'payment': substitution group 'payment' import
  --> s.xsd:3:1
   = help: review the imported declaration; the regenerated schema will differ here
 
-warning[SCH2403] (lossy): complex type 'CardType': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the record
+warning[SCH2403] (lossy): complex type 'CardType': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the model
   --> s.xsd:13:1
    = help: review the imported declaration; the regenerated schema will differ here
 
-warning[SCH2403] (lossy): complex type 'CashType': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the record
+warning[SCH2403] (lossy): complex type 'CashType': extension of 'PaymentType' has no Schemata equivalent; base fields flattened into the model
   --> s.xsd:22:1
    = help: review the imported declaration; the regenerated schema will differ here
 

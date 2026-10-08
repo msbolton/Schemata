@@ -1,43 +1,42 @@
 /// Order management for the storefront.
-@sql(schema = "shop")
-namespace shop.orders
+schema shop.orders @sql(schema: "shop")
 
 import shop.customers
 
-alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
+alias Email = string { max 254, match "^[^@]+@[^@]+$" }
 
 alias Money = decimal(19, 4)
 
-enum Status { pending, paid, shipped, cancelled }
+enum Status { pending paid shipped cancelled }
 
-record Card { last4: string(max = 4) brand: string(max = 32) }
+model Card { last4 string { max 4 }  brand string { max 32 } }
 
-record BankTransfer { iban: string(max = 34) }
+model BankTransfer { iban string { max 34 } }
 
-record Cash {}
+model Cash {}
 
 union Payment = Card | BankTransfer | Cash
 
 /// A customer's order. One row per checkout.
-record Order {
-  @sql(key) id:        uuid
-  customer:  Customer
-  status:    Status = pending
-  lines:     list<Line>(min = 1)
-  total:     Money
-  payment:   Payment
-  @sql(strategy = embed) shipping:  Address
-  placed_at: instant
-  note:      string(max = 500)?
-  @deprecated("use placed_at") created:   instant?
+model Order {
+  id        uuid     { id }
+  customer  Customer
+  status    Status   = pending
+  lines     Line[]   { minItems 1 }
+  total     Money
+  payment   Payment
+  shipping  Address  { embed }
+  placed_at instant
+  note      string?  { max 500 }
+  created   instant? @deprecated("use placed_at")
   reserved #11, "legacy_ref"
 
   /// One purchasable item.
-  record Line { sku: string(max = 64) quantity: int32(min = 1) price: Money }
+  model Line { sku string { max 64 }  quantity int32 { min 1 }  price Money }
 
-  record Address {
-    street:  string(max = 200)
-    city:    string(max = 100)
-    country: string(min = 2, max = 2)
+  model Address {
+    street  string { max 200 }
+    city    string { max 100 }
+    country string { min 2, max 2 }
   }
 }

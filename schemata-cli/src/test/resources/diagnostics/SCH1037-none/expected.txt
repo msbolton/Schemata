@@ -1,5 +1,0 @@
-error[SCH1037]: 'max' is not a refinement; bool takes no refinements
- --> s.schemata:2:23
-  = help: remove the parentheses; `bool` takes no refinements
-
-1 error, 0 warnings

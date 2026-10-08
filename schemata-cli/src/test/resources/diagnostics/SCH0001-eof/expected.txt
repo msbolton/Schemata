@@ -1,5 +1,5 @@
-error[SCH0001]: mismatched input '<EOF>' expecting {'}', '@', 'record', 'enum', 'union', 'alias', 'reserved', ORDINAL, IDENT, DOC_COMMENT}
- --> s.schemata:2:11
-  = help: the parser stopped at the caret; a field is written `name: type`, a declaration `record Name { … }`, `enum Name { a, b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`
+error[SCH0001]: mismatched input '<EOF>' expecting {'}', '@', '@@', 'model', 'enum', 'union', 'alias', 'reserved', ORDINAL, IDENT, DOC_COMMENT}
+ --> s.schemata:2:10
+  = help: the parser stopped at the caret; a field is written `name Type`, a declaration `model Name { … }`, `enum Name { a b }`, `union Name = A | B`, or `service Name { #1 op(A): B }`
 
 1 error, 0 warnings

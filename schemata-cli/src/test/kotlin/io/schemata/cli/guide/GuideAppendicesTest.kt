@@ -52,7 +52,12 @@ class GuideAppendicesTest {
     private fun modules() =
         listOf(
             Module("Syntax (SCH0xxx)", "SCH0", LangCodes.all, emptyList()),
-            Module("Semantics (SCH1xxx)", "SCH1", CoreCodes.all, listOf("SCH1007", "SCH1008")),
+            Module(
+                "Semantics (SCH1xxx)",
+                "SCH1",
+                CoreCodes.all,
+                listOf("SCH1007", "SCH1008", "SCH1037"),
+            ),
             Module(
                 "Protobuf (SCH20xx)",
                 "SCH20",
@@ -63,7 +68,7 @@ class GuideAppendicesTest {
                 "Postgres (SCH21xx)",
                 "SCH21",
                 Pipeline.targetNamed("sql")!!.codes,
-                listOf("SCH2103", "SCH2104"),
+                listOf("SCH2103", "SCH2104", "SCH2107"),
             ),
             Module("XSD (SCH22xx)", "SCH22", Pipeline.targetNamed("xsd")!!.codes, emptyList()),
             Module(

@@ -1,5 +1,5 @@
-error[SCH1004]: service 'Orders' and record 'Orders' are both declared in s.schemata
- --> s.schemata:7:9
-  = help: rename one of them; a service shares its namespace's type names
+error[SCH1004]: service 'Orders' and model 'Orders' are both declared in s.schemata
+ --> s.schemata:5:9
+  = help: rename one of them; a service shares its schema's type names
 
 1 error, 0 warnings

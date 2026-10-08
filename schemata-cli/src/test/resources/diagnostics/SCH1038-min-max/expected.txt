@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1038]: min 5 exceeds max 1
- --> s.schemata:2:33
+ --> s.schemata:3:31
   = help: swap or fix the bounds
 
 1 error, 0 warnings

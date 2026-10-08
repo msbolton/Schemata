@@ -1,10 +1,12 @@
 package io.schemata.lang.format
 
 import io.schemata.lang.Span
+import io.schemata.lang.antlr.Schemata1Lexer
 import io.schemata.lang.antlr.SchemataLexer
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.ReservedItem
 import io.schemata.lang.ast.ServiceDecl
@@ -68,14 +70,17 @@ class CommentTable(
  * that owns it), where it prints on its own line above.
  */
 object Comments {
-    fun collect(tokens: CommonTokenStream): List<Comment> {
+    fun collect(tokens: CommonTokenStream): List<Comment> =
+        collect(tokens, SchemataLexer.LINE_COMMENT, SchemataLexer.BLOCK_COMMENT)
+
+    /** [collect] for a token stream of the 1.x lexer, whose token types are numbered apart. */
+    fun collectV1(tokens: CommonTokenStream): List<Comment> =
+        collect(tokens, Schemata1Lexer.LINE_COMMENT, Schemata1Lexer.BLOCK_COMMENT)
+
+    private fun collect(tokens: CommonTokenStream, line: Int, block: Int): List<Comment> {
         tokens.fill()
         return tokens.tokens
-            .filter {
-                it.channel == Token.HIDDEN_CHANNEL &&
-                    (it.type == SchemataLexer.LINE_COMMENT ||
-                        it.type == SchemataLexer.BLOCK_COMMENT)
-            }
+            .filter { it.channel == Token.HIDDEN_CHANNEL && (it.type == line || it.type == block) }
             .map {
                 Comment(
                     it.text,
@@ -178,23 +183,13 @@ object Comments {
                 is RecordDecl ->
                     block(
                         d.span,
-                        d.fields.map {
-                            leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations)
-                        } + d.nested.map(::element) + reservedElements(d.reserved),
+                        members(d),
                         d.nameSpan,
-                        d.annotations,
+                        d.annotations.filterNot { it.block },
                         hasBraces = true,
                     )
                 is EnumDecl ->
-                    block(
-                        d.span,
-                        d.values.map {
-                            leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations)
-                        } + reservedElements(d.reserved),
-                        d.nameSpan,
-                        d.annotations,
-                        hasBraces = true,
-                    )
+                    block(d.span, members(d), d.nameSpan, d.annotations, hasBraces = true)
                 is UnionDecl ->
                     block(
                         d.span,
@@ -205,6 +200,38 @@ object Comments {
                     )
                 else -> leaf(d.span, d.nameSpan, d.annotations)
             }
+
+        /**
+         * A model's block attributes (`@@x`) are members of its body, each on its own line, so a
+         * comment can trail or lead one like a field.
+         */
+        private fun members(d: RecordDecl): List<Element> =
+            d.fields.map(::field) +
+                d.nested.map(::element) +
+                reservedElements(d.reserved) +
+                d.annotations.filter { it.block }.map { leaf(it.span) }
+
+        private fun members(d: EnumDecl): List<Element> =
+            d.values.map { leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations) } +
+                reservedElements(d.reserved)
+
+        /**
+         * A field whose type is an inline enum or shape is a block like a declared one, keyed by
+         * the field's span: its members own the comments inside its braces, and a comment after its
+         * `{` before any member trails that header line.
+         */
+        private fun field(f: FieldDecl): Element {
+            val prefixEnd = f.ordinalSpan ?: f.nameSpan
+            val shape = f.type.inlineShape
+            val enum = f.type.inlineEnum
+            return when {
+                shape != null ->
+                    block(f.span, members(shape), prefixEnd, f.annotations, hasBraces = true)
+                enum != null ->
+                    block(f.span, members(enum), prefixEnd, f.annotations, hasBraces = true)
+                else -> leaf(f.span, prefixEnd, f.annotations)
+            }
+        }
 
         fun element(s: ServiceDecl): Element =
             block(
@@ -245,7 +272,18 @@ object Comments {
                     addTrailing(onAnnotationLine.span, onAnnotationLine.span, c)
                 before(c, file.span) -> fileLeading += c
                 else -> {
-                    val next = file.annotations.firstOrNull { before(c, it.span) }?.span
+                    // A 1.x file's annotations come before `namespace`; a 2.0 header's attributes
+                    // follow `schema`, so a comment above the header leads the header itself.
+                    val ns = file.namespace.span
+                    val next =
+                        file.annotations
+                            .firstOrNull {
+                                before(c, it.span) &&
+                                    (it.span.startLine < ns.startLine ||
+                                        (it.span.startLine == ns.startLine &&
+                                            it.span.startColumn < ns.startColumn))
+                            }
+                            ?.span
                     leading.getOrPut(next ?: file.namespace.span) { mutableListOf() } += c
                 }
             }

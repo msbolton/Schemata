@@ -7,6 +7,7 @@ import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.UnionMember
 
 /**
  * The name a union member contributes: a scalar's builtin name, or the referenced declaration's
@@ -20,3 +21,10 @@ fun unionMemberStem(type: Type, schema: Schema, override: (TypeDecl) -> String?)
         is MapOf ->
             error("union members are named types or scalars; the analyzer rejects collections")
     }
+
+/**
+ * The type a member is named from: the keyed model it stands for when it carries that model's key,
+ * else its own type.
+ */
+val UnionMember.named: Type
+    get() = byKey?.let { Ref(it) } ?: type

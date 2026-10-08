@@ -8,11 +8,17 @@ import io.schemata.lang.ast.ReservedItem
 
 /** Ordinal assignment and validation shared by records, enums, and unions. */
 object Ordinals {
+    /**
+     * [ordinal] is the one written, if any. [chosen] is one the compiler picked for an element it
+     * appended to a body of implicit ordinals (`@@timestamps`' fields): it stands in for the
+     * element's position without counting as written.
+     */
     data class Element(
         val ordinal: Int?,
         val ordinalSpan: Span?,
         val name: String,
         val nameSpan: Span,
+        val chosen: Int? = null,
     )
 
     /**
@@ -129,7 +135,7 @@ object Ordinals {
         val allExplicit = elements.mapNotNull { it.ordinal }.toSet()
         val seen = mutableSetOf<Int>()
         return elements.mapIndexed { index, element ->
-            val ordinal = element.ordinal ?: (index + 1)
+            val ordinal = element.ordinal ?: element.chosen ?: (index + 1)
             val at = element.ordinalSpan ?: element.nameSpan
             if (element.ordinal != null) {
                 if (ordinal <= 0)

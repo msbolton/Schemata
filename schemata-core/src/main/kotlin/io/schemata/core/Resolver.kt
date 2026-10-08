@@ -19,8 +19,16 @@ import io.schemata.lang.ast.TypeExpr
 /** Where a type expression was written: its file, namespace, and the records enclosing it. */
 data class Scope(val file: SourceFile, val namespace: String, val enclosing: List<String>)
 
-/** A resolved type expression. [nullable] folds in a transparent alias's own `?`. */
-data class Resolved(val type: Type, val nullable: Boolean, val aliasName: String?)
+/**
+ * A resolved type expression. [nullable] folds in a transparent alias's own `?`. [elementAlias] is
+ * the alias a list's element is written as, so a bound written on the list cannot loosen it.
+ */
+data class Resolved(
+    val type: Type,
+    val nullable: Boolean,
+    val aliasName: String?,
+    val elementAlias: String? = null,
+)
 
 /**
  * Turns a [TypeExpr] into an IR [Type]. A bare name is looked up in the enclosing records' nested
@@ -65,7 +73,7 @@ class Resolver(
                     if (repeatedNamespace) {
                         error(
                             CoreCodes.REPEATED_IMPORT,
-                            "namespace '${imp.namespace}' is imported more than once",
+                            "schema '${imp.namespace}' is imported more than once",
                             imp.span,
                             help = "keep one import of `${imp.namespace}`",
                         )
@@ -82,10 +90,10 @@ class Resolver(
                     if (!index.namespaceExists(imp.namespace)) {
                         error(
                             CoreCodes.UNKNOWN_IMPORT,
-                            "import '${imp.namespace}' does not name a namespace in this compilation",
+                            "import '${imp.namespace}' does not name a schema in this compilation",
                             imp.span,
                             help =
-                                "add the file that declares `namespace ${imp.namespace}` to the compilation, or fix the import",
+                                "add the file that declares `schema ${imp.namespace}` to the compilation, or fix the import",
                         )
                         usedImports += imp // never reported as unused as well
                     }
@@ -110,7 +118,41 @@ class Resolver(
         }
     }
 
+    /**
+     * Options written on [expr] itself (a type argument's, or an alias's right-hand side's) bound
+     * the type wherever it is used; the field flags among them belong to a field and are reported.
+     */
     fun resolve(expr: TypeExpr, scope: Scope): Resolved? {
+        val resolved = resolveType(expr, scope) ?: return null
+        if (expr.options.isEmpty()) return resolved
+        val (flags, bounds) = expr.options.partition { it.name in Options.FIELD_FLAGS }
+        flags.forEach {
+            error(
+                CoreCodes.OPTION_NOT_APPLICABLE,
+                "option '${it.name}' belongs to a field, not to a type argument or an alias",
+                it.span,
+                help = "move it to the options of the field that uses the type",
+            )
+        }
+        return Options.refine(bounds, expr, resolved, { index.find(it)?.decl }) {
+                diagnostics += it
+            }
+            .first
+    }
+
+    /** `T[]` is a list of `T`: the `?` before `[]` is the element's, the one after the list's. */
+    private fun resolveType(expr: TypeExpr, scope: Scope): Resolved? {
+        if (expr.list) {
+            val element =
+                resolve(expr.copy(list = false, listNullable = false, options = emptyList()), scope)
+                    ?: return null
+            return Resolved(
+                ListOf(element.type, element.nullable),
+                expr.listNullable,
+                null,
+                element.aliasName,
+            )
+        }
         when (expr.name) {
             "list" ->
                 return generic(expr, scope, arity = 1) { args ->
@@ -137,7 +179,7 @@ class Resolver(
                             "map key ${expr.args[0].text()} must be string, int32, or int64",
                             expr.args[0].span,
                             help =
-                                "use one of the three key types, or store the entries as a list of records",
+                                "use one of the three key types, or store the entries as a list of models",
                         )
                         return@generic null
                     }
@@ -152,7 +194,7 @@ class Resolver(
                 CoreCodes.NOT_GENERIC,
                 "'${expr.name}' is not generic",
                 expr.nameSpan,
-                help = "remove the type arguments; only `list` and `map` take them",
+                help = "remove the type arguments; only `map` takes them, and a list is `T[]`",
             )
             return null
         }
@@ -180,13 +222,14 @@ class Resolver(
                 CoreCodes.GENERIC_ARITY,
                 "'${expr.name}' takes $arity type $plural; got ${expr.args.size}",
                 expr.nameSpan,
-                help = if (expr.name == "list") "write `list<T>`" else "write `map<K, V>`",
+                help = if (expr.name == "list") "write `T[]`" else "write `map<K, V>`",
             )
             return null
         }
         val args = expr.args.map { resolve(it, scope) ?: return null }
         val type = build(args) ?: return null
-        return Resolved(type, expr.nullable, null)
+        val elementAlias = if (expr.name == "list") args.single().aliasName else null
+        return Resolved(type, expr.nullable, null, elementAlias)
     }
 
     /**
@@ -308,7 +351,7 @@ class Resolver(
             "unknown type '$name'",
             at,
             help =
-                "declare `$name`, import the namespace that declares it, or check the spelling against the builtin types",
+                "declare `$name`, import the schema that declares it, or check the spelling against the builtin types",
         )
         return null
     }
@@ -403,8 +446,16 @@ class Resolver(
     }
 }
 
-/** The type as the user wrote it: its name, generic args recursively, and a trailing `?`. */
+/**
+ * The type as the user wrote it: its name, generic args recursively, a trailing `?`, and a postfix
+ * `[]` with its own `?`.
+ */
 internal fun TypeExpr.text(): String {
     val base = if (args.isEmpty()) name else "$name<${args.joinToString(", ") { it.text() }}>"
-    return if (nullable) "$base?" else base
+    val written = if (nullable) "$base?" else base
+    return when {
+        !list -> written
+        listNullable -> "$written[]?"
+        else -> "$written[]"
+    }
 }

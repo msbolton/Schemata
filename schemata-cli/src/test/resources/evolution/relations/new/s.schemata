@@ -1,0 +1,21 @@
+schema s
+
+model Customer {
+  #1 id     uuid    { id }
+  #2 orders Order[] @relation(customer)
+}
+
+model Order {
+  #1 id       uuid      { id }
+  #2 customer Customer? @relation(onDelete: set_null)
+}
+
+model Membership {
+  #1 id       uuid     { id }
+  #2 customer Customer @relation(onDelete: cascade)
+  #3 code     string   { max 32 }
+  #4 region   string   { max 16 }
+
+  @@unique(customer, code)
+  @@index(region, code)
+}

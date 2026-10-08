@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH1052]: field 'Order.customer' sets itself null when its target is deleted, but it is required
+ --> s.schemata:7:6
+  = help: make the reference nullable or choose restrict
+
+1 error, 0 warnings

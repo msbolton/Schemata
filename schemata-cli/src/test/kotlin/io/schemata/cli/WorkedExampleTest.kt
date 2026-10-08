@@ -29,57 +29,54 @@ class WorkedExampleTest {
     private val orders =
         """
         /// Order management for the storefront.
-        @sql(schema = "shop")
-        namespace shop.orders
+        schema shop.orders @sql(schema: "shop")
 
         import shop.customers
 
-        alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
+        alias Email = string { max 254, match "^[^@]+@[^@]+$" }
+
         alias Money = decimal(19, 4)
 
-        enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
+        enum Status { #1 pending #2 paid #3 shipped #4 cancelled }
 
-        record Card         { #1 last4: string(max = 4)  #2 brand: string(max = 32) }
-        record BankTransfer { #1 iban: string(max = 34) }
-        record Cash         {}
+        model Card { #1 last4 string { max 4 }  #2 brand string { max 32 } }
+
+        model BankTransfer { #1 iban string { max 34 } }
+
+        model Cash {}
 
         union Payment = #1 Card | #2 BankTransfer | #3 Cash
 
         /// A customer's order. One row per checkout.
-        record Order {
-          @sql(key)
-          #1 id:         uuid
-          #2 customer:   Customer
-          #3 status:     Status = pending
-          #4 lines:      list<Line>(min = 1)
-          #5 total:      Money
-          #6 payment:    Payment
-          @sql(strategy = embed)
-          #7 shipping:   Address
-          #8 placed_at:  instant
-          #9 note:       string(max = 500)?
-          @deprecated("use placed_at")
-          #10 created:   instant?
+        model Order {
+          #1  id        uuid     { id }
+          #2  customer  Customer
+          #3  status    Status   = pending
+          #4  lines     Line[]   { minItems 1 }
+          #5  total     Money
+          #6  payment   Payment
+          #7  shipping  Address  { embed }
+          #8  placed_at instant
+          #9  note      string?  { max 500 }
+          #10 created   instant? @deprecated("use placed_at")
           reserved #11, "legacy_ref"
 
           /// One purchasable item.
-          record Line {
-            #1 sku:      string(max = 64)
-            #2 quantity: int32(min = 1)
-            #3 price:    Money
-          }
+          model Line { #1 sku string { max 64 }  #2 quantity int32 { min 1 }  #3 price Money }
 
-          record Address {
-            #1 street:   string(max = 200)
-            #2 city:     string(max = 100)
-            #3 country:  string(min = 2, max = 2)
+          model Address {
+            #1 street  string { max 200 }
+            #2 city    string { max 100 }
+            #3 country string { min 2, max 2 }
           }
         }
         """
             .trimIndent()
 
     private val customers =
-        "namespace shop.customers\n\nrecord Customer {\n  @sql(key) #1 id:   uuid\n  #2 name: string(max = 100)\n}"
+        "schema shop.customers\n" +
+            "\n" +
+            "model Customer { #1 id uuid { id }  #2 name string { max 100 } }"
 
     private fun qn(ns: String, vararg path: String) = QualifiedName(ns, path.toList())
 
@@ -97,7 +94,7 @@ class WorkedExampleTest {
         assertEquals(AnnotationValue.Str("shop"), ns.annotations["sql"]["schema"])
         val order = schema.lookup(qn("shop.orders", "Order")) as RecordType
         assertEquals((1..10).toList(), order.fields.map { it.ordinal })
-        assertEquals(AnnotationValue.Flag, order.fields[0].annotations["sql"]["key"])
+        assertTrue(order.fields[0].key)
         assertEquals(EnumRef(qn("shop.orders", "Status"), "pending"), order.fields[2].default)
         assertEquals(
             ListOf(
@@ -111,7 +108,7 @@ class WorkedExampleTest {
             Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 4)) to "Money",
             order.fields[4].type to order.fields[4].aliasName,
         )
-        assertEquals(AnnotationValue.Name("embed"), order.fields[6].annotations["sql"]["strategy"])
+        assertEquals(null, order.fields[6].annotations["sql"]["strategy"])
         assertEquals(
             Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(500))) to true,
             order.fields[8].type to order.fields[8].nullable,
@@ -147,7 +144,7 @@ class WorkedExampleTest {
         )
         assertEquals(
             listOf(
-                "orders.schemata:24 SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres"
+                "orders.schemata:25 SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres"
             ),
             result.diagnostics.map {
                 "${it.span.file}:${it.span.startLine} ${it.code.id} ${it.message}"
@@ -187,23 +184,24 @@ class WorkedExampleTest {
         )
         assertEquals(
             listOf(
-                "customers.schemata:4 field 'Customer.id': uuid has no Protobuf representation; lowered to string",
-                "customers.schemata:5 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf",
+                "customers.schemata:3 field 'Customer.id': uuid has no Protobuf representation; lowered to string",
+                "customers.schemata:3 field 'Customer.name': refinements on string { max 100 } are not enforced by Protobuf",
                 "orders.schemata:10 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0",
-                "orders.schemata:12 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf",
-                "orders.schemata:12 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf",
-                "orders.schemata:13 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf",
-                "orders.schemata:20 field 'Order.id': uuid has no Protobuf representation; lowered to string",
-                "orders.schemata:23 field 'Order.status': default STATUS_PENDING is not carried by proto3",
-                "orders.schemata:24 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf",
-                "orders.schemata:25 field 'Order.total': decimal has no Protobuf representation; lowered to string",
-                "orders.schemata:30 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf",
-                "orders.schemata:37 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf",
-                "orders.schemata:38 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf",
-                "orders.schemata:39 field 'Line.price': decimal has no Protobuf representation; lowered to string",
-                "orders.schemata:43 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf",
-                "orders.schemata:44 field 'Address.city': refinements on string(max = 100) are not enforced by Protobuf",
-                "orders.schemata:45 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf",
+                "orders.schemata:12 field 'Card.last4': refinements on string { max 4 } are not enforced by Protobuf",
+                "orders.schemata:12 field 'Card.brand': refinements on string { max 32 } are not enforced by Protobuf",
+                "orders.schemata:14 field 'BankTransfer.iban': refinements on string { max 34 } are not enforced by Protobuf",
+                "orders.schemata:22 field 'Order.id': uuid has no Protobuf representation; lowered to string",
+                "orders.schemata:23 field 'Order.customer_id': uuid has no Protobuf representation; lowered to string",
+                "orders.schemata:24 field 'Order.status': default STATUS_PENDING is not carried by proto3",
+                "orders.schemata:25 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Protobuf",
+                "orders.schemata:26 field 'Order.total': decimal has no Protobuf representation; lowered to string",
+                "orders.schemata:30 field 'Order.note': refinements on string { max 500 } are not enforced by Protobuf",
+                "orders.schemata:35 field 'Line.sku': refinements on string { max 64 } are not enforced by Protobuf",
+                "orders.schemata:35 field 'Line.quantity': refinements on int32 { min 1 } are not enforced by Protobuf",
+                "orders.schemata:35 field 'Line.price': decimal has no Protobuf representation; lowered to string",
+                "orders.schemata:38 field 'Address.street': refinements on string { max 200 } are not enforced by Protobuf",
+                "orders.schemata:39 field 'Address.city': refinements on string { max 100 } are not enforced by Protobuf",
+                "orders.schemata:40 field 'Address.country': refinements on string { min 2, max 2 } are not enforced by Protobuf",
             ),
             result.diagnostics.map { "${it.span.file}:${it.span.startLine} ${it.message}" },
         )
@@ -227,7 +225,7 @@ class WorkedExampleTest {
                 .toSet()
         assertEquals(setOf("SCH2001", "SCH2105"), codes)
         assertEquals(
-            17,
+            18,
             Regex("\"code\":\"SCH2001\"").findAll(result.stdout).count(),
             result.stdout,
         )

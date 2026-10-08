@@ -1,2 +1,0 @@
-namespace s
-record R { #1 x: bool(max = 3) }

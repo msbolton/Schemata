@@ -4,21 +4,24 @@ import io.schemata.lang.Category
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 
-/** SQL catalog, `SCH21xx`. `SCH2103` and `SCH2104` are retired and must not be reused. */
+/**
+ * SQL catalog, `SCH21xx`. `SCH2103`, `SCH2104`, and `SCH2107` (a nullable or non-scalar key field,
+ * which core now reports for every target) are retired and must not be reused.
+ */
 object SqlCodes {
     val TABLE_COLLISION =
         DiagnosticCode(
             "SCH2101",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two records lower to the same table",
+            "two models lower to the same table",
         )
     val SCHEMA_COLLISION =
         DiagnosticCode(
             "SCH2102",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two namespaces lower to the same schema",
+            "two schemas lower to the same Postgres schema",
         )
     val LOSSY =
         DiagnosticCode(
@@ -32,21 +35,14 @@ object SqlCodes {
             "SCH2106",
             Severity.ERROR,
             Category.SEMANTIC,
-            "a record has no primary key and no field uses it",
-        )
-    val KEY_COLUMN =
-        DiagnosticCode(
-            "SCH2107",
-            Severity.ERROR,
-            Category.SEMANTIC,
-            "a primary key declaration is malformed",
+            "a model has no primary key and no field uses it",
         )
     val RECURSIVE_EMBED =
         DiagnosticCode(
             "SCH2108",
             Severity.ERROR,
             Category.SEMANTIC,
-            "embedding a record would recurse",
+            "embedding a model would recurse",
         )
     val IDENTIFIER_TRUNCATED =
         DiagnosticCode(
@@ -92,7 +88,6 @@ object SqlCodes {
             SCHEMA_COLLISION,
             LOSSY,
             MISSING_KEY,
-            KEY_COLUMN,
             RECURSIVE_EMBED,
             IDENTIFIER_TRUNCATED,
             STRATEGY_NOT_ALLOWED,

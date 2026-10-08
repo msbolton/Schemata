@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1043]: default "b" does not match pattern "^a"
- --> s.schemata:2:43
+ --> s.schemata:3:40
   = help: use a default the pattern accepts, or change the pattern
 
 1 error, 0 warnings

@@ -24,6 +24,7 @@ fun main(args: Array<String>) =
             CompileCommand(),
             CheckCommand(),
             FmtCommand(),
+            UpgradeCommand(),
             TargetsCommand(),
             ImportCommand(),
             DiffCommand(),

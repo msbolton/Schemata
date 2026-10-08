@@ -1,10 +1,10 @@
 # targets=proto
-error[SCH1046]: namespace 'a' is imported more than once
- --> b.schemata:3:1
+error[SCH1046]: schema 'a' is imported more than once
+ --> b.schemata:4:1
   = help: keep one import of `a`
 
 error[SCH1046]: alias 'base' is given to more than one import
- --> b.schemata:4:13
+ --> b.schemata:5:13
   = help: give each import its own alias
 
 2 errors, 0 warnings

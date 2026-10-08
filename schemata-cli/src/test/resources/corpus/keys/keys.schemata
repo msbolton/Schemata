@@ -1,10 +1,26 @@
-namespace corpus.keys
+schema corpus.keys
 
-record Account {
-  @sql(key) #1 id:      uuid
-  @sql(unique) #2 email:   string(max = 254)
-  @sql(index) #3 created: instant
+model Account {
+  #1 id      uuid    { id }
+  #2 email   string  { unique, max 254 }
+  #3 created instant { index }
 }
 
-@sql(key = (tenant_id, code))
-record Plan { #1 tenant_id: uuid #2 code: string(max = 32) #3 name: string }
+model Plan {
+  #1 tenant_id uuid
+  #2 code      string { max 32 }
+  #3 name      string
+
+  @@id(tenant_id, code)
+}
+
+model Seat {
+  #1 id      uuid     { id }
+  #2 account Account  @relation(onDelete: cascade)
+  #3 number  int32
+  #4 holder  Account? @relation(onDelete: set_null)
+  #5 row     string   { max 4 }
+
+  @@unique(account, number)
+  @@index(row, number)
+}

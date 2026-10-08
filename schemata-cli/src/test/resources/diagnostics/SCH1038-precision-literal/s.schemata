@@ -1,2 +1,0 @@
-namespace s
-record R { #1 x: decimal(1.5, 1) }

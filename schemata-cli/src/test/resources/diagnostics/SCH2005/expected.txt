@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH2005] (proto): field 'R.g': proto cannot nest collections; list<list<int32>> has a collection element
- --> s.schemata:2:12
-  = help: wrap the element in a record
+error[SCH2005] (proto): field 'R.g': proto cannot nest collections; list<int32[]> has a collection element
+ --> s.schemata:3:11
+  = help: wrap the element in a model
 
 1 error, 0 warnings

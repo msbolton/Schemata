@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH2007] (proto): field 'R.x': @proto(name = "1x") is not a valid identifier
- --> s.schemata:2:35
+error[SCH2007] (proto): field 'R.x': @proto(name: "1x") is not a valid identifier
+ --> s.schemata:3:14
   = help: use letters, digits, and underscores, starting with a letter
 
 1 error, 0 warnings

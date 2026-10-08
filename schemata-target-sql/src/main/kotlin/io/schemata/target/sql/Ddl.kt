@@ -1,5 +1,6 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.OnDelete
 import io.schemata.target.sql.Naming.literal
 import io.schemata.target.sql.Naming.quote
 
@@ -30,7 +31,12 @@ object Ddl {
         append(
             "REFERENCES ${quote(fk.targetSchema)}.${quote(fk.targetTable)} (${columns(fk.targetColumns)})"
         )
-        if (fk.cascade) append(" ON DELETE CASCADE")
+        // RESTRICT is spelled by saying nothing: Postgres's default refuses the delete too.
+        when (fk.onDelete) {
+            OnDelete.RESTRICT -> {}
+            OnDelete.CASCADE -> append(" ON DELETE CASCADE")
+            OnDelete.SET_NULL -> append(" ON DELETE SET NULL")
+        }
         append(";")
     }
 

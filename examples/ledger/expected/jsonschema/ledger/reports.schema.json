@@ -18,17 +18,15 @@
           "maxLength": 7
         },
         "account": {
-          "$ref": "urn:schemata:ledger.accounts#/$defs/Account"
+          "$ref": "urn:schemata:ledger.accounts#/$defs/AccountKey"
         },
-        "last": {
-          "anyOf": [
-            {
-              "$ref": "urn:schemata:ledger.journal#/$defs/Entry"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "last_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         },
         "totals": {
           "$ref": "#/$defs/Close.Totals"

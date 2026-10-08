@@ -1,27 +1,19 @@
-@xsd(namespace = "http://www.w3.org/2001/SMIL20/Language")
-namespace smil20_language
+schema smil20_language @xsd(namespace: "http://www.w3.org/2001/SMIL20/Language")
 
 import smil20
 
-@xsd(name = "animate")
-record Animate {
-  @xsd(name = "attributeName")
-  @xsd(attribute)
-  attribute_name:         string
-  @xsd(name = "attributeType")
-  @xsd(attribute)
-  attribute_type:         AttributeType = auto
-  @xsd(attribute) additive:               Additive = replace
-  @xsd(attribute) accumulate:             Accumulate = none
-  @xsd(attribute) to:                     string?
-  @xsd(attribute) from:                   string?
-  @xsd(attribute) by:                     string?
-  @xsd(attribute) values:                 string?
-  @xsd(any)
-  @xsd(wildcard = "##other")
-  any:                    string
-  @xsd(attribute) id:                     string?
-  @xsd(attribute) class:                  string?
+model Animate {
+  attribute_name         string                     @xsd(name: "attributeName") @xsd(attribute)
+  attribute_type         AttributeType              @xsd(name: "attributeType") @xsd(attribute) = auto
+  additive               Additive                   @xsd(attribute) = replace
+  accumulate             Accumulate                 @xsd(attribute) = none
+  to                     string?                    @xsd(attribute)
+  from                   string?                    @xsd(attribute)
+  by                     string?                    @xsd(attribute)
+  values                 string?                    @xsd(attribute)
+  any                    string                     @xsd(any) @xsd(wildcard: "##other")
+  id                     string?                    @xsd(attribute)
+  class                  string?                    @xsd(attribute)
   /// lang (as an attribute name)
   ///
   /// denotes an attribute whose value
@@ -48,77 +40,52 @@ record Animate {
   ///
   /// The union allows for the 'un-declaration' of xml:lang with
   /// the empty string.
-  @xsd(attribute) lang:                   string?
-  @xsd(attribute) alt:                    string?
-  @xsd(attribute) longdesc:               string?
-  @xsd(attribute) begin:                  string?
-  @xsd(attribute) end:                    string?
-  @xsd(attribute) dur:                    string?
-  @xsd(name = "repeatDur")
-  @xsd(attribute)
-  repeat_dur:             string?
-  @xsd(name = "repeatCount")
-  @xsd(attribute)
-  repeat_count:           decimal(38, 9, min = 0.0)?
-  @xsd(attribute) repeat:                 int64(min = 0)?
-  @xsd(attribute) min:                    string?
-  @xsd(attribute) max:                    string?
-  @xsd(name = "syncBehavior")
-  @xsd(attribute)
-  sync_behavior:          smil20.SyncBehavior = default
-  @xsd(name = "syncTolerance")
-  @xsd(attribute)
-  sync_tolerance:         string?
-  @xsd(name = "syncBehaviorDefault")
-  @xsd(attribute)
-  sync_behavior_default:  smil20.SyncBehaviorDefault = inherit
-  @xsd(name = "syncToleranceDefault")
-  @xsd(attribute)
-  sync_tolerance_default: string = "inherit"
-  @xsd(attribute) restart:                smil20.RestartTiming = default
-  @xsd(name = "restartDefault")
-  @xsd(attribute)
-  restart_default:        smil20.RestartDefault = inherit
-  @xsd(attribute) fill:                   smil20.FillTimingAttrs = default
-  @xsd(name = "fillDefault")
-  @xsd(attribute)
-  fill_default:           smil20.FillDefault = inherit
-  @xsd(name = "targetElement")
-  @xsd(attribute)
-  target_element:         string?
-  @xsd(name = "calcMode")
-  @xsd(attribute)
-  calc_mode:              CalcMode = linear
-  @xsd(name = "skip-content")
-  @xsd(attribute)
-  skip_content:           bool = true
-  @xsd(any_attribute)
-  @xsd(process = "strict")
-  attributes:             map<string, string>
+  lang                   string?                    @xsd(attribute)
+  alt                    string?                    @xsd(attribute)
+  longdesc               string?                    @xsd(attribute)
+  begin                  string?                    @xsd(attribute)
+  end                    string?                    @xsd(attribute)
+  dur                    string?                    @xsd(attribute)
+  repeat_dur             string?                    @xsd(name: "repeatDur") @xsd(attribute)
+  repeat_count           decimal(38, 9)?            { min 0.0 } @xsd(name: "repeatCount") @xsd(attribute)
+  repeat                 int64?                     { min 0 } @xsd(attribute)
+  min                    string?                    @xsd(attribute)
+  max                    string?                    @xsd(attribute)
+  sync_behavior          smil20.SyncBehavior        @xsd(name: "syncBehavior") @xsd(attribute) = default
+  sync_tolerance         string?                    @xsd(name: "syncTolerance") @xsd(attribute)
+  sync_behavior_default  smil20.SyncBehaviorDefault @xsd(name: "syncBehaviorDefault") @xsd(attribute) = inherit
+  sync_tolerance_default string                     @xsd(name: "syncToleranceDefault") @xsd(attribute) = "inherit"
+  restart                smil20.RestartTiming       @xsd(attribute) = default
+  restart_default        smil20.RestartDefault      @xsd(name: "restartDefault") @xsd(attribute) = inherit
+  fill                   smil20.FillTimingAttrs     @xsd(attribute) = default
+  fill_default           smil20.FillDefault         @xsd(name: "fillDefault") @xsd(attribute) = inherit
+  target_element         string?                    @xsd(name: "targetElement") @xsd(attribute)
+  calc_mode              CalcMode                   @xsd(name: "calcMode") @xsd(attribute) = linear
+  skip_content           bool                       @xsd(name: "skip-content") @xsd(attribute) = true
+  attributes             map<string, string>        @xsd(any_attribute) @xsd(process: "strict")
 
-  enum AttributeType { @xsd(name = "XML") xml, @xsd(name = "CSS") css, auto }
+  enum AttributeType { @xsd(name: "XML") xml @xsd(name: "CSS") css auto }
 
-  enum Additive { replace, sum }
+  enum Additive { replace sum }
 
-  enum Accumulate { none, sum }
+  enum Accumulate { none sum }
 
-  enum CalcMode { discrete, linear, paced }
+  enum CalcMode { discrete linear paced }
+
+  @@xsd(name: "animate")
 }
 
-@xsd(name = "animateMotion")
-record AnimateMotion {
-  @xsd(attribute) additive:               Additive = replace
-  @xsd(attribute) accumulate:             Accumulate = none
-  @xsd(attribute) to:                     string?
-  @xsd(attribute) from:                   string?
-  @xsd(attribute) by:                     string?
-  @xsd(attribute) values:                 string?
-  @xsd(attribute) origin:                 string?
-  @xsd(any)
-  @xsd(wildcard = "##other")
-  any:                    string
-  @xsd(attribute) id:                     string?
-  @xsd(attribute) class:                  string?
+model AnimateMotion {
+  additive               Additive                   @xsd(attribute) = replace
+  accumulate             Accumulate                 @xsd(attribute) = none
+  to                     string?                    @xsd(attribute)
+  from                   string?                    @xsd(attribute)
+  by                     string?                    @xsd(attribute)
+  values                 string?                    @xsd(attribute)
+  origin                 string?                    @xsd(attribute)
+  any                    string                     @xsd(any) @xsd(wildcard: "##other")
+  id                     string?                    @xsd(attribute)
+  class                  string?                    @xsd(attribute)
   /// lang (as an attribute name)
   ///
   /// denotes an attribute whose value
@@ -145,80 +112,51 @@ record AnimateMotion {
   ///
   /// The union allows for the 'un-declaration' of xml:lang with
   /// the empty string.
-  @xsd(attribute) lang:                   string?
-  @xsd(attribute) alt:                    string?
-  @xsd(attribute) longdesc:               string?
-  @xsd(attribute) begin:                  string?
-  @xsd(attribute) end:                    string?
-  @xsd(attribute) dur:                    string?
-  @xsd(name = "repeatDur")
-  @xsd(attribute)
-  repeat_dur:             string?
-  @xsd(name = "repeatCount")
-  @xsd(attribute)
-  repeat_count:           decimal(38, 9, min = 0.0)?
-  @xsd(attribute) repeat:                 int64(min = 0)?
-  @xsd(attribute) min:                    string?
-  @xsd(attribute) max:                    string?
-  @xsd(name = "syncBehavior")
-  @xsd(attribute)
-  sync_behavior:          smil20.SyncBehavior = default
-  @xsd(name = "syncTolerance")
-  @xsd(attribute)
-  sync_tolerance:         string?
-  @xsd(name = "syncBehaviorDefault")
-  @xsd(attribute)
-  sync_behavior_default:  smil20.SyncBehaviorDefault = inherit
-  @xsd(name = "syncToleranceDefault")
-  @xsd(attribute)
-  sync_tolerance_default: string = "inherit"
-  @xsd(attribute) restart:                smil20.RestartTiming = default
-  @xsd(name = "restartDefault")
-  @xsd(attribute)
-  restart_default:        smil20.RestartDefault = inherit
-  @xsd(attribute) fill:                   smil20.FillTimingAttrs = default
-  @xsd(name = "fillDefault")
-  @xsd(attribute)
-  fill_default:           smil20.FillDefault = inherit
-  @xsd(name = "targetElement")
-  @xsd(attribute)
-  target_element:         string?
-  @xsd(name = "calcMode")
-  @xsd(attribute)
-  calc_mode:              CalcMode = linear
-  @xsd(name = "skip-content")
-  @xsd(attribute)
-  skip_content:           bool = true
-  @xsd(any_attribute)
-  @xsd(process = "strict")
-  attributes:             map<string, string>
+  lang                   string?                    @xsd(attribute)
+  alt                    string?                    @xsd(attribute)
+  longdesc               string?                    @xsd(attribute)
+  begin                  string?                    @xsd(attribute)
+  end                    string?                    @xsd(attribute)
+  dur                    string?                    @xsd(attribute)
+  repeat_dur             string?                    @xsd(name: "repeatDur") @xsd(attribute)
+  repeat_count           decimal(38, 9)?            { min 0.0 } @xsd(name: "repeatCount") @xsd(attribute)
+  repeat                 int64?                     { min 0 } @xsd(attribute)
+  min                    string?                    @xsd(attribute)
+  max                    string?                    @xsd(attribute)
+  sync_behavior          smil20.SyncBehavior        @xsd(name: "syncBehavior") @xsd(attribute) = default
+  sync_tolerance         string?                    @xsd(name: "syncTolerance") @xsd(attribute)
+  sync_behavior_default  smil20.SyncBehaviorDefault @xsd(name: "syncBehaviorDefault") @xsd(attribute) = inherit
+  sync_tolerance_default string                     @xsd(name: "syncToleranceDefault") @xsd(attribute) = "inherit"
+  restart                smil20.RestartTiming       @xsd(attribute) = default
+  restart_default        smil20.RestartDefault      @xsd(name: "restartDefault") @xsd(attribute) = inherit
+  fill                   smil20.FillTimingAttrs     @xsd(attribute) = default
+  fill_default           smil20.FillDefault         @xsd(name: "fillDefault") @xsd(attribute) = inherit
+  target_element         string?                    @xsd(name: "targetElement") @xsd(attribute)
+  calc_mode              CalcMode                   @xsd(name: "calcMode") @xsd(attribute) = linear
+  skip_content           bool                       @xsd(name: "skip-content") @xsd(attribute) = true
+  attributes             map<string, string>        @xsd(any_attribute) @xsd(process: "strict")
 
-  enum Additive { replace, sum }
+  enum Additive { replace sum }
 
-  enum Accumulate { none, sum }
+  enum Accumulate { none sum }
 
-  enum CalcMode { discrete, linear, paced }
+  enum CalcMode { discrete linear paced }
+
+  @@xsd(name: "animateMotion")
 }
 
-@xsd(name = "animateColor")
-record AnimateColor {
-  @xsd(name = "attributeName")
-  @xsd(attribute)
-  attribute_name:         string
-  @xsd(name = "attributeType")
-  @xsd(attribute)
-  attribute_type:         AttributeType = auto
-  @xsd(attribute) additive:               Additive = replace
-  @xsd(attribute) accumulate:             Accumulate = none
-  @xsd(attribute) to:                     string?
-  @xsd(attribute) from:                   string?
-  @xsd(attribute) by:                     string?
-  @xsd(attribute) values:                 string?
-  @xsd(any)
-  @xsd(wildcard = "##other")
-  any:                    string
-  @xsd(attribute) id:                     string?
-  @xsd(attribute) class:                  string?
+model AnimateColor {
+  attribute_name         string                     @xsd(name: "attributeName") @xsd(attribute)
+  attribute_type         AttributeType              @xsd(name: "attributeType") @xsd(attribute) = auto
+  additive               Additive                   @xsd(attribute) = replace
+  accumulate             Accumulate                 @xsd(attribute) = none
+  to                     string?                    @xsd(attribute)
+  from                   string?                    @xsd(attribute)
+  by                     string?                    @xsd(attribute)
+  values                 string?                    @xsd(attribute)
+  any                    string                     @xsd(any) @xsd(wildcard: "##other")
+  id                     string?                    @xsd(attribute)
+  class                  string?                    @xsd(attribute)
   /// lang (as an attribute name)
   ///
   /// denotes an attribute whose value
@@ -245,77 +183,48 @@ record AnimateColor {
   ///
   /// The union allows for the 'un-declaration' of xml:lang with
   /// the empty string.
-  @xsd(attribute) lang:                   string?
-  @xsd(attribute) alt:                    string?
-  @xsd(attribute) longdesc:               string?
-  @xsd(attribute) begin:                  string?
-  @xsd(attribute) end:                    string?
-  @xsd(attribute) dur:                    string?
-  @xsd(name = "repeatDur")
-  @xsd(attribute)
-  repeat_dur:             string?
-  @xsd(name = "repeatCount")
-  @xsd(attribute)
-  repeat_count:           decimal(38, 9, min = 0.0)?
-  @xsd(attribute) repeat:                 int64(min = 0)?
-  @xsd(attribute) min:                    string?
-  @xsd(attribute) max:                    string?
-  @xsd(name = "syncBehavior")
-  @xsd(attribute)
-  sync_behavior:          smil20.SyncBehavior = default
-  @xsd(name = "syncTolerance")
-  @xsd(attribute)
-  sync_tolerance:         string?
-  @xsd(name = "syncBehaviorDefault")
-  @xsd(attribute)
-  sync_behavior_default:  smil20.SyncBehaviorDefault = inherit
-  @xsd(name = "syncToleranceDefault")
-  @xsd(attribute)
-  sync_tolerance_default: string = "inherit"
-  @xsd(attribute) restart:                smil20.RestartTiming = default
-  @xsd(name = "restartDefault")
-  @xsd(attribute)
-  restart_default:        smil20.RestartDefault = inherit
-  @xsd(attribute) fill:                   smil20.FillTimingAttrs = default
-  @xsd(name = "fillDefault")
-  @xsd(attribute)
-  fill_default:           smil20.FillDefault = inherit
-  @xsd(name = "targetElement")
-  @xsd(attribute)
-  target_element:         string?
-  @xsd(name = "calcMode")
-  @xsd(attribute)
-  calc_mode:              CalcMode = linear
-  @xsd(name = "skip-content")
-  @xsd(attribute)
-  skip_content:           bool = true
-  @xsd(any_attribute)
-  @xsd(process = "strict")
-  attributes:             map<string, string>
+  lang                   string?                    @xsd(attribute)
+  alt                    string?                    @xsd(attribute)
+  longdesc               string?                    @xsd(attribute)
+  begin                  string?                    @xsd(attribute)
+  end                    string?                    @xsd(attribute)
+  dur                    string?                    @xsd(attribute)
+  repeat_dur             string?                    @xsd(name: "repeatDur") @xsd(attribute)
+  repeat_count           decimal(38, 9)?            { min 0.0 } @xsd(name: "repeatCount") @xsd(attribute)
+  repeat                 int64?                     { min 0 } @xsd(attribute)
+  min                    string?                    @xsd(attribute)
+  max                    string?                    @xsd(attribute)
+  sync_behavior          smil20.SyncBehavior        @xsd(name: "syncBehavior") @xsd(attribute) = default
+  sync_tolerance         string?                    @xsd(name: "syncTolerance") @xsd(attribute)
+  sync_behavior_default  smil20.SyncBehaviorDefault @xsd(name: "syncBehaviorDefault") @xsd(attribute) = inherit
+  sync_tolerance_default string                     @xsd(name: "syncToleranceDefault") @xsd(attribute) = "inherit"
+  restart                smil20.RestartTiming       @xsd(attribute) = default
+  restart_default        smil20.RestartDefault      @xsd(name: "restartDefault") @xsd(attribute) = inherit
+  fill                   smil20.FillTimingAttrs     @xsd(attribute) = default
+  fill_default           smil20.FillDefault         @xsd(name: "fillDefault") @xsd(attribute) = inherit
+  target_element         string?                    @xsd(name: "targetElement") @xsd(attribute)
+  calc_mode              CalcMode                   @xsd(name: "calcMode") @xsd(attribute) = linear
+  skip_content           bool                       @xsd(name: "skip-content") @xsd(attribute) = true
+  attributes             map<string, string>        @xsd(any_attribute) @xsd(process: "strict")
 
-  enum AttributeType { @xsd(name = "XML") xml, @xsd(name = "CSS") css, auto }
+  enum AttributeType { @xsd(name: "XML") xml @xsd(name: "CSS") css auto }
 
-  enum Additive { replace, sum }
+  enum Additive { replace sum }
 
-  enum Accumulate { none, sum }
+  enum Accumulate { none sum }
 
-  enum CalcMode { discrete, linear, paced }
+  enum CalcMode { discrete linear paced }
+
+  @@xsd(name: "animateColor")
 }
 
-@xsd(name = "set")
-record Set {
-  @xsd(name = "attributeName")
-  @xsd(attribute)
-  attribute_name:         string
-  @xsd(name = "attributeType")
-  @xsd(attribute)
-  attribute_type:         AttributeType = auto
-  @xsd(attribute) to:                     string?
-  @xsd(any)
-  @xsd(wildcard = "##other")
-  any:                    string
-  @xsd(attribute) id:                     string?
-  @xsd(attribute) class:                  string?
+model Set {
+  attribute_name         string                     @xsd(name: "attributeName") @xsd(attribute)
+  attribute_type         AttributeType              @xsd(name: "attributeType") @xsd(attribute) = auto
+  to                     string?                    @xsd(attribute)
+  any                    string                     @xsd(any) @xsd(wildcard: "##other")
+  id                     string?                    @xsd(attribute)
+  class                  string?                    @xsd(attribute)
   /// lang (as an attribute name)
   ///
   /// denotes an attribute whose value
@@ -342,50 +251,30 @@ record Set {
   ///
   /// The union allows for the 'un-declaration' of xml:lang with
   /// the empty string.
-  @xsd(attribute) lang:                   string?
-  @xsd(attribute) alt:                    string?
-  @xsd(attribute) longdesc:               string?
-  @xsd(attribute) begin:                  string?
-  @xsd(attribute) end:                    string?
-  @xsd(attribute) dur:                    string?
-  @xsd(name = "repeatDur")
-  @xsd(attribute)
-  repeat_dur:             string?
-  @xsd(name = "repeatCount")
-  @xsd(attribute)
-  repeat_count:           decimal(38, 9, min = 0.0)?
-  @xsd(attribute) repeat:                 int64(min = 0)?
-  @xsd(attribute) min:                    string?
-  @xsd(attribute) max:                    string?
-  @xsd(name = "syncBehavior")
-  @xsd(attribute)
-  sync_behavior:          smil20.SyncBehavior = default
-  @xsd(name = "syncTolerance")
-  @xsd(attribute)
-  sync_tolerance:         string?
-  @xsd(name = "syncBehaviorDefault")
-  @xsd(attribute)
-  sync_behavior_default:  smil20.SyncBehaviorDefault = inherit
-  @xsd(name = "syncToleranceDefault")
-  @xsd(attribute)
-  sync_tolerance_default: string = "inherit"
-  @xsd(attribute) restart:                smil20.RestartTiming = default
-  @xsd(name = "restartDefault")
-  @xsd(attribute)
-  restart_default:        smil20.RestartDefault = inherit
-  @xsd(attribute) fill:                   smil20.FillTimingAttrs = default
-  @xsd(name = "fillDefault")
-  @xsd(attribute)
-  fill_default:           smil20.FillDefault = inherit
-  @xsd(name = "targetElement")
-  @xsd(attribute)
-  target_element:         string?
-  @xsd(name = "skip-content")
-  @xsd(attribute)
-  skip_content:           bool = true
-  @xsd(any_attribute)
-  @xsd(process = "strict")
-  attributes:             map<string, string>
+  lang                   string?                    @xsd(attribute)
+  alt                    string?                    @xsd(attribute)
+  longdesc               string?                    @xsd(attribute)
+  begin                  string?                    @xsd(attribute)
+  end                    string?                    @xsd(attribute)
+  dur                    string?                    @xsd(attribute)
+  repeat_dur             string?                    @xsd(name: "repeatDur") @xsd(attribute)
+  repeat_count           decimal(38, 9)?            { min 0.0 } @xsd(name: "repeatCount") @xsd(attribute)
+  repeat                 int64?                     { min 0 } @xsd(attribute)
+  min                    string?                    @xsd(attribute)
+  max                    string?                    @xsd(attribute)
+  sync_behavior          smil20.SyncBehavior        @xsd(name: "syncBehavior") @xsd(attribute) = default
+  sync_tolerance         string?                    @xsd(name: "syncTolerance") @xsd(attribute)
+  sync_behavior_default  smil20.SyncBehaviorDefault @xsd(name: "syncBehaviorDefault") @xsd(attribute) = inherit
+  sync_tolerance_default string                     @xsd(name: "syncToleranceDefault") @xsd(attribute) = "inherit"
+  restart                smil20.RestartTiming       @xsd(attribute) = default
+  restart_default        smil20.RestartDefault      @xsd(name: "restartDefault") @xsd(attribute) = inherit
+  fill                   smil20.FillTimingAttrs     @xsd(attribute) = default
+  fill_default           smil20.FillDefault         @xsd(name: "fillDefault") @xsd(attribute) = inherit
+  target_element         string?                    @xsd(name: "targetElement") @xsd(attribute)
+  skip_content           bool                       @xsd(name: "skip-content") @xsd(attribute) = true
+  attributes             map<string, string>        @xsd(any_attribute) @xsd(process: "strict")
 
-  enum AttributeType { @xsd(name = "XML") xml, @xsd(name = "CSS") css, auto }
+  enum AttributeType { @xsd(name: "XML") xml @xsd(name: "CSS") css auto }
+
+  @@xsd(name: "set")
 }

@@ -37,8 +37,8 @@ class ImportCommand : CliktCommand(name = "import") {
         option(
             "--namespace",
             help =
-                "Namespace for a single input file: one whose XSD targetNamespace is not " +
-                    "urn:schemata:, or whose proto package or SQL schema is not a namespace name",
+                "Schema name for a single input file: one whose XSD targetNamespace is not " +
+                    "urn:schemata:, or whose proto package or SQL schema is not a schema name",
         )
     private val reporting by ReportingOptions()
     private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)

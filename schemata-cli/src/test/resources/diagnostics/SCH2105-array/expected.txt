@@ -1,6 +1,6 @@
 # targets=sql
-warning[SCH2105] (lossy) (sql): field 'R.tags': refinements on list<string(max = 3)> are not enforced by Postgres
- --> s.schemata:2:36
-  = help: use `@sql(strategy = table)` so the elements become rows with their own constraints
+warning[SCH2105] (lossy) (sql): field 'R.tags': refinements on string[] { max 3 } are not enforced by Postgres
+ --> s.schemata:3:31
+  = help: use `@sql(strategy: table)` so the elements become rows with their own constraints
 
 0 errors, 1 warning

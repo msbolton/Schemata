@@ -55,7 +55,9 @@ import io.schemata.evolution.UnionMemberOwner
 import io.schemata.evolution.UnionMemberRemoved
 import io.schemata.evolution.UnionMemberTypeChanged
 import io.schemata.evolution.Verdict
+import io.schemata.evolution.annotationLabel
 import io.schemata.evolution.changeWord
+import io.schemata.evolution.shown
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.SchemataText
 import io.schemata.target.TypeText
@@ -173,7 +175,7 @@ object DiffRenderer {
     private fun oldText(c: Change): String? =
         when (c) {
             is FieldRenamed -> c.from.name
-            is FieldTypeChanged -> TypeText.of(c.from.type, c.from.nullable)
+            is FieldTypeChanged -> shown(c.from.type, c.from.nullable)
             is FieldNullabilityChanged -> TypeText.of(c.from.type, c.from.nullable)
             is FieldRefinementChanged -> TypeText.of(c.from.type, c.from.nullable)
             is FieldDefaultChanged -> valueText(c.from.default)
@@ -193,7 +195,7 @@ object DiffRenderer {
     private fun newText(c: Change): String? =
         when (c) {
             is FieldRenamed -> c.to.name
-            is FieldTypeChanged -> TypeText.of(c.to.type, c.to.nullable)
+            is FieldTypeChanged -> shown(c.to.type, c.to.nullable)
             is FieldNullabilityChanged -> TypeText.of(c.to.type, c.to.nullable)
             is FieldRefinementChanged -> TypeText.of(c.to.type, c.to.nullable)
             is FieldDefaultChanged -> valueText(c.to.default)
@@ -254,14 +256,14 @@ object DiffRenderer {
 
     /**
      * One change's line. A member's annotation, deprecation, or doc change names the member first
-     * (`field 'id': @sql(key) removed`); a change to something OLD had marked `@deprecated` says so
+     * (`field 'id': { id } removed`); a change to something OLD had marked `@deprecated` says so
      * (`deprecated field 'note' removed`).
      */
     private fun describe(j: Judged): String {
         val dep = if (j.deprecatedInOld) "deprecated " else ""
         return when (val c = j.change) {
-            is NamespaceAdded -> "namespace added"
-            is NamespaceRemoved -> "namespace removed"
+            is NamespaceAdded -> "schema added"
+            is NamespaceRemoved -> "schema removed"
             is DeclarationAdded -> "declaration added"
             is DeclarationRemoved -> "${dep}declaration removed"
             is DeclarationKindChanged ->
@@ -272,8 +274,8 @@ object DiffRenderer {
             is FieldRenamed -> "${dep}field '${c.from.name}' renamed to '${c.to.name}'"
             is FieldTypeChanged ->
                 "${dep}field '${c.to.name}' type changed from " +
-                    "${TypeText.of(c.from.type, c.from.nullable)} to " +
-                    TypeText.of(c.to.type, c.to.nullable)
+                    "${shown(c.from.type, c.from.nullable)} to " +
+                    shown(c.to.type, c.to.nullable)
             is FieldNullabilityChanged ->
                 "${dep}field '${c.to.name}' nullability changed from " +
                     "${TypeText.of(c.from.type, c.from.nullable)} to " +
@@ -291,7 +293,7 @@ object DiffRenderer {
                 "member type changed from ${TypeText.of(c.from.type)} to ${TypeText.of(c.to.type)}"
             is ReservedChanged -> "reserved changed"
             is AnnotationChanged ->
-                memberPrefix(c.newOwner) + "@${c.target}(${c.key}) ${changeWord(c)}"
+                memberPrefix(c.newOwner) + "${annotationLabel(c)} ${changeWord(c)}"
             is DeprecationChanged ->
                 memberPrefix(c.owner) +
                     if (c.deprecated) "marked deprecated" else "no longer deprecated"

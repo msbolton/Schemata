@@ -4,6 +4,8 @@ import io.schemata.core.ir.Schema
 import io.schemata.evolution.Evolution
 import io.schemata.evolution.Rulebooks
 import io.schemata.lang.Severity
+import io.schemata.lang.format.FormatResult
+import io.schemata.lang.upgrade.Upgrader
 import io.schemata.migrate.MigrateCodes
 import io.schemata.target.sql.SqlTarget
 import java.io.File
@@ -23,7 +25,8 @@ import org.junit.jupiter.api.TestFactory
  * last to the working tree (an example that only gained its keys later starts there). A dynamic
  * test is skipped with `assumeTrue` only when `git` is unavailable or the repository holds no
  * history for the example (a shallow clone); a side that fails to analyze fails the test, so drift
- * in the language cannot turn the check into a silent skip.
+ * in the language cannot turn the check into a silent skip. Revisions older than 2.0 are 1.x text
+ * and are upgraded before they are analysed.
  */
 class ExamplesHistoryTest {
     private val repoRoot = File("..")
@@ -90,7 +93,10 @@ class ExamplesHistoryTest {
         }
     }
 
-    /** The `.schemata` files of [relative] at [sha], paths kept under `old/`. */
+    /**
+     * The `.schemata` files of [relative] at [sha], paths kept under `old/`. A revision written in
+     * the 1.x surface is upgraded in memory first, as `schemata upgrade` would rewrite it.
+     */
     private fun revision(sha: String, relative: String): List<SourceInput> {
         val listing = git("ls-tree", "-r", "--name-only", sha, "--", relative)
         assertNotNull(listing, "git ls-tree failed for $sha")
@@ -99,7 +105,9 @@ class ExamplesHistoryTest {
         return paths.map { path ->
             val content = git("show", "$sha:$path")
             assertNotNull(content, "git show failed for $sha:$path")
-            SourceInput("old/${File(path).name}", content)
+            val name = "old/${File(path).name}"
+            val upgraded = Upgrader.upgrade(content, name) as? FormatResult.Formatted
+            SourceInput(name, upgraded?.text ?: content)
         }
     }
 

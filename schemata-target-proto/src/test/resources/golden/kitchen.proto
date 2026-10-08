@@ -21,7 +21,7 @@ message Card {}
 message Payment {
   oneof kind {
     Card card = 1;
-    string cash = 2;  // schemata: string(max = 5)
+    string cash = 2;  // schemata: string { max 5 }
   }
 }
 

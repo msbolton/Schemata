@@ -15,11 +15,11 @@ import kotlin.test.assertTrue
 
 private const val BASE =
     """
-namespace shop
-record OrderId { #1 id: uuid }
-record Order { #1 id: uuid #2 n: int32 }
-record Filter { #1 status: Status? #2 limit: int32 = 50 #3 tags: list<string> }
-record Nested { #1 inner: Order #2 maybe: uuid? }
+schema shop
+model OrderId { #1 id uuid }
+model Order { #1 id uuid #2 n int32 }
+model Filter { #1 status Status? #2 limit int32 = 50 #3 tags string[] }
+model Nested { #1 inner Order #2 maybe uuid? }
 enum Status { pending paid }
 union Either = Order | Nested
 """
@@ -142,11 +142,11 @@ class ServicesTest {
             )
         assertEquals(
             listOf(
-                "SCH1047 operation 'a': request 'uuid' is not a record or a union",
-                "SCH1047 operation 'b': request 'Status' is not a record or a union",
-                "SCH1047 operation 'c': request 'list<Order>' is not a record or a union",
-                "SCH1047 operation 'd': request 'Id' is not a record or a union",
-                "SCH1047 operation 'e': response 'Order?' is not a record or a union",
+                "SCH1047 operation 'a': request 'uuid' is not a model or a union",
+                "SCH1047 operation 'b': request 'Status' is not a model or a union",
+                "SCH1047 operation 'c': request 'list<Order>' is not a model or a union",
+                "SCH1047 operation 'd': request 'Id' is not a model or a union",
+                "SCH1047 operation 'e': response 'Order?' is not a model or a union",
             ),
             messages(r),
         )
@@ -190,8 +190,8 @@ class ServicesTest {
                 "SCH1048 operation 'b': path parameter 'status' is nullable",
                 "SCH1048 operation 'c': path parameter 'inner' is not a scalar or enum field",
                 "SCH1048 operation 'd': path parameter 'maybe' is nullable",
-                "SCH1048 operation 'e': path parameter 'id' needs a request record",
-                "SCH1048 operation 'f': path parameter 'id' needs a request record, not union 'Either'",
+                "SCH1048 operation 'e': path parameter 'id' needs a request model",
+                "SCH1048 operation 'f': path parameter 'id' needs a request model, not union 'Either'",
                 "SCH1048 operation 'g': path parameter 'id' appears twice",
                 "SCH1048 operation 'h': a streamed request cannot use get",
                 "SCH1048 operation 'i': a streamed request cannot bind path parameters",
@@ -207,7 +207,7 @@ class ServicesTest {
             analyze(
                 BASE +
                     """
-                    record ByStatus { #1 status: Status #2 limit: int32 }
+                    model ByStatus { #1 status Status #2 limit int32 }
                     service S {
                       #1 a(ByStatus): Order  get "/s/{status}"
                       #2 b(ByStatus): Order  delete "/s/{status}"
@@ -231,7 +231,7 @@ class ServicesTest {
             messages(r),
         )
         val other =
-            "namespace other\nrecord OrderId { #1 id: uuid }\nservice C { #1 c(OrderId)  get \"/x/{id}\" }"
+            "schema other\nmodel OrderId { #1 id uuid }\nservice C { #1 c(OrderId)  get \"/x/{id}\" }"
         assertEquals(
             emptyList(),
             messages(analyze(BASE + "service A { #1 a(OrderId): Order  get \"/x/{id}\" }", other)),
@@ -244,7 +244,7 @@ class ServicesTest {
             analyze(
                 BASE +
                     """
-                    record ByStatus { #1 status: Status #2 id: uuid }
+                    model ByStatus { #1 status Status #2 id uuid }
                     service S {
                       #1 a(OrderId): Order  get "/orders/{id}"
                       #2 b(ByStatus): Order  get "/orders/{status}"
@@ -274,7 +274,7 @@ class ServicesTest {
                 "SCH1002 service name 'orders' must be UpperCamel",
                 "SCH1003 operation name 'Get' must be lower_snake",
                 "SCH1005 operation 'get' is declared more than once in service 'orders'",
-                "SCH1004 service 'Order' and record 'Order' are both declared in t.schemata",
+                "SCH1004 service 'Order' and model 'Order' are both declared in t.schemata",
             ),
             messages(r).toSet(),
         )
@@ -296,13 +296,10 @@ class ServicesTest {
     @Test
     fun `a service collides with a declaration in another file`() {
         val r =
-            analyze(
-                "namespace shop\nrecord Order { #1 id: uuid }",
-                "namespace shop\n\nservice Order { }",
-            )
+            analyze("schema shop\nmodel Order { #1 id uuid }", "schema shop\n\nservice Order { }")
         assertEquals(
             listOf(
-                "SCH1004 service 'Order' and record 'Order' are both declared in t1.schemata:3 and t0.schemata:2"
+                "SCH1004 service 'Order' and model 'Order' are both declared in t1.schemata:3 and t0.schemata:2"
             ),
             messages(r),
         )
@@ -310,25 +307,23 @@ class ServicesTest {
 
     @Test
     fun `payloads resolve through imports and mark them used`() {
-        val cust =
-            "namespace cust\nrecord CustomerId { #1 id: uuid }\nrecord Customer { #1 id: uuid }"
-        val api = "namespace api\nimport cust\nservice Customers { #1 get(CustomerId): Customer }"
+        val cust = "schema cust\nmodel CustomerId { #1 id uuid }\nmodel Customer { #1 id uuid }"
+        val api = "schema api\nimport cust\nservice Customers { #1 get(CustomerId): Customer }"
         val r = analyze(cust, api)
         assertEquals(emptyList(), messages(r))
         // namespaces are sorted by name: api, then cust
         val op = r.schema!!.namespaces[0].services.single().operations[0]
         assertEquals(qn("cust", "CustomerId"), op.request!!.target)
         assertEquals(qn("cust", "Customer"), op.response!!.target)
-        val qualified =
-            "namespace api\nservice Customers { #1 get(cust.CustomerId): cust.Customer }"
+        val qualified = "schema api\nservice Customers { #1 get(cust.CustomerId): cust.Customer }"
         assertEquals(emptyList(), messages(analyze(cust, qualified)))
-        val unused = "namespace api\nimport cust\nservice Customers { #1 ping() }"
+        val unused = "schema api\nimport cust\nservice Customers { #1 ping() }"
         assertEquals(listOf("SCH1012 import 'cust' is unused"), messages(analyze(cust, unused)))
     }
 
     @Test
     fun `services survive recursion marking`() {
-        val r = analyze(BASE + "record Node { #1 next: Node? }\nservice S { #1 a(Node): Node }")
+        val r = analyze(BASE + "model Node { #1 next Node? }\nservice S { #1 a(Node): Node }")
         assertEquals(emptyList(), messages(r))
         val ns = r.schema!!.namespaces.single()
         assertTrue((ns.declarations.single { it.name == "Node" } as RecordType).recursive)

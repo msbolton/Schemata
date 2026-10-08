@@ -1,12 +1,5 @@
-namespace s
+schema s
 
-enum Size {
-  #1 small
-  #2 large
-  #3 medium
-}
+enum Size { #1 small #2 large #3 medium }
 
-record Item {
-  @sql(key) #1 id: uuid
-  #2 size: Size
-}
+model Item { #1 id uuid { id }  #2 size Size }

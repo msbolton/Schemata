@@ -21,6 +21,7 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
@@ -29,6 +30,8 @@ import io.schemata.target.Names
 import io.schemata.target.OverrideNames
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.deprecated
+import io.schemata.target.named
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 
@@ -51,7 +54,9 @@ object ProtoLowering {
     /** Field numbers proto keeps for its own implementation. */
     private val IMPLEMENTATION_NUMBERS = 19000..19999
 
-    fun lower(schema: Schema): Lowered<ProtoModel> {
+    fun lower(written: Schema): Lowered<ProtoModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val names =
             OverrideNames(
@@ -68,9 +73,9 @@ object ProtoLowering {
             diagnostics +=
                 Diagnostic(
                     ProtoCodes.NAME_COLLISION,
-                    "namespaces ${clashing.joinToString(" and ") { it.name }} both lower to package '${packages.getValue(clashing.first().name)}'",
+                    "schemas ${clashing.joinToString(" and ") { it.name }} both lower to package '${packages.getValue(clashing.first().name)}'",
                     clashing[1].span,
-                    help = "set `@proto(package = \"…\")` on one namespace",
+                    help = "set `@proto(package: \"…\")` on one schema",
                 )
         }
         val files =
@@ -93,7 +98,7 @@ object ProtoLowering {
             namespace.annotations.string("proto", "package")?.let {
                 if (!ProtoNames.isPackage(it)) {
                     invalidOverride(
-                        "namespace '${namespace.name}': @proto(package = \"$it\") is not a valid package name",
+                        "schema '${namespace.name}': @proto(package: \"$it\") is not a valid package name",
                         namespace.span,
                         help = "use dotted lower-case identifiers, for example `shop.orders.v1`",
                     )
@@ -211,10 +216,12 @@ object ProtoLowering {
 
         private fun record(record: RecordType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + record.name
-            val where = "record '${record.name}'"
+            val where = "model '${record.name}'"
             val name = names.of(record)
+            // A back-reference is virtual: the forward reference on the other message carries it.
+            val stored = record.storedFields
             val fieldNames =
-                record.fields.associateWith {
+                stored.associateWith {
                     names.overrideName(
                         it.annotations,
                         "field '${record.name}.${it.name}'",
@@ -223,12 +230,12 @@ object ProtoLowering {
                 }
             scope(
                 record.nested.flatMap { symbols(it) } +
-                    record.fields.map {
+                    stored.map {
                         Symbol(fieldNames.getValue(it), "field '${it.name}'", it.nameSpan)
                     }
             )
             jsonNames(record, fieldNames)
-            val fields = record.fields.map { field(record, it, here, fieldNames) }
+            val fields = stored.map { field(record, it, here, fieldNames) }
             val nested = record.nested.map { decl(it, here) }
             reservedNumbers(where, record.reserved.ordinals, record.nameSpan, bounded = true)
             return ProtoMessage(
@@ -332,13 +339,13 @@ object ProtoLowering {
             scope(
                 listOf(Symbol("kind", "the oneof", union.nameSpan)) +
                     union.members.map { member ->
-                        val memberName = memberName(member.type)
+                        val memberName = memberName(member.named)
                         Symbol(memberName, "member '$memberName'", member.span)
                     }
             )
             val members =
                 union.members.map { member ->
-                    val memberName = memberName(member.type)
+                    val memberName = memberName(member.named)
                     val where = "member '${union.name}.$memberName'"
                     fieldNumber(where, member.ordinal, member.span)
                     val mapped = map(member.type, nullable = false, where, member.span, here)
@@ -413,7 +420,7 @@ object ProtoLowering {
                                 "$where: a nullable list has no Protobuf representation; lowered to repeated",
                                 span,
                                 help =
-                                    "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
+                                    "declare the list as `T[]`; an empty list already means absent",
                             )
                             lossy = true
                         }
@@ -422,7 +429,7 @@ object ProtoLowering {
                                 "$where: nullable list elements have no Protobuf representation; lowered to repeated",
                                 span,
                                 help =
-                                    "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
+                                    "declare the list as `T[]`; an empty list already means absent",
                             )
                             lossy = true
                         }
@@ -484,7 +491,7 @@ object ProtoLowering {
                     ProtoCodes.UNSUPPORTED_NESTING,
                     "$where: proto cannot nest collections; ${ProtoTypes.text(owner)} has a collection element",
                     span,
-                    help = "wrap the element in a record",
+                    help = "wrap the element in a model",
                 )
             return ProtoType.Scalar("bytes") // never rendered: the error above prevents rendering
         }
@@ -654,7 +661,7 @@ object ProtoLowering {
                         ProtoCodes.NAME_COLLISION,
                         "proto name '${symbol.protoName}' is already used by ${previous.holder}$location",
                         symbol.span,
-                        help = "rename one of them, or set `@proto(name = \"…\")` on one",
+                        help = "rename one of them, or set `@proto(name: \"…\")` on one",
                     )
             }
         }
@@ -666,7 +673,7 @@ object ProtoLowering {
          */
         private fun jsonNames(record: RecordType, fieldNames: Map<Field, String>) {
             val first = mutableMapOf<String, Field>()
-            for (field in record.fields) {
+            for (field in record.storedFields) {
                 val protoName = fieldNames.getValue(field)
                 val json = ProtoNames.jsonName(protoName)
                 val previous = first.putIfAbsent(json, field) ?: continue
@@ -676,7 +683,7 @@ object ProtoLowering {
                         ProtoCodes.JSON_NAME_COLLISION,
                         "fields '${record.name}.${previous.name}' and '${record.name}.${field.name}' share the Protobuf JSON name '$json'",
                         field.nameSpan,
-                        help = "rename one of them, or set `@proto(name = \"…\")` on one",
+                        help = "rename one of them, or set `@proto(name: \"…\")` on one",
                     )
             }
         }

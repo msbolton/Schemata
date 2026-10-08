@@ -33,15 +33,15 @@ class ProtoHelpTest {
         val helps =
             lossyHelp(
                 """
-                namespace t
+                schema t
 
                 enum Color { #1 red }
 
-                record R {
-                  #1 name: string(max = 3) = "ab"
-                  #2 tags: list<string>?
-                  #3 attrs: map<string, string?>
-                  #4 amount: decimal(10, 2)
+                model R {
+                  #1 name   string               { max 3 } = "ab"
+                  #2 tags   string[]?
+                  #3 attrs  map<string, string?>
+                  #4 amount decimal(10, 2)
                 }
                 """
                     .trimIndent()
@@ -52,7 +52,7 @@ class ProtoHelpTest {
                 "keep the synthesized zero value; proto3 reads an unset enum as 0",
                 "enforce the refinement in application code; Protobuf carries no constraints",
                 "drop the default or apply it in application code; proto3 has no field defaults",
-                "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
+                "declare the list as `T[]`; an empty list already means absent",
                 "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent",
             ),
             helps.take(5),
@@ -60,20 +60,20 @@ class ProtoHelpTest {
     }
 
     @Test
-    fun `nested collections carry help to wrap the element in a record`() {
+    fun `nested collections carry help to wrap the element in a model`() {
         val found =
             diagnostics(
                 """
-                namespace t
+                schema t
 
-                record R { #1 g: list<list<int32>> }
+                model R { #1 g list<int32[]> }
                 """
                     .trimIndent(),
                 ProtoCodes.UNSUPPORTED_NESTING,
             )
         assertEquals(1, found.size)
         assertTrue(found.single().message.endsWith("has a collection element"))
-        assertEquals("wrap the element in a record", found.single().help)
+        assertEquals("wrap the element in a model", found.single().help)
     }
 
     @Test
@@ -81,9 +81,9 @@ class ProtoHelpTest {
         val found =
             diagnostics(
                 """
-                namespace t
+                schema t
 
-                record R { #600000000 x: bool }
+                model R { #600000000 x bool }
                 """
                     .trimIndent(),
                 ProtoCodes.INVALID_FIELD_NUMBER,

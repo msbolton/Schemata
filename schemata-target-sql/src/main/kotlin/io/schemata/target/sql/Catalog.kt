@@ -1,6 +1,5 @@
 package io.schemata.target.sql
 
-import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
@@ -13,14 +12,17 @@ import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.declaresKey
+import io.schemata.core.ir.keyFields
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Span
-import io.schemata.target.flag
 
 /**
  * Every keyed record's table, resolved before any field is lowered so references and child tables
- * can point at tables in any namespace. [used] holds every record some field or union member refers
- * to, so an unused keyless record can be reported.
+ * can point at tables in any namespace. [used] holds every record some stored field or union member
+ * refers to, so an unused keyless record can be reported; a back-reference stores nothing and uses
+ * nothing.
  *
  * Table and key column names pass through [identifier] here, once; lowering reuses them rather than
  * deriving them again, so a truncation is reported a single time.
@@ -58,9 +60,9 @@ class Catalog(
                 // A record that declares a key, even one whose names all fail to resolve, is still
                 // keyed: it gets a table (with no primary key) and lowering reports the bad names,
                 // rather than the record silently falling back to a value type.
-                if (keyFields.isNotEmpty() || declaresKey(decl)) {
+                if (keyFields.isNotEmpty() || decl.declaresKey()) {
                     val tableOverride =
-                        override(decl.annotations, "table", "record '${decl.name}'", decl.nameSpan)
+                        override(decl.annotations, "table", "model '${decl.name}'", decl.nameSpan)
                     val tableNameRaw = Naming.tableOf(decl, tableOverride)
                     val tableName = identifier(tableNameRaw, decl.nameSpan)
                     val keyColumnsRaw =
@@ -96,28 +98,14 @@ class Catalog(
     operator fun get(name: QualifiedName): Entry? = entries[name]
 
     /**
-     * The key fields in key order, or empty when the record has no key. Diagnostics about the key
-     * forms are lowering's job.
+     * The key fields in key order (`{ id }` fields, or `@@id(a, b)`), or empty when the record has
+     * no key. Diagnostics about the key are lowering's job.
      */
-    private fun keyFields(record: RecordType): List<Field> {
-        val recordKey =
-            (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values?.distinct()
-        if (recordKey != null) {
-            return recordKey.mapNotNull { n -> record.fields.firstOrNull { it.name == n } }
-        }
-        return record.fields.filter { it.annotations.flag("sql", "key") }
-    }
-
-    /**
-     * Whether the record's own `@sql(key)` says it means to be keyed, whether or not it resolves.
-     */
-    private fun declaresKey(record: RecordType): Boolean =
-        record.annotations["sql"]["key"] is AnnotationValue.Names ||
-            record.fields.any { it.annotations.flag("sql", "key") }
+    private fun keyFields(record: RecordType): List<Field> = record.keyFields()
 
     private fun targets(decl: TypeDecl): List<QualifiedName> =
         when (decl) {
-            is RecordType -> decl.fields.flatMap { refs(it.type) }
+            is RecordType -> decl.storedFields.flatMap { refs(it.type) }
             is UnionType -> decl.members.flatMap { refs(it.type) }
             else -> emptyList()
         }

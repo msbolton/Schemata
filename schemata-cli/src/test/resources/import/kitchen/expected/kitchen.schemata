@@ -1,34 +1,46 @@
 /// A hand-written schema exercising every import diagnostic.
-@xsd(namespace = "http://example.com/kitchen")
-namespace kitchen
+schema kitchen @xsd(namespace: "http://example.com/kitchen")
 
 /// The kitchen sink.
-@xsd(name = "kitchen")
-record Kitchen {
-  rack:    BikeRack?
-  built:   string?
-  code:    string?
-  note:    string?
-  dish:    Dish?
-  special: SpecialDish?
-  @xsd(any)
-  @xsd(wildcard = "##other")
-  any:     string?
+model Kitchen {
+  rack    BikeRack?
+  built   string?
+  code    string?
+  note    string?
+  dish    Dish?
+  special SpecialDish?
+  any     string?      @xsd(any) @xsd(wildcard: "##other")
+
+  @@xsd(name: "kitchen")
 }
 
-@xsd(name = "bike-rack")
-@xsd(root = false)
-record BikeRack { slots: int32 }
+model BikeRack {
+  slots int32
 
-@xsd(name = "dish")
-@xsd(root = false)
-record Dish { name: string @xsd(mixed) text: string? }
+  @@xsd(name: "bike-rack")
+  @@xsd(root: false)
+}
 
-@xsd(name = "baseDish")
-@xsd(root = false)
-@xsd(all)
-record BaseDish { garnish: string }
+model Dish {
+  name string
+  text string? @xsd(mixed)
 
-@xsd(name = "specialDish")
-@xsd(root = false)
-record SpecialDish { garnish: string sauce: string }
+  @@xsd(name: "dish")
+  @@xsd(root: false)
+}
+
+model BaseDish {
+  garnish string
+
+  @@xsd(name: "baseDish")
+  @@xsd(root: false)
+  @@xsd(all)
+}
+
+model SpecialDish {
+  garnish string
+  sauce   string
+
+  @@xsd(name: "specialDish")
+  @@xsd(root: false)
+}

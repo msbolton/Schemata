@@ -15,7 +15,7 @@ object XsdNames {
      * The Schemata name for an XSD type named [xsdName], and, when regenerating that name exactly
      * requires an `@xsd(name)` override, the override value: `OrderType` → (`Order`, `null`), since
      * the default regeneration (`<name>Type`) already reproduces it; `gpxType` → (`Gpx`, `"gpx"`),
-     * since only `@xsd(name = "gpx")` regenerates `gpxType` exactly; `Address` → (`Address`,
+     * since only `@xsd(name: "gpx")` regenerates `gpxType` exactly; `Address` → (`Address`,
      * `null`), since there's no `Type` suffix to give back.
      */
     fun typeOverride(xsdName: String): Pair<String, String?> {

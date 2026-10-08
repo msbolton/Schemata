@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1042]: default for enum 'C' must be one of: red
- --> s.schemata:3:22
+ --> s.schemata:5:20
   = help: write one of the listed values, for example `= red`
 
 1 error, 0 warnings

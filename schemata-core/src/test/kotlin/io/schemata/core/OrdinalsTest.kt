@@ -26,7 +26,7 @@ class OrdinalsTest {
     @Test
     fun `explicit ordinals are honoured and reserved is recorded`() {
         val src =
-            "namespace a\nrecord R {\n  #4 d: bool\n  #2 b: bool\n  reserved #1, #5..#7, \"old\"\n}\nenum E { #10 x, #20 y\n reserved #15 }\nrecord C {}\nunion U = #3 C | #1 uuid"
+            "schema a\nmodel R {\n  #4 d bool\n  #2 b bool\n  reserved #1, #5..#7, \"old\"\n}\nenum E { #10 x, #20 y\n reserved #15 }\nmodel C {}\nunion U = #3 C | #1 uuid"
         val r = analyze(src)
         assertEquals(emptyList(), r.diagnostics)
         val rec = r.schema!!.lookup(qn("R")) as RecordType
@@ -42,18 +42,18 @@ class OrdinalsTest {
     @Test
     fun `implicit ordinals are declaration order`() {
         val rec =
-            analyze("namespace a\nrecord R { a: bool  b: bool  c: bool }").schema!!.lookup(qn("R"))
+            analyze("schema a\nmodel R { a bool  b bool  c bool }").schema!!.lookup(qn("R"))
                 as RecordType
         assertEquals(listOf(1, 2, 3), rec.fields.map { it.ordinal })
     }
 
     @Test
     fun `mixing explicit and implicit is an error at the declaration name`() {
-        val r = analyze("namespace a\nrecord R {\n  #1 a: bool\n  b: bool\n}\nenum E { #1 x, y }")
+        val r = analyze("schema a\nmodel R {\n  #1 a bool\n  b bool\n}\nenum E { #1 x, y }")
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "2:8 record 'R' mixes explicit and implicit ordinals",
+                "2:7 model 'R' mixes explicit and implicit ordinals",
                 "6:6 enum 'E' mixes explicit and implicit ordinals",
             ),
             messages(r),
@@ -64,14 +64,14 @@ class OrdinalsTest {
     fun `strict mode rejects every implicit ordinal`() {
         val r =
             analyze(
-                "namespace a\nrecord R { a: bool  b: bool }\nrecord C {}\nunion U = C | uuid",
+                "schema a\nmodel R { a bool  b bool }\nmodel C {}\nunion U = C | uuid",
                 strict = true,
             )
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "2:12 field 'a' has no explicit ordinal (--strict)",
-                "2:21 field 'b' has no explicit ordinal (--strict)",
+                "2:11 field 'a' has no explicit ordinal (--strict)",
+                "2:19 field 'b' has no explicit ordinal (--strict)",
                 "4:11 member 'C' has no explicit ordinal (--strict)",
                 "4:15 member 'uuid' has no explicit ordinal (--strict)",
             ),
@@ -79,23 +79,23 @@ class OrdinalsTest {
         )
         assertEquals(
             emptyList(),
-            analyze("namespace a\nrecord R { #1 a: bool }", strict = true).diagnostics,
+            analyze("schema a\nmodel R { #1 a bool }", strict = true).diagnostics,
         )
     }
 
     @Test
     fun `duplicates, zero, and reserved conflicts point at the ordinal or name`() {
         val src =
-            "namespace a\nrecord R {\n  #3 a: bool\n  #3 b: bool\n  #0 c: bool\n  #9 old: bool\n  #5 e: bool\n  reserved #5, \"old\", #7..#6\n}"
+            "schema a\nmodel R {\n  #3 a bool\n  #3 b bool\n  #0 c bool\n  #9 old bool\n  #5 e bool\n  reserved #5, \"old\", #7..#6\n}"
         val r = analyze(src)
         assertNull(r.schema)
         assertEquals(
             listOf(
                 "8:23 reserved range #7..#6 is inverted",
-                "4:3 ordinal #3 is used more than once in record 'R'",
+                "4:3 ordinal #3 is used more than once in model 'R'",
                 "5:3 ordinal #0 is not positive",
-                "6:6 name 'old' is reserved in record 'R'",
-                "7:3 ordinal #5 is reserved in record 'R'",
+                "6:6 name 'old' is reserved in model 'R'",
+                "7:3 ordinal #5 is reserved in model 'R'",
             ),
             messages(r),
         )
@@ -103,8 +103,8 @@ class OrdinalsTest {
 
     @Test
     fun `a huge reserved range is kept as a range and still conflicts`() {
-        val r = analyze("namespace a\nrecord R {\n  #5 x: bool\n  reserved #1..#2000000000\n}")
-        assertEquals(listOf("3:3 ordinal #5 is reserved in record 'R'"), messages(r))
+        val r = analyze("schema a\nmodel R {\n  #5 x bool\n  reserved #1..#2000000000\n}")
+        assertEquals(listOf("3:3 ordinal #5 is reserved in model 'R'"), messages(r))
     }
 
     @Test
@@ -127,7 +127,7 @@ class OrdinalsTest {
 
     @Test
     fun `a duplicate ordinal's help skips a reserved candidate too`() {
-        val r = analyze("namespace a\nrecord R {\n  #1 x: bool\n  #1 y: bool\n  reserved #2\n}")
+        val r = analyze("schema a\nmodel R {\n  #1 x bool\n  #1 y bool\n  reserved #2\n}")
         assertEquals(
             "give each element its own ordinal; the next free one is #3",
             r.diagnostics.single { it.code.id == "SCH1019" }.help,
@@ -136,7 +136,7 @@ class OrdinalsTest {
 
     @Test
     fun `the next free ordinal considers every explicit ordinal, not only those seen so far`() {
-        val r = analyze("namespace a\nrecord R { #1 a: bool  #1 b: bool  #2 c: bool }")
+        val r = analyze("schema a\nmodel R { #1 a bool  #1 b bool  #2 c bool }")
         assertEquals(
             "give each element its own ordinal; the next free one is #3",
             r.diagnostics.single { it.code.id == "SCH1019" }.help,
@@ -145,7 +145,7 @@ class OrdinalsTest {
 
     @Test
     fun `the next free ordinal is unaffected by scan order across a duplicate and a reservation`() {
-        val r = analyze("namespace a\nenum E { #1 x, #4 y, #4 z, #2 w\n reserved #3 }")
+        val r = analyze("schema a\nenum E { #1 x, #4 y, #4 z, #2 w\n reserved #3 }")
         assertEquals(
             "give each element its own ordinal; the next free one is #5",
             r.diagnostics.single { it.code.id == "SCH1019" }.help,

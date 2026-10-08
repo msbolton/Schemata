@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH2006] (proto): record 'R': reserved number 600000000 exceeds the Protobuf maximum 536870911
- --> s.schemata:2:8
+error[SCH2006] (proto): model 'R': reserved number 600000000 exceeds the Protobuf maximum 536870911
+ --> s.schemata:3:7
   = help: reserve ordinals of at most 536870911
 
 1 error, 0 warnings

@@ -48,19 +48,19 @@ class HelpTextTest {
     fun `null default suggests a nullable type`() {
         assertEquals(
             "add `?` to the field's type and drop the default; a nullable field is null when absent",
-            help("namespace t\nrecord R { #1 x: string = null }", "SCH1044"),
+            help("schema t\nmodel R { #1 x string = null }", "SCH1044"),
         )
     }
 
     @Test
-    fun `unknown refinement names an allowed one`() {
+    fun `an unknown or misplaced option says what to do`() {
         assertEquals(
-            "write one of the allowed refinements, for example `string(max = …)`",
-            help("namespace t\nrecord R { #1 x: string(size = 3) }", "SCH1037"),
+            "write one of the listed options, or remove it",
+            help("schema t\nmodel R { #1 x string { size 3 } }", "SCH1049"),
         )
         assertEquals(
-            "remove the parentheses; `bool` takes no refinements",
-            help("namespace t\nrecord R { #1 x: bool(max = 3) }", "SCH1037"),
+            "remove the option, or move it to the element type",
+            help("schema t\nmodel R { #1 x bool { max 3 } }", "SCH1049"),
         )
     }
 
@@ -68,23 +68,20 @@ class HelpTextTest {
     fun `unknown annotation key names an allowed one for the element it was written on`() {
         assertEquals(
             "write one of the listed keys, for example `@sql(key)`",
-            help("namespace t\nrecord R { @sql(bogus) #1 x: bool }", "SCH1016"),
+            help("schema t\nmodel R { @sql(bogus) #1 x bool }", "SCH1016"),
         )
         assertEquals(
             "write one of the listed keys, for example `@sql(table)`",
-            help("namespace t\n@sql(bogus) record R { #1 x: bool }", "SCH1016"),
+            help("schema t\n@sql(bogus) model R { #1 x bool }", "SCH1016"),
         )
     }
 
     @Test
     fun `needs at least one key suggests one allowed for the element it was written on`() {
+        assertEquals("write `@sql(key)`", help("schema t\nmodel R { @sql() #1 x bool }", "SCH1018"))
         assertEquals(
-            "write `@sql(key)`",
-            help("namespace t\nrecord R { @sql() #1 x: bool }", "SCH1018"),
-        )
-        assertEquals(
-            "write `@sql(table = \"…\")`",
-            help("namespace t\n@sql() record R { #1 x: bool }", "SCH1018"),
+            "write `@sql(table: \"…\")`",
+            help("schema t\n@sql() model R { #1 x bool }", "SCH1018"),
         )
     }
 
@@ -92,7 +89,7 @@ class HelpTextTest {
     fun `implicit ordinal under strict tells how to number`() {
         assertEquals(
             "write `#n` before every field and enum value, starting at #1 in declaration order",
-            help("namespace t\nrecord R { x: bool }", "SCH1014", strict = true),
+            help("schema t\nmodel R { x bool }", "SCH1014", strict = true),
         )
     }
 
@@ -100,22 +97,19 @@ class HelpTextTest {
     fun `refinement and default diagnostics carry help`() {
         assertEquals(
             "write `decimal(p, s)`, for example `decimal(19, 4)`",
-            help("namespace t\nrecord R { #1 x: decimal }", "SCH1040"),
+            help("schema t\nmodel R { #1 x decimal }", "SCH1040"),
         )
         assertEquals(
             "write `= true` or `= false`",
-            help("namespace t\nrecord R { #1 x: bool = 1 }", "SCH1042"),
+            help("schema t\nmodel R { #1 x bool = 1 }", "SCH1042"),
         )
         assertEquals(
             "use a default of at most 3 characters, or raise max",
-            help("namespace t\nrecord R { #1 x: string(max = 3) = \"abcd\" }", "SCH1043"),
+            help("schema t\nmodel R { #1 x string { max 3 } = \"abcd\" }", "SCH1043"),
         )
         assertEquals(
             "keep one of them",
-            help(
-                "namespace t\nrecord R { @deprecated(\"a\") @deprecated(\"b\") #1 x: bool }",
-                "SCH1036",
-            ),
+            help("schema t\nmodel R { @deprecated(\"a\") @deprecated(\"b\") #1 x bool }", "SCH1036"),
         )
     }
 
@@ -123,7 +117,7 @@ class HelpTextTest {
     fun `a core key's value help spells the key without a target`() {
         assertEquals(
             "write `@deprecated(\"…\")`",
-            help("namespace t\nrecord R { @deprecated(3) #1 x: bool }", "SCH1018"),
+            help("schema t\nmodel R { @deprecated(3) #1 x bool }", "SCH1018"),
         )
     }
 }

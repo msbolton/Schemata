@@ -139,7 +139,7 @@ object ProtoImporter : Importer {
                 report(
                     f,
                     ImportCodes.RENAMED,
-                    "${f.path}: namespace '$name' was derived from $from",
+                    "${f.path}: schema name '$name' was derived from $from",
                     Pos(1, 1),
                 )
             }
@@ -160,7 +160,7 @@ object ProtoImporter : Importer {
                             it,
                             ImportCodes.UNRESOLVED,
                             "${it.path}: ${packageText(it)} and ${first.path}'s " +
-                                "${packageText(first)} both lower to namespace '$name'",
+                                "${packageText(first)} both lower to schema '$name'",
                             Pos(1, 1),
                             ImportCodes.RENAME_HELP,
                         )

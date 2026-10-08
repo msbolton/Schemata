@@ -5,10 +5,10 @@ s.sql
 1 destructive, 0 may fail
 
 warning[SCH2701] (lossy): s.Order.lines: DROP TABLE "order_lines" loses every row of the table
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:37
   |
-5 |   #2 lines: list<Line>
-  |      ^^^^^
+3 | model Order { #1 id uuid { id }  #2 lines Line[] }
+  |                                     ^^^^^
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 0 errors, 1 warning

@@ -1,3 +1,5 @@
-namespace b
+schema b
+
 import a as Base
-record R { #1 t: Base.T }
+
+model R { #1 t Base.T }

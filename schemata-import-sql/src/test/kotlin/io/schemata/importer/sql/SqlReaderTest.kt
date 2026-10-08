@@ -248,11 +248,11 @@ class SqlReaderTest {
         val f =
             SqlReader.read(
                 "n.sql",
-                "CREATE TABLE t (\n  \"legacy\" varchar(36),  -- schemata: uuid?\n  \"tags\" text[] NOT NULL,  -- schemata: list<string(max = 16)>\n  \"m\" jsonb NOT NULL  -- schemata: map<string, string>\n);",
+                "CREATE TABLE t (\n  \"legacy\" varchar(36),  -- schemata: uuid?\n  \"tags\" text[] NOT NULL,  -- schemata: string[] { max 16 }\n  \"m\" jsonb NOT NULL  -- schemata: map<string, string>\n);",
             )
         val cols = (f.statements.single() as SqlStatement.CreateTable).table.columns
         assertEquals(
-            listOf("uuid?", "list<string(max = 16)>", "map<string, string>"),
+            listOf("uuid?", "string[] { max 16 }", "map<string, string>"),
             cols.map { it.note },
         )
     }
@@ -264,7 +264,7 @@ class SqlReaderTest {
                     """
                     CREATE TABLE t (
                       a text,
-                      -- schemata: string(max = 3)
+                      -- schemata: string { max 3 }
                       b text,  -- just a remark
                       c text,
                       d text -- schemata: uuid
@@ -274,7 +274,7 @@ class SqlReaderTest {
                         .trimIndent()
                 )
                 .columns
-        assertEquals(listOf("string(max = 3)", null, null, "uuid", null), cols.map { it.note })
+        assertEquals(listOf("string { max 3 }", null, null, "uuid", null), cols.map { it.note })
         assertTrue(cols.all { it.doc == null })
     }
 

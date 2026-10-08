@@ -9,17 +9,17 @@ s.sql
 2 destructive, 0 may fail
 
 warning[SCH2701] (lossy): s.Customer.age: ALTER COLUMN "age" TYPE integer loses values that do not fit integer (the cast fails or truncates)
- --> new/s.schemata:5:3
+ --> new/s.schemata:3:34
   |
-5 |   age: int32
-  |   ^^^
+3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
+  |                                  ^^^
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 warning[SCH2701] (lossy): s.Customer.name: ALTER COLUMN "name" TYPE varchar(100) loses values that do not fit varchar(100) (the cast fails or truncates)
- --> new/s.schemata:6:3
+ --> new/s.schemata:3:45
   |
-6 |   name: string(max = 100)
-  |   ^^^^
+3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
+  |                                             ^^^^
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 0 errors, 2 warnings

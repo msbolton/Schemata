@@ -1,5 +1,5 @@
 # diff=old,new
-error[SCH2503]: OLD and NEW share no namespace
+error[SCH2503]: OLD and NEW share no schema
  --> new/b.schemata:1:1
   = help: diff two versions of the same schema set
 

@@ -1,6 +1,6 @@
 # migrate=old,new
 error[SCH2701] (lossy): s.Customer.note: DROP COLUMN "note" loses every value the column holds
- --> old/s.schemata:5:6
+ --> old/s.schemata:3:68
   = help: rerun with --allow-destructive once the data is migrated or no longer needed
 
 1 error, 0 warnings

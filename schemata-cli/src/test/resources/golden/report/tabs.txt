@@ -1,7 +1,7 @@
 error[SCH1003]: field name
  --> shop/orders.schemata:5:2
   |
-5 |     note: string(max = 5,
+5 |     note string { max 5,
   |     ^^^^
 
 1 error, 0 warnings

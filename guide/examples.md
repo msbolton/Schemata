@@ -15,26 +15,26 @@ the others.
 
 ## contacts
 
-A personal address book: one namespace, one record, one enum, and a handful of refined scalars.
+A personal address book: one schema, one model, one enum, and a handful of refined scalars.
 It shows what Protobuf drops that Postgres keeps: a pattern on an email, bounds on an age, a
 default on an enum.
 
 From `examples/contacts/contacts.schemata`:
 ```schemata
 /// A personal address book.
-namespace contacts
+schema contacts
 
-enum Kind { personal, work }
+enum Kind { personal work }
 
 /// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
-record Contact {
-  @sql(key) id:    int64
-  name:  string(max = 100)
-  email: string(max = 254, pattern = "^[^@]+@[^@]+$")
-  age:   int32(min = 0, max = 150)?
-  kind:  Kind = personal
-  born:  date?
-  tags:  list<string(max = 20)>
+model Contact {
+  id    int64    { id }
+  name  string   { max 100 }
+  email string   { max 254, match "^[^@]+@[^@]+$" }
+  age   int32?   { min 0, max 150 }
+  kind  Kind     = personal
+  born  date?
+  tags  string[] { max 20 }
 }
 ```
 
@@ -66,12 +66,12 @@ From `examples/contacts/expected/sql/contacts.sql`:
 Warnings from `examples/contacts/expected/proto-warnings.txt`:
 ```text
 SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
-SCH2001 field 'Contact.name': refinements on string(max = 100) are not enforced by Protobuf
-SCH2001 field 'Contact.email': refinements on string(max = 254, pattern = "^[^@]+@[^@]+$") are not enforced by Protobuf
-SCH2001 field 'Contact.age': refinements on int32(min = 0, max = 150) are not enforced by Protobuf
+SCH2001 field 'Contact.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Contact.email': refinements on string { max 254, match "^[^@]+@[^@]+$" } are not enforced by Protobuf
+SCH2001 field 'Contact.age': refinements on int32 { min 0, max 150 } are not enforced by Protobuf
 SCH2001 field 'Contact.kind': default KIND_PERSONAL is not carried by proto3
 SCH2001 field 'Contact.born': date has no Protobuf representation; lowered to string
-SCH2001 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Protobuf
+SCH2001 field 'Contact.tags': refinements on string[] { max 20 } are not enforced by Protobuf
 ```
 
 Nothing is lost by the synthesized zero value; proto3 already reads an unset enum as 0, so keep
@@ -83,11 +83,11 @@ application code.
 
 Warnings from `examples/contacts/expected/sql-warnings.txt`:
 ```text
-SCH2105 field 'Contact.tags': refinements on list<string(max = 20)> are not enforced by Postgres
+SCH2105 field 'Contact.tags': refinements on string[] { max 20 } are not enforced by Postgres
 ```
 
 Postgres stores `tags` as a plain array with no per-element length check. Enforce the bound in
-application code, or use `@sql(strategy = table)` so each tag becomes its own row with its own
+application code, or use `@sql(strategy: table)` so each tag becomes its own row with its own
 constraint.
 
 XSD keeps the email pattern too, as a facet on a restriction rather than a `CHECK` constraint.
@@ -118,47 +118,47 @@ From `examples/contacts/expected/jsonschema/contacts.schema.json`:
 
 ## shop
 
-A storefront: customers in one namespace, orders in another that imports them. It shows a
-cross-namespace reference, a payment union, an embedded record, and a deprecated field kept
+A storefront: customers in one schema, orders in another that imports them. It shows a
+cross-schema reference, a payment union, an embedded model, and a deprecated field kept
 alongside its replacement.
 
 From `examples/shop/customers.schemata`:
 ```schemata
-namespace shop.customers
+schema shop.customers
 
-record Customer { @sql(key) id: uuid name: string(max = 100) }
+model Customer { id uuid { id }  name string { max 100 } }
 ```
 
 From `examples/shop/orders.schemata`:
 ```schemata
 import shop.customers
 
-alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
+alias Email = string { max 254, match "^[^@]+@[^@]+$" }
 
 alias Money = decimal(19, 4)
 
-enum Status { pending, paid, shipped, cancelled }
+enum Status { pending paid shipped cancelled }
 
-record Card { last4: string(max = 4) brand: string(max = 32) }
+model Card { last4 string { max 4 }  brand string { max 32 } }
 
-record BankTransfer { iban: string(max = 34) }
+model BankTransfer { iban string { max 34 } }
 
-record Cash {}
+model Cash {}
 
 union Payment = Card | BankTransfer | Cash
 
 /// A customer's order. One row per checkout.
-record Order {
-  @sql(key) id:        uuid
-  customer:  Customer
-  status:    Status = pending
-  lines:     list<Line>(min = 1)
-  total:     Money
-  payment:   Payment
-  @sql(strategy = embed) shipping:  Address
-  placed_at: instant
-  note:      string(max = 500)?
-  @deprecated("use placed_at") created:   instant?
+model Order {
+  id        uuid     { id }
+  customer  Customer
+  status    Status   = pending
+  lines     Line[]   { minItems 1 }
+  total     Money
+  payment   Payment
+  shipping  Address  { embed }
+  placed_at instant
+  note      string?  { max 500 }
+  created   instant? @deprecated("use placed_at")
   reserved #11, "legacy_ref"
 ```
 
@@ -192,25 +192,25 @@ From `examples/shop/expected/sql/shop/orders.sql`:
 Warnings from `examples/shop/expected/proto-warnings.txt`:
 ```text
 SCH2001 field 'Customer.id': uuid has no Protobuf representation; lowered to string
-SCH2001 field 'Customer.name': refinements on string(max = 100) are not enforced by Protobuf
+SCH2001 field 'Customer.name': refinements on string { max 100 } are not enforced by Protobuf
 SCH2001 enum 'Status': proto3 requires a zero value; synthesized STATUS_UNSPECIFIED = 0
-SCH2001 field 'Card.last4': refinements on string(max = 4) are not enforced by Protobuf
-SCH2001 field 'Card.brand': refinements on string(max = 32) are not enforced by Protobuf
-SCH2001 field 'BankTransfer.iban': refinements on string(max = 34) are not enforced by Protobuf
+SCH2001 field 'Card.last4': refinements on string { max 4 } are not enforced by Protobuf
+SCH2001 field 'Card.brand': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'BankTransfer.iban': refinements on string { max 34 } are not enforced by Protobuf
 SCH2001 field 'Order.status': default STATUS_PENDING is not carried by proto3
-SCH2001 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Protobuf
+SCH2001 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Protobuf
 SCH2001 field 'Order.total': decimal has no Protobuf representation; lowered to string
-SCH2001 field 'Order.note': refinements on string(max = 500) are not enforced by Protobuf
-SCH2001 field 'Line.sku': refinements on string(max = 64) are not enforced by Protobuf
-SCH2001 field 'Line.quantity': refinements on int32(min = 1) are not enforced by Protobuf
-SCH2001 field 'Address.street': refinements on string(max = 200) are not enforced by Protobuf
-SCH2001 field 'Address.country': refinements on string(min = 2, max = 2) are not enforced by Protobuf
+SCH2001 field 'Order.note': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 field 'Line.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32 { min 1 } are not enforced by Protobuf
+SCH2001 field 'Address.street': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Address.country': refinements on string { min 2, max 2 } are not enforced by Protobuf
 ```
 
 `id` has no Protobuf uuid type, so it lowers to a plain string; parse it back to a uuid in
 application code. The `Status` enum gets a synthesized zero value, the same as `Kind` did in
 `contacts`. proto3 has no field defaults, so `pending` is not carried; apply the default in
-application code if you depend on it. The `min = 1` bound on `lines` is not enforced by Protobuf;
+application code if you depend on it. The `minItems 1` bound on `lines` is not enforced by Protobuf;
 enforce it in application code. `total` has no Protobuf decimal type, so it lowers to a string;
 parse it back to a decimal in application code. Every refinement on `Customer.name`, `Card`,
 `BankTransfer`, `Order.note`, `Line`, and `Address` is dropped the same way `email` and `age` were
@@ -218,28 +218,39 @@ dropped in `contacts`; enforce them in application code.
 
 Warnings from `examples/shop/expected/sql-warnings.txt`:
 ```text
-SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres
+SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres
 ```
 
 The child table holding `lines` has no way to enforce a minimum row count. Enforce it in
 application code; child tables carry no row-count constraints.
 
-`orders.xsd` imports `customers.xsd` for the cross-namespace `customer` reference.
+`Customer` is keyed by `id`, so `customer` is a reference: an order carries the customer's key,
+not a copy of the customer. Every target spells it the way Postgres does, as one field named
+`customer_id` typed like `Customer.id`. `customer Customer { embed }` would copy the whole model
+into the Protobuf, XSD, JSON Schema, and OpenAPI outputs instead, as 1.x did, and is an error for
+Postgres, which never copies a keyed model into another table.
 
-From `examples/shop/expected/xsd/shop/orders.xsd`:
-```xml
-  <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
+From `examples/shop/expected/proto/shop/orders.proto`:
+```proto
+  string customer_id = 2;  // schemata: uuid
 ```
 
-JSON Schema references `Customer` the same way, but the `$ref` is the absolute `$id` of the
-`shop.customers` document, since references across documents cannot be relative.
+From `examples/shop/expected/sql/shop/orders.sql`:
+```sql
+  "customer_id" uuid NOT NULL,
+```
 
 From `examples/shop/expected/jsonschema/shop/orders.schema.json`:
 ```json
-        "customer": {
-          "$ref": "urn:schemata:shop.customers#/$defs/Customer"
+        "customer_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         },
 ```
+
+Since nothing in `orders` holds a `Customer` any more, neither `orders.proto` nor `orders.xsd`
+imports `customers`.
 
 The `Payment` union lowers to a `oneOf`, one single-property closed object per arm, tagged by the
 member's name; here is the `card` arm.
@@ -279,67 +290,68 @@ as JSON; it validates against `urn:schemata:shop.orders#/$defs/Order`.
 
 ## ledger
 
-A ledger split into three namespaces: a chart of accounts, a double-entry journal kept in its own
+A ledger split into three schemas: a chart of accounts, a double-entry journal kept in its own
 Postgres schema, and period closes that reference both. It shows a composite primary key, a map
 lowered to a child table, and foreign keys that cross Postgres schemas.
 
 From `examples/ledger/accounts.schemata`:
 ```schemata
 /// An account, keyed by tenant and code.
-@sql(key = (tenant_id, code))
-record Account {
-  #1 tenant_id: int64
-  #2 code:      string(max = 16)
-  #3 name:      string(max = 120)
-  #4 kind:      Kind
-  #5 opened:    date
-  #6 closed:    date?
-  #7 limits:    Limits
-  @sql(strategy = table) #8 balances:  map<string, Money>
+model Account {
+  #1 tenant_id int64
+  #2 code      string             { max 16 }
+  #3 name      string             { max 120 }
+  #4 kind      Kind
+  #5 opened    date
+  #6 closed    date?
+  #7 limits    Limits
+  #8 balances  map<string, Money> @sql(strategy: table)
+
+  /// Overdraft and daily limits in the account's currency.
+  model Limits { #1 overdraft Money  #2 daily Money? }
+
+  @@id(tenant_id, code)
+}
 ```
 
 From `examples/ledger/journal.schemata`:
 ```schemata
 /// Double-entry journal.
-@sql(schema = "ledger_journal")
-@proto(package = "ledger.journal.v1")
-namespace ledger.journal
+schema ledger.journal @sql(schema: "ledger_journal") @proto(package: "ledger.journal.v1")
 ```
 
-A namespace cannot share another namespace's `@sql(schema = ...)`; `ledger.journal` keeps its own,
+A schema cannot share another schema's `@sql(schema: ...)`; `ledger.journal` keeps its own,
 `ledger_journal`, separate from `ledger.accounts`'s `ledger`.
 
 From `examples/ledger/journal.schemata`:
 ```schemata
 /// A balanced entry: at least two lines.
-record Entry {
-  @sql(key) #1 id:     uuid
-  #2 posted: date
-  #3 memo:   string(max = 500)?
-  #4 lines:  list<Line>(min = 2)
-  #5 ref:    Reference
+model Entry {
+  #1 id     uuid      { id }
+  #2 posted date
+  #3 memo   string?   { max 500 }
+  #4 lines  Line[]    { minItems 2 }
+  #5 ref    Reference
   reserved #6
 ```
 
 From `examples/ledger/reports.schemata`:
 ```schemata
 /// Period closes, kept in their own schema.
-@sql(schema = "ledger_reports")
-@proto(package = "ledger.reports.v1")
-namespace ledger.reports
+schema ledger.reports @sql(schema: "ledger_reports") @proto(package: "ledger.reports.v1")
 
 import ledger.accounts
 import ledger.journal
 
 /// A close of one account for one period.
-record Close {
-  @sql(key) #1 id:      uuid
-  #2 period:  string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
-  #3 account: Account
-  #4 last:    Entry?
-  #5 totals:  Totals
+model Close {
+  #1 id      uuid    { id }
+  #2 period  string  { max 7, match "^[0-9]{4}-[0-9]{2}$" }
+  #3 account Account
+  #4 last    Entry?
+  #5 totals  Totals
 
-  record Totals { #1 debits: Money #2 credits: Money }
+  model Totals { #1 debits Money  #2 credits Money }
 }
 ```
 
@@ -347,22 +359,32 @@ record Close {
 java -jar schemata-<version>.jar compile --out out examples/ledger
 ```
 
-`reports.proto` imports both other namespaces and references their types by full package path.
+`Account` has a composite key, so `account` carries both of its key fields in one `AccountKey`
+message, declared beside `Account` in `accounts.proto`. `last` references `Entry`, keyed by one
+uuid, so it is `last_id`. Nothing from `ledger.journal` is copied in, so only `accounts.proto` is
+imported.
 
 From `examples/ledger/expected/proto/ledger/reports.proto`:
 ```proto
 import "ledger/accounts.proto";
-import "ledger/journal.proto";
 
 // A close of one account for one period.
 message Close {
   string id = 1;  // schemata: uuid
-  string period = 2;  // schemata: string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$")
-  .ledger.accounts.v1.Account account = 3;
-  .ledger.journal.v1.Entry last = 4;  // schemata: Entry?
+  string period = 2;  // schemata: string { max 7, match "^[0-9]{4}-[0-9]{2}$" }
+  .ledger.accounts.v1.AccountKey account = 3;
+  optional string last_id = 4;  // schemata: uuid?
 ```
 
-`reports.sql` carries that same reference as two foreign keys, one into each schema.
+From `examples/ledger/expected/proto/ledger/accounts.proto`:
+```proto
+message AccountKey {
+  int64 tenant_id = 1;
+  string code = 2;  // schemata: string { max 16 }
+}
+```
+
+`reports.sql` carries the same two references as two foreign keys, one into each schema.
 
 From `examples/ledger/expected/sql/ledger/reports.sql`:
 ```sql
@@ -374,30 +396,35 @@ The first foreign key reaches into `ledger`, the second into `ledger_journal`: o
 `ledger_reports.close` carries keys into two different Postgres schemas, because `account` comes
 from `ledger.accounts` and `last` comes from `ledger.journal`.
 
-`reports.xsd` imports both other namespaces too, one `xs:import` per schema, the same two
-namespaces `account` and `last` reach into.
+`reports.xsd` follows suit: `account` is an `AccountKeyType` from `accounts.xsd`, the one schema
+it imports, and `last_id` is a uuid-patterned string.
 
 From `examples/ledger/expected/xsd/ledger/reports.xsd`:
 ```xml
   <xs:import namespace="urn:schemata:ledger.accounts" schemaLocation="accounts.xsd"/>
-  <xs:import namespace="urn:schemata:ledger.journal" schemaLocation="journal.xsd"/>
+```
+
+From `examples/ledger/expected/xsd/ledger/reports.xsd`:
+```xml
+      <xs:element name="account" type="ns1:AccountKeyType"/>
+      <xs:element name="last_id" minOccurs="0">
 ```
 
 Warnings from `examples/ledger/expected/proto-warnings.txt`:
 ```text
 SCH2001 enum 'Kind': proto3 requires a zero value; synthesized KIND_UNSPECIFIED = 0
-SCH2001 field 'Account.code': refinements on string(max = 16) are not enforced by Protobuf
-SCH2001 field 'Account.name': refinements on string(max = 120) are not enforced by Protobuf
+SCH2001 field 'Account.code': refinements on string { max 16 } are not enforced by Protobuf
+SCH2001 field 'Account.name': refinements on string { max 120 } are not enforced by Protobuf
 SCH2001 field 'Account.opened': date has no Protobuf representation; lowered to string
 SCH2001 field 'Account.balances': decimal has no Protobuf representation; lowered to string
 SCH2001 enum 'Source': proto3 requires a zero value; synthesized SOURCE_UNSPECIFIED = 0
 SCH2001 enum 'Side': proto3 requires a zero value; synthesized SIDE_UNSPECIFIED = 0
-SCH2001 field 'Invoice.number': refinements on string(max = 32) are not enforced by Protobuf
-SCH2001 field 'Payment.reference': refinements on string(max = 64) are not enforced by Protobuf
+SCH2001 field 'Invoice.number': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'Payment.reference': refinements on string { max 64 } are not enforced by Protobuf
 SCH2001 field 'Entry.id': uuid has no Protobuf representation; lowered to string
-SCH2001 field 'Entry.memo': refinements on string(max = 500) are not enforced by Protobuf
-SCH2001 field 'Entry.lines': refinements on list<Line>(min = 2) are not enforced by Protobuf
-SCH2001 field 'Close.period': refinements on string(max = 7, pattern = "^[0-9]{4}-[0-9]{2}$") are not enforced by Protobuf
+SCH2001 field 'Entry.memo': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 field 'Entry.lines': refinements on Line[] { minItems 2 } are not enforced by Protobuf
+SCH2001 field 'Close.period': refinements on string { max 7, match "^[0-9]{4}-[0-9]{2}$" } are not enforced by Protobuf
 ```
 
 The `Kind`, `Source`, and `Side` enums each get a synthesized zero value, the same as `Kind` did in
@@ -406,12 +433,12 @@ The `Kind`, `Source`, and `Side` enums each get a synthesized zero value, the sa
 them in application code. `Account.opened` and `Entry.id` have no Protobuf date or uuid type, so
 they lower to plain strings; parse them back in application code. `Entry.memo`'s max is dropped
 too. The map's decimal values lower to strings; parse them back to decimals in application code.
-The `min = 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced
+The `minItems 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced
 by Protobuf; enforce them in application code.
 
 Warnings from `examples/ledger/expected/sql-warnings.txt`:
 ```text
-SCH2105 field 'Entry.lines': refinements on list<Line>(min = 2) are not enforced by Postgres
+SCH2105 field 'Entry.lines': refinements on Line[] { minItems 2 } are not enforced by Postgres
 ```
 
 The child table holding `lines` cannot enforce a minimum of two. Enforce it in application code;
@@ -434,11 +461,11 @@ place an operation's request can go over HTTP: the path, the query, the body, an
 
 From `examples/services/orders.schemata`:
 ```schemata
-record OrderId { @sql(key) id: uuid }
+model OrderId { id uuid { id } }
 
-record ListOrders { status: Status? @sql(key) limit: int32(min = 1, max = 200) = 50 }
+model ListOrders { status Status?  limit int32 { id, min 1, max 200 } = 50 }
 
-record PlaceOrder { @sql(key) customer_id: uuid lines: list<Order.Line>(min = 1) }
+model PlaceOrder { customer_id uuid { id }  lines Order.Line[] { minItems 1 } }
 ```
 
 From `examples/services/orders.schemata`:
@@ -538,7 +565,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
       },
 ```
 
-`place` is a `post` that binds nothing in its path, so the whole `PlaceOrder` record is the body.
+`place` is a `post` that binds nothing in its path, so the whole `PlaceOrder` model is the body.
 `upload` has no binding, so it is `post /Orders/upload`, and its streamed request is
 newline-delimited JSON.
 
@@ -576,7 +603,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
     }
 ```
 
-Every type an operation reaches is a component keyed by its namespace, `Money` from
+Every type an operation reaches is a component keyed by its schema name, `Money` from
 `shop.catalog` included, so the document stands alone: `Order.total` refers to it within the same
 file.
 
@@ -588,7 +615,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
 ```
 
 `OrderId` and `ListOrders` are not components: their fields are parameters, and nothing refers to
-the records themselves.
+the models themselves.
 
 Under `--target proto`, the service is a gRPC `service` at the end of `shop/orders.proto`, after
 the messages, and each operation an `rpc` named in UpperCamel. `cancel` has no response, so it
@@ -633,7 +660,7 @@ changed service.
 
 `schemata import --from xsd` goes the other way: it reads an existing `.xsd` and writes a
 `.schemata` file. The GPX 1.1 schema (`http://www.topografix.com/GPX/1/1`) is a good one to walk
-through, since it exercises most of what the importer does: a namespace that is not
+through, since it exercises most of what the importer does: a target namespace that is not
 `urn:schemata:…`, a decimal with no declared precision, a fixed attribute value, and an `xs:any` it
 cannot carry.
 
@@ -642,9 +669,9 @@ java -jar schemata-<version>.jar import --from xsd --out out gpx.xsd
 ```
 
 GPX's `targetNamespace` is a plain URI, not `urn:schemata:…`, so the output keeps it on the
-namespace as `@xsd(namespace = "…")` and takes its own namespace from the file name, `gpx`,
+`schema` line as `@xsd(namespace: "…")` and takes its schema name from the file name, `gpx`,
 reported once (SCH2402); pass `--namespace gpx` yourself to silence that note. The root complex
-type, `gpxType`, becomes `record Gpx`, with `@xsd(name = "gpx")` restoring the element name XSD
+type, `gpxType`, becomes `model Gpx`, with `@xsd(name: "gpx")` restoring the element name XSD
 expects back.
 
 From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
@@ -652,41 +679,39 @@ From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
 /// GPX schema version 1.1 - For more information on GPX and this schema, visit http://www.topografix.com/gpx.asp
 ///
 /// GPX uses the following conventions: all coordinates are relative to the WGS84 datum.  All measurements are in metric units.
-@xsd(namespace = "http://www.topografix.com/GPX/1/1")
-namespace gpx
+schema gpx @xsd(namespace: "http://www.topografix.com/GPX/1/1")
 
 /// GPX documents contain a metadata header, followed by waypoints, routes, and tracks.  You can add your own elements
 /// to the extensions section of the GPX document.
-@xsd(name = "gpx")
-record Gpx {
+model Gpx {
   /// Metadata about the file.
-  metadata:   Metadata?
+  metadata   Metadata?
   /// A list of waypoints.
-  wpt:        list<Wpt>
+  wpt        Wpt[]
   /// A list of routes.
-  rte:        list<Rte>
+  rte        Rte[]
   /// A list of tracks.
-  trk:        list<Trk>
+  trk        Trk[]
   /// You can add extend GPX by adding your own elements from another schema here.
-  extensions: Extensions?
+  extensions Extensions?
 ```
 
 Every warning is lossy; none stops the import from writing its file.
 
 Warnings from `schemata-cli/src/test/resources/import/gpx/expected/import-warnings.txt`:
 ```
-SCH2402 gpx.xsd: namespace 'gpx' was derived from the file name
+SCH2402 gpx.xsd: schema name 'gpx' was derived from the file name
 SCH2405 attribute 'version': fixed value imported as a default
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'magvar': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 element 'magvar': facet maxExclusive dropped
 ```
 
-Besides the namespace note already covered, `version`'s `fixed="1.1"` becomes a plain default
+Besides the schema name note already covered, `version`'s `fixed="1.1"` becomes a plain default
 (SCH2405); `ele` and the other coordinates have no `totalDigits`/`fractionDigits`, so they import as
 `decimal(38, 9)` (SCH2403); and `magvar`'s `maxExclusive` has no equivalent on a decimal and is
 dropped (SCH2404). Compiling `out/import/gpx.schemata` under the sql target reports SCH2106 on
-every record, since the import never adds `@sql(key)`; add keys by hand before compiling to SQL.
+every model, since the import never adds `{ id }`; add keys by hand before compiling to SQL.
 The proto, xsd, and jsonschema targets compile it as it stands. More generally, compiling an
 import's own `.schemata` output under the xsd target and importing that result again regenerates
 it byte for byte, with no diagnostics at all.
@@ -726,8 +751,8 @@ From the directory holding `google/`:
 java -jar schemata-<version>.jar import --from proto --out out google/type/money.proto
 ```
 
-The file is named on its own, so its namespace comes from its `package`, `google.type`, which is
-already a namespace name; the import writes `out/import/google/type.schemata` and reports nothing:
+The file is named on its own, so its schema name comes from its `package`, `google.type`, which is
+already a schema name; the import writes `out/import/google/type.schemata` and reports nothing:
 
 ```text
 no diagnostics
@@ -737,19 +762,19 @@ wrote 1 file to out/import
 From `schemata-cli/src/test/resources/import/proto-money/expected/google/type.schemata`:
 ```schemata
 /// Represents an amount of money with its currency type.
-record Money {
+model Money {
   /// The three-letter currency code defined in ISO 4217.
-  #1 currency_code: string
+  #1 currency_code string
   /// The whole units of the amount.
   /// For example if `currencyCode` is `"USD"`, then 1 unit is one US dollar.
-  #2 units:         int64
+  #2 units         int64
   /// Number of nano (10^-9) units of the amount.
   /// The value must be between -999,999,999 and +999,999,999 inclusive.
   /// If `units` is positive, `nanos` must be positive or zero.
   /// If `units` is zero, `nanos` can be positive, zero, or negative.
   /// If `units` is negative, `nanos` must be negative or zero.
   /// For example $-1.75 is represented as `units`=-1 and `nanos`=-750,000,000.
-  #3 nanos:         int32
+  #3 nanos         int32
 }
 ```
 
@@ -758,10 +783,10 @@ generation in other languages and say nothing about the data, so they are ignore
 warning, and the license header, separated from the message by a blank line, is not a doc. The
 corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it: importing the
 directory holding `google/` instead finds two files under one root that declare
-`package google.type`, which `protoc` reads as one package, so they import as one namespace,
+`package google.type`, which `protoc` reads as one package, so they import as one schema,
 `google.type`, in one file. Had `money.proto` been the only file there, it would have taken its path
 under that directory, `google.type.money`, and kept its package as
-`@proto(package = "google.type")`.
+`@proto(package: "google.type")`.
 
 Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
 `google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and

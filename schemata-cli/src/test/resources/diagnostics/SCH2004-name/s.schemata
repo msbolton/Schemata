@@ -1,3 +1,9 @@
-namespace s
-record R { #1 x: bool }
-@proto(name = "R") record S { #1 x: bool }
+schema s
+
+model R { #1 x bool }
+
+model S {
+  #1 x bool
+
+  @@proto(name: "R")
+}

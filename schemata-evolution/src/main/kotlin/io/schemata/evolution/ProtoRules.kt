@@ -19,6 +19,10 @@ object ProtoRules : Rulebook {
     override val target = "proto"
 
     override fun classify(change: Change, ctx: ChangeContext): Verdict =
+        if (touchesOnlyBackReference(change)) Verdict.Compatible
+        else ReferencedKeys.judge(target, change, ctx, judge(change, ctx))
+
+    private fun judge(change: Change, ctx: ChangeContext): Verdict =
         when (change) {
             is NamespaceAdded -> Verdict.Compatible
             is NamespaceRemoved -> namespaceRemoved(change, ctx)
@@ -97,14 +101,14 @@ object ProtoRules : Rulebook {
         return when {
             service != null ->
                 Verdict.Breaking(
-                    "${change.path}: the namespace was removed breaks clients that call " +
+                    "${change.path}: the schema was removed breaks clients that call " +
                         "${servicePath(ctx.old, service, ctx)}/…",
-                    "keep the namespace's services until no client calls them",
+                    "keep the schema's services until no client calls them",
                 )
             ctx.declarationsOf(Side.OLD, change.path).isEmpty() -> Verdict.Compatible
             else ->
                 Verdict.Note(
-                    "${change.path}: the namespace was removed; generated code loses its declarations",
+                    "${change.path}: the schema was removed; generated code loses its declarations",
                     "keep the types, or confirm nothing outside this schema still depends on them",
                 )
         }
@@ -141,7 +145,7 @@ object ProtoRules : Rulebook {
         return Verdict.Note(
             "${change.path}: field renamed from '${change.from.name}' to '${change.to.name}'; " +
                 "this changes the JSON mapping",
-            "pin the emitted name with @proto(name = \"$fromName\")",
+            "pin the emitted name with @proto(name: \"$fromName\")",
         )
     }
 
@@ -295,7 +299,7 @@ object ProtoRules : Rulebook {
                 Verdict.Note(
                     "${change.path}: the emitted name changed from '$fromName' to '$toName'; " +
                         "this changes the JSON mapping",
-                    "pin the emitted name with @proto(name = \"$fromName\")",
+                    "pin the emitted name with @proto(name: \"$fromName\")",
                 )
             is DeclarationOwner ->
                 Verdict.Note(
@@ -308,7 +312,7 @@ object ProtoRules : Rulebook {
                 val to = servicePath(ctx.new, change.newOwner.service, ctx)
                 Verdict.Breaking(
                     "${change.path}: the service's rpc paths change from $from/* to $to/*",
-                    "pin the service name with @proto(name = \"$fromName\")",
+                    "pin the service name with @proto(name: \"$fromName\")",
                 )
             }
             is OperationOwner -> {
@@ -316,7 +320,7 @@ object ProtoRules : Rulebook {
                 val to = rpcPath(ctx.new, change.newOwner, ctx)
                 Verdict.Breaking(
                     "${change.path}: the rpc path changes from $from to $to",
-                    "pin the rpc name with @proto(name = \"$fromName\")",
+                    "pin the rpc name with @proto(name: \"$fromName\")",
                 )
             }
             is NamespaceOwner,
@@ -338,7 +342,7 @@ object ProtoRules : Rulebook {
         val to = rpcPath(ctx.new, OperationOwner(change.service, change.to), ctx)
         return Verdict.Breaking(
             "${change.path}: the operation was renamed, so its rpc path changes from $from to $to",
-            "pin the rpc name with @proto(name = \"$fromName\")",
+            "pin the rpc name with @proto(name: \"$fromName\")",
         )
     }
 

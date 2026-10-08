@@ -445,7 +445,7 @@ private class FileLowering(
                 // A well-known type is a message, but Schemata reads it as a scalar or not at all,
                 // never as a record an operation could carry.
                 if (full.startsWith("google.protobuf.")) {
-                    return drop("type '$full' has no Schemata record")
+                    return drop("type '$full' has no Schemata model")
                 }
                 val symbol = context.symbols.resolve(t.name, scope)
                 if (symbol?.message == null) return drop("type '${t.name}' is not a message")
@@ -590,7 +590,7 @@ private class FileLowering(
                 m.reserved.isEmpty() &&
                 types.all { it != null } &&
                 types.distinct().size == types.size
-        val kind = if (isUnion) "union" else "record"
+        val kind = if (isUnion) "union" else "model"
         if (!claim(claims, name, kind, "message", m.name, m.pos)) return null
         val decl = if (isUnion) union(m, name, mapped) else record(m, name, here, path, mapped)
         m.dropped.forEach { (what, pos) ->
@@ -679,7 +679,7 @@ private class FileLowering(
                 if (oneofs.add(o)) {
                     report(
                         ImportCodes.APPROXIMATED,
-                        "record '${m.name}': oneof '$o' imported as nullable fields; at most one " +
+                        "model '${m.name}': oneof '$o' imported as nullable fields; at most one " +
                             "of them is set, which Schemata cannot say",
                         f.pos,
                     )
@@ -726,7 +726,7 @@ private class FileLowering(
                 if (reservedName != original) {
                     report(
                         ImportCodes.APPROXIMATED,
-                        "record '${m.name}': reserved name '$original' imported as '$reservedName'",
+                        "model '${m.name}': reserved name '$original' imported as '$reservedName'",
                         r.pos,
                     )
                 }

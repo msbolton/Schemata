@@ -1,6 +1,6 @@
 # targets=proto
 warning[SCH2001] (lossy) (proto): field 'R.t': nullable list elements have no Protobuf representation; lowered to repeated
- --> s.schemata:2:36
-  = help: declare the list as `list<T>` with non-nullable elements; an empty list already means absent
+ --> s.schemata:3:31
+  = help: declare the list as `T[]`; an empty list already means absent
 
 0 errors, 1 warning

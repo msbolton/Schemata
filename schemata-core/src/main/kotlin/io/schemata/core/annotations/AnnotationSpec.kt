@@ -2,8 +2,8 @@ package io.schemata.core.annotations
 
 /** What an annotation may decorate. [article] is the indefinite article for [displayName]. */
 enum class Element(val displayName: String, val article: String) {
-    NAMESPACE("namespace", "a"),
-    RECORD("record", "a"),
+    NAMESPACE("schema", "a"),
+    RECORD("model", "a"),
     ENUM("enum", "an"),
     UNION("union", "a"),
     ALIAS("alias", "an"),

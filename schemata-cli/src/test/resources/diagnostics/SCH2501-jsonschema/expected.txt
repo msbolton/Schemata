@@ -1,6 +1,6 @@
 # diff=old,new targets=jsonschema
 error[SCH2501]: jsonschema: s.R.x: the default was removed from a non-null field breaks old documents that omit it: the property becomes required
- --> new/s.schemata:2:12
+ --> new/s.schemata:3:11
   = help: keep a default, or supply the field explicitly in every document
 
 1 error, 0 warnings

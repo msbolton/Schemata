@@ -1,8 +1,6 @@
-namespace t
+schema t
 
-record Orders {
-  #1 id: uuid
-}
+model Orders { #1 id uuid }
 
 service Orders {
   #1 get(Orders): Orders

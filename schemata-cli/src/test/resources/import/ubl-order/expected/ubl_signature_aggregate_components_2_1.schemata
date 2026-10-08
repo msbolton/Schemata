@@ -1,5 +1,4 @@
-@xsd(namespace = "urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2")
-namespace ubl_signature_aggregate_components_2_1
+schema ubl_signature_aggregate_components_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2")
 
 import ubl_signature_basic_components_2_1
 import ubl_common_basic_components_2_1
@@ -11,8 +10,7 @@ import ubl_x_ad_e_sv141_2_1
 /// Signature Information. Details
 /// This class captures a single signature and optionally associates to a signature in the document with the corresponding identifier.
 /// Signature Information
-@xsd(name = "SignatureInformation")
-record SignatureInformation {
+model SignatureInformation {
   /// BBIE
   /// Signature Information. Identifier
   /// This specifies the identifier of the signature distinguishing it from other signatures.
@@ -21,7 +19,7 @@ record SignatureInformation {
   /// Identifier
   /// Identifier
   /// Identifier. Type
-  @xsd(name = "ID") id:                      ubl_common_basic_components_2_1.ID?
+  id                      ubl_common_basic_components_2_1.ID?                       @xsd(name: "ID")
   /// BBIE
   /// Signature Information. Referenced Signature Identifier. Identifier
   /// This associates this signature with the identifier of a signature business object in the document.
@@ -30,7 +28,9 @@ record SignatureInformation {
   /// Referenced Signature Identifier
   /// Identifier
   /// Identifier. Type
-  @xsd(name = "ReferencedSignatureID") referenced_signature_id: ubl_signature_basic_components_2_1.ReferencedSignatureID?
+  referenced_signature_id ubl_signature_basic_components_2_1.ReferencedSignatureID? @xsd(name: "ReferencedSignatureID")
   /// This is a single digital signature as defined by the W3C specification.
-  @xsd(name = "Signature") signature:               ubl_xmldsig_core_schema_2_1.Signature?
+  signature               ubl_xmldsig_core_schema_2_1.Signature?                    @xsd(name: "Signature")
+
+  @@xsd(name: "SignatureInformation")
 }

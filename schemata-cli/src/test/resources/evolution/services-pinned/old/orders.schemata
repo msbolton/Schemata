@@ -1,11 +1,8 @@
-namespace s
+schema s
 
-record OrderId { @sql(key) #1 id: uuid }
+model OrderId { #1 id uuid { id } }
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 total: decimal(19, 4)
-}
+model Order { #1 id uuid { id }  #2 total decimal(19, 4) }
 
 service Orders {
   #1 get(OrderId): Order  get "/orders/{id}"

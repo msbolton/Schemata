@@ -1,2 +1,0 @@
-namespace s
-record R { @sql(key) #1 id: int32? }

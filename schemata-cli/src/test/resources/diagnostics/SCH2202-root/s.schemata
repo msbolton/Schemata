@@ -1,3 +1,5 @@
-namespace s
-record HTTPStatus { #1 x: bool }
-record HttpStatus { #1 x: bool }
+schema s
+
+model HTTPStatus { #1 x bool }
+
+model HttpStatus { #1 x bool }

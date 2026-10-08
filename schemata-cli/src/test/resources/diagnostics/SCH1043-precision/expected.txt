@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1043]: default 123.4 exceeds precision 3
- --> s.schemata:2:34
+ --> s.schemata:3:32
   = help: use at most 3 digits
 
 1 error, 0 warnings

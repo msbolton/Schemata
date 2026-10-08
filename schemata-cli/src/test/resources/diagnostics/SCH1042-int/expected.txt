@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1042]: default for int32 must be an integer literal
- --> s.schemata:2:26
+ --> s.schemata:3:24
   = help: write a whole number
 
 1 error, 0 warnings

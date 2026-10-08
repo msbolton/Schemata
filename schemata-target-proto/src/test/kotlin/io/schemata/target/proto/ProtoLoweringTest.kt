@@ -42,11 +42,16 @@ import kotlin.test.assertTrue
 
 private const val SERVICE =
     """
-namespace shop.orders
+schema shop.orders
+
 import shop.catalog as catalog
-record OrderId { #1 id: uuid }
-record Order { #1 id: uuid #2 total: catalog.Money }
-record Chunk { #1 bytes: bytes }
+
+model OrderId { #1 id uuid }
+
+model Order { #1 id uuid  #2 total catalog.Money }
+
+model Chunk { #1 bytes bytes }
+
 /// Place and read orders.
 service Orders {
   /// Fetch one order.
@@ -58,7 +63,46 @@ service Orders {
 }
 """
 
-private const val CATALOG = "namespace shop.catalog\nrecord Money { #1 amount: int64 }\n"
+private const val CATALOG = "schema shop.catalog\n\nmodel Money { #1 amount int64 }\n"
+
+private const val RELATIONS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id }  #2 name string }
+
+model Tag { #1 code string { id, max 16 } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+  #3 billing  Customer { embed }
+  #4 tags     Tag[]
+  #5 pair     Pair
+  #6 pairs    Pair[]
+  #7 backup   Customer?
+}
+"""
+
+private const val MEMBERS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+union Party = Customer | Pair
+
+model Book {
+  #1 id    uuid { id }
+  #2 by    map<string, Customer>
+  #3 pairs map<string, Pair>
+  #4 party Party
+}
+"""
 
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
@@ -654,11 +698,11 @@ class ProtoLoweringTest {
         val fields = message(lowered.model.files.single(), "R").fields
         assertEquals(
             listOf(
-                listOf("string(max = 5)?"),
-                listOf("int32(min = 0)", "default = 3"),
-                listOf("list<string(max = 5)?>(max = 5)?"),
+                listOf("string? { max 5 }"),
+                listOf("int32 { min 0 }", "default = 3"),
+                listOf("string?[]? { maxItems 5, max 5 }"),
                 listOf("map<string, uuid?>?"),
-                listOf("decimal(5, 1, min = 1)", "default = 2"),
+                listOf("decimal(5, 1) { min 1 }", "default = 2"),
                 listOf("default = E_X"),
             ),
             fields.map { it.notes },
@@ -666,16 +710,16 @@ class ProtoLoweringTest {
         assertEquals(
             listOf(
                 "30 SCH2001 enum 'E': proto3 requires a zero value; synthesized E_UNSPECIFIED = 0",
-                "11 SCH2001 field 'R.s': refinements on string(max = 5) are not enforced by Protobuf",
-                "12 SCH2001 field 'R.n': refinements on int32(min = 0) are not enforced by Protobuf",
+                "11 SCH2001 field 'R.s': refinements on string { max 5 } are not enforced by Protobuf",
+                "12 SCH2001 field 'R.n': refinements on int32 { min 0 } are not enforced by Protobuf",
                 "12 SCH2001 field 'R.n': default 3 is not carried by proto3",
-                "13 SCH2001 field 'R.l': refinements on list<string(max = 5)?>(max = 5) are not enforced by Protobuf",
+                "13 SCH2001 field 'R.l': refinements on string?[] { maxItems 5, max 5 } are not enforced by Protobuf",
                 "13 SCH2001 field 'R.l': a nullable list has no Protobuf representation; lowered to repeated",
                 "13 SCH2001 field 'R.l': nullable list elements have no Protobuf representation; lowered to repeated",
                 "14 SCH2001 field 'R.m': a nullable map has no Protobuf representation; lowered to map",
                 "14 SCH2001 field 'R.m': nullable map values have no Protobuf representation; lowered to map",
                 "14 SCH2001 field 'R.m': uuid has no Protobuf representation; lowered to string",
-                "15 SCH2001 field 'R.d': refinements on decimal(5, 1, min = 1) are not enforced by Protobuf",
+                "15 SCH2001 field 'R.d': refinements on decimal(5, 1) { min 1 } are not enforced by Protobuf",
                 "15 SCH2001 field 'R.d': decimal has no Protobuf representation; lowered to string",
                 "15 SCH2001 field 'R.d': default 2 is not carried by proto3",
                 "16 SCH2001 field 'R.e': default E_X is not carried by proto3",
@@ -695,10 +739,10 @@ class ProtoLoweringTest {
             )
         val lowered = ProtoLowering.lower(schema(ns("a", u)))
         val members = message(lowered.model.files.single(), "U").oneofs.single().fields
-        assertEquals(listOf(listOf("string(max = 5)"), listOf("uuid")), members.map { it.notes })
+        assertEquals(listOf(listOf("string { max 5 }"), listOf("uuid")), members.map { it.notes })
         assertEquals(
             listOf(
-                "41 SCH2001 member 'U.string': refinements on string(max = 5) are not enforced by Protobuf",
+                "41 SCH2001 member 'U.string': refinements on string { max 5 } are not enforced by Protobuf",
                 "42 SCH2001 member 'U.uuid': uuid has no Protobuf representation; lowered to string",
             ),
             messages(lowered),
@@ -892,15 +936,15 @@ class ProtoLoweringTest {
         val lowered = ProtoLowering.lower(schema(ns("a", a, b, c, kind, kind2, e, f, u, g)))
         assertEquals(
             listOf(
-                "6 SCH2004 proto name 'Same' is already used by record 'A' (orders.schemata:3)",
-                "52 SCH2004 proto name 'Kind' is already used by record 'Kind' (orders.schemata:50)",
+                "6 SCH2004 proto name 'Same' is already used by model 'A' (orders.schemata:3)",
+                "52 SCH2004 proto name 'Kind' is already used by model 'Kind' (orders.schemata:50)",
                 "31 SCH2004 proto name 'E_UNSPECIFIED' is already used by the synthesized zero value",
                 "33 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
                 "36 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
-                "12 SCH2004 proto name 'N' is already used by record 'In1' (orders.schemata:10)",
+                "12 SCH2004 proto name 'N' is already used by model 'In1' (orders.schemata:10)",
                 "16 SCH2004 proto name 'p' is already used by field 'p' (orders.schemata:15)",
                 "41 SCH2004 proto name 'kind' is already used by the oneof",
-                "62 SCH2004 proto name 'Line' is already used by record 'Line' (orders.schemata:61)",
+                "62 SCH2004 proto name 'Line' is already used by model 'Line' (orders.schemata:61)",
             ),
             messages(lowered).filter { "SCH2004" in it },
         )
@@ -934,8 +978,8 @@ class ProtoLoweringTest {
             listOf(
                 "11 SCH2006 field 'R.a': field number 19000 is reserved for the Protobuf implementation (19000 to 19999)",
                 "12 SCH2006 field 'R.b': field number 600000000 exceeds the Protobuf maximum 536870911",
-                "3 SCH2006 record 'R': reserved number 0 must be positive",
-                "3 SCH2006 record 'R': reserved range 4 to 4 overlaps 3 to 5",
+                "3 SCH2006 model 'R': reserved number 0 must be positive",
+                "3 SCH2006 model 'R': reserved range 4 to 4 overlaps 3 to 5",
             ),
             messages(lowered),
         )
@@ -978,10 +1022,10 @@ class ProtoLoweringTest {
             )
         assertEquals(
             listOf(
-                "1 SCH2007 namespace 'corp': @proto(package = \"corp v1\") is not a valid package name",
-                "31 SCH2007 enum value 'E.x': @proto(name = \"A-B\") is not a valid identifier",
-                "3 SCH2007 record 'R': @proto(name = \"Bad Name\") is not a valid identifier",
-                "11 SCH2007 field 'R.sku': @proto(name = \"1x\") is not a valid identifier",
+                "1 SCH2007 schema 'corp': @proto(package: \"corp v1\") is not a valid package name",
+                "31 SCH2007 enum value 'E.x': @proto(name: \"A-B\") is not a valid identifier",
+                "3 SCH2007 model 'R': @proto(name: \"Bad Name\") is not a valid identifier",
+                "11 SCH2007 field 'R.sku': @proto(name: \"1x\") is not a valid identifier",
             ),
             messages(lowered).filter { "SCH2007" in it },
         )
@@ -1003,7 +1047,7 @@ class ProtoLoweringTest {
             )
         val lowered = ProtoLowering.lower(schema(ns("a", r)))
         assertEquals(
-            listOf("11 SCH2007 field 'R.x': @proto(name = \"1x\") is not a valid identifier"),
+            listOf("11 SCH2007 field 'R.x': @proto(name: \"1x\") is not a valid identifier"),
             messages(lowered),
         )
         assertEquals("x", message(lowered.model.files.single(), "R").fields.first().name)
@@ -1019,7 +1063,7 @@ class ProtoLoweringTest {
                 )
             )
         assertEquals(
-            listOf("7 SCH2004 namespaces a.x and b.y both lower to package 'p'"),
+            listOf("7 SCH2004 schemas a.x and b.y both lower to package 'p'"),
             messages(lowered),
         )
     }
@@ -1040,8 +1084,8 @@ class ProtoLoweringTest {
         val lowered = ProtoLowering.lower(schema(ns("a", r)))
         assertEquals(
             listOf(
-                "11 SCH2005 field 'R.grid': proto cannot nest collections; list<list<int32>> has a collection element",
-                "12 SCH2005 field 'R.index': proto cannot nest collections; map<string, list<string>> has a collection element",
+                "11 SCH2005 field 'R.grid': proto cannot nest collections; list<int32[]> has a collection element",
+                "12 SCH2005 field 'R.index': proto cannot nest collections; map<string, string[]> has a collection element",
             ),
             messages(lowered),
         )
@@ -1051,7 +1095,7 @@ class ProtoLoweringTest {
     private fun lower(vararg sources: String): Lowered<ProtoModel> {
         val files =
             sources.map { text ->
-                val ns = Regex("""namespace\s+([\w.]+)""").find(text)!!.groupValues[1]
+                val ns = Regex("""schema\s+([\w.]+)""").find(text)!!.groupValues[1]
                 Parser.parse(text, "$ns.schemata").file!!
             }
         val analysis =
@@ -1118,7 +1162,16 @@ class ProtoLoweringTest {
     @Test
     fun `a service with no reservations has no service note`() {
         val s =
-            lower("namespace t\nrecord R { #1 x: int32 }\n@deprecated\nservice S { #1 go(R): R }")
+            lower(
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "@deprecated\n" +
+                        "service S {\n" +
+                        "  #1 go(R): R\n" +
+                        "}"
+                )
                 .file("t.proto")
                 .services
                 .single()
@@ -1131,8 +1184,14 @@ class ProtoLoweringTest {
     fun `reserved ranges spell as the formatter prints them`() {
         val s =
             lower(
-                    "namespace t\nrecord R { #1 x: int32 }\n" +
-                        "service S { #1 go(R): R  post \"/r/{x}\"  reserved #2..#4, #7, \"old\", \"older\" }"
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 go(R): R  post \"/r/{x}\"\n" +
+                        "  reserved #2..#4, #7, \"old\", \"older\"\n" +
+                        "}"
                 )
                 .file("t.proto")
                 .services
@@ -1145,8 +1204,16 @@ class ProtoLoweringTest {
     fun `a cross-namespace payload imports its file`() {
         val file =
             lower(
-                    "namespace a\nimport b\nrecord R { #1 x: int32 }\nservice S { #1 go(R): T }",
-                    "namespace b\nrecord T { #1 y: int32 }\n",
+                    "schema a\n" +
+                        "\n" +
+                        "import b\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 go(R): T\n" +
+                        "}",
+                    "schema b\n\nmodel T { #1 y int32 }\n",
                 )
                 .file("a.proto")
         assertEquals(listOf("b.proto"), file.imports)
@@ -1157,8 +1224,17 @@ class ProtoLoweringTest {
     fun `a nested payload is spelled by its path`() {
         val rpc =
             lower(
-                    "namespace t\nrecord R { #1 x: int32 record Inner { #1 y: int32 } }\n" +
-                        "service S { #1 go(R.Inner): R }"
+                    "schema t\n" +
+                        "\n" +
+                        "model R {\n" +
+                        "  #1 x int32\n" +
+                        "\n" +
+                        "  model Inner { #1 y int32 }\n" +
+                        "}\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 go(R.Inner): R\n" +
+                        "}"
                 )
                 .file("t.proto")
                 .services
@@ -1172,11 +1248,22 @@ class ProtoLoweringTest {
     fun `a payload whose first segment is an rpc name of the service is spelled absolutely`() {
         val lowered =
             lower(
-                "namespace shop\n" +
-                    "record PlaceOrder { #1 x: int32 }\n" +
-                    "record Order { #1 x: int32 record Line { #1 y: int32 } }\n" +
-                    "record Receipt { #1 x: int32 }\n" +
-                    "service Orders { #1 place_order(PlaceOrder): Receipt #2 order(Order.Line): Order }"
+                "schema shop\n" +
+                    "\n" +
+                    "model PlaceOrder { #1 x int32 }\n" +
+                    "\n" +
+                    "model Order {\n" +
+                    "  #1 x int32\n" +
+                    "\n" +
+                    "  model Line { #1 y int32 }\n" +
+                    "}\n" +
+                    "\n" +
+                    "model Receipt { #1 x int32 }\n" +
+                    "\n" +
+                    "service Orders {\n" +
+                    "  #1 place_order(PlaceOrder): Receipt\n" +
+                    "  #2 order(Order.Line): Order\n" +
+                    "}"
             )
         val rpcs = lowered.file("shop.proto").services.single().rpcs
         assertEquals(".shop.PlaceOrder", rpcs[0].request.reference)
@@ -1189,7 +1276,7 @@ class ProtoLoweringTest {
 
     @Test
     fun `a schema without services imports no Empty`() {
-        val file = lower("namespace t\nrecord R { #1 x: int32 }").file("t.proto")
+        val file = lower("schema t\n\nmodel R { #1 x int32 }").file("t.proto")
         assertEquals(emptyList(), file.imports)
         assertEquals(emptyList(), file.services)
     }
@@ -1197,7 +1284,16 @@ class ProtoLoweringTest {
     @Test
     fun `a service whose rpcs all carry both payloads imports no Empty`() {
         val file =
-            lower("namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get(R): R #2 put(R): R }")
+            lower(
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 get(R): R\n" +
+                        "  #2 put(R): R\n" +
+                        "}"
+                )
                 .file("t.proto")
         assertEquals(emptyList(), file.imports)
     }
@@ -1205,7 +1301,15 @@ class ProtoLoweringTest {
     @Test
     fun `Empty is spelled absolutely so a google package cannot capture it`() {
         val lowered =
-            lower("namespace acme.google\nrecord R { #1 x: int32 }\nservice S { #1 ping(): R }")
+            lower(
+                "schema acme.google\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 ping(): R\n" +
+                    "}"
+            )
         val rpc = lowered.file("acme/google.proto").services.single().rpcs.single()
         assertEquals(".google.protobuf.Empty", rpc.request.reference)
         val outs = ProtoRenderer.render(lowered.model)
@@ -1216,11 +1320,17 @@ class ProtoLoweringTest {
     fun `an rpc override that repeats a derived name collides`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n" +
-                    "service S { #1 get(R): R @proto(name = \"Get\") #2 fetch(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "  @proto(name: \"Get\") #2 fetch(R): R\n" +
+                    "}"
             )
         assertEquals(
-            listOf("SCH2004 proto name 'Get' is already used by operation 'get' (t.schemata:3)"),
+            listOf("SCH2004 proto name 'Get' is already used by operation 'get' (t.schemata:6)"),
             out.codes(),
         )
     }
@@ -1229,11 +1339,18 @@ class ProtoLoweringTest {
     fun `rpc names collide after casing`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get_v2(R): R #2 get_v_2(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 get_v2(R): R\n" +
+                    "  #2 get_v_2(R): R\n" +
+                    "}"
             )
         assertEquals(
             listOf(
-                "SCH2004 proto name 'GetV2' is already used by operation 'get_v2' (t.schemata:3)"
+                "SCH2004 proto name 'GetV2' is already used by operation 'get_v2' (t.schemata:6)"
             ),
             out.codes(),
         )
@@ -1243,7 +1360,17 @@ class ProtoLoweringTest {
     fun `rpc names in different services do not collide`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\nservice S { #1 get(R): R }\nservice U { #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "}\n" +
+                    "\n" +
+                    "service U {\n" +
+                    "  #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(emptyList(), out.codes())
     }
@@ -1252,29 +1379,46 @@ class ProtoLoweringTest {
     fun `overrides name services and rpcs`() {
         val file =
             lower(
-                    "namespace t\nrecord R { #1 x: int32 }\n" +
-                        "@proto(name = \"OrderApi\") service S { @proto(name = \"Fetch\") #1 get(R): R }"
+                    "schema t\n" +
+                        "\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "@proto(name: \"OrderApi\")\n" +
+                        "service S {\n" +
+                        "  @proto(name: \"Fetch\") #1 get(R): R\n" +
+                        "}"
                 )
                 .file("t.proto")
         assertEquals("OrderApi", file.services.single().name)
         assertEquals("Fetch", file.services.single().rpcs.single().name)
         val bad =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n" +
-                    "service S { @proto(name = \"1x\") #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  @proto(name: \"1x\") #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(
-            listOf("SCH2007 operation 'S.get': @proto(name = \"1x\") is not a valid identifier"),
+            listOf("SCH2007 operation 'S.get': @proto(name: \"1x\") is not a valid identifier"),
             bad.codes(),
         )
         assertEquals("Get", bad.file("t.proto").services.single().rpcs.single().name)
         val badService =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n" +
-                    "@proto(name = \"a b\") service S { #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "@proto(name: \"a b\")\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(
-            listOf("SCH2007 service 'S': @proto(name = \"a b\") is not a valid identifier"),
+            listOf("SCH2007 service 'S': @proto(name: \"a b\") is not a valid identifier"),
             badService.codes(),
         )
         assertEquals("S", badService.file("t.proto").services.single().name)
@@ -1284,7 +1428,14 @@ class ProtoLoweringTest {
     fun `a record named Empty does not clash with the well-known type`() {
         val file =
             lower(
-                    "namespace t\nrecord Empty { #1 x: int32 }\nservice S { #1 ping() #2 take(Empty) }"
+                    "schema t\n" +
+                        "\n" +
+                        "model Empty { #1 x int32 }\n" +
+                        "\n" +
+                        "service S {\n" +
+                        "  #1 ping()\n" +
+                        "  #2 take(Empty)\n" +
+                        "}"
                 )
                 .file("t.proto")
         assertEquals("Empty", file.declarations.single().name)
@@ -1297,11 +1448,91 @@ class ProtoLoweringTest {
     fun `a service name collides with a message`() {
         val out =
             lower(
-                "namespace t\nrecord R { #1 x: int32 }\n@proto(name = \"R\") service S { #1 get(R): R }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 x int32 }\n" +
+                    "\n" +
+                    "@proto(name: \"R\")\n" +
+                    "service S {\n" +
+                    "  #1 get(R): R\n" +
+                    "}"
             )
         assertEquals(
-            listOf("SCH2004 proto name 'R' is already used by record 'R' (t.schemata:2)"),
+            listOf("SCH2004 proto name 'R' is already used by model 'R' (t.schemata:3)"),
             out.codes(),
+        )
+    }
+
+    private fun shape(message: ProtoMessage) =
+        message.fields.map { listOf(it.number, it.name, it.type, it.label) }
+
+    @Test
+    fun `a reference to a keyed model emits its key`() {
+        val order = message(lower(RELATIONS).file("shop.proto"), "Order")
+        assertEquals(
+            listOf(
+                listOf(2, "customer_id", ProtoType.Scalar("string"), Label.NONE),
+                listOf(4, "tags", ProtoType.Scalar("string"), Label.REPEATED),
+                listOf(7, "backup_id", ProtoType.Scalar("string"), Label.OPTIONAL),
+            ),
+            shape(order).filter { it[0] in setOf(2, 4, 7) },
+        )
+    }
+
+    @Test
+    fun `embed restores the record`() {
+        val order = message(lower(RELATIONS).file("shop.proto"), "Order")
+        assertEquals(
+            listOf(3, "billing", ProtoType.Named("Customer"), Label.NONE),
+            shape(order).single { it[0] == 3 },
+        )
+    }
+
+    @Test
+    fun `a composite-key reference emits one key object`() {
+        val file = lower(RELATIONS).file("shop.proto")
+        assertEquals(
+            listOf("Customer", "Tag", "Pair", "PairKey", "Order"),
+            file.declarations.map { it.name },
+        )
+        assertEquals(
+            listOf(
+                listOf(1, "a", ProtoType.Scalar("int32"), Label.NONE),
+                listOf(2, "b", ProtoType.Scalar("int32"), Label.NONE),
+            ),
+            shape(message(file, "PairKey")),
+        )
+        assertEquals(
+            listOf(
+                listOf(5, "pair", ProtoType.Named("PairKey"), Label.NONE),
+                listOf(6, "pairs", ProtoType.Named("PairKey"), Label.REPEATED),
+            ),
+            shape(message(file, "Order")).filter { it[0] in setOf(5, 6) },
+        )
+    }
+
+    @Test
+    fun `a key record in another package is imported and spelled absolutely`() {
+        val file =
+            lower(
+                    "schema a\n\nmodel Pair { #1 x int32 { id }  #2 y int32 { id } }\n",
+                    "schema b\n\nimport a\n\nmodel Use { #1 pair Pair }\n",
+                )
+                .file("b.proto")
+        assertEquals(listOf("a.proto"), file.imports)
+        assertEquals(
+            listOf(listOf(1, "pair", ProtoType.Named(".a.PairKey"), Label.NONE)),
+            shape(message(file, "Use")),
+        )
+    }
+
+    @Test
+    fun `a reference field that repeats a key's name collides`() {
+        val out =
+            lower("schema t\n\nmodel C { #1 id uuid { id } }\n\nmodel R { #1 c C  #2 c_id uuid }\n")
+        assertEquals(
+            listOf("SCH2004 proto name 'c_id' is already used by field 'c_id' (t.schemata:5)"),
+            out.codes().filter { it.startsWith("SCH2004") },
         )
     }
 
@@ -1327,6 +1558,31 @@ class ProtoLoweringTest {
             ProtoTarget.annotationSpecs.all {
                 it.target == "proto" && it.valueKind == ValueKind.STRING
             }
+        )
+    }
+
+    @Test
+    fun `a union member typed as a keyed model carries its key`() {
+        val party = message(lower(MEMBERS).file("shop.proto"), "Party").oneofs.single()
+        assertEquals(
+            listOf(
+                listOf(1, "customer", ProtoType.Scalar("string")),
+                listOf(2, "pair", ProtoType.Named("PairKey")),
+            ),
+            party.fields.map { listOf(it.number, it.name, it.type) },
+        )
+    }
+
+    @Test
+    fun `a map value typed as a keyed model carries its key`() {
+        val book = message(lower(MEMBERS).file("shop.proto"), "Book")
+        val string = ProtoType.Scalar("string")
+        assertEquals(
+            listOf(
+                listOf(2, "by", ProtoType.MapOf(string, string)),
+                listOf(3, "pairs", ProtoType.MapOf(string, ProtoType.Named("PairKey"))),
+            ),
+            book.fields.filter { it.number in 2..3 }.map { listOf(it.number, it.name, it.type) },
         )
     }
 }

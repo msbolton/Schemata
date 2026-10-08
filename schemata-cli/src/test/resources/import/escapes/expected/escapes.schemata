@@ -1,12 +1,12 @@
-namespace escapes
+schema escapes
 
-enum Flag { on, @xsd(name = "null") null_value }
+enum Flag { on @xsd(name: "null") null_value }
 
-record Parcel {
-  code:       string(pattern = "^[A-Z]{2}\d{4}$")
-  label:      string(pattern = "^[a-z]+\n[a-z]+$")
-  quoted:     string
-  address:    string = "line one\nline two\tend"
-  flag:       Flag = null_value
-  @xsd(name = "null") null_value: string
+model Parcel {
+  code       string { match "^[A-Z]{2}\d{4}$" }
+  label      string { match "^[a-z]+\n[a-z]+$" }
+  quoted     string
+  address    string = "line one\nline two\tend"
+  flag       Flag   = null_value
+  null_value string @xsd(name: "null")
 }

@@ -11,7 +11,9 @@ import java.math.BigDecimal
 /**
  * A type stripped of its bounds and patterns at every depth, so a bound or pattern change alone
  * does not look like a type change. A decimal keeps its precision and scale: those are part of its
- * type, not a bound, wherever the decimal sits (a field, a list element, a map key or value).
+ * type, not a bound, wherever the decimal sits (a field, a list element, a map key or value). A
+ * reference keeps only what it names: its relation (`{ embed }`, `onDelete`) is compared as the
+ * annotation facts [Differ] derives from it.
  */
 internal fun typeCore(type: Type): Type =
     when (type) {
@@ -22,7 +24,7 @@ internal fun typeCore(type: Type): Type =
             )
         is ListOf -> ListOf(typeCore(type.element), type.nullableElement)
         is MapOf -> MapOf(typeCore(type.key), typeCore(type.value), type.nullableValue)
-        is Ref -> type
+        is Ref -> Ref(type.target)
     }
 
 internal fun typeChanged(old: Type, new: Type): Boolean = typeCore(old) != typeCore(new)

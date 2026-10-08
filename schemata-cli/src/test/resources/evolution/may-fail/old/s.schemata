@@ -1,8 +1,8 @@
-namespace s
+schema s
 
-record Customer {
-  @sql(key) #1 id: uuid
-  #2 email: string(max = 254)?
-  #3 age: int32(min = 0)
-  #4 code: string(max = 8)
+model Customer {
+  #1 id    uuid    { id }
+  #2 email string? { max 254 }
+  #3 age   int32   { min 0 }
+  #4 code  string  { max 8 }
 }

@@ -1,2 +1,2 @@
-namespace a
-record R {
+schema a
+model R {

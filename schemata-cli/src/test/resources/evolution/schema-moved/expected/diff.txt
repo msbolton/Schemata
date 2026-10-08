@@ -9,10 +9,10 @@ jsonschema: 0 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: sql: b: @sql(schema) added renames 'b' to 'crm', which breaks statements that reference the old name
- --> new/b.schemata:2:1
+ --> new/b.schemata:1:1
   |
-2 | namespace b
-  | ^^^^^^^^^^^
+1 | schema b @sql(schema: "crm")
+  | ^^^^^^^^
   = help: migrate references to the new name, or keep @sql(schema) pinned to "b"
 
 1 error, 0 warnings

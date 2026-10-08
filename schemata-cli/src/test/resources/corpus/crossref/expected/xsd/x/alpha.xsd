@@ -15,7 +15,14 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="b" type="ns1:BetaType"/>
+      <xs:element name="b_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="note" type="ns1:MemoType"/>
     </xs:sequence>
   </xs:complexType>
   <xs:element name="a" type="tns:AType"/>

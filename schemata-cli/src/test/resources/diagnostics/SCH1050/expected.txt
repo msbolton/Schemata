@@ -1,0 +1,6 @@
+# targets=sql
+error[SCH1050]: field 'Customer.orders' follows 'buyer' back, but model 'Order' has no field 'buyer'
+ --> s.schemata:5:6
+  = help: name a field of Order typed Customer
+
+1 error, 0 warnings

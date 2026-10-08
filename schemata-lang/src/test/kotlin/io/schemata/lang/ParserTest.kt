@@ -6,8 +6,6 @@ import io.schemata.lang.ast.AnnotationValue
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.RecordDecl
-import io.schemata.lang.ast.Refinement
-import io.schemata.lang.ast.ReservedItem
 import io.schemata.lang.ast.UnionDecl
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,270 +14,384 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ParserTest {
-    private val example =
-        """
-        /// Order management for the storefront.
-        @sql(schema = "shop")
-        namespace shop.orders
+    private fun parse(text: String) = Parser.parse(text.trimIndent(), "t.schemata")
 
-        import shop.customers
-        import shop.billing as bill
-
-        alias Email = string(max = 254, pattern = "^[^@]+@[^@]+$")
-        alias Money = decimal(19, 4)
-
-        enum Status { #1 pending, #2 paid, #3 shipped, #4 cancelled }
-
-        record Card         { #1 last4: string(max = 4)  #2 brand: string(max = 32) }
-        record BankTransfer { #1 iban: string(max = 34) }
-        record Cash         {}
-
-        union Payment = #1 Card | #2 BankTransfer | #3 Cash
-
-        /// A customer's order. One row per checkout.
-        record Order {
-          @sql(key)
-          #1 id:         uuid
-          #2 customer:   Customer
-          #3 status:     Status = pending
-          #4 lines:      list<Line>(min = 1)
-          #5 total:      Money
-          #6 payment:    Payment
-          @sql(strategy = embed)
-          #7 shipping:   Address
-          #8 placed_at:  instant
-          #9 note:       string(max = 500)?
-          @deprecated("use placed_at")
-          #10 created:   instant?
-          reserved #11, "legacy_ref"
-
-          /// One purchasable item.
-          record Line {
-            #1 sku:      string(max = 64)
-            #2 quantity: int32(min = 1)
-            #3 price:    Money
-          }
-
-          record Address {
-            #1 street:   string(max = 200)
-            #2 city:     string(max = 100)
-            #3 country:  string(min = 2, max = 2)
-          }
-        }
-        """
-            .trimIndent()
-
-    private val file by lazy {
-        val result = Parser.parse(example, "orders.schemata")
-        assertEquals(emptyList(), result.diagnostics)
-        assertNotNull(result.file)
-    }
-
-    private fun record(name: String) =
-        file.declarations.filterIsInstance<RecordDecl>().first { it.name == name }
-
-    @Test
-    fun `file carries path, doc, annotations, namespace, imports`() {
-        assertEquals("orders.schemata", file.path)
-        assertEquals("Order management for the storefront.", file.doc)
-        val ann = file.annotations.single()
-        assertEquals("sql", ann.name)
-        val arg = ann.args.single() as AnnotationArg.Named
-        assertEquals("schema", arg.name)
-        assertEquals(
-            "shop",
-            ((arg.value as AnnotationValue.Lit).literal as Literal.StringLit).value,
-        )
-        assertEquals("shop.orders", file.namespace.name)
-        assertEquals(
-            listOf("shop.customers" to null, "shop.billing" to "bill"),
-            file.imports.map { it.namespace to it.alias },
-        )
+    private fun model(text: String): RecordDecl {
+        val r = parse(text)
+        assertNotNull(r.file, r.diagnostics.joinToString("\n") { it.message })
+        return r.file!!.declarations.filterIsInstance<RecordDecl>().single()
     }
 
     @Test
-    fun `an annotation key may be a reserved word`() {
-        val result =
-            Parser.parse(
-                "@xsd(namespace = \"urn:x\")\nnamespace s\nrecord R { #1 x: bool }",
-                "s.schemata",
+    fun `a schema header carries its attributes and a model its block attributes`() {
+        val r =
+            parse(
+                """
+            schema shop.orders @sql(schema: "shop") @proto(package: "shop.v1")
+            model Order {
+              id uuid { id }
+              @@sql(table: "orders")
+            }
+            """
             )
-        assertEquals(emptyList(), result.diagnostics)
-        val ann = result.file!!.annotations.single()
-        assertEquals("xsd", ann.name)
-        val arg = ann.args.single() as AnnotationArg.Named
-        assertEquals("namespace", arg.name)
+        val f = r.file!!
+        assertEquals("shop.orders", f.namespace.name)
+        assertEquals(listOf("sql", "proto"), f.annotations.map { it.name })
+        val m = f.declarations.single() as RecordDecl
+        assertEquals("Order", m.name)
+        assertEquals(listOf("sql"), m.annotations.map { it.name })
         assertEquals(
-            "urn:x",
-            ((arg.value as AnnotationValue.Lit).literal as Literal.StringLit).value,
+            "table",
+            (m.annotations[0].args[0] as io.schemata.lang.ast.AnnotationArg.Named).name,
         )
     }
 
     @Test
-    fun `a bare boolean stays a positional literal`() {
-        val result =
-            Parser.parse("namespace s\nrecord R { @deprecated(true) #1 x: bool }", "s.schemata")
-        assertEquals(emptyList(), result.diagnostics)
-        val field =
-            result.file!!.declarations.filterIsInstance<RecordDecl>().single().fields.single()
-        val arg = field.annotations.single().args.single() as AnnotationArg.Positional
-        assertEquals(true, ((arg.value as AnnotationValue.Lit).literal as Literal.BoolLit).value)
+    fun `a field is name type options attributes default`() {
+        val m =
+            model(
+                """
+            schema s
+            model M {
+              #3 note string? { max 500 } @deprecated("why") = "x"
+            }
+            """
+            )
+        val f = m.fields.single()
+        assertEquals(3, f.ordinal)
+        assertEquals("note", f.name)
+        assertEquals("string", f.type.name)
+        assertTrue(f.type.nullable)
+        assertEquals(listOf("max"), f.options.map { it.name })
+        assertEquals(500L, (f.options[0].value as Literal.IntLit).value)
+        assertEquals(listOf("deprecated"), f.annotations.map { it.name })
+        assertEquals("x", (f.default as Literal.StringLit).value)
     }
 
     @Test
-    fun `aliases keep refinements in order with their kind`() {
-        val email = file.declarations.filterIsInstance<AliasDecl>().first { it.name == "Email" }
-        assertEquals("string", email.type.name)
-        val (max, pattern) = email.type.refinements.map { it as Refinement.Named }
-        assertEquals("max", max.name)
-        assertEquals(254L, (max.value as Literal.IntLit).value)
-        assertEquals("pattern", pattern.name)
-        val money = file.declarations.filterIsInstance<AliasDecl>().first { it.name == "Money" }
-        assertEquals(
-            listOf(19L, 4L),
-            money.type.refinements.map {
-                ((it as Refinement.Positional).value as Literal.IntLit).value
-            },
-        )
+    fun `lists are postfix with element and list nullability`() {
+        val m = model("schema s\nmodel M { a string[]  b string?[]  c string[]?  d string?[]? }")
+        val (a, b, c, d) = m.fields
+        assertTrue(a.type.list && !a.type.nullable && !a.type.listNullable)
+        assertTrue(b.type.list && b.type.nullable && !b.type.listNullable)
+        assertTrue(c.type.list && !c.type.nullable && c.type.listNullable)
+        assertTrue(d.type.list && d.type.nullable && d.type.listNullable)
     }
 
     @Test
-    fun `enums carry ordinals and values`() {
-        val status = file.declarations.filterIsInstance<EnumDecl>().single()
-        assertEquals(
-            listOf("pending", "paid", "shipped", "cancelled"),
-            status.values.map { it.name },
-        )
-        assertEquals(listOf(1, 2, 3, 4), status.values.map { it.ordinal })
+    fun `decimal keeps its precision and scale and a map key may carry options`() {
+        val m =
+            model("schema s\nmodel M { total decimal(19, 4)  tags map<string { max 10 }, int32> }")
+        assertEquals(2, m.fields[0].type.refinements.size)
+        assertEquals(listOf("max"), m.fields[1].type.args[0].options.map { it.name })
     }
 
     @Test
-    fun `unions carry ordinals and member types`() {
-        val payment = file.declarations.filterIsInstance<UnionDecl>().single()
-        assertEquals(listOf(1, 2, 3), payment.members.map { it.ordinal })
-        assertEquals(listOf("Card", "BankTransfer", "Cash"), payment.members.map { it.type.name })
+    fun `inline enums and shapes parse in type position`() {
+        val m =
+            model(
+                """
+            schema s
+            model Order {
+              status enum { pending paid } = pending
+              shipping { street string { max 200 }  city string }
+            }
+            """
+            )
+        val status = m.fields[0].type.inlineEnum
+        assertNotNull(status)
+        assertEquals(listOf("pending", "paid"), status.values.map { it.name })
+        val shipping = m.fields[1].type.inlineShape
+        assertNotNull(shipping)
+        assertEquals(listOf("street", "city"), shipping.fields.map { it.name })
+        assertNull(m.fields[1].type.inlineEnum)
     }
 
     @Test
-    fun `records carry fields with ordinals, defaults, generics, nullability, annotations, docs`() {
-        val order = record("Order")
-        assertEquals("A customer's order. One row per checkout.", order.doc)
-        assertEquals((1..10).toList(), order.fields.map { it.ordinal })
-        val id = order.fields[0]
-        assertEquals(
-            "key",
-            (((id.annotations.single().args.single() as AnnotationArg.Positional).value
-                        as AnnotationValue.Lit)
-                    .literal as Literal.NameLit)
-                .name,
-        )
-        val status = order.fields[2]
-        assertEquals("pending", (status.default as Literal.NameLit).name)
-        val lines = order.fields[3]
-        assertEquals("list", lines.type.name)
-        assertEquals("Line", lines.type.args.single().name)
-        assertEquals("min", (lines.type.refinements.single() as Refinement.Named).name)
-        val shipping = order.fields[6]
-        val strategy = shipping.annotations.single().args.single() as AnnotationArg.Named
-        assertEquals(
-            "embed",
-            ((strategy.value as AnnotationValue.Lit).literal as Literal.NameLit).name,
-        )
-        assertTrue(order.fields[8].type.nullable)
-        assertEquals("deprecated", order.fields[9].annotations.single().name)
+    fun `option names are legal field names`() {
+        val m = model("schema s\nmodel M { index int32 { index }  min int32  id uuid { id } }")
+        assertEquals(listOf("index", "min", "id"), m.fields.map { it.name })
+        assertEquals(listOf("index"), m.fields[0].options.map { it.name })
     }
 
     @Test
-    fun `records carry nested declarations and reserved items`() {
-        val order = record("Order")
-        assertEquals(listOf("Line", "Address"), order.nested.map { it.name })
-        assertEquals("One purchasable item.", order.nested[0].doc)
-        val (ordinal, name) = order.reserved
-        assertEquals(11, (ordinal as ReservedItem.Ordinals).from)
-        assertEquals(11, ordinal.to)
-        assertEquals("legacy_ref", (name as ReservedItem.Name).name)
-        assertEquals(emptyList(), record("Cash").fields)
+    fun `the 1x surface does not parse as 2`() {
+        val r = parse("namespace s\nrecord R { #1 x: int32 }")
+        assertNull(r.file)
+        assertEquals(listOf("SCH0008"), r.diagnostics.map { it.code.id })
     }
 
     @Test
-    fun `reserved ranges and string escapes`() {
+    fun `services keep the 1x body with colon arguments`() {
+        val r =
+            parse(
+                """
+            schema s
+            model Id { id uuid { id } }
+            service Orders { get(Id): Id  get "/orders/{id}" }
+            """
+            )
+        assertEquals("get", r.file!!.services.single().operations.single().name)
+    }
+
+    @Test
+    fun `bare option names side by side are separate flags`() {
         val f =
-            Parser.parse("namespace a\nrecord R { s: string = \"a\\\"b\"\n reserved #5..#7 }", "t")
+            model("schema s\nmodel M { id uuid { id unique }  n int32 { min 1, max 9 } }").fields
+        assertEquals(listOf("id", "unique"), f[0].options.map { it.name })
+        assertTrue(f[0].options.all { it.value == null })
+        assertEquals(listOf(1L, 9L), f[1].options.map { (it.value as Literal.IntLit).value })
+    }
+
+    @Test
+    fun `a match option keeps its regular expression as written`() {
+        val r = parse("schema s\nmodel M { code string { match \"^\\d+$\" } }")
+        assertEquals(emptyList(), r.diagnostics)
+        val option = (r.file!!.declarations.single() as RecordDecl).fields.single().options.single()
+        assertEquals("^\\d+$", (option.value as Literal.StringLit).value)
+    }
+
+    @Test
+    fun `options after an alias travel with its type`() {
+        val r = parse("schema s\nalias Email = string { max 254 }")
+        val alias = r.file!!.declarations.single() as AliasDecl
+        assertEquals(listOf("max"), alias.type.options.map { it.name })
+    }
+
+    @Test
+    fun `enum values may still be separated by commas`() {
+        val r = parse("schema s\nenum Status { pending, paid  shipped }")
+        val e = r.file!!.declarations.single() as EnumDecl
+        assertEquals(listOf("pending", "paid", "shipped"), e.values.map { it.name })
+    }
+
+    @Test
+    fun `block attributes follow the leading ones and take bare names`() {
+        val m =
+            model(
+                """
+            schema s
+            @deprecated("old")
+            model M {
+              a int32
+              b int32
+              @@id(a, b)
+            }
+            """
+            )
+        assertEquals(listOf("deprecated", "id"), m.annotations.map { it.name })
+        val names =
+            m.annotations[1].args.map {
+                (((it as AnnotationArg.Positional).value as AnnotationValue.Lit).literal
+                        as Literal.NameLit)
+                    .name
+            }
+        assertEquals(listOf("a", "b"), names)
+    }
+
+    @Test
+    fun `block attributes are flagged and leading ones are not`() {
+        val m = model("schema s\n@deprecated(\"old\")\nmodel M {\n  a int32\n  @@id(a)\n}")
+        assertEquals(listOf(false, true), m.annotations.map { it.block })
+        val shape = model("schema s\nmodel M { s { a int32  @@unique(a) } }").fields.single()
+        assertEquals(listOf(true), shape.type.inlineShape!!.annotations.map { it.block })
+        val v1 =
+            Parser.parse1ForUpgrade("namespace s\n@deprecated(\"old\")\nrecord R { a: int32 }", "t")
                 .file!!
-        val r = f.declarations.single() as RecordDecl
-        assertEquals("a\"b", (r.fields.single().default as Literal.StringLit).value)
-        val range = r.reserved.single() as ReservedItem.Ordinals
-        assertEquals(5 to 7, range.from to range.to)
+        assertEquals(listOf(false), v1.declarations.single().annotations.map { it.block })
     }
 
     @Test
-    fun `every node names the file in its span`() {
-        val order = record("Order")
-        assertEquals("orders.schemata", order.span.file)
-        assertEquals(19, order.span.startLine) // the span starts at the doc comment
-        assertEquals("orders.schemata", order.fields[0].type.span.file)
-        assertEquals("orders.schemata", order.nested[0].span.file)
-        assertEquals("orders.schemata", file.imports[0].span.file)
+    fun `an inline shape keeps its own block attributes and nested members`() {
+        val m = model("schema s\nmodel M { s { a int32  b int32  reserved #9  @@unique(a, b) } }")
+        val shape = m.fields.single().type.inlineShape!!
+        assertEquals("", shape.name)
+        assertEquals(listOf("unique"), shape.annotations.map { it.name })
+        assertEquals(1, shape.reserved.size)
+        assertEquals("", m.fields.single().type.name)
     }
 
     @Test
-    fun `name, ordinal, and type-name spans point at their tokens`() {
-        val f = Parser.parse("namespace a\nrecord R {\n  #1 x: uuid\n}", "t").file!!
-        val r = f.declarations.single() as RecordDecl
-        assertEquals(Span("t", 2, 8, 2, 8), r.nameSpan)
-        val x = r.fields.single()
-        assertEquals(Span("t", 3, 3, 3, 4), x.ordinalSpan)
-        assertEquals(Span("t", 3, 6, 3, 6), x.nameSpan)
-        assertEquals(Span("t", 3, 9, 3, 12), x.type.nameSpan)
+    fun `an inline enum may be a nullable list`() {
+        val t = model("schema s\nmodel M { tags enum { a b }?[]? }").fields.single().type
+        assertNotNull(t.inlineEnum)
+        assertTrue(t.list && t.nullable && t.listNullable)
     }
 
     @Test
-    fun `union members take doc comments`() {
+    fun `the schema span covers the keyword and the name but not the attributes`() {
+        val f = parse("schema shop.orders @sql(schema: \"shop\")").file!!
+        assertEquals(Span("t.schemata", 1, 1, 1, 18), f.namespace.span)
+        assertEquals(Span("t.schemata", 1, 8, 1, 18), f.namespace.nameSpan)
+    }
+
+    @Test
+    fun `a doc comment ends the header so the next attribute is the declaration's`() {
+        val f = parse("schema s @a\n/// d\n@b model M {}").file!!
+        assertEquals(listOf("a"), f.annotations.map { it.name })
+        assertEquals(listOf("b"), f.declarations.single().annotations.map { it.name })
+    }
+
+    @Test
+    fun `operation is reserved for a future version`() {
+        val r = parse("schema s\noperation Foo {}")
+        assertNull(r.file)
+        assertEquals(listOf(LangCodes.RESERVED_KEYWORD), r.diagnostics.map { it.code })
+    }
+
+    @Test
+    fun `a 1x refinement is a syntax error`() {
+        assertNull(parse("schema s\nmodel M { name string(max = 5) }").file)
+    }
+
+    @Test
+    fun `an attribute on its own line below the header leads the next model`() {
+        val f = parse("schema s\n@deprecated(\"x\")\nmodel M { a int32 }").file!!
+        assertEquals(emptyList(), f.annotations)
+        val m = f.declarations.single()
+        assertEquals(listOf("deprecated"), m.annotations.map { it.name })
+        assertEquals(Span("t.schemata", 2, 1, 3, 19), m.span)
+    }
+
+    @Test
+    fun `an attribute on the header line stays on the header`() {
         val f =
-            Parser.parse(
-                    "namespace a\nrecord A {}\nrecord B {}\nunion U =\n  /// first\n  #1 A |\n  #2 B",
-                    "t",
+            parse("schema s @sql(schema: \"x\")\n@proto(package: \"p\")\nmodel M { a int32 }")
+                .file!!
+        assertEquals(listOf("sql"), f.annotations.map { it.name })
+        assertEquals(listOf("proto"), f.declarations.single().annotations.map { it.name })
+    }
+
+    @Test
+    fun `an attribute on its own line between two fields leads the second`() {
+        val (a, b) =
+            model(
+                    """
+                schema s
+                model M {
+                  a int32 @index_hint
+                  @deprecated("x")
+                  b int32
+                }
+                """
                 )
+                .fields
+        assertEquals(listOf("index_hint"), a.annotations.map { it.name })
+        assertEquals(listOf("deprecated"), b.annotations.map { it.name })
+        assertEquals(Span("t.schemata", 3, 3, 3, 21), a.span)
+        assertEquals(Span("t.schemata", 4, 3, 5, 9), b.span)
+    }
+
+    @Test
+    fun `an attribute after the last field with nothing to lead is an error`() {
+        val r =
+            parse("schema s\nmodel M {\n  a int32\n  @deprecated(\"x\")\n  @@sql(table: \"m\")\n}")
+        assertNull(r.file)
+        val d = r.diagnostics.single()
+        assertEquals(LangCodes.SYNTAX, d.code)
+        assertEquals("an attribute here has nothing to attach to", d.message)
+        assertEquals(Span("t.schemata", 4, 3, 4, 18), d.span)
+    }
+
+    @Test
+    fun `an attribute below the header and above an import is an error`() {
+        val r = parse("schema s\n@deprecated(\"x\")\nimport t\nmodel M { a int32 }")
+        assertNull(r.file)
+        assertEquals(listOf(LangCodes.SYNTAX), r.diagnostics.map { it.code })
+    }
+
+    @Test
+    fun `a multi-line inline shape is trailed on the line of its closing brace`() {
+        val m =
+            model(
+                """
+                schema s
+                model M {
+                  s {
+                    a int32
+                  } @deprecated("x")
+                  @index_hint
+                  enum E { a }
+                }
+                """
+            )
+        assertEquals(listOf("deprecated"), m.fields.single().annotations.map { it.name })
+        assertEquals(listOf("index_hint"), m.nested.single().annotations.map { it.name })
+    }
+
+    @Test
+    fun `attributes before a default stay on the field`() {
+        val f =
+            model("schema s\nmodel M {\n  a int32\n    @deprecated(\"x\") = 1\n}").fields.single()
+        assertEquals(listOf("deprecated"), f.annotations.map { it.name })
+    }
+
+    @Test
+    fun `an attribute leads the first member`() {
+        val a = model("schema s\nmodel M {\n  @x\n  a int32\n}").fields.single()
+        assertEquals(listOf("x"), a.annotations.map { it.name })
+        assertEquals(Span("t.schemata", 3, 3, 4, 9), a.span)
+    }
+
+    @Test
+    fun `doc then attribute then field parses with the attribute on the field`() {
+        val (a, b) = model("schema s\nmodel M {\n  a int32\n  /// d\n  @x\n  b int32\n}").fields
+        assertEquals(emptyList(), a.annotations)
+        assertEquals(listOf("x"), b.annotations.map { it.name })
+        assertEquals("d", b.doc)
+        assertEquals(Span("t.schemata", 4, 3, 6, 9), b.span)
+    }
+
+    @Test
+    fun `a doc comment between a carried attribute and its owner keeps the owner's span and attribute`() {
+        val (a, b) =
+            model("schema s\nmodel M {\n  a int32\n  @x\n  /// d\n  @y\n  b int32\n}").fields
+        assertEquals(emptyList(), a.annotations)
+        assertEquals(Span("t.schemata", 3, 3, 3, 9), a.span)
+        assertEquals(listOf("x", "y"), b.annotations.map { it.name })
+        assertEquals("d", b.doc)
+        assertEquals(Span("t.schemata", 4, 3, 7, 9), b.span)
+    }
+
+    @Test
+    fun `an inline shape in a union member or an alias is a syntax error`() {
+        assertNull(parse("schema s\nmodel A { a int32 }\nunion U = A | { x int32 }").file)
+        assertNull(parse("schema s\nalias S = { x int32 }").file)
+        assertNull(parse("schema s\nalias E = enum { a b }").file)
+        assertNull(parse("schema s\nmodel M { m map<string, { x int32 }> }").file)
+    }
+
+    @Test
+    fun `a union member may carry options`() {
+        val u =
+            parse("schema s\nunion U = Card | #2 string { max 34, match \"^[A-Z]+$\" }")
                 .file!!
-        val u = f.declarations.filterIsInstance<UnionDecl>().single()
-        assertEquals(listOf("first", null), u.members.map { it.doc })
+                .declarations
+                .single() as UnionDecl
+        assertEquals(emptyList(), u.members[0].options)
+        assertEquals(listOf("max", "match"), u.members[1].options.map { it.name })
+        assertEquals("string", u.members[1].type.name)
     }
 
     @Test
-    fun `file span ends one column past the last character`() {
-        assertEquals(Span("t", 1, 1, 1, 12), Parser.parse("namespace a", "t").file!!.span)
-        assertEquals(Span("t", 1, 1, 2, 1), Parser.parse("namespace a\n", "t").file!!.span)
+    fun `an inline enum as a list element parses on a field`() {
+        val t = model("schema s\nmodel M { tags enum { a b }[] }").fields.single().type
+        assertEquals(listOf("a", "b"), t.inlineEnum!!.values.map { it.name })
+        assertTrue(t.list && !t.nullable && !t.listNullable)
     }
 
     @Test
-    fun `a byte-order mark at the start of a file is skipped`() {
-        val result = Parser.parse("\uFEFFnamespace a\nrecord R { #1 x: bool }", "t")
-        assertEquals(emptyList(), result.diagnostics)
-        assertEquals(Span("t", 1, 1, 1, 11), result.file!!.namespace.span)
-        assertNotNull(Parser.parseForFormat("\uFEFFnamespace a", "t").file)
+    fun `an attribute inside an enum body leads the next value`() {
+        val e = parse("schema s\nenum E { a @x b }").file!!.declarations.single() as EnumDecl
+        assertEquals(emptyList(), e.values[0].annotations)
+        assertEquals(listOf("x"), e.values[1].annotations.map { it.name })
     }
 
     @Test
-    fun `a future keyword is a reserved-keyword error and yields no file`() {
-        val result = Parser.parse("namespace a\noperation Orders { }", "t.schemata")
-        assertNull(result.file)
-        val d = result.diagnostics.single()
-        assertEquals(Category.SYNTAX, d.category)
-        assertEquals("'operation' is reserved for a future version of Schemata", d.message)
-        assertEquals(Span("t.schemata", 2, 1, 2, 9), d.span)
-    }
-
-    @Test
-    fun `an empty service is a service with no operations`() {
-        val result = Parser.parse("namespace a\nservice Orders { }", "t.schemata")
-        assertEquals(emptyList(), result.diagnostics)
-        assertTrue(result.file!!.services.single().operations.isEmpty())
-    }
-
-    @Test
-    fun `returns no file when there are syntax errors`() {
-        val result = Parser.parse("namespace a\nrecord User { id uuid }", "bad.schemata")
-        assertNull(result.file)
-        assertTrue(result.diagnostics.hasErrors)
+    fun `a byte-order mark is skipped and the file span ends one column past the text`() {
+        val r = Parser.parse("\uFEFFschema a\nmodel R { x bool }", "t")
+        assertEquals(emptyList(), r.diagnostics)
+        assertEquals(Span("t", 1, 1, 1, 9), Parser.parse("schema a", "t").file!!.span)
+        assertEquals(Span("t", 1, 1, 2, 1), Parser.parse("schema a\n", "t").file!!.span)
     }
 }

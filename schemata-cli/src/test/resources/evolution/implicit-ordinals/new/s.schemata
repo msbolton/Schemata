@@ -1,7 +1,3 @@
-namespace s
+schema s
 
-record Customer {
-  @sql(key) id: uuid
-  age: int32
-  name: string(max = 100)
-}
+model Customer { id uuid { id }  age int32  name string { max 100 } }

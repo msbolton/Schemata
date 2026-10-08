@@ -168,7 +168,7 @@ class SchemataEmitterTest {
                 )
             )
         assertEquals(
-            "namespace s\n\nrecord R {}\n",
+            "schema s\n\nmodel R {}\n",
             (Formatter.format(text, "s.schemata") as FormatResult.Formatted).text,
         )
     }
@@ -363,13 +363,13 @@ class SchemataEmitterTest {
             )
         assertEquals(
             """
-            |namespace t
+            |schema t
             |
-            |record Id {
+            |model Id {
             |}
             |
             |/// Place and read orders.
-            |@proto(name = "OrderApi")
+            |@proto(name: "OrderApi")
             |service Orders {
             |  /// Fetch one order.
             |  #1 get(Id): Id  get "/orders/{id}"
@@ -384,5 +384,175 @@ class SchemataEmitterTest {
                 .trimMargin(),
             SchemataEmitter.emit(unit),
         )
+    }
+
+    private fun field(
+        name: String,
+        type: UnitType,
+        nullable: Boolean = false,
+        annotations: List<UnitAnnotation> = emptyList(),
+        default: String? = null,
+        options: List<Pair<String, String?>> = emptyList(),
+        onDelete: String? = null,
+    ) =
+        UnitField(
+            name,
+            type,
+            nullable,
+            default,
+            null,
+            annotations,
+            options = options,
+            onDelete = onDelete,
+        )
+
+    private fun formatted(unit: SchemataUnit): String =
+        (Formatter.format(SchemataEmitter.emit(unit), "s.schemata") as FormatResult.Formatted).text
+
+    private fun unitOf(vararg declarations: UnitDecl) =
+        SchemataUnit("s", emptyList(), null, emptyList(), declarations.toList(), sourcePath = "s")
+
+    @Test
+    fun `a field prints its options its attributes and its default on one line`() {
+        val record =
+            UnitRecord(
+                "R",
+                listOf(
+                    field(
+                        "code",
+                        UnitType.Scalar(
+                            "string",
+                            listOf("min" to "2", "pattern" to "\"^[A-Z]+$\""),
+                        ),
+                        options = listOf("id" to null, "unique" to null),
+                        annotations = listOf(UnitAnnotation("sql", "type", "\"char(3)\"")),
+                        default = "\"AB\"",
+                    )
+                ),
+                emptyList(),
+                null,
+                emptyList(),
+            )
+        assertEquals(
+            """
+            |schema s
+            |
+            |model R { code string { id, unique, min 2, match "^[A-Z]+$" } @sql(type: "char(3)") = "AB" }
+            |"""
+                .trimMargin(),
+            formatted(unitOf(record)),
+        )
+    }
+
+    @Test
+    fun `lists print as brackets with their element's options after their own`() {
+        val bounded = UnitType.Scalar("int32", listOf("min" to "0"))
+        val record =
+            UnitRecord(
+                "R",
+                listOf(
+                    field(
+                        "a",
+                        UnitType.ListOf(bounded, true, listOf("max" to "4")),
+                        nullable = true,
+                    ),
+                    field(
+                        "b",
+                        UnitType.ListOf(
+                            UnitType.ListOf(bounded, false, listOf("min" to "1")),
+                            false,
+                            emptyList(),
+                        ),
+                    ),
+                    field(
+                        "c",
+                        UnitType.MapOf(
+                            UnitType.Scalar("string", listOf("max" to "5")),
+                            UnitType.ListOf(bounded, false, emptyList()),
+                            true,
+                            listOf("min" to "1"),
+                        ),
+                    ),
+                ),
+                emptyList(),
+                null,
+                emptyList(),
+            )
+        assertEquals(
+            """
+            |schema s
+            |
+            |model R {
+            |  a int32?[]?                                 { maxItems 4, min 0 }
+            |  b list<int32[] { minItems 1, min 0 }>
+            |  c map<string { max 5 }, int32[]? { min 0 }> { minItems 1 }
+            |}
+            |"""
+                .trimMargin(),
+            formatted(unitOf(record)),
+        )
+    }
+
+    @Test
+    fun `a record's key constraints and annotations close its body as block attributes`() {
+        val uuid = UnitType.Scalar("uuid", emptyList())
+        val record =
+            UnitRecord(
+                "Seat",
+                listOf(
+                    field("number", UnitType.Scalar("int32", emptyList())),
+                    field("tenant", uuid),
+                    field("row", UnitType.Scalar("string", emptyList())),
+                    field(
+                        "account",
+                        UnitType.Ref("Account"),
+                        nullable = true,
+                        onDelete = "set_null",
+                        annotations = listOf(UnitAnnotation("sql", "column", "\"acct\"")),
+                    ),
+                ),
+                emptyList(),
+                null,
+                listOf(UnitAnnotation("sql", "table", "\"seats\"")),
+                deprecated = true,
+                key = listOf("tenant", "number"),
+                uniques = listOf(listOf("account", "row")),
+                indexes = listOf(listOf("row", "number")),
+            )
+        assertEquals(
+            """
+            |schema s
+            |
+            |model Seat {
+            |  number  int32
+            |  tenant  uuid
+            |  row     string
+            |  account Account? @relation(onDelete: set_null) @sql(column: "acct")
+            |
+            |  @@id(tenant, number)
+            |  @@unique(account, row)
+            |  @@index(row, number)
+            |  @@deprecated
+            |  @@sql(table: "seats")
+            |}
+            |"""
+                .trimMargin(),
+            formatted(unitOf(record)),
+        )
+    }
+
+    @Test
+    fun `a union member's bounds are its options`() {
+        val union =
+            UnitUnion(
+                "U",
+                listOf(
+                    UnionMember(UnitType.Scalar("string", listOf("max" to "34"))),
+                    UnionMember(UnitType.Ref("R")),
+                ),
+                null,
+                emptyList(),
+            )
+        assertEquals("schema s\n\nunion U = string { max 34 } | R\n", formatted(unitOf(union)))
     }
 }

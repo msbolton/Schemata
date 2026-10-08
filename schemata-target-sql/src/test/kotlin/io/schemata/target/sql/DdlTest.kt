@@ -1,5 +1,6 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
 import kotlin.test.Test
@@ -71,7 +72,7 @@ class DdlTest {
                 "customers",
                 "customer",
                 listOf("id"),
-                cascade = false,
+                onDelete = OnDelete.RESTRICT,
             )
         assertEquals(
             "ALTER TABLE \"shop\".\"order\" ADD CONSTRAINT \"fk_order_customer\" FOREIGN KEY (\"customer_id\") REFERENCES \"customers\".\"customer\" (\"id\");",

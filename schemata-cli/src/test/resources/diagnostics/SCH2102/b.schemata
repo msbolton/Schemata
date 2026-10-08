@@ -1,2 +1,3 @@
-@sql(schema = "x") namespace b
-record B { @sql(key) #1 id: int32 }
+schema b @sql(schema: "x")
+
+model B { #1 id int32 { id } }

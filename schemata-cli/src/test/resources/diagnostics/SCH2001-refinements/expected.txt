@@ -1,6 +1,6 @@
 # targets=proto
-warning[SCH2001] (lossy) (proto): field 'R.s': refinements on string(max = 3) are not enforced by Protobuf
- --> s.schemata:2:36
+warning[SCH2001] (lossy) (proto): field 'R.s': refinements on string { max 3 } are not enforced by Protobuf
+ --> s.schemata:3:31
   = help: enforce the refinement in application code; Protobuf carries no constraints
 
 0 errors, 1 warning

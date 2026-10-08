@@ -11,12 +11,14 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
+import io.schemata.lang.Diagnostic
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
+import java.nio.file.Path
 
 class FmtCommand : CliktCommand(name = "fmt") {
     override fun help(context: Context) =
@@ -32,54 +34,76 @@ class FmtCommand : CliktCommand(name = "fmt") {
     private val reporting by FormatOptions()
     private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
 
-    override fun run() {
-        val sources = loadSources(inputs)
-        var failed = false
-        var differs = false
-        // Under json, stdout carries only the diagnostic documents; everything else goes to stderr.
-        val json = reporting.format == Format.JSON
-        for (loaded in sources) {
-            // Loading replaces malformed bytes; writing that text back would destroy them.
-            val content = strictUtf8(File(loaded.path).readBytes())
-            if (content == null) {
+    override fun run() =
+        rewriteInPlace(inputs, check, reporting, "formatted") { content, path ->
+            Formatter.format(content, path)
+        }
+}
+
+/**
+ * Rewrites each schema file under [inputs] in place with [rewrite], naming each changed file after
+ * [verb] (`formatted a.schemata`); under [check] it writes nothing and prints a diff for each file
+ * that would change instead. Exits 1 when any file fails to rewrite, or under [check] when any
+ * would change; every file is tried either way.
+ */
+internal fun CliktCommand.rewriteInPlace(
+    inputs: List<Path>,
+    check: Boolean,
+    reporting: FormatOptions,
+    verb: String,
+    rewrite: (content: String, path: String) -> FormatResult,
+) {
+    val sources = loadSources(inputs)
+    var failed = false
+    var differs = false
+    // Under json, stdout carries only the diagnostic documents; everything else goes to stderr.
+    val json = reporting.format == Format.JSON
+    for (loaded in sources) {
+        // Loading replaces malformed bytes; writing that text back would destroy them.
+        val content = strictUtf8(File(loaded.path).readBytes())
+        if (content == null) {
+            failed = true
+            echo("${loaded.path}: not valid UTF-8; left unchanged", err = true)
+            continue
+        }
+        val s = SourceInput(loaded.path, content)
+        // emit exits the command on a non-zero report; every source still needs a chance to be
+        // rewritten, so the exit is deferred to the loop's own final throw.
+        fun report(diagnostics: List<Diagnostic>) {
+            val report =
+                Report.of(
+                    PipelineResult(diagnostics, emptyList()),
+                    strict = false,
+                    checkOnly = true,
+                )
+            try {
+                emit(this, report, Sources.of(listOf(s)), reporting, out = "")
+            } catch (_: ProgramResult) {}
+        }
+        when (val r = rewrite(s.content, s.path)) {
+            is FormatResult.Failed -> {
                 failed = true
-                echo("${loaded.path}: not valid UTF-8; left unchanged", err = true)
-                continue
+                report(r.diagnostics)
             }
-            val s = SourceInput(loaded.path, content)
-            when (val r = Formatter.format(s.content, s.path)) {
-                is FormatResult.Failed -> {
-                    failed = true
-                    val report =
-                        Report.of(
-                            PipelineResult(r.diagnostics, emptyList()),
-                            strict = false,
-                            checkOnly = true,
+            is FormatResult.Formatted -> {
+                if (r.warnings.isNotEmpty()) report(r.warnings)
+                if (r.text != s.content) {
+                    differs = true
+                    if (check)
+                        echo(
+                            unifiedDiff(s.path, s.content, r.text),
+                            trailingNewline = false,
+                            err = json,
                         )
-                    // emit exits the command on a non-zero report; every source still needs a
-                    // chance to format, so the exit is deferred to the loop's own final throw.
-                    try {
-                        emit(this, report, Sources.of(listOf(s)), reporting, out = "")
-                    } catch (_: ProgramResult) {}
-                }
-                is FormatResult.Formatted ->
-                    if (r.text != s.content) {
-                        differs = true
-                        if (check)
-                            echo(
-                                unifiedDiff(s.path, s.content, r.text),
-                                trailingNewline = false,
-                                err = json,
-                            )
-                        else {
-                            File(s.path).writeText(r.text)
-                            echo("formatted ${s.path}", err = json)
-                        }
+                    else {
+                        File(s.path).writeText(r.text)
+                        echo("$verb ${s.path}", err = json)
                     }
+                }
             }
         }
-        if (failed || (check && differs)) throw ProgramResult(1)
     }
+    if (failed || (check && differs)) throw ProgramResult(1)
 }
 
 /** [bytes] as UTF-8 text, or null when they are not valid UTF-8. */

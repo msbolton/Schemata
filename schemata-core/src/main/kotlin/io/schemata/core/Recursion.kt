@@ -12,10 +12,12 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.storedFields
 
 /**
  * Marks records that can reach themselves through references. Whether a target can represent the
- * cycle is the target's decision.
+ * cycle is the target's decision. A back-reference is virtual, so it closes no cycle: the forward
+ * reference it mirrors is the only edge between the two models.
  */
 object Recursion {
     fun mark(namespaces: List<Namespace>): List<Namespace> {
@@ -33,7 +35,7 @@ object Recursion {
 
     private fun outgoing(decl: TypeDecl): Set<QualifiedName> =
         when (decl) {
-            is RecordType -> decl.fields.flatMap { refs(it.type) }.toSet()
+            is RecordType -> decl.storedFields.flatMap { refs(it.type) }.toSet()
             is UnionType -> decl.members.flatMap { refs(it.type) }.toSet()
             is EnumType -> emptySet()
         }

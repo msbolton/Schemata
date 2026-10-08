@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH1038]: pattern must be a string literal
- --> s.schemata:2:25
-  = help: quote the pattern: `pattern = "^…$"`
+error[SCH1038]: match must be a string literal
+ --> s.schemata:3:25
+  = help: write the pattern as a string: `{ match "^…$" }`
 
 1 error, 0 warnings

@@ -1,0 +1,17 @@
+/// A union carries keys wherever it stands, a payload included; a member written `{ embed }`
+/// carries the whole record instead.
+schema corpus.union_payload
+
+model Customer { #1 id uuid { id }  #2 name string { max 100 } }
+
+model Order { #1 id uuid { id }  #2 total decimal(12, 2) }
+
+union Hit = #1 Customer | #2 Order { embed }
+
+model Query { #1 text string { id, max 200 } }
+
+model Saved { #1 id uuid { id }  #2 hit Hit }
+
+service Search {
+  #1 find(Query): Hit  get "/search"
+}

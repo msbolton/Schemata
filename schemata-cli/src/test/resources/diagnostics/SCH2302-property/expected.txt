@@ -1,6 +1,6 @@
 # targets=jsonschema
-error[SCH2302] (jsonschema): field 'R.b' lowers to property 'b', already used by field 'R.a' (s.schemata:2)
- --> s.schemata:2:50
-  = help: rename one of them, or set `@jsonschema(name = "…")` on one
+error[SCH2302] (jsonschema): field 'R.b' lowers to property 'b', already used by field 'R.a' (s.schemata:3)
+ --> s.schemata:3:48
+  = help: rename one of them, or set `@jsonschema(name: "…")` on one
 
 1 error, 0 warnings

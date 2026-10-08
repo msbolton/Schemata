@@ -1,5 +1,5 @@
 # import=xsd
-warning[SCH2403] (lossy): complex type 'TrackType': nested sequence imported as record 'LatGroup' in field 'lat_group'
+warning[SCH2403] (lossy): complex type 'TrackType': nested sequence imported as model 'LatGroup' in field 'lat_group'
  --> s.xsd:5:1
   = help: review the imported declaration; the regenerated schema will differ here
 

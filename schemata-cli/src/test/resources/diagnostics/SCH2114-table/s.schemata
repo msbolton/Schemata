@@ -1,2 +1,7 @@
-namespace s
-@sql(table = "") record R { @sql(key) #1 id: int32 }
+schema s
+
+model R {
+  #1 id int32 { id }
+
+  @@sql(table: "")
+}

@@ -1,29 +1,29 @@
 /// Orders and their lines.
-namespace corpus.services
+schema corpus.services
 
-record OrderId { @sql(key) #1 id: uuid }
+model OrderId { #1 id uuid { id } }
 
-record ListOrders { #1 status: Status? @sql(key) #2 limit: int32(min = 1, max = 200) = 50 }
+model ListOrders { #1 status Status?  #2 limit int32 { id, min 1, max 200 } = 50 }
 
-record PlaceOrder { @sql(key) #1 customer_id: uuid #2 lines: list<Order.Line>(min = 1) }
+model PlaceOrder { #1 customer_id uuid { id }  #2 lines Order.Line[] { minItems 1 } }
 
-record Order {
-  @sql(key) #1 id:     uuid
-  #2 status: Status
-  #3 lines:  list<Line>
-  #4 total:  decimal(12, 2)
+model Order {
+  #1 id     uuid           { id }
+  #2 status Status
+  #3 lines  Line[]
+  #4 total  decimal(12, 2)
 
-  record Line { #1 sku: string(max = 64) #2 quantity: int32(min = 1) }
+  model Line { #1 sku string { max 64 }  #2 quantity int32 { min 1 } }
 }
 
-enum Status { pending, paid, shipped, cancelled }
+enum Status { pending paid shipped cancelled }
 
-record Chunk { @sql(key) #1 bytes: bytes }
+model Chunk { #1 bytes bytes { id } }
 
-record Receipt { @sql(key) #1 count: int64 }
+model Receipt { #1 count int64 { id } }
 
 /// Verbs stay legal names outside a binding.
-record Verbs { @sql(key) #1 get: string #2 post: int32 }
+model Verbs { #1 get string { id }  #2 post int32 }
 
 /// Place and read orders.
 service Orders {

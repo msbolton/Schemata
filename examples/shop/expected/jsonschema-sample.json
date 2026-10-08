@@ -1,9 +1,6 @@
 {
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "customer": {
-    "id": "11111111-2222-3333-4444-555555555555",
-    "name": "Ada Lovelace"
-  },
+  "customer_id": "11111111-2222-3333-4444-555555555555",
   "status": "paid",
   "lines": [
     {"sku": "WIDGET-1", "quantity": 2, "price": "9.9900"},

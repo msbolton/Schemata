@@ -1,0 +1,6 @@
+# upgrade
+warning[SCH0009] (lossy): field 'model' is renamed 'model_value', since 2.0 keeps `model` as a keyword
+ --> s.schemata:2:15
+  = help: the Postgres column keeps its name through @sql(column: …); the Protobuf, XSD, and JSON names follow the new name unless pinned with @proto, @xsd, or @jsonschema(name: …)
+
+0 errors, 1 warning

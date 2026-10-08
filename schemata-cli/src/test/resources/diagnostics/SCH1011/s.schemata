@@ -1,3 +1,5 @@
-namespace s
+schema s
+
 import nowhere
-record R { #1 x: bool }
+
+model R { #1 x bool }

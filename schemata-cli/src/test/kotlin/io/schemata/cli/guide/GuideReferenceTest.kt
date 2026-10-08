@@ -33,8 +33,8 @@ class GuideReferenceTest {
     }
 
     private fun check(file: File, block: Guide.Block) {
-        if (file == readmeFile && !block.body.trimStart().startsWith("namespace"))
-            fail("${file.name}:${block.line} is not a full example; give it a namespace line")
+        if (file == readmeFile && !block.body.trimStart().startsWith("schema "))
+            fail("${file.name}:${block.line} is not a full example; give it a schema line")
         val result = Pipeline.check(Guide.sources(block.body), Pipeline.targets, strict = false)
         val errors = result.diagnostics.filter { it.severity.name == "ERROR" }
         val words = block.info.split(' ').filter { it.isNotBlank() }

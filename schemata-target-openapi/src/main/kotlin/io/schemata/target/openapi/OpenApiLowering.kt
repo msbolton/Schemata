@@ -19,6 +19,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Verb
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.target.Lowered
 import io.schemata.target.deprecated
@@ -29,6 +30,7 @@ import io.schemata.target.jsonschema.LoweringCodes
 import io.schemata.target.jsonschema.RefSchema
 import io.schemata.target.jsonschema.SchemaNames
 import io.schemata.target.jsonschema.withCommon
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 
 /**
@@ -45,7 +47,9 @@ object OpenApiLowering {
             idCollision = OpenApiCodes.COLLISION,
         )
 
-    fun lower(schema: Schema): Lowered<OpenApiModel> {
+    fun lower(written: Schema): Lowered<OpenApiModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val names = SchemaNames(schema, codes, diagnostics)
         val documents =
@@ -150,7 +154,7 @@ private class NamespaceLowering(
                 }
         val remaining =
             if (request == null || request.stream) emptyList()
-            else record?.fields.orEmpty().filter { it !in pathFields }
+            else record?.storedFields.orEmpty().filter { it !in pathFields }
         val queryFields =
             if (verb.parameterised) remaining.filter { queryable(op, it) } else emptyList()
         val body: BodyPlan? =
@@ -190,7 +194,7 @@ private class NamespaceLowering(
                         diagnostics +=
                             Diagnostic(
                                 OpenApiCodes.INVALID_OVERRIDE,
-                                "operation '${op.name}': @openapi(name = \"$override\") is not a valid operationId",
+                                "operation '${op.name}': @openapi(name: \"$override\") is not a valid operationId",
                                 op.nameSpan,
                                 help = "use letters, digits, `_`, `.`, and `-`",
                             )
@@ -205,7 +209,7 @@ private class NamespaceLowering(
                     OpenApiCodes.COLLISION,
                     "operations ${both(previous, service to op)} both lower to operationId '$id'",
                     op.nameSpan,
-                    help = "rename one, or set `@openapi(name = \"…\")` on one",
+                    help = "rename one, or set `@openapi(name: \"…\")` on one",
                 )
         }
         return id
@@ -271,7 +275,7 @@ private class NamespaceLowering(
                 OpenApiCodes.QUERY_SHAPE,
                 "operation '${op.name}': union '${union.name}' cannot be query parameters; use a body verb",
                 op.nameSpan,
-                help = "request a record, or use post, put, or patch",
+                help = "request a model, or use post, put, or patch",
             )
     }
 
@@ -303,7 +307,7 @@ private class NamespaceLowering(
             val decl = schema.lookup(qn)
             val types =
                 when (decl) {
-                    is RecordType -> decl.fields.map { it.type }
+                    is RecordType -> decl.storedFields.map { it.type }
                     is UnionType -> decl.members.map { it.type }
                     is EnumType -> emptyList()
                 }
@@ -328,7 +332,7 @@ private class NamespaceLowering(
                             "${decl.kindWord} '${decl.name}': component key '$key' is not a valid component key",
                             decl.nameSpan,
                             help =
-                                "use letters, digits, `_`, `.`, and `-` in `@jsonschema(name = \"…\")`",
+                                "use letters, digits, `_`, `.`, and `-` in `@jsonschema(name: \"…\")`",
                         )
                 }
             }
@@ -425,7 +429,7 @@ private class NamespaceLowering(
                         OpenApiCodes.COLLISION,
                         "services '${previous.name}' and '${service.name}' both lower to tag '$name'",
                         service.nameSpan,
-                        help = "set a different `@openapi(name = \"…\")` on one of them",
+                        help = "set a different `@openapi(name: \"…\")` on one of them",
                     )
                 null
             }
@@ -448,7 +452,7 @@ private class NamespaceLowering(
                     diagnostics +=
                         Diagnostic(
                             OpenApiCodes.INVALID_OVERRIDE,
-                            "service '${service.name}': @openapi(name = \"$override\") is not a valid tag",
+                            "service '${service.name}': @openapi(name: \"$override\") is not a valid tag",
                             service.nameSpan,
                             help = "use letters, digits, `_`, `.`, and `-`",
                         )
@@ -469,7 +473,7 @@ private class NamespaceLowering(
         diagnostics +=
             Diagnostic(
                 OpenApiCodes.INVALID_OVERRIDE,
-                "namespace '${namespace.name}': @openapi(server = \"$server\") is not a valid URL",
+                "schema '${namespace.name}': @openapi(server: \"$server\") is not a valid URL",
                 namespace.span,
                 help =
                     "use an absolute URL such as `https://api.example.com`, or a path such as `/v1`",

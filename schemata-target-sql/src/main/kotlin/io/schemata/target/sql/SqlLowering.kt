@@ -8,9 +8,11 @@ import io.schemata.core.ir.Field
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Relation as RefRelation
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
@@ -24,7 +26,6 @@ import io.schemata.target.Lowered
 import io.schemata.target.NameClaims
 import io.schemata.target.TypeText
 import io.schemata.target.collidingNamespaces
-import io.schemata.target.flag
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 
@@ -37,10 +38,10 @@ import io.schemata.target.unionMemberStem
  * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides. A
  * reference to a union becomes a `<field>_kind` discriminator column plus each member's own nested,
  * forced-nullable contribution, with a CHECK that a member's columns are present exactly when the
- * kind names it. `@sql(strategy)` overrides a field's default shape with `embed`, `table`, or
- * `json` wherever the matrix allows it; a strategy a shape forbids, or any strategy at all on a
- * scalar, is an error. `reserved` ordinals and names have no relational meaning and are accepted
- * without a diagnostic.
+ * kind names it. `{ embed }` copies a referenced model's columns in place of its key, and
+ * `@sql(strategy: …)` overrides a field's default shape with `table` or `json` wherever the matrix
+ * allows it; a strategy a shape forbids, or any strategy at all on a scalar, is an error.
+ * `reserved` ordinals and names have no relational meaning and are accepted without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -51,7 +52,7 @@ object SqlLowering {
                     validOverride(
                         it.annotations,
                         "schema",
-                        "namespace '${it.name}'",
+                        "schema '${it.name}'",
                         it.span,
                         diagnostics,
                     )
@@ -140,10 +141,10 @@ object SqlLowering {
                 } else if (r.qualifiedName !in catalog.used) {
                     error(
                         SqlCodes.MISSING_KEY,
-                        "record '${r.name}' has no primary key and is not used by any field",
+                        "model '${r.name}' has no primary key and is not used by any field",
                         r.nameSpan,
                         help =
-                            "mark its key fields with `@sql(key)`, or the record with `@sql(key = (a, b))`; a keyless record only lowers when a field embeds it",
+                            "mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only lowers when a field embeds it",
                     )
                 }
             }
@@ -166,9 +167,9 @@ object SqlLowering {
                     diagnostics +=
                         Diagnostic(
                             SqlCodes.TABLE_COLLISION,
-                            "records ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${catalog[colliding.first().qualifiedName]!!.tableNameRaw}'",
+                            "models ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${catalog[colliding.first().qualifiedName]!!.tableNameRaw}'",
                             colliding[1].span,
-                            help = "set `@sql(table = \"…\")` on one of them",
+                            help = "set `@sql(table: \"…\")` on one of them",
                         )
                 }
         }
@@ -187,7 +188,7 @@ object SqlLowering {
                     SqlCodes.NAME_COLLISION,
                     "relation name '${relation.name}' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
                     relation.span,
-                    help = "rename one of them, or set `@sql(table = \"…\")` on one",
+                    help = "rename one of them, or set `@sql(table: \"…\")` on one",
                 )
             }
         }
@@ -202,7 +203,6 @@ object SqlLowering {
         private fun record(record: RecordType): RecordTables {
             val entry = catalog[record.qualifiedName]!!
             val tableName = entry.tableName
-            keys(record)
             val ctx =
                 FieldContext(
                     table = tableName,
@@ -241,10 +241,14 @@ object SqlLowering {
                 if (primaryKey.isEmpty()) null else identifier("pk_$tableName", record.nameSpan)
             val uniques =
                 constraints(record, "unique", owned(parts) { it.uniques }, primaryKey) {
-                    it.columns
-                }
+                        it.columns
+                    }
+                    .map { (field, u) -> field.nameSpan to u } +
+                    compositeUniques(record, tableName, parts, primaryKey)
             val indexes =
                 constraints(record, "index", owned(parts) { it.indexes }, primaryKey) { it.columns }
+                    .map { (field, ix) -> field.nameSpan to ix } +
+                    compositeIndexes(record, tableName, parts, primaryKey)
             claim(
                 TableClaim("table '$tableName'", record.nameSpan, entry.tableNameRaw),
                 tableName,
@@ -259,8 +263,8 @@ object SqlLowering {
                         TableClaim("child table '${t.name}'", field.nameSpan, null),
                         t.name,
                         t.primaryKeyName,
-                        t.uniques.map { field to it },
-                        t.indexes.map { field to it },
+                        t.uniques.map { field.nameSpan to it },
+                        t.indexes.map { field.nameSpan to it },
                     )
                 }
             }
@@ -288,6 +292,91 @@ object SqlLowering {
             parts: List<Pair<Field, Contribution>>,
             of: (Contribution) -> List<T>,
         ): List<Pair<Field, T>> = parts.flatMap { (field, part) -> of(part).map { field to it } }
+
+        /** `@@unique(a, b)`: one table-level UNIQUE over the named fields' columns, in order. */
+        private fun compositeUniques(
+            record: RecordType,
+            table: String,
+            parts: List<Pair<Field, Contribution>>,
+            primaryKey: List<String>,
+        ): List<Pair<Span, Unique>> =
+            composite(record, "unique", record.uniques, parts, primaryKey).map { (names, columns) ->
+                record.nameSpan to
+                    Unique(
+                        identifier("uq_${table}_${names.joinToString("_")}", record.nameSpan),
+                        columns,
+                    )
+            }
+
+        /** `@@index(a, b)`: one index over the named fields' columns, in order. */
+        private fun compositeIndexes(
+            record: RecordType,
+            table: String,
+            parts: List<Pair<Field, Contribution>>,
+            primaryKey: List<String>,
+        ): List<Pair<Span, Index>> =
+            composite(record, "index", record.indexes, parts, primaryKey).map { (names, columns) ->
+                record.nameSpan to
+                    Index(
+                        identifier("ix_${table}_${names.joinToString("_")}", record.nameSpan),
+                        columns,
+                    )
+            }
+
+        /**
+         * Each of [lists] (a model's `@@unique` or `@@index` field-name lists) with the columns its
+         * fields lowered to on the record's own table: a scalar's column, a reference's key
+         * columns, an embed's columns. A field with no column there (a child table, a field that
+         * failed to lower) leaves the constraint nothing to stand on, so it is reported and
+         * dropped; one over exactly the primary key is redundant and dropped with a warning, as a
+         * field's own `{ unique }` is.
+         */
+        private fun composite(
+            record: RecordType,
+            key: String,
+            lists: List<List<String>>,
+            parts: List<Pair<Field, Contribution>>,
+            primaryKey: List<String>,
+        ): List<Pair<List<String>, List<String>>> =
+            lists.mapNotNull { names ->
+                val display = "@@$key(${names.joinToString(", ")})"
+                val columns =
+                    names.map { name ->
+                        val own = parts.firstOrNull { it.first.name == name }?.second?.columns
+                        if (own.isNullOrEmpty()) {
+                            error(
+                                SqlCodes.STRATEGY_NOT_ALLOWED,
+                                "model '${record.name}': $display names '$name', which has no column on the model's table",
+                                record.nameSpan,
+                                help = "name fields stored in the table's own columns",
+                            )
+                            return@mapNotNull null
+                        }
+                        own.map { it.name }
+                    }
+                val flat = columns.flatten()
+                if (primaryKey.isNotEmpty() && flat == primaryKey) {
+                    error(
+                        SqlCodes.REDUNDANT_CONSTRAINT,
+                        "model '${record.name}': $display duplicates the primary key; dropped",
+                        record.nameSpan,
+                        help = "remove it; the primary key already enforces it",
+                    )
+                    return@mapNotNull null
+                }
+                names to flat
+            }
+
+        /**
+         * The relation a list's element or a map's value reference carries, so a child table's
+         * `value` reference acts on delete as the field asked.
+         */
+        private fun elementRelation(type: Type): RefRelation =
+            when (type) {
+                is ListOf -> (type.element as? Ref)?.relation
+                is MapOf -> (type.value as? Ref)?.relation
+                else -> null
+            } ?: RefRelation()
 
         /** Something that puts [columns] on a table, described by [subject]; [span] locates it. */
         private class ColumnSource(val subject: String, val span: Span, val columns: List<String>)
@@ -321,7 +410,7 @@ object SqlLowering {
             val claims =
                 NameClaims(
                     SqlCodes.NAME_COLLISION,
-                    "rename one of them, or set `@sql(column = \"…\")` on one",
+                    "rename one of them, or set `@sql(column: \"…\")` on one",
                     diagnostics,
                 )
             sources.forEach { source ->
@@ -329,71 +418,6 @@ object SqlLowering {
                     claims.claim(column, source.subject, source.span, kind = "column")
                 }
             }
-        }
-
-        /**
-         * Reports the key's form: the `@sql(key)` fields in declaration order, or the fields a
-         * record-level `@sql(key = (...))` names, each once. Only keyed records reach here; the key
-         * itself comes from the [Catalog].
-         */
-        private fun keys(record: RecordType) {
-            val fieldKeys = record.fields.filter { it.annotations.flag("sql", "key") }
-            val recordKeyNames =
-                (record.annotations["sql"]["key"] as? AnnotationValue.Names)?.values
-            if (fieldKeys.isNotEmpty() && recordKeyNames != null) {
-                error(
-                    SqlCodes.KEY_COLUMN,
-                    "record '${record.name}' declares @sql(key) on both the record and its fields",
-                    record.nameSpan,
-                    help =
-                        "keep one form: `@sql(key)` on fields, or `@sql(key = (…))` on the record",
-                )
-            }
-            recordKeyNames
-                ?.filter { name -> record.fields.none { it.name == name } }
-                ?.forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': @sql(key) names '$it', which is not a field of the record",
-                        record.nameSpan,
-                        help = "name a declared field",
-                    )
-                }
-            recordKeyNames
-                ?.groupingBy { it }
-                ?.eachCount()
-                ?.filterValues { it > 1 }
-                ?.keys
-                ?.forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': @sql(key) names '$it' more than once",
-                        record.nameSpan,
-                        help = "list each key field once",
-                    )
-                }
-            val keyFields = catalog[record.qualifiedName]!!.keyFields
-            keyFields
-                .filter { it.nullable }
-                .forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': key field '${it.name}' is nullable",
-                        it.nameSpan,
-                        help = "drop the `?`; a primary key column cannot be null",
-                    )
-                }
-            keyFields
-                .filter { keyType(it) == null }
-                .forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': key field '${it.name}' must be a scalar column",
-                        it.nameSpan,
-                        help =
-                            "key a scalar or enum field; reference the record from a keyed one instead",
-                    )
-                }
         }
 
         /**
@@ -447,9 +471,9 @@ object SqlLowering {
                 if (redundant) {
                     error(
                         SqlCodes.REDUNDANT_CONSTRAINT,
-                        "field '${record.name}.${field.name}': @sql($key) duplicates the primary key; dropped",
+                        "field '${record.name}.${field.name}': { $key } duplicates the primary key; dropped",
                         field.nameSpan,
-                        help = "remove the annotation; the primary key already enforces it",
+                        help = "remove the option; the primary key already enforces it",
                     )
                 }
                 !redundant
@@ -472,8 +496,8 @@ object SqlLowering {
             claimant: TableClaim,
             tableName: String,
             primaryKeyName: String?,
-            uniques: List<Pair<Field, Unique>>,
-            indexes: List<Pair<Field, Index>>,
+            uniques: List<Pair<Span, Unique>>,
+            indexes: List<Pair<Span, Index>>,
         ) {
             val previous = claimedTables.putIfAbsent(tableName, claimant)
             if (previous != null) {
@@ -484,7 +508,7 @@ object SqlLowering {
                         SqlCodes.NAME_COLLISION,
                         "relation name '$tableName' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
                         claimant.span,
-                        help = "rename one of them, or set `@sql(table = \"…\")` on one",
+                        help = "rename one of them, or set `@sql(table: \"…\")` on one",
                     )
                 }
                 return
@@ -492,23 +516,23 @@ object SqlLowering {
             val span = claimant.span
             relations += Relation(tableName, claimant.kind, span)
             primaryKeyName?.let { relations += Relation(it, "primary key of '$tableName'", span) }
-            uniques.forEach { (field, u) ->
-                relations += Relation(u.name, "unique '${u.name}'", field.nameSpan)
-            }
-            indexes.forEach { (field, ix) ->
-                relations += Relation(ix.name, "index '${ix.name}'", field.nameSpan)
-            }
+            uniques.forEach { (at, u) -> relations += Relation(u.name, "unique '${u.name}'", at) }
+            indexes.forEach { (at, ix) -> relations += Relation(ix.name, "index '${ix.name}'", at) }
         }
 
-        /** Everything [field] adds to the table [ctx] names, after [strategyOf] its override. */
+        /**
+         * Everything [field] adds to the table [ctx] names, after [strategyOf] its override. A
+         * back-reference adds nothing: the forward reference on the other model holds the key.
+         */
         private fun contribute(ctx: FieldContext, field: Field): Contribution {
+            if (field.virtual) return Contribution.NONE
             val strategy = strategyOf(field)
             return when (val type = field.type) {
                 is Scalar -> scalarField(ctx, field, strategy, type, null)
                 is Ref ->
                     when (val target = schema.lookup(type.target)) {
                         is EnumType -> scalarField(ctx, field, strategy, null, target)
-                        is RecordType -> recordField(ctx, field, strategy, target)
+                        is RecordType -> recordField(ctx, field, strategy, type, target)
                         is UnionType -> unionField(ctx, field, strategy, target)
                     }
                 is ListOf -> listField(ctx, field, strategy, type)
@@ -534,30 +558,48 @@ object SqlLowering {
 
         /**
          * A reference to a record: the default is a reference for a keyed target and an embed for a
-         * keyless one. `embed` flattens either kind's columns under the prefix with no foreign key,
-         * even a keyed target's own key columns; `json` lowers the whole reference to jsonb;
-         * `table` keeps the default reference for a keyed target and is not allowed for a keyless
-         * one, which has no table to reference.
+         * keyless one; `{ embed }` on the field copies the target's columns under the field's
+         * prefix either way, with no foreign key, a keyed target's key columns among them; `json`
+         * lowers the whole reference to jsonb; `table` keeps the default reference for a keyed
+         * target and is not allowed for a keyless one or an embedded copy, which have no table to
+         * reference.
          */
         private fun recordField(
             ctx: FieldContext,
             field: Field,
             strategy: String?,
+            ref: Ref,
             target: RecordType,
         ): Contribution {
-            val entry = catalog[target.qualifiedName]
+            val entry = catalog[target.qualifiedName]?.takeUnless { ref.relation.embed }
             return when (strategy) {
                 "json" ->
                     json(
                         ctx,
                         field,
-                        "record",
-                        "remove `strategy = json` to get the default mapping for this field",
+                        "model",
+                        "remove `strategy: json` to get the default mapping for this field",
                     )
-                "embed" -> embed(ctx, field, target, columnOf(field, ctx.where))
                 "table" ->
-                    if (entry != null) reference(ctx, field, entry)
-                    else forbiddenStrategy(ctx, field, "table", "a keyless record", "embed or json")
+                    when {
+                        entry != null -> reference(ctx, field, entry)
+                        ref.relation.embed ->
+                            forbiddenStrategy(
+                                ctx,
+                                field,
+                                "table",
+                                "a copy written { embed }",
+                                "json",
+                            )
+                        else ->
+                            forbiddenStrategy(
+                                ctx,
+                                field,
+                                "table",
+                                "a keyless model",
+                                "embed or json",
+                            )
+                    }
                 else ->
                     if (entry != null) reference(ctx, field, entry)
                     else embed(ctx, field, target, columnOf(field, ctx.where))
@@ -587,7 +629,7 @@ object SqlLowering {
          * record one; `table` asks for a child table either way, with a single `value` column
          * carrying a scalar or enum element's own checks instead of an array's stripped bounds;
          * `json` lowers the whole list to jsonb, the only strategy that reaches a union, nested
-         * list, or nested map element; `embed` has no meaning for a list.
+         * list, or nested map element.
          */
         private fun listField(
             ctx: FieldContext,
@@ -595,10 +637,6 @@ object SqlLowering {
             strategy: String?,
             type: ListOf,
         ): Contribution {
-            collectionConstraints(ctx, field)
-            if (strategy == "embed") {
-                return forbiddenStrategy(ctx, field, "embed", "a list", alternatives(type.element))
-            }
             if (strategy == "json") return json(ctx, field, "list", jsonHelp(type.element))
             return when (val element = type.element) {
                 is Scalar ->
@@ -644,8 +682,7 @@ object SqlLowering {
         /**
          * A map: the default and `json` both lower it to jsonb, since Postgres has no typed map;
          * `table` asks for a child table keyed by the parent and the map's own key, with the value
-         * lowered the way a list's scalar, enum, or record element is, under a `value` column;
-         * `embed` has no meaning for a map.
+         * lowered the way a list's scalar, enum, or record element is, under a `value` column.
          */
         private fun mapField(
             ctx: FieldContext,
@@ -653,10 +690,6 @@ object SqlLowering {
             strategy: String?,
             type: MapOf,
         ): Contribution {
-            collectionConstraints(ctx, field)
-            if (strategy == "embed") {
-                return forbiddenStrategy(ctx, field, "embed", "a map", alternatives(type.value))
-            }
             if (strategy == null || strategy == "json")
                 return json(ctx, field, "map", jsonHelp(type.value))
             // The resolver only admits string, int32, and int64 keys; the fallback is never taken.
@@ -700,24 +733,6 @@ object SqlLowering {
         }
 
         /**
-         * `@sql(unique)` or `@sql(index)` on a list or map would constrain the whole collection
-         * rather than its elements, whichever shape it lowers to, so either is an error.
-         */
-        private fun collectionConstraints(ctx: FieldContext, field: Field) {
-            listOf("unique", "index")
-                .filter { field.annotations.flag("sql", it) }
-                .forEach {
-                    error(
-                        SqlCodes.STRATEGY_NOT_ALLOWED,
-                        "${ctx.where}: @sql($it) is not allowed on a list or map field",
-                        field.span,
-                        help =
-                            "move `@sql($it)` to a field of the element record, or index the child table's columns",
-                    )
-                }
-        }
-
-        /**
          * Whether a list's element or a map's value could lower to a child table: a scalar, enum,
          * or record can, a union or a nested list or map cannot.
          */
@@ -730,19 +745,12 @@ object SqlLowering {
             }
 
         /**
-         * The strategies a list or map could take instead of `embed`: `table` only reaches a
-         * scalar, enum, or record element, so a union or collection element is left with `json`.
-         */
-        private fun alternatives(element: Type): String =
-            if (tableable(element)) "table or json" else "json"
-
-        /**
          * The help for a list or map's `json` lowering: `table` when the element or value could
          * lower to a child table instead, otherwise jsonb is the only mapping this shape has.
          */
         private fun jsonHelp(element: Type): String =
             if (tableable(element))
-                "use `@sql(strategy = table)` to lower the entries to a child table"
+                "use `@sql(strategy: table)` to lower the entries to a child table"
             else "keep jsonb; Postgres has no typed mapping for this shape"
 
         /** Whether a union has a member that is itself a union, which has no relational mapping. */
@@ -756,7 +764,7 @@ object SqlLowering {
          */
         private fun jsonHelp(type: UnionType): String =
             if (hasUnionMember(type)) "keep jsonb; Postgres has no typed mapping for this shape"
-            else "remove `strategy = json` to get the default mapping for this field"
+            else "remove `strategy: json` to get the default mapping for this field"
 
         /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
         private fun forbiddenStrategy(
@@ -768,7 +776,7 @@ object SqlLowering {
         ): Contribution {
             error(
                 SqlCodes.STRATEGY_NOT_ALLOWED,
-                "${ctx.where}: strategy '$strategy' is not allowed for $shape",
+                "${ctx.where}: ${if (strategy == "embed") "{ embed }" else "strategy '$strategy'"} is not allowed for $shape",
                 field.span,
                 help =
                     if (alternatives != null) "use $alternatives"
@@ -792,7 +800,7 @@ object SqlLowering {
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: $shape has no relational mapping",
                 field.span,
-                help = "add `@sql(strategy = json)` to store the field as jsonb",
+                help = "add `@sql(strategy: json)` to store the field as jsonb",
             )
             return Contribution.NONE
         }
@@ -909,9 +917,9 @@ object SqlLowering {
 
         /**
          * A reference to a keyed record: one column per key column of the target, named
-         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table. A
-         * nullable reference over a composite key adds a CHECK that its columns are all null or all
-         * set.
+         * `<field>_<key column>` and typed like it, plus a foreign key to the target's table that
+         * acts on delete as the reference's `@relation(onDelete: …)` says. A nullable reference
+         * over a composite key adds a CHECK that its columns are all null or all set.
          */
         private fun reference(ctx: FieldContext, field: Field, entry: Catalog.Entry): Contribution {
             val rawName = ctx.prefix + columnOf(field, ctx.where)
@@ -938,7 +946,7 @@ object SqlLowering {
                     targetSchema = entry.schemaName,
                     targetTable = entry.tableName,
                     targetColumns = entry.keyColumns,
-                    cascade = false,
+                    onDelete = (field.type as? Ref)?.relation?.onDelete ?: OnDelete.RESTRICT,
                 )
             // A composite foreign key with only some of its columns null is not checked at all, so
             // a nullable reference over more than one column is all-or-none.
@@ -969,7 +977,7 @@ object SqlLowering {
          * Defaults, docs, and constraint names all carry over, renamed to the embedded columns. A
          * nullable embed forces every produced column nullable and, when two or more of them would
          * otherwise be required, adds one CHECK that those are all present or all absent together.
-         * `@sql(unique)` or `@sql(index)` on the field itself covers every column it produced.
+         * `{ unique }` or `{ index }` on the field itself covers every column it produced.
          * Embedding the same record again inside itself is reported instead of recursing forever.
          */
         private fun embed(
@@ -1029,7 +1037,7 @@ object SqlLowering {
                 "${ctx.where}: embedding '${target.name}' here would recurse ($cycle)",
                 field.span,
                 help =
-                    "use `@sql(strategy = json)` on this field, or give '${target.name}' a key so it becomes a table",
+                    "use `@sql(strategy: json)` on this field, or give '${target.name}' a key so it becomes a table",
             )
             return true
         }
@@ -1044,10 +1052,10 @@ object SqlLowering {
          * none (a keyless record with no fields) needs no such check. The union's own
          * [Contribution.required] names only the kind column: a member's columns never make the
          * enclosing table's presence checks, since a member is optional by construction and its own
-         * CHECK already enforces it. `@sql(unique)` or `@sql(index)` on the field covers the kind
+         * CHECK already enforces it. `{ unique }` or `{ index }` on the field covers the kind
          * column and every member column. A member that is itself a union has no kind column of its
          * own to nest a second one under, so it has no embed strategy and must be lowered with
-         * `strategy = json` instead (SCH-28).
+         * `strategy: json` instead (SCH-28).
          */
         private fun union(ctx: FieldContext, field: Field, type: UnionType): Contribution {
             if (hasUnionMember(type)) {
@@ -1125,7 +1133,9 @@ object SqlLowering {
                     when (val target = schema.lookup(type.target)) {
                         is EnumType -> unionEnum(memberCtx, field, bare, literal, kindName, target)
                         is RecordType -> {
-                            val entry = catalog[target.qualifiedName]
+                            // a member written `{ embed }` copies a keyed model as a keyless one
+                            val entry =
+                                catalog[target.qualifiedName]?.takeUnless { type.relation.embed }
                             if (entry != null) {
                                 unionReference(memberCtx, field, bare, literal, kindName, entry)
                             } else unionEmbed(memberCtx, field, bare, literal, kindName, target)
@@ -1256,7 +1266,7 @@ object SqlLowering {
                     targetSchema = entry.schemaName,
                     targetTable = entry.tableName,
                     targetColumns = entry.keyColumns,
-                    cascade = false,
+                    onDelete = OnDelete.RESTRICT,
                 )
             return Contribution(
                 columns = columns,
@@ -1360,7 +1370,7 @@ object SqlLowering {
                     field.span,
                     help =
                         if (elementLossy)
-                            "use `@sql(strategy = table)` so the elements become rows with their own constraints"
+                            "use `@sql(strategy: table)` so the elements become rows with their own constraints"
                         else
                             "enforce the list's size bound in application code; Postgres arrays carry no length constraint",
                 )
@@ -1444,7 +1454,9 @@ object SqlLowering {
          *   embed;
          * - a keyed record is a reference through a synthetic `value` field: `value_<key column>`
          *   columns, nullable when the element is, and a foreign key `fk_<child>_value`, so a list
-         *   of a record's own type never repeats the parent-key column or its foreign key name.
+         *   of a record's own type never repeats the parent-key column or its foreign key name; `{
+         *   unique }` on the list adds a unique over the parent key and those columns, so each
+         *   parent holds each key once. Written `{ embed }`, it is copied as a keyless one is.
          *
          * Every column the element adds is checked against the parent-key and position or key
          * columns ahead of it. A list or map bound ([refinements]) is reported since there is no
@@ -1462,7 +1474,9 @@ object SqlLowering {
             mapKey: Scalar?,
         ): Contribution {
             val record = (element as? Element.Record)?.record
-            val entry = record?.let { catalog[it.qualifiedName] }
+            // `{ embed }` copies a keyed element as it copies a keyless one: no reference
+            val embedded = elementRelation(field.type).embed
+            val entry = record?.let { catalog[it.qualifiedName] }?.takeUnless { embedded }
             val rows = record != null && entry == null && mapKey == null
             if (rows && recursionError(ctx, field, record!!)) return Contribution.NONE
             if (refinements.hasBounds) {
@@ -1480,7 +1494,7 @@ object SqlLowering {
                     "${ctx.where}: nullable elements of ${TypeText.of(field.type, field.nullable)} are not represented by a child table",
                     field.span,
                     help =
-                        "declare the elements non-nullable, or use `@sql(strategy = json)` to keep nulls",
+                        "declare the elements non-nullable, or use `@sql(strategy: json)` to keep nulls",
                 )
             }
             val childName =
@@ -1508,7 +1522,7 @@ object SqlLowering {
                         targetSchema = schemaName,
                         targetTable = ctx.parentTable,
                         targetColumns = ctx.parentKeys.map { it.column },
-                        cascade = true,
+                        onDelete = OnDelete.CASCADE,
                     ),
                     namespace.name,
                     namespace.name,
@@ -1561,7 +1575,8 @@ object SqlLowering {
                             when (element) {
                                 is Element.Scalar -> element.scalar
                                 is Element.Enum -> Ref(element.enum.qualifiedName)
-                                is Element.Record -> Ref(element.record.qualifiedName)
+                                is Element.Record ->
+                                    Ref(element.record.qualifiedName, elementRelation(field.type))
                             },
                             elementNullable,
                             null,
@@ -1614,6 +1629,16 @@ object SqlLowering {
                     parts.flatMap { (_, span, part) -> constraintNames(part).map { it to span } },
             )
             val merged = merge(parts.map { it.third })
+            // `{ unique }` on a list of a keyed model: each parent holds each key once, a set
+            val set =
+                if (field.unique && entry != null && mapKey == null)
+                    listOf(
+                        Unique(
+                            identifier("uq_${childName}_value", field.nameSpan),
+                            parentColumns.map { it.name } + merged.columns.map { it.name },
+                        )
+                    )
+                else emptyList()
             val childTable =
                 Table(
                     name = childName,
@@ -1621,7 +1646,7 @@ object SqlLowering {
                     primaryKey = childKeys.map { it.column },
                     primaryKeyName = identifier("pk_$childName", field.nameSpan),
                     checks = merged.checks,
-                    uniques = merged.uniques,
+                    uniques = merged.uniques + set,
                     indexes = merged.indexes,
                     doc = record?.doc,
                     origin = childOrigin,
@@ -1664,8 +1689,9 @@ object SqlLowering {
             )
 
         /**
-         * The unique [field] asks for over [columns], if any. A list or map field never gets one;
-         * [collectionConstraints] has already reported the annotation.
+         * The unique [field] asks for over [columns], if any, through `{ unique }`. A list or map
+         * field never gets one here: a list of a keyed model puts its set constraint on its child
+         * table, and the analyzer has reported the option on any other.
          */
         private fun uniqueOf(
             ctx: FieldContext,
@@ -1673,7 +1699,7 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if (field.annotations.flag("sql", "unique") && constrainable(field, columns))
+            if (field.unique && constrainable(field, columns))
                 listOf(Unique(identifier("uq_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
@@ -1684,7 +1710,7 @@ object SqlLowering {
             rawName: String,
             columns: List<String>,
         ) =
-            if (field.annotations.flag("sql", "index") && constrainable(field, columns))
+            if (field.index && constrainable(field, columns))
                 listOf(Index(identifier("ix_${ctx.table}_$rawName", field.nameSpan), columns))
             else emptyList()
 
@@ -1712,7 +1738,7 @@ object SqlLowering {
                     "identifier '$name' exceeds 63 bytes; truncated to '$result'",
                     span,
                     help =
-                        "shorten the name with `@sql(table = \"…\")` or `@sql(column = \"…\")` to choose it yourself",
+                        "shorten the name with `@sql(table: \"…\")` or `@sql(column: \"…\")` to choose it yourself",
                 )
         }
         return result
@@ -1728,9 +1754,9 @@ object SqlLowering {
                 diagnostics +=
                     Diagnostic(
                         SqlCodes.SCHEMA_COLLISION,
-                        "namespaces ${englishList(group.map { it.name })} ${if (group.size > 2) "all" else "both"} lower to schema '${names.getValue(group.first().name)}'",
+                        "schemas ${englishList(group.map { it.name })} ${if (group.size > 2) "all" else "both"} lower to Postgres schema '${names.getValue(group.first().name)}'",
                         group[1].span,
-                        help = "set `@sql(schema = \"…\")` on one of them",
+                        help = "set `@sql(schema: \"…\")` on one of them",
                     )
             }
     }
@@ -1748,7 +1774,7 @@ object SqlLowering {
         diagnostics +=
             Diagnostic(
                 SqlCodes.INVALID_OVERRIDE,
-                "$where: @sql($key = \"\") is empty",
+                "$where: @sql($key: \"\") is empty",
                 span,
                 help = "give the name at least one character",
             )

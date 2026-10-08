@@ -18,7 +18,7 @@ class DiffCommandTest {
 
     @Test
     fun `no changes exits 0`() {
-        val schema = "namespace s\nrecord R { #1 x: int32 }\n"
+        val schema = "schema s\n\nmodel R { #1 x int32 }\n"
         val old = side("old", schema)
         val new = side("new", schema)
         val r = DiffCommand().test("${old.path} ${new.path}")
@@ -28,8 +28,8 @@ class DiffCommandTest {
 
     @Test
     fun `a compatible change exits 0 and prints the change line`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32  #2 y: int32? }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32 }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32  #2 y int32? }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("field 'y' added"), r.stderr)
@@ -37,8 +37,8 @@ class DiffCommandTest {
 
     @Test
     fun `a note exits 2`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32  reserved #2, \"y\" }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R {\n  #1 x int32\n  reserved #2, \"y\"\n}\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(2, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("warning[SCH2502]"), r.stderr)
@@ -51,8 +51,8 @@ class DiffCommandTest {
 
     @Test
     fun `a break exits 1`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32  #2 y: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32  #2 y int32 }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("error[SCH2501]"), r.stderr)
@@ -65,8 +65,8 @@ class DiffCommandTest {
 
     @Test
     fun `strict on a note exits 1`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32  reserved #2, \"y\" }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R {\n  #1 x int32\n  reserved #2, \"y\"\n}\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test("--strict ${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("[promoted]"), r.stderr)
@@ -74,16 +74,16 @@ class DiffCommandTest {
 
     @Test
     fun `target proto exits 0 on a change breaking only on sql`() {
-        val old = side("old", "namespace s\nrecord R { @sql(column = \"foo\") #1 x: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { @sql(column = \"bar\") #1 x: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32 @sql(column: \"foo\") }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32 @sql(column: \"bar\") }\n")
         val r = DiffCommand().test("--target proto ${old.path} ${new.path}")
         assertEquals(0, r.statusCode, r.stderr)
     }
 
     @Test
     fun `a parse error in new exits 1 with SCH2503`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32 }\n")
+        val new = side("new", "schema s\nmodel R { #1 x }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("SCH2503"), r.stderr)
@@ -91,8 +91,8 @@ class DiffCommandTest {
 
     @Test
     fun `format json prints the comparison document`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32  #2 y: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32  #2 y int32 }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test("--format json ${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stdout.contains("\"exitCode\": 1"), r.stdout)
@@ -101,18 +101,18 @@ class DiffCommandTest {
 
     @Test
     fun `two sides sharing no namespace exit 1 with SCH2503`() {
-        val old = side("old", "namespace a\nrecord R { #1 x: int32 }\n")
-        val new = side("new", "namespace b\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema a\n\nmodel R { #1 x int32 }\n")
+        val new = side("new", "schema b\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
-        assertTrue(r.stderr.contains("error[SCH2503]: OLD and NEW share no namespace"), r.stderr)
+        assertTrue(r.stderr.contains("error[SCH2503]: OLD and NEW share no schema"), r.stderr)
         assertTrue(r.stderr.contains("diff two versions of the same schema set"), r.stderr)
     }
 
     @Test
     fun `format json on SCH2503 prints an empty diff document with its errors`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32 }\n")
+        val new = side("new", "schema s\nmodel R { #1 x }\n")
         val r = DiffCommand().test("--format json --target proto,sql ${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
         val lines = r.stdout.lines()
@@ -134,8 +134,8 @@ class DiffCommandTest {
 
     @Test
     fun `target values are trimmed and repeated ones counted once`() {
-        val old = side("old", "namespace s\nrecord R { #1 x: int32  #2 y: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32  #2 y int32 }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test(listOf("--target", "sql, proto,sql", old.path, new.path))
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("sql: breaking, proto: note"), r.stderr)
@@ -144,11 +144,11 @@ class DiffCommandTest {
 
     @Test
     fun `a member annotation change names the member in its line`() {
-        val old = side("old", "namespace s\nrecord R { @sql(key) #1 x: int32  #2 y: int32 }\n")
-        val new = side("new", "namespace s\nrecord R { #1 x: int32  @sql(key) #2 y: int32 }\n")
+        val old = side("old", "schema s\n\nmodel R { #1 x int32 { id }  #2 y int32 }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32  #2 y int32 { id } }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
-        assertTrue(r.stderr.contains("field 'x': @sql(key) removed"), r.stderr)
-        assertTrue(r.stderr.contains("field 'y': @sql(key) added"), r.stderr)
+        assertTrue(r.stderr.contains("field 'x': { id } removed"), r.stderr)
+        assertTrue(r.stderr.contains("field 'y': { id } added"), r.stderr)
     }
 
     @Test
@@ -156,10 +156,11 @@ class DiffCommandTest {
         val old =
             side(
                 "old",
-                "namespace s\nrecord R { #1 x: int32  @deprecated #2 y: int32? " +
-                    "@deprecated #3 z: int32? }\n",
+                "schema s\n" +
+                    "\n" +
+                    "model R { #1 x int32  #2 y int32? @deprecated  #3 z int32? @deprecated }\n",
             )
-        val new = side("new", "namespace s\nrecord R { #1 x: int32  @deprecated #2 w: int32? }\n")
+        val new = side("new", "schema s\n\nmodel R { #1 x int32  #2 w int32? @deprecated }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertTrue(r.stderr.contains("deprecated field 'y' renamed to 'w'"), r.stderr)
         assertTrue(r.stderr.contains("deprecated field 'z' removed"), r.stderr)
@@ -167,11 +168,11 @@ class DiffCommandTest {
 
     @Test
     fun `a dotted namespace's annotation change groups under its own name`() {
-        val old = side("old", "namespace shop.orders\nrecord R { #1 x: int32 }\n")
+        val old = side("old", "schema shop.orders\n\nmodel R { #1 x int32 }\n")
         val new =
             side(
                 "new",
-                "@sql(schema = \"orders_v2\")\nnamespace shop.orders\nrecord R { #1 x: int32 }\n",
+                "schema shop.orders @sql(schema: \"orders_v2\")\n\nmodel R { #1 x int32 }\n",
             )
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertTrue(r.stderr.startsWith("shop.orders\n  @sql(schema) added"), r.stderr)

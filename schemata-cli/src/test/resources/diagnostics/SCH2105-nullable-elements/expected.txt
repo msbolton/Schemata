@@ -1,6 +1,6 @@
 # targets=sql
-warning[SCH2105] (lossy) (sql): field 'R.items': nullable elements of list<Item?> are not represented by a child table
- --> s.schemata:3:36
-  = help: declare the elements non-nullable, or use `@sql(strategy = json)` to keep nulls
+warning[SCH2105] (lossy) (sql): field 'R.items': nullable elements of Item?[] are not represented by a child table
+ --> s.schemata:5:31
+  = help: declare the elements non-nullable, or use `@sql(strategy: json)` to keep nulls
 
 0 errors, 1 warning

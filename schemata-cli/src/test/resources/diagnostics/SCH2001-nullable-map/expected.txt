@@ -1,6 +1,6 @@
 # targets=proto
 warning[SCH2001] (lossy) (proto): field 'R.m': a nullable map has no Protobuf representation; lowered to map
- --> s.schemata:2:36
+ --> s.schemata:3:31
   = help: declare the map as `map<K, V>` with non-nullable values; a missing key already means absent
 
 0 errors, 1 warning

@@ -16,10 +16,10 @@ message Collections {
   repeated string tags = 1;
   repeated Item items = 2;
   repeated Color colors = 3;
-  repeated string maybe = 4;  // schemata: list<string>?
-  repeated string holes = 5;  // schemata: list<string?>
+  repeated string maybe = 4;  // schemata: string[]?
+  repeated string holes = 5;  // schemata: string?[]
   map<string, int32> counts = 6;
   map<int64, Item> by_id = 7;
   map<string, int32> sparse = 8;  // schemata: map<string, int32?>
-  repeated string limited = 9;  // schemata: list<string(max = 3)>(max = 2)
+  repeated string limited = 9;  // schemata: string[] { maxItems 2, max 3 }
 }

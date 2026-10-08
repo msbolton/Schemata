@@ -1,1 +1,1 @@
-SCH2105 field 'Order.lines': refinements on list<Line>(min = 1) are not enforced by Postgres
+SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres

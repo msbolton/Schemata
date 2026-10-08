@@ -1,0 +1,39 @@
+s.Customer
+  field 'code' added    proto: breaking, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+
+1 change
+proto: 1 breaking, 0 notes
+sql: 1 breaking, 0 notes
+xsd: 1 breaking, 0 notes
+jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Customer.code: a required field was added breaks old documents, which have no value for it; it also breaks the reference fields of s.Order, which carry this model's key
+ --> new/s.schemata:6:6
+  |
+6 |   #3 code string { id, max 16 }
+  |      ^^^^
+  = help: add the field as nullable or with a default
+
+error[SCH2501]: proto: s.Customer.code: key field added breaks the reference fields of s.Order, which carry this model's key: the wire shape changes
+ --> new/s.schemata:6:6
+  |
+6 |   #3 code string { id, max 16 }
+  |      ^^^^
+  = help: keep the key while other models reference it, or add new reference fields for a new key
+
+error[SCH2501]: sql: s.Customer.code: a required column was added breaks existing rows, which have no value for it
+ --> new/s.schemata:6:6
+  |
+6 |   #3 code string { id, max 16 }
+  |      ^^^^
+  = help: add the column as nullable or with a default
+
+error[SCH2501]: xsd: s.Customer.code: a required field was added breaks old documents, which have no value for it; it also breaks the reference fields of s.Order, which carry this model's key
+ --> new/s.schemata:6:6
+  |
+6 |   #3 code string { id, max 16 }
+  |      ^^^^
+  = help: add the field as nullable or with a default
+
+4 errors, 0 warnings

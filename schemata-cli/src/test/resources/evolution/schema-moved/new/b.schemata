@@ -1,7 +1,3 @@
-@sql(schema = "crm")
-namespace b
+schema b @sql(schema: "crm")
 
-record Customer {
-  @sql(key) #1 id: uuid
-  #2 name: string(max = 100)
-}
+model Customer { #1 id uuid { id }  #2 name string { max 100 } }

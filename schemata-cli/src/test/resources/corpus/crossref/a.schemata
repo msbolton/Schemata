@@ -1,5 +1,5 @@
-namespace x.alpha
+schema x.alpha
 
 import x.beta
 
-record A { @sql(key) #1 id: uuid #2 b: B }
+model A { #1 id uuid { id }  #2 b B  #3 note Note { embed } }

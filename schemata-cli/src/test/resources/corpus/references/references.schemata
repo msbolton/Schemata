@@ -1,6 +1,11 @@
-namespace corpus.references
+schema corpus.references
 
-record Account { @sql(key) #1 id: uuid #2 owner: Person #3 parent: Account? }
+model Account { #1 id uuid { id }  #2 owner Person  #3 parent Account? }
 
-@sql(key = (tenant_id, code))
-record Person { #1 tenant_id: uuid #2 code: string(max = 8) #3 name: string }
+model Person {
+  #1 tenant_id uuid
+  #2 code      string { max 8 }
+  #3 name      string
+
+  @@id(tenant_id, code)
+}

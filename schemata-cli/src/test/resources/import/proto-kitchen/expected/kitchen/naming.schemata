@@ -1,14 +1,15 @@
-namespace kitchen.naming
+schema kitchen.naming
 
 /// A message whose name is not upper camel case.
-@proto(name = "line_item")
-record LineItem {
-  @proto(name = "FooBaz") #1 foo_baz:      string
-  @proto(name = "record") #2 record_value: string
+model LineItem {
+  #1 foo_baz   string @proto(name: "FooBaz")
+  #2 record    string
   /// a trailing comment joins the doc
-  @proto(name = "HTTPCode") #3 http_code:    int32
+  #3 http_code int32  @proto(name: "HTTPCode")
+
+  @@proto(name: "line_item")
 }
 
-record HTTPFrame { #1 item: LineItem }
+model HTTPFrame { #1 item LineItem }
 
 union Holder = #1 LineItem | #2 HTTPFrame

@@ -36,6 +36,10 @@ sealed interface Constraint {
             get() = check.name
     }
 
+    /**
+     * A foreign key; its definition is everything but its name, `ON DELETE` included, so a changed
+     * `onDelete` is a different constraint, dropped and added again.
+     */
     data class Foreign(val fk: ForeignKey) : Constraint {
         override val name
             get() = fk.name

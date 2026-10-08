@@ -229,8 +229,7 @@ class SqlRulesTest {
 
     @Test
     fun `a declaration removed from a keyed record is breaking`() {
-        val keyed = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("a")))))
-        val old = record("s", "R", field(1, "a"), annotations = keyed)
+        val old = record("s", "R", field(1, "a"), compositeKey = listOf("a"))
         assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), namespace("s")))
     }
 
@@ -264,8 +263,8 @@ class SqlRulesTest {
 
     @Test
     fun `a namespace removed with a keyed table is breaking`() {
-        val keyed = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("a")))))
-        val removed = namespace("s", listOf(record("s", "R", field(1, "a"), annotations = keyed)))
+        val removed =
+            namespace("s", listOf(record("s", "R", field(1, "a"), compositeKey = listOf("a"))))
         val kept = namespace("other")
         val oldSchema = Schema(listOf(removed, kept))
         val newSchema = Schema(listOf(kept))
@@ -287,16 +286,9 @@ class SqlRulesTest {
     }
 
     @Test
-    fun `a sql key annotation change is breaking`() {
+    fun `a model key added is breaking`() {
         val old = record("s", "R", field(1, "a"))
-        val new =
-            record(
-                "s",
-                "R",
-                field(1, "a"),
-                annotations =
-                    Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Names(listOf("a"))))),
-            )
+        val new = record("s", "R", field(1, "a"), compositeKey = listOf("a"))
         assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
     }
 
@@ -369,16 +361,7 @@ class SqlRulesTest {
     @Test
     fun `a sql key flag added to a field is breaking`() {
         val old = record("s", "R", field(1, "a"))
-        val new =
-            record(
-                "s",
-                "R",
-                field(
-                    1,
-                    "a",
-                    annotations = Annotations(mapOf("sql" to mapOf("key" to AnnotationValue.Flag))),
-                ),
-            )
+        val new = record("s", "R", field(1, "a", key = true))
         assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
     }
 

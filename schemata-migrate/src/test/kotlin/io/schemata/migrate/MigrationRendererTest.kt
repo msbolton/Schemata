@@ -6,11 +6,11 @@ import kotlin.test.assertEquals
 class MigrationRendererTest {
     private val base =
         """
-        namespace s
-        record Customer {
-          @sql(key) #1 id: uuid
-          #2 name: string(max = 100)
-          #3 note: string?
+        schema s
+        model Customer {
+          #1 id uuid { id }
+          #2 name string { max 100 }
+          #3 note string?
         }
         """
 
@@ -20,17 +20,17 @@ class MigrationRendererTest {
     fun `each step spells its statement`() {
         assertEquals(
             listOf("ALTER TABLE \"s\".\"customer\" ADD COLUMN \"tier\" integer;"),
-            sqlOf(base, base.replace("#3 note: string?", "#3 note: string?\n  #4 tier: int32?")),
+            sqlOf(base, base.replace("#3 note string?", "#3 note string?\n  #4 tier int32?")),
         )
         assertEquals(
             listOf("ALTER TABLE \"s\".\"customer\" RENAME COLUMN \"note\" TO \"comment\";"),
-            sqlOf(base, base.replace("#3 note:", "#3 comment:")),
+            sqlOf(base, base.replace("#3 note ", "#3 comment ")),
         )
         assertEquals(
             listOf(
                 "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"name\" TYPE varchar(200) USING \"name\"::varchar(200);"
             ),
-            sqlOf(base, base.replace("string(max = 100)", "string(max = 200)")),
+            sqlOf(base, base.replace("string { max 100 }", "string { max 200 }")),
         )
         assertEquals(
             listOf(
@@ -38,11 +38,11 @@ class MigrationRendererTest {
                 "UPDATE \"s\".\"customer\" SET \"note\" = '' WHERE \"note\" IS NULL;",
                 "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"note\" SET NOT NULL;",
             ),
-            sqlOf(base, base.replace("#3 note: string?", "#3 note: string = \"\"")),
+            sqlOf(base, base.replace("#3 note string?", "#3 note string = \"\"")),
         )
         assertEquals(
             listOf("ALTER TABLE \"s\".\"customer\" DROP COLUMN \"note\";"),
-            sqlOf(base, base.replace("  #3 note: string?\n", "")),
+            sqlOf(base, base.replace("  #3 note string?\n", "")),
         )
     }
 
@@ -50,11 +50,11 @@ class MigrationRendererTest {
     fun `drop table cascades and a foreign key drop is if-exists`() {
         val old =
             """
-            namespace s
-            record Customer { @sql(key) #1 id: uuid }
-            record Order { @sql(key) #1 id: uuid  #2 customer: Customer? }
+            schema s
+            model Customer { #1 id uuid { id } }
+            model Order { #1 id uuid { id }  #2 customer Customer? }
             """
-        val new = old.replace("  #2 customer: Customer?", "")
+        val new = old.replace("  #2 customer Customer?", "")
         val sql = sqlOf(old, new)
         assertEquals(
             listOf(
@@ -63,7 +63,7 @@ class MigrationRendererTest {
             ),
             sql,
         )
-        val removed = "namespace s\nrecord Order { @sql(key) #1 id: uuid }\n"
+        val removed = "schema s\nmodel Order { #1 id uuid { id } }\n"
         val dropped = sqlOf(old, removed)
         assertEquals(
             listOf(
@@ -77,7 +77,7 @@ class MigrationRendererTest {
 
     @Test
     fun `a file wraps its steps in a transaction and marks a destructive step`() {
-        val migration = Planner.plan(side(base), side(base.replace("  #3 note: string?\n", "")))
+        val migration = Planner.plan(side(base), side(base.replace("  #3 note string?\n", "")))
         assertEquals(
             """
             BEGIN;
@@ -98,7 +98,7 @@ class MigrationRendererTest {
 
     @Test
     fun `a created table renders as compile prints it followed by its comments`() {
-        val new = base + "\n/// Tags.\nrecord Tag { @sql(key) #1 id: uuid }\n"
+        val new = base + "\n/// Tags.\nmodel Tag { #1 id uuid { id } }\n"
         val sql = sqlOf(base, new)
         assertEquals(2, sql.size)
         assert(sql[0].startsWith("CREATE TABLE \"s\".\"tag\" (\n")) { sql[0] }
@@ -129,8 +129,8 @@ class MigrationRendererTest {
                 "ALTER TABLE \"s\".\"customer\" ALTER COLUMN \"retries\" SET DEFAULT 3;",
             ),
             sqlOf(
-                base.replace("#3 note: string?", "#3 retries: string = \"3\""),
-                base.replace("#3 note: string?", "#3 retries: int32 = 3"),
+                base.replace("#3 note string?", "#3 retries string = \"3\""),
+                base.replace("#3 note string?", "#3 retries int32 = 3"),
             ),
         )
     }

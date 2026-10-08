@@ -14,7 +14,7 @@ class TargetsCommandTest {
         assertTrue(result.stdout.contains("sql\n"), result.stdout)
         assertTrue(result.stdout.contains("openapi\n"), result.stdout)
         assertTrue(result.stdout.contains("  SCH2601  error    semantic"), result.stdout)
-        assertTrue(result.stdout.contains("  key"), result.stdout)
+        assertTrue(result.stdout.contains("  strategy"), result.stdout)
         assertTrue(result.stdout.contains("  SCH2001  warning  lossy"), result.stdout)
         assertTrue(result.stdout.contains("  SCH2110  error    semantic"), result.stdout)
     }

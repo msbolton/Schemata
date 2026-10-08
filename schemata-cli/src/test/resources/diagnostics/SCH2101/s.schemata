@@ -1,3 +1,13 @@
-namespace s
-@sql(table = "t") record A { @sql(key) #1 id: int32 }
-@sql(table = "t") record B { @sql(key) #1 id: int32 }
+schema s
+
+model A {
+  #1 id int32 { id }
+
+  @@sql(table: "t")
+}
+
+model B {
+  #1 id int32 { id }
+
+  @@sql(table: "t")
+}

@@ -1,2 +1,3 @@
-namespace s
-record R { #1 x: float64(max = "x") }
+schema s
+
+model R { #1 x float64 { max "x" } }

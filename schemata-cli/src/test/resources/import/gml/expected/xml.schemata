@@ -23,6 +23,4 @@
 /// See further below in this document for more information about how to refer to this schema document from your own
 /// XSD schema documents and about the
 /// namespace-versioning policy governing this schema document.
-@xsd(namespace = "http://www.w3.org/XML/1998/namespace")
-@xsd(element_form = "unqualified")
-namespace xml
+schema xml @xsd(namespace: "http://www.w3.org/XML/1998/namespace") @xsd(element_form: "unqualified")

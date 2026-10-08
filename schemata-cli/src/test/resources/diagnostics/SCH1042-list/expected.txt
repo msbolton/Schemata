@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1042]: list fields cannot have a default
- --> s.schemata:2:31
+ --> s.schemata:3:25
   = help: remove the default; an empty list is the absence
 
 1 error, 0 warnings

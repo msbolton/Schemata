@@ -20,20 +20,11 @@ class EndToEndTest {
         SourceInput(
             "src/orders.schemata",
             """
-            namespace shop.orders
+            schema shop.orders
 
-            record User {
-              @sql(key) id:    uuid
-              email: string?
-              name:  string
-              age:   int32
-            }
+            model User { id uuid { id }  email string?  name string  age int32 }
 
-            record Session {
-              @sql(key) token:   string
-              user_id: uuid
-              active:  bool
-            }
+            model Session { token string { id }  user_id uuid  active bool }
             """
                 .trimIndent(),
         )
@@ -42,12 +33,9 @@ class EndToEndTest {
         SourceInput(
             "src/customers.schemata",
             """
-            namespace shop.customers
+            schema shop.customers
 
-            record Customer {
-              @sql(key) id:   uuid
-              name: string
-            }
+            model Customer { id uuid { id }  name string }
             """
                 .trimIndent(),
         )

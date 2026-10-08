@@ -2,7 +2,7 @@ CREATE SCHEMA IF NOT EXISTS "children";
 
 CREATE TABLE "children"."order" (
   "id" uuid NOT NULL,
-  "tags" text[] NOT NULL,  -- schemata: list<string(max = 16)>
+  "tags" text[] NOT NULL,  -- schemata: string[] { max 16 }
   "attributes" jsonb NOT NULL,  -- schemata: map<string, string>
   CONSTRAINT "pk_order" PRIMARY KEY ("id")
 );

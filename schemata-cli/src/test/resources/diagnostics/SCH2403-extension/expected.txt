@@ -1,5 +1,5 @@
 # import=xsd
-warning[SCH2403] (lossy): complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; base fields flattened into the record
+warning[SCH2403] (lossy): complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; base fields flattened into the model
  --> s.xsd:8:1
   = help: review the imported declaration; the regenerated schema will differ here
 

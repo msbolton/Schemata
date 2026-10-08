@@ -43,8 +43,8 @@ fun importResult(units: List<SchemataUnit>, diagnostics: List<Diagnostic>): Impo
 
 /**
  * Every unit as formatted source, one file per namespace, with references that would be ambiguous
- * written in full (see [qualifyAmbiguousRefs]). The formatter proves the emitted text parses; its
- * rejection is an emitter bug, not a user error.
+ * written in full (see [qualifyAmbiguousRefs]). The formatter's rejection proves an emitter bug,
+ * not a user error.
  */
 fun emitUnits(units: List<SchemataUnit>): List<ImportedFile> =
     qualifyAmbiguousRefs(units).map { unit ->

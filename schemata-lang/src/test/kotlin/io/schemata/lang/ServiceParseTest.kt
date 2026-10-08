@@ -17,11 +17,16 @@ class ServiceParseTest {
         val r =
             parse(
                 """
-                namespace t
-                record OrderId { #1 id: uuid }
-                record Order { #1 id: uuid }
-                record Chunk { #1 b: bytes }
-                record Receipt { #1 n: int64 }
+                schema t
+
+                model OrderId { #1 id uuid }
+
+                model Order { #1 id uuid }
+
+                model Chunk { #1 b bytes }
+
+                model Receipt { #1 n int64 }
+
                 /// Place and read orders.
                 @deprecated
                 service Orders {
@@ -65,8 +70,8 @@ class ServiceParseTest {
             ),
             binding,
         )
-        assertEquals(Span("t.schemata", 10, 27, 10, 29), binding.verbSpan)
-        assertEquals(Span("t.schemata", 10, 31, 10, 44), binding.pathSpan)
+        assertEquals(Span("t.schemata", 15, 27, 15, 29), binding.verbSpan)
+        assertEquals(Span("t.schemata", 15, 31, 15, 44), binding.pathSpan)
         assertTrue(s.operations[1].response!!.stream)
         assertNull(s.operations[3].response)
         assertEquals("delete", s.operations[3].binding!!.verb)
@@ -87,7 +92,11 @@ class ServiceParseTest {
     fun `fields and values named like verbs still parse`() {
         val r =
             parse(
-                "namespace t\nrecord R { #1 get: string #2 post: int32 #3 delete: bool }\nenum E { get, put }"
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 get string  #2 post int32  #3 delete bool }\n" +
+                    "\n" +
+                    "enum E { get put }"
             )
         assertEquals(emptyList(), r.diagnostics)
         assertEquals(
@@ -100,7 +109,7 @@ class ServiceParseTest {
     fun `an unknown verb is SCH0006 and a malformed path is SCH0007`() {
         val r =
             parse(
-                "namespace t\nrecord A { #1 x: int32 }\nservice S {\n  #1 a(A): A  fetch \"/a\"\n  #2 b(A): A  get \"a/{X}\"\n  #3 c(A): A  get \"/a?x=1\"\n}"
+                "schema t\nmodel A { #1 x int32 }\nservice S {\n  #1 a(A): A  fetch \"/a\"\n  #2 b(A): A  get \"a/{X}\"\n  #3 c(A): A  get \"/a?x=1\"\n}"
             )
         assertEquals(
             listOf(
@@ -116,7 +125,7 @@ class ServiceParseTest {
     @Test
     fun `every malformed path shape is named`() {
         fun problem(path: String) =
-            parse("namespace t\nrecord A { #1 x: int32 }\nservice S { #1 a(A): A  get \"$path\" }")
+            parse("schema t\nmodel A { #1 x int32 }\nservice S { #1 a(A): A  get \"$path\" }")
                 .diagnostics
                 .map { it.message }
         assertEquals(emptyList(), problem("/"))
@@ -136,16 +145,16 @@ class ServiceParseTest {
     fun `diagnostics in a service and a later record come out in source order`() {
         val r =
             parse(
-                "namespace t\nrecord A { #1 x: int32 }\nservice S { #1 a(A): A  fetch \"/a\" }\nrecord B { #1 x: string = \"\\q\" }"
+                "schema t\nmodel A { #1 x int32 }\nservice S { #1 a(A): A  fetch \"/a\" }\nmodel B { #1 x string = \"\\q\" }"
             )
         assertEquals(listOf("SCH0006", "SCH0004"), r.diagnostics.map { it.code.id })
     }
 
     @Test
-    fun `operation and stream stay reserved at top level and a service may not nest`() {
-        val r = parse("namespace t\noperation Foo {}\nstream Bar")
+    fun `operation stays reserved at top level and a service may not nest`() {
+        val r = parse("schema t\noperation Foo {}\noperation Bar")
         assertEquals(listOf("SCH0002", "SCH0002"), r.diagnostics.map { it.code.id })
-        val nested = parse("namespace t\nrecord R { service S {} }")
+        val nested = parse("schema t\nmodel R { service S {} }")
         assertEquals("SCH0001", nested.diagnostics.first().code.id)
     }
 }

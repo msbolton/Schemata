@@ -1,6 +1,6 @@
 SCH2405 schema.sql: CREATE VIEW dropped
+SCH2402 schema.sql: schema name 'schema_value' was derived from the file name
 SCH2404 column 'Orders.qty': smallint imported as int32 with @sql(type)
-SCH2403 column 'Orders.customer_tenant_id': ON DELETE RESTRICT dropped
 SCH2404 column 'Orders.seq': serial imported as int32 with @sql(type)
 SCH2403 column 'Orders.seq': serial generation dropped
 SCH2403 column 'Orders.n': identity generation dropped

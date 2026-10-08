@@ -1,0 +1,5 @@
+error[SCH0008]: this is a 1.x schema
+ --> s.schemata:1:1
+  = help: run schemata upgrade on this file
+
+1 error, 0 warnings

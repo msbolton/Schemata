@@ -2,6 +2,7 @@ package io.schemata.core
 
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.core.annotations.AnnotationSpec
+import io.schemata.core.annotations.CoreAnnotations
 import io.schemata.core.annotations.Element
 import io.schemata.core.annotations.ValueKind
 import io.schemata.core.ir.AnnotationValue
@@ -42,6 +43,9 @@ class AnnotationChecker(
                     }
                     annotation.args.forEach { targetArg(annotation.name, it, element, entries) }
                 }
+                annotation.name == CoreAnnotations.RELATION &&
+                    registry.find("", annotation.name).isNotEmpty() ->
+                    relation(annotation, element, entries)
                 registry.find("", annotation.name).isNotEmpty() ->
                     coreKey(annotation, element, entries)
                 else ->
@@ -72,9 +76,9 @@ class AnnotationChecker(
                     if (flag == null) {
                         report(
                             CoreCodes.ANNOTATION_VALUE,
-                            "@$target arguments are a bare key or key = value",
+                            "@$target arguments are a bare key or key: value",
                             arg.span,
-                            help = "write `@$target(key)` or `@$target(key = value)`",
+                            help = "write `@$target(name)` or `@$target(name: value)`",
                         )
                         return
                     }
@@ -106,6 +110,104 @@ class AnnotationChecker(
             return
         }
         apply("", annotation.name, written, annotation.span, element, entries, display)
+    }
+
+    /**
+     * `@relation` in one of its two forms. A back-reference names the forward field on the model it
+     * references, `@relation(customer)`, or is bare when that model has a single field that can be
+     * meant; it is kept as `@relation` with that name, or as a flag. A forward reference says what
+     * deleting its target does, `@relation(onDelete: cascade)`; it is kept as the key `onDelete`
+     * under the target `relation`. A back-reference stores nothing, so it has no foreign key for
+     * `onDelete` to act on: one annotation with both forms is reported here, as a wrong shape.
+     */
+    private fun relation(
+        annotation: Annotation,
+        element: Element,
+        entries: MutableMap<String, MutableMap<String, AnnotationValue>>,
+    ) {
+        val display = "@${CoreAnnotations.RELATION}"
+        val spec = registry.find("", CoreAnnotations.RELATION).first()
+        if (element !in spec.elements) {
+            report(
+                CoreCodes.ANNOTATION_ELEMENT,
+                "$display is not allowed on ${element.article} ${element.displayName}; allowed on: field",
+                annotation.span,
+                help = "move the annotation to a field, or remove it",
+            )
+            return
+        }
+        val usage =
+            "write `$display(field)` on a back-reference, or `$display(${CoreAnnotations.ON_DELETE}: cascade)` on a forward reference"
+        val positional = annotation.args.filterIsInstance<AnnotationArg.Positional>()
+        val named = annotation.args.filterIsInstance<AnnotationArg.Named>()
+        val stray = named.firstOrNull { it.name != CoreAnnotations.ON_DELETE }
+        val problem: Pair<String, Span>? =
+            when {
+                stray != null ->
+                    "'${stray.name}' is not an argument of $display; it takes a field name or ${CoreAnnotations.ON_DELETE}" to
+                        stray.span
+                positional.isNotEmpty() && named.isNotEmpty() ->
+                    "$display names a forward field or sets ${CoreAnnotations.ON_DELETE}, not both; a back-reference has no foreign key to act on delete" to
+                        annotation.span
+                positional.size > 1 || named.size > 1 ->
+                    "$display takes one argument" to annotation.span
+                else -> null
+            }
+        if (problem != null) {
+            report(CoreCodes.ANNOTATION_VALUE, problem.first, problem.second, help = usage)
+            return
+        }
+        val target: String
+        val key: String
+        val value: AnnotationValue
+        if (named.isNotEmpty()) {
+            val choice =
+                ((named[0].value as? Written.Lit)?.literal as? Literal.NameLit)?.name?.takeIf {
+                    it in CoreAnnotations.RELATION_ON_DELETE
+                }
+            if (choice == null) {
+                report(
+                    CoreCodes.ANNOTATION_VALUE,
+                    "$display(${CoreAnnotations.ON_DELETE}) expects one of: ${CoreAnnotations.RELATION_ON_DELETE.sorted().joinToString(", ")}",
+                    named[0].span,
+                    help = "write `$display(${CoreAnnotations.ON_DELETE}: cascade)`",
+                )
+                return
+            }
+            target = CoreAnnotations.RELATION
+            key = CoreAnnotations.ON_DELETE
+            value = AnnotationValue.Name(choice)
+        } else {
+            val name =
+                positional.firstOrNull()?.let {
+                    ((it.value as? Written.Lit)?.literal as? Literal.NameLit)?.name
+                        ?: run {
+                            report(
+                                CoreCodes.ANNOTATION_VALUE,
+                                "$display expects a field name",
+                                it.span,
+                                help = usage,
+                            )
+                            return
+                        }
+                }
+            target = ""
+            key = CoreAnnotations.RELATION
+            value = name?.let { AnnotationValue.Name(it) } ?: AnnotationValue.Flag
+        }
+        val given =
+            CoreAnnotations.RELATION in entries[""].orEmpty() ||
+                CoreAnnotations.ON_DELETE in entries[CoreAnnotations.RELATION].orEmpty()
+        if (given) {
+            report(
+                CoreCodes.DUPLICATE_ANNOTATION,
+                "$display is given more than once",
+                annotation.span,
+                help = "keep one of them",
+            )
+            return
+        }
+        entries.getOrPut(target) { linkedMapOf() }[key] = value
     }
 
     private fun apply(
@@ -204,7 +306,7 @@ class AnnotationChecker(
         when {
             spec.valueKind == ValueKind.FLAG -> "write `${example(spec)}`"
             target.isEmpty() -> "write `@${spec.key}(${example(spec)})`"
-            else -> "write `@$target(${spec.key} = ${example(spec)})`"
+            else -> "write `@$target(${spec.key}: ${example(spec)})`"
         }
 
     /** An example value for [spec]'s kind, for a "write it like this" help message. */

@@ -1,9 +1,9 @@
-namespace s
+schema s
 
-record Order {
-  @sql(key) #1 id: uuid
-  #2 note: string(max = 100)?
-  #3 lines: list<Line>
+model Order {
+  #1 id    uuid    { id }
+  #2 note  string? { max 100 }
+  #3 lines Line[]
 
-  record Line { #1 sku: string(max = 16) #2 qty: int32(min = 1) }
+  model Line { #1 sku string { max 16 }  #2 qty int32 { min 1 } }
 }

@@ -1,5 +1,5 @@
 error[SCH1031]: 'list' takes 1 type argument; got 2
- --> s.schemata:2:18
-  = help: write `list<T>`
+ --> s.schemata:3:16
+  = help: write `T[]`
 
 1 error, 0 warnings

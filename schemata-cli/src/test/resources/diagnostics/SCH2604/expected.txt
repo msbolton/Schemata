@@ -1,6 +1,6 @@
 # targets=openapi
 warning[SCH2604] (lossy) (openapi): operation 'find': @jsonschema(name) on field 'text' does not rename the parameter
- --> s.schemata:2:42
+ --> s.schemata:3:14
   = help: a parameter is named by the field; rename the field to rename it
 
 0 errors, 1 warning

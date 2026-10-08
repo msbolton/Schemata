@@ -1,0 +1,5 @@
+schema s
+
+alias E = string
+
+model R { #1 x E { max 3 } }

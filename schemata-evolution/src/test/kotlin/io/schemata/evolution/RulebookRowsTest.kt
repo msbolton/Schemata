@@ -147,17 +147,7 @@ class RulebookRowsTest {
         val keep = namespace("keep", listOf(record("keep", "K", field(1, "a"))))
         val rooted = namespace("gone", listOf(record("gone", "R", field(1, "a"))))
         val enumOnly = namespace("gone", listOf(enum("gone", "E", value(1, "A"))))
-        val keyed =
-            namespace(
-                "gone",
-                listOf(
-                    record(
-                        "gone",
-                        "T",
-                        field(1, "id", annotations = ann("sql", "key", AnnotationValue.Flag)),
-                    )
-                ),
-            )
+        val keyed = namespace("gone", listOf(record("gone", "T", field(1, "id", key = true))))
         val empty = namespace("gone")
         fun removed(gone: Namespace) =
             judged(listOf(keep, gone), listOf(keep)).mapValues { it.value.single() }
@@ -268,12 +258,7 @@ class RulebookRowsTest {
     @Test
     fun `sql unique added breaks sql and removed is compatible`() {
         val plain = record("s", "R", field(1, "a"))
-        val unique =
-            record(
-                "s",
-                "R",
-                field(1, "a", annotations = ann("sql", "unique", AnnotationValue.Flag)),
-            )
+        val unique = record("s", "R", field(1, "a", unique = true))
         assertEquals(
             row("compatible", "breaking", "compatible", "compatible"),
             row(ns(plain), ns(unique)),
@@ -287,17 +272,7 @@ class RulebookRowsTest {
     @Test
     fun `sql index changed is compatible and sql type changed breaks sql`() {
         val plain = record("s", "R", field(1, "a", Scalar(Builtin.STRING)))
-        val indexed =
-            record(
-                "s",
-                "R",
-                field(
-                    1,
-                    "a",
-                    Scalar(Builtin.STRING),
-                    annotations = ann("sql", "index", AnnotationValue.Flag),
-                ),
-            )
+        val indexed = record("s", "R", field(1, "a", Scalar(Builtin.STRING), index = true))
         val retyped =
             record(
                 "s",

@@ -1,8 +1,8 @@
-error[SCH1037]: 'min' is not a refinement of string
- --> shop/orders.schemata:5:15
+error[SCH1038]: 'min' is not a refinement of string
+ --> shop/orders.schemata:5:16
   |
-5 |     note: string(max = 5,
-  |                  ^^^^^^^^
+5 |     note string { max 5,
+  |                   ^^^^^^
   | ...
 
 1 error, 0 warnings

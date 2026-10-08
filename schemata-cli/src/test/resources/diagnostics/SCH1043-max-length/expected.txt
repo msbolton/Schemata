@@ -1,6 +1,6 @@
 # targets=proto
 error[SCH1043]: default "abcd" is longer than max 3
- --> s.schemata:2:36
+ --> s.schemata:3:35
   = help: use a default of at most 3 characters, or raise max
 
 1 error, 0 warnings

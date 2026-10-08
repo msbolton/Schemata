@@ -1,12 +1,10 @@
-namespace s
+schema s
 
-record Event {
-  @sql(key) #1 id: uuid
-  #2 note: string?
-}
+model Event { #1 id uuid { id }  #2 note string? }
 
-@jsonschema(open)
-record Audit {
-  @sql(key) #1 id: uuid
+model Audit {
+  #1 id uuid { id }
   reserved #2, "actor"
+
+  @@jsonschema(open)
 }

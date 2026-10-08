@@ -19,6 +19,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
@@ -28,12 +29,17 @@ import io.schemata.target.TypeText
 import io.schemata.target.bool
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.flag
+import io.schemata.target.isKeyRecord
+import io.schemata.target.named
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 
 /** Lowers the IR to an [XsdModel]; every decision and every lossy report lives here. */
 object XsdLowering {
-    fun lower(schema: Schema): Lowered<XsdModel> {
+    fun lower(written: Schema): Lowered<XsdModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val uris = LinkedHashMap<String, String>()
         schema.namespaces.forEach { ns ->
@@ -42,7 +48,7 @@ object XsdLowering {
                 diagnostics +=
                     Diagnostic(
                         XsdCodes.INVALID_OVERRIDE,
-                        "namespace '${ns.name}': @xsd(namespace = \"$override\") is not an absolute URI",
+                        "schema '${ns.name}': @xsd(namespace: \"$override\") is not an absolute URI",
                         ns.span,
                         help = "use an absolute URI, such as `urn:example:orders`",
                     )
@@ -56,9 +62,9 @@ object XsdLowering {
                 diagnostics +=
                     Diagnostic(
                         XsdCodes.NAMESPACE_COLLISION,
-                        "namespaces ${group.joinToString(" and ") { it.name }} both lower to target namespace '${uris.getValue(group.first().name)}'",
+                        "schemas ${group.joinToString(" and ") { it.name }} both lower to target namespace '${uris.getValue(group.first().name)}'",
                         group[1].span,
-                        help = "set `@xsd(namespace = \"…\")` on one of them",
+                        help = "set `@xsd(namespace: \"…\")` on one of them",
                     )
             }
         val names = SchemaNames(schema, diagnostics)
@@ -85,7 +91,7 @@ object XsdLowering {
 
         /**
          * The type name of the declaration at [qn]: each enclosing declaration's segment is its
-         * override when it has a valid one, so `@xsd(name = "Purchase") record Order` nesting
+         * override when it has a valid one, so `@xsd(name: "Purchase") record Order` nesting
          * `record Line` gives `PurchaseType` and `PurchaseLineType`.
          */
         fun xsdTypeName(qn: QualifiedName): String =
@@ -123,7 +129,7 @@ object XsdLowering {
         private val claims =
             NameClaims(
                 XsdCodes.NAME_COLLISION,
-                "rename one of them, or set `@xsd(name = \"…\")` on one",
+                "rename one of them, or set `@xsd(name: \"…\")` on one",
                 diagnostics,
             )
 
@@ -138,7 +144,12 @@ object XsdLowering {
             val elements = mutableListOf<XsdElement>()
             namespace.declarations.forEach { decl ->
                 types += types(decl, emptyList())
-                if (decl is RecordType && decl.annotations.bool("xsd", "root") != false) {
+                // A key record is the shape of a reference, never a document of its own.
+                if (
+                    decl is RecordType &&
+                        decl.annotations.bool("xsd", "root") != false &&
+                        !schema.isKeyRecord(decl)
+                ) {
                     elements += globalElement(decl)
                 }
             }
@@ -212,7 +223,8 @@ object XsdLowering {
             var mixed = false
             val all = record.annotations.flag("xsd", "all")
             val single = mutableMapOf<String, Field>()
-            record.fields.forEach { f ->
+            // A back-reference is virtual: the forward reference's element carries the relation.
+            record.storedFields.forEach { f ->
                 val particle: XsdParticle? =
                     when {
                         f.annotations.flag("xsd", "mixed") -> {
@@ -241,7 +253,7 @@ object XsdLowering {
                         diagnostics +=
                             Diagnostic(
                                 XsdCodes.ATTRIBUTE_NOT_ALLOWED,
-                                "record '${record.name}': @xsd(all) is on a record with a " +
+                                "model '${record.name}': @xsd(all) is on a model with a " +
                                     "$misfit field '${f.name}'",
                                 f.span,
                                 help =
@@ -251,7 +263,7 @@ object XsdLowering {
                     }
                 }
             }
-            record.fields.forEach {
+            record.storedFields.forEach {
                 checkWildcardKeys(record, it)
                 checkListKey(record, it)
             }
@@ -292,7 +304,7 @@ object XsdLowering {
             diagnostics +=
                 Diagnostic(
                     XsdCodes.ATTRIBUTE_NOT_ALLOWED,
-                    "${fieldWhere(record, field)}: a record takes one @xsd($key) field; " +
+                    "${fieldWhere(record, field)}: a model takes one @xsd($key) field; " +
                         "'${first.name}' already has it",
                     field.span,
                     help = "remove @xsd($key) from one of them",
@@ -376,7 +388,7 @@ object XsdLowering {
                         (r.min?.toInt() ?: 0) to r.max?.toInt()
                     }
                     else -> {
-                        notAllowed(record, field, "any", "a string, string?, or list<string>")
+                        notAllowed(record, field, "any", "a string, string?, or string[]")
                         return null
                     }
                 }
@@ -398,7 +410,7 @@ object XsdLowering {
             path: List<String>,
         ): XsdElement? {
             if (!isPlainString(field.type) && !isStringList(field, nullableElements = true)) {
-                notAllowed(record, field, "any_type", "a string, string?, or list<string>")
+                notAllowed(record, field, "any_type", "a string, string?, or string[]")
                 return null
             }
             return field(record, field, path).copy(type = XsdTypeRef.Builtin("xs:anyType"))
@@ -473,7 +485,7 @@ object XsdLowering {
                 is Ref ->
                     when (schema.lookup(type.target)) {
                         is EnumType -> null
-                        is RecordType -> "record"
+                        is RecordType -> "model"
                         is UnionType -> "union"
                     }
                 is ListOf -> "list"
@@ -524,9 +536,9 @@ object XsdLowering {
             member: UnionMember,
             path: List<String>,
         ): XsdElement {
-            val name = unionMemberStem(member.type, schema) { names.overrides.nameOverride(it) }
+            val name = unionMemberStem(member.named, schema) { names.overrides.nameOverride(it) }
             val declName =
-                (member.type as? Ref)?.let { schema.lookup(it.target).name }
+                (member.named as? Ref)?.let { schema.lookup(it.target).name }
                     ?: (member.type as Scalar).builtin.typeName
             claims.claim(
                 key = "element:${path.joinToString(".")}/$name",
@@ -547,7 +559,7 @@ object XsdLowering {
             val name = names.overrides.nameOverride(record) ?: XsdNames.elementName(record.name)
             claims.claim(
                 key = "element:$name",
-                holder = "record '${record.name}'",
+                holder = "model '${record.name}'",
                 span = record.nameSpan,
                 display = name,
                 kind = "element",
@@ -596,7 +608,7 @@ object XsdLowering {
                                     "an optional repeated element",
                                 field.span,
                                 help =
-                                    "declare the list as `list<T>`; an absent list already means empty",
+                                    "declare the list as `T[]`; an absent list already means empty",
                             )
                     }
                     val element = listElement(name, t, uniqueBase(record, name), where, field.span)
@@ -800,7 +812,7 @@ object XsdLowering {
                                     "${fieldWhere(clash.first, clash.second)} " +
                                     "(${clash.second.nameSpan.file}:${clash.second.nameSpan.startLine})",
                                 span,
-                                help = "rename one of them, or set `@xsd(name = \"…\")` on one",
+                                help = "rename one of them, or set `@xsd(name: \"…\")` on one",
                             )
                         ref
                     }
@@ -816,7 +828,7 @@ object XsdLowering {
         private fun keyAttribute(value: Ref): Pair<RecordType, Field>? {
             val record = schema.lookup(value.target) as? RecordType ?: return null
             val field =
-                record.fields.firstOrNull { f ->
+                record.storedFields.firstOrNull { f ->
                     f.annotations.flag("xsd", "attribute") &&
                         attributeShape(f.type) == null &&
                         (f.annotations.string("xsd", "name")?.takeIf(XsdNames::isNCName)

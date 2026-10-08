@@ -1,5 +1,6 @@
 package io.schemata.target.sql
 
+import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
 import io.schemata.testkit.Golden
@@ -149,7 +150,7 @@ class SqlRendererTest {
                         targetSchema = "kitchen",
                         targetTable = "product",
                         targetColumns = listOf("id"),
-                        cascade = true,
+                        onDelete = OnDelete.CASCADE,
                     )
                 ),
         )

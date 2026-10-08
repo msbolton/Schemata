@@ -1,0 +1,5 @@
+error[SCH1049]: unknown option 'size'; options: embed, id, index, match, max, maxItems, min, minItems, unique
+ --> s.schemata:3:25
+  = help: write one of the listed options, or remove it
+
+1 error, 0 warnings

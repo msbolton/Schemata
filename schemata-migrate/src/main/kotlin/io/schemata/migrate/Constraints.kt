@@ -189,7 +189,7 @@ internal class Constraints(
                         null,
                         null,
                     )
-                else if (rekeyedLosslessly(fk, keys.dropped))
+                else if (rekeyedLosslessly(fk, keys.dropped) || onDeleteChanged(fk, keys.dropped))
                     AddConstraint(
                         at,
                         constraint,
@@ -239,6 +239,15 @@ internal class Constraints(
                 source(o)!!.lossless(definition.columns) &&
                 target(o)!!.lossless(definition.targetColumns)
         }
+    }
+
+    /**
+     * Whether NEW's [fk] is one of [dropped] with only its `ON DELETE` changed: the definition
+     * differs, so it is dropped and added again, but every row that linked still links.
+     */
+    private fun onDeleteChanged(fk: ForeignKey, dropped: List<ForeignKey>): Boolean {
+        val definition = fk.copy(name = "")
+        return dropped.any { o -> carried(o)?.copy(onDelete = fk.onDelete) == definition }
     }
 
     /** The surviving table an OLD foreign key hangs off, or null when that table is dropped. */

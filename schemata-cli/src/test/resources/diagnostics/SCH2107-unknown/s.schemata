@@ -1,2 +1,0 @@
-namespace s
-@sql(key = (nope)) record R { #1 id: int32 }

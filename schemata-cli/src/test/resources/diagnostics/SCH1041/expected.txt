@@ -1,6 +1,6 @@
 # targets=proto
-error[SCH1041]: 'max' is given more than once
- --> s.schemata:2:34
+error[SCH1041]: option 'max' is given more than once
+ --> s.schemata:3:32
   = help: keep one of them
 
 1 error, 0 warnings

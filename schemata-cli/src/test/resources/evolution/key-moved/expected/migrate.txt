@@ -18,62 +18,62 @@ s.sql
 2 destructive, 6 may fail
 
 warning[SCH2702] (lossy): s.Customer.code: PRIMARY KEY "pk_customer" fails when rows duplicate the key
- --> new/s.schemata:5:16
+ --> new/s.schemata:5:6
   |
-5 |   @sql(key) #2 code: string(max = 16)
-  |                ^^^^
+5 |   #2 code  string { id, max 16 }
+  |      ^^^^
   = help: remove duplicate rows before applying
 
 warning[SCH2702] (lossy): s.Customer.notes.parent: FOREIGN KEY "fk_customer_notes_customer" fails when a row references a missing parent
  --> new/s.schemata:6:6
   |
-6 |   #3 notes: list<Note>
+6 |   #3 notes Note[]
   |      ^^^^^
   = help: populate "customer_notes"."customer_code" from the parent before applying
 
 warning[SCH2702] (lossy): s.Customer.notes.parent: PRIMARY KEY "pk_customer_notes" fails when rows duplicate the key
  --> new/s.schemata:6:6
   |
-6 |   #3 notes: list<Note>
+6 |   #3 notes Note[]
   |      ^^^^^
   = help: remove duplicate rows before applying
 
 warning[SCH2702] (lossy): s.Customer.notes.parent: SET NOT NULL on "customer_code" fails when a row holds NULL
  --> new/s.schemata:6:6
   |
-6 |   #3 notes: list<Note>
+6 |   #3 notes Note[]
   |      ^^^^^
   = help: run UPDATE "s"."customer_notes" SET "customer_code" = … WHERE "customer_code" IS NULL
           before applying
 
 warning[SCH2702] (lossy): s.Order.customer: FOREIGN KEY "fk_order_customer" fails when a row references a missing parent
-  --> new/s.schemata:13:6
+  --> new/s.schemata:11:37
    |
-13 |   #2 customer: Customer
-   |      ^^^^^^^^
+11 | model Order { #1 id uuid { id }  #2 customer Customer }
+   |                                     ^^^^^^^^
    = help: populate "order"."customer_code" from the parent before applying
 
 warning[SCH2702] (lossy): s.Order.customer: SET NOT NULL on "customer_code" fails when a row holds NULL
-  --> new/s.schemata:13:6
+  --> new/s.schemata:11:37
    |
-13 |   #2 customer: Customer
-   |      ^^^^^^^^
+11 | model Order { #1 id uuid { id }  #2 customer Customer }
+   |                                     ^^^^^^^^
    = help: run UPDATE "s"."order" SET "customer_code" = … WHERE "customer_code" IS NULL before
            applying
 
 warning[SCH2701] (lossy): s.Customer.notes.parent: DROP COLUMN "customer_id" loses every value the column holds
  --> old/s.schemata:6:6
   |
-6 |   #3 notes: list<Note>
+6 |   #3 notes Note[]
   |      ^^^^^
   = help: populate "customer_notes"."customer_code" from the parent before the foreign keys return,
           then rerun with --allow-destructive
 
 warning[SCH2701] (lossy): s.Order.customer: DROP COLUMN "customer_id" loses every value the column holds
-  --> old/s.schemata:13:6
+  --> old/s.schemata:11:37
    |
-13 |   #2 customer: Customer
-   |      ^^^^^^^^
+11 | model Order { #1 id uuid { id }  #2 customer Customer }
+   |                                     ^^^^^^^^
    = help: populate "order"."customer_code" from the parent before the foreign keys return, then
            rerun with --allow-destructive
 

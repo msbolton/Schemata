@@ -20,6 +20,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
@@ -31,6 +32,8 @@ import io.schemata.target.deprecated
 import io.schemata.target.flag
 import io.schemata.target.json.JsonString
 import io.schemata.target.json.JsonValue
+import io.schemata.target.named
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
 import java.math.BigDecimal
@@ -45,7 +48,9 @@ object JsonSchemaLowering {
             idCollision = JsonSchemaCodes.ID_COLLISION,
         )
 
-    fun lower(schema: Schema): Lowered<JsonSchemaModel> {
+    fun lower(written: Schema): Lowered<JsonSchemaModel> {
+        // A reference to a keyed model carries the model's key, as a foreign key does.
+        val schema = written.referencesByKey()
         val diagnostics = mutableListOf<Diagnostic>()
         val ids = LinkedHashMap<String, String>()
         schema.namespaces.forEach { ns ->
@@ -54,7 +59,7 @@ object JsonSchemaLowering {
                 diagnostics +=
                     Diagnostic(
                         codes.invalidOverride,
-                        "namespace '${ns.name}': @jsonschema(id = \"$override\") is not an absolute URI",
+                        "schema '${ns.name}': @jsonschema(id: \"$override\") is not an absolute URI",
                         ns.span,
                         help =
                             "use an absolute URI without a fragment, such as `urn:example:orders`",
@@ -69,9 +74,9 @@ object JsonSchemaLowering {
                 diagnostics +=
                     Diagnostic(
                         codes.idCollision,
-                        "namespaces ${group.joinToString(" and ") { it.name }} both lower to \$id '${ids.getValue(group.first().name)}'",
+                        "schemas ${group.joinToString(" and ") { it.name }} both lower to \$id '${ids.getValue(group.first().name)}'",
                         group[1].span,
-                        help = "set `@jsonschema(id = \"…\")` on one of them",
+                        help = "set `@jsonschema(id: \"…\")` on one of them",
                     )
             }
         val names = SchemaNames(schema, codes, diagnostics)
@@ -188,7 +193,7 @@ class DocumentLowering(
     private val claims =
         NameClaims(
             codes.nameCollision,
-            "rename one of them, or set `@jsonschema(name = \"…\")` on one",
+            "rename one of them, or set `@jsonschema(name: \"…\")` on one",
             diagnostics,
         )
 
@@ -226,7 +231,8 @@ class DocumentLowering(
             )
             val own =
                 when (decl) {
-                    is RecordType -> record(decl, decl.fields)
+                    // a back-reference is virtual: no property carries it
+                    is RecordType -> record(decl, decl.storedFields)
                     is EnumType -> enum(decl)
                     is UnionType -> union(decl)
                 }
@@ -239,7 +245,7 @@ class DocumentLowering(
      */
     fun partialRecord(record: RecordType, fields: List<Field>, where: String): ObjectSchema {
         require(fields.all { it in record.fields }) {
-            "$where: every field of a partial record must belong to ${record.qualifiedName}"
+            "$where: every field of a partial model must belong to ${record.qualifiedName}"
         }
         return record(record, fields)
     }
@@ -286,9 +292,9 @@ class DocumentLowering(
      * becomes its schema's description.
      */
     private fun unionMember(union: UnionType, member: UnionMember, path: List<String>): Member {
-        val tag = unionMemberStem(member.type, schema) { names.overrides.nameOverride(it) }
+        val tag = unionMemberStem(member.named, schema) { names.overrides.nameOverride(it) }
         val declName =
-            (member.type as? Ref)?.let { schema.lookup(it.target).name }
+            (member.named as? Ref)?.let { schema.lookup(it.target).name }
                 ?: (member.type as Scalar).builtin.typeName
         claims.claim(
             key = "tag:${scope(union.qualifiedName, path)}/$tag",

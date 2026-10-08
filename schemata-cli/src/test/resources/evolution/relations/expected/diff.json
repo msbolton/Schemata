@@ -1,0 +1,5 @@
+{
+  "changes": [{"kind":"field.added","path":"s.Customer.orders","old":null,"new":null,"file":"new/s.schemata","line":5,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible","openapi":"compatible"}},{"kind":"annotation.changed","path":"s.Order.customer","old":null,"new":"set_null","file":"new/s.schemata","line":10,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":{"verdict":"note","message":"s.Order.customer: on delete changed; existing rows are unaffected, future deletes behave differently","help":"check that the code deleting rows expects the new behaviour"},"xsd":"compatible","jsonschema":"compatible","openapi":"compatible"}},{"kind":"model.added","path":"s.Membership","old":null,"new":null,"file":"new/s.schemata","line":13,"deprecatedInOld":false,"verdicts":{"proto":"compatible","sql":"compatible","xsd":"compatible","jsonschema":"compatible","openapi":"compatible"}}],
+  "summary": {"proto":{"breaking":0,"notes":0},"sql":{"breaking":0,"notes":1},"xsd":{"breaking":0,"notes":0},"jsonschema":{"breaking":0,"notes":0},"openapi":{"breaking":0,"notes":0}},
+  "exitCode": 2
+}

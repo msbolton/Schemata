@@ -88,10 +88,10 @@ object DefaultChecker {
             }
             is RecordDecl ->
                 reject(
-                    "record fields cannot have a default",
+                    "model fields cannot have a default",
                     literal.span,
                     diagnostics,
-                    help = "remove the default; give the record's own fields defaults instead",
+                    help = "remove the default; give the model's own fields defaults instead",
                 )
             is UnionDecl ->
                 reject(

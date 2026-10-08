@@ -1,4 +1,6 @@
-namespace c
+schema c
+
 import a
 import b
-record R { #1 t: T }
+
+model R { #1 t T }

@@ -7,9 +7,9 @@ data class Imported(val units: List<SchemataUnit>, val diagnostics: List<Diagnos
 
 /**
  * One `.schemata` file's worth of declarations, lowered from one source document. [annotations] are
- * printed above the `namespace` line; they carry what the source format said about its own
- * namespace when that cannot be derived from [namespace], such as `@xsd(namespace = "…")` or
- * `@proto(package = "…")`.
+ * printed on the `schema` line; they carry what the source format said about its own namespace when
+ * that cannot be derived from [namespace], such as `@xsd(namespace: "…")` or `@proto(package:
+ * "…")`.
  */
 data class SchemataUnit(
     val namespace: String,
@@ -49,7 +49,11 @@ data class UnitOperation(
 
 data class UnitPayload(val type: UnitType.Ref, val stream: Boolean)
 
-/** A declaration; [deprecated] prints `@deprecated` ahead of its other [annotations]. */
+/**
+ * A declaration; [deprecated] prints `@deprecated` ahead of its other [annotations]. A record's
+ * annotations print as block attributes (`@@xsd(name: "…")`) closing its body; an enum's or a
+ * union's lead it.
+ */
 sealed interface UnitDecl {
     val name: String
     val doc: String?
@@ -57,7 +61,13 @@ sealed interface UnitDecl {
     val deprecated: Boolean
 }
 
-/** [reserved] prints as one `reserved` statement after the fields and nested declarations. */
+/**
+ * [reserved] prints as one `reserved` statement after the fields and nested declarations. [key]
+ * names the fields of a composite primary key, printed `@@id(a, b)`, for a key whose fields cannot
+ * each carry `{ id }` (they are not in key order); each of [uniques] and [indexes] names the fields
+ * of one constraint over more than one field, printed `@@unique(a, b)` and `@@index(a, b)`. They
+ * print first among the block attributes, in that order.
+ */
 data class UnitRecord(
     override val name: String,
     val fields: List<UnitField>,
@@ -66,6 +76,9 @@ data class UnitRecord(
     override val annotations: List<UnitAnnotation>,
     val reserved: List<UnitReserved> = emptyList(),
     override val deprecated: Boolean = false,
+    val key: List<String> = emptyList(),
+    val uniques: List<List<String>> = emptyList(),
+    val indexes: List<List<String>> = emptyList(),
 ) : UnitDecl
 
 /** [reserved] prints as one `reserved` statement after the values. */
@@ -105,7 +118,11 @@ data class UnionMember(val type: UnitType, val doc: String? = null, val ordinal:
 
 /**
  * [default] is the literal exactly as it is written in Schemata source, already escaped/quoted.
- * [ordinal] prints as `#n` before the name; a record gives every field one or none.
+ * [ordinal] prints as `#n` before the name; a record gives every field one or none. [options] are
+ * the field's own options as (name, literal text) pairs, a flag such as `id`, `unique`, `index`, or
+ * `embed` with a null value; they print ahead of the options the type's refinements become, in one
+ * `{ … }` block. [onDelete] is what deleting a referenced row does (`cascade`, `set_null`), printed
+ * `@relation(onDelete: …)` after `@deprecated`; null keeps the language's default, `restrict`.
  */
 data class UnitField(
     val name: String,
@@ -116,6 +133,8 @@ data class UnitField(
     val annotations: List<UnitAnnotation>,
     val ordinal: Int? = null,
     val deprecated: Boolean = false,
+    val options: List<Pair<String, String?>> = emptyList(),
+    val onDelete: String? = null,
 )
 
 /**
@@ -128,9 +147,16 @@ sealed interface UnitReserved {
     data class Name(val name: String) : UnitReserved
 }
 
+/**
+ * A type and its bounds. Refinements are kept by what they bound, not by how 2.0 spells them:
+ * `min`, `max`, and `pattern` on a scalar, `min` and `max` on a list's or map's size. The emitter
+ * prints them as the options of the slot the type sits in (`string { max 5 }`, `match` for a
+ * pattern, `minItems` and `maxItems` for a size).
+ */
 sealed interface UnitType {
     /**
-     * [refinements] are (key, literal text) pairs; `decimal` carries `("p", …), ("s", …)` first.
+     * [refinements] are (key, literal text) pairs; `decimal` carries `("p", …), ("s", …)` first,
+     * which print as its `decimal(p, s)` arguments.
      */
     data class Scalar(val builtin: String, val refinements: List<Pair<String, String>>) : UnitType
 
@@ -152,7 +178,7 @@ sealed interface UnitType {
 }
 
 /**
- * One target annotation argument. `@xsd(name = "…")` is `UnitAnnotation("xsd", "name", "\"…\"")`; a
+ * One target annotation argument. `@xsd(name: "…")` is `UnitAnnotation("xsd", "name", "\"…\"")`; a
  * flag such as `@xsd(attribute)` has a null [value]; [value] is literal text, already quoted when
  * it is a string.
  */

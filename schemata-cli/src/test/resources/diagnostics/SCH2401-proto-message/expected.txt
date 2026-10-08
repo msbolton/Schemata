@@ -1,5 +1,5 @@
 # import=proto
-error[SCH2401]: s.proto: message 'Order' and s.proto's message 'order' both lower to record 'Order'
+error[SCH2401]: s.proto: message 'Order' and s.proto's message 'order' both lower to model 'Order'
  --> s.proto:9:1
   = help: rename one of them
 

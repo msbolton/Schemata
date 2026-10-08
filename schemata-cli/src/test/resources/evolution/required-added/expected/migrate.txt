@@ -6,10 +6,10 @@ s.sql
 0 destructive, 1 may fail
 
 warning[SCH2702] (lossy): s.Customer.age: SET NOT NULL on "age" fails when a row holds NULL
- --> new/s.schemata:5:6
+ --> new/s.schemata:3:40
   |
-5 |   #2 age: int32
-  |      ^^^
+3 | model Customer { #1 id uuid { id }  #2 age int32 }
+  |                                        ^^^
   = help: run UPDATE "s"."customer" SET "age" = … WHERE "age" IS NULL before applying
 
 0 errors, 1 warning

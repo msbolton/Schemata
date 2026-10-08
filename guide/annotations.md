@@ -7,8 +7,8 @@ Keys each target accepts, the elements they apply to, and the codes each target 
 
 | Key | Applies to | Value | Choices |
 |---|---|---|---|
-| `package` | namespace | string |  |
-| `name` | record, enum, union, field, enum value, service, operation | string |  |
+| `package` | schema | string |  |
+| `name` | model, enum, union, field, enum value, service, operation | string |  |
 
 Codes:
 
@@ -25,26 +25,21 @@ Codes:
 
 | Key | Applies to | Value | Choices |
 |---|---|---|---|
-| `schema` | namespace | string |  |
-| `table` | record | string |  |
+| `schema` | schema | string |  |
+| `table` | model | string |  |
 | `column` | field | string |  |
 | `type` | field | string |  |
-| `key` | field | flag |  |
-| `key` | record | name_tuple |  |
-| `strategy` | field | name | embed, json, table |
-| `unique` | field | flag |  |
-| `index` | field | flag |  |
+| `strategy` | field | name | json, table |
 
 Codes:
 
 | Code | Severity | Category | Description |
 |---|---|---|---|
-| SCH2101 | error | semantic | two records lower to the same table |
-| SCH2102 | error | semantic | two namespaces lower to the same schema |
+| SCH2101 | error | semantic | two models lower to the same table |
+| SCH2102 | error | semantic | two schemas lower to the same Postgres schema |
 | SCH2105 | warning | lossy | something Postgres cannot enforce or type was relaxed by the lowering |
-| SCH2106 | error | semantic | a record has no primary key and no field uses it |
-| SCH2107 | error | semantic | a primary key declaration is malformed |
-| SCH2108 | error | semantic | embedding a record would recurse |
+| SCH2106 | error | semantic | a model has no primary key and no field uses it |
+| SCH2108 | error | semantic | embedding a model would recurse |
 | SCH2109 | warning | semantic | an identifier exceeds Postgres's 63-byte limit and was truncated |
 | SCH2110 | error | semantic | a strategy or constraint is not allowed for the field's shape |
 | SCH2111 | error | semantic | two relational names collide |
@@ -56,20 +51,20 @@ Codes:
 
 | Key | Applies to | Value | Choices |
 |---|---|---|---|
-| `namespace` | namespace | string |  |
-| `name` | record, enum, union, field, enum value | string |  |
+| `namespace` | schema | string |  |
+| `name` | model, enum, union, field, enum value | string |  |
 | `attribute` | field | flag |  |
-| `root` | record | bool |  |
+| `root` | model | bool |  |
 | `any` | field | flag |  |
 | `any_type` | field | flag |  |
 | `any_attribute` | field | flag |  |
 | `process` | field | string | lax, skip, strict |
 | `wildcard` | field | string |  |
 | `mixed` | field | flag |  |
-| `all` | record | flag |  |
+| `all` | model | flag |  |
 | `list` | field | flag |  |
-| `element_form` | namespace | string | qualified, unqualified |
-| `attribute_form` | namespace | string | qualified, unqualified |
+| `element_form` | schema | string | qualified, unqualified |
+| `attribute_form` | schema | string | qualified, unqualified |
 
 Codes:
 
@@ -77,7 +72,7 @@ Codes:
 |---|---|---|---|
 | SCH2201 | warning | lossy | something XSD 1.0 cannot express was dropped by the lowering |
 | SCH2202 | error | semantic | two constructs lower to the same XSD name |
-| SCH2203 | error | semantic | two namespaces lower to the same target namespace |
+| SCH2203 | error | semantic | two schemas lower to the same target namespace |
 | SCH2204 | error | semantic | an @xsd representation key is on a field that cannot take it |
 | SCH2205 | error | semantic | an @xsd override is not a valid XML name or URI |
 
@@ -85,9 +80,9 @@ Codes:
 
 | Key | Applies to | Value | Choices |
 |---|---|---|---|
-| `id` | namespace | string |  |
-| `name` | record, enum, union, field, enum value | string |  |
-| `open` | record | flag |  |
+| `id` | schema | string |  |
+| `name` | model, enum, union, field, enum value | string |  |
+| `open` | model | flag |  |
 
 Codes:
 
@@ -96,14 +91,14 @@ Codes:
 | SCH2301 | warning | lossy | something JSON Schema cannot express was dropped or approximated by the lowering |
 | SCH2302 | error | semantic | two constructs lower to the same JSON Schema name |
 | SCH2303 | error | semantic | a @jsonschema override is empty, holds a character a $ref cannot carry, or is not an absolute URI |
-| SCH2304 | error | semantic | two namespaces lower to the same $id |
+| SCH2304 | error | semantic | two schemas lower to the same $id |
 
 ## @openapi
 
 | Key | Applies to | Value | Choices |
 |---|---|---|---|
-| `version` | namespace | string |  |
-| `server` | namespace | string |  |
+| `version` | schema | string |  |
+| `server` | schema | string |  |
 | `name` | service, operation | string |  |
 
 Codes:

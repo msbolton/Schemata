@@ -1,76 +1,76 @@
-SCH2402 defaultStyle.xsd: namespace 'default_style' was derived from the file name
-SCH2402 iso19139-stub/gmd.xsd: namespace 'gmd' was derived from the file name
-SCH2402 smil/smil20-language.xsd: namespace 'smil20_language' was derived from the file name
-SCH2402 smil/smil20.xsd: namespace 'smil20' was derived from the file name
-SCH2402 xlink/xlink.xsd: namespace 'xlink' was derived from the file name
-SCH2402 xml/xml.xsd: namespace 'xml' was derived from the file name
+SCH2402 defaultStyle.xsd: schema name 'default_style' was derived from the file name
+SCH2402 iso19139-stub/gmd.xsd: schema name 'gmd' was derived from the file name
+SCH2402 smil/smil20-language.xsd: schema name 'smil20_language' was derived from the file name
+SCH2402 smil/smil20.xsd: schema name 'smil20' was derived from the file name
+SCH2402 xlink/xlink.xsd: schema name 'xlink' was derived from the file name
+SCH2402 xml/xml.xsd: schema name 'xml' was derived from the file name
 SCH2405 schema: block and final dropped
 SCH2403 element 'defaultStyle': element 'defaultStyle' has no Schemata equivalent; the regenerated root element will be named 'default_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'AbstractStyleType': abstract type 'AbstractStyleType' imported as its one concrete type 'Style'
-SCH2403 complex type 'StyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'StyleType': extension of 'AbstractStyleType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'StyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'StyleType': extension of 'AbstractStyleType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'featureStyle': element 'featureStyle' has no Schemata equivalent; the regenerated root element will be named 'feature_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'FeatureStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'BaseStyleDescriptorType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'FeatureStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'BaseStyleDescriptorType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'geometryStyle': element 'geometryStyle' has no Schemata equivalent; the regenerated root element will be named 'geometry_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GeometryStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeometryStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeometryStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeometryStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeometryStyleType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'topologyStyle': element 'topologyStyle' has no Schemata equivalent; the regenerated root element will be named 'topology_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TopologyStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopologyStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopologyStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopologyStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TopologyStyleType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'labelStyle': element 'labelStyle' has no Schemata equivalent; the regenerated root element will be named 'label_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'LabelStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LabelStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'LabelStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LabelStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'graphStyle': element 'graphStyle' has no Schemata equivalent; the regenerated root element will be named 'graph_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GraphStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GraphStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GraphStyleType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GraphStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'StyleVariationType': simpleContent extension of 'string' has no Schemata equivalent; imported as a record with a 'value' field
-SCH2403 complex type 'LengthType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'StyleVariationType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'LengthType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'ScaleType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'ScaleType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'TimeType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'TimeType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'GridLengthType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'GridLengthType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'AreaType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'AreaType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'VolumeType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'VolumeType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'SpeedType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'SpeedType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'AngleType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'AngleType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'DynamicFeatureType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DynamicFeatureType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DynamicFeatureCollectionType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DynamicFeatureCollectionType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DynamicFeatureCollectionType': extension of 'DynamicFeatureType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DynamicFeatureType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DynamicFeatureType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DynamicFeatureCollectionType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DynamicFeatureCollectionType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DynamicFeatureCollectionType': extension of 'DynamicFeatureType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'dynamicMembers': element 'dynamicMembers' has no Schemata equivalent; the regenerated root element will be named 'dynamic_feature_member'
-SCH2403 complex type 'DynamicFeatureMemberType': extension of 'AbstractFeatureMemberType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DynamicFeatureMemberType': extension of 'AbstractFeatureMemberType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -94,48 +94,48 @@ SCH2403 complex type 'TopoSolidPropertyType': inline choice has no Schemata equi
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'NodeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'NodeType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'NodeType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'NodeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'NodeType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'NodeType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'directedNode': element 'directedNode' has no Schemata equivalent; the regenerated root element will be named 'directed_node_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'EdgeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EdgeType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EdgeType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EdgeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EdgeType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EdgeType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'directedEdge': element 'directedEdge' has no Schemata equivalent; the regenerated root element will be named 'directed_edge_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'FaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'FaceType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'FaceType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'FaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'FaceType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'FaceType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'directedFace': element 'directedFace' has no Schemata equivalent; the regenerated root element will be named 'directed_face_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TopoSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoSolidType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoSolidType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopoSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoSolidType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoSolidType': extension of 'AbstractTopoPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'directedTopoSolid': element 'directedTopoSolid' has no Schemata equivalent; the regenerated root element will be named 'directed_topo_solid_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TopoPointType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoPointType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopoPointType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoPointType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'topoPointProperty': element 'topoPointProperty' has no Schemata equivalent; the regenerated root element will be named 'topo_point_property'
-SCH2403 complex type 'TopoCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoCurveType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopoCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoCurveType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'topoCurveProperty': element 'topoCurveProperty' has no Schemata equivalent; the regenerated root element will be named 'topo_curve_property'
-SCH2403 complex type 'TopoSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoSurfaceType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopoSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoSurfaceType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'topoSurfaceProperty': element 'topoSurfaceProperty' has no Schemata equivalent; the regenerated root element will be named 'topo_surface_property'
-SCH2403 complex type 'TopoVolumeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoVolumeType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopoVolumeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoVolumeType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'topoVolumeProperty': element 'topoVolumeProperty' has no Schemata equivalent; the regenerated root element will be named 'topo_volume_property'
-SCH2403 complex type 'TopoComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TopoComplexType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TopoComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TopoComplexType': extension of 'AbstractTopologyType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'topoPrimitiveMember': element 'topoPrimitiveMember' has no Schemata equivalent; the regenerated root element will be named 'topo_primitive_member'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -147,13 +147,13 @@ SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'AbstractCoverageType': abstract type 'AbstractCoverageType' imported as its one concrete type 'DiscreteCoverage'
 SCH2403 element 'AbstractDiscreteCoverage': element 'AbstractDiscreteCoverage' has no Schemata equivalent; the regenerated root element will be named 'discrete_coverage'
-SCH2403 complex type 'DiscreteCoverageType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DiscreteCoverageType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DiscreteCoverageType': extension of 'AbstractCoverageType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DiscreteCoverageType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DiscreteCoverageType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DiscreteCoverageType': extension of 'AbstractCoverageType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 complex type 'AbstractContinuousCoverageType': abstract dropped
-SCH2403 complex type 'AbstractContinuousCoverageType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AbstractContinuousCoverageType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AbstractContinuousCoverageType': extension of 'AbstractCoverageType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'AbstractContinuousCoverageType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AbstractContinuousCoverageType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AbstractContinuousCoverageType': extension of 'AbstractCoverageType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'domainSet': element 'domainSet' has no Schemata equivalent; the regenerated root element will be named 'domain_set'
 SCH2403 complex type 'DomainSetType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'type': fixed value imported as a default
@@ -173,117 +173,117 @@ SCH2403 union 'CoverageFunction': member element 'CoverageMappingRule' has no Sc
 SCH2403 union 'CoverageFunction': member element 'GridFunction' has no Schemata equivalent; the regenerated element will be named 'grid_function'
 SCH2403 union 'MappingRule': member element 'ruleDefinition' has no Schemata equivalent; the regenerated element will be named 'string'
 SCH2403 union 'MappingRule': member element 'ruleReference' has no Schemata equivalent; the regenerated element will be named 'reference'
-SCH2403 complex type 'SequenceRuleType': simpleContent extension of 'SequenceRuleEnumeration' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'SequenceRuleType': simpleContent extension of 'SequenceRuleEnumeration' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'componentReferenceSystem': element 'componentReferenceSystem' has no Schemata equivalent; the regenerated root element will be named 'single_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'AbstractGeneralDerivedCRSType': abstract type 'AbstractGeneralDerivedCRSType' imported as union 'AbstractGeneralDerivedCRS' of 2 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'CompoundCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompoundCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompoundCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'CompoundCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CompoundCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'compoundCRSRef': element 'compoundCRSRef' has no Schemata equivalent; the regenerated root element will be named 'compound_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'GeodeticCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'GeodeticCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeodeticCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeodeticCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodeticCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeodeticCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeodeticCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GeodeticCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodeticCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeodeticCRSType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'baseGeodeticCRS': element 'baseGeodeticCRS' has no Schemata equivalent; the regenerated root element will be named 'geodetic_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'VerticalCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'VerticalCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'VerticalCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'VerticalCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'VerticalCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'verticalCRSRef': element 'verticalCRSRef' has no Schemata equivalent; the regenerated root element will be named 'vertical_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'ProjectedCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'ProjectedCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ProjectedCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ProjectedCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ProjectedCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ProjectedCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ProjectedCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'ProjectedCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ProjectedCRSType': extension of 'AbstractGeneralDerivedCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ProjectedCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ProjectedCRSType': extension of 'AbstractGeneralDerivedCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ProjectedCRSType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'projectedCRSRef': element 'projectedCRSRef' has no Schemata equivalent; the regenerated root element will be named 'projected_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'DerivedCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'DerivedCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DerivedCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DerivedCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DerivedCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DerivedCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DerivedCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'DerivedCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DerivedCRSType': extension of 'AbstractGeneralDerivedCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DerivedCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DerivedCRSType': extension of 'AbstractGeneralDerivedCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'derivedCRSRef': element 'derivedCRSRef' has no Schemata equivalent; the regenerated root element will be named 'derived_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'EngineeringCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'EngineeringCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EngineeringCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EngineeringCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EngineeringCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EngineeringCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EngineeringCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'EngineeringCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EngineeringCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'EngineeringCRSType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'engineeringCRSRef': element 'engineeringCRSRef' has no Schemata equivalent; the regenerated root element will be named 'engineering_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'ImageCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'ImageCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ImageCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ImageCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ImageCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ImageCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ImageCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'ImageCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ImageCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ImageCRSType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'imageCRSRef': element 'imageCRSRef' has no Schemata equivalent; the regenerated root element will be named 'image_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'TemporalCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TemporalCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TemporalCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TemporalCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TemporalCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TemporalCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TemporalCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TemporalCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TemporalCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TemporalCRSType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'temporalCRSRef': element 'temporalCRSRef' has no Schemata equivalent; the regenerated root element will be named 'temporal_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'ObservationType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ObservationType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ObservationType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ObservationType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'using': element 'using' has no Schemata equivalent; the regenerated root element will be named 'procedure_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -297,28 +297,28 @@ SCH2403 element 'resultOf': element 'resultOf' has no Schemata equivalent; the r
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'DirectedObservationType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DirectedObservationType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DirectedObservationType': extension of 'ObservationType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'ObservationType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'DirectedObservationType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DirectedObservationType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DirectedObservationType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DirectedObservationType': extension of 'ObservationType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'ObservationType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DirectedObservationAtDistanceType': extension of 'DirectedObservationType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeReferenceSystemType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeReferenceSystemType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeReferenceSystemType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeReferenceSystemType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeReferenceSystemType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeCoordinateSystemType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeCoordinateSystemType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCoordinateSystemType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCoordinateSystemType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeCoordinateSystemType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCoordinateSystemType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCoordinateSystemType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeCoordinateSystemType': inline choice has no Schemata equivalent; imported as union 'TimeCoordinateSystemChoice' in field 'choice'
 SCH2403 complex type 'TimeCalendarType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeCalendarType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCalendarType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCalendarType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeCalendarType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCalendarType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCalendarType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeCalendarEraType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeCalendarEraType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCalendarEraType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeCalendarEraType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCalendarEraType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2404 element 'referenceDate': xs:gYearMonth imported as string
 SCH2404 element 'referenceDate': xs:gYear imported as string
 SCH2403 element 'referenceDate': union simple type imported as string
@@ -330,19 +330,19 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'TimeClockType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeClockType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeClockType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeClockType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeClockType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeClockType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeClockType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'TimeOrdinalReferenceSystemType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeOrdinalReferenceSystemType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeOrdinalReferenceSystemType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeOrdinalReferenceSystemType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeOrdinalReferenceSystemType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeOrdinalReferenceSystemType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeOrdinalReferenceSystemType': extension of 'TimeReferenceSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeOrdinalEraType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeOrdinalEraType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeOrdinalEraType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeOrdinalEraType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeOrdinalEraType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -351,43 +351,43 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'TemporalCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TemporalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TemporalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TemporalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TemporalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TemporalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TemporalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TemporalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TemporalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'temporalCSRef': element 'temporalCSRef' has no Schemata equivalent; the regenerated root element will be named 'temporal_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'ObliqueCartesianCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'ObliqueCartesianCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ObliqueCartesianCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ObliqueCartesianCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ObliqueCartesianCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ObliqueCartesianCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ObliqueCartesianCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ObliqueCartesianCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ObliqueCartesianCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'obliqueCartesianCSRef': element 'obliqueCartesianCSRef' has no Schemata equivalent; the regenerated root element will be named 'oblique_cartesian_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'GeographicCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'GeographicCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeographicCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeographicCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeographicCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeographicCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeographicCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GeographicCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeographicCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'baseGeographicCRS': element 'baseGeographicCRS' has no Schemata equivalent; the regenerated root element will be named 'geographic_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'GeocentricCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'GeocentricCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeocentricCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeocentricCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeocentricCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeocentricCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeocentricCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GeocentricCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeocentricCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeocentricCRSType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'geocentricCRSRef': element 'geocentricCRSRef' has no Schemata equivalent; the regenerated root element will be named 'geocentric_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
@@ -397,27 +397,27 @@ SCH2403 element 'dmsAngleValue': element 'dmsAngleValue' has no Schemata equival
 SCH2403 complex type 'DMSAngleType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'decimalMinutes': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 element 'decimalMinutes': facet maxExclusive dropped
-SCH2403 complex type 'DMSAngleType': nested sequence imported as record 'MinutesGroup' in field 'minutes_group'
+SCH2403 complex type 'DMSAngleType': nested sequence imported as model 'MinutesGroup' in field 'minutes_group'
 SCH2403 element 'seconds': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 element 'seconds': facet maxExclusive dropped
-SCH2403 complex type 'DegreesType': simpleContent extension of 'DegreeValueType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'DegreesType': simpleContent extension of 'DegreeValueType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 enum value 'Direction.+': enum value 'Direction.+' has no Schemata equivalent; imported as 'plus'
 SCH2403 enum value 'Direction.-': enum value 'Direction.-' has no Schemata equivalent; imported as 'minus'
 SCH2403 union 'AngleChoice': member element 'dmsAngle' has no Schemata equivalent; the regenerated element will be named 'dms_angle'
 SCH2403 element 'members': element 'members' has no Schemata equivalent; the regenerated root element will be named 'array_association'
 SCH2403 element 'dataSource': element 'dataSource' has no Schemata equivalent; the regenerated root element will be named 'string_or_ref'
-SCH2403 complex type 'StringOrRefType': simpleContent extension of 'string' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'StringOrRefType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'BagType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ArrayType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'BagType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ArrayType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'metaDataProperty': element 'metaDataProperty' has no Schemata equivalent; the regenerated root element will be named 'meta_data_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'AbstractMetaDataType': abstract type 'AbstractMetaDataType' imported as its one concrete type 'GenericMetaData'
-SCH2403 complex type 'GenericMetaDataType': extension of 'AbstractMetaDataType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GenericMetaDataType': extension of 'AbstractMetaDataType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'location': element 'location' has no Schemata equivalent; the regenerated root element will be named 'location_property'
 SCH2403 complex type 'LocationPropertyType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'Null': union simple type imported as string
@@ -432,45 +432,45 @@ SCH2403 element 'Null': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'PriorityLocationPropertyType': extension of 'LocationPropertyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PriorityLocationPropertyType': extension of 'LocationPropertyType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'featureMembers': element 'featureMembers' has no Schemata equivalent; the regenerated root element will be named 'feature_array_property'
 SCH2405 complex type 'BoundedFeatureType': abstract dropped
 SCH2403 complex type 'BoundedFeatureType': restriction of 'AbstractFeatureType' has no Schemata equivalent; its own content is used
 SCH2403 complex type 'AbstractFeatureCollectionType': abstract type 'AbstractFeatureCollectionType' imported as its one concrete type 'FeatureCollection'
-SCH2403 complex type 'FeatureCollectionType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'FeatureCollectionType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'FeatureCollectionType': extension of 'AbstractFeatureCollectionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'FeatureCollectionType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'FeatureCollectionType': extension of 'AbstractFeatureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'FeatureCollectionType': extension of 'AbstractFeatureCollectionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'indirectEntry': element 'indirectEntry' has no Schemata equivalent; the regenerated root element will be named 'indirect_entry'
 SCH2403 complex type 'DefinitionProxyType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'DefinitionProxyType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DefinitionProxyType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MovingObjectStatusType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MovingObjectStatusType': extension of 'AbstractTimeSliceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DefinitionProxyType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DefinitionProxyType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MovingObjectStatusType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MovingObjectStatusType': extension of 'AbstractTimeSliceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'MovingObjectStatusType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'unitOfMeasure': element 'unitOfMeasure' has no Schemata equivalent; the regenerated root element will be named 'unit_of_measure'
 SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 complex type 'UnitDefinitionType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'UnitDefinitionType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'UnitDefinitionType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'UnitDefinitionType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'UnitDefinitionType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'BaseUnitType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'BaseUnitType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'BaseUnitType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'BaseUnitType': extension of 'UnitDefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'BaseUnitType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'BaseUnitType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'BaseUnitType': extension of 'UnitDefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'DerivedUnitType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'DerivedUnitType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DerivedUnitType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DerivedUnitType': extension of 'UnitDefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DerivedUnitType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DerivedUnitType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DerivedUnitType': extension of 'UnitDefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'derivationUnitTerm': element 'derivationUnitTerm' has no Schemata equivalent; the regenerated root element will be named 'derivation_unit_term'
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'DerivationUnitTermType': extension of 'UnitOfMeasureType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DerivationUnitTermType': extension of 'UnitOfMeasureType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ConventionalUnitType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'ConventionalUnitType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ConventionalUnitType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ConventionalUnitType': extension of 'UnitDefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConventionalUnitType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ConventionalUnitType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ConventionalUnitType': extension of 'UnitDefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ConventionalUnitType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'conversionToPreferredUnit': element 'conversionToPreferredUnit' has no Schemata equivalent; the regenerated root element will be named 'conversion_to_preferred_unit'
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'ConversionToPreferredUnitType': extension of 'UnitOfMeasureType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConversionToPreferredUnitType': extension of 'UnitOfMeasureType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ConversionToPreferredUnitType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'AbstractFeatureType': abstract type 'AbstractFeatureType' imported as union 'AbstractFeature' of 7 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'AbstractFeatureType': member element 'AbstractDiscreteCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
@@ -491,36 +491,36 @@ SCH2403 element 'Null': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'EnvelopeWithTimePeriodType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 complex type 'EnvelopeWithTimePeriodType': nested sequence imported as record 'LowerCornerGroup' in field 'lower_corner_group'
-SCH2403 complex type 'EnvelopeWithTimePeriodType': extension of 'EnvelopeType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EnvelopeWithTimePeriodType': nested sequence imported as model 'LowerCornerGroup' in field 'lower_corner_group'
+SCH2403 complex type 'EnvelopeWithTimePeriodType': extension of 'EnvelopeType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractFeatureMemberType': abstract type 'AbstractFeatureMemberType' imported as its one concrete type 'DynamicFeatureMember'
 SCH2403 element 'direction': element 'direction' has no Schemata equivalent; the regenerated root element will be named 'direction_property'
 SCH2403 complex type 'DirectionPropertyType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 union 'DirectionVector': choice branch imported as record 'HorizontalAngleGroup'
+SCH2403 union 'DirectionVector': choice branch imported as model 'HorizontalAngleGroup'
 SCH2403 union 'DirectionDescription': member element 'compassPoint' has no Schemata equivalent; the regenerated element will be named 'compass_point_enumeration'
 SCH2403 union 'DirectionDescription': member element 'keyword' has no Schemata equivalent; the regenerated element will be named 'code'
 SCH2403 union 'DirectionDescription': member element 'description' has no Schemata equivalent; the regenerated element will be named 'string'
-SCH2403 complex type 'GeometricComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeometricComplexType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeometricComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeometricComplexType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeometricComplexPropertyType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeCurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CompositeSolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeCurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CompositeSolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'valueProperty': element 'valueProperty' has no Schemata equivalent; the regenerated root element will be named 'value_property'
 SCH2403 complex type 'ValuePropertyType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'Null': union simple type imported as string
@@ -532,91 +532,91 @@ SCH2403 element 'valueComponents': element 'valueComponents' has no Schemata equ
 SCH2403 complex type 'ValueArrayPropertyType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'Null': union simple type imported as string
 SCH2403 element 'Null': union simple type imported as string
-SCH2403 complex type 'CompositeValueType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ValueArrayType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ValueArrayType': extension of 'CompositeValueType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CompositeValueType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ValueArrayType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ValueArrayType': extension of 'CompositeValueType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'CategoryExtentType': simpleContent restriction of 'CodeOrNilReasonListType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'CategoryExtentType': simpleContent restriction of 'CodeOrNilReasonListType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'CategoryExtentType': union simple type imported as string
 SCH2403 complex type 'CategoryExtentType': union simple type imported as string
-SCH2403 complex type 'QuantityExtentType': simpleContent restriction of 'MeasureOrNilReasonListType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'QuantityExtentType': simpleContent restriction of 'MeasureOrNilReasonListType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'QuantityExtentType': union simple type imported as string
 SCH2403 complex type 'QuantityExtentType': union simple type imported as string
 SCH2403 attribute 'uom': union simple type imported as string
-SCH2403 complex type 'Boolean': simpleContent extension of 'boolean' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'Boolean': simpleContent extension of 'boolean' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'Category': simpleContent extension of 'CodeType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'Category': simpleContent extension of 'CodeType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'Quantity': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'Quantity': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'uom': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'Count': simpleContent extension of 'integer' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'Count': simpleContent extension of 'integer' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GridType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GridType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GridType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GridType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GridType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'GridType': attribute 'axisLabels' and element 'axisLabels' both lower to field 'axis_labels'; the attribute is imported as 'axis_labels_attribute' and the regenerated attribute will be named so
-SCH2403 complex type 'RectifiedGridType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'RectifiedGridType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'RectifiedGridType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'RectifiedGridType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'RectifiedGridType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'RectifiedGridType': attribute 'axisLabels' and element 'axisLabels' both lower to field 'axis_labels'; the attribute is imported as 'axis_labels_attribute' and the regenerated attribute will be named so
-SCH2403 complex type 'RectifiedGridType': extension of 'GridType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'RectifiedGridType': extension of 'GridType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractGeometricAggregateType': abstract type 'AbstractGeometricAggregateType' imported as union 'AbstractGeometricAggregate' of 5 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'MultiGeometryType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiGeometryType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiGeometryType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'MultiGeometryType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiGeometryType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiGeometryType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'multiGeometryProperty': element 'multiGeometryProperty' has no Schemata equivalent; the regenerated root element will be named 'multi_geometry_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'MultiPointType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiPointType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiPointType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'MultiPointType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiPointType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiPointType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'multiLocation': element 'multiLocation' has no Schemata equivalent; the regenerated root element will be named 'multi_point_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'MultiCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiCurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiCurveType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'MultiCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiCurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiCurveType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'multiCenterLineOf': element 'multiCenterLineOf' has no Schemata equivalent; the regenerated root element will be named 'multi_curve_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'MultiSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiSurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiSurfaceType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'MultiSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiSurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiSurfaceType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'multiCoverage': element 'multiCoverage' has no Schemata equivalent; the regenerated root element will be named 'multi_surface_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'MultiSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'MultiSolidType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'MultiSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'MultiSolidType': extension of 'AbstractGeometricAggregateType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'multiSolidProperty': element 'multiSolidProperty' has no Schemata equivalent; the regenerated root element will be named 'multi_solid_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'CoordinateSystemAxisType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'CoordinateSystemAxisType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CoordinateSystemAxisType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CoordinateSystemAxisType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CoordinateSystemAxisType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CoordinateSystemAxisType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CoordinateSystemAxisType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 element 'coordinateSystemAxisRef': element 'coordinateSystemAxisRef' has no Schemata equivalent; the regenerated root element will be named 'coordinate_system_axis_property'
 SCH2405 attribute 'type': fixed value imported as a default
@@ -628,91 +628,91 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'EllipsoidalCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'EllipsoidalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EllipsoidalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EllipsoidalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EllipsoidalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EllipsoidalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EllipsoidalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EllipsoidalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EllipsoidalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'ellipsoidalCS': element 'ellipsoidalCS' has no Schemata equivalent; the regenerated root element will be named 'ellipsoidal_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'CartesianCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'CartesianCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CartesianCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CartesianCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CartesianCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CartesianCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CartesianCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CartesianCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CartesianCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'cartesianCS': element 'cartesianCS' has no Schemata equivalent; the regenerated root element will be named 'cartesian_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'VerticalCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'VerticalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'VerticalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'verticalCS': element 'verticalCS' has no Schemata equivalent; the regenerated root element will be named 'vertical_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'TimeCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'TimeCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'timeCS': element 'timeCS' has no Schemata equivalent; the regenerated root element will be named 'time_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'LinearCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'LinearCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'LinearCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'linearCS': element 'linearCS' has no Schemata equivalent; the regenerated root element will be named 'linear_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'UserDefinedCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'UserDefinedCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'UserDefinedCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'UserDefinedCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'UserDefinedCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'UserDefinedCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'UserDefinedCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'UserDefinedCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'UserDefinedCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'userDefinedCS': element 'userDefinedCS' has no Schemata equivalent; the regenerated root element will be named 'user_defined_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'SphericalCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'SphericalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SphericalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SphericalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SphericalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'SphericalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SphericalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SphericalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SphericalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'sphericalCS': element 'sphericalCS' has no Schemata equivalent; the regenerated root element will be named 'spherical_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'PolarCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'PolarCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PolarCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PolarCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PolarCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PolarCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PolarCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PolarCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PolarCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'polarCS': element 'polarCS' has no Schemata equivalent; the regenerated root element will be named 'polar_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'CylindricalCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'CylindricalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CylindricalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CylindricalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CylindricalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CylindricalCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CylindricalCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CylindricalCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CylindricalCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'cylindricalCS': element 'cylindricalCS' has no Schemata equivalent; the regenerated root element will be named 'cylindrical_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'AffineCSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'AffineCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AffineCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AffineCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AffineCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'AffineCSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AffineCSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AffineCSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AffineCSType': extension of 'AbstractCoordinateSystemType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'affineCS': element 'affineCS' has no Schemata equivalent; the regenerated root element will be named 'affine_cs_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -723,21 +723,21 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'GeodeticDatumType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'GeodeticDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeodeticDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'GeodeticDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodeticDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeodeticDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'GeodeticDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'GeodeticDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodeticDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'geodeticDatum': element 'geodeticDatum' has no Schemata equivalent; the regenerated root element will be named 'geodetic_datum_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'EllipsoidType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'EllipsoidType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EllipsoidType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EllipsoidType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EllipsoidType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EllipsoidType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EllipsoidType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 union 'SecondDefiningParameter': member element 'inverseFlattening' has no Schemata equivalent; the regenerated element will be named 'measure'
 SCH2403 union 'SecondDefiningParameter': member element 'semiMinorAxis' has no Schemata equivalent; the regenerated element will be named 'length'
 SCH2403 union 'SecondDefiningParameter': member element 'isSphere' has no Schemata equivalent; the regenerated element will be named 'bool'
@@ -746,45 +746,45 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'PrimeMeridianType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'PrimeMeridianType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PrimeMeridianType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PrimeMeridianType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PrimeMeridianType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PrimeMeridianType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PrimeMeridianType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'usesPrimeMeridian': element 'usesPrimeMeridian' has no Schemata equivalent; the regenerated root element will be named 'prime_meridian_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'EngineeringDatumType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'EngineeringDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EngineeringDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'EngineeringDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EngineeringDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EngineeringDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'EngineeringDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'EngineeringDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'EngineeringDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'engineeringDatum': element 'engineeringDatum' has no Schemata equivalent; the regenerated root element will be named 'engineering_datum_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'ImageDatumType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'ImageDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ImageDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ImageDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ImageDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ImageDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ImageDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'ImageDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ImageDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'imageDatum': element 'imageDatum' has no Schemata equivalent; the regenerated root element will be named 'image_datum_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'VerticalDatumType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'VerticalDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'VerticalDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'VerticalDatumType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalDatumType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'VerticalDatumType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'VerticalDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'VerticalDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'verticalDatum': element 'verticalDatum' has no Schemata equivalent; the regenerated root element will be named 'vertical_datum_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -793,7 +793,7 @@ SCH2403 complex type 'TemporalDatumType': restriction of 'AbstractDatumType' has
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TemporalDatumType': extension of 'TemporalDatumBaseType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TemporalDatumType': extension of 'TemporalDatumBaseType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TemporalDatumBaseType': abstract type 'TemporalDatumBaseType' imported as its one concrete type 'TemporalDatum'
 SCH2403 element 'temporalDatum': element 'temporalDatum' has no Schemata equivalent; the regenerated root element will be named 'temporal_datum_property'
 SCH2405 attribute 'type': fixed value imported as a default
@@ -819,9 +819,9 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'ConcatenatedOperationType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'ConcatenatedOperationType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ConcatenatedOperationType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ConcatenatedOperationType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConcatenatedOperationType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ConcatenatedOperationType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ConcatenatedOperationType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -829,15 +829,15 @@ SCH2405 element 'AbstractDQ_PositionalAccuracy': abstract dropped
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'ConcatenatedOperationType': extension of 'AbstractCoordinateOperationType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConcatenatedOperationType': extension of 'AbstractCoordinateOperationType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'concatenatedOperationRef': element 'concatenatedOperationRef' has no Schemata equivalent; the regenerated root element will be named 'concatenated_operation_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'PassThroughOperationType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'PassThroughOperationType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PassThroughOperationType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PassThroughOperationType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PassThroughOperationType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PassThroughOperationType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PassThroughOperationType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -845,7 +845,7 @@ SCH2405 element 'AbstractDQ_PositionalAccuracy': abstract dropped
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'PassThroughOperationType': extension of 'AbstractCoordinateOperationType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PassThroughOperationType': extension of 'AbstractCoordinateOperationType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'passThroughOperationRef': element 'passThroughOperationRef' has no Schemata equivalent; the regenerated root element will be named 'pass_through_operation_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -858,7 +858,7 @@ SCH2405 element 'AbstractDQ_PositionalAccuracy': abstract dropped
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'ConversionType': extension of 'AbstractGeneralConversionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConversionType': extension of 'AbstractGeneralConversionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'conversionRef': element 'conversionRef' has no Schemata equivalent; the regenerated root element will be named 'conversion_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -871,20 +871,20 @@ SCH2405 element 'AbstractDQ_PositionalAccuracy': abstract dropped
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TransformationType': extension of 'AbstractGeneralTransformationType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TransformationType': extension of 'AbstractGeneralTransformationType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'transformationRef': element 'transformationRef' has no Schemata equivalent; the regenerated root element will be named 'transformation_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'AbstractGeneralParameterValueType': abstract type 'AbstractGeneralParameterValueType' imported as union 'AbstractGeneralParameterValue' of 2 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'usesValue': element 'usesValue' has no Schemata equivalent; the regenerated root element will be named 'abstract_general_parameter_value_property'
-SCH2403 complex type 'ParameterValueType': extension of 'AbstractGeneralParameterValueType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ParameterValueType': extension of 'AbstractGeneralParameterValueType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ParameterValueType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 complex type 'ParameterValueGroupType': extension of 'AbstractGeneralParameterValueType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ParameterValueGroupType': extension of 'AbstractGeneralParameterValueType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'OperationMethodType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'OperationMethodType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationMethodType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationMethodType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'OperationMethodType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationMethodType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationMethodType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'OperationMethodType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -899,19 +899,19 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'OperationParameterType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'OperationParameterType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationParameterType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationParameterType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationParameterType': extension of 'AbstractGeneralOperationParameterType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'OperationParameterType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationParameterType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationParameterType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationParameterType': extension of 'AbstractGeneralOperationParameterType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'valueOfParameter': element 'valueOfParameter' has no Schemata equivalent; the regenerated root element will be named 'operation_parameter_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'OperationParameterGroupType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'OperationParameterGroupType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationParameterGroupType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationParameterGroupType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OperationParameterGroupType': extension of 'AbstractGeneralOperationParameterType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'OperationParameterGroupType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationParameterGroupType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationParameterGroupType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OperationParameterGroupType': extension of 'AbstractGeneralOperationParameterType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'valuesOfGroup': element 'valuesOfGroup' has no Schemata equivalent; the regenerated root element will be named 'operation_parameter_group_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -922,36 +922,36 @@ SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 complex type 'TimeTopologyComplexType': abstract dropped
 SCH2405 complex type 'TimeTopologyComplexType': abstract dropped
-SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractTimeComplexType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractTimeComplexType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TimeNodeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimeTopologyPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeNodeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimeTopologyPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TimeEdgeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimeTopologyPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeEdgeType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimeTopologyPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'DefinitionBaseType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
 SCH2403 complex type 'DefinitionType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'DefinitionType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DefinitionType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'DefinitionCollection': element 'DefinitionCollection' has no Schemata equivalent; the regenerated root element will be named 'dictionary'
 SCH2403 complex type 'DictionaryType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'DictionaryType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'DictionaryType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DictionaryType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DictionaryType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'DictionaryType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'definitionMember': element 'definitionMember' has no Schemata equivalent; the regenerated root element will be named 'dictionary_entry'
-SCH2403 complex type 'DictionaryEntryType': extension of 'AbstractMemberType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'DictionaryEntryType': extension of 'AbstractMemberType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -964,22 +964,22 @@ SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'RelatedTimeType': extension of 'TimePrimitivePropertyType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'RelatedTimeType': extension of 'TimePrimitivePropertyType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 complex type 'AbstractTimeComplexType': abstract dropped
-SCH2403 complex type 'AbstractTimeComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AbstractTimeComplexType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'AbstractTimeComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AbstractTimeComplexType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractTimeGeometricPrimitiveType': abstract type 'AbstractTimeGeometricPrimitiveType' imported as union 'AbstractTimeGeometricPrimitive' of 2 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'TimeInstantType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimeGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimeInstantType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimeGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'TimePeriodType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimePeriodType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimePeriodType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TimePeriodType': extension of 'AbstractTimeGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TimePeriodType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimePeriodType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimePeriodType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TimePeriodType': extension of 'AbstractTimeGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimePeriodType': inline choice has no Schemata equivalent; imported as union 'TimePeriodChoice' in field 'choice'
 SCH2403 complex type 'TimePeriodType': inline choice has no Schemata equivalent; imported as union 'TimePeriodChoice2' in field 'choice_2'
 SCH2403 complex type 'TimePeriodType': inline choice has no Schemata equivalent; members imported as optional fields
@@ -987,13 +987,13 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 element 'timePosition': element 'timePosition' has no Schemata equivalent; the regenerated root element will be named 'time_position'
-SCH2403 complex type 'TimePositionType': simpleContent extension of 'TimePositionUnion' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'TimePositionType': simpleContent extension of 'TimePositionUnion' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2404 complex type 'TimePositionType': xs:gYearMonth imported as string
 SCH2404 complex type 'TimePositionType': xs:gYear imported as string
 SCH2403 complex type 'TimePositionType': union simple type imported as string
 SCH2403 complex type 'TimePositionType': union simple type imported as string
 SCH2403 element 'timeInterval': element 'timeInterval' has no Schemata equivalent; the regenerated root element will be named 'time_interval_length'
-SCH2403 complex type 'TimeIntervalLengthType': simpleContent extension of 'decimal' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'TimeIntervalLengthType': simpleContent extension of 'decimal' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'TimeIntervalLengthType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'unit': union simple type imported as string
 SCH2403 complex type 'AbstractGeometryType': abstract type 'AbstractGeometryType' imported as union 'AbstractGeometry' of 24 concrete types; the regenerated XSD uses a choice
@@ -1003,19 +1003,19 @@ SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 element 'geometryMembers': element 'geometryMembers' has no Schemata equivalent; the regenerated root element will be named 'geometry_array_property'
 SCH2403 element 'pos': element 'pos' has no Schemata equivalent; the regenerated root element will be named 'direct_position'
-SCH2403 complex type 'DirectPositionType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'DirectPositionType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'posList': element 'posList' has no Schemata equivalent; the regenerated root element will be named 'direct_position_list'
-SCH2403 complex type 'DirectPositionListType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a record with a 'value' field
-SCH2403 complex type 'VectorType': simpleContent restriction of 'DirectPositionType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'DirectPositionListType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'VectorType': simpleContent restriction of 'DirectPositionType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'EnvelopeType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 complex type 'EnvelopeType': nested sequence imported as record 'LowerCornerGroup' in field 'lower_corner_group'
+SCH2403 complex type 'EnvelopeType': nested sequence imported as model 'LowerCornerGroup' in field 'lower_corner_group'
 SCH2403 complex type 'AbstractGeometricPrimitiveType': abstract type 'AbstractGeometricPrimitiveType' imported as union 'AbstractGeometricPrimitive' of 16 concrete types; the regenerated XSD uses a choice
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'PointType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PointType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PointType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PointType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PointType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PointType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'PointType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'pointRep': element 'pointRep' has no Schemata equivalent; the regenerated root element will be named 'point_property'
 SCH2405 attribute 'type': fixed value imported as a default
@@ -1028,27 +1028,27 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 element 'curveArrayProperty': element 'curveArrayProperty' has no Schemata equivalent; the regenerated root element will be named 'curve_array_property'
-SCH2403 complex type 'LineStringType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LineStringType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LineStringType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LineStringType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'LineStringType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LineStringType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LineStringType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LineStringType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'LineStringType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'LineStringType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 complex type 'CurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CurveType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableCurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableCurveType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableCurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CurveType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableCurveType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableCurveType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableCurveType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableCurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractCurveSegmentType': abstract type 'AbstractCurveSegmentType' imported as union 'AbstractCurveSegment' of 15 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'segments': element 'segments' has no Schemata equivalent; the regenerated root element will be named 'curve_segment_array_property'
-SCH2403 complex type 'LineStringSegmentType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'LineStringSegmentType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'LineStringSegmentType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'LineStringSegmentType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'ArcStringType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ArcStringType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ArcStringType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'ArcStringType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
@@ -1062,8 +1062,8 @@ SCH2403 complex type 'CircleType': inline choice has no Schemata equivalent; mem
 SCH2403 complex type 'CircleType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'numArc': fixed value imported as a default
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'CircleType': extension of 'ArcType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ArcStringByBulgeType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CircleType': extension of 'ArcType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ArcStringByBulgeType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ArcStringByBulgeType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'ArcStringByBulgeType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
@@ -1072,7 +1072,7 @@ SCH2403 complex type 'ArcByBulgeType': inline choice has no Schemata equivalent;
 SCH2403 complex type 'ArcByBulgeType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'numArc': fixed value imported as a default
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'ArcByCenterPointType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ArcByCenterPointType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ArcByCenterPointType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'ArcByCenterPointType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
@@ -1082,12 +1082,12 @@ SCH2403 complex type 'CircleByCenterPointType': inline choice has no Schemata eq
 SCH2403 complex type 'CircleByCenterPointType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
 SCH2405 attribute 'numArc': fixed value imported as a default
-SCH2403 complex type 'CubicSplineType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CubicSplineType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CubicSplineType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'CubicSplineType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
 SCH2405 attribute 'degree': fixed value imported as a default
-SCH2403 complex type 'BSplineType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'BSplineType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'BSplineType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'BSplineType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'BezierType': restriction of 'BSplineType' has no Schemata equivalent; its own content is used
@@ -1095,90 +1095,90 @@ SCH2403 complex type 'BezierType': inline choice has no Schemata equivalent; mem
 SCH2403 complex type 'BezierType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
 SCH2405 attribute 'isPolynomial': fixed value imported as a default
-SCH2403 complex type 'OffsetCurveType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ClothoidType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'OffsetCurveType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ClothoidType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'scaleFactor': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'GeodesicStringType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodesicStringType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeodesicStringType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'GeodesicStringType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'GeodesicType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodesicType': extension of 'AbstractCurveSegmentType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeodesicType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'GeodesicType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'GeodesicType': extension of 'GeodesicStringType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'GeodesicType': extension of 'GeodesicStringType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'OrientableSurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractSurfacePatchType': abstract type 'AbstractSurfacePatchType' imported as union 'AbstractSurfacePatch' of 6 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'polygonPatches': element 'polygonPatches' has no Schemata equivalent; the regenerated root element will be named 'surface_patch_array_property'
-SCH2403 complex type 'PolygonPatchType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PolygonPatchType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'TriangleType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TriangleType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'RectangleType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'RectangleType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'interpolation': fixed value imported as a default
-SCH2403 complex type 'RingType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'RingType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'RingType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'RingType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'RingType': extension of 'AbstractRingType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'RingType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'RingType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'RingType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'RingType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'RingType': extension of 'AbstractRingType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractParametricCurveSurfaceType': abstract type 'AbstractParametricCurveSurfaceType' imported as union 'AbstractParametricCurveSurface' of 3 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'AbstractGriddedSurfaceType': abstract type 'AbstractGriddedSurfaceType' imported as union 'AbstractGriddedSurface' of 3 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'ConeType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ConeType': extension of 'AbstractParametricCurveSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConeType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ConeType': extension of 'AbstractParametricCurveSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'Row': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'Row': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'ConeType': attribute 'rows' and element 'rows' both lower to field 'rows'; the attribute is imported as 'rows_attribute' and the regenerated attribute will be named so
-SCH2403 complex type 'ConeType': extension of 'AbstractGriddedSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'ConeType': extension of 'AbstractGriddedSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'horizontalCurveType': fixed value imported as a default
 SCH2405 attribute 'verticalCurveType': fixed value imported as a default
-SCH2403 complex type 'CylinderType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'CylinderType': extension of 'AbstractParametricCurveSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CylinderType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'CylinderType': extension of 'AbstractParametricCurveSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'Row': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'Row': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'CylinderType': attribute 'rows' and element 'rows' both lower to field 'rows'; the attribute is imported as 'rows_attribute' and the regenerated attribute will be named so
-SCH2403 complex type 'CylinderType': extension of 'AbstractGriddedSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'CylinderType': extension of 'AbstractGriddedSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'horizontalCurveType': fixed value imported as a default
 SCH2405 attribute 'verticalCurveType': fixed value imported as a default
-SCH2403 complex type 'SphereType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SphereType': extension of 'AbstractParametricCurveSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'SphereType': extension of 'AbstractSurfacePatchType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SphereType': extension of 'AbstractParametricCurveSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'Row': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'Row': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'SphereType': attribute 'rows' and element 'rows' both lower to field 'rows'; the attribute is imported as 'rows_attribute' and the regenerated attribute will be named so
-SCH2403 complex type 'SphereType': extension of 'AbstractGriddedSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'SphereType': extension of 'AbstractGriddedSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 attribute 'horizontalCurveType': fixed value imported as a default
 SCH2405 attribute 'verticalCurveType': fixed value imported as a default
-SCH2403 complex type 'TinType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TinType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TinType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TinType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'TinType': extension of 'SurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'TinType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TinType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TinType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TinType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'TinType': extension of 'SurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 union 'ControlPoint': member element 'posList' has no Schemata equivalent; the regenerated element will be named 'direct_position_list'
 SCH2403 union 'ControlPoint': member element 'pos' has no Schemata equivalent; the regenerated element will be named 'direct_position'
 SCH2403 union 'ControlPoint': member element 'pointProperty' has no Schemata equivalent; the regenerated element will be named 'point_property'
-SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'solidMember': element 'solidMember' has no Schemata equivalent; the regenerated root element will be named 'solid_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 element 'solidArrayProperty': element 'solidArrayProperty' has no Schemata equivalent; the regenerated root element will be named 'solid_array_property'
-SCH2403 complex type 'SolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'SolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ShellType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ShellType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ShellType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'ShellType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'SolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'SolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ShellType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ShellType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ShellType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'ShellType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'IdentifiedObjectType': abstract type 'IdentifiedObjectType' imported as union 'IdentifiedObject' of 37 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'AbstractCRSType': abstract type 'AbstractCRSType' imported as union 'AbstractCRS' of 10 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'referenceSystemRef': element 'referenceSystemRef' has no Schemata equivalent; the regenerated root element will be named 'crs_property'
@@ -1205,37 +1205,37 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 element 'surfaceArrayProperty': element 'surfaceArrayProperty' has no Schemata equivalent; the regenerated root element will be named 'surface_array_property'
-SCH2403 complex type 'PolygonType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PolygonType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PolygonType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'PolygonType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'PolygonType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PolygonType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PolygonType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'PolygonType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractRingType': abstract type 'AbstractRingType' imported as union 'AbstractRing' of 2 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'exterior': element 'exterior' has no Schemata equivalent; the regenerated root element will be named 'abstract_ring_property'
-SCH2403 complex type 'LinearRingType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearRingType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearRingType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearRingType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the record
-SCH2403 complex type 'LinearRingType': extension of 'AbstractRingType' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'LinearRingType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearRingType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearRingType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearRingType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'LinearRingType': extension of 'AbstractRingType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'LinearRingType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'LinearRingType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'anchorPoint': element 'anchorPoint' has no Schemata equivalent; the regenerated root element will be named 'code'
-SCH2403 complex type 'CodeType': simpleContent extension of 'string' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'CodeType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'derivedCRSType': element 'derivedCRSType' has no Schemata equivalent; the regenerated root element will be named 'code_with_authority'
-SCH2403 complex type 'CodeWithAuthorityType': simpleContent restriction of 'CodeType' has no Schemata equivalent; imported as a record with a 'value' field
-SCH2403 complex type 'MeasureType': simpleContent extension of 'double' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'CodeWithAuthorityType': simpleContent restriction of 'CodeType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'MeasureType': simpleContent extension of 'double' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 element 'tupleList': element 'tupleList' has no Schemata equivalent; the regenerated root element will be named 'coordinates'
-SCH2403 complex type 'CoordinatesType': simpleContent extension of 'string' has no Schemata equivalent; imported as a record with a 'value' field
-SCH2403 complex type 'CodeListType': simpleContent extension of 'NameList' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'CoordinatesType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'CodeListType': simpleContent extension of 'NameList' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'CategoryList': element 'CategoryList' has no Schemata equivalent; the regenerated root element will be named 'code_or_nil_reason_list'
-SCH2403 complex type 'CodeOrNilReasonListType': simpleContent extension of 'NameOrNilReasonList' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'CodeOrNilReasonListType': simpleContent extension of 'NameOrNilReasonList' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'CodeOrNilReasonListType': union simple type imported as string
 SCH2403 complex type 'CodeOrNilReasonListType': union simple type imported as string
 SCH2403 element 'valueList': element 'valueList' has no Schemata equivalent; the regenerated root element will be named 'measure_list'
-SCH2403 complex type 'MeasureListType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'MeasureListType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 element 'QuantityList': element 'QuantityList' has no Schemata equivalent; the regenerated root element will be named 'measure_or_nil_reason_list'
-SCH2403 complex type 'MeasureOrNilReasonListType': simpleContent extension of 'doubleOrNilReasonList' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 complex type 'MeasureOrNilReasonListType': simpleContent extension of 'doubleOrNilReasonList' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'MeasureOrNilReasonListType': union simple type imported as string
 SCH2403 complex type 'MeasureOrNilReasonListType': union simple type imported as string
 SCH2403 attribute 'uom': union simple type imported as string
@@ -1348,21 +1348,21 @@ SCH2405 element 'roughConversionToPreferredUnit': second root element for 'Conve
 SCH2405 element 'locationName': second root element for 'CodeType' dropped
 SCH2405 element 'locationReference': second root element for 'ReferenceType' dropped
 SCH2403 element 'Boolean': the regenerated root element will be named 'boolean'
-SCH2403 element 'Boolean': simpleContent extension of 'boolean' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 element 'Boolean': simpleContent extension of 'boolean' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 element 'BooleanList': root element of simple type dropped
 SCH2403 element 'Category': the regenerated root element will be named 'category'
-SCH2403 element 'Category': simpleContent extension of 'CodeType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 element 'Category': simpleContent extension of 'CodeType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 element 'Count': the regenerated root element will be named 'count'
-SCH2403 element 'Count': simpleContent extension of 'integer' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 element 'Count': simpleContent extension of 'integer' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2405 element 'CountList': root element of simple type dropped
 SCH2403 element 'Quantity': the regenerated root element will be named 'quantity'
-SCH2403 element 'Quantity': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a record with a 'value' field
+SCH2403 element 'Quantity': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'uom': union simple type imported as string
@@ -1391,7 +1391,7 @@ SCH2403 element 'secondDefiningParameter': the regenerated root element will be 
 SCH2403 union 'SecondDefiningParameter': member element 'inverseFlattening' has no Schemata equivalent; the regenerated element will be named 'measure'
 SCH2403 union 'SecondDefiningParameter': member element 'semiMinorAxis' has no Schemata equivalent; the regenerated element will be named 'length'
 SCH2403 union 'SecondDefiningParameter': member element 'isSphere' has no Schemata equivalent; the regenerated element will be named 'bool'
-SCH2403 element 'SecondDefiningParameter': element 'secondDefiningParameter' already lowers to record 'SecondDefiningParameter'; imported as 'SecondDefiningParameter2'
+SCH2403 element 'SecondDefiningParameter': element 'secondDefiningParameter' already lowers to model 'SecondDefiningParameter'; imported as 'SecondDefiningParameter2'
 SCH2403 union 'SecondDefiningParameter2': member element 'inverseFlattening' has no Schemata equivalent; the regenerated element will be named 'measure'
 SCH2403 union 'SecondDefiningParameter2': member element 'semiMinorAxis' has no Schemata equivalent; the regenerated element will be named 'length'
 SCH2403 union 'SecondDefiningParameter2': member element 'isSphere' has no Schemata equivalent; the regenerated element will be named 'bool'
@@ -1618,16 +1618,16 @@ SCH2403 element 'EX_Extent': element 'EX_Extent' has no Schemata equivalent; the
 SCH2403 element 'CI_Citation': element 'CI_Citation' has no Schemata equivalent; the regenerated root element will be named 'CI_Citation_'
 SCH2403 element 'AbstractDQ_PositionalAccuracy': element 'AbstractDQ_PositionalAccuracy' has no Schemata equivalent; the regenerated root element will be named 'AbstractDQ_PositionalAccuracy_'
 SCH2405 complex type 'AbstractDQ_PositionalAccuracy_Type': abstract dropped
-SCH2403 complex type 'animateType': extension of 'animatePrototype' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'animateType': extension of 'animatePrototype' has no Schemata equivalent; base fields flattened into the model
 SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 complex type 'animateMotionType': extension of 'animateMotionPrototype' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'animateMotionType': extension of 'animateMotionPrototype' has no Schemata equivalent; base fields flattened into the model
 SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 complex type 'animateColorType': extension of 'animateColorPrototype' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'animateColorType': extension of 'animateColorPrototype' has no Schemata equivalent; base fields flattened into the model
 SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 complex type 'setType': extension of 'setPrototype' has no Schemata equivalent; base fields flattened into the record
+SCH2403 complex type 'setType': extension of 'setPrototype' has no Schemata equivalent; base fields flattened into the model
 SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'animate': substitution group 'animate' imported as its one member type 'Animate'

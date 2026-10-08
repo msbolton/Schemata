@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH1039]: 'A' is a model; only builtin types and collections take refinements
+ --> s.schemata:5:18
+  = help: remove the parentheses
+
+1 error, 0 warnings

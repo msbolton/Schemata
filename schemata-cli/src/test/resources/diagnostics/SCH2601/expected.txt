@@ -1,6 +1,6 @@
 # targets=openapi
 error[SCH2601] (openapi): operation 'find': union 'U' cannot be query parameters; use a body verb
- --> s.schemata:6:16
-  = help: request a record, or use post, put, or patch
+  --> s.schemata:12:6
+   = help: request a model, or use post, put, or patch
 
 1 error, 0 warnings

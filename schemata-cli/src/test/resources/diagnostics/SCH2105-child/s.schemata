@@ -1,3 +1,5 @@
-namespace s
-record Item { #1 name: string }
-record R { @sql(key) #1 id: int32  @sql(strategy = table) #2 items: list<Item>(max = 5) }
+schema s
+
+model Item { #1 name string }
+
+model R { #1 id int32 { id }  #2 items Item[] { maxItems 5 } @sql(strategy: table) }

@@ -1,6 +1,6 @@
 package io.schemata.importer
 
-import io.schemata.lang.Names
+import io.schemata.lang.Names as LangNames
 import io.schemata.target.Names as TargetNames
 
 /**
@@ -14,10 +14,10 @@ object ImportNames {
     private val nonAlnumRun = Regex("[^A-Za-z0-9]+")
     private val camelBoundary = Regex("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
-    // Every Schemata keyword lexes as its own token, never as an identifier, so a name spelled like
-    // one would not parse where a declared name is expected; `null` is not a keyword, but the
-    // language reserves it as a field, enum value, and namespace segment name all the same.
-    private val keywords: Set<String> = Names.keywords + "null"
+    // Every keyword lexes as its own token, never as an identifier, so a name spelled like one
+    // would not parse where a declared name is expected; `null` is not a keyword, but the language
+    // reserves it as a field, enum value, and namespace segment name all the same.
+    private val keywords: Set<String> = LangNames.keywords + "null"
 
     fun isLowerSnake(s: String): Boolean = lowerSnakePattern.matches(s) && s !in keywords
 

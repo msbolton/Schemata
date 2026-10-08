@@ -51,9 +51,9 @@ import org.junit.jupiter.api.io.TempDir
 class ServerSessionTest {
     @TempDir lateinit var dir: Path
 
-    private val customers = "namespace shop.customers\n\nrecord Customer { #1 id: uuid }\n"
+    private val customers = "schema shop.customers\n\nmodel Customer { #1 id uuid }\n"
     private val orders =
-        "namespace shop.orders\n\nimport shop.customers\n\nrecord Order { #1 who: Customer }\n"
+        "schema shop.orders\n\nimport shop.customers\n\nmodel Order { #1 who Customer }\n"
 
     private fun write(relative: String, text: String): Path {
         val path = dir.resolve(relative)
@@ -98,7 +98,7 @@ class ServerSessionTest {
 
     @Test
     fun `an error is published with its code, severity, source, and help`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x Missing }\n")
         session().use { session ->
             session.open(a, a.toFile().readText())
             val only = session.diagnostics(a) { it.isNotEmpty() }.single()
@@ -106,17 +106,17 @@ class ServerSessionTest {
             assertEquals(DiagnosticSeverity.Error, only.severity)
             assertEquals("schemata", only.source)
             assertTrue(only.message.startsWith("unknown type 'Missing'\n\nhelp: "), only.message)
-            assertEquals(Range(Position(2, 17), Position(2, 24)), only.range)
+            assertEquals(Range(Position(2, 15), Position(2, 22)), only.range)
         }
     }
 
     @Test
     fun `diagnostics clear when the text is fixed`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x Missing }\n")
         session().use { session ->
             session.open(a, a.toFile().readText())
             session.diagnostics(a) { it.isNotEmpty() }
-            session.change(a, "namespace m\n\nrecord R { #1 x: int32 }\n")
+            session.change(a, "schema m\n\nmodel R { #1 x int32 }\n")
             session.diagnostics(a) { it.isEmpty() }
         }
     }
@@ -129,7 +129,7 @@ class ServerSessionTest {
             session.open(c, customers)
             session.open(o, orders)
             session.diagnostics(o) { it.isEmpty() }
-            session.change(c, "namespace shop.customers\n\nrecord Customer {")
+            session.change(c, "schema shop.customers\n\nmodel Customer {")
             session.diagnostics(c) { it.isNotEmpty() }
             session.settle(o)
             assertEquals(emptyList(), session.latest(o))
@@ -144,8 +144,8 @@ class ServerSessionTest {
             session.open(o, orders)
             session.change(
                 o,
-                "namespace shop.orders\n\nimport shop.customers\n\n" +
-                    "record Order { #1 who: Customer }\n\nrecord Extra { #1 again: Customer }\n",
+                "schema shop.orders\n\nimport shop.customers\n\n" +
+                    "model Order { #1 who Customer }\n\nmodel Extra { #1 again Customer }\n",
             )
             val found =
                 wait(
@@ -155,7 +155,7 @@ class ServerSessionTest {
                 )
             val location = found.left.single()
             assertEquals(session.uri(c), location.uri)
-            assertEquals(Range(Position(2, 7), Position(2, 15)), location.range)
+            assertEquals(Range(Position(2, 6), Position(2, 14)), location.range)
         }
     }
 
@@ -177,7 +177,7 @@ class ServerSessionTest {
             val hover = wait(service.hover(HoverParams(id(session, o), Position(4, 24))))
             assertEquals("markdown", hover.contents.right.kind)
             assertEquals(
-                "```schemata\nrecord shop.customers.Customer\n```",
+                "```schemata\nmodel shop.customers.Customer\n```",
                 hover.contents.right.value,
             )
             assertNull(wait(service.hover(HoverParams(id(session, o), Position(4, 1)))))
@@ -192,7 +192,7 @@ class ServerSessionTest {
 
     @Test
     fun `a service is an interface whose operations are methods with their payloads as detail`() {
-        val text = "namespace m\n\nrecord A { #1 x: int32 }\n\nservice S { #1 get(A): A }\n"
+        val text = "schema m\n\nmodel A { #1 x int32 }\n\nservice S { #1 get(A): A }\n"
         val a = write("m/a.schemata", text)
         session().use { session ->
             session.open(a, text)
@@ -225,16 +225,16 @@ class ServerSessionTest {
             assertEquals("Client", edit.changes.getValue(session.uri(c)).single().newText)
             val failure =
                 assertFailsWith<ExecutionException> {
-                    wait(service.rename(RenameParams(id(session, o), Position(4, 24), "record")))
+                    wait(service.rename(RenameParams(id(session, o), Position(4, 24), "model")))
                 }
             val cause = failure.cause as ResponseErrorException
-            assertEquals("'record' is a keyword", cause.responseError.message)
+            assertEquals("'model' is a keyword", cause.responseError.message)
         }
     }
 
     @Test
     fun `formatting returns one whole-document edit and nothing when already formatted`() {
-        val messy = "namespace m\nrecord   R {   #1 x:int32 }\n"
+        val messy = "schema m\nmodel   R {   #1 x  int32 }\n"
         val a = write("m/a.schemata", messy)
         val formatted = (Formatter.format(messy, "a.schemata") as FormatResult.Formatted).text
         session().use { session ->
@@ -246,7 +246,7 @@ class ServerSessionTest {
             assertEquals(Range(Position(0, 0), Position(2, 0)), edit.range)
             session.change(a, formatted)
             assertEquals(emptyList(), wait(service.formatting(params)))
-            session.change(a, "namespace m\nrecord R {")
+            session.change(a, "schema m\nmodel R {")
             assertEquals(emptyList(), wait(service.formatting(params)))
             session.change(a, formatted.replace("\n", "\r\n"))
             assertEquals(emptyList(), wait(service.formatting(params)))
@@ -255,9 +255,9 @@ class ServerSessionTest {
 
     @Test
     fun `a document that is not a file is ignored and the server keeps answering`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x int32 }\n")
         session().use { session ->
-            session.openUri("untitled:Untitled-1", "namespace u\nrecord U { #1 x: Missing }\n")
+            session.openUri("untitled:Untitled-1", "schema u\nmodel U { #1 x Missing }\n")
             session.open(a, a.toFile().readText())
             session.diagnostics(a) { it.isEmpty() }
             assertEquals(0, session.publishCountUri("untitled:Untitled-1"))
@@ -274,7 +274,7 @@ class ServerSessionTest {
 
     @Test
     fun `a path with a space publishes under the uri the editor sent`() {
-        val a = write("my shop/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
+        val a = write("my shop/a.schemata", "schema m\n\nmodel R { #1 x Missing }\n")
         session().use { session ->
             session.open(a, a.toFile().readText())
             assertEquals(1, session.diagnostics(a) { it.isNotEmpty() }.size)
@@ -283,12 +283,8 @@ class ServerSessionTest {
 
     @Test
     fun `a file deleted on disk has its diagnostics cleared`() {
-        val c =
-            write(
-                "shop/customers.schemata",
-                "namespace shop.customers\n\nrecord C { #1 x: Nope }\n",
-            )
-        val o = write("shop/orders.schemata", "namespace shop.orders\n\nrecord O { #1 x: int32 }\n")
+        val c = write("shop/customers.schemata", "schema shop.customers\n\nmodel C { #1 x Nope }\n")
+        val o = write("shop/orders.schemata", "schema shop.orders\n\nmodel O { #1 x int32 }\n")
         session().use { session ->
             session.open(o, o.toFile().readText())
             session.diagnostics(c) { it.isNotEmpty() }
@@ -312,7 +308,7 @@ class ServerSessionTest {
     @Test
     fun `the server registers a watcher for schema files`() {
         session().use { session ->
-            val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+            val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x int32 }\n")
             session.open(a, a.toFile().readText())
             session.settle(a)
             assertEquals(listOf("workspace/didChangeWatchedFiles"), session.registrations())
@@ -321,23 +317,23 @@ class ServerSessionTest {
 
     @Test
     fun `an edit that leaves the diagnostics as they were publishes nothing`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x Missing }\n")
         session().use { session ->
             session.open(a, a.toFile().readText())
             session.diagnostics(a) { it.isNotEmpty() }
             val before = session.publishCount(a)
-            session.change(a, "namespace m\n\nrecord R { #1 x: Missing }\n\n")
+            session.change(a, "schema m\n\nmodel R { #1 x Missing }\n\n")
             session.settle(a)
             assertEquals(before, session.publishCount(a))
-            session.change(a, "namespace m\n\nrecord R { #1 x: int32 }\n")
+            session.change(a, "schema m\n\nmodel R { #1 x int32 }\n")
             session.diagnostics(a) { it.isEmpty() }
         }
     }
 
     @Test
     fun `a file closed and then deleted has its diagnostics cleared`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: Missing }\n")
-        val b = write("m/b.schemata", "namespace m\n\nrecord S { #1 x: int32 }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x Missing }\n")
+        val b = write("m/b.schemata", "schema m\n\nmodel S { #1 x int32 }\n")
         session().use { session ->
             session.open(b, b.toFile().readText())
             session.open(a, a.toFile().readText())
@@ -350,8 +346,8 @@ class ServerSessionTest {
 
     @Test
     fun `a closed file that leaves its set when the roots change has its diagnostics cleared`() {
-        val c = write("model/customers/c.schemata", "namespace c\n\nrecord C { #1 x: Nope }\n")
-        val o = write("model/orders/o.schemata", "namespace o\n\nrecord O { #1 x: int32 }\n")
+        val c = write("model/customers/c.schemata", "schema c\n\nmodel C { #1 x Nope }\n")
+        val o = write("model/orders/o.schemata", "schema o\n\nmodel O { #1 x int32 }\n")
         session(mapOf("roots" to listOf("model"))).use { session ->
             session.open(o, o.toFile().readText())
             session.diagnostics(c) { it.isNotEmpty() }
@@ -371,21 +367,21 @@ class ServerSessionTest {
 
     @Test
     fun `settings with no schemata section and a section with no strict keep strict on`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { x: int32 }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { x int32 }\n")
         session(mapOf("strict" to true)).use { session ->
             session.open(a, a.toFile().readText())
             session.diagnostics(a) { it.isNotEmpty() }
             configure(session, JsonObject())
             configure(session, JsonObject().apply { add("schemata", roots()) })
-            session.change(a, "namespace m\n\nrecord R { y: int32 }\n")
+            session.change(a, "schema m\n\nmodel R { y int32 }\n")
             session.diagnostics(a) { it.isNotEmpty() && "'y'" in it.single().message }
         }
     }
 
     @Test
     fun `roots resolve against the root uri when the client sends no folders`() {
-        val c = write("model/customers/c.schemata", "namespace c\n\nrecord C { #1 x: Nope }\n")
-        val o = write("model/orders/o.schemata", "namespace o\n\nrecord O { #1 x: int32 }\n")
+        val c = write("model/customers/c.schemata", "schema c\n\nmodel C { #1 x Nope }\n")
+        val o = write("model/orders/o.schemata", "schema o\n\nmodel O { #1 x int32 }\n")
         bare().use { session ->
             initializeWithout(session, rootUri = session.uri(dir))
             session.open(o, o.toFile().readText())
@@ -395,8 +391,8 @@ class ServerSessionTest {
 
     @Test
     fun `relative roots are ignored when there is no folder at all`() {
-        val c = write("model/customers/c.schemata", "namespace c\n\nrecord C { #1 x: Nope }\n")
-        val o = write("model/orders/o.schemata", "namespace o\n\nrecord O { #1 x: int32 }\n")
+        val c = write("model/customers/c.schemata", "schema c\n\nmodel C { #1 x Nope }\n")
+        val o = write("model/orders/o.schemata", "schema o\n\nmodel O { #1 x int32 }\n")
         bare().use { session ->
             initializeWithout(session, rootUri = null)
             session.open(o, o.toFile().readText())
@@ -425,7 +421,7 @@ class ServerSessionTest {
 
     @Test
     fun `shutdown answers null and a request after it is invalid`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x int32 }\n")
         val session = bare()
         session.initialize(dir)
         session.open(a, a.toFile().readText())
@@ -451,13 +447,13 @@ class ServerSessionTest {
         val depth = 20_000
         write(
             "m/deep.schemata",
-            "namespace m\n\nrecord D { #1 x: " +
+            "schema m\n\nmodel D { #1 x: " +
                 "list<".repeat(depth) +
                 "int32" +
                 ">".repeat(depth) +
                 " }\n",
         )
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { #1 x: int32 }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x int32 }\n")
         session().use { session ->
             session.open(a, a.toFile().readText())
             // The failure surfaces in whichever analysis runs first: this request's, or the one
@@ -483,7 +479,7 @@ class ServerSessionTest {
 
     @Test
     fun `a reopened file is published again even when nothing changed`() {
-        val text = "namespace m\n\nrecord R { #1 x: Missing }\n"
+        val text = "schema m\n\nmodel R { #1 x Missing }\n"
         val a = write("m/a.schemata", text)
         session().use { session ->
             session.open(a, text)
@@ -537,7 +533,7 @@ class ServerSessionTest {
 
     @Test
     fun `strict from the initialization options reports implicit ordinals`() {
-        val a = write("m/a.schemata", "namespace m\n\nrecord R { x: int32 }\n")
+        val a = write("m/a.schemata", "schema m\n\nmodel R { x int32 }\n")
         session(mapOf("strict" to true)).use { session ->
             session.open(a, a.toFile().readText())
             session.diagnostics(a) { it.isNotEmpty() }
