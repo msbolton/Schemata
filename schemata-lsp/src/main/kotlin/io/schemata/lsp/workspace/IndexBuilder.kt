@@ -93,8 +93,8 @@ class IndexBuilder private constructor(recorded: Recorded) {
                         backReference(field)
                         val inline = field.type.inlineShape ?: field.type.inlineEnum
                         // An inline type is the nested declaration that has its opening `{` or
-                        // `enum`
-                        // for a name span; a declared one that merely shares the name does not.
+                        // `enum` for a name span; a declared one that merely shares the name does
+                        // not.
                         if (inline != null && decl.nested.any { it.nameSpan == inline.nameSpan }) {
                             hoistedNames +=
                                 QualifiedName(namespace, parent + decl.name + inline.name)
@@ -160,8 +160,8 @@ class IndexBuilder private constructor(recorded: Recorded) {
 
     /**
      * Field names a record's attributes list: `@@id(a, b)`, `@@unique(a, b)`, and `@@index(a, b)`
-     * name them bare, and a tuple such as `@@sql(unique: (a, b))` in parentheses; each name that is
-     * one of the record's fields refers to it.
+     * name them bare, and an attribute value written as a parenthesised tuple, `key: (a, b)`, names
+     * them in parentheses; each name that is one of the record's fields refers to it.
      */
     private fun tupleNames(record: RecordDecl, owner: QualifiedName) {
         val fields = record.fields.map { it.name }.toSet()

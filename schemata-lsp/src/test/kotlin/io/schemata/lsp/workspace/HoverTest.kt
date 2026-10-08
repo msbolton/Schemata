@@ -91,7 +91,7 @@ class HoverTest {
         val f = Fixture(dir)
         val a = f.open("shop/a.schemata", text)
         assertEquals(
-            block("string") + "\n\nUnicode text; refinements: min, max (length), pattern",
+            block("string") + "\n\nUnicode text; options: min, max (length), match",
             f.queries.hover(a, f.at(a, "string?"))!!.markdown,
         )
     }
