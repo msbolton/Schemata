@@ -32,7 +32,7 @@ object JsonSchemaCodes {
             "SCH2304",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two namespaces lower to the same \$id",
+            "two schemas lower to the same \$id",
         )
 
     val all: List<DiagnosticCode> = listOf(LOSSY, NAME_COLLISION, INVALID_OVERRIDE, ID_COLLISION)

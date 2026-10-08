@@ -48,7 +48,7 @@ object XsdLowering {
                 diagnostics +=
                     Diagnostic(
                         XsdCodes.INVALID_OVERRIDE,
-                        "namespace '${ns.name}': @xsd(namespace = \"$override\") is not an absolute URI",
+                        "schema '${ns.name}': @xsd(namespace: \"$override\") is not an absolute URI",
                         ns.span,
                         help = "use an absolute URI, such as `urn:example:orders`",
                     )
@@ -62,9 +62,9 @@ object XsdLowering {
                 diagnostics +=
                     Diagnostic(
                         XsdCodes.NAMESPACE_COLLISION,
-                        "namespaces ${group.joinToString(" and ") { it.name }} both lower to target namespace '${uris.getValue(group.first().name)}'",
+                        "schemas ${group.joinToString(" and ") { it.name }} both lower to target namespace '${uris.getValue(group.first().name)}'",
                         group[1].span,
-                        help = "set `@xsd(namespace = \"…\")` on one of them",
+                        help = "set `@xsd(namespace: \"…\")` on one of them",
                     )
             }
         val names = SchemaNames(schema, diagnostics)
@@ -91,7 +91,7 @@ object XsdLowering {
 
         /**
          * The type name of the declaration at [qn]: each enclosing declaration's segment is its
-         * override when it has a valid one, so `@xsd(name = "Purchase") record Order` nesting
+         * override when it has a valid one, so `@xsd(name: "Purchase") record Order` nesting
          * `record Line` gives `PurchaseType` and `PurchaseLineType`.
          */
         fun xsdTypeName(qn: QualifiedName): String =
@@ -129,7 +129,7 @@ object XsdLowering {
         private val claims =
             NameClaims(
                 XsdCodes.NAME_COLLISION,
-                "rename one of them, or set `@xsd(name = \"…\")` on one",
+                "rename one of them, or set `@xsd(name: \"…\")` on one",
                 diagnostics,
             )
 
@@ -253,7 +253,7 @@ object XsdLowering {
                         diagnostics +=
                             Diagnostic(
                                 XsdCodes.ATTRIBUTE_NOT_ALLOWED,
-                                "record '${record.name}': @xsd(all) is on a record with a " +
+                                "model '${record.name}': @xsd(all) is on a model with a " +
                                     "$misfit field '${f.name}'",
                                 f.span,
                                 help =
@@ -304,7 +304,7 @@ object XsdLowering {
             diagnostics +=
                 Diagnostic(
                     XsdCodes.ATTRIBUTE_NOT_ALLOWED,
-                    "${fieldWhere(record, field)}: a record takes one @xsd($key) field; " +
+                    "${fieldWhere(record, field)}: a model takes one @xsd($key) field; " +
                         "'${first.name}' already has it",
                     field.span,
                     help = "remove @xsd($key) from one of them",
@@ -485,7 +485,7 @@ object XsdLowering {
                 is Ref ->
                     when (schema.lookup(type.target)) {
                         is EnumType -> null
-                        is RecordType -> "record"
+                        is RecordType -> "model"
                         is UnionType -> "union"
                     }
                 is ListOf -> "list"
@@ -559,7 +559,7 @@ object XsdLowering {
             val name = names.overrides.nameOverride(record) ?: XsdNames.elementName(record.name)
             claims.claim(
                 key = "element:$name",
-                holder = "record '${record.name}'",
+                holder = "model '${record.name}'",
                 span = record.nameSpan,
                 display = name,
                 kind = "element",
@@ -608,7 +608,7 @@ object XsdLowering {
                                     "an optional repeated element",
                                 field.span,
                                 help =
-                                    "declare the list as `list<T>`; an absent list already means empty",
+                                    "declare the list as `T[]`; an absent list already means empty",
                             )
                     }
                     val element = listElement(name, t, uniqueBase(record, name), where, field.span)
@@ -812,7 +812,7 @@ object XsdLowering {
                                     "${fieldWhere(clash.first, clash.second)} " +
                                     "(${clash.second.nameSpan.file}:${clash.second.nameSpan.startLine})",
                                 span,
-                                help = "rename one of them, or set `@xsd(name = \"…\")` on one",
+                                help = "rename one of them, or set `@xsd(name: \"…\")` on one",
                             )
                         ref
                     }

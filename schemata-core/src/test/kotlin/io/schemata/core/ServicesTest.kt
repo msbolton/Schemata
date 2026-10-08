@@ -142,11 +142,11 @@ class ServicesTest {
             )
         assertEquals(
             listOf(
-                "SCH1047 operation 'a': request 'uuid' is not a record or a union",
-                "SCH1047 operation 'b': request 'Status' is not a record or a union",
-                "SCH1047 operation 'c': request 'list<Order>' is not a record or a union",
-                "SCH1047 operation 'd': request 'Id' is not a record or a union",
-                "SCH1047 operation 'e': response 'Order?' is not a record or a union",
+                "SCH1047 operation 'a': request 'uuid' is not a model or a union",
+                "SCH1047 operation 'b': request 'Status' is not a model or a union",
+                "SCH1047 operation 'c': request 'list<Order>' is not a model or a union",
+                "SCH1047 operation 'd': request 'Id' is not a model or a union",
+                "SCH1047 operation 'e': response 'Order?' is not a model or a union",
             ),
             messages(r),
         )
@@ -190,8 +190,8 @@ class ServicesTest {
                 "SCH1048 operation 'b': path parameter 'status' is nullable",
                 "SCH1048 operation 'c': path parameter 'inner' is not a scalar or enum field",
                 "SCH1048 operation 'd': path parameter 'maybe' is nullable",
-                "SCH1048 operation 'e': path parameter 'id' needs a request record",
-                "SCH1048 operation 'f': path parameter 'id' needs a request record, not union 'Either'",
+                "SCH1048 operation 'e': path parameter 'id' needs a request model",
+                "SCH1048 operation 'f': path parameter 'id' needs a request model, not union 'Either'",
                 "SCH1048 operation 'g': path parameter 'id' appears twice",
                 "SCH1048 operation 'h': a streamed request cannot use get",
                 "SCH1048 operation 'i': a streamed request cannot bind path parameters",
@@ -274,7 +274,7 @@ class ServicesTest {
                 "SCH1002 service name 'orders' must be UpperCamel",
                 "SCH1003 operation name 'Get' must be lower_snake",
                 "SCH1005 operation 'get' is declared more than once in service 'orders'",
-                "SCH1004 service 'Order' and record 'Order' are both declared in t.schemata",
+                "SCH1004 service 'Order' and model 'Order' are both declared in t.schemata",
             ),
             messages(r).toSet(),
         )
@@ -299,7 +299,7 @@ class ServicesTest {
             analyze("schema shop\nmodel Order { #1 id uuid }", "schema shop\n\nservice Order { }")
         assertEquals(
             listOf(
-                "SCH1004 service 'Order' and record 'Order' are both declared in t1.schemata:3 and t0.schemata:2"
+                "SCH1004 service 'Order' and model 'Order' are both declared in t1.schemata:3 and t0.schemata:2"
             ),
             messages(r),
         )

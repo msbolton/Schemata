@@ -1,6 +1,6 @@
 # targets=sql
 warning[SCH2105] (lossy) (sql): field 'R.attrs': map contents are not typed by Postgres; lowered to jsonb
  --> s.schemata:3:31
-  = help: use `@sql(strategy = table)` to lower the entries to a child table
+  = help: use `@sql(strategy: table)` to lower the entries to a child table
 
 0 errors, 1 warning

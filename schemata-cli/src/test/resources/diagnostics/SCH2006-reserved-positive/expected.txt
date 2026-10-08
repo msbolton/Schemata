@@ -1,5 +1,5 @@
 # targets=proto
-error[SCH2006] (proto): record 'R': reserved number 0 must be positive
+error[SCH2006] (proto): model 'R': reserved number 0 must be positive
  --> s.schemata:3:7
   = help: reserve ordinals from #1 upward
 

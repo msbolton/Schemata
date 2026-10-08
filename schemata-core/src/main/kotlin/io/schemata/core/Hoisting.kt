@@ -96,7 +96,7 @@ object Hoisting {
         report(
             Diagnostic(
                 CoreCodes.HOISTED_NAME_COLLISION,
-                "the inline $kind of field '${field.name}' is named '$name', which record '${owner.name}' already declares",
+                "the inline $kind of field '${field.name}' is named '$name', which model '${owner.name}' already declares",
                 field.nameSpan,
                 help = "name it with @name(\"…\")",
             )

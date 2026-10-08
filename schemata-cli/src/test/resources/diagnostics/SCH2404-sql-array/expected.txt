@@ -1,5 +1,5 @@
 # import=sql
-warning[SCH2404] (lossy): column 'Orders.counts': smallint[] imported as list<int32>
+warning[SCH2404] (lossy): column 'Orders.counts': smallint[] imported as int32[]
  --> s.sql:3:3
   = help: narrow the type by hand if the data needs it
 

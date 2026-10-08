@@ -1,5 +1,5 @@
 error[SCH1018]: @sql(column) expects a string
  --> s.schemata:3:26
-  = help: write `@sql(column = "…")`
+  = help: write `@sql(column: "…")`
 
 1 error, 0 warnings

@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH2114] (sql): record 'R': @sql(table = "") is empty
+error[SCH2114] (sql): model 'R': @sql(table: "") is empty
  --> s.schemata:3:7
   = help: give the name at least one character
 

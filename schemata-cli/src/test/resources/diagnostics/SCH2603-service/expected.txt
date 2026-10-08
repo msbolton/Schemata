@@ -1,5 +1,5 @@
 # targets=openapi
-error[SCH2603] (openapi): service 'S': @openapi(name = "a b") is not a valid tag
+error[SCH2603] (openapi): service 'S': @openapi(name: "a b") is not a valid tag
  --> s.schemata:6:9
   = help: use letters, digits, `_`, `.`, and `-`
 

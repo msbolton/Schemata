@@ -814,7 +814,7 @@ private class Lowering(
                 ctx,
                 first,
                 ImportCodes.DROPPED,
-                "foreign key to '${target.key}' dropped; it does not reference a record's primary key",
+                "foreign key to '${target.key}' dropped; it does not reference a model's primary key",
             )
             return null
         }
@@ -996,12 +996,7 @@ private class Lowering(
             )
         }
         if (noted !is UnitType.ListOf && spell(element) != mapped.canonical) {
-            say(
-                ctx,
-                column,
-                ImportCodes.WIDENED,
-                "${column.type} imported as list<${mapped.builtin}>",
-            )
+            say(ctx, column, ImportCodes.WIDENED, "${column.type} imported as ${mapped.builtin}[]")
         }
         dropDefault(ctx, column)
         return ScalarOut(type, null, null, null, json = false, keyable = false)

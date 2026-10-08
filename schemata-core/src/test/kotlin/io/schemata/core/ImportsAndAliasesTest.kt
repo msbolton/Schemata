@@ -99,7 +99,7 @@ class ImportsAndAliasesTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "orders.schemata:2:1 import 'shop.billing' does not name a namespace in this compilation",
+                "orders.schemata:2:1 import 'shop.billing' does not name a schema in this compilation",
                 "orders.schemata:3:1 import 'shop.customers' is unused",
             ),
             messages(r),
@@ -161,7 +161,7 @@ class ImportsAndAliasesTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "SCH1046 orders.schemata:3:1 namespace 'shop.customers' is imported more than once; help: keep one import of `shop.customers`",
+                "SCH1046 orders.schemata:3:1 schema 'shop.customers' is imported more than once; help: keep one import of `shop.customers`",
                 "SCH1046 orders.schemata:4:23 alias 'cust' is given to more than one import; help: give each import its own alias",
             ),
             r.diagnostics.map {

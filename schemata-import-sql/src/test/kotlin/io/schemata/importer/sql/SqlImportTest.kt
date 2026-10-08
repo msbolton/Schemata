@@ -1145,7 +1145,7 @@ class SqlImportTest {
             text(r, "beta.schemata"),
         )
         assertEquals(
-            listOf("SCH2402 misc.sql: namespace 'misc' was derived from the file name"),
+            listOf("SCH2402 misc.sql: schema name 'misc' was derived from the file name"),
             messages(r),
         )
     }

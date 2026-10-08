@@ -25,7 +25,7 @@ object XsdCodes {
             "SCH2203",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two namespaces lower to the same target namespace",
+            "two schemas lower to the same target namespace",
         )
     val ATTRIBUTE_NOT_ALLOWED =
         DiagnosticCode(

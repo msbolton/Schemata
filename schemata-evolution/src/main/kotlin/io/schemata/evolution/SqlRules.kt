@@ -108,7 +108,7 @@ object SqlRules : Rulebook {
         return Verdict.Breaking(
             "${change.path}: the column was renamed from '$fromName' to '$toName' breaks " +
                 "statements that reference the old name",
-            "pin the emitted column with @sql(column = \"$fromName\")",
+            "pin the emitted column with @sql(column: \"$fromName\")",
         )
     }
 

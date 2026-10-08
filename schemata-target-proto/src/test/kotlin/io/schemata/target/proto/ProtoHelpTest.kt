@@ -52,7 +52,7 @@ class ProtoHelpTest {
                 "keep the synthesized zero value; proto3 reads an unset enum as 0",
                 "enforce the refinement in application code; Protobuf carries no constraints",
                 "drop the default or apply it in application code; proto3 has no field defaults",
-                "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
+                "declare the list as `T[]`; an empty list already means absent",
                 "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent",
             ),
             helps.take(5),
@@ -60,7 +60,7 @@ class ProtoHelpTest {
     }
 
     @Test
-    fun `nested collections carry help to wrap the element in a record`() {
+    fun `nested collections carry help to wrap the element in a model`() {
         val found =
             diagnostics(
                 """
@@ -73,7 +73,7 @@ class ProtoHelpTest {
             )
         assertEquals(1, found.size)
         assertTrue(found.single().message.endsWith("has a collection element"))
-        assertEquals("wrap the element in a record", found.single().help)
+        assertEquals("wrap the element in a model", found.single().help)
     }
 
     @Test

@@ -1,4 +1,4 @@
-error[SCH1013]: record 'R' mixes explicit and implicit ordinals
+error[SCH1013]: model 'R' mixes explicit and implicit ordinals
  --> s.schemata:3:7
   = help: write `#n` on every element or on none
 

@@ -117,7 +117,7 @@ object Analyzer {
                 diagnostics +=
                     error(
                         CoreCodes.NAMESPACE_SEGMENT_NAMING,
-                        "namespace segment '$segment' is reserved",
+                        "schema name segment '$segment' is reserved",
                         first.namespace.span,
                         help = "rename the segment, for example `${Suggest.lowerSnake(segment)}`",
                     )
@@ -126,7 +126,7 @@ object Analyzer {
                 diagnostics +=
                     error(
                         CoreCodes.NAMESPACE_SEGMENT_NAMING,
-                        "namespace segment '$segment' must be lower_snake",
+                        "schema name segment '$segment' must be lower_snake",
                         first.namespace.span,
                         help =
                             "write the segment in lower_snake" +
@@ -231,7 +231,7 @@ object Analyzer {
         val reserved = Ordinals.reserved(record.reserved, CoreCodes.FIELD_NAMING, diagnostics)
         val ordinals =
             Ordinals.assign(
-                "record",
+                "model",
                 "field",
                 record.name,
                 record.nameSpan,
@@ -268,7 +268,7 @@ object Analyzer {
                     diagnostics +=
                         error(
                             CoreCodes.DUPLICATE_FIELD,
-                            "field '${field.name}' is declared more than once in record '${record.name}'",
+                            "field '${field.name}' is declared more than once in model '${record.name}'",
                             field.nameSpan,
                             help = "rename or remove one of the two fields",
                         )
@@ -372,7 +372,7 @@ object Analyzer {
                     diagnostics +=
                         error(
                             CoreCodes.ANNOTATION_VALUE,
-                            "$display names '${name.name}', which is not a field of record '${record.name}'",
+                            "$display names '${name.name}', which is not a field of model '${record.name}'",
                             name.span,
                             help = "name a declared field",
                         )
@@ -538,7 +538,7 @@ object Analyzer {
                                     "union member ${member.type.text()} must be a named type or a scalar",
                                     member.type.span,
                                     help =
-                                        "wrap the collection in a record, or drop the `?`; a union is absent through the field, not the member",
+                                        "wrap the collection in a model, or drop the `?`; a union is absent through the field, not the member",
                                 )
                             false
                         }
@@ -549,7 +549,7 @@ object Analyzer {
                                     "union '${decl.name}' may not contain itself",
                                     member.type.nameSpan,
                                     help =
-                                        "remove `${decl.name}` from its own members; wrap it in a record if the recursion is intended",
+                                        "remove `${decl.name}` from its own members; wrap it in a model if the recursion is intended",
                                 )
                             false
                         }

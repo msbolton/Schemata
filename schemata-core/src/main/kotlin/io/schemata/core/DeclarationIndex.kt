@@ -59,7 +59,7 @@ class DeclarationIndex(files: List<SourceFile>, private val diagnostics: Mutable
                         "'${decl.name}' shadows the builtin type of the same name",
                         decl.nameSpan,
                         help =
-                            "rename the declaration; every bare use of `${decl.name}` in this namespace now means yours",
+                            "rename the declaration; every bare use of `${decl.name}` in this schema now means yours",
                     )
             }
         } else {
@@ -99,7 +99,7 @@ class DeclarationIndex(files: List<SourceFile>, private val diagnostics: Mutable
                         CoreCodes.DUPLICATE_TYPE,
                         "service '${decl.name}' and ${kindOf(declared.decl)} '${decl.name}' are both declared in $where",
                         decl.nameSpan,
-                        help = "rename one of them; a service shares its namespace's type names",
+                        help = "rename one of them; a service shares its schema's type names",
                     )
             }
             previous != null ->
@@ -126,7 +126,7 @@ class DeclarationIndex(files: List<SourceFile>, private val diagnostics: Mutable
     companion object {
         fun kindOf(decl: Declaration): String =
             when (decl) {
-                is RecordDecl -> "record"
+                is RecordDecl -> "model"
                 is EnumDecl -> "enum"
                 is UnionDecl -> "union"
                 is AliasDecl -> "alias"

@@ -60,7 +60,7 @@ class AnalyzerTest {
     }
 
     @Test
-    fun `lower_snake applies to namespace segments and enum values`() {
+    fun `lower_snake applies to schema name segments and enum values`() {
         assertEquals(
             listOf("SCH1001"),
             analyze("schema a__b\nmodel R { x bool }").diagnostics.map { it.code.id },
@@ -227,7 +227,7 @@ class AnalyzerTest {
         assertEquals(
             listOf(
                 "3:6 enum 'R' is declared more than once",
-                "3:7 record 'R' is declared in both a.schemata:2 and b.schemata:3",
+                "3:7 model 'R' is declared in both a.schemata:2 and b.schemata:3",
             ),
             messages(result),
         )
@@ -298,7 +298,7 @@ class AnalyzerTest {
         assertNull(result.schema)
         assertEquals(
             listOf(
-                "2:7 record name 'bad_r' must be UpperCamel",
+                "2:7 model name 'bad_r' must be UpperCamel",
                 "2:15 field name 'F' must be lower_snake",
                 "3:6 enum name 'bad_e' must be UpperCamel",
                 "4:7 union name 'bad_u' must be UpperCamel",
@@ -309,24 +309,24 @@ class AnalyzerTest {
     }
 
     @Test
-    fun `enforces lower_snake namespace segments and duplicate fields`() {
+    fun `enforces lower_snake schema name segments and duplicate fields`() {
         assertEquals(
-            listOf("1:1 namespace segment 'Shop' must be lower_snake"),
+            listOf("1:1 schema name segment 'Shop' must be lower_snake"),
             messages(analyze("schema Shop.orders")),
         )
         assertEquals(
-            listOf("2:19 field 'x' is declared more than once in record 'R'"),
+            listOf("2:19 field 'x' is declared more than once in model 'R'"),
             messages(analyze("schema a\nmodel R { x bool  x bool }")),
         )
     }
 
     @Test
-    fun `null is reserved as a field, enum value, and namespace segment name`() {
+    fun `null is reserved as a field, enum value, and schema name segment name`() {
         val result = analyze("schema a.null\nenum E { null }\nmodel R { null E }")
         assertNull(result.schema)
         assertEquals(
             listOf(
-                "SCH1001 1:1 namespace segment 'null' is reserved; help: rename the segment, for example `null_value`",
+                "SCH1001 1:1 schema name segment 'null' is reserved; help: rename the segment, for example `null_value`",
                 "SCH1028 2:10 enum value 'null' is reserved; help: rename it `null_value`",
                 "SCH1003 3:11 field name 'null' is reserved; help: rename it `null_value`",
             ),

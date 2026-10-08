@@ -51,11 +51,11 @@ class SqlHelpTest {
         assertTrue(lossy.all { it.help != null }, lossy.joinToString("\n") { it.message })
         assertTrue(strategy.all { it.help != null }, strategy.joinToString("\n") { it.message })
         assertEquals(
-            "use `@sql(strategy = table)` so the elements become rows with their own constraints",
+            "use `@sql(strategy: table)` so the elements become rows with their own constraints",
             lossy.single { it.span.startLine == 7 }.help,
         )
         assertEquals(
-            "use `@sql(strategy = table)` to lower the entries to a child table",
+            "use `@sql(strategy: table)` to lower the entries to a child table",
             lossy.single { it.span.startLine == 8 }.help,
         )
         assertEquals(
@@ -89,7 +89,7 @@ class SqlHelpTest {
             lossy.single { it.span.startLine == 5 }.help,
         )
         assertEquals(
-            "use `@sql(strategy = table)` so the elements become rows with their own constraints",
+            "use `@sql(strategy: table)` so the elements become rows with their own constraints",
             lossy.single { it.span.startLine == 6 }.help,
         )
     }
@@ -116,11 +116,11 @@ class SqlHelpTest {
             )
         val lossy = ds.filter { it.code == SqlCodes.LOSSY }
         assertEquals(
-            "remove `strategy = json` to get the default mapping for this field",
+            "remove `strategy: json` to get the default mapping for this field",
             lossy.single { it.span.startLine == 9 }.help,
         )
         assertEquals(
-            "use `@sql(strategy = table)` to lower the entries to a child table",
+            "use `@sql(strategy: table)` to lower the entries to a child table",
             lossy.single { it.span.startLine == 10 }.help,
         )
         assertEquals(
@@ -141,7 +141,7 @@ class SqlHelpTest {
                     .trimIndent()
             )
         assertEquals(
-            "add `@sql(strategy = json)` to store the field as jsonb",
+            "add `@sql(strategy: json)` to store the field as jsonb",
             ds.single { it.code == SqlCodes.STRATEGY_NOT_ALLOWED }.help,
         )
     }
@@ -161,7 +161,7 @@ class SqlHelpTest {
             )
         val diagnostic = ds.single { it.code == SqlCodes.MISSING_KEY }
         assertEquals(
-            "record 'Orphan' has no primary key and is not used by any field",
+            "model 'Orphan' has no primary key and is not used by any field",
             diagnostic.message,
         )
         assertEquals(
@@ -187,7 +187,7 @@ class SqlHelpTest {
             )
         val diagnostic = ds.single { it.code == SqlCodes.RECURSIVE_EMBED }
         assertEquals(
-            "use `@sql(strategy = json)` on this field, or give 'A' a key so it becomes a table",
+            "use `@sql(strategy: json)` on this field, or give 'A' a key so it becomes a table",
             diagnostic.help,
         )
     }
@@ -208,6 +208,6 @@ class SqlHelpTest {
                     .trimIndent()
             )
         val diagnostic = ds.single { it.code == SqlCodes.NAME_COLLISION }
-        assertEquals("rename one of them, or set `@sql(table = \"…\")` on one", diagnostic.help)
+        assertEquals("rename one of them, or set `@sql(table: \"…\")` on one", diagnostic.help)
     }
 }

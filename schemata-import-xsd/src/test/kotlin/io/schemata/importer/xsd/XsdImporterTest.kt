@@ -428,7 +428,7 @@ class XsdImporterTest {
             XsdImporter.import(listOf(ImportInput("a.xsd", xsd), ImportInput("b.xsd", xsd)))
         assertEquals(
             listOf(
-                "SCH2402 a.xsd: namespace 'a' was derived from the file name",
+                "SCH2402 a.xsd: schema name 'a' was derived from the file name",
                 "SCH2401 b.xsd: namespace 'http://example.com/x' is also declared by a.xsd",
             ),
             result.diagnostics.map { "${it.code.id} ${it.message}" },
@@ -452,7 +452,7 @@ class XsdImporterTest {
         val result =
             XsdImporter.import(listOf(ImportInput("foo.xsd", schemaIn("urn:schemata:Foo-Bar"))))
         assertEquals(
-            listOf("SCH2402 foo.xsd: namespace 'foo' was derived from the file name"),
+            listOf("SCH2402 foo.xsd: schema name 'foo' was derived from the file name"),
             result.diagnostics.map { "${it.code.id} ${it.message}" },
         )
         val file = result.files.single()

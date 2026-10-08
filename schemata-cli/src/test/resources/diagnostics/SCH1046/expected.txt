@@ -1,5 +1,5 @@
 # targets=proto
-error[SCH1046]: namespace 'a' is imported more than once
+error[SCH1046]: schema 'a' is imported more than once
  --> b.schemata:4:1
   = help: keep one import of `a`
 

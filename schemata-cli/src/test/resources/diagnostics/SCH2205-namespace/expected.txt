@@ -1,5 +1,5 @@
 # targets=xsd
-error[SCH2205] (xsd): namespace 's': @xsd(namespace = "orders") is not an absolute URI
+error[SCH2205] (xsd): schema 's': @xsd(namespace: "orders") is not an absolute URI
  --> s.schemata:1:1
   = help: use an absolute URI, such as `urn:example:orders`
 

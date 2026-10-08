@@ -1,5 +1,5 @@
 # targets=openapi
-error[SCH2603] (openapi): namespace 's': @openapi(server = "not a url") is not a valid URL
+error[SCH2603] (openapi): schema 's': @openapi(server: "not a url") is not a valid URL
  --> s.schemata:1:1
   = help: use an absolute URL such as `https://api.example.com`, or a path such as `/v1`
 

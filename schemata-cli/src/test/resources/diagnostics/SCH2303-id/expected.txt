@@ -1,5 +1,5 @@
 # targets=jsonschema
-error[SCH2303] (jsonschema): namespace 's': @jsonschema(id = "orders") is not an absolute URI
+error[SCH2303] (jsonschema): schema 's': @jsonschema(id: "orders") is not an absolute URI
  --> s.schemata:1:1
   = help: use an absolute URI without a fragment, such as `urn:example:orders`
 

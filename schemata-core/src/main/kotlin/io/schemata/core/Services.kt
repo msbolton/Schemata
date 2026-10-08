@@ -175,9 +175,9 @@ internal object Services {
             diagnostics +=
                 error(
                     CoreCodes.PAYLOAD_KIND,
-                    "operation '${op.name}': $role '${p.type.text()}' is not a record or a union",
+                    "operation '${op.name}': $role '${p.type.text()}' is not a model or a union",
                     p.type.span,
-                    help = "wrap it in a record",
+                    help = "wrap it in a model",
                 )
             return null
         }
@@ -230,9 +230,9 @@ internal object Services {
                 op.request != null && request == null -> Unit
                 target is UnionDecl ->
                     bad(
-                        "path parameter '$name' needs a request record, not union '${target.name}'",
+                        "path parameter '$name' needs a request model, not union '${target.name}'",
                         b.pathSpan,
-                        "bind nothing in the path, or make the request a record",
+                        "bind nothing in the path, or make the request a model",
                     )
                 target is RecordDecl -> {
                     val problem = fieldProblem(name, target, lowered, declarations)
@@ -240,9 +240,9 @@ internal object Services {
                 }
                 else ->
                     bad(
-                        "path parameter '$name' needs a request record",
+                        "path parameter '$name' needs a request model",
                         b.pathSpan,
-                        "add a request record with a field '$name'",
+                        "add a request model with a field '$name'",
                     )
             }
         }
@@ -276,7 +276,7 @@ internal object Services {
     ): Pair<String, String>? {
         if (record.fields.none { it.name == name }) {
             return "path parameter '$name' is not a field of '${record.name}'" to
-                "name a scalar or enum field of the request record"
+                "name a scalar or enum field of the request model"
         }
         val field = lowered?.fields?.firstOrNull { it.name == name } ?: return null
         if (field.nullable) {

@@ -1,13 +1,13 @@
 # import=sql
-error[SCH2401]: s.sql: schema 'Ops' and schema 'Sales' both lower to namespace 's'
+error[SCH2401]: s.sql: schema 'Ops' and schema 'Sales' both lower to schema 's'
  --> s.sql:1:1
   = help: rename one of them
 
-warning[SCH2402] (lossy): s.sql: namespace 's' was derived from the file name
+warning[SCH2402] (lossy): s.sql: schema name 's' was derived from the file name
  --> s.sql:1:1
   = help: set --namespace to choose it, or keep it and rename later
 
-warning[SCH2402] (lossy): s.sql: namespace 's' was derived from the file name
+warning[SCH2402] (lossy): s.sql: schema name 's' was derived from the file name
  --> s.sql:1:1
   = help: set --namespace to choose it, or keep it and rename later
 

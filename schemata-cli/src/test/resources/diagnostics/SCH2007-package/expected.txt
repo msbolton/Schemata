@@ -1,5 +1,5 @@
 # targets=proto
-error[SCH2007] (proto): namespace 's': @proto(package = "Bad Name") is not a valid package name
+error[SCH2007] (proto): schema 's': @proto(package: "Bad Name") is not a valid package name
  --> s.schemata:1:1
   = help: use dotted lower-case identifiers, for example `shop.orders.v1`
 

@@ -155,7 +155,7 @@ class AnnotationsTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "t.schemata:2:6 @sql(strategy) is not allowed on a record; allowed on: field",
+                "t.schemata:2:6 @sql(strategy) is not allowed on a model; allowed on: field",
                 "t.schemata:4:3 unknown annotation '@mongo'; known: deprecated, name, proto, relation, sql",
                 "t.schemata:6:8 'table' is not a key of @sql; keys: key, schema, strategy",
                 "t.schemata:8:8 @sql(strategy) expects one of: embed, json, table",
@@ -163,7 +163,7 @@ class AnnotationsTest {
                 "t.schemata:13:8 @sql(key) is given more than once",
                 "t.schemata:15:3 @deprecated expects a string",
                 "t.schemata:17:3 @sql needs at least one key",
-                "t.schemata:19:8 @sql arguments are a bare key or key = value",
+                "t.schemata:19:8 @sql arguments are a bare key or key: value",
             ),
             messages(r),
         )
@@ -188,9 +188,7 @@ class AnnotationsTest {
         assertEquals(emptyList(), messages(clean))
         val bad = analyze("t.schemata" to "schema a\n@sql(key)\nalias A = string\nmodel R { x A }")
         assertEquals(
-            listOf(
-                "t.schemata:2:6 @sql(key) is not allowed on an alias; allowed on: record, field"
-            ),
+            listOf("t.schemata:2:6 @sql(key) is not allowed on an alias; allowed on: model, field"),
             messages(bad),
         )
     }

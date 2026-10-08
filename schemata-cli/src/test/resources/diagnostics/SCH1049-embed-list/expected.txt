@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH1049]: option 'embed' does not apply to int32; it needs a record or a union
+error[SCH1049]: option 'embed' does not apply to int32; it needs a model or a union
  --> s.schemata:3:52
   = help: remove the option, or move it to the element type
 

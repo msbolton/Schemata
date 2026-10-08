@@ -7,7 +7,7 @@ warning[SCH2403] (lossy): enum 'Color': reserved name 'Blue' imported as 'blue';
  --> s.proto:9:3
   = help: review the imported declaration; the regenerated schema will differ here
 
-warning[SCH2403] (lossy): record 'Paint': reserved name 'oldName' imported as 'old_name'
+warning[SCH2403] (lossy): model 'Paint': reserved name 'oldName' imported as 'old_name'
   --> s.proto:14:3
    = help: review the imported declaration; the regenerated schema will differ here
 

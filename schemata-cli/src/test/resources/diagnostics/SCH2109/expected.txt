@@ -1,6 +1,6 @@
 # targets=sql
 warning[SCH2109] (sql): identifier 'a_very_long_field_name_that_goes_on_and_on_past_the_postgres_limit_of_sixty_three_bytes' exceeds 63 bytes; truncated to 'a_very_long_field_name_that_goes_on_and_on_past_the_pos_e96220f'
  --> s.schemata:5:6
-  = help: shorten the name with `@sql(table = "…")` or `@sql(column = "…")` to choose it yourself
+  = help: shorten the name with `@sql(table: "…")` or `@sql(column: "…")` to choose it yourself
 
 0 errors, 1 warning

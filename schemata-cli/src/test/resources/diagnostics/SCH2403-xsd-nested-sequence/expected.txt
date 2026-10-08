@@ -3,7 +3,7 @@ warning[SCH2403] (lossy): union 'Contact': member element 'email' has no Schemat
  --> s.xsd:5:1
   = help: review the imported declaration; the regenerated schema will differ here
 
-warning[SCH2403] (lossy): union 'Contact': choice branch imported as record 'StreetGroup'
+warning[SCH2403] (lossy): union 'Contact': choice branch imported as model 'StreetGroup'
  --> s.xsd:6:1
   = help: review the imported declaration; the regenerated schema will differ here
 

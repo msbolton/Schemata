@@ -936,15 +936,15 @@ class ProtoLoweringTest {
         val lowered = ProtoLowering.lower(schema(ns("a", a, b, c, kind, kind2, e, f, u, g)))
         assertEquals(
             listOf(
-                "6 SCH2004 proto name 'Same' is already used by record 'A' (orders.schemata:3)",
-                "52 SCH2004 proto name 'Kind' is already used by record 'Kind' (orders.schemata:50)",
+                "6 SCH2004 proto name 'Same' is already used by model 'A' (orders.schemata:3)",
+                "52 SCH2004 proto name 'Kind' is already used by model 'Kind' (orders.schemata:50)",
                 "31 SCH2004 proto name 'E_UNSPECIFIED' is already used by the synthesized zero value",
                 "33 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
                 "36 SCH2004 proto name 'E_X' is already used by value 'x' (orders.schemata:32)",
-                "12 SCH2004 proto name 'N' is already used by record 'In1' (orders.schemata:10)",
+                "12 SCH2004 proto name 'N' is already used by model 'In1' (orders.schemata:10)",
                 "16 SCH2004 proto name 'p' is already used by field 'p' (orders.schemata:15)",
                 "41 SCH2004 proto name 'kind' is already used by the oneof",
-                "62 SCH2004 proto name 'Line' is already used by record 'Line' (orders.schemata:61)",
+                "62 SCH2004 proto name 'Line' is already used by model 'Line' (orders.schemata:61)",
             ),
             messages(lowered).filter { "SCH2004" in it },
         )
@@ -978,8 +978,8 @@ class ProtoLoweringTest {
             listOf(
                 "11 SCH2006 field 'R.a': field number 19000 is reserved for the Protobuf implementation (19000 to 19999)",
                 "12 SCH2006 field 'R.b': field number 600000000 exceeds the Protobuf maximum 536870911",
-                "3 SCH2006 record 'R': reserved number 0 must be positive",
-                "3 SCH2006 record 'R': reserved range 4 to 4 overlaps 3 to 5",
+                "3 SCH2006 model 'R': reserved number 0 must be positive",
+                "3 SCH2006 model 'R': reserved range 4 to 4 overlaps 3 to 5",
             ),
             messages(lowered),
         )
@@ -1022,10 +1022,10 @@ class ProtoLoweringTest {
             )
         assertEquals(
             listOf(
-                "1 SCH2007 namespace 'corp': @proto(package = \"corp v1\") is not a valid package name",
-                "31 SCH2007 enum value 'E.x': @proto(name = \"A-B\") is not a valid identifier",
-                "3 SCH2007 record 'R': @proto(name = \"Bad Name\") is not a valid identifier",
-                "11 SCH2007 field 'R.sku': @proto(name = \"1x\") is not a valid identifier",
+                "1 SCH2007 schema 'corp': @proto(package: \"corp v1\") is not a valid package name",
+                "31 SCH2007 enum value 'E.x': @proto(name: \"A-B\") is not a valid identifier",
+                "3 SCH2007 model 'R': @proto(name: \"Bad Name\") is not a valid identifier",
+                "11 SCH2007 field 'R.sku': @proto(name: \"1x\") is not a valid identifier",
             ),
             messages(lowered).filter { "SCH2007" in it },
         )
@@ -1047,7 +1047,7 @@ class ProtoLoweringTest {
             )
         val lowered = ProtoLowering.lower(schema(ns("a", r)))
         assertEquals(
-            listOf("11 SCH2007 field 'R.x': @proto(name = \"1x\") is not a valid identifier"),
+            listOf("11 SCH2007 field 'R.x': @proto(name: \"1x\") is not a valid identifier"),
             messages(lowered),
         )
         assertEquals("x", message(lowered.model.files.single(), "R").fields.first().name)
@@ -1063,7 +1063,7 @@ class ProtoLoweringTest {
                 )
             )
         assertEquals(
-            listOf("7 SCH2004 namespaces a.x and b.y both lower to package 'p'"),
+            listOf("7 SCH2004 schemas a.x and b.y both lower to package 'p'"),
             messages(lowered),
         )
     }
@@ -1402,7 +1402,7 @@ class ProtoLoweringTest {
                     "}"
             )
         assertEquals(
-            listOf("SCH2007 operation 'S.get': @proto(name = \"1x\") is not a valid identifier"),
+            listOf("SCH2007 operation 'S.get': @proto(name: \"1x\") is not a valid identifier"),
             bad.codes(),
         )
         assertEquals("Get", bad.file("t.proto").services.single().rpcs.single().name)
@@ -1418,7 +1418,7 @@ class ProtoLoweringTest {
                     "}"
             )
         assertEquals(
-            listOf("SCH2007 service 'S': @proto(name = \"a b\") is not a valid identifier"),
+            listOf("SCH2007 service 'S': @proto(name: \"a b\") is not a valid identifier"),
             badService.codes(),
         )
         assertEquals("S", badService.file("t.proto").services.single().name)
@@ -1458,7 +1458,7 @@ class ProtoLoweringTest {
                     "}"
             )
         assertEquals(
-            listOf("SCH2004 proto name 'R' is already used by record 'R' (t.schemata:3)"),
+            listOf("SCH2004 proto name 'R' is already used by model 'R' (t.schemata:3)"),
             out.codes(),
         )
     }

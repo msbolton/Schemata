@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH2106] (sql): record 'Orphan' has no primary key and is not used by any field
+error[SCH2106] (sql): model 'Orphan' has no primary key and is not used by any field
  --> s.schemata:3:7
   = help: mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only lowers when a field embeds it
 

@@ -32,11 +32,11 @@ sealed interface Change {
 }
 
 data class NamespaceAdded(override val path: String, override val span: Span) : Change {
-    override val kind = "namespace.added"
+    override val kind = "schema.added"
 }
 
 data class NamespaceRemoved(override val path: String, override val span: Span) : Change {
-    override val kind = "namespace.removed"
+    override val kind = "schema.removed"
 }
 
 data class DeclarationAdded(
@@ -44,7 +44,7 @@ data class DeclarationAdded(
     override val span: Span,
     val decl: TypeDecl,
 ) : Change {
-    override val kind = "declaration.added"
+    override val kind = "model.added"
 }
 
 data class DeclarationRemoved(
@@ -52,7 +52,7 @@ data class DeclarationRemoved(
     override val span: Span,
     val decl: TypeDecl,
 ) : Change {
-    override val kind = "declaration.removed"
+    override val kind = "model.removed"
 }
 
 data class DeclarationKindChanged(
@@ -61,7 +61,7 @@ data class DeclarationKindChanged(
     val from: TypeDecl,
     val to: TypeDecl,
 ) : Change {
-    override val kind = "declaration.kindChanged"
+    override val kind = "model.kindChanged"
 }
 
 data class FieldAdded(

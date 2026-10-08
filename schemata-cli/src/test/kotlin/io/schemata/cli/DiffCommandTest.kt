@@ -105,7 +105,7 @@ class DiffCommandTest {
         val new = side("new", "schema b\n\nmodel R { #1 x int32 }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertEquals(1, r.statusCode, r.stderr)
-        assertTrue(r.stderr.contains("error[SCH2503]: OLD and NEW share no namespace"), r.stderr)
+        assertTrue(r.stderr.contains("error[SCH2503]: OLD and NEW share no schema"), r.stderr)
         assertTrue(r.stderr.contains("diff two versions of the same schema set"), r.stderr)
     }
 

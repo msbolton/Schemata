@@ -52,7 +52,7 @@ object SqlLowering {
                     validOverride(
                         it.annotations,
                         "schema",
-                        "namespace '${it.name}'",
+                        "schema '${it.name}'",
                         it.span,
                         diagnostics,
                     )
@@ -141,7 +141,7 @@ object SqlLowering {
                 } else if (r.qualifiedName !in catalog.used) {
                     error(
                         SqlCodes.MISSING_KEY,
-                        "record '${r.name}' has no primary key and is not used by any field",
+                        "model '${r.name}' has no primary key and is not used by any field",
                         r.nameSpan,
                         help =
                             "mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only lowers when a field embeds it",
@@ -167,9 +167,9 @@ object SqlLowering {
                     diagnostics +=
                         Diagnostic(
                             SqlCodes.TABLE_COLLISION,
-                            "records ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${catalog[colliding.first().qualifiedName]!!.tableNameRaw}'",
+                            "models ${englishList(colliding.map { it.name })} ${if (colliding.size > 2) "all" else "both"} lower to table '${catalog[colliding.first().qualifiedName]!!.tableNameRaw}'",
                             colliding[1].span,
-                            help = "set `@sql(table = \"…\")` on one of them",
+                            help = "set `@sql(table: \"…\")` on one of them",
                         )
                 }
         }
@@ -188,7 +188,7 @@ object SqlLowering {
                     SqlCodes.NAME_COLLISION,
                     "relation name '${relation.name}' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
                     relation.span,
-                    help = "rename one of them, or set `@sql(table = \"…\")` on one",
+                    help = "rename one of them, or set `@sql(table: \"…\")` on one",
                 )
             }
         }
@@ -347,7 +347,7 @@ object SqlLowering {
                         if (own.isNullOrEmpty()) {
                             error(
                                 SqlCodes.STRATEGY_NOT_ALLOWED,
-                                "record '${record.name}': $display names '$name', which has no column on the record's table",
+                                "model '${record.name}': $display names '$name', which has no column on the model's table",
                                 record.nameSpan,
                                 help = "name fields stored in the table's own columns",
                             )
@@ -359,7 +359,7 @@ object SqlLowering {
                 if (primaryKey.isNotEmpty() && flat == primaryKey) {
                     error(
                         SqlCodes.REDUNDANT_CONSTRAINT,
-                        "record '${record.name}': $display duplicates the primary key; dropped",
+                        "model '${record.name}': $display duplicates the primary key; dropped",
                         record.nameSpan,
                         help = "remove it; the primary key already enforces it",
                     )
@@ -411,7 +411,7 @@ object SqlLowering {
             val claims =
                 NameClaims(
                     SqlCodes.NAME_COLLISION,
-                    "rename one of them, or set `@sql(column = \"…\")` on one",
+                    "rename one of them, or set `@sql(column: \"…\")` on one",
                     diagnostics,
                 )
             sources.forEach { source ->
@@ -432,7 +432,7 @@ object SqlLowering {
                 .forEach {
                     error(
                         SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': key field '${it.name}' is nullable",
+                        "model '${record.name}': key field '${it.name}' is nullable",
                         it.nameSpan,
                         help = "drop the `?`; a primary key column cannot be null",
                     )
@@ -442,10 +442,10 @@ object SqlLowering {
                 .forEach {
                     error(
                         SqlCodes.KEY_COLUMN,
-                        "record '${record.name}': key field '${it.name}' must be a scalar column",
+                        "model '${record.name}': key field '${it.name}' must be a scalar column",
                         it.nameSpan,
                         help =
-                            "key a scalar or enum field; reference the record from a keyed one instead",
+                            "key a scalar or enum field; reference the model from a keyed one instead",
                     )
                 }
         }
@@ -538,7 +538,7 @@ object SqlLowering {
                         SqlCodes.NAME_COLLISION,
                         "relation name '$tableName' is already used by ${previous.kind} (${previous.span.file}:${previous.span.startLine})",
                         claimant.span,
-                        help = "rename one of them, or set `@sql(table = \"…\")` on one",
+                        help = "rename one of them, or set `@sql(table: \"…\")` on one",
                     )
                 }
                 return
@@ -607,7 +607,7 @@ object SqlLowering {
                     ctx,
                     field,
                     "embed",
-                    "a keyed record",
+                    "a keyed model",
                     "a reference or json",
                 )
             return when (strategy) {
@@ -615,12 +615,12 @@ object SqlLowering {
                     json(
                         ctx,
                         field,
-                        "record",
-                        "remove `strategy = json` to get the default mapping for this field",
+                        "model",
+                        "remove `strategy: json` to get the default mapping for this field",
                     )
                 "table" ->
                     if (entry != null) reference(ctx, field, entry)
-                    else forbiddenStrategy(ctx, field, "table", "a keyless record", "embed or json")
+                    else forbiddenStrategy(ctx, field, "table", "a keyless model", "embed or json")
                 else ->
                     if (entry != null) reference(ctx, field, entry)
                     else embed(ctx, field, target, columnOf(field, ctx.where))
@@ -693,7 +693,7 @@ object SqlLowering {
                                     ctx,
                                     field,
                                     "embed",
-                                    "a list of keyed records",
+                                    "a list of keyed models",
                                     "a child table of references or json",
                                 )
                             else
@@ -783,7 +783,7 @@ object SqlLowering {
          */
         private fun jsonHelp(element: Type): String =
             if (tableable(element))
-                "use `@sql(strategy = table)` to lower the entries to a child table"
+                "use `@sql(strategy: table)` to lower the entries to a child table"
             else "keep jsonb; Postgres has no typed mapping for this shape"
 
         /** Whether a union has a member that is itself a union, which has no relational mapping. */
@@ -797,7 +797,7 @@ object SqlLowering {
          */
         private fun jsonHelp(type: UnionType): String =
             if (hasUnionMember(type)) "keep jsonb; Postgres has no typed mapping for this shape"
-            else "remove `strategy = json` to get the default mapping for this field"
+            else "remove `strategy: json` to get the default mapping for this field"
 
         /** The error a strategy a shape forbids reports; [alternatives] is null for a scalar. */
         private fun forbiddenStrategy(
@@ -809,7 +809,7 @@ object SqlLowering {
         ): Contribution {
             error(
                 SqlCodes.STRATEGY_NOT_ALLOWED,
-                "${ctx.where}: strategy '$strategy' is not allowed for $shape",
+                "${ctx.where}: ${if (strategy == "embed") "{ embed }" else "strategy '$strategy'"} is not allowed for $shape",
                 field.span,
                 help =
                     if (alternatives != null) "use $alternatives"
@@ -833,7 +833,7 @@ object SqlLowering {
                 SqlCodes.STRATEGY_NOT_ALLOWED,
                 "${ctx.where}: $shape has no relational mapping",
                 field.span,
-                help = "add `@sql(strategy = json)` to store the field as jsonb",
+                help = "add `@sql(strategy: json)` to store the field as jsonb",
             )
             return Contribution.NONE
         }
@@ -1070,7 +1070,7 @@ object SqlLowering {
                 "${ctx.where}: embedding '${target.name}' here would recurse ($cycle)",
                 field.span,
                 help =
-                    "use `@sql(strategy = json)` on this field, or give '${target.name}' a key so it becomes a table",
+                    "use `@sql(strategy: json)` on this field, or give '${target.name}' a key so it becomes a table",
             )
             return true
         }
@@ -1088,7 +1088,7 @@ object SqlLowering {
          * CHECK already enforces it. `{ unique }` or `{ index }` on the field covers the kind
          * column and every member column. A member that is itself a union has no kind column of its
          * own to nest a second one under, so it has no embed strategy and must be lowered with
-         * `strategy = json` instead (SCH-28).
+         * `strategy: json` instead (SCH-28).
          */
         private fun union(ctx: FieldContext, field: Field, type: UnionType): Contribution {
             if (hasUnionMember(type)) {
@@ -1401,7 +1401,7 @@ object SqlLowering {
                     field.span,
                     help =
                         if (elementLossy)
-                            "use `@sql(strategy = table)` so the elements become rows with their own constraints"
+                            "use `@sql(strategy: table)` so the elements become rows with their own constraints"
                         else
                             "enforce the list's size bound in application code; Postgres arrays carry no length constraint",
                 )
@@ -1521,7 +1521,7 @@ object SqlLowering {
                     "${ctx.where}: nullable elements of ${TypeText.of(field.type, field.nullable)} are not represented by a child table",
                     field.span,
                     help =
-                        "declare the elements non-nullable, or use `@sql(strategy = json)` to keep nulls",
+                        "declare the elements non-nullable, or use `@sql(strategy: json)` to keep nulls",
                 )
             }
             val childName =
@@ -1754,7 +1754,7 @@ object SqlLowering {
                     "identifier '$name' exceeds 63 bytes; truncated to '$result'",
                     span,
                     help =
-                        "shorten the name with `@sql(table = \"…\")` or `@sql(column = \"…\")` to choose it yourself",
+                        "shorten the name with `@sql(table: \"…\")` or `@sql(column: \"…\")` to choose it yourself",
                 )
         }
         return result
@@ -1770,9 +1770,9 @@ object SqlLowering {
                 diagnostics +=
                     Diagnostic(
                         SqlCodes.SCHEMA_COLLISION,
-                        "namespaces ${englishList(group.map { it.name })} ${if (group.size > 2) "all" else "both"} lower to schema '${names.getValue(group.first().name)}'",
+                        "schemas ${englishList(group.map { it.name })} ${if (group.size > 2) "all" else "both"} lower to Postgres schema '${names.getValue(group.first().name)}'",
                         group[1].span,
-                        help = "set `@sql(schema = \"…\")` on one of them",
+                        help = "set `@sql(schema: \"…\")` on one of them",
                     )
             }
     }
@@ -1790,7 +1790,7 @@ object SqlLowering {
         diagnostics +=
             Diagnostic(
                 SqlCodes.INVALID_OVERRIDE,
-                "$where: @sql($key = \"\") is empty",
+                "$where: @sql($key: \"\") is empty",
                 span,
                 help = "give the name at least one character",
             )

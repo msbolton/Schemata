@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH1018]: @@id names 'nope', which is not a field of record 'R'
+error[SCH1018]: @@id names 'nope', which is not a field of model 'R'
  --> s.schemata:6:8
   = help: name a declared field
 

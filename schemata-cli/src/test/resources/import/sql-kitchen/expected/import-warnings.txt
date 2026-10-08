@@ -3,7 +3,7 @@ SCH2405 store.sql: CREATE INDEX on an expression dropped
 SCH2405 store.sql: CREATE VIEW dropped
 SCH2405 store.sql: CREATE FUNCTION dropped
 SCH2405 store.sql: CREATE TRIGGER dropped
-SCH2402 several.sql: namespace 'several' was derived from the file name
+SCH2402 several.sql: schema name 'several' was derived from the file name
 SCH2403 table 'loose': no primary key; add { id } to a field before compiling to SQL
 SCH2405 column 'Everything.doubled': GENERATED … STORED dropped; imported as a plain column
 SCH2403 column 'Everything.id': default gen_random_uuid() dropped

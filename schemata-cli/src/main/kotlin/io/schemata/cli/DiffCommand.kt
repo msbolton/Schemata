@@ -124,7 +124,7 @@ private fun disjoint(old: Schema, new: Schema): Diagnostic? {
     val span = (new.namespaces.firstOrNull() ?: old.namespaces.firstOrNull())?.span ?: return null
     return Diagnostic(
         EvolutionCodes.CANNOT_DIFF,
-        "OLD and NEW share no namespace",
+        "OLD and NEW share no schema",
         span,
         help = "diff two versions of the same schema set",
     )

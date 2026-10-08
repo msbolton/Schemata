@@ -331,7 +331,7 @@ class DifferTest {
         val newNs = namespace("s", declarations = listOf(newU, added))
         val declChanges = Differ.diff(Schema(listOf(oldNs)), Schema(listOf(newNs)))
         assertEquals(
-            listOf("declaration.kindChanged", "declaration.added", "declaration.removed"),
+            listOf("model.kindChanged", "model.added", "model.removed"),
             declChanges.map { it.kind },
         )
         assertEquals(listOf("s.R", "s.Added", "s.Removed"), declChanges.map { it.path })
@@ -342,7 +342,7 @@ class DifferTest {
         val a = namespace("a", line = 1)
         val b = namespace("b", line = 2)
         val nsChanges = Differ.diff(Schema(listOf(a)), Schema(listOf(b)))
-        assertEquals(listOf("namespace.added", "namespace.removed"), nsChanges.map { it.kind })
+        assertEquals(listOf("schema.added", "schema.removed"), nsChanges.map { it.kind })
         assertEquals(listOf("b", "a"), nsChanges.map { it.path })
 
         // enumValue.added, enumValue.removed, enumValue.renamed
@@ -484,7 +484,7 @@ class DifferTest {
         val old = namespace("s", declarations = listOf(oldOnly, keep))
         val new = namespace("s", declarations = listOf(newOnly, keep))
         val changes = Differ.diff(Schema(listOf(old)), Schema(listOf(new)))
-        assertEquals(listOf("declaration.added", "declaration.removed"), changes.map { it.kind })
+        assertEquals(listOf("model.added", "model.removed"), changes.map { it.kind })
         assertEquals(listOf("s.NewOnly", "s.OldOnly"), changes.map { it.path })
     }
 
@@ -645,10 +645,7 @@ class DifferTest {
         assertEquals(listOf("s.Order.Line.sku"), renameChanges.map { it.path })
 
         val removalChanges = diff(ns(oldOrder), namespace("s"))
-        assertEquals(
-            listOf("declaration.removed", "declaration.removed"),
-            removalChanges.map { it.kind },
-        )
+        assertEquals(listOf("model.removed", "model.removed"), removalChanges.map { it.kind })
         assertEquals(listOf("s.Order", "s.Order.Line"), removalChanges.map { it.path })
     }
 

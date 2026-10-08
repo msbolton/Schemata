@@ -1,13 +1,13 @@
 not migrated: a side has sql errors
 
-error[SCH2110]: field 'Order.customer': strategy 'embed' is not allowed for a keyed record
+error[SCH2110]: field 'Order.customer': { embed } is not allowed for a keyed model
   --> new/s.schemata:10:3
    |
 10 |   #2 customer Customer { embed }
    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: use a reference or json
 
-error[SCH2110]: field 'Order.billing': strategy 'embed' is not allowed for a keyed record
+error[SCH2110]: field 'Order.billing': { embed } is not allowed for a keyed model
   --> old/s.schemata:11:3
    |
 11 |   #3 billing  Customer { embed }

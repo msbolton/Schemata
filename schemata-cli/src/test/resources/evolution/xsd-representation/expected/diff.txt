@@ -25,7 +25,7 @@ error[SCH2501]: xsd: s.Item.quantity: attribute 'quantity' becomes an element br
   |      ^^^^^^^^
   = help: avoid changing @xsd(attribute) once published
 
-error[SCH2501]: xsd: s.Batch: @xsd(root = false) was added breaks validation against the old root element
+error[SCH2501]: xsd: s.Batch: @xsd(root: false) was added breaks validation against the old root element
   --> new/s.schemata:10:7
    |
 10 | model Batch {

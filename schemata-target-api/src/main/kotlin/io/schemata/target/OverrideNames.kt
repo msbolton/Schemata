@@ -49,7 +49,7 @@ class OverrideNames(
         val value = annotations.string(target, "name") ?: return null
         val tail = problem(value) ?: return value
         sink +=
-            Diagnostic(code, "$where: @$target(name = \"$value\") $tail", span, help = help(tail))
+            Diagnostic(code, "$where: @$target(name: \"$value\") $tail", span, help = help(tail))
         return null
     }
 

@@ -144,7 +144,7 @@ object ProtoRules : Rulebook {
         return Verdict.Note(
             "${change.path}: field renamed from '${change.from.name}' to '${change.to.name}'; " +
                 "this changes the JSON mapping",
-            "pin the emitted name with @proto(name = \"$fromName\")",
+            "pin the emitted name with @proto(name: \"$fromName\")",
         )
     }
 
@@ -298,7 +298,7 @@ object ProtoRules : Rulebook {
                 Verdict.Note(
                     "${change.path}: the emitted name changed from '$fromName' to '$toName'; " +
                         "this changes the JSON mapping",
-                    "pin the emitted name with @proto(name = \"$fromName\")",
+                    "pin the emitted name with @proto(name: \"$fromName\")",
                 )
             is DeclarationOwner ->
                 Verdict.Note(
@@ -311,7 +311,7 @@ object ProtoRules : Rulebook {
                 val to = servicePath(ctx.new, change.newOwner.service, ctx)
                 Verdict.Breaking(
                     "${change.path}: the service's rpc paths change from $from/* to $to/*",
-                    "pin the service name with @proto(name = \"$fromName\")",
+                    "pin the service name with @proto(name: \"$fromName\")",
                 )
             }
             is OperationOwner -> {
@@ -319,7 +319,7 @@ object ProtoRules : Rulebook {
                 val to = rpcPath(ctx.new, change.newOwner, ctx)
                 Verdict.Breaking(
                     "${change.path}: the rpc path changes from $from to $to",
-                    "pin the rpc name with @proto(name = \"$fromName\")",
+                    "pin the rpc name with @proto(name: \"$fromName\")",
                 )
             }
             is NamespaceOwner,
@@ -341,7 +341,7 @@ object ProtoRules : Rulebook {
         val to = rpcPath(ctx.new, OperationOwner(change.service, change.to), ctx)
         return Verdict.Breaking(
             "${change.path}: the operation was renamed, so its rpc path changes from $from to $to",
-            "pin the rpc name with @proto(name = \"$fromName\")",
+            "pin the rpc name with @proto(name: \"$fromName\")",
         )
     }
 

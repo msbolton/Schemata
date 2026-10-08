@@ -373,7 +373,7 @@ class SqlLoweringTest {
             listOf(
                 "13 SCH2105 field 'R.map': map contents are not typed by Postgres; lowered to jsonb",
                 "15 SCH2110 field 'R.flat': strategy 'json' is not allowed for a scalar",
-                "25 SCH2106 record 'N' has no primary key and is not used by any field",
+                "25 SCH2106 model 'N' has no primary key and is not used by any field",
             ),
             messages(lowered),
         )
@@ -445,7 +445,7 @@ class SqlLoweringTest {
         val lowered = lower(namespace("a", r))
         assertEquals(listOf("code", "tenant_id"), table(lowered, "plan").primaryKey)
         assertEquals(
-            listOf("12 SCH2107 record 'Plan': key field 'code' is nullable"),
+            listOf("12 SCH2107 model 'Plan': key field 'code' is nullable"),
             messages(lowered),
         )
     }
@@ -475,7 +475,7 @@ class SqlLoweringTest {
         val lowered =
             lower(namespace("a", record("a", "Loose", field(1, "x", Scalar(Builtin.BOOL)))))
         assertEquals(
-            listOf("3 SCH2106 record 'Loose' has no primary key and is not used by any field"),
+            listOf("3 SCH2106 model 'Loose' has no primary key and is not used by any field"),
             messages(lowered),
         )
         assertEquals(emptyList(), lowered.model.schemas.single().tables)
@@ -669,8 +669,8 @@ class SqlLoweringTest {
         val lowered = lower(namespace("a", opt, optRecord))
         assertEquals(
             listOf(
-                "21 SCH2107 record 'Opt': key field 'x' is nullable",
-                "31 SCH2107 record 'OptRecord': key field 'y' is nullable",
+                "21 SCH2107 model 'Opt': key field 'x' is nullable",
+                "31 SCH2107 model 'OptRecord': key field 'y' is nullable",
             ),
             messages(lowered),
         )
@@ -716,8 +716,8 @@ class SqlLoweringTest {
             )
         assertEquals(
             listOf(
-                "1 SCH2102 namespaces a and b.x both lower to schema 'a'",
-                "6 SCH2101 records A and B both lower to table 'same'",
+                "1 SCH2102 schemas a and b.x both lower to Postgres schema 'a'",
+                "6 SCH2101 models A and B both lower to table 'same'",
                 "12 SCH2111 field 'C.y' lowers to column 'x', already used by field 'C.x' (o.schemata:11)",
             ),
             messages(lowered),

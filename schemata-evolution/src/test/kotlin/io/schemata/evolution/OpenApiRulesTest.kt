@@ -25,7 +25,7 @@ class OpenApiRulesTest {
             Verdict.Breaking(
                 "t.Orders.fetch: the operation was renamed, so its operationId changes from " +
                     "Orders_get to Orders_fetch",
-                "pin the operationId with @openapi(name = \"Orders_get\")",
+                "pin the operationId with @openapi(name: \"Orders_get\")",
             ),
             verdict("operation.renamed"),
         )
@@ -235,7 +235,7 @@ class OpenApiRulesTest {
             Verdict.Breaking(
                 "t.S: @openapi(name) added, so the tag changes from S to T, and with it every " +
                     "operationId it prefixes",
-                "keep @openapi(name = \"S\")",
+                "keep @openapi(name: \"S\")",
             ),
             only(old, tagged),
         )
@@ -243,7 +243,7 @@ class OpenApiRulesTest {
         assertEquals(
             Verdict.Breaking(
                 "t.S.get: @openapi(name) added, so the operationId changes from S_get to getA",
-                "keep @openapi(name = \"S_get\")",
+                "keep @openapi(name: \"S_get\")",
             ),
             only(old, pinned),
         )

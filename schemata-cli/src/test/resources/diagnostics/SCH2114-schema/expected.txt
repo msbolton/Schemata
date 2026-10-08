@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH2114] (sql): namespace 's': @sql(schema = "") is empty
+error[SCH2114] (sql): schema 's': @sql(schema: "") is empty
  --> s.schemata:1:1
   = help: give the name at least one character
 

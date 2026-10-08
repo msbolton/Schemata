@@ -101,7 +101,7 @@ class UtilitiesTest {
         val line = record("s", "Line", path = listOf("Order", "Line"))
         val order = record("s", "Order", nested = listOf(line))
         val schema = Schema(listOf(Namespace("s", listOf(order), at(1))))
-        assertEquals("record", order.kindWord)
+        assertEquals("model", order.kindWord)
         assertEquals(
             listOf(order, line),
             schema.declarationPath(QualifiedName("s", listOf("Order", "Line"))),
@@ -169,9 +169,9 @@ class UtilitiesTest {
         )
         assertEquals(
             listOf(
-                "SCH9999 record 'A': @t(name = \"\") is empty",
-                "SCH9999 enum value 'E.z': @t(name = \"\") is empty",
-                "SCH9999 field 'A.f': @t(name = \"\") is empty",
+                "SCH9999 model 'A': @t(name: \"\") is empty",
+                "SCH9999 enum value 'E.z': @t(name: \"\") is empty",
+                "SCH9999 field 'A.f': @t(name: \"\") is empty",
             ),
             sink.map { "${it.code.id} ${it.message}" },
         )

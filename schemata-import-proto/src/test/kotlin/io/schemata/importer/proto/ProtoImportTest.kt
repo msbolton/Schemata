@@ -270,8 +270,8 @@ class ProtoImportTest {
         assertEquals(
             listOf(
                 "SCH2403 union 'P': member element 'c' has no Schemata equivalent; the regenerated oneof names it 'card'",
-                "SCH2403 record 'Q': oneof 'which' imported as nullable fields; at most one of them is set, which Schemata cannot say",
-                "SCH2403 record 'S': oneof 'k' imported as nullable fields; at most one of them is set, which Schemata cannot say",
+                "SCH2403 model 'Q': oneof 'which' imported as nullable fields; at most one of them is set, which Schemata cannot say",
+                "SCH2403 model 'S': oneof 'k' imported as nullable fields; at most one of them is set, which Schemata cannot say",
             ),
             messages(r),
         )
@@ -610,7 +610,7 @@ class ProtoImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2405 service 'S': rpc 'At': request type 'google.protobuf.Timestamp' has no Schemata record; rpc dropped",
+                "SCH2405 service 'S': rpc 'At': request type 'google.protobuf.Timestamp' has no Schemata model; rpc dropped",
                 "SCH2405 service 'S': rpc 'Ticks': response stream of google.protobuf.Empty has no Schemata form; rpc dropped",
             ),
             messages(r),
@@ -1030,7 +1030,7 @@ class ProtoImportTest {
             text(upper, "money.schemata"),
         )
         assertEquals(
-            listOf("SCH2402 money.proto: namespace 'money' was derived from the file name"),
+            listOf("SCH2402 money.proto: schema name 'money' was derived from the file name"),
             messages(upper),
         )
     }
@@ -1075,7 +1075,7 @@ class ProtoImportTest {
             )
         assertEquals(
             listOf(
-                "SCH2401 b.proto: message 'M' and a.proto's message 'M' both lower to record 'M'"
+                "SCH2401 b.proto: message 'M' and a.proto's message 'M' both lower to model 'M'"
             ),
             messages(clash),
         )
@@ -1144,8 +1144,8 @@ class ProtoImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2402 corp/a.proto: namespace 'corp.orders' was derived from the package 'Corp.Orders'",
-                "SCH2402 corp/b.proto: namespace 'corp.orders' was derived from the package 'Corp.Orders'",
+                "SCH2402 corp/a.proto: schema name 'corp.orders' was derived from the package 'Corp.Orders'",
+                "SCH2402 corp/b.proto: schema name 'corp.orders' was derived from the package 'Corp.Orders'",
             ),
             messages(r),
         )
@@ -1166,7 +1166,7 @@ class ProtoImportTest {
             )
         assertEquals(
             listOf(
-                "SCH2401 other/y.proto: package 'x' and x.proto's package 'p' both lower to namespace 'x'"
+                "SCH2401 other/y.proto: package 'x' and x.proto's package 'p' both lower to schema 'x'"
             ),
             messages(r),
         )

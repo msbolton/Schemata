@@ -119,7 +119,7 @@ object OpenApiRules : Rulebook {
         if (what.isEmpty()) return Verdict.Compatible
         return Verdict.Breaking(
             "${change.path}: the operation was renamed, so $what",
-            if (fromId != toId) "pin the operationId with @openapi(name = \"$fromId\")"
+            if (fromId != toId) "pin the operationId with @openapi(name: \"$fromId\")"
             else "bind the operation to its old URL with $fromUrl",
         )
     }
@@ -179,7 +179,7 @@ object OpenApiRules : Rulebook {
             else "the operationId changes from $fromName to $toName"
         return Verdict.Breaking(
             "${change.path}: @openapi(name) ${changeWord(change)}, so $what",
-            "keep @openapi(name = \"$fromName\")",
+            "keep @openapi(name: \"$fromName\")",
         )
     }
 

@@ -11,14 +11,14 @@ object SqlCodes {
             "SCH2101",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two records lower to the same table",
+            "two models lower to the same table",
         )
     val SCHEMA_COLLISION =
         DiagnosticCode(
             "SCH2102",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two namespaces lower to the same schema",
+            "two schemas lower to the same Postgres schema",
         )
     val LOSSY =
         DiagnosticCode(
@@ -32,7 +32,7 @@ object SqlCodes {
             "SCH2106",
             Severity.ERROR,
             Category.SEMANTIC,
-            "a record has no primary key and no field uses it",
+            "a model has no primary key and no field uses it",
         )
     val KEY_COLUMN =
         DiagnosticCode(
@@ -46,7 +46,7 @@ object SqlCodes {
             "SCH2108",
             Severity.ERROR,
             Category.SEMANTIC,
-            "embedding a record would recurse",
+            "embedding a model would recurse",
         )
     val IDENTIFIER_TRUNCATED =
         DiagnosticCode(

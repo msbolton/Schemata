@@ -10,8 +10,8 @@ SCH2404 field 'Maps.by_signed': sint32 map key imported as int32
 SCH2405 field 'Maps.flags': map with a bool key dropped
 SCH2403 union 'Tender': oneof 'method' is named 'kind' in the regenerated message
 SCH2403 union 'Tender': member element 'by_card' has no Schemata equivalent; the regenerated oneof names it 'card'
-SCH2403 record 'Shipment': oneof 'destination' imported as nullable fields; at most one of them is set, which Schemata cannot say
-SCH2403 record 'Contact': oneof 'via' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'Shipment': oneof 'destination' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'Contact': oneof 'via' imported as nullable fields; at most one of them is set, which Schemata cannot say
 SCH2403 field 'Widget.weight': default inf has no Schemata literal; dropped
 SCH2405 field 'Widget.legacyName': json_name dropped
 SCH2405 message 'Widget': group dropped

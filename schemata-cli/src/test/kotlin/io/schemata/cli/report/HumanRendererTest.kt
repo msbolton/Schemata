@@ -159,7 +159,7 @@ class HumanRendererTest {
         val d =
             Diagnostic(
                 SqlCodes.MISSING_KEY,
-                "record 'Order' has no key",
+                "model 'Order' has no key",
                 Span("shop/orders.schemata", 3, 7, 3, 11),
             )
         val r =

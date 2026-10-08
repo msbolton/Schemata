@@ -65,7 +65,7 @@ class Resolver(
                     if (repeatedNamespace) {
                         error(
                             CoreCodes.REPEATED_IMPORT,
-                            "namespace '${imp.namespace}' is imported more than once",
+                            "schema '${imp.namespace}' is imported more than once",
                             imp.span,
                             help = "keep one import of `${imp.namespace}`",
                         )
@@ -82,10 +82,10 @@ class Resolver(
                     if (!index.namespaceExists(imp.namespace)) {
                         error(
                             CoreCodes.UNKNOWN_IMPORT,
-                            "import '${imp.namespace}' does not name a namespace in this compilation",
+                            "import '${imp.namespace}' does not name a schema in this compilation",
                             imp.span,
                             help =
-                                "add the file that declares `namespace ${imp.namespace}` to the compilation, or fix the import",
+                                "add the file that declares `schema ${imp.namespace}` to the compilation, or fix the import",
                         )
                         usedImports += imp // never reported as unused as well
                     }
@@ -166,7 +166,7 @@ class Resolver(
                             "map key ${expr.args[0].text()} must be string, int32, or int64",
                             expr.args[0].span,
                             help =
-                                "use one of the three key types, or store the entries as a list of records",
+                                "use one of the three key types, or store the entries as a list of models",
                         )
                         return@generic null
                     }
@@ -181,7 +181,7 @@ class Resolver(
                 CoreCodes.NOT_GENERIC,
                 "'${expr.name}' is not generic",
                 expr.nameSpan,
-                help = "remove the type arguments; only `list` and `map` take them",
+                help = "remove the type arguments; only `map` takes them, and a list is `T[]`",
             )
             return null
         }
@@ -209,7 +209,7 @@ class Resolver(
                 CoreCodes.GENERIC_ARITY,
                 "'${expr.name}' takes $arity type $plural; got ${expr.args.size}",
                 expr.nameSpan,
-                help = if (expr.name == "list") "write `list<T>`" else "write `map<K, V>`",
+                help = if (expr.name == "list") "write `T[]`" else "write `map<K, V>`",
             )
             return null
         }
@@ -337,7 +337,7 @@ class Resolver(
             "unknown type '$name'",
             at,
             help =
-                "declare `$name`, import the namespace that declares it, or check the spelling against the builtin types",
+                "declare `$name`, import the schema that declares it, or check the spelling against the builtin types",
         )
         return null
     }

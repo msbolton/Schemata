@@ -80,7 +80,7 @@ class HelpTextTest {
     fun `needs at least one key suggests one allowed for the element it was written on`() {
         assertEquals("write `@sql(key)`", help("schema t\nmodel R { @sql() #1 x bool }", "SCH1018"))
         assertEquals(
-            "write `@sql(table = \"…\")`",
+            "write `@sql(table: \"…\")`",
             help("schema t\n@sql() model R { #1 x bool }", "SCH1018"),
         )
     }

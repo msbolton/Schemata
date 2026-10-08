@@ -147,7 +147,7 @@ object Options {
                             "id" ->
                                 (collection == null && resolvedKind in keyable) to
                                     "a scalar or an enum"
-                            "embed" -> (subject in embeddable) to "a record or a union"
+                            "embed" -> (subject in embeddable) to "a model or a union"
                             else ->
                                 (collection == null && resolvedKind in constrainable) to
                                     "a single value, not a list or a map"
@@ -346,7 +346,7 @@ object Options {
             ResolvedKind.NUMBER,
             ResolvedKind.OTHER_SCALAR -> builtin?.typeName ?: "a scalar"
             ResolvedKind.ENUM -> "an enum"
-            ResolvedKind.RECORD -> "a record"
+            ResolvedKind.RECORD -> "a model"
             ResolvedKind.UNION -> "a union"
             ResolvedKind.LIST -> "a list"
             ResolvedKind.MAP -> "a map"

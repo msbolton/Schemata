@@ -1,4 +1,4 @@
-error[SCH1004]: record 'R' is declared more than once
+error[SCH1004]: model 'R' is declared more than once
  --> s.schemata:5:7
   = help: rename or remove one of them
 

@@ -162,7 +162,7 @@ class XsdWildcardsTest {
     @Test
     fun `a repeated field under all is an error`() {
         assertEquals(
-            listOf("SCH2204 record 'Cfg': @xsd(all) is on a record with a repeated field 'items'"),
+            listOf("SCH2204 model 'Cfg': @xsd(all) is on a model with a repeated field 'items'"),
             diagnosticsOf(
                 "schema t\n" +
                     "\n" +
@@ -181,8 +181,8 @@ class XsdWildcardsTest {
     fun `a wildcard under all is an error`() {
         assertEquals(
             listOf(
-                "SCH2204 record 'R': @xsd(all) is on a record with a wildcard field 'x'",
-                "SCH2204 record 'R': @xsd(all) is on a record with a wildcard field 'y'",
+                "SCH2204 model 'R': @xsd(all) is on a model with a wildcard field 'x'",
+                "SCH2204 model 'R': @xsd(all) is on a model with a wildcard field 'y'",
             ),
             diagnosticsOf(
                 "schema t\n" +
@@ -269,8 +269,8 @@ class XsdWildcardsTest {
     fun `a second any attribute or mixed field is an error`() {
         assertEquals(
             listOf(
-                "SCH2204 field 'R.t2': a record takes one @xsd(mixed) field; 't1' already has it",
-                "SCH2204 field 'R.a2': a record takes one @xsd(any_attribute) field; 'a1' already has it",
+                "SCH2204 field 'R.t2': a model takes one @xsd(mixed) field; 't1' already has it",
+                "SCH2204 field 'R.a2': a model takes one @xsd(any_attribute) field; 'a1' already has it",
             ),
             diagnosticsOf(
                 """

@@ -88,7 +88,7 @@ class DefaultsTest {
             listOf(
                 "7:14 default may not be null",
                 "8:14 default for enum 'Status' must be one of: pending, paid",
-                "9:9 record fields cannot have a default",
+                "9:9 model fields cannot have a default",
                 "10:15 list fields cannot have a default",
                 "11:23 default 3 is below min 5",
                 "12:24 default \"abc\" is longer than max 2",

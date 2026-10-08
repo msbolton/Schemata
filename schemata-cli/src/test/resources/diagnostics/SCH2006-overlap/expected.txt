@@ -1,5 +1,5 @@
 # targets=proto
-error[SCH2006] (proto): record 'R': reserved range 3 to 5 overlaps 2 to 4
+error[SCH2006] (proto): model 'R': reserved range 3 to 5 overlaps 2 to 4
  --> s.schemata:3:7
   = help: merge or separate the two ranges
 

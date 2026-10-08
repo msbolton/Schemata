@@ -72,7 +72,7 @@ object XsdImport {
                     unresolved(
                         doc.path,
                         1,
-                        "${existing.path} and ${doc.path} both lower to namespace '$name'",
+                        "${existing.path} and ${doc.path} both lower to schema '$name'",
                     )
                 return@forEachIndexed
             }
@@ -225,7 +225,7 @@ object XsdImport {
         val name =
             if (ImportNames.isNamespaceSegment(rawStem)) rawStem
             else ImportNames.namespaceStem(doc.path)
-        diagnostics += renamed(doc.path, 1, "namespace '$name' was derived from the file name")
+        diagnostics += renamed(doc.path, 1, "schema name '$name' was derived from the file name")
         return name
     }
 
@@ -395,7 +395,7 @@ object XsdImport {
 
     /**
      * [original]'s fixed Schemata identifier, the `@xsd(name)` override that regenerates [original]
-     * exactly (`full-name` → `full_name` with `@xsd(name = "full-name")`), and, when [original] is
+     * exactly (`full-name` → `full_name` with `@xsd(name: "full-name")`), and, when [original] is
      * not even a valid XML name (a bare enumeration value may start with a digit, as `2d` does), no
      * override at all: the xsd target rejects one that isn't a valid name, so offering it would
      * only trade one way of failing to round trip for another. A valid identifier is kept as-is.
@@ -796,7 +796,7 @@ object XsdImport {
                 lossy(
                     ImportCodes.APPROXIMATED,
                     "element '$original'",
-                    "$owner already lowers to record '$base'; imported as '$name'",
+                    "$owner already lowers to model '$base'; imported as '$name'",
                     line,
                 )
             return name
@@ -1537,7 +1537,7 @@ object XsdImport {
                                     lossy(
                                         ImportCodes.APPROXIMATED,
                                         whereCollision,
-                                        "xs:all flattened into the record",
+                                        "xs:all flattened into the model",
                                         particle.line,
                                     )
                                 result +=
@@ -1600,7 +1600,7 @@ object XsdImport {
                     ImportCodes.APPROXIMATED,
                     whereCollision,
                     (particle.name?.let { "repeated group '$it'" } ?: "nested sequence") +
-                        " imported as record '$recordName' in field '$name'",
+                        " imported as model '$recordName' in field '$name'",
                     particle.line,
                 )
             val ownClaimed = mutableMapOf<String, String>()
@@ -1835,7 +1835,7 @@ object XsdImport {
                         ImportCodes.APPROXIMATED,
                         whereCollision,
                         "extension of '${ext.base.local}' has no Schemata equivalent; base fields " +
-                            "flattened into the record",
+                            "flattened into the model",
                         ext.line,
                     )
             }
@@ -1864,7 +1864,7 @@ object XsdImport {
                     ImportCodes.APPROXIMATED,
                     whereCollision,
                     "simpleContent $kind of '${base.local}' has no Schemata equivalent; " +
-                        "imported as a record with a 'value' field",
+                        "imported as a model with a 'value' field",
                     line,
                 )
             val refined = simpleContentValue(kind, base, facets, line, whereCollision)
@@ -2225,7 +2225,7 @@ object XsdImport {
                     ImportCodes.APPROXIMATED,
                     unionWhere,
                     "members '${group[0].name}' and '${other.name}' share type '$typeName'; each " +
-                        "imported as a record holding it",
+                        "imported as a model holding it",
                     branch.el.line,
                 )
             siblings +=
@@ -2270,7 +2270,7 @@ object XsdImport {
                 lossy(
                     ImportCodes.APPROXIMATED,
                     unionWhere,
-                    "choice branch imported as record '$name'",
+                    "choice branch imported as model '$name'",
                     particle.line,
                 )
             val ct =
@@ -3568,7 +3568,7 @@ object XsdImport {
                     lossy(
                         ImportCodes.APPROXIMATED,
                         where,
-                        "map wrapper without xs:unique imported as a nested record",
+                        "map wrapper without xs:unique imported as a nested model",
                         el.line,
                     )
                 val keyField =

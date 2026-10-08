@@ -61,7 +61,7 @@ class Catalog(
                 // rather than the record silently falling back to a value type.
                 if (keyFields.isNotEmpty() || declaresKey(decl)) {
                     val tableOverride =
-                        override(decl.annotations, "table", "record '${decl.name}'", decl.nameSpan)
+                        override(decl.annotations, "table", "model '${decl.name}'", decl.nameSpan)
                     val tableNameRaw = Naming.tableOf(decl, tableOverride)
                     val tableName = identifier(tableNameRaw, decl.nameSpan)
                     val keyColumnsRaw =

@@ -11,7 +11,7 @@ xsd: 2 breaking, 0 notes
 jsonschema: 2 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
-error[SCH2501]: jsonschema: s.Order.customer: type changed from Customer to Customer { embed } breaks old documents: the reference changed between a key and an embedded record
+error[SCH2501]: jsonschema: s.Order.customer: type changed from Customer to Customer { embed } breaks old documents: the reference changed between a key and an embedded model
   --> new/s.schemata:10:3
    |
 10 |   #2 customer Customer { embed }
@@ -25,7 +25,7 @@ error[SCH2501]: proto: s.Order.customer: type changed from Customer to Customer 
    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = help: add a new field instead of changing this one's type
 
-error[SCH2501]: xsd: s.Order.customer: type changed from Customer to Customer { embed } breaks old documents: the reference changed between a key and an embedded record
+error[SCH2501]: xsd: s.Order.customer: type changed from Customer to Customer { embed } breaks old documents: the reference changed between a key and an embedded model
   --> new/s.schemata:10:3
    |
 10 |   #2 customer Customer { embed }
@@ -39,7 +39,7 @@ error[SCH2501]: sql: s.Order.customer: { embed } added breaks how existing rows 
    |      ^^^^^^^^
    = help: avoid changing { embed } once the table holds data
 
-error[SCH2501]: jsonschema: s.Order.billing: type changed from Customer { embed } to Customer breaks old documents: the reference changed between a key and an embedded record
+error[SCH2501]: jsonschema: s.Order.billing: type changed from Customer { embed } to Customer breaks old documents: the reference changed between a key and an embedded model
   --> new/s.schemata:11:3
    |
 11 |   #3 billing  Customer
@@ -53,7 +53,7 @@ error[SCH2501]: proto: s.Order.billing: type changed from Customer { embed } to 
    |   ^^^^^^^^^^^^^^^^^^^^
    = help: add a new field instead of changing this one's type
 
-error[SCH2501]: xsd: s.Order.billing: type changed from Customer { embed } to Customer breaks old documents: the reference changed between a key and an embedded record
+error[SCH2501]: xsd: s.Order.billing: type changed from Customer { embed } to Customer breaks old documents: the reference changed between a key and an embedded model
   --> new/s.schemata:11:3
    |
 11 |   #3 billing  Customer

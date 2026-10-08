@@ -1,4 +1,4 @@
-error[SCH1002]: record name 'order_line' must be UpperCamel
+error[SCH1002]: model name 'order_line' must be UpperCamel
  --> s.schemata:3:7
   = help: rename it `OrderLine`
 

@@ -1,6 +1,6 @@
 not migrated: a side has sql errors
 
-error[SCH2106]: record 'Filter' has no primary key and is not used by any field
+error[SCH2106]: model 'Filter' has no primary key and is not used by any field
  --> new/orders.schemata:5:7
   |
 5 | model Filter { #1 status string? { max 20 } }
@@ -8,7 +8,7 @@ error[SCH2106]: record 'Filter' has no primary key and is not used by any field
   = help: mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only
           lowers when a field embeds it
 
-error[SCH2106]: record 'PlaceOrder' has no primary key and is not used by any field
+error[SCH2106]: model 'PlaceOrder' has no primary key and is not used by any field
  --> new/orders.schemata:7:7
   |
 7 | model PlaceOrder { #1 customer_id uuid }
@@ -16,7 +16,7 @@ error[SCH2106]: record 'PlaceOrder' has no primary key and is not used by any fi
   = help: mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only
           lowers when a field embeds it
 
-error[SCH2106]: record 'Count' has no primary key and is not used by any field
+error[SCH2106]: model 'Count' has no primary key and is not used by any field
   --> new/orders.schemata:11:7
    |
 11 | model Count { #1 n int64 }
@@ -24,7 +24,7 @@ error[SCH2106]: record 'Count' has no primary key and is not used by any field
    = help: mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only
            lowers when a field embeds it
 
-error[SCH2106]: record 'Filter' has no primary key and is not used by any field
+error[SCH2106]: model 'Filter' has no primary key and is not used by any field
  --> old/orders.schemata:5:7
   |
 5 | model Filter { #1 status string? { max 20 } }
@@ -32,7 +32,7 @@ error[SCH2106]: record 'Filter' has no primary key and is not used by any field
   = help: mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only
           lowers when a field embeds it
 
-error[SCH2106]: record 'PlaceOrder' has no primary key and is not used by any field
+error[SCH2106]: model 'PlaceOrder' has no primary key and is not used by any field
  --> old/orders.schemata:7:7
   |
 7 | model PlaceOrder { #1 customer_id uuid }
@@ -40,7 +40,7 @@ error[SCH2106]: record 'PlaceOrder' has no primary key and is not used by any fi
   = help: mark its key fields with `{ id }`, or the model with `@@id(a, b)`; a keyless model only
           lowers when a field embeds it
 
-error[SCH2106]: record 'Count' has no primary key and is not used by any field
+error[SCH2106]: model 'Count' has no primary key and is not used by any field
   --> old/orders.schemata:11:7
    |
 11 | model Count { #1 n int64 }

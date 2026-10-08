@@ -323,7 +323,7 @@ class SqlStructureTest {
             )
         val lowered = lower(namespace("a", used, loose, owner))
         assertEquals(
-            listOf("6 SCH2106 record 'Loose' has no primary key and is not used by any field"),
+            listOf("6 SCH2106 model 'Loose' has no primary key and is not used by any field"),
             messages(lowered).filter { "SCH2106" in it },
         )
         assertEquals(listOf("owner"), lowered.model.schemas.single().tables.map { it.name })
@@ -341,7 +341,7 @@ class SqlStructureTest {
             )
         val lowered = lower(namespace("a", other, r))
         assertEquals(
-            listOf("11 SCH2107 record 'R': key field 'other' must be a scalar column"),
+            listOf("11 SCH2107 model 'R': key field 'other' must be a scalar column"),
             messages(lowered).filter { "SCH2107" in it },
         )
     }
@@ -873,7 +873,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", addr, cust, r))
         assertEquals(
             listOf(
-                "12 SCH2105 field 'R.home': record contents are not typed by Postgres; lowered to jsonb",
+                "12 SCH2105 field 'R.home': model contents are not typed by Postgres; lowered to jsonb",
                 "16 SCH2105 field 'R.lines': list contents are not typed by Postgres; lowered to jsonb",
             ),
             messages(lowered),
@@ -911,7 +911,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", addr, r))
         assertEquals(
             listOf(
-                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless record",
+                "12 SCH2110 field 'R.home': strategy 'table' is not allowed for a keyless model",
                 "15 SCH2110 field 'R.flag': strategy 'json' is not allowed for a scalar",
             ),
             messages(lowered),
@@ -1349,8 +1349,8 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", r))
         assertEquals(
             setOf(
-                "record 'R': @@unique(tenant, code) duplicates the primary key; dropped",
-                "record 'R': @@unique(code, tags) names 'tags', which has no column on the record's table",
+                "model 'R': @@unique(tenant, code) duplicates the primary key; dropped",
+                "model 'R': @@unique(code, tags) names 'tags', which has no column on the model's table",
             ),
             lowered.diagnostics.map { it.message }.toSet(),
         )
@@ -1370,7 +1370,7 @@ class SqlStructureTest {
         val lowered = lower(namespace("a", customer, r))
         assertEquals(listOf("SCH2110"), lowered.diagnostics.map { it.code.id })
         assertEquals(
-            "field 'R.customer': strategy 'embed' is not allowed for a keyed record",
+            "field 'R.customer': { embed } is not allowed for a keyed model",
             lowered.diagnostics.single().message,
         )
     }

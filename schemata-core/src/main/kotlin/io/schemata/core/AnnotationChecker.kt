@@ -76,9 +76,9 @@ class AnnotationChecker(
                     if (flag == null) {
                         report(
                             CoreCodes.ANNOTATION_VALUE,
-                            "@$target arguments are a bare key or key = value",
+                            "@$target arguments are a bare key or key: value",
                             arg.span,
-                            help = "write `@$target(key)` or `@$target(key = value)`",
+                            help = "write `@$target(key)` or `@$target(key: value)`",
                         )
                         return
                     }
@@ -306,7 +306,7 @@ class AnnotationChecker(
         when {
             spec.valueKind == ValueKind.FLAG -> "write `${example(spec)}`"
             target.isEmpty() -> "write `@${spec.key}(${example(spec)})`"
-            else -> "write `@$target(${spec.key} = ${example(spec)})`"
+            else -> "write `@$target(${spec.key}: ${example(spec)})`"
         }
 
     /** An example value for [spec]'s kind, for a "write it like this" help message. */

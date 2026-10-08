@@ -1,4 +1,4 @@
-error[SCH1004]: record 'R' is declared in both a.schemata:3 and b.schemata:3
+error[SCH1004]: model 'R' is declared in both a.schemata:3 and b.schemata:3
  --> b.schemata:3:7
   = help: rename or remove one of them
 

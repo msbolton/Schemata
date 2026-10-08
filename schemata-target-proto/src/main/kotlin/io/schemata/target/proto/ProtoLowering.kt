@@ -73,9 +73,9 @@ object ProtoLowering {
             diagnostics +=
                 Diagnostic(
                     ProtoCodes.NAME_COLLISION,
-                    "namespaces ${clashing.joinToString(" and ") { it.name }} both lower to package '${packages.getValue(clashing.first().name)}'",
+                    "schemas ${clashing.joinToString(" and ") { it.name }} both lower to package '${packages.getValue(clashing.first().name)}'",
                     clashing[1].span,
-                    help = "set `@proto(package = \"…\")` on one namespace",
+                    help = "set `@proto(package: \"…\")` on one schema",
                 )
         }
         val files =
@@ -98,7 +98,7 @@ object ProtoLowering {
             namespace.annotations.string("proto", "package")?.let {
                 if (!ProtoNames.isPackage(it)) {
                     invalidOverride(
-                        "namespace '${namespace.name}': @proto(package = \"$it\") is not a valid package name",
+                        "schema '${namespace.name}': @proto(package: \"$it\") is not a valid package name",
                         namespace.span,
                         help = "use dotted lower-case identifiers, for example `shop.orders.v1`",
                     )
@@ -216,7 +216,7 @@ object ProtoLowering {
 
         private fun record(record: RecordType, enclosing: List<String>): ProtoMessage {
             val here = enclosing + record.name
-            val where = "record '${record.name}'"
+            val where = "model '${record.name}'"
             val name = names.of(record)
             // A back-reference is virtual: the forward reference on the other message carries it.
             val stored = record.storedFields
@@ -420,7 +420,7 @@ object ProtoLowering {
                                 "$where: a nullable list has no Protobuf representation; lowered to repeated",
                                 span,
                                 help =
-                                    "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
+                                    "declare the list as `T[]`; an empty list already means absent",
                             )
                             lossy = true
                         }
@@ -429,7 +429,7 @@ object ProtoLowering {
                                 "$where: nullable list elements have no Protobuf representation; lowered to repeated",
                                 span,
                                 help =
-                                    "declare the list as `list<T>` with non-nullable elements; an empty list already means absent",
+                                    "declare the list as `T[]`; an empty list already means absent",
                             )
                             lossy = true
                         }
@@ -491,7 +491,7 @@ object ProtoLowering {
                     ProtoCodes.UNSUPPORTED_NESTING,
                     "$where: proto cannot nest collections; ${ProtoTypes.text(owner)} has a collection element",
                     span,
-                    help = "wrap the element in a record",
+                    help = "wrap the element in a model",
                 )
             return ProtoType.Scalar("bytes") // never rendered: the error above prevents rendering
         }
@@ -661,7 +661,7 @@ object ProtoLowering {
                         ProtoCodes.NAME_COLLISION,
                         "proto name '${symbol.protoName}' is already used by ${previous.holder}$location",
                         symbol.span,
-                        help = "rename one of them, or set `@proto(name = \"…\")` on one",
+                        help = "rename one of them, or set `@proto(name: \"…\")` on one",
                     )
             }
         }
@@ -683,7 +683,7 @@ object ProtoLowering {
                         ProtoCodes.JSON_NAME_COLLISION,
                         "fields '${record.name}.${previous.name}' and '${record.name}.${field.name}' share the Protobuf JSON name '$json'",
                         field.nameSpan,
-                        help = "rename one of them, or set `@proto(name = \"…\")` on one",
+                        help = "rename one of them, or set `@proto(name: \"…\")` on one",
                     )
             }
         }

@@ -1,5 +1,5 @@
 # targets=jsonschema
-error[SCH2303] (jsonschema): field 'R.a': @jsonschema(name = "a/b") contains '/', which a $ref cannot carry
+error[SCH2303] (jsonschema): field 'R.a': @jsonschema(name: "a/b") contains '/', which a $ref cannot carry
  --> s.schemata:3:14
   = help: leave out whitespace and the characters / ~ # % ? " \
 

@@ -1,4 +1,4 @@
-error[SCH1005]: field 'x' is declared more than once in record 'R'
+error[SCH1005]: field 'x' is declared more than once in model 'R'
  --> s.schemata:3:25
   = help: rename or remove one of the two fields
 

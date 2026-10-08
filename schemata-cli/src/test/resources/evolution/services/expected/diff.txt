@@ -21,14 +21,14 @@ error[SCH2501]: openapi: s.Orders.fetch: the operation was renamed, so its opera
    |
 14 |   #1 fetch(OrderId): Order  get "/orders/{id}"
    |      ^^^^^
-   = help: pin the operationId with @openapi(name = "Orders_get")
+   = help: pin the operationId with @openapi(name: "Orders_get")
 
 error[SCH2501]: proto: s.Orders.fetch: the operation was renamed, so its rpc path changes from /s.Orders/Get to /s.Orders/Fetch
   --> new/orders.schemata:14:6
    |
 14 |   #1 fetch(OrderId): Order  get "/orders/{id}"
    |      ^^^^^
-   = help: pin the rpc name with @proto(name = "Get")
+   = help: pin the rpc name with @proto(name: "Get")
 
 error[SCH2501]: openapi: s.Orders.list: the response changed from stream Order to Order breaks clients that read the old one
   --> new/orders.schemata:15:3

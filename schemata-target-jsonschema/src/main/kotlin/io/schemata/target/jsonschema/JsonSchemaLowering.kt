@@ -59,7 +59,7 @@ object JsonSchemaLowering {
                 diagnostics +=
                     Diagnostic(
                         codes.invalidOverride,
-                        "namespace '${ns.name}': @jsonschema(id = \"$override\") is not an absolute URI",
+                        "schema '${ns.name}': @jsonschema(id: \"$override\") is not an absolute URI",
                         ns.span,
                         help =
                             "use an absolute URI without a fragment, such as `urn:example:orders`",
@@ -74,9 +74,9 @@ object JsonSchemaLowering {
                 diagnostics +=
                     Diagnostic(
                         codes.idCollision,
-                        "namespaces ${group.joinToString(" and ") { it.name }} both lower to \$id '${ids.getValue(group.first().name)}'",
+                        "schemas ${group.joinToString(" and ") { it.name }} both lower to \$id '${ids.getValue(group.first().name)}'",
                         group[1].span,
-                        help = "set `@jsonschema(id = \"…\")` on one of them",
+                        help = "set `@jsonschema(id: \"…\")` on one of them",
                     )
             }
         val names = SchemaNames(schema, codes, diagnostics)
@@ -193,7 +193,7 @@ class DocumentLowering(
     private val claims =
         NameClaims(
             codes.nameCollision,
-            "rename one of them, or set `@jsonschema(name = \"…\")` on one",
+            "rename one of them, or set `@jsonschema(name: \"…\")` on one",
             diagnostics,
         )
 
@@ -245,7 +245,7 @@ class DocumentLowering(
      */
     fun partialRecord(record: RecordType, fields: List<Field>, where: String): ObjectSchema {
         require(fields.all { it in record.fields }) {
-            "$where: every field of a partial record must belong to ${record.qualifiedName}"
+            "$where: every field of a partial model must belong to ${record.qualifiedName}"
         }
         return record(record, fields)
     }

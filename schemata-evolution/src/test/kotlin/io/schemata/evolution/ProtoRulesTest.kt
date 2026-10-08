@@ -378,7 +378,7 @@ class ProtoRulesTest {
             Verdict.Breaking(
                 "t.Orders.fetch: the operation was renamed, so its rpc path changes from " +
                     "/t.Orders/Get to /t.Orders/Fetch",
-                "pin the rpc name with @proto(name = \"Get\")",
+                "pin the rpc name with @proto(name: \"Get\")",
             ),
             verdict("operation.renamed"),
         )
@@ -452,7 +452,7 @@ class ProtoRulesTest {
         assertEquals(
             Verdict.Breaking(
                 "t.S.get: the rpc path changes from /shop.v1.S/Get to /shop.v1.S/Other",
-                "pin the rpc name with @proto(name = \"Get\")",
+                "pin the rpc name with @proto(name: \"Get\")",
             ),
             only(old, moved),
         )
@@ -465,7 +465,7 @@ class ProtoRulesTest {
         assertEquals(
             Verdict.Breaking(
                 "t.S: the service's rpc paths change from /shop.v1.S/* to /shop.v1.Store/*",
-                "pin the service name with @proto(name = \"S\")",
+                "pin the service name with @proto(name: \"S\")",
             ),
             only(old, new),
         )

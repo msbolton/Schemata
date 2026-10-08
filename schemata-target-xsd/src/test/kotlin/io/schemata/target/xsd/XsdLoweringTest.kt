@@ -240,9 +240,9 @@ class XsdLoweringTest {
         val b = namespace("b", xsd("namespace" to AnnotationValue.Str("urn:x")), line = 5)
         val d = XsdLowering.lower(Schema(listOf(a, b))).diagnostics.single()
         assertEquals(XsdCodes.NAMESPACE_COLLISION, d.code)
-        assertEquals("namespaces a and b both lower to target namespace 'urn:x'", d.message)
+        assertEquals("schemas a and b both lower to target namespace 'urn:x'", d.message)
         assertEquals(5, d.span.startLine)
-        assertEquals("set `@xsd(namespace = \"…\")` on one of them", d.help)
+        assertEquals("set `@xsd(namespace: \"…\")` on one of them", d.help)
     }
 
     @Test
@@ -251,7 +251,7 @@ class XsdLoweringTest {
         val d = XsdLowering.lower(Schema(listOf(ns))).diagnostics.single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
         assertEquals(
-            "namespace 'shop.orders': @xsd(namespace = \"orders\") is not an absolute URI",
+            "schema 'shop.orders': @xsd(namespace: \"orders\") is not an absolute URI",
             d.message,
         )
         assertEquals("use an absolute URI, such as `urn:example:orders`", d.help)
@@ -423,10 +423,10 @@ class XsdLoweringTest {
                 .single()
         assertEquals(XsdCodes.NAME_COLLISION, d.code)
         assertEquals(
-            "record 'HttpStatus' lowers to element 'http_status', already used by record 'HTTPStatus' (orders.schemata:2)",
+            "model 'HttpStatus' lowers to element 'http_status', already used by model 'HTTPStatus' (orders.schemata:2)",
             d.message,
         )
-        assertEquals("rename one of them, or set `@xsd(name = \"…\")` on one", d.help)
+        assertEquals("rename one of them, or set `@xsd(name: \"…\")` on one", d.help)
     }
 
     @Test
@@ -455,7 +455,7 @@ class XsdLoweringTest {
                 .diagnostics
                 .single()
         assertEquals(
-            "record 'Line' lowers to type 'OrderLineType', already used by record 'OrderLine' (orders.schemata:2)",
+            "model 'Line' lowers to type 'OrderLineType', already used by model 'OrderLine' (orders.schemata:2)",
             d.message,
         )
     }
@@ -478,7 +478,7 @@ class XsdLoweringTest {
                 .diagnostics
                 .single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
-        assertEquals("field 'R.x': @xsd(name = \"1bad\") is not a valid XML name", d.message)
+        assertEquals("field 'R.x': @xsd(name: \"1bad\") is not a valid XML name", d.message)
         assertEquals(
             "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore",
             d.help,
@@ -575,7 +575,7 @@ class XsdLoweringTest {
             "field 'R.tags': a nullable list has no XSD representation; lowered to an optional repeated element",
             d.message,
         )
-        assertEquals("declare the list as `list<T>`; an absent list already means empty", d.help)
+        assertEquals("declare the list as `T[]`; an absent list already means empty", d.help)
     }
 
     @Test
@@ -1152,7 +1152,7 @@ class XsdLoweringTest {
             )
         val d = lowered.diagnostics.single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
-        assertEquals("record 'Order': @xsd(name = \"1bad\") is not a valid XML name", d.message)
+        assertEquals("model 'Order': @xsd(name: \"1bad\") is not a valid XML name", d.message)
         assertEquals(
             XsdTypeRef.Named("ns1", "OrderType", simple = false),
             (lowered.model.files[1].types.single() as XsdChoice).members.single().type,

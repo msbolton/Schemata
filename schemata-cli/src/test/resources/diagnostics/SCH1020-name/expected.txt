@@ -1,4 +1,4 @@
-error[SCH1020]: name 'y' is reserved in record 'R'
+error[SCH1020]: name 'y' is reserved in model 'R'
  --> s.schemata:6:6
   = help: pick another name; reserved names are kept out of use for old readers
 

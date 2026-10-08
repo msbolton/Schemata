@@ -53,7 +53,7 @@ class OrdinalsTest {
         assertNull(r.schema)
         assertEquals(
             listOf(
-                "2:7 record 'R' mixes explicit and implicit ordinals",
+                "2:7 model 'R' mixes explicit and implicit ordinals",
                 "6:6 enum 'E' mixes explicit and implicit ordinals",
             ),
             messages(r),
@@ -92,10 +92,10 @@ class OrdinalsTest {
         assertEquals(
             listOf(
                 "8:23 reserved range #7..#6 is inverted",
-                "4:3 ordinal #3 is used more than once in record 'R'",
+                "4:3 ordinal #3 is used more than once in model 'R'",
                 "5:3 ordinal #0 is not positive",
-                "6:6 name 'old' is reserved in record 'R'",
-                "7:3 ordinal #5 is reserved in record 'R'",
+                "6:6 name 'old' is reserved in model 'R'",
+                "7:3 ordinal #5 is reserved in model 'R'",
             ),
             messages(r),
         )
@@ -104,7 +104,7 @@ class OrdinalsTest {
     @Test
     fun `a huge reserved range is kept as a range and still conflicts`() {
         val r = analyze("schema a\nmodel R {\n  #5 x bool\n  reserved #1..#2000000000\n}")
-        assertEquals(listOf("3:3 ordinal #5 is reserved in record 'R'"), messages(r))
+        assertEquals(listOf("3:3 ordinal #5 is reserved in model 'R'"), messages(r))
     }
 
     @Test

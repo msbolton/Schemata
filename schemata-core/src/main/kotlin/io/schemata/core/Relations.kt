@@ -198,7 +198,7 @@ object Relations {
                     .forEach {
                         error(
                             CoreCodes.ANNOTATION_VALUE,
-                            "$display names '$it', a back-reference of record '${record.name}', which stores nothing",
+                            "$display names '$it', a back-reference of model '${record.name}', which stores nothing",
                             record.nameSpan,
                             "name stored fields only",
                         )

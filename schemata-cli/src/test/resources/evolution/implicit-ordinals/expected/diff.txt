@@ -18,7 +18,7 @@ error[SCH2501]: jsonschema: s.Customer.age: the field was renamed from 'name' to
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                  ^^^
-  = help: pin the emitted name with @jsonschema(name = "name")
+  = help: pin the emitted name with @jsonschema(name: "name")
 
 error[SCH2501]: jsonschema: s.Customer.age: type changed from string { max 100 } to int32 breaks old documents: old values do not fit the new type
  --> new/s.schemata:3:34
@@ -39,7 +39,7 @@ error[SCH2501]: sql: s.Customer.age: the column was renamed from 'name' to 'age'
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                  ^^^
-  = help: pin the emitted column with @sql(column = "name")
+  = help: pin the emitted column with @sql(column: "name")
 
 error[SCH2501]: sql: s.Customer.age: type changed from string { max 100 } to int32 breaks existing rows: old values do not fit the new type
  --> new/s.schemata:3:34
@@ -53,7 +53,7 @@ error[SCH2501]: xsd: s.Customer.age: the field was renamed from 'name' to 'age' 
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                  ^^^
-  = help: pin the emitted name with @xsd(name = "name")
+  = help: pin the emitted name with @xsd(name: "name")
 
 error[SCH2501]: xsd: s.Customer.age: type changed from string { max 100 } to int32 breaks old documents: old values do not fit the new type
  --> new/s.schemata:3:34
@@ -67,14 +67,14 @@ warning[SCH2502] (lossy): proto: s.Customer.age: field renamed from 'name' to 'a
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                  ^^^
-  = help: pin the emitted name with @proto(name = "name")
+  = help: pin the emitted name with @proto(name: "name")
 
 error[SCH2501]: jsonschema: s.Customer.name: the field was renamed from 'age' to 'name' breaks old documents that still use the old name
  --> new/s.schemata:3:45
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                             ^^^^
-  = help: pin the emitted name with @jsonschema(name = "age")
+  = help: pin the emitted name with @jsonschema(name: "age")
 
 error[SCH2501]: jsonschema: s.Customer.name: type changed from int32 to string { max 100 } breaks old documents: old values do not fit the new type
  --> new/s.schemata:3:45
@@ -95,7 +95,7 @@ error[SCH2501]: sql: s.Customer.name: the column was renamed from 'age' to 'name
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                             ^^^^
-  = help: pin the emitted column with @sql(column = "age")
+  = help: pin the emitted column with @sql(column: "age")
 
 error[SCH2501]: sql: s.Customer.name: type changed from int32 to string { max 100 } breaks existing rows: old values do not fit the new type
  --> new/s.schemata:3:45
@@ -109,7 +109,7 @@ error[SCH2501]: xsd: s.Customer.name: the field was renamed from 'age' to 'name'
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                             ^^^^
-  = help: pin the emitted name with @xsd(name = "age")
+  = help: pin the emitted name with @xsd(name: "age")
 
 error[SCH2501]: xsd: s.Customer.name: type changed from int32 to string { max 100 } breaks old documents: old values do not fit the new type
  --> new/s.schemata:3:45
@@ -123,6 +123,6 @@ warning[SCH2502] (lossy): proto: s.Customer.name: field renamed from 'age' to 'n
   |
 3 | model Customer { id uuid { id }  age int32  name string { max 100 } }
   |                                             ^^^^
-  = help: pin the emitted name with @proto(name = "age")
+  = help: pin the emitted name with @proto(name: "age")
 
 14 errors, 2 warnings

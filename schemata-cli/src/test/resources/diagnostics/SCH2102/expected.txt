@@ -1,6 +1,6 @@
 # targets=sql
-error[SCH2102] (sql): namespaces a and b both lower to schema 'x'
+error[SCH2102] (sql): schemas a and b both lower to Postgres schema 'x'
  --> b.schemata:1:1
-  = help: set `@sql(schema = "…")` on one of them
+  = help: set `@sql(schema: "…")` on one of them
 
 1 error, 0 warnings

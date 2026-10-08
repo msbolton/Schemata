@@ -16,7 +16,7 @@ object CoreCodes {
     private fun warning(id: String, description: String) =
         DiagnosticCode(id, Severity.WARNING, Category.SEMANTIC, description)
 
-    val NAMESPACE_SEGMENT_NAMING = error("SCH1001", "a namespace segment is not lower_snake")
+    val NAMESPACE_SEGMENT_NAMING = error("SCH1001", "a schema name segment is not lower_snake")
     val TYPE_NAMING = error("SCH1002", "a type name is not UpperCamel")
     val FIELD_NAMING = error("SCH1003", "a member name is not lower_snake")
     val DUPLICATE_TYPE = error("SCH1004", "the same qualified name is declared twice")
@@ -24,7 +24,7 @@ object CoreCodes {
     val UNKNOWN_TYPE = error("SCH1006", "a type name resolves to nothing")
     val AMBIGUOUS_TYPE = error("SCH1009", "a bare name matches several declarations")
     val BUILTIN_SHADOWED = warning("SCH1010", "a declaration shadows a builtin type")
-    val UNKNOWN_IMPORT = error("SCH1011", "an import names no namespace in the compilation")
+    val UNKNOWN_IMPORT = error("SCH1011", "an import names no schema in the compilation")
     val UNUSED_IMPORT = warning("SCH1012", "an import resolves nothing")
     val MIXED_ORDINALS = error("SCH1013", "some elements have explicit ordinals and some do not")
     val IMPLICIT_ORDINAL_STRICT =
@@ -63,7 +63,7 @@ object CoreCodes {
     val IMPORT_ALIAS_NAMING = error("SCH1045", "an import alias is not lower_snake")
     val REPEATED_IMPORT = error("SCH1046", "an import is repeated")
     val PAYLOAD_KIND =
-        error("SCH1047", "an operation's request or response is not a record or a union")
+        error("SCH1047", "an operation's request or response is not a model or a union")
     val BINDING = error("SCH1048", "an operation's HTTP binding does not fit its request")
     val OPTION_NOT_APPLICABLE = error("SCH1049", "an option on a type that cannot carry it")
     val BACK_REFERENCE_TARGET =

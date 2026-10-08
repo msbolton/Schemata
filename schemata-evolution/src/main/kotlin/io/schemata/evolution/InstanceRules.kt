@@ -128,7 +128,7 @@ class InstanceRules(
         return Verdict.Breaking(
             "${change.path}: the field was renamed from '$fromName' to '$toName' breaks old " +
                 "documents that still use the old name",
-            "pin the emitted name with @$target(name = \"$fromName\")",
+            "pin the emitted name with @$target(name: \"$fromName\")",
         )
     }
 
@@ -151,7 +151,7 @@ class InstanceRules(
         ) { from, to ->
             if (from.relation.embed != to.relation.embed)
                 Verdict.Breaking(
-                    "old documents: the reference changed between a key and an embedded record",
+                    "old documents: the reference changed between a key and an embedded model",
                     "add a new field instead of flipping { embed } on this one",
                 )
             else if (from.target == to.target) Verdict.Compatible
@@ -288,7 +288,7 @@ class InstanceRules(
         return Verdict.Breaking(
             "${change.path}: the emitted name changed from '$fromName' to '$toName' breaks old " +
                 "documents that still use the old name",
-            "pin the emitted name with @$target(name = \"$fromName\")",
+            "pin the emitted name with @$target(name: \"$fromName\")",
         )
     }
 
@@ -299,7 +299,7 @@ class InstanceRules(
         fromName: String,
         toName: String,
     ): Verdict {
-        val help = "pin the emitted name with @$target(name = \"$fromName\")"
+        val help = "pin the emitted name with @$target(name: \"$fromName\")"
         if (target != "xsd")
             return Verdict.Breaking(
                 "${change.path}: the emitted name changed from '$fromName' to '$toName' breaks " +
@@ -332,14 +332,14 @@ class InstanceRules(
         )
     }
 
-    /** `@xsd(root = false)` only matters when it takes away a root element OLD actually had. */
+    /** `@xsd(root: false)` only matters when it takes away a root element OLD actually had. */
     private fun rootChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         val qn = (change.newOwner as? DeclarationOwner)?.decl?.qualifiedName
         if (qn == null || !ctx.isRoot(Side.OLD, qn) || ctx.isRoot(Side.NEW, qn)) {
             return Verdict.Compatible
         }
         return Verdict.Breaking(
-            "${change.path}: @xsd(root = false) was added breaks validation against the old root " +
+            "${change.path}: @xsd(root: false) was added breaks validation against the old root " +
                 "element",
             "keep the declaration reachable as a root element, or confirm nothing validates " +
                 "against it directly",

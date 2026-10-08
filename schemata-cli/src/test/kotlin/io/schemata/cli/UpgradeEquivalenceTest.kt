@@ -29,7 +29,8 @@ import org.junit.jupiter.api.TestFactory
  *   XSD, JSON Schema, and OpenAPI;
  * - `on delete`: an `ON DELETE` clause on a foreign key;
  * - `type notes`: the `schemata:` notes on an emitted field are written in 2.0 spelling;
- * - `warning text`: a warning names a field the reference emits, or a type in 2.0 spelling;
+ * - `message text`: a diagnostic says `model` or `schema`, spells a type as 2.0 does, or is a
+ *   warning on a field a reference now emits;
  * - `keyword rename`: an identifier that is a 2.0 keyword is renamed `<name>_value`.
  *
  * A path whose only reasons are `type notes` and `on delete` must match once the notes and the
@@ -278,7 +279,7 @@ class UpgradeEquivalenceTest {
         const val TAG = "v1.4.0"
         const val CORPUS = "schemata-cli/src/test/resources/corpus"
         val REASONS =
-            setOf("reference by key", "on delete", "type notes", "warning text", "keyword rename")
+            setOf("reference by key", "on delete", "type notes", "message text", "keyword rename")
         val MASKABLE = setOf("type notes", "on delete")
         val NOTE = Regex("""((?://|--) schemata: ).*""")
         val ON_DELETE = Regex(""" ON DELETE (?:CASCADE|RESTRICT|SET NULL)""")

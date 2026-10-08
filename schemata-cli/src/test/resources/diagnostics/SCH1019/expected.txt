@@ -1,4 +1,4 @@
-error[SCH1019]: ordinal #1 is used more than once in record 'R'
+error[SCH1019]: ordinal #1 is used more than once in model 'R'
  --> s.schemata:3:22
   = help: give each element its own ordinal; the next free one is #2
 

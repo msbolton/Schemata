@@ -374,7 +374,7 @@ class OpenApiLoweringTest {
             ),
             messages(l),
         )
-        assertEquals("request a record, or use post, put, or patch", l.diagnostics.single().help)
+        assertEquals("request a model, or use post, put, or patch", l.diagnostics.single().help)
         val doc = l.model.documents.single()
         val op = doc.paths.single().operations.single()
         assertNull(op.requestBody)
@@ -447,7 +447,7 @@ class OpenApiLoweringTest {
             listOf(
                 "SCH2602 operations 'S.s_b' and 'Other.x' both lower to post \"/S/s_b\"",
                 "SCH2602 operations 'b' and 'a' both lower to operationId 'S_a'",
-                "SCH2603 operation 'a': @openapi(name = \"a b\") is not a valid operationId",
+                "SCH2603 operation 'a': @openapi(name: \"a b\") is not a valid operationId",
             ),
             messages(l).sorted(),
         )
@@ -540,7 +540,7 @@ class OpenApiLoweringTest {
                     "}"
             )
         assertEquals(
-            listOf("SCH2603 service 'S': @openapi(name = \"a b\") is not a valid tag"),
+            listOf("SCH2603 service 'S': @openapi(name: \"a b\") is not a valid tag"),
             messages(l),
         )
         val doc = l.model.documents.single()
@@ -649,7 +649,7 @@ class OpenApiLoweringTest {
             )
         assertNull(l.model.documents.single().server)
         assertEquals(
-            listOf("SCH2603 namespace 't': @openapi(server = \"not a url\") is not a valid URL"),
+            listOf("SCH2603 schema 't': @openapi(server: \"not a url\") is not a valid URL"),
             messages(l),
         )
     }
@@ -671,7 +671,7 @@ class OpenApiLoweringTest {
                     "}"
             )
         assertEquals(
-            listOf("SCH2603 record 'R': component key 't.R:x' is not a valid component key"),
+            listOf("SCH2603 model 'R': component key 't.R:x' is not a valid component key"),
             messages(l),
         )
     }

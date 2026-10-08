@@ -1,4 +1,4 @@
-error[SCH2106] (sql): record 'Order' has no key
+error[SCH2106] (sql): model 'Order' has no key
  --> shop/orders.schemata:3:7
   |
 3 | model Order {

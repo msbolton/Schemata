@@ -181,13 +181,13 @@ object RefinementChecker {
                 val help: String
                 if (allowed.isEmpty()) {
                     message = "'${item.name}' is not a refinement; $typeName takes no refinements"
-                    help = "remove the parentheses; `$typeName` takes no refinements"
+                    help = "remove the option; `$typeName` takes no refinements"
                 } else {
                     val sorted = allowed.sorted()
                     message =
                         "'${item.name}' is not a refinement of $typeName; allowed: ${sorted.joinToString(", ")}"
                     help =
-                        "write one of the allowed refinements, for example `$typeName(${sorted.first()} = …)`"
+                        "write one of the allowed refinements, for example `$typeName { ${sorted.first()} … }`"
                 }
                 report(CoreCodes.INVALID_REFINEMENT, message, item.span, diagnostics, help)
                 ok = false
@@ -209,10 +209,10 @@ object RefinementChecker {
                 if (literal == null) {
                     report(
                         CoreCodes.INVALID_REFINEMENT,
-                        "pattern must be a string literal",
+                        "match must be a string literal",
                         item.span,
                         diagnostics,
-                        help = "quote the pattern: `pattern = \"^…\$\"`",
+                        help = "quote the pattern: `match \"^…\$\"`",
                     )
                     ok = false
                     continue

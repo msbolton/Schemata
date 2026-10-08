@@ -1,4 +1,4 @@
-error[SCH1017]: @sql(column) is not allowed on a record; allowed on: field
+error[SCH1017]: @sql(column) is not allowed on a model; allowed on: field
  --> s.schemata:6:9
   = help: move the annotation to a field, or remove it
 

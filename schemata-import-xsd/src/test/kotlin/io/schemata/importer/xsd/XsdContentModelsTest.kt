@@ -67,7 +67,7 @@ class XsdContentModelsTest {
             (track.nested.single() as UnitRecord).fields.map { it.name },
         )
         assertTrue(
-            "SCH2403 complex type 'TrackType': nested sequence imported as record 'LatGroup' in field 'lat_group'" in
+            "SCH2403 complex type 'TrackType': nested sequence imported as model 'LatGroup' in field 'lat_group'" in
                 messages(imported)
         )
         assertFalse(messages(imported).any { "flattened" in it })
@@ -94,7 +94,7 @@ class XsdContentModelsTest {
         assertEquals(listOf("XGroup", "XGroup2"), p.nested.map { it.name })
         assertFalse(messages(imported).any { it.startsWith("SCH2401") })
         assertTrue(
-            "SCH2403 complex type 'PType': nested sequence imported as record 'XGroup2' in " +
+            "SCH2403 complex type 'PType': nested sequence imported as model 'XGroup2' in " +
                 "field 'x_group_2'" in messages(imported)
         )
     }
@@ -151,7 +151,7 @@ class XsdContentModelsTest {
         )
         assertTrue(t.declarations.any { it is UnitRecord && it.name == "WGroup" })
         assertTrue(
-            "SCH2403 union 'Shape': choice branch imported as record 'WGroup'" in messages(imported)
+            "SCH2403 union 'Shape': choice branch imported as model 'WGroup'" in messages(imported)
         )
     }
 
@@ -197,7 +197,7 @@ class XsdContentModelsTest {
             bag.fields.single().type,
         )
         assertTrue(
-            "SCH2403 complex type 'BagType': repeated group 'pair' imported as record 'Pair' in field 'pair'" in
+            "SCH2403 complex type 'BagType': repeated group 'pair' imported as model 'Pair' in field 'pair'" in
                 messages(imported)
         )
     }

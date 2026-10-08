@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH1053]: the inline enum of field 'status' is named 'OrderStatus', which record 'Order' already declares
+error[SCH1053]: the inline enum of field 'status' is named 'OrderStatus', which model 'Order' already declares
  --> s.schemata:4:6
   = help: name it with @name("…")
 

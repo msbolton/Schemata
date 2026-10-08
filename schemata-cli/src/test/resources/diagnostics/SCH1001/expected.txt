@@ -1,4 +1,4 @@
-error[SCH1001]: namespace segment 'Shop' must be lower_snake
+error[SCH1001]: schema name segment 'Shop' must be lower_snake
  --> s.schemata:1:1
   = help: write the segment in lower_snake, for example `shop`
 

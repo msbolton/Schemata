@@ -1,5 +1,5 @@
 # targets=jsonschema
-error[SCH2303] (jsonschema): field 'R.a': @jsonschema(name = "") is empty
+error[SCH2303] (jsonschema): field 'R.a': @jsonschema(name: "") is empty
  --> s.schemata:3:14
   = help: give the name at least one character
 

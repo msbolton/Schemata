@@ -6,53 +6,56 @@
 #                      declared beside the model (Protobuf, XSD, JSON Schema, OpenAPI)
 #   on delete          an ON DELETE clause on a foreign key
 #   type notes         the `schemata:` note on an emitted field is in 2.0 spelling
-#   warning text       a warning names a type in 2.0 spelling, or a field a reference emits
+#   message text       a diagnostic says model or schema, spells a type as 2.0 does, or warns
+#                      about a field a reference now emits
 #   keyword rename     an identifier that is a 2.0 keyword is renamed `<name>_value`
 
 corpus/attributes/proto/corpus/attributes.proto  type notes
-corpus/attributes/diagnostics  warning text
+corpus/attributes/diagnostics  message text
 corpus/children/proto/corpus/children.proto  type notes
 corpus/children/sql/corpus/children.sql  type notes
-corpus/children/diagnostics  warning text
+corpus/children/diagnostics  message text
 corpus/collections/proto/corpus/collections.proto  type notes
-corpus/collections/diagnostics  warning text
+corpus/collections/diagnostics  message text
 corpus/crossref/jsonschema/x/alpha.schema.json  reference by key
 corpus/crossref/proto/x/alpha.proto  reference by key
 corpus/crossref/proto/x/alpha.proto  type notes
 corpus/crossref/xsd/x/alpha.xsd  reference by key
-corpus/crossref/diagnostics  warning text
+corpus/crossref/diagnostics  message text
 corpus/embedding/proto/corpus/embedding.proto  type notes
-corpus/embedding/diagnostics  warning text
+corpus/embedding/diagnostics  message text
 corpus/jsonschema/proto/s.proto  type notes
-corpus/jsonschema/diagnostics  warning text
+corpus/jsonschema/diagnostics  message text
 corpus/keys/proto/corpus/keys.proto  type notes
-corpus/keys/diagnostics  warning text
+corpus/keys/diagnostics  message text
+corpus/nested/diagnostics  message text
 corpus/references/jsonschema/corpus/references.schema.json  reference by key
 corpus/references/proto/corpus/references.proto  reference by key
 corpus/references/proto/corpus/references.proto  type notes
 corpus/references/xsd/corpus/references.xsd  reference by key
-corpus/references/diagnostics  warning text
+corpus/references/diagnostics  message text
 corpus/scalars/proto/corpus/scalars.proto  type notes
-corpus/scalars/diagnostics  warning text
+corpus/scalars/diagnostics  message text
 corpus/services/proto/corpus/services.proto  type notes
-corpus/services/diagnostics  warning text
+corpus/services/diagnostics  message text
+corpus/shadow/diagnostics  message text
 corpus/strings/proto/corpus/strings.proto  type notes
-corpus/strings/diagnostics  warning text
+corpus/strings/diagnostics  message text
 corpus/types/proto/corpus/types.proto  type notes
-corpus/types/diagnostics  warning text
+corpus/types/diagnostics  message text
 corpus/unions/proto/corpus/unions.proto  type notes
-corpus/unions/diagnostics  warning text
+corpus/unions/diagnostics  message text
 corpus/variants/proto/corpus/variants.proto  type notes
-corpus/variants/diagnostics  warning text
+corpus/variants/diagnostics  message text
 corpus/worked-example/jsonschema/shop/orders.schema.json  reference by key
 corpus/worked-example/proto/shop/customers.proto  type notes
 corpus/worked-example/proto/shop/orders.proto  reference by key
 corpus/worked-example/proto/shop/orders.proto  type notes
 corpus/worked-example/xsd/shop/orders.xsd  reference by key
-corpus/worked-example/diagnostics  warning text
+corpus/worked-example/diagnostics  message text
 examples/contacts/proto/contacts.proto  type notes
 examples/contacts/sql/contacts.sql  type notes
-examples/contacts/diagnostics  warning text
+examples/contacts/diagnostics  message text
 examples/ledger/jsonschema/ledger/accounts.schema.json  reference by key
 examples/ledger/jsonschema/ledger/journal.schema.json  reference by key
 examples/ledger/jsonschema/ledger/reports.schema.json  reference by key
@@ -65,13 +68,13 @@ examples/ledger/proto/ledger/reports.proto  type notes
 examples/ledger/xsd/ledger/accounts.xsd  reference by key
 examples/ledger/xsd/ledger/journal.xsd  reference by key
 examples/ledger/xsd/ledger/reports.xsd  reference by key
-examples/ledger/diagnostics  warning text
+examples/ledger/diagnostics  message text
 examples/services/proto/shop/catalog.proto  type notes
 examples/services/proto/shop/orders.proto  type notes
-examples/services/diagnostics  warning text
+examples/services/diagnostics  message text
 examples/shop/jsonschema/shop/orders.schema.json  reference by key
 examples/shop/proto/shop/customers.proto  type notes
 examples/shop/proto/shop/orders.proto  reference by key
 examples/shop/proto/shop/orders.proto  type notes
 examples/shop/xsd/shop/orders.xsd  reference by key
-examples/shop/diagnostics  warning text
+examples/shop/diagnostics  message text

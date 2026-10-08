@@ -125,11 +125,11 @@ sealed interface TypeDecl {
 
 fun TypeDecl.selfAndNested(): List<TypeDecl> = listOf(this) + nested.flatMap { it.selfAndNested() }
 
-/** The word a diagnostic uses for a declaration: `record`, `enum`, or `union`. */
+/** The word a diagnostic uses for a declaration: `model`, `enum`, or `union`. */
 val TypeDecl.kindWord: String
     get() =
         when (this) {
-            is RecordType -> "record"
+            is RecordType -> "model"
             is EnumType -> "enum"
             is UnionType -> "union"
         }

@@ -222,7 +222,7 @@ class JsonSchemaLoweringTest {
     fun `an id override that is not an absolute uri is reported and the urn is kept`() {
         val ns = namespace("s", js("id" to AnnotationValue.Str("orders")))
         assertEquals(
-            listOf("SCH2303 namespace 's': @jsonschema(id = \"orders\") is not an absolute URI"),
+            listOf("SCH2303 schema 's': @jsonschema(id: \"orders\") is not an absolute URI"),
             messages(ns),
         )
         assertEquals("urn:schemata:s", document(ns).id)
@@ -232,10 +232,7 @@ class JsonSchemaLoweringTest {
     fun `two namespaces with one id are reported`() {
         val a = namespace("a", js("id" to AnnotationValue.Str("urn:x")))
         val b = namespace("b", js("id" to AnnotationValue.Str("urn:x")), line = 9)
-        assertEquals(
-            listOf("SCH2304 namespaces a and b both lower to \$id 'urn:x'"),
-            messages(a, b),
-        )
+        assertEquals(listOf("SCH2304 schemas a and b both lower to \$id 'urn:x'"), messages(a, b))
     }
 
     @Test
@@ -374,7 +371,7 @@ class JsonSchemaLoweringTest {
             (doc.defs[0].schema as ObjectSchema).properties.map { it.name },
         )
         assertEquals(
-            listOf("SCH2303 field 'Order.x': @jsonschema(name = \"\") is empty"),
+            listOf("SCH2303 field 'Order.x': @jsonschema(name: \"\") is empty"),
             messages(ns),
         )
     }
@@ -405,8 +402,8 @@ class JsonSchemaLoweringTest {
         )
         assertEquals(
             listOf(
-                "SCH2303 field 'Order.a': @jsonschema(name = \"a/b\") contains '/', which a \$ref cannot carry",
-                "SCH2303 field 'Order.c': @jsonschema(name = \"c\nd\") contains '\\u000A', which a \$ref cannot carry",
+                "SCH2303 field 'Order.a': @jsonschema(name: \"a/b\") contains '/', which a \$ref cannot carry",
+                "SCH2303 field 'Order.c': @jsonschema(name: \"c\nd\") contains '\\u000A', which a \$ref cannot carry",
             ),
             messages(ns),
         )
@@ -458,7 +455,7 @@ class JsonSchemaLoweringTest {
         val b = record("s", "B", line = 7)
         assertEquals(
             listOf(
-                "SCH2302 record 'B' lowers to \$defs key 'B', already used by record 'A' (orders.schemata:3)"
+                "SCH2302 model 'B' lowers to \$defs key 'B', already used by model 'A' (orders.schemata:3)"
             ),
             messages(namespace("s", declarations = listOf(a, b))),
         )
