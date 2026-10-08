@@ -1,0 +1,14 @@
+s.sql
+  drop table "customer_orders"    destructive
+
+1 step in 1 file
+1 destructive, 0 may fail
+
+warning[SCH2701] (lossy): s.Customer.orders: DROP TABLE "customer_orders" loses every row of the table
+ --> old/s.schemata:5:6
+  |
+5 |   #2 orders Order[]
+  |      ^^^^^^
+  = help: rerun with --allow-destructive once the data is migrated or no longer needed
+
+0 errors, 1 warning

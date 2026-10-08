@@ -86,6 +86,39 @@ class RelationsTest {
     }
 
     @Test
+    fun `a back-reference to a many relation names its forward list field`() {
+        val r =
+            analyze(
+                """
+            schema s
+            model Tag { #1 id uuid { id }  #2 orders Order[] @relation(tags) }
+            model Order { #1 id uuid { id }  #2 tags Tag[] }
+        """
+            )
+        assertTrue(r.diagnostics.isEmpty())
+        val tag = r.schema!!.lookup(QualifiedName("s", listOf("Tag"))) as RecordType
+        assertTrue(tag.fields[1].virtual)
+        assertEquals("tags", tag.fields[1].backReferenceOf)
+        val order = r.schema!!.lookup(QualifiedName("s", listOf("Order"))) as RecordType
+        assertFalse(order.fields[1].virtual)
+    }
+
+    @Test
+    fun `two forward references with one named back-reference and no other is accepted`() {
+        val r =
+            analyze(
+                """
+            schema s
+            model Customer { #1 id uuid { id }  #2 sold Order[] @relation(seller) }
+            model Order { #1 id uuid { id }  #2 buyer Customer  #3 seller Customer }
+        """
+            )
+        assertTrue(r.diagnostics.isEmpty())
+        val customer = r.schema!!.lookup(QualifiedName("s", listOf("Customer"))) as RecordType
+        assertEquals("seller", customer.fields[1].backReferenceOf)
+    }
+
+    @Test
     fun `a bare back-reference follows the only forward reference`() {
         val r = analyze(base.replace("@relation(customer)", "@relation"))
         val customer = r.schema!!.lookup(QualifiedName("s", listOf("Customer"))) as RecordType

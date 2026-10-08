@@ -1,0 +1,11 @@
+schema s
+
+model Customer {
+  #1 id     uuid    { id }
+  #2 orders Order[]
+}
+
+model Order {
+  #1 id       uuid     { id }
+  #2 customer Customer
+}

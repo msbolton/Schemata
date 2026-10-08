@@ -13,6 +13,7 @@ import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
+import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
@@ -28,6 +29,7 @@ import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class DifferTest {
@@ -159,6 +161,32 @@ class DifferTest {
         val removed = diff(ns(new), ns(old)).single { it.kind == "field.removed" }
         assertEquals("s.R.c", removed.path)
         assertEquals(13, removed.span.startLine) // OLD side's line for a removal (at(10 + ordinal))
+    }
+
+    @Test
+    fun `a field becoming a back-reference is a removal and the reverse an addition`() {
+        val orders = ListOf(Ref(qn("s", "Order")), false)
+        val stored =
+            record(
+                "s",
+                "Customer",
+                field(1, "id", Scalar(Builtin.UUID)),
+                field(2, "orders", orders),
+            )
+        val virtual =
+            record(
+                "s",
+                "Customer",
+                field(1, "id", Scalar(Builtin.UUID)),
+                field(2, "orders", orders).copy(virtual = true, backReferenceOf = "customer"),
+            )
+        val removed = diff(ns(stored), ns(virtual)).single()
+        assertIs<FieldRemoved>(removed)
+        assertEquals("s.Customer.orders", removed.path)
+        assertFalse(removed.field.virtual)
+        val added = diff(ns(virtual), ns(stored)).single()
+        assertIs<FieldAdded>(added)
+        assertFalse(added.field.virtual)
     }
 
     @Test

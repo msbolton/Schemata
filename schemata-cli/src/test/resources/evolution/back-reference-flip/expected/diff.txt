@@ -1,0 +1,39 @@
+s.Customer
+  field 'orders' removed    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
+
+1 change
+proto: 0 breaking, 1 note
+sql: 1 breaking, 0 notes
+xsd: 1 breaking, 0 notes
+jsonschema: 1 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Customer.orders: the field was removed breaks old documents that still carry it
+ --> old/s.schemata:5:6
+  |
+5 |   #2 orders Order[]
+  |      ^^^^^^
+  = help: keep the field, or mark the record @jsonschema(open)
+
+error[SCH2501]: sql: s.Customer.orders: the column was dropped breaks rows that still hold its data
+ --> old/s.schemata:5:6
+  |
+5 |   #2 orders Order[]
+  |      ^^^^^^
+  = help: migrate the column's data elsewhere before dropping it
+
+error[SCH2501]: xsd: s.Customer.orders: the field was removed breaks old documents that still carry it
+ --> old/s.schemata:5:6
+  |
+5 |   #2 orders Order[]
+  |      ^^^^^^
+  = help: keep the field; an XSD document always carries every element
+
+warning[SCH2502] (lossy): proto: s.Customer.orders: field removed; number 2 and name 'orders' are free to be reused
+ --> old/s.schemata:5:6
+  |
+5 |   #2 orders Order[]
+  |      ^^^^^^
+  = help: reserve #2 and "orders" so they are not reused
+
+3 errors, 1 warning

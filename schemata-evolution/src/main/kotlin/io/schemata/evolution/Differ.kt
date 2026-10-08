@@ -106,6 +106,12 @@ object Differ {
             .forEach { of -> out += FieldRemoved(memberPath(old, of.name), of.nameSpan, old, of) }
     }
 
+    /**
+     * A field that keeps its ordinal but turns into a back-reference (or back) is a stored field
+     * removed (or added): no target emits a back-reference, so every target loses (or gains) the
+     * column, element, or property, whatever its name and type say. Nothing else about it is
+     * compared then.
+     */
     private fun field(
         oldRecord: RecordType,
         record: RecordType,
@@ -113,6 +119,13 @@ object Differ {
         new: Field,
         out: MutableList<Change>,
     ) {
+        if (old.virtual != new.virtual) {
+            out +=
+                if (new.virtual)
+                    FieldRemoved(memberPath(oldRecord, old.name), old.nameSpan, oldRecord, old)
+                else FieldAdded(memberPath(record, new.name), new.nameSpan, record, new)
+            return
+        }
         val p = memberPath(record, new.name)
         if (old.name != new.name) out += FieldRenamed(p, new.nameSpan, record, old, new)
         when {
