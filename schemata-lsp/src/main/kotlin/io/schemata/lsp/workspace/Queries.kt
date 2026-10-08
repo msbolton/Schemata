@@ -73,6 +73,9 @@ class Queries(private val workspace: Workspace) {
     fun prepareRename(path: String, position: TextPosition): TextRange? {
         val hit = hit(path, position) ?: return null
         if (hit.site.symbol is Symbol.Namespace) return null
+        // A hoisted type is named by the field's inline type, which has no identifier to replace.
+        if ((hit.site.symbol as? Symbol.Declaration)?.name in hit.analysis.index.hoisted)
+            return null
         return hit.snapshot.lines.range(hit.site.span)
     }
 

@@ -37,8 +37,8 @@ data class OutlineNode(
 )
 
 /**
- * The namespace, its declarations and services in source order, and their fields, values, nested
- * declarations, and operations.
+ * The schema, its declarations and services in source order, and their fields, values, nested and
+ * hoisted declarations, and operations.
  */
 internal fun outline(snapshot: Snapshot): List<OutlineNode> {
     val lines = snapshot.lines
@@ -47,16 +47,18 @@ internal fun outline(snapshot: Snapshot): List<OutlineNode> {
             when (decl) {
                 is RecordDecl -> {
                     val fields =
-                        decl.fields.map {
-                            it.span to
-                                OutlineNode(
-                                    it.name,
-                                    OutlineKind.FIELD,
-                                    lines.range(it.span),
-                                    lines.range(it.nameSpan),
-                                    emptyList(),
-                                )
-                        }
+                        decl.fields
+                            .filterNot { it.synthetic() }
+                            .map {
+                                it.span to
+                                    OutlineNode(
+                                        it.name,
+                                        OutlineKind.FIELD,
+                                        lines.range(it.span),
+                                        lines.range(it.nameSpan),
+                                        emptyList(),
+                                    )
+                            }
                     // Fields and nested declarations interleave in the source; keep that order.
                     (fields + decl.nested.map { it.span to node(it) })
                         .sortedWith(compareBy({ it.first.startLine }, { it.first.startColumn }))
@@ -110,7 +112,7 @@ internal fun outline(snapshot: Snapshot): List<OutlineNode> {
             operations,
         )
     }
-    val file = snapshot.file
+    val file = IndexBuilder.hoisted(snapshot.file)
     val members =
         (file.declarations.map { it.span to node(it) } +
                 file.services.map { it.span to service(it) })

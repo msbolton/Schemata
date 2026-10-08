@@ -258,4 +258,24 @@ class ReferenceIndexTest {
             f.queries.references(a, f.at(a, "stream Order", offset = 7), true),
         )
     }
+
+    @Test
+    fun `go to definition crosses a back-reference`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "schema shop\n" +
+                    "model Customer { #1 id uuid { id }  #2 orders Order[] @relation(customer) }\n" +
+                    "model Order { #1 id uuid { id }  #2 customer Customer }\n",
+            )
+        assertEquals(
+            listOf(f.location(a, "customer", occurrence = 1)),
+            f.queries.definition(a, f.at(a, "customer)")),
+        )
+        assertEquals(
+            listOf(f.location(a, "Customer", occurrence = 0)),
+            f.queries.definition(a, f.at(a, "Customer }")),
+        )
+    }
 }

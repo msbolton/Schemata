@@ -29,7 +29,7 @@ class HoverTest {
         val a = f.open("shop/a.schemata", text)
         val hover = f.queries.hover(a, f.at(a, "Order"))!!
         assertEquals(
-            block("record shop.Order", "A customer's order.\nOne row per checkout."),
+            block("model shop.Order", "A customer's order.\nOne row per checkout."),
             hover.markdown,
         )
         assertEquals(f.range(a, "Order"), hover.range)
@@ -152,6 +152,20 @@ class HoverTest {
         assertEquals(
             block("uuid") + "\n\na universally unique identifier",
             f.queries.hover(a, f.at(a, "uuid"))!!.markdown,
+        )
+    }
+
+    @Test
+    fun `hover on an inline shape names its hoisted type`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "schema shop\nmodel Order {\n  #1 address { street string }\n}\n",
+            )
+        assertEquals(
+            block("model shop.Order.OrderAddress"),
+            f.queries.hover(a, f.at(a, "{ street"))!!.markdown,
         )
     }
 }

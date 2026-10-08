@@ -128,4 +128,29 @@ class OutlineTest {
                 .filterNotNull(),
         )
     }
+
+    @Test
+    fun `outline lists hoisted types under their model`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "schema shop\nmodel Order {\n  #1 address { street string }\n" +
+                    "  #2 kind enum { retail, wholesale }\n}\n",
+            )
+        assertEquals(
+            listOf(
+                "NAMESPACE shop",
+                "  RECORD Order",
+                "    FIELD address",
+                "    RECORD OrderAddress",
+                "      FIELD street",
+                "    FIELD kind",
+                "    ENUM OrderKind",
+                "      VALUE retail",
+                "      VALUE wholesale",
+            ),
+            shape(f.queries.symbols(a)),
+        )
+    }
 }

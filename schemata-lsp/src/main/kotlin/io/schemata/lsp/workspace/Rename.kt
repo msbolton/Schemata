@@ -49,7 +49,13 @@ internal class Rename(
     fun run(): RenameResult {
         if (symbol is Symbol.Namespace) {
             return RenameResult.Refused(
-                "a namespace cannot be renamed; it is the name its files declare"
+                "a schema cannot be renamed; it is the name its files declare"
+            )
+        }
+        if (symbol is Symbol.Declaration && symbol.name in analysis.index.hoisted) {
+            return RenameResult.Refused(
+                "'${symbol.name.path.last()}' is named after its model and field; " +
+                    "rename them, or give the field @name(\"…\")"
             )
         }
         analysis.members

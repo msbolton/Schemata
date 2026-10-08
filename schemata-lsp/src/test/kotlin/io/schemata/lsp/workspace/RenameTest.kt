@@ -167,7 +167,7 @@ class RenameTest {
         f.open("shop/customers.schemata", customers)
         val o = f.open("shop/orders.schemata", orders)
         assertEquals(
-            "a namespace cannot be renamed; it is the name its files declare",
+            "a schema cannot be renamed; it is the name its files declare",
             refusal(f, o, f.at(o, "shop.customers"), "x"),
         )
         assertEquals("nothing to rename here", refusal(f, o, f.at(o, "model"), "x"))
@@ -523,5 +523,18 @@ class RenameTest {
             SERVICE_API.replace("#2 list(", "#2 delete("),
             renameAndReanalyse(f, a, f.at(a, "list("), "delete")[a],
         )
+    }
+
+    @Test
+    fun `a hoisted type cannot be renamed but its model can`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "schema shop\nmodel Order {\n  #1 address { street string }\n}\n",
+            )
+        assertNull(f.queries.prepareRename(a, f.at(a, "{ street")))
+        assertIs<RenameResult.Refused>(f.queries.rename(a, f.at(a, "{ street"), "Place"))
+        assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "Order"), "Purchase"))
     }
 }

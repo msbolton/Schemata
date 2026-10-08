@@ -177,7 +177,7 @@ class ServerSessionTest {
             val hover = wait(service.hover(HoverParams(id(session, o), Position(4, 24))))
             assertEquals("markdown", hover.contents.right.kind)
             assertEquals(
-                "```schemata\nrecord shop.customers.Customer\n```",
+                "```schemata\nmodel shop.customers.Customer\n```",
                 hover.contents.right.value,
             )
             assertNull(wait(service.hover(HoverParams(id(session, o), Position(4, 1)))))

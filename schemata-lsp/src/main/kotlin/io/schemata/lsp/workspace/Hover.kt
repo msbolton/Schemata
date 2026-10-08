@@ -3,6 +3,7 @@ package io.schemata.lsp.workspace
 import io.schemata.core.DeclarationIndex
 import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
+import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.RecordDecl
 
@@ -46,6 +47,9 @@ private fun SetAnalysis.written(span: Span): String =
 private fun rest(after: Span, whole: Span): Span =
     Span(whole.file, after.endLine, after.endColumn + 1, whole.endLine, whole.endColumn)
 
+private fun kindWord(decl: Declaration): String =
+    if (decl is RecordDecl) "model" else DeclarationIndex.kindOf(decl)
+
 /** What to show for [symbol], or null when the set no longer declares it. */
 internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
     when (symbol) {
@@ -54,12 +58,12 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
             at?.let {
                 val decl = it.decl
                 val tail = if (decl is AliasDecl) " = " + analysis.written(decl.type.span) else ""
-                block("${DeclarationIndex.kindOf(decl)} ${symbol.name}$tail", decl.doc)
+                block("${kindWord(decl)} ${symbol.name}$tail", decl.doc)
             }
         }
         is Symbol.Field -> {
-            val record = analysis.index.declarations[symbol.owner]?.decl as? RecordDecl
-            record
+            val model = analysis.index.declarations[symbol.owner]?.decl as? RecordDecl
+            model
                 ?.fields
                 ?.firstOrNull { it.name == symbol.name }
                 ?.let {

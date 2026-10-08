@@ -3,6 +3,7 @@ package io.schemata.lsp.workspace
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
 import io.schemata.lang.ast.Declaration
+import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 
@@ -40,6 +41,8 @@ class ReferenceIndex(
     private val builtins: List<BuiltinSite>,
     val declarations: Map<QualifiedName, DeclaredAt>,
     val services: Map<QualifiedName, ServiceAt> = emptyMap(),
+    /** Declarations that exist only as an inline enum or shape written in a field's type. */
+    val hoisted: Set<QualifiedName> = emptySet(),
 ) {
     /** The site under a compiler position; a cursor just past a name's last character counts. */
     fun at(file: String, line: Int, column: Int): Site? {
@@ -73,3 +76,6 @@ internal fun Span.contains(line: Int, column: Int, slack: Int): Boolean {
     val beforeEnd = line < endLine || (line == endLine && column <= endColumn + slack)
     return afterStart && beforeEnd
 }
+
+/** A field the analyzer adds (`@@timestamps`): it has no text of its own, only the attribute's. */
+internal fun FieldDecl.synthetic(): Boolean = nameSpan == span

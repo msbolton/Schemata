@@ -68,7 +68,7 @@ internal fun runLspSession(command: List<String>, examples: File) {
             val at = Position(line, character)
             val hover = service.hover(HoverParams(id, at)).get(30, TimeUnit.SECONDS)
             assertTrue(
-                hover.contents.right.value.contains("record shop.customers.Customer"),
+                hover.contents.right.value.contains("model shop.customers.Customer"),
                 hover.contents.right.value,
             )
             val outline = service.documentSymbol(DocumentSymbolParams(id)).get(30, TimeUnit.SECONDS)
