@@ -8,7 +8,7 @@ enum Kind {
   KIND_WORK = 2;
 }
 
-// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
+// One person. Postgres checks the name, email, and age but not the tags; Protobuf checks none.
 message Contact {
   int64 id = 1;
   string name = 2;  // schemata: string { max 100 }

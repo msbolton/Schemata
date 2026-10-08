@@ -81,4 +81,35 @@ object Guide {
             }
             .map { it.substringBefore('#') }
             .toList()
+
+    /** A link with a `#fragment`: the file part (empty for the same file) and the fragment. */
+    data class CrossReference(val path: String, val fragment: String)
+
+    /** Every `[x](path#fragment)` in [text] that stays inside the repository. */
+    fun crossReferences(text: String): List<CrossReference> =
+        Regex("\\]\\(([^)\\s#]*)#([^)\\s]+)\\)")
+            .findAll(text)
+            .map { CrossReference(it.groupValues[1], it.groupValues[2]) }
+            .filterNot { it.path.startsWith("http://") || it.path.startsWith("https://") }
+            .toList()
+
+    /**
+     * The anchors GitHub gives the headings of [text]: lower-cased, anything but letters, digits,
+     * `_`, `-`, and spaces dropped, spaces turned to `-`, and a repeated heading numbered `-1`,
+     * `-2`. Headings inside fenced blocks (a `#` comment) are not headings.
+     */
+    fun headingAnchors(text: String): Set<String> {
+        val seen = mutableMapOf<String, Int>()
+        val anchors = mutableSetOf<String>()
+        var inFence = false
+        for (line in text.lines()) {
+            if (line.startsWith("```")) inFence = !inFence
+            if (inFence) continue
+            val title = Regex("^#{1,6} +(.*?)\\s*$").find(line)?.groupValues?.get(1) ?: continue
+            val base = title.lowercase().replace(Regex("[^\\p{L}\\p{N}_ -]"), "").replace(' ', '-')
+            val count = seen.merge(base, 1, Int::plus)!! - 1
+            anchors += if (count == 0) base else "$base-$count"
+        }
+        return anchors
+    }
 }

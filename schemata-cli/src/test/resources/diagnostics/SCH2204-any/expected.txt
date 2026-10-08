@@ -1,5 +1,5 @@
 # targets=xsd
-error[SCH2204] (xsd): field 'R.count': @xsd(any) is not allowed on a int32; it takes a string, string?, or string[]
+error[SCH2204] (xsd): field 'R.count': @xsd(any) is not allowed on an int32; it takes a string, string?, or string[]
  --> s.schemata:3:11
   = help: remove the annotation, or declare the field as a string, string?, or string[]
 

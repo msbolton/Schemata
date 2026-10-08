@@ -12,7 +12,7 @@
   </xs:simpleType>
   <xs:complexType name="ContactType">
     <xs:annotation>
-      <xs:documentation>One person. Email and age are checked by Postgres; Protobuf carries them unchecked.</xs:documentation>
+      <xs:documentation>One person. Postgres checks the name, email, and age but not the tags; Protobuf checks none.</xs:documentation>
     </xs:annotation>
     <xs:sequence>
       <xs:element name="id" type="xs:long"/>

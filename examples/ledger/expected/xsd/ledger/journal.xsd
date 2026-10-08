@@ -73,6 +73,7 @@
       </xs:element>
       <xs:element name="lines" type="tns:EntryLineType" minOccurs="2" maxOccurs="unbounded"/>
       <xs:element name="ref" type="tns:ReferenceType"/>
+      <xs:element name="tenant_id" type="xs:long"/>
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="EntryLineType">

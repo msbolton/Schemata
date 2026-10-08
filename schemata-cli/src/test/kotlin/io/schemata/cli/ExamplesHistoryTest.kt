@@ -21,17 +21,25 @@ import org.junit.jupiter.api.TestFactory
 /**
  * Each example, diffed between its first commit and HEAD, should show nothing but `doc.changed`:
  * the examples only ever gained prose and formatting over their history, never a breaking change,
- * so this is the roadmap's own done-when for the corpus. The same history must also migrate under
- * the SQL target without a destructive step, each revision that lowers cleanly to the next one, the
- * last to the working tree (an example that only gained its keys later starts there). A dynamic
- * test is skipped with `assumeTrue` only when `git` is unavailable or the repository holds no
- * history for the example (a shallow clone); a side that fails to analyze fails the test, so drift
- * in the language cannot turn the check into a silent skip. Revisions older than 2.0 are 1.x text
- * and are upgraded before they are analysed.
+ * so this is the roadmap's own done-when for the corpus; the one exception is [additions], a change
+ * an example is known to have gained since. The same history must also migrate under the SQL target
+ * without a destructive step, each revision that lowers cleanly to the next one, the last to the
+ * working tree (an example that only gained its keys later starts there). A dynamic test is skipped
+ * with `assumeTrue` only when `git` is unavailable or the repository holds no history for the
+ * example (a shallow clone); a side that fails to analyze fails the test, so drift in the language
+ * cannot turn the check into a silent skip. Revisions older than 2.0 are 1.x text and are upgraded
+ * before they are analysed.
  */
 class ExamplesHistoryTest {
     private val repoRoot = File("..")
     private val examplesRoot = File("../examples")
+
+    /**
+     * The kinds of change, besides `doc.changed`, an example may show between its first commit and
+     * HEAD. The ledger's `Entry` gained a `tenant_id` of its own, so a journal entry names the
+     * tenant its lines' accounts belong to.
+     */
+    private val additions = mapOf("ledger" to setOf("field.added"))
 
     @TestFactory
     fun `each example's history is silent but for doc changes and migrates cleanly`():
@@ -69,7 +77,7 @@ class ExamplesHistoryTest {
                 it.change.kind
             }
         assertTrue(
-            kinds.all { it == "doc.changed" },
+            kinds.all { it == "doc.changed" || it in additions[name].orEmpty() },
             "$relative changed by more than docs between $sha and HEAD: ${kinds.distinct()}",
         )
         val revisions = git("log", "--format=%H", "--reverse", "--", relative)

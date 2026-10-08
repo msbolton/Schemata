@@ -329,6 +329,13 @@ object XsdLowering {
         }
 
         /**
+         * [text] with its indefinite article: `an` before a vowel sound (`an int32`, `an instant`),
+         * `a` otherwise (`a string`, `a uuid`). A model named for a vowel gets `an` too.
+         */
+        private fun withArticle(text: String): String =
+            if (text.first().lowercaseChar() in "aeio") "an $text" else "a $text"
+
+        /**
          * Reports `@xsd([key])` on [field], whose shape cannot carry it; [takes] names the shapes
          * that can.
          */
@@ -336,8 +343,8 @@ object XsdLowering {
             diagnostics +=
                 Diagnostic(
                     XsdCodes.ATTRIBUTE_NOT_ALLOWED,
-                    "${fieldWhere(record, field)}: @xsd($key) is not allowed on a " +
-                        "${TypeText.of(field.type, field.nullable)}; it takes $takes",
+                    "${fieldWhere(record, field)}: @xsd($key) is not allowed on " +
+                        "${withArticle(TypeText.of(field.type, field.nullable))}; it takes $takes",
                     field.span,
                     help = "remove the annotation, or declare the field as $takes",
                 )

@@ -1,0 +1,4 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:complexType name="BoxType"><xs:sequence><xs:element name="a" type="xs:string" form="qualified"/></xs:sequence></xs:complexType>
+</xs:schema>

@@ -162,21 +162,21 @@ many in this reference do, however it was written; otherwise it writes one field
 aligns the ordinal, the name, the type, and the rest in four columns. An option written on a type
 that cannot carry it, or one the language does not know, is an error (SCH1049).
 
-| Type | Meaning | Protobuf | Postgres | Bounds and pattern |
-|---|---|---|---|---|
-| `bool` | true or false | `bool` | `boolean` | none |
-| `int32` | 32-bit signed integer | `int32` | `integer` | `min`, `max` |
-| `int64` | 64-bit signed integer | `int64` | `bigint` | `min`, `max` |
-| `float32` | 32-bit floating point | `float` | `real` | `min`, `max` |
-| `float64` | 64-bit floating point | `double` | `double precision` | `min`, `max` |
-| `decimal(p, s)` | exact decimal with p digits, s after the point | `string` (lossy) | `numeric(p, s)` | `min`, `max` |
-| `string` | text | `string` | `varchar` or `text` | `min`, `max`, `match` |
-| `bytes` | raw binary | `bytes` | `bytea` | `min`, `max` |
-| `uuid` | a UUID | `string` (lossy) | `uuid` | none |
-| `date` | a calendar date | `string` (lossy) | `date` | none |
-| `time` | a time of day without a date | `string` (lossy) | `time` | none |
-| `instant` | a point in time, UTC | `google.protobuf.Timestamp` | `timestamptz` | none |
-| `duration` | a span of time | `google.protobuf.Duration` | `interval` | none |
+| Type | Meaning | Protobuf | Postgres | XML Schema | JSON Schema | Bounds and pattern |
+|---|---|---|---|---|---|---|
+| `bool` | true or false | `bool` | `boolean` | `xs:boolean` | `boolean` | none |
+| `int32` | 32-bit signed integer | `int32` | `integer` | `xs:int` | `integer`, within the int32 range | `min`, `max` |
+| `int64` | 64-bit signed integer | `int64` | `bigint` | `xs:long` | `integer`, within the int64 range | `min`, `max` |
+| `float32` | 32-bit floating point | `float` | `real` | `xs:float` | `number` | `min`, `max` |
+| `float64` | 64-bit floating point | `double` | `double precision` | `xs:double` | `number` | `min`, `max` |
+| `decimal(p, s)` | exact decimal with p digits, s after the point | `string` (lossy) | `numeric(p, s)` | `xs:decimal` | `string` with a digits pattern | `min`, `max` |
+| `string` | text | `string` | `varchar` or `text` | `xs:string` | `string` | `min`, `max`, `match` |
+| `bytes` | raw binary | `bytes` | `bytea` | `xs:base64Binary` | `string`, base64 content | `min`, `max` |
+| `uuid` | a UUID | `string` (lossy) | `uuid` | `xs:string` with a pattern | `string`, `format: uuid`, with a pattern | none |
+| `date` | a calendar date | `string` (lossy) | `date` | `xs:date` | `string`, `format: date` | none |
+| `time` | a time of day without a date | `string` (lossy) | `time` | `xs:time` | `string` with a pattern | none |
+| `instant` | a point in time, UTC | `google.protobuf.Timestamp` | `timestamptz` | `xs:dateTime` | `string`, `format: date-time` | none |
+| `duration` | a span of time | `google.protobuf.Duration` | `interval` | `xs:duration` | `string`, `format: duration` | none |
 
 For a number, `min` and `max` are bounds. For `string` and `bytes`, `min` and `max` are lengths,
 and on a string `match` takes a regular expression. These bounds and the pattern are the type's
@@ -369,18 +369,17 @@ model Orphan { #1 id int64 }
 
 ### Inline shapes and enums
 
-A field's type may be written in place. `shipping { street string { max 200 }  city string { max
-100 } }` declares a shape, and `status enum { pending paid shipped } = pending` an enum. Each is
-hoisted to a declaration nested in the model and named `<Model><Field>` in UpperCamel
-(`OrderShipping`, `OrderStatus`), so every target, `diff`, `migrate`, and the editor see an
-ordinary nested model or enum; `@name("Address")` on the field gives it that name instead. A
-hoisted name that the model already declares is an error (SCH1053), and so is one the model could
-already see from outside, at the schema's top level or in a model it is nested in, since every
-bare use of that name inside the model would then mean the hoisted type. Shapes nest, and their names
-chain: a shape `geo` inside `OrderAddress` is `OrderAddressGeo`. An inline type is legal only as a
-field's type, directly or as the element of its list (`{ … }[]`); a union member, an alias, a
-payload, or a type argument names a declared type. Enum values are written without commas, in an
-inline enum as in a declared one.
+A field's type may be written in place. `shipping { street string { max 200 }  city string { max 100
+} }` declares a shape, and `status enum { pending paid shipped } = pending` an enum. Each is hoisted
+to a declaration nested in the model and named `<Model><Field>` in UpperCamel (`OrderShipping`,
+`OrderStatus`), so every target, `diff`, `migrate`, and the editor see an ordinary nested model or
+enum; `@name("Address")` on the field gives it that name instead. A hoisted name that the model
+already declares is an error (SCH1053), and so is one the model could already see from outside, at
+the schema's top level or in a model it is nested in, since every bare use of that name inside the
+model would then mean the hoisted type. Shapes nest, and their names chain: a shape `geo` inside
+`OrderAddress` is `OrderAddressGeo`. An inline type is legal only as a field's type, directly or as
+the element of its list (`{ … }[]`); a union member, an alias, a payload, or a type argument names a
+declared type. Enum values are written without commas, in an inline enum as in a declared one.
 
 ### Timestamps
 
@@ -435,13 +434,13 @@ copies the model's columns, its key among them, under the field's prefix with no
 1.x's `@sql(strategy = embed)` did. On a list of a keyed model, Postgres copies each element's
 columns into the list's child table.
 
-A **back-reference** is a field typed `Model[]` or `Model` that carries `@relation(field)`, naming
-a reference on that model back to this one: `orders Order[] @relation(customer)` on `Customer`.
-It stores nothing. No target writes it, the editor goes from the field its `@relation` names to
-that reference, and `diff` reports it like any field. A bare `@relation` follows the one reference the other model has to
-this one. The named field must exist and reference this model (SCH1050), and a bare `@relation`
-must name one when the other model has several (SCH1051). A one-to-one is a reference with
-`{ unique }` and a singular back-reference.
+A **back-reference** is a field typed `Model[]` or `Model` that carries `@relation(field)`, naming a
+reference on that model back to this one: `orders Order[] @relation(customer)` on `Customer`. It
+stores nothing. No target writes it, the editor goes from the field its `@relation` names to that
+reference, and `diff` reports it like any field. A bare `@relation` follows the one reference the
+other model has to this one. The named field must exist and reference this model (SCH1050), and a
+bare `@relation` must name one when the other model has several (SCH1051). A one-to-one is a
+reference with `{ unique }` and a singular back-reference.
 
 `@relation(onDelete: cascade | restrict | set_null)` on a reference says what deleting the
 referenced row does in Postgres, which writes it as the foreign key's `ON DELETE` clause; the
@@ -563,13 +562,13 @@ most sixteen characters each. A map's key and value carry their own options insi
 arguments: `map<string { max 8 }, int32 { min 0 }>`. Postgres lowers a list of scalars to an array
 column, a list of models without a key to a child table named `<parent>_<field>` with a
 `<parent>_<key>` column and a `position` column, a list of keyed models to a child table of their
-keys (section 9), and `map` to `jsonb`; `@sql(strategy)` changes each of these, as section 15
-shows. Postgres does not enforce a collection's `minItems` or `maxItems` either way; the bound is
-dropped and reported as SCH2105, the same as any other unenforced refinement. A list of lists is
-written `list<T[]>`, since a type takes one `[]`, and so is a list of maps that bound their own
-size, `list<map<string, int32> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share
-one block; `fmt` writes every other `list<T>` as `T[]`. A collection nested inside another collection has
-no Protobuf form (SCH2005), and no relational form unless the outer collection takes
+keys (section 9), and `map` to `jsonb`; `@sql(strategy)` changes each of these, as section 15 shows.
+Postgres does not enforce a collection's `minItems` or `maxItems` either way; the bound is dropped
+and reported as SCH2105, the same as any other unenforced refinement. A list of lists is written
+`list<T[]>`, since a type takes one `[]`, and so is a list of maps that bound their own size,
+`list<map<string, int32> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share one
+block; `fmt` writes every other `list<T>` as `T[]`. A collection nested inside another collection
+has no Protobuf form (SCH2005), and no relational form unless the outer collection takes
 `@sql(strategy: json)`.
 
 ```schemata
@@ -849,7 +848,8 @@ scalar or an enum, and must not be nullable, since a path segment is always pres
 each parameter once, and only a model request can bind one, not a union (SCH1048). A verb and a
 path belong to one operation in a schema, across all of its services, and paths that differ only
 in their parameters' names, such as `/orders/{id}` and `/orders/{order_id}`, are one path
-(SCH1048).
+(SCH1048). OpenAPI holds such paths as one under every verb, so the target applies the same
+path-template rule across verbs (SCH2602), stated in [The OpenAPI document](#the-openapi-document).
 
 The request's other fields go where the verb puts them:
 
@@ -1314,8 +1314,9 @@ past the last character.
     schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
 
 `import` reads a schema that already exists, as XML Schema, Protobuf, or Postgres DDL, and writes
-the `.schemata` source, in the 2.0 syntax, that describes the same data, reporting everything it could not carry over
-exactly. What the three formats share comes first; each has its own subsection after it.
+the `.schemata` source, in the 2.0 syntax, that describes the same data, reporting everything it
+could not carry over exactly. What the three formats share comes first; each has its own subsection
+after it.
 
 ### The command
 
@@ -1335,14 +1336,15 @@ Each format names its schemas from what it has:
 - An XML Schema's `targetNamespace` names it, as the XSD subsection describes.
 - A `.proto` or `.sql` file found by walking a directory takes its path under that directory, the
   way `protoc` addresses a file and the way `compile` lays its output out:
-  `protos/shop/orders.proto`, found by walking `protos`, is `schema shop.orders`. A segment that is not lower_snake is
-  lower-snaked and the change reported (SCH2402), so `k8s.io/api/core/v1/generated.proto` becomes
-  `k8s_io.api.core.v1.generated`. Importing a directory `compile` wrote, such as `out/proto` or
-  `out/sql`, gets every schema back under its own name. Proto files that share a package, and a
-  DDL file with tables in several schemas, are named as their subsections describe.
+  `protos/shop/orders.proto`, found by walking `protos`, is `schema shop.orders`. A segment that is
+  not lower_snake is lower-snaked and the change reported (SCH2402), so
+  `k8s.io/api/core/v1/generated.proto` becomes `k8s_io.api.core.v1.generated`. Importing a directory
+  `compile` wrote, such as `out/proto` or `out/sql`, gets every schema back under its own name.
+  Proto files that share a package, and a DDL file with tables in several schemas, are named as
+  their subsections describe.
 - A `.proto` or `.sql` file named on its own has no such path. It takes the name it declares, its
-  `package` or the one Postgres schema it puts its tables in, when that is already a schema name, and
-  otherwise its file stem, lower-snaked, reporting the name it derived (SCH2402).
+  `package` or the one Postgres schema it puts its tables in, when that is already a schema name,
+  and otherwise its file stem, lower-snaked, reporting the name it derived (SCH2402).
 - A declared name the schema name does not already say is kept: `@proto(package: "…")` when the
   package differs from the schema name, `@sql(schema: "…")` when the Postgres schema is not the
   name's last segment, which is the one the sql target would otherwise use (section 1).
@@ -1357,7 +1359,7 @@ Every import reports in one family:
 | Code | Meaning |
 |---|---|
 | SCH2401 | error: a file cannot be read, a reference, import, or include cannot be resolved, or two constructs lower to one name |
-| SCH2402 | warning: a schema name was derived rather than taken as written, or an rpc's name was lower-snaked into one the target would not write back |
+| SCH2402 | warning: a name was derived from a file name or changed on import; a schema name derived rather than taken as written, or an rpc's name lower-snaked into one the target would not write back |
 | SCH2403 | warning: a construct was approximated; it is kept, but the regenerated schema will differ |
 | SCH2404 | warning: a type or facet was widened or dropped |
 | SCH2405 | warning: a construct was dropped |
@@ -1437,27 +1439,27 @@ The first global element naming a complex type marks that model as a root. Its n
 the model name in lower_snake (`Order` gives `order`), or as the `@xsd(name)` override; when the
 element is named otherwise, the override is added if it alone makes the name exact, and otherwise
 the mismatch is reported (SCH2403) with the name it will regenerate as. A global element with its
-own anonymous complex type becomes a top-level model named after it, reported the same way when
-that name will not regenerate (`myThing` will regenerate as `my_thing`); one whose model name a
-named type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped, while one
+own anonymous complex type becomes a top-level model named after it, reported the same way when that
+name will not regenerate (`myThing` will regenerate as `my_thing`); one whose model name a named
+type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped, while one
 whose model name another global element's model already took, such as `SecondDefiningParameter`
-after `secondDefiningParameter`, is numbered (`SecondDefiningParameter2`, SCH2403). The xsd
-target writes one global element per model of its own schema, so a second global element of the
-same type, and one of a simple type or of a type in another XML namespace, are dropped (SCH2405). A
-complex type never used as a global element becomes `@xsd(root: false)`. An anonymous complex type
-becomes a model nested under the element that uses it, named after that element.
+after `secondDefiningParameter`, is numbered (`SecondDefiningParameter2`, SCH2403). The xsd target
+writes one global element per model of its own schema, so a second global element of the same type,
+and one of a simple type or of a type in another XML namespace, are dropped (SCH2405). A complex
+type never used as a global element becomes `@xsd(root: false)`. An anonymous complex type becomes a
+model nested under the element that uses it, named after that element.
 
 An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
 lower_snake with `@xsd(name: "…")` restoring the original, silently; a value that cannot be an XML
 name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403). A name that is a Schemata
 keyword, such as `true`, `stream`, or `import`, or the reserved name `null`, takes a `_value` suffix
 the same way: an enumeration value `true` becomes `true_value` with `@xsd(name: "true")`, and a
-default naming it follows. A model named after an element whose name starts with a digit is
-prefixed with `V`, so `3d` gives `model V3d`. In an enumeration value, `+` is spelled `plus` and a
-`-` that does not join two letters or digits is spelled `minus` (`+x-y` gives `plus_x_y`, `-x-y`
-gives `minus_x_y`, while `paid-out` stays `paid_out`), and a value whose name an earlier value already
-took is numbered (`v_2`). An element and an attribute of one model with the same name keep apart
-as they do in XML: the element keeps the name and the attribute takes `<name>_attribute`, which the
+default naming it follows. A model named after an element whose name starts with a digit is prefixed
+with `V`, so `3d` gives `model V3d`. In an enumeration value, `+` is spelled `plus` and a `-` that
+does not join two letters or digits is spelled `minus` (`+x-y` gives `plus_x_y`, `-x-y` gives
+`minus_x_y`, while `paid-out` stays `paid_out`), and a value whose name an earlier value already
+took is numbered (`v_2`). An element and an attribute of one model with the same name keep apart as
+they do in XML: the element keeps the name and the attribute takes `<name>_attribute`, which the
 regenerated attribute is then named too (SCH2403).
 
 An attribute becomes an `@xsd(attribute)` field, placed after the element fields; a required
@@ -1607,13 +1609,12 @@ instead of a union.
 
 #### Content models
 
-A `sequence`'s children become fields in order. An element with `maxOccurs` greater than one
-becomes `T[]`, with `minItems`/`maxItems` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to
-the element type, giving `T?[]`; a `default` on a repeated element is dropped (SCH2403), since a
-list has no default. An element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A
-single element with `minOccurs="0"` becomes `T?`, unless it carries a `default`, which already
-implies optional presence. An element with both a `type` and an inline type keeps the `type`
-(SCH2403).
+A `sequence`'s children become fields in order. An element with `maxOccurs` greater than one becomes
+`T[]`, with `minItems`/`maxItems` from `minOccurs`/`maxOccurs`; `nillable="true"` adds `?` to the
+element type, giving `T?[]`; a `default` on a repeated element is dropped (SCH2403), since a list
+has no default. An element with `maxOccurs="0"` can never appear and is dropped (SCH2405). A single
+element with `minOccurs="0"` becomes `T?`, unless it carries a `default`, which already implies
+optional presence. An element with both a `type` and an inline type keeps the `type` (SCH2403).
 
 An `xs:all` that is a type's content becomes a model with `@xsd(all)`, which the xsd target
 writes back as `xs:all`; each element is required or, with `minOccurs="0"`, `?`, since `xs:all`
@@ -1731,7 +1732,7 @@ union imports as `string`.
 ```
 
 given `Size` with the values `s` and `m` and `Extra` with `xl`, a field of `AnySize` holds
-`enum AnySize { s m xl }` and a field of `Ints` is `chest int32[] @xsd(list)`.
+`enum AnySize { s m xl }` and a field `chest` of type `Ints` is `chest int32[] @xsd(list)`.
 
 #### Forms and includes
 
@@ -1824,9 +1825,10 @@ missing an attribute it cannot be read without (a `group` with no `name`, an `ex
 inputs by its path under their roots (the directories named on the command line), then beside the
 importing file, then under each root on disk; a file found that way is read and imported too. An
 import of protoc's own files under `google/protobuf/`, `timestamp.proto` and `descriptor.proto`
-alike, needs no file at all, since their types are known by name. Files under one root that
-declare one package are one package to `protoc`, so they import as one schema, the package's,
-with each segment lower-snaked if need be (SCH2402). Two files whose schema names coincide but whose packages differ are an error (SCH2401).
+alike, needs no file at all, since their types are known by name. Files under one root that declare
+one package are one package to `protoc`, so they import as one schema, the package's, with each
+segment lower-snaked if need be (SCH2402). Two files whose schema names coincide but whose packages
+differ are an error (SCH2401).
 
 | Protobuf type | Schemata type | Notes |
 |---|---|---|
@@ -1843,14 +1845,14 @@ with each segment lower-snaked if need be (SCH2402). Two files whose schema name
 | `google.protobuf.Struct`, `Value`, `ListValue`, `FieldMask`, `Empty` | `string` | SCH2404 |
 | any other `google.protobuf` type, such as `Api` | `string` | SCH2404 |
 
-A proto3 field with no label is required, `T`; an `optional` one is `T?`; a `repeated` one is
-`T[]`. A proto2 `required` field is `T`, and an `optional` one `T?` unless it has a
-`[default]`. A message-typed field has presence on the wire whatever its label, so Protobuf alone
-cannot say whether a Schemata field of a model type was `T` or `T?`: it imports as `T`, unless a
-note says `T?` (below). Field numbers become ordinals, and names that are not lower_snake are
-lower-snaked with `@proto(name: "…")` restoring them; a message or enum name that is not
-UpperCamel gets the same treatment, and a field named after a keyword takes a `_value` suffix.
-Two fields, values, or declarations that lower to one name are an error (SCH2401). Leading comments become doc comments,
+A proto3 field with no label is required, `T`; an `optional` one is `T?`; a `repeated` one is `T[]`.
+A proto2 `required` field is `T`, and an `optional` one `T?` unless it has a `[default]`. A
+message-typed field has presence on the wire whatever its label, so Protobuf alone cannot say
+whether a Schemata field of a model type was `T` or `T?`: it imports as `T`, unless a note says `T?`
+(below). Field numbers become ordinals, and names that are not lower_snake are lower-snaked with
+`@proto(name: "…")` restoring them; a message or enum name that is not UpperCamel gets the same
+treatment, and a field named after a keyword takes a `_value` suffix. Two fields, values, or
+declarations that lower to one name are an error (SCH2401). Leading comments become doc comments,
 with a trailing comment on the same line added after a blank line; a comment separated from its
 declaration by a blank line is not a doc and is dropped silently.
 
@@ -2111,11 +2113,11 @@ triggers, rules, policies, and the rest of `CREATE`'s forms, `CREATE TEMP TABLE`
 
 Each Postgres schema becomes one Schemata schema, named as the command section describes; one
 sharing its file with others takes its own name, or the stem when its name is not a schema name.
-Tables created without a schema are in `public`, which is never a schema's name. Every table becomes a
-model named after it in UpperCamel, with `@sql(table: "…")` when the name will not regenerate,
-and each column becomes a field, lower-snaked with `@sql(column: "…")` when need be, `?` when the
-column allows `NULL` and is not in the primary key. A table created twice is an error, the second
-ignored (SCH2401).
+Tables created without a schema are in `public`, which is never a schema's name. Every table becomes
+a model named after it in UpperCamel, with `@sql(table: "…")` when the name will not regenerate, and
+each column becomes a field, lower-snaked with `@sql(column: "…")` when need be, `?` when the column
+allows `NULL` and is not in the primary key. A table created twice is an error, the second ignored
+(SCH2401).
 
 | Postgres type | Schemata type | Notes |
 |---|---|---|
@@ -2173,13 +2175,13 @@ model Customer {
 
 #### Checks
 
-A `CHECK` on one column becomes refinements on its field when every part of it says one:
-`c >= n`, `c <= n`, `c BETWEEN a AND b`, `c > n` and `c < n` on an integer (shifted by one), the
-same on `char_length(c)`, `length(c)`, or `octet_length(c)` for a string's or bytes' length, and
-`c ~ '…'` for a pattern. `c ~* '…'` becomes a pattern too, its case-insensitivity dropped (SCH2404). A
-`c IN ('a', 'b')` check on a `text` column makes the column an enum. The all-or-none and presence
-checks the structures below use are read by those structures. Any other check is dropped
-(SCH2405), quoted in the message.
+A `CHECK` on one column becomes refinements on its field when every part of it says one: `c >= n`,
+`c <= n`, `c BETWEEN a AND b`, `c > n` and `c < n` on an integer (shifted by one), the same on
+`char_length(c)`, `length(c)`, or `octet_length(c)` for a string's or bytes' length, and `c ~ '…'`
+for a pattern. `c ~* '…'` becomes a pattern too, its case-insensitivity dropped (SCH2404). A `c IN
+('a', 'b')` check on a `text` column makes the column an enum. The all-or-none and presence checks
+the structures below use are read by those structures. Any other check is dropped (SCH2405), quoted
+in the message.
 
 ```sql
 CREATE TABLE shop."order" (
@@ -2456,10 +2458,11 @@ targets' attributes do not, since an XML Schema holds none of them.
 
 Protobuf: names, ordinals, docs, `@deprecated`, and `reserved` come back from the proto itself, and
 every refinement, default, and type Protobuf cannot say rides on the `// schemata:` note the target
-writes, in 2.0 spelling (`string { max 5 }`, `Line[] { minItems 1 }`), so importing the proto target's own output reports nothing but the rpc names described
-below. Nullability of a message-typed field rides on the note too: a field of a nullable model,
-union, `instant`, or `duration` is written with `// schemata: T?`. A `.proto` written by a compiler
-before 1.1, which did not write that note, imports such a field as required.
+writes, in 2.0 spelling (`string { max 5 }`, `Line[] { minItems 1 }`), so importing the proto
+target's own output reports nothing but the rpc names described below. Nullability of a
+message-typed field rides on the note too: a field of a nullable model, union, `instant`, or
+`duration` is written with `// schemata: T?`. A `.proto` written by a compiler before 1.1, which did
+not write that note, imports such a field as required.
 
 A service comes back with its operations, their payloads and streams, docs, and `@deprecated` from
 the proto, and their bindings, ordinals, and `reserved` from the notes. Names come back as the
@@ -2469,12 +2472,12 @@ in UpperCamel, comes back as `@proto(name)` and is reported (SCH2402). `@openapi
 back, since a `.proto` holds none.
 
 SQL: tables, keys, unique constraints and indexes (composite ones as `@@unique` and `@@index`),
-references and their `ON DELETE` actions, child tables, unions, embedded models, enums,
-refinements, and docs come back from the DDL, but ordinals do not, since a column has none; fields keep column
-order, with child tables last. A model stored as json comes back empty, `model Address {}`,
-reported (SCH2403), since the DDL holds a `jsonb` column and not the model's fields; that note is
-the only one importing the sql target's own output reports. Restore the fields by hand, or import
-the same schema from another format.
+references and their `ON DELETE` actions, child tables, unions, embedded models, enums, refinements,
+and docs come back from the DDL, but ordinals do not, since a column has none; fields keep column
+order, with child tables last. A model stored as json comes back empty, `model Address {}`, reported
+(SCH2403), since the DDL holds a `jsonb` column and not the model's fields; that note is the only
+one importing the sql target's own output reports. Restore the fields by hand, or import the same
+schema from another format.
 
 ## 20. Evolving a schema
 
@@ -2627,26 +2630,26 @@ on) in the human report, and carries `deprecatedInOld` in the JSON one.
 
 ### Reporting
 
-A human report groups changes under the declaration (or schema) they belong to, one line per
-change, followed by a verdict per target (`proto: compatible, sql: breaking, xsd: breaking,
-jsonschema: breaking`). An option, attribute, doc, or deprecation change on a member names the
-member first (`field 'id': { id } removed`). Every note and break also renders as its own diagnostic,
-with the rulebook's message and help and the changed side's excerpt. A trailer gives the total
-change count and a `breaking`/`note` count per selected target. A JSON report holds one entry per
-change (`kind`, `path`, `old`, `new`, `file`, `line`, `deprecatedInOld`, and a `verdicts` object
-keyed by target), a `summary` per target, and the `exitCode`. `kind` is one of `schema.added`,
-`schema.removed`, `model.added`, `model.removed`, `model.kindChanged` (these three for any
-declaration: a model, an enum, a union), `field.added`, `field.removed`, `field.renamed`,
-`field.typeChanged`, `field.nullabilityChanged`, `field.defaultChanged`,
-`field.refinementChanged`, `enumValue.added`, `enumValue.removed`, `enumValue.renamed`,
-`unionMember.added`, `unionMember.removed`, `unionMember.typeChanged`, `reserved.changed`,
-`service.added`, `service.removed`, `operation.added`, `operation.removed`, `operation.renamed`,
-`operation.requestChanged`, `operation.responseChanged`, `operation.bindingChanged`,
-`annotation.changed` (an option or an attribute), `deprecation.changed`, and `doc.changed`; 2.0
-renamed 1.x's `namespace.*` and `declaration.*` kinds. `old` and `new` are the values as Schemata
-source, so a string reads `"eu"` with its quotes and a type `string { max 100 }`. When the sides cannot be compared
-(`SCH2503`), the JSON report keeps that shape — `changes` empty, every `summary` count zero,
-`exitCode` 1 — and adds an `errors` array, one `{code, message, help, file, line}` per reason.
+A human report groups changes under the declaration (or schema) they belong to, one line per change,
+followed by a verdict per target (`proto: compatible, sql: breaking, xsd: breaking, jsonschema:
+breaking`). An option, attribute, doc, or deprecation change on a member names the member first
+(`field 'id': { id } removed`). Every note and break also renders as its own diagnostic, with the
+rulebook's message and help and the changed side's excerpt. A trailer gives the total change count
+and a `breaking`/`note` count per selected target. A JSON report holds one entry per change (`kind`,
+`path`, `old`, `new`, `file`, `line`, `deprecatedInOld`, and a `verdicts` object keyed by target), a
+`summary` per target, and the `exitCode`. `kind` is one of `schema.added`, `schema.removed`,
+`model.added`, `model.removed`, `model.kindChanged` (these three for any declaration: a model, an
+enum, a union), `field.added`, `field.removed`, `field.renamed`, `field.typeChanged`,
+`field.nullabilityChanged`, `field.defaultChanged`, `field.refinementChanged`, `enumValue.added`,
+`enumValue.removed`, `enumValue.renamed`, `unionMember.added`, `unionMember.removed`,
+`unionMember.typeChanged`, `reserved.changed`, `service.added`, `service.removed`,
+`operation.added`, `operation.removed`, `operation.renamed`, `operation.requestChanged`,
+`operation.responseChanged`, `operation.bindingChanged`, `annotation.changed` (an option or an
+attribute), `deprecation.changed`, and `doc.changed`; 2.0 renamed 1.x's `namespace.*` and
+`declaration.*` kinds. `old` and `new` are the values as Schemata source, so a string reads `"eu"`
+with its quotes and a type `string { max 100 }`. When the sides cannot be compared (`SCH2503`), the
+JSON report keeps that shape — `changes` empty, every `summary` count zero, `exitCode` 1 — and adds
+an `errors` array, one `{code, message, help, file, line}` per reason.
 
 ### Worked example
 
@@ -2823,19 +2826,18 @@ written. `migrate` reports only its own codes; the SQL lowering's warnings belon
 
 ### Identity
 
-Tables and columns are matched by what produced them (the model, and the chain of fields and
-union members from that model), never by name. So a field renamed under its ordinal is a
-`RENAME COLUMN`, a model renamed with `@@sql(table)` is a `RENAME TABLE` whose primary key and
-child table follow, and a rename pinned by `@sql(column)` is no step at all. A model renamed by
-its declaration is a new table and a dropped one, as evolution's identity rule says. Identity also
-follows what a field refers to: when a field's model or union is swapped for another, or a union
-member's type changes, the columns and child tables under it are new and the old ones are dropped.
-A column that copies a key (a reference, or a child table's parent column) is identified by the key
-field it copies, so moving `{ id }` to another field drops the old copies and adds new ones. A
-back-reference has no column, so adding or removing one plans no step.
-Number a schema before relying on `migrate`, for the same reason as `diff`. A column added later sits at the
-end of its table, so a migrated database can differ from a freshly created one only in column
-order, which no migration changes.
+Tables and columns are matched by what produced them (the model, and the chain of fields and union
+members from that model), never by name. So a field renamed under its ordinal is a `RENAME COLUMN`,
+a model renamed with `@@sql(table)` is a `RENAME TABLE` whose primary key and child table follow,
+and a rename pinned by `@sql(column)` is no step at all. A model renamed by its declaration is a new
+table and a dropped one, as evolution's identity rule says. Identity also follows what a field
+refers to: when a field's model or union is swapped for another, or a union member's type changes,
+the columns and child tables under it are new and the old ones are dropped. A column that copies a
+key (a reference, or a child table's parent column) is identified by the key field it copies, so
+moving `{ id }` to another field drops the old copies and adds new ones. A back-reference has no
+column, so adding or removing one plans no step. Number a schema before relying on `migrate`, for
+the same reason as `diff`. A column added later sits at the end of its table, so a migrated database
+can differ from a freshly created one only in column order, which no migration changes.
 
 ### Steps and their risk
 
@@ -2897,7 +2899,7 @@ re-added in the later.
 | Back-reference added or removed | nothing | clean |
 | `@sql(type)` changed | `ALTER COLUMN … TYPE … USING` | clean when the spelled types are a known lossless widening, else destructive |
 | `@sql(strategy)` changed | drop the old shape (columns or child table), create the new | destructive, help says to move the data between the two statements |
-| `{ embed }` added or removed | nothing on a model without a key or a union, where it is the default; on a keyed model the SQL target refuses it (SCH2110), so nothing is written | clean, or an error |
+| `{ embed }` added or removed | no step on a model without a key or a union, where it is the default; on a keyed model the SQL target refuses it (SCH2110), the error is reported, and no file is written | clean, or an error |
 | `@sql(table|column|schema)` changed | `RENAME TABLE` / `RENAME COLUMN` / `ALTER TABLE … SET SCHEMA` after `CREATE SCHEMA` | clean |
 | Declaration added | `CREATE TABLE` when it has a table | clean |
 | Declaration removed | `DROP TABLE` when it had one, child tables first | destructive |
@@ -3005,9 +3007,9 @@ compiler.
 
 In Zed, clone [zed-schemata](https://github.com/msbolton/zed-schemata) and run "zed: install dev
 extension" on the clone; building it needs Rust installed through rustup. Its 2.x releases need
-`schemata` 2.0.0 or later too, and runs `schemata lsp` from your `PATH` or from the path you give it under
-`binary.path`. The two options `roots` and `strict`, which the VS Code extension takes too, go under
-`initialization_options` in Zed's settings:
+`schemata` 2.0.0 or later too, and runs `schemata lsp` from your `PATH` or from the path you give it
+under `binary.path`. The two options `roots` and `strict`, which the VS Code extension takes too, go
+under `initialization_options` in Zed's settings:
 
 ```json
 {
@@ -3064,11 +3066,11 @@ Rename waits until every file of the set parses.
 `schemata diff` tells you what that breaks on each target (section 20). A reserved name string and
 an existing override are text, not uses of the name, and stay as they are. A schema cannot be
 renamed, and neither can an inline shape or enum, which has no name in the source: rename its field,
-or give it one with `@name`. Rename refuses a name that is not an identifier, is a keyword, or is already taken where
-the old name lives, and a declaration may not take a builtin type name, `list`, or `map`. A service's
-new name must be UpperCamel and an operation's lower_snake, and a service and a declaration of one
-schema may not take each other's name. Rename also tries the rename before it answers, and
-refuses one that would:
+or give it one with `@name`. Rename refuses a name that is not an identifier, is a keyword, or is
+already taken where the old name lives, and a declaration may not take a builtin type name, `list`,
+or `map`. A service's new name must be UpperCamel and an operation's lower_snake, and a service and
+a declaration of one schema may not take each other's name. Rename also tries the rename before it
+answers, and refuses one that would:
 
 - change what another name refers to, as when a nested model renamed to `Item` would capture the
   uses of a top-level `Item`;

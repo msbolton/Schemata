@@ -126,7 +126,7 @@ class XsdWildcardsTest {
             )
         assertEquals(
             listOf(
-                "SCH2204 field 'R.n': @xsd(any) is not allowed on a int32; it takes a string, string?, or string[]",
+                "SCH2204 field 'R.n': @xsd(any) is not allowed on an int32; it takes a string, string?, or string[]",
                 "SCH2204 field 'R.m': @xsd(any_attribute) is not allowed on a map<string, int32>; it takes a map<string, string>",
                 "SCH2204 field 'R.l': @xsd(mixed) is not allowed on a string[]; it takes a string or string?",
                 "SCH2204 field 'R.p': @xsd(process) needs @xsd(any) or @xsd(any_attribute) on the same field",
@@ -247,7 +247,7 @@ class XsdWildcardsTest {
     fun `list on another shape is an error`() {
         assertEquals(
             listOf(
-                "SCH2204 field 'R.a': @xsd(list) is not allowed on a Item[]; it takes a list of scalars or enums",
+                "SCH2204 field 'R.a': @xsd(list) is not allowed on an Item[]; it takes a list of scalars or enums",
                 "SCH2204 field 'R.b': @xsd(list) is not allowed on a string; it takes a list of scalars or enums",
             ),
             diagnosticsOf(

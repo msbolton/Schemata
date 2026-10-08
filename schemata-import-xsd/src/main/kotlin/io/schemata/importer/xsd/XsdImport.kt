@@ -632,9 +632,9 @@ object XsdImport {
                 }
             // The type override already serves double duty on the XSD target (it also names the
             // global element): when the type didn't otherwise need one, but adding it would make
-            // the
-            // element name exact too, it's worth adding for that alone, since it still regenerates
-            // the same type name either way. Only a genuinely mismatched element name is unfixable.
+            // the element name exact too, it's worth adding for that alone, since it still
+            // regenerates the same type name either way. Only a genuinely mismatched element name
+            // is unfixable.
             var typeOverride = info.annotation
             val rootAnnotation =
                 if (rootElement == null) UnitAnnotation("xsd", "root", "false")

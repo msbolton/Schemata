@@ -54,14 +54,15 @@ The binaries need no JDK. A binary downloaded through a browser on macOS is quar
 Gatekeeper; `xattr -d com.apple.quarantine schemata` clears it, and the `curl` route above does
 not trigger it.
 
-To build from a checkout (JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a
-`schemata` script under `schemata-cli/build/install/schemata/bin/`, and `./gradlew build` produces
-a runnable jar at `schemata-cli/build/libs/schemata-<version>.jar`. With `JAVA_HOME` (or
-`GRAALVM_HOME`) pointing at a GraalVM JDK 21, `./gradlew :schemata-cli:nativeCompile` builds the
-native binary at
-`schemata-cli/build/native/nativeCompile/schemata`, and
-`./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' -Pschemata.nativeBinary=<that path>`
-checks it against the jar.
+To build from a checkout (JDK 21 or later): `./gradlew :schemata-cli:installDist` puts a `schemata`
+script under `schemata-cli/build/install/schemata/bin/`, and `./gradlew build` produces a runnable
+jar at `schemata-cli/build/libs/schemata-<version>.jar`. With `JAVA_HOME` (or `GRAALVM_HOME`)
+pointing at a GraalVM JDK 21, `./gradlew :schemata-cli:nativeCompile` builds the native binary at
+`schemata-cli/build/native/nativeCompile/schemata`. To check the native binary against the jar, run:
+
+```text
+./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' -Pschemata.nativeBinary=<that path>
+```
 
 ## Quick start
 
@@ -147,12 +148,14 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no error, even
 when another target failed; the `openapi` target writes one document per schema that declares a
 service, and nothing for a schema without one, and the `proto` target writes each service as a gRPC
-`service` in its schema's `.proto`. `check` reports everything `compile` would and writes
-nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and
-writes `--out/import/<file>`, one `.schemata` file per schema. `targets` lists each target's
-attribute keys and diagnostic codes. `upgrade` rewrites 1.x schema files in the 2.0 syntax, in
-place; `--check` writes nothing and fails while any file would change. `diff OLD NEW` judges every change between two schema versions
-against each target's compatibility rulebook, so a breaking change is caught before it ships. `migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version to the next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp`
+`service` in its schema's `.proto`. `check` reports everything `compile` would and writes nothing.
+`import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and writes
+`--out/import/<file>`, one `.schemata` file per schema. `targets` lists each target's attribute keys
+and diagnostic codes. `upgrade` rewrites 1.x schema files in the 2.0 syntax, in place; `--check`
+writes nothing and fails while any file would change. `diff OLD NEW` judges every change between two
+schema versions against each target's compatibility rulebook, so a breaking change is caught before
+it ships. `migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version
+to the next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp`
 runs the language server an editor starts; the guide's Editor support section covers the VS Code and
 Zed extensions and what the server does.
 
@@ -168,8 +171,9 @@ a file, pass `--color never`.
 | 1 | any error (after `--strict` promotion), or a usage error |
 
 `fmt` and `upgrade` follow the same codes: 0 when rewritten or already current, 1 when `--check`
-finds a difference or a file does not parse. Under `--format json`, `fmt --check` sends the diff to stderr
-so stdout holds only JSON. The names of the files plain `fmt` or `upgrade` rewrote go to stderr too.
+finds a difference or a file does not parse. Under `--format json`, `fmt --check` sends the diff to
+stderr so stdout holds only JSON. The names of the files plain `fmt` or `upgrade` rewrote go to
+stderr too.
 
 ## Learn more
 

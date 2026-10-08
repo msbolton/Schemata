@@ -39,23 +39,29 @@ class Fixture(val dir: File) {
             ?.takeIf { it.startsWith("#") }
             ?.also { checkHeader(it, name) }
 
-    val strict: Boolean = header?.contains("strict") == true
+    /** The header's options, each compared whole: `strict` is not matched inside `strictly`. */
+    private val options: List<String> =
+        header?.removePrefix("#")?.split(' ')?.filter { it.isNotEmpty() } ?: emptyList()
+
+    private fun option(prefix: String): String? =
+        options.firstOrNull { it.startsWith(prefix) }?.removePrefix(prefix)
+
+    val strict: Boolean = "strict" in options
 
     /** True for a `# migrate=old,new` fixture: planned through `schemata migrate`. */
-    val isMigrate: Boolean = header?.contains("migrate=") == true
+    val isMigrate: Boolean = option("migrate=") != null
 
-    val allowDestructive: Boolean = header?.contains("allow-destructive") == true
+    val allowDestructive: Boolean = "allow-destructive" in options
 
     /** True for a `# upgrade` fixture: its 1.x sources are run through `schemata upgrade`. */
-    val isUpgrade: Boolean = header?.trim() == "# upgrade"
+    val isUpgrade: Boolean = header == "# upgrade"
 
     /**
      * True for a `# diff=old,new` fixture: compared through [Evolution], not compiled or checked.
      */
-    val isDiff: Boolean = header?.contains("diff=") == true
+    val isDiff: Boolean = option("diff=") != null
 
-    private val targetNames: List<String>? =
-        header?.let { Regex(" targets=([a-z,]+)(?: |$)").find(it) }?.groupValues?.get(1)?.split(',')
+    private val targetNames: List<String>? = option("targets=")?.split(',')
 
     val targets: List<Target<*>> =
         if (isDiff || isMigrate) emptyList()
@@ -88,7 +94,7 @@ class Fixture(val dir: File) {
      * otherwise a proto or SQL file is read as found under the fixture directory, its name its path
      * under the root.
      */
-    private val lone: Boolean = header?.contains("lone") == true
+    private val lone: Boolean = "lone" in options
 
     /**
      * The two sides of a diff fixture, loaded from its `old/` and `new/` subdirectories. Paths keep
@@ -246,6 +252,22 @@ class Fixture(val dir: File) {
                 "^#(?: (?:strict|upgrade|lone|allow-destructive|diff=old,new|migrate=old,new" +
                     "|import=(?:xsd|proto|sql)|targets=[a-z,]+))+$"
             )
+
+        /**
+         * The report blocks (a header line, its location, its help) that [expected] holds more than
+         * once. A fixture shows each shape once; two identical blocks are a pasted duplicate that
+         * proves nothing the first does not.
+         */
+        fun duplicateBlocks(expected: String): List<String> =
+            expected
+                .trim()
+                .split(Regex("\\n\\s*\\n"))
+                .filter { it.startsWith("error[") || it.startsWith("warning[") }
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
+                .toList()
 
         fun checkHeader(header: String, fixture: String) {
             require(HEADER.matches(header)) { "$fixture: unrecognised header '$header'" }

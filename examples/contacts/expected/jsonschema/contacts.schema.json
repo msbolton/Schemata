@@ -11,7 +11,7 @@
       ]
     },
     "Contact": {
-      "description": "One person. Email and age are checked by Postgres; Protobuf carries them unchecked.",
+      "description": "One person. Postgres checks the name, email, and age but not the tags; Protobuf checks none.",
       "type": "object",
       "properties": {
         "id": {
