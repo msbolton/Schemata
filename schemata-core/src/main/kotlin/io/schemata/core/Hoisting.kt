@@ -83,7 +83,9 @@ object Hoisting {
     ): RecordDecl {
         val taken = decl.nested.map { it.name }.toMutableSet()
         val hoisted = mutableListOf<Declaration>()
-        val fields = decl.fields.map { field(decl, it, taken, hoisted, visible, report) }
+        // the field each hoisted name came from, so a later twin can name it
+        val sources = mutableMapOf<String, String>()
+        val fields = decl.fields.map { field(decl, it, taken, hoisted, sources, visible, report) }
         // only the block attribute `@@timestamps`; a single-`@` one goes to the annotation checker
         val (stamps, annotations) = decl.annotations.partition { it.block && it.name == TIMESTAMPS }
         val inner = visible.inside(decl, taken, hoisted.map { it.name }.toSet())
@@ -107,6 +109,7 @@ object Hoisting {
         field: FieldDecl,
         taken: MutableSet<String>,
         hoisted: MutableList<Declaration>,
+        sources: MutableMap<String, String>,
         visible: Visible,
         report: (Diagnostic) -> Unit,
     ): FieldDecl {
@@ -157,11 +160,13 @@ object Hoisting {
         }
         if (taken.add(name)) {
             hoisted += declaration
+            sources[name] = field.name
             return field.copy(type = reference)
         }
         // a name already in [taken] is either a declared nested one or an earlier field's hoisted
         // one
-        val twin = if (hoisted.any { it.name == name }) "also names" else "already declares"
+        val earlier = sources[name]
+        val twin = if (earlier != null) "hoists from field '$earlier'" else "already declares"
         report(
             Diagnostic(
                 CoreCodes.HOISTED_NAME_COLLISION,

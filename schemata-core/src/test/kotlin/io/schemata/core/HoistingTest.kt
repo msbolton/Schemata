@@ -118,7 +118,7 @@ class HoistingTest {
         val text = "schema s\nmodel M { a { x int32 } @name(\"P\")\n b { y int32 } @name(\"P\") }"
         assertEquals(listOf("SCH1053"), codes(text))
         val message = analyze(text).diagnostics.single().message
-        assertTrue("which model 'M' also names" in message, message)
+        assertTrue("which model 'M' hoists from field 'a'" in message, message)
         assertFalse("declares" in message, message)
     }
 
