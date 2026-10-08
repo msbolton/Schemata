@@ -15,7 +15,7 @@ the others.
 
 ## contacts
 
-A personal address book: one namespace, one record, one enum, and a handful of refined scalars.
+A personal address book: one schema, one model, one enum, and a handful of refined scalars.
 It shows what Protobuf drops that Postgres keeps: a pattern on an email, bounds on an age, a
 default on an enum.
 
@@ -87,7 +87,7 @@ SCH2105 field 'Contact.tags': refinements on string[] { max 20 } are not enforce
 ```
 
 Postgres stores `tags` as a plain array with no per-element length check. Enforce the bound in
-application code, or use `@sql(strategy = table)` so each tag becomes its own row with its own
+application code, or use `@sql(strategy: table)` so each tag becomes its own row with its own
 constraint.
 
 XSD keeps the email pattern too, as a facet on a restriction rather than a `CHECK` constraint.
@@ -118,8 +118,8 @@ From `examples/contacts/expected/jsonschema/contacts.schema.json`:
 
 ## shop
 
-A storefront: customers in one namespace, orders in another that imports them. It shows a
-cross-namespace reference, a payment union, an embedded record, and a deprecated field kept
+A storefront: customers in one schema, orders in another that imports them. It shows a
+cross-schema reference, a payment union, an embedded model, and a deprecated field kept
 alongside its replacement.
 
 From `examples/shop/customers.schemata`:
@@ -210,7 +210,7 @@ SCH2001 field 'Address.country': refinements on string { min 2, max 2 } are not 
 `id` has no Protobuf uuid type, so it lowers to a plain string; parse it back to a uuid in
 application code. The `Status` enum gets a synthesized zero value, the same as `Kind` did in
 `contacts`. proto3 has no field defaults, so `pending` is not carried; apply the default in
-application code if you depend on it. The `min = 1` bound on `lines` is not enforced by Protobuf;
+application code if you depend on it. The `minItems 1` bound on `lines` is not enforced by Protobuf;
 enforce it in application code. `total` has no Protobuf decimal type, so it lowers to a string;
 parse it back to a decimal in application code. Every refinement on `Customer.name`, `Card`,
 `BankTransfer`, `Order.note`, `Line`, and `Address` is dropped the same way `email` and `age` were
@@ -226,8 +226,9 @@ application code; child tables carry no row-count constraints.
 
 `Customer` is keyed by `id`, so `customer` is a reference: an order carries the customer's key,
 not a copy of the customer. Every target spells it the way Postgres does, as one field named
-`customer_id` typed like `Customer.id`. Write `customer Customer { embed }` to copy the whole
-record instead.
+`customer_id` typed like `Customer.id`. `customer Customer { embed }` would copy the whole model
+into the Protobuf, XSD, JSON Schema, and OpenAPI outputs instead, as 1.x did, and is an error for
+Postgres, which never copies a keyed model into another table.
 
 From `examples/shop/expected/proto/shop/orders.proto`:
 ```proto
@@ -289,7 +290,7 @@ as JSON; it validates against `urn:schemata:shop.orders#/$defs/Order`.
 
 ## ledger
 
-A ledger split into three namespaces: a chart of accounts, a double-entry journal kept in its own
+A ledger split into three schemas: a chart of accounts, a double-entry journal kept in its own
 Postgres schema, and period closes that reference both. It shows a composite primary key, a map
 lowered to a child table, and foreign keys that cross Postgres schemas.
 
@@ -319,7 +320,7 @@ From `examples/ledger/journal.schemata`:
 schema ledger.journal @sql(schema: "ledger_journal") @proto(package: "ledger.journal.v1")
 ```
 
-A namespace cannot share another namespace's `@sql(schema = ...)`; `ledger.journal` keeps its own,
+A schema cannot share another schema's `@sql(schema: ...)`; `ledger.journal` keeps its own,
 `ledger_journal`, separate from `ledger.accounts`'s `ledger`.
 
 From `examples/ledger/journal.schemata`:
@@ -432,7 +433,7 @@ The `Kind`, `Source`, and `Side` enums each get a synthesized zero value, the sa
 them in application code. `Account.opened` and `Entry.id` have no Protobuf date or uuid type, so
 they lower to plain strings; parse them back in application code. `Entry.memo`'s max is dropped
 too. The map's decimal values lower to strings; parse them back to decimals in application code.
-The `min = 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced
+The `minItems 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced
 by Protobuf; enforce them in application code.
 
 Warnings from `examples/ledger/expected/sql-warnings.txt`:
@@ -564,7 +565,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
       },
 ```
 
-`place` is a `post` that binds nothing in its path, so the whole `PlaceOrder` record is the body.
+`place` is a `post` that binds nothing in its path, so the whole `PlaceOrder` model is the body.
 `upload` has no binding, so it is `post /Orders/upload`, and its streamed request is
 newline-delimited JSON.
 
@@ -602,7 +603,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
     }
 ```
 
-Every type an operation reaches is a component keyed by its namespace, `Money` from
+Every type an operation reaches is a component keyed by its schema name, `Money` from
 `shop.catalog` included, so the document stands alone: `Order.total` refers to it within the same
 file.
 
@@ -614,7 +615,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
 ```
 
 `OrderId` and `ListOrders` are not components: their fields are parameters, and nothing refers to
-the records themselves.
+the models themselves.
 
 Under `--target proto`, the service is a gRPC `service` at the end of `shop/orders.proto`, after
 the messages, and each operation an `rpc` named in UpperCamel. `cancel` has no response, so it
@@ -659,7 +660,7 @@ changed service.
 
 `schemata import --from xsd` goes the other way: it reads an existing `.xsd` and writes a
 `.schemata` file. The GPX 1.1 schema (`http://www.topografix.com/GPX/1/1`) is a good one to walk
-through, since it exercises most of what the importer does: a namespace that is not
+through, since it exercises most of what the importer does: a target namespace that is not
 `urn:schemata:…`, a decimal with no declared precision, a fixed attribute value, and an `xs:any` it
 cannot carry.
 
@@ -668,9 +669,9 @@ java -jar schemata-<version>.jar import --from xsd --out out gpx.xsd
 ```
 
 GPX's `targetNamespace` is a plain URI, not `urn:schemata:…`, so the output keeps it on the
-namespace as `@xsd(namespace = "…")` and takes its own namespace from the file name, `gpx`,
+`schema` line as `@xsd(namespace: "…")` and takes its schema name from the file name, `gpx`,
 reported once (SCH2402); pass `--namespace gpx` yourself to silence that note. The root complex
-type, `gpxType`, becomes `record Gpx`, with `@xsd(name = "gpx")` restoring the element name XSD
+type, `gpxType`, becomes `model Gpx`, with `@xsd(name: "gpx")` restoring the element name XSD
 expects back.
 
 From `schemata-cli/src/test/resources/import/gpx/expected/gpx.schemata`:
@@ -699,18 +700,18 @@ Every warning is lossy; none stops the import from writing its file.
 
 Warnings from `schemata-cli/src/test/resources/import/gpx/expected/import-warnings.txt`:
 ```
-SCH2402 gpx.xsd: namespace 'gpx' was derived from the file name
+SCH2402 gpx.xsd: schema name 'gpx' was derived from the file name
 SCH2405 attribute 'version': fixed value imported as a default
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'magvar': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 element 'magvar': facet maxExclusive dropped
 ```
 
-Besides the namespace note already covered, `version`'s `fixed="1.1"` becomes a plain default
+Besides the schema name note already covered, `version`'s `fixed="1.1"` becomes a plain default
 (SCH2405); `ele` and the other coordinates have no `totalDigits`/`fractionDigits`, so they import as
 `decimal(38, 9)` (SCH2403); and `magvar`'s `maxExclusive` has no equivalent on a decimal and is
 dropped (SCH2404). Compiling `out/import/gpx.schemata` under the sql target reports SCH2106 on
-every record, since the import never adds `@sql(key)`; add keys by hand before compiling to SQL.
+every model, since the import never adds `{ id }`; add keys by hand before compiling to SQL.
 The proto, xsd, and jsonschema targets compile it as it stands. More generally, compiling an
 import's own `.schemata` output under the xsd target and importing that result again regenerates
 it byte for byte, with no diagnostics at all.
@@ -750,8 +751,8 @@ From the directory holding `google/`:
 java -jar schemata-<version>.jar import --from proto --out out google/type/money.proto
 ```
 
-The file is named on its own, so its namespace comes from its `package`, `google.type`, which is
-already a namespace name; the import writes `out/import/google/type.schemata` and reports nothing:
+The file is named on its own, so its schema name comes from its `package`, `google.type`, which is
+already a schema name; the import writes `out/import/google/type.schemata` and reports nothing:
 
 ```text
 no diagnostics
@@ -782,10 +783,10 @@ generation in other languages and say nothing about the data, so they are ignore
 warning, and the license header, separated from the message by a blank line, is not a doc. The
 corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it: importing the
 directory holding `google/` instead finds two files under one root that declare
-`package google.type`, which `protoc` reads as one package, so they import as one namespace,
+`package google.type`, which `protoc` reads as one package, so they import as one schema,
 `google.type`, in one file. Had `money.proto` been the only file there, it would have taken its path
 under that directory, `google.type.money`, and kept its package as
-`@proto(package = "google.type")`.
+`@proto(package: "google.type")`.
 
 Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
 `google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and

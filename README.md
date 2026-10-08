@@ -6,7 +6,11 @@ Schemata is a schema language and compiler. You describe a data model once in
 `.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, and the
 services that use it to OpenAPI 3.1 and to gRPC `service` blocks in the Protobuf output, with every
 lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf, or
-Postgres DDL schema.
+Postgres DDL schema. A reference to a model with a key means that key on every target.
+
+This is Schemata 2.0. Coming from 1.x, run `schemata upgrade` over your schemas; the reference's
+[Upgrading from 1.x](guide/reference.md#23-upgrading-from-1x) section lists every rewrite and the
+one change of meaning.
 
 ## Install
 
@@ -69,12 +73,23 @@ schema contacts
 enum Kind { #1 personal #2 work }
 
 model Contact {
-  #1 id    int64  { id }
-  #2 name  string { max 100 }
-  #3 email string { max 254, match "^[^@]+@[^@]+$" }
-  #4 kind  Kind   = personal
+  #1 id      int64  { id }
+  #2 name    string { max 100 }
+  #3 email   string { unique, max 254, match "^[^@]+@[^@]+$" }
+  #4 kind    Kind   = personal
+  #5 company Company?
+}
+
+model Company {
+  #1 id   int64  { id }
+  #2 name string { max 200 }
 }
 ```
+
+A field is `name Type`, then options in braces for what the language itself knows (a key, a
+bound, a pattern, a unique constraint), then any `@target(key: value)` attributes that tune one
+output. `company` refers to a model with a key, so every target stores the company's key,
+`company_id`, rather than a copy of the company.
 
 ```text
 java -jar schemata-<version>.jar compile --out out contacts.schemata
@@ -124,17 +139,19 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
     schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
     schemata targets [--format human|json]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
+    schemata upgrade [--check] [--format human|json] [--color auto|always|never] PATHS...
     schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
     schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
     schemata lsp
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no error, even
-when another target failed; the `openapi` target writes one document per namespace that declares a
+when another target failed; the `openapi` target writes one document per schema that declares a
 service, and nothing for a schema without one, and the `proto` target writes each service as a gRPC
-`service` in its namespace's `.proto`. `check` reports everything `compile` would and writes
+`service` in its schema's `.proto`. `check` reports everything `compile` would and writes
 nothing. `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and
-writes `--out/import/<file>`, one `.schemata` file per namespace. `targets` lists each target's
-annotation keys and diagnostic codes. `diff OLD NEW` judges every change between two schema versions
+writes `--out/import/<file>`, one `.schemata` file per schema. `targets` lists each target's
+attribute keys and diagnostic codes. `upgrade` rewrites 1.x schema files in the 2.0 syntax, in
+place; `--check` writes nothing and fails while any file would change. `diff OLD NEW` judges every change between two schema versions
 against each target's compatibility rulebook, so a breaking change is caught before it ships. `migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version to the next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp`
 runs the language server an editor starts; the guide's Editor support section covers the VS Code and
 Zed extensions and what the server does.
@@ -150,9 +167,9 @@ a file, pass `--color never`.
 | 2 | warnings only |
 | 1 | any error (after `--strict` promotion), or a usage error |
 
-`fmt` follows the same codes: 0 when formatted or already formatted, 1 when `--check` finds a
-difference or a file does not parse. Under `--format json`, `fmt --check` sends the diff to stderr
-so stdout holds only JSON. The names of the files plain `fmt` rewrote go to stderr too.
+`fmt` and `upgrade` follow the same codes: 0 when rewritten or already current, 1 when `--check`
+finds a difference or a file does not parse. Under `--format json`, `fmt --check` sends the diff to stderr
+so stdout holds only JSON. The names of the files plain `fmt` or `upgrade` rewrote go to stderr too.
 
 ## Learn more
 
