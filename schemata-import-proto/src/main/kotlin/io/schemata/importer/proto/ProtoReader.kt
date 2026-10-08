@@ -17,6 +17,13 @@ object ProtoReader {
         private val pending = mutableListOf<Token>()
 
         /**
+         * Where the `schemata: reserved` notes among [pending] start: they are a service's, not a
+         * declaration's doc, but they stay in [pending] so the comments around one still count as
+         * one block against the declaration below.
+         */
+        private val noted = mutableSetOf<Pos>()
+
+        /**
          * The line the last consumed token ended on; a comment starting there trails that token.
          */
         private var lastLine = 0
@@ -46,6 +53,7 @@ object ProtoReader {
             if (t.kind != TokenKind.EOF) i++
             lastLine = t.endLine
             pending.clear()
+            noted.clear()
             return t
         }
 
@@ -103,17 +111,39 @@ object ProtoReader {
                 line = pending[k - 1].pos.line
                 k--
             }
-            val block = pending.subList(k, pending.size).toList()
+            val block = pending.subList(k, pending.size).filter { it.pos !in noted }
             pending.clear()
+            noted.clear()
             if (block.isEmpty()) return null
             return block
                 .flatMap { c ->
-                    if (c.block) c.text.lines().map { it.trim().removePrefix("*").trimStart() }
-                    else listOf(c.text.removePrefix(" "))
+                    if (c.block) blockLines(c.text) else listOf(c.text.removePrefix(" "))
                 }
                 .joinToString("\n")
                 .trim()
                 .ifEmpty { null }
+        }
+
+        /**
+         * The lines of a block comment's [body] with its markers removed: a leading `*` and the one
+         * space after it, or, on lines with no `*`, the indentation they all share. Any deeper
+         * indentation stays, so an indented example in a doc keeps its shape.
+         */
+        private fun blockLines(body: String): List<String> {
+            val lines = body.lines().map { it.trimEnd() }
+            val shared =
+                lines
+                    .drop(1)
+                    .filter { it.isNotBlank() && !it.trimStart().startsWith("*") }
+                    .minOfOrNull { it.length - it.trimStart().length } ?: 0
+            return lines.mapIndexed { k, line ->
+                val text = line.trimStart()
+                when {
+                    text.startsWith("*") -> text.removePrefix("*").removePrefix(" ")
+                    k == 0 -> text
+                    else -> line.drop(minOf(shared, line.length - text.length))
+                }
+            }
         }
 
         /**
@@ -287,10 +317,27 @@ object ProtoReader {
             }
         }
 
-        /** Skips to and past the next `;`, for statements read only for their position. */
+        /**
+         * Skips to and past the `;` that ends the statement, for statements read only for their
+         * position. A `;` inside brackets (an aggregate option value separates its fields with
+         * them) does not end it, and a `}` that closes the enclosing block means the `;` is
+         * missing.
+         */
         private fun skipStatement() {
-            while (!at(";")) {
-                if (peek().kind == TokenKind.EOF) fail("expected ';'")
+            var depth = 0
+            while (depth > 0 || !at(";")) {
+                val t = peek()
+                if (t.kind == TokenKind.EOF || (depth == 0 && at("}"))) fail("expected ';'")
+                if (t.kind == TokenKind.SYMBOL) {
+                    when (t.text) {
+                        "{",
+                        "[",
+                        "(" -> depth++
+                        "}",
+                        "]",
+                        ")" -> depth--
+                    }
+                }
                 next()
             }
             next()
@@ -471,8 +518,8 @@ object ProtoReader {
                         val number = int()
                         val vopts = fieldOptions()
                         val end = expect(";")
-                        val (_, trailing) = takeTrailing(end.pos.line)
-                        values += ProtoEnumValue(vname, number, vopts, vdoc, trailing, v.pos)
+                        val (note, trailing) = takeTrailing(end.pos.line)
+                        values += ProtoEnumValue(vname, number, vopts, vdoc, trailing, v.pos, note)
                     }
                 }
             }
@@ -527,6 +574,8 @@ object ProtoReader {
             val options = mutableListOf<ProtoOption>()
             val reservedNotes = mutableListOf<Pair<String, Pos>>()
             while (true) {
+                // Not a read of the token: it only moves the comments before it into `pending`,
+                // which the notes are taken from before the next declaration claims them as doc.
                 peek()
                 reservedNotes += takeReservedNotes()
                 if (at("}")) break
@@ -537,21 +586,32 @@ object ProtoReader {
                     else -> fail("expected an rpc")
                 }
             }
+            // What is left of the schemata notes has no rpc after it to take it as doc.
+            val strayNotes =
+                pending.filter { !it.block && it.pos !in noted }.mapNotNull(::schemataNote)
             val close = expect("}")
             takeTrailing(close.pos.line)
-            return ProtoService(name, rpcs, options, doc, reservedNotes, start.pos)
+            return ProtoService(name, rpcs, options, doc, reservedNotes, start.pos, strayNotes)
         }
 
         /**
-         * Removes the `//` comments starting with `schemata: reserved` from the comments standing
-         * on their own lines, returning the trimmed text after `schemata:` of each with where the
-         * comment starts; the rest, other `schemata:` comments included, stay to become the next
-         * declaration's doc.
+         * Takes the `//` comments starting with `schemata: reserved` from the comments standing on
+         * their own lines, returning the trimmed text after `schemata:` of each with where the
+         * comment starts, and marks them so they are no declaration's doc; the rest, other
+         * `schemata:` comments included, stay to become the next declaration's doc.
          */
         private fun takeReservedNotes(): List<Pair<String, Pos>> {
-            val notes = pending.filter { !it.block && reservedNote(it.text) != null }
-            pending.removeAll(notes)
+            val notes =
+                pending.filter { !it.block && it.pos !in noted && reservedNote(it.text) != null }
+            noted += notes.map { it.pos }
             return notes.map { reservedNote(it.text)!! to it.pos }
+        }
+
+        /** The text after `schemata:` in the `//` comment [c] with where it starts, else null. */
+        private fun schemataNote(c: Token): Pair<String, Pos>? {
+            val text = c.text.trim()
+            return if (text.startsWith("schemata:")) text.removePrefix("schemata:").trim() to c.pos
+            else null
         }
 
         /** The text after `schemata:` when [comment] is a `schemata: reserved` note, else null. */

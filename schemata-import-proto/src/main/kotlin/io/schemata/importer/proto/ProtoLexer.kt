@@ -35,12 +35,18 @@ class ProtoSyntaxError(val pos: Pos, message: String) : Exception(message)
  */
 object ProtoLexer {
     private const val SYMBOLS = "{}[]()<>=;,.:/-+"
+    private const val BOM = "\uFEFF"
 
     fun lex(text: String): List<Token> {
         val out = mutableListOf<Token>()
         var i = 0
         var line = 1
         var lineStart = 0
+        // A UTF-8 byte order mark opens some files; it is no token and takes no column.
+        if (text.startsWith(BOM)) {
+            i = 1
+            lineStart = 1
+        }
         fun pos() = Pos(line, i - lineStart + 1)
         fun fail(message: String, at: Pos = pos()): Nothing = throw ProtoSyntaxError(at, message)
         while (i < text.length) {
@@ -137,9 +143,20 @@ object ProtoLexer {
                                     i += 8
                                 }
                                 in '0'..'7' -> {
-                                    val oct = text.substring(i).takeWhile { it in '0'..'7' }.take(3)
-                                    sb.append(oct.toInt(8).toChar())
-                                    i += oct.length - 1
+                                    // At most three digits, read in place: copying the rest of the
+                                    // text for each escape would make a long string quadratic.
+                                    var value = 0
+                                    var digits = 0
+                                    while (
+                                        digits < 3 &&
+                                            i + digits < text.length &&
+                                            text[i + digits] in '0'..'7'
+                                    ) {
+                                        value = value * 8 + (text[i + digits] - '0')
+                                        digits++
+                                    }
+                                    sb.append(value.toChar())
+                                    i += digits - 1
                                 }
                                 else -> fail("unknown escape \\$e")
                             }
@@ -162,13 +179,16 @@ object ProtoLexer {
                     }
                     out += Token(TokenKind.STRING, sb.toString(), start, line)
                 }
-                c.isLetter() || c == '_' -> {
+                c.isAsciiLetter() || c == '_' -> {
                     val start = pos()
                     val s = i
-                    while (i < text.length && (text[i].isLetterOrDigit() || text[i] == '_')) i++
+                    while (
+                        i < text.length && (text[i].isAsciiLetterOrDigit() || text[i] == '_')
+                    ) i++
                     out += Token(TokenKind.IDENT, text.substring(s, i), start, line)
                 }
-                c.isDigit() || (c == '.' && i + 1 < text.length && text[i + 1].isDigit()) -> {
+                c.isAsciiDigit() ||
+                    (c == '.' && i + 1 < text.length && text[i + 1].isAsciiDigit()) -> {
                     val start = pos()
                     val s = i
                     var float = false
@@ -178,19 +198,23 @@ object ProtoLexer {
                             (text[i + 1] == 'x' || text[i + 1] == 'X')
                     ) {
                         i += 2
+                        val digits = i
                         while (i < text.length && text[i].isHexDigit()) i++
+                        if (i == digits) fail("a hex number needs digits after '0x'", start)
                     } else {
-                        while (i < text.length && text[i].isDigit()) i++
+                        while (i < text.length && text[i].isAsciiDigit()) i++
                         if (i < text.length && text[i] == '.') {
                             float = true
                             i++
-                            while (i < text.length && text[i].isDigit()) i++
+                            while (i < text.length && text[i].isAsciiDigit()) i++
                         }
                         if (i < text.length && (text[i] == 'e' || text[i] == 'E')) {
                             float = true
                             i++
                             if (i < text.length && (text[i] == '+' || text[i] == '-')) i++
-                            while (i < text.length && text[i].isDigit()) i++
+                            val digits = i
+                            while (i < text.length && text[i].isAsciiDigit()) i++
+                            if (i == digits) fail("an exponent needs digits after 'e'", start)
                         }
                     }
                     out +=
@@ -218,6 +242,14 @@ object ProtoLexer {
         while (end < text.length && end - from < max && text[end].isHexDigit()) end++
         return text.substring(from, end)
     }
+
+    // protoc reads identifiers and numbers as ASCII only; Char.isLetter and isDigit accept every
+    // script, which would turn a non-ASCII word into a token protoc rejects.
+    private fun Char.isAsciiLetter() = this in 'a'..'z' || this in 'A'..'Z'
+
+    private fun Char.isAsciiDigit() = this in '0'..'9'
+
+    private fun Char.isAsciiLetterOrDigit() = isAsciiLetter() || isAsciiDigit()
 
     private fun Char.isHexDigit() = this in '0'..'9' || this in 'a'..'f' || this in 'A'..'F'
 }

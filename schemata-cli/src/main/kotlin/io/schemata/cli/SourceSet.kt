@@ -19,7 +19,8 @@ data class SourceInput(val path: String, val content: String, val relative: Stri
 /**
  * Expands the paths a user named into the compilation set: directories contribute every
  * `*.schemata` beneath them; the result is deduplicated by absolute path and sorted by the
- * normalized path string so the compilation is deterministic.
+ * normalized path string so the compilation is deterministic. A file named both on its own and
+ * under a directory argument is kept once, with its path under the directory.
  */
 object SourceSet {
     fun load(paths: List<Path>): List<SourceInput> = loadByExtension(paths, "schemata")
@@ -49,6 +50,9 @@ object SqlSet {
 private fun loadByExtension(paths: List<Path>, extension: String): List<SourceInput> =
     paths
         .flatMap { expand(it, extension) }
+        // A file named on its own and again under a directory is one file whichever came first
+        // on the command line; the copy found under the directory keeps its path under it.
+        .sortedBy { it.second == null }
         .distinctBy { it.first.toAbsolutePath().normalize() }
         .map { (path, relative) -> path.normalize() to relative }
         .sortedBy { it.first.toString() }

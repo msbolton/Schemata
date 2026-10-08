@@ -35,20 +35,22 @@ import java.math.BigDecimal
 internal object ProtoLowering {
     /**
      * [namespaces] names each file's namespace, [annotations] what its unit carries above the
-     * `namespace` line, and [imports] the files each one's `import` statements resolved to.
+     * `namespace` line, and [imports] the files each one's `import` statements resolved to; all
+     * three are keyed by [ProtoFile.path], since a file's tree is too large to hash and compare on
+     * every lookup.
      */
     fun lower(
         files: List<ProtoFile>,
-        namespaces: Map<ProtoFile, String>,
+        namespaces: Map<String, String>,
         symbols: ProtoSymbols,
-        annotations: Map<ProtoFile, List<UnitAnnotation>> = emptyMap(),
-        imports: Map<ProtoFile, List<ProtoFile>> = emptyMap(),
+        annotations: Map<String, List<UnitAnnotation>> = emptyMap(),
+        imports: Map<String, List<ProtoFile>> = emptyMap(),
     ): Imported {
         val context = Context(namespaces, symbols)
         val diagnostics = mutableListOf<Diagnostic>()
         val units =
             files
-                .groupBy { namespaces.getValue(it) }
+                .groupBy { namespaces.getValue(it.path) }
                 .map { (namespace, group) ->
                     val topLevel = mutableMapOf<String, Claim>()
                     val unitImports = LinkedHashSet<String>()
@@ -58,13 +60,15 @@ internal object ProtoLowering {
                         val lowering = FileLowering(file, namespace, context, diagnostics, topLevel)
                         declarations += lowering.declarations()
                         services += lowering.services()
-                        imports[file].orEmpty().forEach { unitImports += namespaces.getValue(it) }
+                        imports[file.path].orEmpty().forEach {
+                            unitImports += namespaces.getValue(it.path)
+                        }
                         unitImports += lowering.referenced
                     }
                     unitImports -= namespace
                     SchemataUnit(
                         namespace = namespace,
-                        annotations = annotations[group.first()].orEmpty(),
+                        annotations = annotations[group.first().path].orEmpty(),
                         doc = null,
                         imports = unitImports.toList(),
                         declarations = declarations,
@@ -101,7 +105,7 @@ private fun doc(doc: String?, trailing: String?): String? {
 private data class Claim(val path: String, val kind: String, val protoName: String)
 
 /** What every file's lowering reads about the whole input set. */
-private class Context(val namespaces: Map<ProtoFile, String>, val symbols: ProtoSymbols) {
+private class Context(val namespaces: Map<String, String>, val symbols: ProtoSymbols) {
     /** Each symbol's path from its namespace's root in Schemata: each proto name upper-camelled. */
     val paths: Map<String, List<String>> =
         symbols.all.associate { it.fullName to it.path.map(::typeName) }
@@ -111,7 +115,7 @@ private class Context(val namespaces: Map<ProtoFile, String>, val symbols: Proto
      */
     val declared: Map<String, Set<List<String>>> =
         symbols.all
-            .groupBy({ namespaces.getValue(it.file) }, { paths.getValue(it.fullName) })
+            .groupBy({ namespaces.getValue(it.file.path) }, { paths.getValue(it.fullName) })
             .mapValues { it.value.toSet() }
 
     private val enums = HashMap<String, EnumLowering>()
@@ -308,6 +312,7 @@ private class FieldType(
     val default: String?,
     val symbol: Symbol?,
     val notes: List<Diagnostic>,
+    val noteNullable: Boolean = false,
 )
 
 /** One value type: a scalar, a well-known type, or a reference. */
@@ -404,6 +409,13 @@ private class FileLowering(
                         note.second,
                     )
                 }
+            }
+            s.strayNotes.forEach { (text, pos) ->
+                report(
+                    ImportCodes.APPROXIMATED,
+                    "$where: note '$text' stands after the last rpc; ignored",
+                    pos,
+                )
             }
             UnitService(
                 name = name,
@@ -589,7 +601,10 @@ private class FileLowering(
                 m.enums.isEmpty() &&
                 m.reserved.isEmpty() &&
                 types.all { it != null } &&
-                types.distinct().size == types.size
+                types.distinct().size == types.size &&
+                // The target never marks a union member nullable, which Schemata refuses; a note
+                // that does means a hand-written message, whose oneof members stay nullable fields.
+                mapped.none { it.second.noteNullable }
         val kind = if (isUnion) "union" else "model"
         if (!claim(claims, name, kind, "message", m.name, m.pos)) return null
         val decl = if (isUnion) union(m, name, mapped) else record(m, name, here, path, mapped)
@@ -779,6 +794,7 @@ private class FileLowering(
         if (base == null) return FieldType(null, false, null, null, notes)
         var type = base.type
         var nullable = base.nullable || f.label == Label.OPTIONAL || f.oneof != null
+        var noteNullable = false
         var default: String? = null
         f.note?.let { text ->
             val parsed = NoteText.parse(text)
@@ -791,10 +807,18 @@ private class FileLowering(
                         ImportCodes.APPROXIMATED,
                         "$where: note '$text' does not fit ${protoTypeText(f)}; ignored",
                     )
+                // A default alone has no type of its own: it must be a literal the lowered type
+                // takes, as the language's default check would otherwise refuse it.
+                noteType == null && !defaultFits(parsed.default!!, type, base.symbol) ->
+                    note(
+                        ImportCodes.APPROXIMATED,
+                        "$where: note '$text' does not fit ${protoTypeText(f)}; ignored",
+                    )
                 else -> {
                     parsed.type?.let {
                         type = merge(it, type)
                         nullable = parsed.nullable || f.oneof != null
+                        noteNullable = parsed.nullable
                     }
                     default =
                         parsed.default?.let { literal ->
@@ -827,8 +851,31 @@ private class FileLowering(
                     if (f.label == Label.OPTIONAL && f.note == null) nullable = false
                 }
             }
-        return FieldType(type, nullable, default, base.symbol, notes)
+        return FieldType(type, nullable, default, base.symbol, notes, noteNullable)
     }
+
+    /**
+     * Whether [literal], a note's default as Schemata source, is one the language takes for [type]:
+     * `true` or `false` for a bool, an integer for an integer, an integer or a decimal number for a
+     * float or decimal, a quoted string for a string, an enum's value name for an enum (the lookup
+     * in the enum's lowering checks the name); no other type has a default.
+     */
+    private fun defaultFits(literal: String, type: UnitType, symbol: Symbol?): Boolean =
+        when {
+            type is UnitType.Ref -> symbol?.enum != null
+            type !is UnitType.Scalar -> false
+            else ->
+                when (type.builtin) {
+                    "bool" -> literal == "true" || literal == "false"
+                    "int32",
+                    "int64" -> INTEGER.matches(literal)
+                    "float32",
+                    "float64",
+                    "decimal" -> INTEGER.matches(literal) || DECIMAL.matches(literal)
+                    "string" -> literal.startsWith("\"")
+                    else -> false
+                }
+        }
 
     private fun protoTypeText(f: ProtoField): String =
         when {
@@ -1067,7 +1114,7 @@ private class FileLowering(
      * path that the lookup, innermost record first, finds, else in full.
      */
     private fun reference(symbol: Symbol, enclosing: List<String>): UnitType.Ref {
-        val target = context.namespaces.getValue(symbol.file)
+        val target = context.namespaces.getValue(symbol.file.path)
         val path = context.paths.getValue(symbol.fullName)
         if (target != namespace) {
             referenced += target
@@ -1096,6 +1143,8 @@ private class FileLowering(
 
     private companion object {
         const val EMPTY = "google.protobuf.Empty"
+        val INTEGER = Regex("-?[0-9]+")
+        val DECIMAL = Regex("-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?")
         const val RPC_RENAME_HELP = "keep @proto(name) so the regenerated rpc keeps its proto name"
         val UINT32 = UnitType.Scalar("int64", listOf("min" to "0", "max" to "4294967295"))
         val UINT64 = UnitType.Scalar("int64", listOf("min" to "0"))

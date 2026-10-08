@@ -278,4 +278,193 @@ class ProtoReaderTest {
     fun `a statement cut off by the end of the file is a syntax error`() {
         assertFailsWith<ProtoSyntaxError> { read("message M { extensions 1 to 5") }
     }
+
+    @Test
+    fun `a reserved note inside a doc block leaves the doc attached to the rpc`() {
+        val s =
+            read(
+                    """
+                service S {
+                  // Fetch one.
+                  // schemata: reserved #6
+                  rpc A(M) returns (M);
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(listOf("reserved #6" to Pos(3, 3)), s.reservedNotes)
+        assertEquals("Fetch one.", s.rpcs.single().doc)
+    }
+
+    @Test
+    fun `a bare schemata comment ending a doc block stays in the rpc doc`() {
+        val s =
+            read(
+                    """
+                service S {
+                  // Fetch one.
+                  // schemata:
+                  rpc A(M) returns (M);
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals("Fetch one.\nschemata:", s.rpcs.single().doc)
+        assertEquals(emptyList(), s.reservedNotes)
+    }
+
+    @Test
+    fun `a nested block in an rpc body is read past and the options around it are kept`() {
+        val s =
+            read(
+                    """
+                service S {
+                  rpc A(M) returns (M) {
+                    option deprecated = true;
+                    option (google.api.http) = { get: "/a" additional_bindings { get: "/b" } };
+                    { { } }
+                  }
+                  rpc B(M) returns (M);
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(listOf("A", "B"), s.rpcs.map { it.name })
+        assertEquals(listOf("deprecated", "(google.api.http)"), s.rpcs[0].options.map { it.name })
+    }
+
+    @Test
+    fun `a comment trailing the closing brace is not a doc of the next declaration`() {
+        val f =
+            read(
+                """
+                service S { rpc A(M) returns (M); }  // end of S
+                message Next {}
+                """
+            )
+        assertNull(f.messages.single().doc)
+        val g =
+            read(
+                """
+                service S {
+                  rpc A(M) returns (M) {}  // end of A
+                  rpc B(M) returns (M);
+                }
+                """
+            )
+        assertNull(g.services.single().rpcs[1].doc)
+    }
+
+    @Test
+    fun `a service option before the first rpc is kept`() {
+        val s =
+            read(
+                    """
+                service S {
+                  option deprecated = true;
+                  // First.
+                  rpc A(M) returns (M);
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(listOf(ProtoOption("deprecated", "true")), s.options)
+        assertEquals("First.", s.rpcs.single().doc)
+    }
+
+    @Test
+    fun `an own-line schemata comment before the closing brace of a service is kept as a stray note`() {
+        val s =
+            read(
+                    """
+                service S {
+                  rpc A(M) returns (M);
+                  // schemata: get "/a"
+                }
+                """
+                )
+                .services
+                .single()
+        assertEquals(listOf("get \"/a\"" to Pos(3, 3)), s.strayNotes)
+        assertEquals(emptyList(), s.reservedNotes)
+    }
+
+    @Test
+    fun `an enum value keeps its schemata comment as a note`() {
+        val e =
+            read(
+                    """
+                enum E {
+                  E_UNSPECIFIED = 0;
+                  E_A = 1;  // schemata: a note
+                  E_B = 2;  // plain
+                }
+                """
+                )
+                .enums
+                .single()
+        assertNull(e.values[0].note)
+        assertEquals("a note", e.values[1].note)
+        assertNull(e.values[1].trailing)
+        assertNull(e.values[2].note)
+        assertEquals(" plain", e.values[2].trailing)
+    }
+
+    @Test
+    fun `an extensions statement is skipped to its own end even with a semicolon inside its options`() {
+        val m =
+            read(
+                    """
+                message M {
+                  extensions 1 to 3, 5;
+                  extensions 10 to 20 [declaration = { number: 12; full_name: ".a.b"; type: "int32" }];
+                  int32 a = 100;
+                }
+                """
+                )
+                .messages
+                .single()
+        assertEquals(listOf("extensions", "extensions"), m.dropped.map { it.first })
+        assertEquals(listOf("a"), m.fields.map { it.name })
+    }
+
+    @Test
+    fun `a block comment doc keeps the indentation inside it`() {
+        val f =
+            read(
+                """
+                /**
+                 * Example:
+                 *     indented
+                 *   less
+                 */
+                message M {}
+                /* plain
+                   second
+                     deeper */
+                message N {}
+                """
+            )
+        assertEquals("Example:\n    indented\n  less", f.messages[0].doc)
+        assertEquals("plain\nsecond\n  deeper", f.messages[1].doc)
+    }
+
+    @Test
+    fun `a hex or exponent number with no digits is a syntax error at the number`() {
+        val hex = assertFailsWith<ProtoSyntaxError> { read("message M { int32 a = 0x; }") }
+        assertEquals(Pos(1, 23), hex.pos)
+        val exp = assertFailsWith<ProtoSyntaxError> { read("option x = 1e;") }
+        assertEquals(Pos(1, 12), exp.pos)
+    }
+
+    @Test
+    fun `a byte order mark is skipped and a non-ASCII identifier is an error at its position`() {
+        assertEquals("M", read("\uFEFFmessage M {}").messages.single().name)
+        val e = assertFailsWith<ProtoSyntaxError> { read("message Caf\u00e9 {}") }
+        assertEquals(Pos(1, 12), e.pos)
+    }
 }

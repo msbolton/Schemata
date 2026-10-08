@@ -35,7 +35,9 @@ object ProtoImporter : Importer {
         // Keyed by the path with `/` separators, so a path the platform spells with `\` still
         // matches one joined from an import.
         val files = LinkedHashMap<String, ProtoFile>()
-        val sources = LinkedHashMap<ProtoFile, ImportInput>()
+        // The maps below are keyed by a file's path, its stable id; a ProtoFile is a whole syntax
+        // tree, costly to hash and equal only when every node is.
+        val sources = LinkedHashMap<String, ImportInput>()
         val unreadable = mutableSetOf<String>()
         fun read(input: ImportInput): ProtoFile? {
             val key = slashed(input.path)
@@ -46,7 +48,7 @@ object ProtoImporter : Importer {
             return try {
                 ProtoReader.read(input.path, input.content).also {
                     files[key] = it
-                    sources[it] = input
+                    sources[it.path] = input
                 }
             } catch (e: ProtoSyntaxError) {
                 unreadable += key
@@ -65,7 +67,7 @@ object ProtoImporter : Importer {
             inputs.filter { it.relative != null }.associateBy { slashed(it.relative!!) }
         val roots = inputs.mapNotNull { root(it) }.distinct()
 
-        val imports = LinkedHashMap<ProtoFile, MutableList<ProtoFile>>()
+        val imports = LinkedHashMap<String, MutableList<ProtoFile>>()
         val queue = ArrayDeque(files.values)
         fun report(
             file: ProtoFile,
@@ -81,6 +83,16 @@ object ProtoImporter : Importer {
                     Span(file.path, pos.line, pos.col, pos.line, pos.col),
                     help,
                 )
+        }
+        // A file found beside one that sits under a root sits under that root too, so it keeps
+        // the path under the root that names its namespace.
+        fun placed(input: ImportInput, importer: ProtoFile, path: String): ImportInput {
+            val root = sources[importer.path]?.let { root(it) } ?: return input
+            val under = if (root.isEmpty()) path else path.removePrefix("$root/")
+            val inside = root.isEmpty() || under != path
+            return if (inside && !under.startsWith("..") && !under.startsWith("/"))
+                input.copy(relative = under)
+            else input
         }
         fun found(input: ImportInput): ProtoFile? {
             val known = slashed(input.path) in files
@@ -103,7 +115,7 @@ object ProtoImporter : Importer {
                 val beside = resolvePath(f.path, imp.path)
                 val target =
                     listed?.let { files[slashed(it.path)] }
-                        ?: (files[beside] ?: locate(beside)?.let(::found))
+                        ?: (files[beside] ?: locate(beside)?.let { found(placed(it, f, beside)) })
                         ?: roots.firstNotNullOfOrNull { root ->
                             val path = if (root.isEmpty()) imp.path else "$root/${imp.path}"
                             files[path] ?: locate(path)?.let { found(it.copy(relative = imp.path)) }
@@ -116,26 +128,26 @@ object ProtoImporter : Importer {
                         imp.pos,
                     )
                 } else {
-                    imports.getOrPut(f) { mutableListOf() } += target
+                    imports.getOrPut(f.path) { mutableListOf() } += target
                 }
             }
         }
 
         val all = files.values.toList()
-        val namespaces = LinkedHashMap<ProtoFile, String>()
-        val annotations = LinkedHashMap<ProtoFile, List<UnitAnnotation>>()
+        val namespaces = LinkedHashMap<String, String>()
+        val annotations = LinkedHashMap<String, List<UnitAnnotation>>()
         val shared = sharedPackages(all, sources)
         all.forEachIndexed { index, f ->
-            val input = sources.getValue(f)
+            val input = sources.getValue(f.path)
             val (name, derived) =
                 when {
                     index == 0 && namespace != null -> namespace to false
-                    f in shared -> packageNamespace(f.pkg!!)
+                    f.path in shared -> packageNamespace(f.pkg!!)
                     else ->
                         Roots.namespaceFor(input, f.pkg, slashed(f.path).substringAfterLast('/'))
                 }
             if (derived) {
-                val from = if (f in shared) "the package '${f.pkg}'" else "the file name"
+                val from = if (f.path in shared) "the package '${f.pkg}'" else "the file name"
                 report(
                     f,
                     ImportCodes.RENAMED,
@@ -144,12 +156,12 @@ object ProtoImporter : Importer {
                 )
             }
             if (f.pkg != null && f.pkg != name) {
-                annotations[f] =
+                annotations[f.path] =
                     listOf(UnitAnnotation("proto", "package", SchemataText.string(f.pkg)))
             }
-            namespaces[f] = name
+            namespaces[f.path] = name
         }
-        all.groupBy { namespaces.getValue(it) }
+        all.groupBy { namespaces.getValue(it.path) }
             .forEach { (name, group) ->
                 val first = group.first()
                 group
@@ -172,19 +184,20 @@ object ProtoImporter : Importer {
     }
 
     /**
-     * Files found under one root that declare one package with another file there: protoc reads
-     * them as one package, so they lower to one namespace, the package's.
+     * The paths of the files found under one root that declare one package with another file there:
+     * protoc reads them as one package, so they lower to one namespace, the package's.
      */
     private fun sharedPackages(
         files: List<ProtoFile>,
-        sources: Map<ProtoFile, ImportInput>,
-    ): Set<ProtoFile> =
+        sources: Map<String, ImportInput>,
+    ): Set<String> =
         files
-            .filter { it.pkg != null && sources.getValue(it).relative != null }
-            .groupBy { root(sources.getValue(it)) to it.pkg }
+            .filter { it.pkg != null && sources.getValue(it.path).relative != null }
+            .groupBy { root(sources.getValue(it.path)) to it.pkg }
             .values
             .filter { it.size > 1 }
             .flatten()
+            .map { it.path }
             .toSet()
 
     private fun packageText(f: ProtoFile): String = f.pkg?.let { "package '$it'" } ?: "no package"

@@ -44,4 +44,18 @@ class SourceSetTest {
             dir.toFile().deleteRecursively()
         }
     }
+
+    @Test
+    fun `a file named beside its directory keeps the path under the directory whatever the argument order`() {
+        val root = Files.createTempDirectory(tmp, "schemata-order")
+        root.resolve("sub").createDirectories()
+        root.resolve("sub/a.proto").writeText("message A {}")
+        val file = root.resolve("sub/a.proto")
+
+        val fileFirst = ProtoSet.load(listOf(file, root))
+        val dirFirst = ProtoSet.load(listOf(root, file))
+
+        assertEquals(listOf("sub/a.proto"), fileFirst.map { it.relative })
+        assertEquals(fileFirst, dirFirst)
+    }
 }
