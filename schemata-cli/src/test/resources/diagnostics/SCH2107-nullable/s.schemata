@@ -1,3 +1,0 @@
-schema s
-
-model R { #1 id int32? { id } }

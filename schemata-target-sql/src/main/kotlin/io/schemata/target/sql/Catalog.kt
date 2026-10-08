@@ -12,6 +12,7 @@ import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
+import io.schemata.core.ir.declaresKey
 import io.schemata.core.ir.keyFields
 import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.storedFields
@@ -59,7 +60,7 @@ class Catalog(
                 // A record that declares a key, even one whose names all fail to resolve, is still
                 // keyed: it gets a table (with no primary key) and lowering reports the bad names,
                 // rather than the record silently falling back to a value type.
-                if (keyFields.isNotEmpty() || declaresKey(decl)) {
+                if (keyFields.isNotEmpty() || decl.declaresKey()) {
                     val tableOverride =
                         override(decl.annotations, "table", "model '${decl.name}'", decl.nameSpan)
                     val tableNameRaw = Naming.tableOf(decl, tableOverride)
@@ -101,10 +102,6 @@ class Catalog(
      * no key. Diagnostics about the key are lowering's job.
      */
     private fun keyFields(record: RecordType): List<Field> = record.keyFields()
-
-    /** Whether the record says it means to be keyed, whether or not the key resolves. */
-    private fun declaresKey(record: RecordType): Boolean =
-        record.compositeKey.isNotEmpty() || record.fields.any { it.key }
 
     private fun targets(decl: TypeDecl): List<QualifiedName> =
         when (decl) {

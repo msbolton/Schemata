@@ -4,7 +4,10 @@ import io.schemata.lang.Category
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Severity
 
-/** SQL catalog, `SCH21xx`. `SCH2103` and `SCH2104` are retired and must not be reused. */
+/**
+ * SQL catalog, `SCH21xx`. `SCH2103`, `SCH2104`, and `SCH2107` (a nullable or non-scalar key field,
+ * which core now reports for every target) are retired and must not be reused.
+ */
 object SqlCodes {
     val TABLE_COLLISION =
         DiagnosticCode(
@@ -33,13 +36,6 @@ object SqlCodes {
             Severity.ERROR,
             Category.SEMANTIC,
             "a model has no primary key and no field uses it",
-        )
-    val KEY_COLUMN =
-        DiagnosticCode(
-            "SCH2107",
-            Severity.ERROR,
-            Category.SEMANTIC,
-            "a primary key declaration is malformed",
         )
     val RECURSIVE_EMBED =
         DiagnosticCode(
@@ -92,7 +88,6 @@ object SqlCodes {
             SCHEMA_COLLISION,
             LOSSY,
             MISSING_KEY,
-            KEY_COLUMN,
             RECURSIVE_EMBED,
             IDENTIFIER_TRUNCATED,
             STRATEGY_NOT_ALLOWED,

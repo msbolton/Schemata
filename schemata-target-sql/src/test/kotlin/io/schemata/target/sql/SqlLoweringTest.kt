@@ -433,21 +433,18 @@ class SqlLoweringTest {
     }
 
     @Test
-    fun `a model key orders the primary key and a nullable key field is still reported`() {
+    fun `a model key orders the primary key`() {
         val r =
             record(
                     "a",
                     "Plan",
                     field(1, "tenant_id", Scalar(Builtin.UUID)).copy(key = true),
-                    field(2, "code", Scalar(Builtin.STRING), nullable = true),
+                    field(2, "code", Scalar(Builtin.STRING)),
                 )
                 .copy(compositeKey = listOf("code", "tenant_id"))
         val lowered = lower(namespace("a", r))
         assertEquals(listOf("code", "tenant_id"), table(lowered, "plan").primaryKey)
-        assertEquals(
-            listOf("12 SCH2107 model 'Plan': key field 'code' is nullable"),
-            messages(lowered),
-        )
+        assertEquals(emptyList(), messages(lowered))
     }
 
     @Test
@@ -646,33 +643,6 @@ class SqlLoweringTest {
                 Check("ck_r_t_max", "char_length(\"t\") <= 20000000"),
             ),
             t.checks,
-        )
-    }
-
-    @Test
-    fun `key fields must not be nullable`() {
-        val opt =
-            record(
-                "a",
-                "Opt",
-                field(1, "x", Scalar(Builtin.UUID), nullable = true, line = 21, key = true),
-                line = 20,
-            )
-        val optRecord =
-            record(
-                "a",
-                "OptRecord",
-                field(1, "y", Scalar(Builtin.UUID), nullable = true, line = 31),
-                line = 30,
-                compositeKey = listOf("y"),
-            )
-        val lowered = lower(namespace("a", opt, optRecord))
-        assertEquals(
-            listOf(
-                "21 SCH2107 model 'Opt': key field 'x' is nullable",
-                "31 SCH2107 model 'OptRecord': key field 'y' is nullable",
-            ),
-            messages(lowered),
         )
     }
 

@@ -1,6 +1,0 @@
-# targets=sql
-error[SCH2107] (sql): model 'R': key field 'id' is nullable
- --> s.schemata:3:14
-  = help: drop the `?`; a primary key column cannot be null
-
-1 error, 0 warnings

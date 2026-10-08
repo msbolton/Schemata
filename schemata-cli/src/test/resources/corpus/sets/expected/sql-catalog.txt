@@ -1,0 +1,23 @@
+schema sets
+table sets.post
+  column id uuid not null
+  constraint pk_post PRIMARY KEY (id)
+table sets.post_seen
+  column post_id uuid not null
+  column position integer not null
+  column value_id uuid not null
+  constraint fk_post_seen_post FOREIGN KEY (post_id) REFERENCES sets.post(id) ON DELETE CASCADE
+  constraint fk_post_seen_value FOREIGN KEY (value_id) REFERENCES sets.tag(id)
+  constraint pk_post_seen PRIMARY KEY (post_id, "position")
+table sets.post_tags
+  column post_id uuid not null
+  column position integer not null
+  column value_id uuid not null
+  constraint fk_post_tags_post FOREIGN KEY (post_id) REFERENCES sets.post(id) ON DELETE CASCADE
+  constraint fk_post_tags_value FOREIGN KEY (value_id) REFERENCES sets.tag(id)
+  constraint pk_post_tags PRIMARY KEY (post_id, "position")
+  constraint uq_post_tags_value UNIQUE (post_id, value_id)
+table sets.tag
+  column id uuid not null
+  column label character varying(40) not null
+  constraint pk_tag PRIMARY KEY (id)

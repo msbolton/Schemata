@@ -1,0 +1,6 @@
+/// A list of keyed models written `{ unique }` holds each key once; without it, a key may repeat.
+schema corpus.sets
+
+model Tag { #1 id uuid { id }  #2 label string { max 40 } }
+
+model Post { #1 id uuid { id }  #2 tags Tag[] { unique }  #3 seen Tag[] }

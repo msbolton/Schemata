@@ -1196,7 +1196,8 @@ private class Lowering(
      * The list or map field a child table lowers to. Its element is the table's columns past the
      * parent key and `position` or `key`: one `value` column is a scalar or enum, `value_…` columns
      * under a foreign key a reference, a map's other `value_…` columns a record, and anything else
-     * a record of the columns as they stand, with the child's own children as its fields.
+     * a record of the columns as they stand, with the child's own children as its fields. A list of
+     * references with a unique over the parent key and the reference's columns is `{ unique }`.
      */
     private fun childSlot(ctx: TableCtx, spec: RecordSpec, child: ChildInfo): Slot {
         val t = child.info
@@ -1228,6 +1229,7 @@ private class Lowering(
         var onDelete: String? = null
         var record: RecordSpec? = null
         var elementCtx = tableCtx
+        var set = false
         if (value != null) {
             element = scalarType(tableCtx, spec, value, elementName, overridable = false).type
             nullableElement = value.nullable
@@ -1259,6 +1261,16 @@ private class Lowering(
                     }
                     ?.consumed = true
                 element = refTo(tableCtx, target)
+                // a unique over the parent key and the copied key makes the list a set
+                if (!child.map) {
+                    val columns = (child.parentFk.columns + valueFk.columns).toSet()
+                    t.uniques
+                        .firstOrNull { it.toSet() == columns }
+                        ?.let {
+                            t.uniques.remove(it)
+                            set = true
+                        }
+                }
             }
         }
         if (element == null) {
@@ -1320,6 +1332,7 @@ private class Lowering(
             )
         slot.column = column
         slot.onDelete = onDelete
+        slot.unique = set
         if (
             child.map || record == null && element !is UnitType.Ref || isEnumElement(spec, element)
         ) {

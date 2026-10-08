@@ -68,7 +68,7 @@ class GuideAppendicesTest {
                 "Postgres (SCH21xx)",
                 "SCH21",
                 Pipeline.targetNamed("sql")!!.codes,
-                listOf("SCH2103", "SCH2104"),
+                listOf("SCH2103", "SCH2104", "SCH2107"),
             ),
             Module("XSD (SCH22xx)", "SCH22", Pipeline.targetNamed("xsd")!!.codes, emptyList()),
             Module(

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package corpus.sets;
+
+message Tag {
+  string id = 1;  // schemata: uuid
+  string label = 2;  // schemata: string { max 40 }
+}
+
+message Post {
+  string id = 1;  // schemata: uuid
+  repeated string tags = 2;  // schemata: uuid[]
+  repeated string seen = 3;  // schemata: uuid[]
+}

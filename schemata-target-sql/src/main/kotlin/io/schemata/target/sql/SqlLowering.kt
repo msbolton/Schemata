@@ -38,10 +38,10 @@ import io.schemata.target.unionMemberStem
  * refinements as CHECK constraints, defaults, enums as constrained text, and `@sql` overrides. A
  * reference to a union becomes a `<field>_kind` discriminator column plus each member's own nested,
  * forced-nullable contribution, with a CHECK that a member's columns are present exactly when the
- * kind names it. `@sql(strategy)` overrides a field's default shape with `embed`, `table`, or
- * `json` wherever the matrix allows it; a strategy a shape forbids, or any strategy at all on a
- * scalar, is an error. `reserved` ordinals and names have no relational meaning and are accepted
- * without a diagnostic.
+ * kind names it. `{ embed }` copies a referenced model's columns in place of its key, and
+ * `@sql(strategy: …)` overrides a field's default shape with `table` or `json` wherever the matrix
+ * allows it; a strategy a shape forbids, or any strategy at all on a scalar, is an error.
+ * `reserved` ordinals and names have no relational meaning and are accepted without a diagnostic.
  */
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
@@ -203,7 +203,6 @@ object SqlLowering {
         private fun record(record: RecordType): RecordTables {
             val entry = catalog[record.qualifiedName]!!
             val tableName = entry.tableName
-            keys(record)
             val ctx =
                 FieldContext(
                     table = tableName,
@@ -422,35 +421,6 @@ object SqlLowering {
         }
 
         /**
-         * Reports a key the table cannot carry: a nullable key field, or one that is not a single
-         * scalar column. Only keyed records reach here; the key itself comes from the [Catalog].
-         */
-        private fun keys(record: RecordType) {
-            val keyFields = catalog[record.qualifiedName]!!.keyFields
-            keyFields
-                .filter { it.nullable }
-                .forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "model '${record.name}': key field '${it.name}' is nullable",
-                        it.nameSpan,
-                        help = "drop the `?`; a primary key column cannot be null",
-                    )
-                }
-            keyFields
-                .filter { keyType(it) == null }
-                .forEach {
-                    error(
-                        SqlCodes.KEY_COLUMN,
-                        "model '${record.name}': key field '${it.name}' must be a scalar column",
-                        it.nameSpan,
-                        help =
-                            "key a scalar or enum field; reference the model from a keyed one instead",
-                    )
-                }
-        }
-
-        /**
          * The column type a key field has, which a reference to its record copies; null when the
          * field is not a single scalar column (a builtin or an enum). A pattern Postgres cannot
          * express is dropped here as the key's own column drops it, so every copy gets the same
@@ -588,11 +558,11 @@ object SqlLowering {
 
         /**
          * A reference to a record: the default is a reference for a keyed target and an embed for a
-         * keyless one, which `{ embed }` on the field also asks for; `json` lowers the whole
-         * reference to jsonb; `table` keeps the default reference for a keyed target and is not
-         * allowed for a keyless one, which has no table to reference. A keyed target's rows live in
-         * its own table, so `{ embed }` on a reference to one is not allowed: copying its columns
-         * would leave the copy and the table to drift apart.
+         * keyless one; `{ embed }` on the field copies the target's columns under the field's
+         * prefix either way, with no foreign key, a keyed target's key columns among them; `json`
+         * lowers the whole reference to jsonb; `table` keeps the default reference for a keyed
+         * target and is not allowed for a keyless one or an embedded copy, which have no table to
+         * reference.
          */
         private fun recordField(
             ctx: FieldContext,
@@ -601,15 +571,7 @@ object SqlLowering {
             ref: Ref,
             target: RecordType,
         ): Contribution {
-            val entry = catalog[target.qualifiedName]
-            if (ref.relation.embed && entry != null)
-                return forbiddenStrategy(
-                    ctx,
-                    field,
-                    "embed",
-                    "a keyed model",
-                    "a reference or json",
-                )
+            val entry = catalog[target.qualifiedName]?.takeUnless { ref.relation.embed }
             return when (strategy) {
                 "json" ->
                     json(
@@ -619,8 +581,25 @@ object SqlLowering {
                         "remove `strategy: json` to get the default mapping for this field",
                     )
                 "table" ->
-                    if (entry != null) reference(ctx, field, entry)
-                    else forbiddenStrategy(ctx, field, "table", "a keyless model", "embed or json")
+                    when {
+                        entry != null -> reference(ctx, field, entry)
+                        ref.relation.embed ->
+                            forbiddenStrategy(
+                                ctx,
+                                field,
+                                "table",
+                                "a copy written { embed }",
+                                "json",
+                            )
+                        else ->
+                            forbiddenStrategy(
+                                ctx,
+                                field,
+                                "table",
+                                "a keyless model",
+                                "embed or json",
+                            )
+                    }
                 else ->
                     if (entry != null) reference(ctx, field, entry)
                     else embed(ctx, field, target, columnOf(field, ctx.where))
@@ -685,26 +664,14 @@ object SqlLowering {
                                 )
                             } else array(ctx, field, type, null, elementTarget)
                         is RecordType ->
-                            if (
-                                element.relation.embed &&
-                                    catalog[elementTarget.qualifiedName] != null
+                            child(
+                                ctx,
+                                field,
+                                type.refinements,
+                                Element.Record(elementTarget),
+                                type.nullableElement,
+                                null,
                             )
-                                forbiddenStrategy(
-                                    ctx,
-                                    field,
-                                    "embed",
-                                    "a list of keyed models",
-                                    "a child table of references or json",
-                                )
-                            else
-                                child(
-                                    ctx,
-                                    field,
-                                    type.refinements,
-                                    Element.Record(elementTarget),
-                                    type.nullableElement,
-                                    null,
-                                )
                         is UnionType -> noRelationalMapping(ctx, field, "a list of unions")
                     }
                 is ListOf,
@@ -1166,7 +1133,9 @@ object SqlLowering {
                     when (val target = schema.lookup(type.target)) {
                         is EnumType -> unionEnum(memberCtx, field, bare, literal, kindName, target)
                         is RecordType -> {
-                            val entry = catalog[target.qualifiedName]
+                            // a member written `{ embed }` copies a keyed model as a keyless one
+                            val entry =
+                                catalog[target.qualifiedName]?.takeUnless { type.relation.embed }
                             if (entry != null) {
                                 unionReference(memberCtx, field, bare, literal, kindName, entry)
                             } else unionEmbed(memberCtx, field, bare, literal, kindName, target)
@@ -1485,7 +1454,9 @@ object SqlLowering {
          *   embed;
          * - a keyed record is a reference through a synthetic `value` field: `value_<key column>`
          *   columns, nullable when the element is, and a foreign key `fk_<child>_value`, so a list
-         *   of a record's own type never repeats the parent-key column or its foreign key name.
+         *   of a record's own type never repeats the parent-key column or its foreign key name; `{
+         *   unique }` on the list adds a unique over the parent key and those columns, so each
+         *   parent holds each key once. Written `{ embed }`, it is copied as a keyless one is.
          *
          * Every column the element adds is checked against the parent-key and position or key
          * columns ahead of it. A list or map bound ([refinements]) is reported since there is no
@@ -1503,7 +1474,9 @@ object SqlLowering {
             mapKey: Scalar?,
         ): Contribution {
             val record = (element as? Element.Record)?.record
-            val entry = record?.let { catalog[it.qualifiedName] }
+            // `{ embed }` copies a keyed element as it copies a keyless one: no reference
+            val embedded = elementRelation(field.type).embed
+            val entry = record?.let { catalog[it.qualifiedName] }?.takeUnless { embedded }
             val rows = record != null && entry == null && mapKey == null
             if (rows && recursionError(ctx, field, record!!)) return Contribution.NONE
             if (refinements.hasBounds) {
@@ -1656,6 +1629,16 @@ object SqlLowering {
                     parts.flatMap { (_, span, part) -> constraintNames(part).map { it to span } },
             )
             val merged = merge(parts.map { it.third })
+            // `{ unique }` on a list of a keyed model: each parent holds each key once, a set
+            val set =
+                if (field.unique && entry != null && mapKey == null)
+                    listOf(
+                        Unique(
+                            identifier("uq_${childName}_value", field.nameSpan),
+                            parentColumns.map { it.name } + merged.columns.map { it.name },
+                        )
+                    )
+                else emptyList()
             val childTable =
                 Table(
                     name = childName,
@@ -1663,7 +1646,7 @@ object SqlLowering {
                     primaryKey = childKeys.map { it.column },
                     primaryKeyName = identifier("pk_$childName", field.nameSpan),
                     checks = merged.checks,
-                    uniques = merged.uniques,
+                    uniques = merged.uniques + set,
                     indexes = merged.indexes,
                     doc = record?.doc,
                     origin = childOrigin,
@@ -1707,7 +1690,8 @@ object SqlLowering {
 
         /**
          * The unique [field] asks for over [columns], if any, through `{ unique }`. A list or map
-         * field never gets one; the analyzer has already reported the option there.
+         * field never gets one here: a list of a keyed model puts its set constraint on its child
+         * table, and the analyzer has reported the option on any other.
          */
         private fun uniqueOf(
             ctx: FieldContext,

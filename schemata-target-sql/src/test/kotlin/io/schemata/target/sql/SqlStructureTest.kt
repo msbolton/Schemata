@@ -330,23 +330,6 @@ class SqlStructureTest {
     }
 
     @Test
-    fun `a key field must be a scalar column`() {
-        val other = record("a", "Other", field(1, "id", Scalar(Builtin.UUID), key = true))
-        val r =
-            record(
-                "a",
-                "R",
-                field(1, "other", Ref(qn("a", "Other")), line = 11, key = true),
-                line = 10,
-            )
-        val lowered = lower(namespace("a", other, r))
-        assertEquals(
-            listOf("11 SCH2107 model 'R': key field 'other' must be a scalar column"),
-            messages(lowered).filter { "SCH2107" in it },
-        )
-    }
-
-    @Test
     fun `a record whose key names no field still counts as keyed`() {
         val bad =
             record(
@@ -1358,8 +1341,14 @@ class SqlStructureTest {
     }
 
     @Test
-    fun `embed on a reference to a keyed record is a forbidden strategy`() {
-        val customer = record("a", "Customer", field(1, "id", Scalar(Builtin.UUID), key = true))
+    fun `embed on a reference to a keyed record copies its columns with no foreign key`() {
+        val customer =
+            record(
+                "a",
+                "Customer",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "name", Scalar(Builtin.STRING)),
+            )
         val r =
             record(
                 "a",
@@ -1368,11 +1357,53 @@ class SqlStructureTest {
                 field(2, "customer", Ref(qn("a", "Customer"), Relation(embed = true))),
             )
         val lowered = lower(namespace("a", customer, r))
-        assertEquals(listOf("SCH2110"), lowered.diagnostics.map { it.code.id })
+        assertEquals(emptyList(), messages(lowered))
         assertEquals(
-            "field 'R.customer': { embed } is not allowed for a keyed model",
-            lowered.diagnostics.single().message,
+            listOf("id", "customer_id", "customer_name"),
+            table(lowered, "r").columns.map { it.name },
         )
+        assertEquals(emptyList(), lowered.model.schemas.single().foreignKeys)
+    }
+
+    @Test
+    fun `embed on a list of a keyed record copies its rows into the child table`() {
+        val tag = record("a", "Tag", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "tags", ListOf(Ref(qn("a", "Tag"), Relation(embed = true)), false)),
+            )
+        val lowered = lower(namespace("a", tag, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf("r_id", "position", "id"),
+            table(lowered, "r_tags").columns.map { it.name },
+        )
+        assertEquals(
+            listOf("fk_r_tags_r"),
+            lowered.model.schemas.single().foreignKeys.map { it.name },
+        )
+    }
+
+    @Test
+    fun `unique on a list of a keyed record makes its child table a set`() {
+        val tag = record("a", "Tag", field(1, "id", Scalar(Builtin.UUID), key = true))
+        val r =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(2, "tags", ListOf(Ref(qn("a", "Tag")), false), unique = true),
+            )
+        val lowered = lower(namespace("a", tag, r))
+        assertEquals(emptyList(), messages(lowered))
+        assertEquals(
+            listOf(Unique("uq_r_tags_value", listOf("r_id", "value_id"))),
+            table(lowered, "r_tags").uniques,
+        )
+        assertEquals(emptyList(), table(lowered, "r").uniques)
     }
 
     @Test
