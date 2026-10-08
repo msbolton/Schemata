@@ -258,7 +258,7 @@ class PlannerTest {
         assertEquals("order_id", drop.column)
         assertEquals(Risk.DESTRUCTIVE, drop.risk)
         assertEquals(
-            "populate \"order_lines\".\"order_code\" from the parent before the foreign keys return, then rerun with --allow-destructive",
+            "populate \"order_lines\".\"order_code\" from the parent before the keys are re-added, then rerun with --allow-destructive",
             drop.help,
         )
         val fkDrop =
@@ -754,7 +754,7 @@ class PlannerTest {
     }
 
     @Test
-    fun `a moved key re-adds the primary keys before the foreign keys return`() {
+    fun `a moved key re-adds the primary keys before the foreign keys`() {
         val old =
             """
             schema s

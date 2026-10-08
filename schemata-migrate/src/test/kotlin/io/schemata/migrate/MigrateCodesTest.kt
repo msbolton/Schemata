@@ -124,7 +124,7 @@ class MigrateCodesTest {
                 .single { it.code.id == "SCH2701" }
                 .help
         assertEquals(
-            "populate \"order_lines\".\"order_code\" from the parent before the foreign keys return, then rerun with --allow-destructive",
+            "populate \"order_lines\".\"order_code\" from the parent before the keys are re-added, then rerun with --allow-destructive",
             help,
         )
     }

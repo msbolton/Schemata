@@ -360,7 +360,7 @@ private class NamespacePlan(
      * parent.
      */
     private fun rekeyHelp(p: Pairing, into: List<Column>): String =
-        "populate ${into.joinToString(", ") { "${Naming.quote(p.new.name)}.${Naming.quote(it.name)}" }} from the parent before the foreign keys return, then rerun with --allow-destructive"
+        "populate ${into.joinToString(", ") { "${Naming.quote(p.new.name)}.${Naming.quote(it.name)}" }} from the parent before the keys are re-added, then rerun with --allow-destructive"
 
     /** Child tables first, though `CASCADE` would take them with their parent anyway. */
     private fun tableDrops(early: Boolean): List<Step> =

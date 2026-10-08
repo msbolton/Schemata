@@ -2893,7 +2893,7 @@ re-added in the later.
 | Union member removed | `DROP COLUMN` per variant column, re-add the checks | destructive |
 | Union member type changed, or a field's referenced model or union changed | the columns and child tables under that field or member are a new identity: drop the old (destructive), add the new | destructive |
 | `{ id }` or `@@id` added or removed | drop the primary key (and the foreign keys that referenced it), add the new | may fail (duplicates or nulls in the new key) |
-| `{ id }` moved to other fields | drop the primary key; the reference and parent columns that copied the old key are dropped and new ones added for the new key (they are identified by the key field they copy, so a moved key is a new column), then the keys are re-added | destructive (the links must be populated from the parent before the foreign keys return; the help says so) |
+| `{ id }` moved to other fields | drop the primary key; the reference and parent columns that copied the old key are dropped and new ones added for the new key (they are identified by the key field they copy, so a moved key is a new column), then the keys are re-added | destructive (the links must be populated from the parent before the keys are re-added; the help says so) |
 | `{ unique }` or `@@unique` added | `ADD CONSTRAINT … UNIQUE` | may fail |
 | `{ unique }` or `@@unique` removed, `{ index }` or `@@index` added or removed | `DROP CONSTRAINT` / `DROP INDEX`, `CREATE INDEX` | clean |
 | `@relation(onDelete)` changed | drop the foreign key and add it again with the new `ON DELETE` | clean |
