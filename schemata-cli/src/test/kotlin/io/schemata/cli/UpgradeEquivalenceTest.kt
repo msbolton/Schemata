@@ -2,21 +2,8 @@ package io.schemata.cli
 
 import io.schemata.cli.report.JsonRenderer
 import io.schemata.cli.report.Report
-import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.ListOf
-import io.schemata.core.ir.MapOf
-import io.schemata.core.ir.RecordType
-import io.schemata.core.ir.Ref
-import io.schemata.core.ir.Schema
-import io.schemata.core.ir.Type
-import io.schemata.core.ir.UnionType
-import io.schemata.core.ir.keyFields
-import io.schemata.core.ir.selfAndNested
-import io.schemata.core.ir.storedFields
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.upgrade.Upgrader
-import io.schemata.target.Names
-import io.schemata.target.keyRecordName
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -58,13 +45,14 @@ import org.junit.jupiter.api.TestFactory
  * - `upgrade refuses`: a fixture writing something 2.0 cannot say, which `upgrade` reports.
  *
  * Every reason but `message text`, `keyword rename`, and the two fixture reasons is masked: a path
- * whose reasons are only those must match once the notes, the clauses, and the lines of each
- * reference field (by its 1.x name and its 2.0 one, with every line indented under it), each
- * `<Target>Key` declaration, and the import lines are left out, so a listed reason cannot hide
- * anything else. A diagnostic list may change its text, but keeps every code 1.4.0 reported, gains
- * no error, and gains a warning only about a reference field. A path present in one tree only, a
- * difference with no line, and a line that matches no difference all fail: the list is the complete
- * set of changes.
+ * whose reasons are only those must match once the notes, the clauses, and the constructs a
+ * reference changes are left out, read by each output's structure ([ReferenceMask]): the
+ * reference's own field, element, or property under its 1.x or 2.0 name, each `<Target>Key`
+ * declaration, and an import or namespace declaration only one version has. A listed reason cannot
+ * hide anything else. A diagnostic list may change its text, but keeps every code 1.4.0 reported,
+ * gains no error, and gains a warning only about a reference field. A path present in one tree
+ * only, a difference with no line, and a line that matches no difference all fail: the list is the
+ * complete set of changes.
  *
  * The test is skipped without the jar (the build fetches it; an offline build has none), without
  * `git`, or in a clone that lacks the tag; under `-Pschemata.requireV1Jar=true`, as CI runs it,
@@ -177,8 +165,8 @@ class UpgradeEquivalenceTest {
         val sources = revision(case.dir)
         if (case.codes) compareCodes(case, before, newCodes(case, sources))
         else {
-            val (after, tokens) = compileNew(sources)
-            compare(case.name, before, after, tokens)
+            val (after, refs) = compileNew(sources)
+            compare(case.name, before, after, refs)
         }
     }
 
@@ -247,7 +235,7 @@ class UpgradeEquivalenceTest {
      * This compiler's output tree for the upgraded sources, plus its diagnostics, and the names the
      * reference-by-key mask leaves out.
      */
-    private fun compileNew(sources: Map<String, String>): Pair<Map<String, String>, Set<String>> {
+    private fun compileNew(sources: Map<String, String>): Pair<Map<String, String>, References> {
         val inputs = upgraded(sources)
         val result = Pipeline.compile(inputs, Pipeline.targets)
         val report = Report.of(result, strict = false, checkOnly = false)
@@ -257,8 +245,8 @@ class UpgradeEquivalenceTest {
                 .filter { it.name in written }
                 .flatMap { t -> t.files.map { "${t.name}/${it.path}" to it.content } }
                 .toMap()
-        val tokens = Pipeline.analyze(inputs).schema?.let(::referenceNames) ?: emptySet()
-        return tree + (diagnosticsFile to diagnostics(JsonRenderer.report(report, "out"))) to tokens
+        val refs = Pipeline.analyze(inputs).schema?.let(References::of) ?: References.NONE
+        return tree + (diagnosticsFile to diagnostics(JsonRenderer.report(report, "out"))) to refs
     }
 
     /**
@@ -278,60 +266,6 @@ class UpgradeEquivalenceTest {
                 ?: Pipeline.targets
         val result = Pipeline.check(upgraded(sources), targets, case.strict)
         return result.diagnostics.map { it.code.id }.sorted().joinToString(" ")
-    }
-
-    /**
-     * The names a reference by key changes in the document targets' output: each stored field,
-     * list, or map typed as a keyed model, by its own name and its 2.0 one, with every target's
-     * `name` override of either; and each `<Target>Key` a composite key declares.
-     */
-    private fun referenceNames(schema: Schema): Set<String> {
-        val out = mutableSetOf<String>()
-        fun keyed(type: Type): RecordType? =
-            when (type) {
-                is Ref ->
-                    (schema.lookupOrNull(type.target) as? RecordType)?.takeIf {
-                        !type.relation.embed && it.keyFields().isNotEmpty()
-                    }
-                is ListOf -> keyed(type.element)
-                is MapOf -> keyed(type.value)
-                else -> null
-            }
-        fun keyRecord(model: RecordType) {
-            out += keyRecordName(model.qualifiedName).simpleName
-            model.annotations.entries.values.forEach { keys ->
-                (keys["name"] as? AnnotationValue.Str)?.let { out += it.value + "Key" }
-            }
-        }
-        schema.namespaces
-            .flatMap { ns -> ns.declarations.flatMap { it.selfAndNested() } }
-            .forEach { decl ->
-                when (decl) {
-                    is RecordType ->
-                        decl.storedFields.forEach { field ->
-                            val model = keyed(field.type) ?: return@forEach
-                            val key = model.keyFields()
-                            val overrides =
-                                field.annotations.entries.values.mapNotNull {
-                                    (it["name"] as? AnnotationValue.Str)?.value
-                                }
-                            (listOf(field.name) + overrides).forEach { name ->
-                                out += name
-                                if (key.size == 1 && field.type is Ref)
-                                    out += "${name}_${key.single().name}"
-                            }
-                            if (key.size > 1) keyRecord(model)
-                        }
-                    is UnionType ->
-                        decl.members.forEach { member ->
-                            val model = keyed(member.type) ?: return@forEach
-                            out += Names.snakeCase(model.name)
-                            if (model.keyFields().size > 1) keyRecord(model)
-                        }
-                    else -> Unit
-                }
-            }
-        return out
     }
 
     /**
@@ -382,7 +316,7 @@ class UpgradeEquivalenceTest {
         case: String,
         old: Map<String, String>,
         new: Map<String, String>,
-        tokens: Set<String>,
+        refs: References,
     ) {
         val problems = mutableListOf<String>()
         (old.keys - new.keys).sorted().forEach { problems += "only 1.4.0 writes $case/$it" }
@@ -399,12 +333,13 @@ class UpgradeEquivalenceTest {
                 reasons == null ->
                     problems +=
                         "$key differs and allow.txt has no line for it\n" + diff(before, after)
-                path == diagnosticsFile -> problems += lostDiagnostics(key, before, after, tokens)
-                reasons.all { it in MASKABLE } &&
-                    mask(before, reasons, tokens) != mask(after, reasons, tokens) ->
-                    problems +=
-                        "$key differs beyond ${reasons.joinToString(" and ")}\n" +
-                            diff(mask(before, reasons, tokens), mask(after, reasons, tokens))
+                path == diagnosticsFile -> problems += lostDiagnostics(key, before, after, refs)
+                reasons.all { it in MASKABLE } -> {
+                    val (a, b) = mask(path, before, after, reasons, refs)
+                    if (a != b)
+                        problems +=
+                            "$key differs beyond ${reasons.joinToString(" and ")}\n" + diff(a, b)
+                }
             }
         }
         allow.keys
@@ -423,11 +358,11 @@ class UpgradeEquivalenceTest {
         key: String,
         before: String,
         after: String,
-        tokens: Set<String>,
+        refs: References,
     ): List<String> {
         fun lines(text: String) = text.lines().filter { it.isNotBlank() }
         fun code(line: String) = line.substringBefore(':')
-        fun about(line: String) = tokens.any { mentions(line, it) }
+        fun about(line: String) = refs.mentions(line)
         val remaining = lines(after).toMutableList()
         // a diagnostic unchanged matches itself; one whose text changed matches by code, a
         // diagnostic about no reference field first, since one about a reference may be new
@@ -448,53 +383,27 @@ class UpgradeEquivalenceTest {
         )
     }
 
-    private fun mask(text: String, reasons: Set<String>, tokens: Set<String>): String {
-        var out = text
-        if ("type notes" in reasons) out = out.replace(NOTE, "$1…")
-        if ("on delete" in reasons) out = out.replace(ON_DELETE, "")
-        if ("reference by key" in reasons) out = references(out, tokens)
-        return out
-    }
-
     /**
-     * [text] without each line naming one of [tokens] or importing another file, nor the lines
-     * indented under it and the closing line that ends them; blank runs collapse and trailing
-     * commas go, since a removed last member moves a comma.
+     * The two versions of the output at [path] with what [reasons] allow left out: the notes' text,
+     * the `ON DELETE` clauses, and the constructs a reference by key changes ([ReferenceMask]).
      */
-    private fun references(text: String, tokens: Set<String>): String {
-        val lines = text.lines()
-        val kept = mutableListOf<String>()
-        var i = 0
-        while (i < lines.size) {
-            val line = lines[i]
-            if (!IMPORT.containsMatchIn(line) && tokens.none { mentions(line, it) }) {
-                kept += line
-                i++
-                continue
-            }
-            val indent = indentOf(line)
-            i++
-            while (i < lines.size && (lines[i].isBlank() || indentOf(lines[i]) > indent)) {
-                if (lines[i].isBlank() && (i + 1 >= lines.size || indentOf(lines[i + 1]) <= indent))
-                    break
-                i++
-            }
-            if (i < lines.size && indentOf(lines[i]) == indent && CLOSER.matches(lines[i].trim()))
-                i++
+    private fun mask(
+        path: String,
+        before: String,
+        after: String,
+        reasons: Set<String>,
+        refs: References,
+    ): Pair<String, String> {
+        fun plain(text: String): String {
+            var out = text
+            if ("type notes" in reasons) out = out.replace(NOTE, "$1…")
+            if ("on delete" in reasons) out = out.replace(ON_DELETE, "")
+            return out
         }
-        return kept
-            .map { it.trimEnd().removeSuffix(",") }
-            .fold(mutableListOf<String>()) { acc, l ->
-                if (!(l.isBlank() && acc.lastOrNull()?.isBlank() == true)) acc += l
-                acc
-            }
-            .joinToString("\n")
+        val a = plain(before)
+        val b = plain(after)
+        return if ("reference by key" in reasons) ReferenceMask.mask(path, a, b, refs) else a to b
     }
-
-    private fun indentOf(line: String): Int = line.length - line.trimStart().length
-
-    private fun mentions(line: String, token: String): Boolean =
-        Regex("(?<![A-Za-z0-9_])${Regex.escape(token)}(?![A-Za-z0-9_])").containsMatchIn(line)
 
     private fun diff(before: String, after: String): String {
         val a = before.lines()
@@ -565,8 +474,6 @@ class UpgradeEquivalenceTest {
         val RETIRED = mapOf("SCH1037" to "SCH1049", "SCH2107" to "SCH1049")
         val NOTE = Regex("""((?://|--) schemata: ).*""")
         val ON_DELETE = Regex(""" ON DELETE (?:CASCADE|RESTRICT|SET NULL)""")
-        val IMPORT = Regex("""^\s*import "|<xs:import |xmlns:""")
-        val CLOSER = Regex("""^(?:[}\]]+[,;]?|</[A-Za-z:]+>)$""")
         val DIAGNOSTIC =
             Regex(
                 """\{"code":"(SCH\d+)","severity":"(\w+)","category":"\w+","promoted":(?:true|false),"target":(null|"\w+"),"message":"((?:[^"\\]|\\.)*)""""

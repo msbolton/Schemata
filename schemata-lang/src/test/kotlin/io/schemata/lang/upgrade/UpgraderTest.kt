@@ -354,4 +354,22 @@ class UpgraderTest {
         assertEquals(shape(one), shape(many))
         assertTrue(shape(one) != shape(one.replace("b string", "b int32")))
     }
+
+    /**
+     * The round-trip check compares positions out of the tree, so a comma in the file's path or in
+     * a literal must not stop it from seeing the two trees agree; a binding's path takes no comma,
+     * so the comma rides in the file path and in a default.
+     */
+    @Test
+    fun `a binding path with a comma upgrades`() {
+        val text =
+            "namespace s\nrecord Id { #1 id: uuid }\nrecord R { #1 a: string = \"x, y\" }\n" +
+                "service S { #1 get(Id): R  get \"/r/{id}\" }\n"
+        listOf("t.schemata", "orders, archived/t,1.schemata", "a=b, c/Span(x).schemata").forEach {
+            path ->
+            val r = Upgrader.upgrade(text, path)
+            assertTrue(r is FormatResult.Formatted, "$path: $r")
+            assertTrue("get \"/r/{id}\"" in r.text && "= \"x, y\"" in r.text, r.text)
+        }
+    }
 }

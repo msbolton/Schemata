@@ -80,14 +80,20 @@ object Upgrader {
     /**
      * [file] with every position left out, so two trees that say the same thing compare equal
      * however they are laid out. The attributes of a field compare as a set of texts: whether one
-     * leads the field or trails it is layout.
+     * leads the field or trails it is layout. Every position names [SourceFile.path], which is cut
+     * out as a whole before the rest of each position goes, so a comma or parenthesis in the path
+     * cannot leave a position behind; literals keep their values, commas and all.
      */
-    internal fun shape(file: SourceFile): String = SPAN.replace(normalized(file).toString(), "")
+    internal fun shape(file: SourceFile): String =
+        positionless(normalized(file).toString(), file.path)
+
+    private fun positionless(text: String, path: String): String =
+        SPAN.replace(text.replace("Span(file=$path, ", "Span(file=, "), "")
 
     private fun normalized(file: SourceFile): SourceFile =
-        file.copy(declarations = file.declarations.map(::normalized))
+        file.copy(declarations = file.declarations.map { normalized(it, file.path) })
 
-    private fun normalized(d: Declaration): Declaration =
+    private fun normalized(d: Declaration, path: String): Declaration =
         when (d) {
             is RecordDecl ->
                 d.copy(
@@ -95,22 +101,24 @@ object Upgrader {
                         d.fields.map { f ->
                             f.copy(
                                 annotations =
-                                    f.annotations.sortedBy { it.toString().replace(SPAN, "") },
+                                    f.annotations.sortedBy { positionless(it.toString(), path) },
                                 type =
                                     f.type.copy(
                                         inlineShape =
-                                            f.type.inlineShape?.let { normalized(it) as RecordDecl }
+                                            f.type.inlineShape?.let {
+                                                normalized(it, path) as RecordDecl
+                                            }
                                     ),
                             )
                         },
-                    nested = d.nested.map(::normalized),
+                    nested = d.nested.map { normalized(it, path) },
                 )
             else -> d
         }
 
     private val SPAN =
         Regex(
-            "Span\\(file=[^,]*, startLine=-?\\d+, startColumn=-?\\d+, endLine=-?\\d+, endColumn=-?\\d+\\)"
+            "Span\\(file=, startLine=-?\\d+, startColumn=-?\\d+, endLine=-?\\d+, endColumn=-?\\d+\\)"
         )
 }
 
