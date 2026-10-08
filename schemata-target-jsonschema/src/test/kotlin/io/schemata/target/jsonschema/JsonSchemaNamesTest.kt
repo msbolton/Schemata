@@ -60,4 +60,15 @@ class JsonSchemaNamesTest {
         assertNull(JsonSchemaNames.reservedIn("full-name"))
         assertNull(JsonSchemaNames.reservedIn("注文"))
     }
+
+    @Test
+    fun `a control or whitespace character is shown escaped and a space as itself`() {
+        assertEquals(" ", shown(' '))
+        assertEquals("\\t", shown('\t'))
+        assertEquals("\\n", shown('\n'))
+        assertEquals("\\r", shown('\r'))
+        assertEquals("\\u0001", shown('\u0001'))
+        assertEquals("\\u00A0", shown('\u00a0'))
+        assertEquals("/", shown('/'))
+    }
 }

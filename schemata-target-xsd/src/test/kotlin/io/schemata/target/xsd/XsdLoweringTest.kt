@@ -246,6 +246,24 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `three namespaces sharing a uri are reported once naming all of them`() {
+        val uri = xsd("namespace" to AnnotationValue.Str("urn:x"))
+        val lowered =
+            XsdLowering.lower(
+                Schema(
+                    listOf(
+                        namespace("a", uri, line = 1),
+                        namespace("b", uri, line = 5),
+                        namespace("c", uri, line = 9),
+                    )
+                )
+            )
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.NAMESPACE_COLLISION, d.code)
+        assertEquals("schemas a and b and c both lower to target namespace 'urn:x'", d.message)
+    }
+
+    @Test
     fun `a relative namespace override is rejected`() {
         val ns = namespace("shop.orders", xsd("namespace" to AnnotationValue.Str("orders")))
         val d = XsdLowering.lower(Schema(listOf(ns))).diagnostics.single()

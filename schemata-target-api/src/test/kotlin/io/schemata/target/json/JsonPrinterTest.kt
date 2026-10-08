@@ -1,5 +1,6 @@
 package io.schemata.target.json
 
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -43,6 +44,19 @@ class JsonPrinterTest {
     @Test
     fun `escapes quotes backslashes and control characters and keeps unicode as is`() {
         assertEquals("\"a\\\"b\\\\c\\n\\t\\u0001é\"", JsonPrinter.quote("a\"b\\c\n\t\u0001é"))
+    }
+
+    @Test
+    fun `a control character escapes the same under any default locale`() {
+        val saved = Locale.getDefault()
+        try {
+            listOf("ar", "tr", "hi", "fa").forEach {
+                Locale.setDefault(Locale.forLanguageTag(it))
+                assertEquals("\"\\u001f\\u0000\"", JsonPrinter.quote("\u001f\u0000"), it)
+            }
+        } finally {
+            Locale.setDefault(saved)
+        }
     }
 
     @Test

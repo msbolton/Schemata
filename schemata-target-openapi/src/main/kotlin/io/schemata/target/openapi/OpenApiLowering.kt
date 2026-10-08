@@ -44,7 +44,6 @@ object OpenApiLowering {
             lossy = OpenApiCodes.LOSSY,
             nameCollision = OpenApiCodes.COLLISION,
             invalidOverride = OpenApiCodes.INVALID_OVERRIDE,
-            idCollision = OpenApiCodes.COLLISION,
         )
 
     fun lower(written: Schema): Lowered<OpenApiModel> {
@@ -143,6 +142,8 @@ private class NamespaceLowering(
         val verb = op.binding?.verb ?: Verb.POST
         val path = op.binding?.path ?: "/${tagName(service)}/${op.name}"
         val routeTaken = claimRoute(service, op, verb, path)
+        // an operation dropped for its route is not in the document, so its id stays free
+        if (!routeTaken) claimId(operationId, service, op)
         val request = op.request
         val decl = request?.let { schema.lookup(it.target) }
         val record = decl as? RecordType
@@ -182,8 +183,8 @@ private class NamespaceLowering(
     }
 
     /**
-     * `@openapi(name)` when valid, else `<Service>_<operation>` with the service's tag name; a
-     * second operation with the same id is reported.
+     * `@openapi(name)` when valid, else `<Service>_<operation>` with the service's tag name; an
+     * invalid override is reported.
      */
     private fun operationId(service: Service, op: Operation): String {
         val override = op.annotations.string("openapi", "name")
@@ -201,7 +202,11 @@ private class NamespaceLowering(
                     }
                     null
                 }
-        val id = valid ?: "${tagName(service)}_${op.name}"
+        return valid ?: "${tagName(service)}_${op.name}"
+    }
+
+    /** Claims [id] for [op]; a second kept operation with the same id is reported. */
+    private fun claimId(id: String, service: Service, op: Operation) {
         val previous = operationIds.putIfAbsent(id, service to op)
         if (previous != null) {
             diagnostics +=
@@ -212,7 +217,6 @@ private class NamespaceLowering(
                     help = "rename one, or set `@openapi(name: \"…\")` on one",
                 )
         }
-        return id
     }
 
     /**
@@ -227,9 +231,10 @@ private class NamespaceLowering(
             diagnostics +=
                 Diagnostic(
                     OpenApiCodes.COLLISION,
-                    "operations ${both(first.second, service to op)} both lower to path \"$template\" with different parameter names",
+                    "operations ${both(first.second, service to op)} bind \"${first.first}\" and \"$path\", which differ only in their parameter names",
                     op.nameSpan,
-                    help = "use the same parameter names in both paths",
+                    help =
+                        "give both paths the same parameter names, or bind one of them to another path",
                 )
             return true
         }

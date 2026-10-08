@@ -475,14 +475,179 @@ class OpenApiLoweringTest {
             )
         assertEquals(
             listOf(
-                "SCH2602 operations 'get' and 'cancel' both lower to path \"/orders/{}\" with different parameter names",
-                "SCH2602 operations 'S.get' and 'Other.x' both lower to path \"/orders/{}\" with different parameter names",
+                "SCH2602 operations 'get' and 'cancel' bind \"/orders/{id}\" and \"/orders/{order_id}\", which differ only in their parameter names",
+                "SCH2602 operations 'S.get' and 'Other.x' bind \"/orders/{id}\" and \"/orders/{order_id}\", which differ only in their parameter names",
             ),
             messages(l),
         )
         val item = l.model.documents.single().paths.single()
         assertEquals("/orders/{id}", item.path)
         assertEquals(listOf(Verb.GET, Verb.PUT), item.operations.map { it.verb })
+    }
+
+    @Test
+    fun `a route collision suggests another path or verb and a template clash another path`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model Id { #1 id uuid  #2 order_id uuid }\n" +
+                    "\n" +
+                    "model R { #1 ok bool }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 a(Id): R  get \"/orders/{id}\"\n" +
+                    "  #2 b(Id): R  delete \"/orders/{order_id}\"\n" +
+                    "  #3 s_d(): R\n" +
+                    "}\n" +
+                    "\n" +
+                    "service Other {\n" +
+                    "  #1 x(): R  post \"/S/s_d\"\n" +
+                    "}"
+            )
+        assertEquals(
+            listOf(
+                "bind one of them to another path or verb",
+                "give both paths the same parameter names, or bind one of them to another path",
+            ),
+            l.diagnostics.mapNotNull { it.help }.sorted(),
+        )
+    }
+
+    @Test
+    fun `an operation dropped by a route collision leaves its operationId free`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 ok bool }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 s_b(): R\n" +
+                    "}\n" +
+                    "\n" +
+                    "service Other {\n" +
+                    "  @openapi(name: \"Z\") #1 x(): R  post \"/S/s_b\"\n" +
+                    "  @openapi(name: \"Z\") #2 y(): R  post \"/y\"\n" +
+                    "}"
+            )
+        assertEquals(
+            listOf("SCH2602 operations 'S.s_b' and 'Other.x' both lower to post \"/S/s_b\""),
+            messages(l),
+        )
+        val doc = l.model.documents.single()
+        assertEquals(listOf("/S/s_b", "/y"), doc.paths.map { it.path })
+        assertEquals(listOf("S_s_b", "Z"), doc.paths.map { it.operations.single().operationId })
+    }
+
+    @Test
+    fun `declarations that share a component key and a field name are reported once`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "@jsonschema(name: \"B\")\n" +
+                    "model A { #1 x int32 }\n" +
+                    "\n" +
+                    "model B { #1 x int32 }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 one(A): B  post \"/one\"\n" +
+                    "}"
+            )
+        assertEquals(
+            listOf(
+                "SCH2602 model 'B' lowers to \$defs key 't.B', already used by model 'A' (f0.schemata:4)"
+            ),
+            messages(l),
+        )
+    }
+
+    @Test
+    fun `a nested declaration reached before its parent is filed once`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model Order {\n" +
+                    "  #1 line Line\n" +
+                    "\n" +
+                    "  model Line { #1 n int32 }\n" +
+                    "}\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 one(Order.Line): Order  post \"/one\"\n" +
+                    "}"
+            )
+        assertEquals(emptyList(), messages(l))
+        assertEquals(
+            listOf("t.Order.Line", "t.Order"),
+            l.model.documents.single().components.map { it.key },
+        )
+    }
+
+    @Test
+    fun `head and options take their fields as query parameters and no body`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model Q { #1 id uuid  #2 limit int32? }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 probe(Q)  head \"/items/{id}\"\n" +
+                    "  #2 allowed(Q)  options \"/items/{id}\"\n" +
+                    "}"
+            )
+        assertEquals(emptyList(), messages(l))
+        val item = l.model.documents.single().paths.single()
+        assertEquals(listOf(Verb.HEAD, Verb.OPTIONS), item.operations.map { it.verb })
+        item.operations.forEach {
+            assertEquals(listOf("path", "query"), it.parameters.map { p -> p.location })
+            assertNull(it.requestBody)
+        }
+    }
+
+    @Test
+    fun `services may share operation names and each id carries its own tag`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 ok bool }\n" +
+                    "\n" +
+                    "service A { #1 get(): R }\n" +
+                    "\n" +
+                    "service B { #1 get(): R }"
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf("/A/get", "/B/get"), doc.paths.map { it.path })
+        assertEquals(listOf("A_get", "B_get"), doc.paths.map { it.operations.single().operationId })
+    }
+
+    @Test
+    fun `an invalid service name falls back to the service name and can collide with another tag`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model R { #1 ok bool }\n" +
+                    "\n" +
+                    "@openapi(name: \"a b\")\n" +
+                    "service S { #1 get(): R }\n" +
+                    "\n" +
+                    "@openapi(name: \"S\")\n" +
+                    "service T { #1 put(): R }"
+            )
+        assertEquals(
+            listOf(
+                "SCH2602 services 'S' and 'T' both lower to tag 'S'",
+                "SCH2603 service 'S': @openapi(name: \"a b\") is not a valid tag",
+            ),
+            messages(l).sorted(),
+        )
+        assertEquals(listOf("/S/get", "/S/put"), l.model.documents.single().paths.map { it.path })
     }
 
     @Test

@@ -3,6 +3,7 @@ package io.schemata.testkit
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class OpenApiTest {
@@ -75,6 +76,36 @@ class OpenApiTest {
             )
         assertNotNull(message)
         assertTrue(message.contains("t.Gone"), message)
+    }
+
+    @Test
+    fun `a keyword value of the wrong type is refused with its location`() {
+        val message =
+            OpenApi.validate(
+                minimal.replace(
+                    "\"type\": \"object\",",
+                    "\"type\": \"object\", \"minProperties\": \"x\",",
+                )
+            )
+        assertNotNull(message)
+        assertTrue(message.startsWith("components.schemas.t.Item: "), message)
+        val parameter =
+            OpenApi.validate(
+                minimal.replace(
+                    "\"schema\": {\"type\": \"string\"}",
+                    "\"schema\": {\"minimum\": \"x\"}",
+                )
+            )
+        assertNotNull(parameter)
+        assertTrue(parameter.startsWith("get /items/{id} parameter 0: "), parameter)
+    }
+
+    @Test
+    fun `the document schema is built once and serves every call`() {
+        assertNull(OpenApi.validate(minimal))
+        val first = OpenApi.documentSchema
+        assertNull(OpenApi.validate(minimal))
+        assertSame(first, OpenApi.documentSchema)
     }
 
     @Test

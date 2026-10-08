@@ -59,8 +59,26 @@ class OverrideNames(
         val value = annotations.string(target, key) ?: return null
         val tail = problem(value) ?: return value
         sink +=
-            Diagnostic(code, "$where: @$target($key: \"$value\") $tail", span, help = help(tail))
+            Diagnostic(
+                code,
+                "$where: @$target($key: \"${escaped(value)}\") $tail",
+                span,
+                help = help(tail),
+            )
         return null
+    }
+
+    /** [value] with its control characters written as escapes, so a message stays on one line. */
+    private fun escaped(value: String): String = buildString {
+        value.forEach {
+            when {
+                it == '\t' -> append("\\t")
+                it == '\n' -> append("\\n")
+                it == '\r' -> append("\\r")
+                it < ' ' -> append("\\u").append(it.code.toString(16).uppercase().padStart(4, '0'))
+                else -> append(it)
+            }
+        }
     }
 
     private fun <K> MutableMap<K, String?>.memo(key: K, compute: () -> String?): String? {

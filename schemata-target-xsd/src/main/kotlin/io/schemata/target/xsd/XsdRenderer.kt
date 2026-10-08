@@ -169,11 +169,7 @@ object XsdRenderer {
 
     /** ` type="…"` for a builtin or named type; empty for an inline one. */
     private fun typeAttr(ref: XsdTypeRef): String =
-        when (ref) {
-            is XsdTypeRef.Builtin -> " type=\"${ref.xsName}\""
-            is XsdTypeRef.Named -> " type=\"${ref.prefix}:${ref.name}\""
-            else -> ""
-        }
+        qualifiedName(ref)?.let { " type=\"$it\"" } ?: ""
 
     private fun restriction(t: XsdTypeRef.Restricted, indent: String): String = buildString {
         appendLine("$indent<xs:simpleType>")
@@ -214,24 +210,22 @@ object XsdRenderer {
         appendLine("$indent</xs:simpleType>")
     }
 
-    /** A builtin's or named type's qualified name. */
-    private fun typeName(ref: XsdTypeRef): String =
+    /** A builtin's or named type's qualified name; null for an inline type, which has none. */
+    private fun qualifiedName(ref: XsdTypeRef): String? =
         when (ref) {
             is XsdTypeRef.Builtin -> ref.xsName
             is XsdTypeRef.Named -> "${ref.prefix}:${ref.name}"
-            else -> error("only a builtin or a named type has a name")
+            else -> null
         }
+
+    private fun typeName(ref: XsdTypeRef): String =
+        qualifiedName(ref) ?: error("only a builtin or a named type has a name")
 
     /** simpleContent when the base is a builtin or simple named type; complexContent otherwise. */
     private fun extension(t: XsdTypeRef.Extension, indent: String): String = buildString {
         val simple = t.base is XsdTypeRef.Builtin || (t.base is XsdTypeRef.Named && t.base.simple)
         val content = if (simple) "xs:simpleContent" else "xs:complexContent"
-        val base =
-            when (val b = t.base) {
-                is XsdTypeRef.Builtin -> b.xsName
-                is XsdTypeRef.Named -> "${b.prefix}:${b.name}"
-                else -> error("an extension base is a builtin or a named type")
-            }
+        val base = typeName(t.base)
         appendLine("$indent<xs:complexType>")
         appendLine("$indent  <$content>")
         appendLine("$indent    <xs:extension base=\"$base\">")

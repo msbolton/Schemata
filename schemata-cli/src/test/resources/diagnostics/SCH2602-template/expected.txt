@@ -1,6 +1,6 @@
 # targets=openapi
-error[SCH2602] (openapi): operations 'get' and 'cancel' both lower to path "/orders/{}" with different parameter names
+error[SCH2602] (openapi): operations 'get' and 'cancel' bind "/orders/{id}" and "/orders/{order_id}", which differ only in their parameter names
  --> s.schemata:7:6
-  = help: use the same parameter names in both paths
+  = help: give both paths the same parameter names, or bind one of them to another path
 
 1 error, 0 warnings

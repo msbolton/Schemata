@@ -16,6 +16,7 @@ import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.QualifiedName
+import io.schemata.core.ir.RealValue
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
@@ -403,7 +404,7 @@ class JsonSchemaLoweringTest {
         assertEquals(
             listOf(
                 "SCH2303 field 'Order.a': @jsonschema(name: \"a/b\") contains '/', which a \$ref cannot carry",
-                "SCH2303 field 'Order.c': @jsonschema(name: \"c\nd\") contains '\\u000A', which a \$ref cannot carry",
+                "SCH2303 field 'Order.c': @jsonschema(name: \"c\\nd\") contains '\\n', which a \$ref cannot carry",
             ),
             messages(ns),
         )
@@ -456,6 +457,87 @@ class JsonSchemaLoweringTest {
         assertEquals(
             listOf(
                 "SCH2302 model 'B' lowers to \$defs key 'B', already used by model 'A' (orders.schemata:3)"
+            ),
+            messages(namespace("s", declarations = listOf(a, b))),
+        )
+    }
+
+    @Test
+    fun `three namespaces with one id are reported once naming all of them`() {
+        val a = namespace("a", js("id" to AnnotationValue.Str("urn:x")))
+        val b = namespace("b", js("id" to AnnotationValue.Str("urn:x")), line = 9)
+        val c = namespace("c", js("id" to AnnotationValue.Str("urn:x")), line = 12)
+        assertEquals(
+            listOf("SCH2304 schemas a and b and c both lower to \$id 'urn:x'"),
+            messages(a, b, c),
+        )
+    }
+
+    @Test
+    fun `a control character in an override is escaped in the report`() {
+        val r =
+            record(
+                "s",
+                "Order",
+                field(
+                    1,
+                    "a",
+                    Scalar(Builtin.BOOL),
+                    annotations = js("name" to AnnotationValue.Str("a\tb")),
+                ),
+            )
+        assertEquals(
+            listOf(
+                "SCH2303 field 'Order.a': @jsonschema(name: \"a\\tb\") contains '\\t', which a \$ref cannot carry"
+            ),
+            messages(namespace("s", declarations = listOf(r))),
+        )
+    }
+
+    @Test
+    fun `a decimal default whose scale cannot be set exactly is emitted as written`() {
+        val r =
+            record(
+                "s",
+                "Order",
+                field(
+                    1,
+                    "total",
+                    Scalar(Builtin.DECIMAL, Refinements(precision = 19, scale = 2)),
+                    default = RealValue(BigDecimal("1.23456")),
+                ),
+            )
+        val ns = namespace("s", declarations = listOf(r))
+        val schema = def("Order", ns) as ObjectSchema
+        assertEquals(JsonString("1.23456"), schema.properties[0].schema.common.default)
+        assertEquals(emptyList(), messages(ns))
+    }
+
+    @Test
+    fun `overridden declarations that share a defs key and a field name are reported once`() {
+        val a =
+            record(
+                "s",
+                "A",
+                field(1, "x", Scalar(Builtin.BOOL), line = 4),
+                annotations = js("name" to AnnotationValue.Str("B")),
+            )
+        val b = record("s", "B", field(1, "x", Scalar(Builtin.BOOL), line = 9), line = 8)
+        assertEquals(
+            listOf(
+                "SCH2302 model 'B' lowers to \$defs key 'B', already used by model 'A' (orders.schemata:3)"
+            ),
+            messages(namespace("s", declarations = listOf(a, b))),
+        )
+    }
+
+    @Test
+    fun `overridden enums that share a defs key and a value are reported once`() {
+        val a = enum("s", "A", "x", line = 3, annotations = js("name" to AnnotationValue.Str("B")))
+        val b = enum("s", "B", "x", line = 8)
+        assertEquals(
+            listOf(
+                "SCH2302 enum 'B' lowers to \$defs key 'B', already used by enum 'A' (orders.schemata:3)"
             ),
             messages(namespace("s", declarations = listOf(a, b))),
         )

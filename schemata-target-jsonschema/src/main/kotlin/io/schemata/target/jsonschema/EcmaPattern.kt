@@ -56,6 +56,10 @@ object EcmaPattern {
                 i += 2
                 return null
             }
+            PYTHON_NAMED.find(rest)?.let {
+                val name = it.groupValues[1]
+                return "(?P<$name> (a Python-style named group; ECMAScript writes it (?<$name>...))"
+            }
             val close = s.indexOfAny(charArrayOf(')', ':'), i)
             return s.substring(i, if (close < 0) s.length else close + 1)
         }
@@ -106,7 +110,9 @@ object EcmaPattern {
         /**
          * An escape is kept when it escapes a syntax character, is one ECMA knows, or is `\-`
          * inside a class; `\0` must not precede a digit, `\c` needs a letter, and `\1`…`\9` are
-         * backreferences outside a class only.
+         * backreferences outside a class only. Inside a class `\B` and `\k` are errors too: a class
+         * escape is `\b` (backspace), `\-`, or a character class or character escape, and `\k` is
+         * an identity escape only without the Unicode flag.
          */
         private fun escape(inClass: Boolean): String? {
             val c = s.getOrNull(i + 1) ?: return "\\".also { i++ }
@@ -121,6 +127,11 @@ object EcmaPattern {
                     } else reported(i + 2)
                 }
                 c in '1'..'9' && inClass -> reported(i + 2)
+                c == 'B' && inClass -> reported(i + 2)
+                c == 'k' && inClass -> {
+                    val close = s.indexOf('>', i)
+                    reported(if (s.getOrNull(i + 2) == '<' && close >= 0) close + 1 else i + 2)
+                }
                 c == 'p' || c == 'P' -> property()
                 c == 'x' && s.getOrNull(i + 2) == '{' ->
                     reported(s.indexOf('}', i).let { if (it < 0) s.length else it + 1 })
@@ -162,6 +173,7 @@ object EcmaPattern {
             const val KNOWN = "dDwWsSbBnrtvf0xu"
             val BOUNDS = Regex("[0-9]+(,[0-9]*)?")
             val NAMED = Regex("^<[A-Za-z][A-Za-z0-9]*>")
+            val PYTHON_NAMED = Regex("^P<([A-Za-z][A-Za-z0-9]*)>")
             val CATEGORIES =
                 ("L Lu Ll Lt Lm Lo M Mn Mc Me N Nd Nl No P Pc Pd Ps Pe Pi Pf Po " +
                         "Z Zs Zl Zp S Sm Sc Sk So C Cc Cf Co Cn")
