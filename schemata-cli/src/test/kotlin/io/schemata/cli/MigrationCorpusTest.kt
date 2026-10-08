@@ -9,6 +9,7 @@ import io.schemata.migrate.MigrationRenderer
 import java.io.File
 import kotlin.test.assertEquals
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 
 /**
@@ -56,7 +57,7 @@ class MigrationCorpusTest {
             if (migrated.lowered)
                 MigrationRenderer.files(migrated.migration, allowDestructive = true)
             else emptyList()
-        val sql = files.joinToString("\n") { (path, content) -> "-- $path\n$content" }
+        val sql = joinFiles(files)
         val expectedDir = File(case, "expected")
         val txtFile = File(expectedDir, "migrate.txt")
         val sqlFile = File(expectedDir, "migrate.sql")
@@ -75,6 +76,27 @@ class MigrationCorpusTest {
             sql,
             "migrate.sql for ${case.name}; run with SCHEMATA_GOLDEN_UPDATE=1 to accept",
         )
+    }
+
+    /**
+     * Each file as `-- <path>` and its content, one blank line between files, whether or not a
+     * file's content ends in a newline; nothing for no files.
+     */
+    private fun joinFiles(files: List<Pair<String, String>>): String =
+        if (files.isEmpty()) ""
+        else
+            files.joinToString("\n\n", postfix = "\n") { (path, content) ->
+                "-- $path\n${content.trimEnd('\n')}"
+            }
+
+    @Test
+    fun `files join with one blank line whether or not they end in a newline`() {
+        val expected = "-- a.sql\none\n\n-- b.sql\ntwo\n\n-- c.sql\nthree\n"
+        assertEquals(
+            expected,
+            joinFiles(listOf("a.sql" to "one\n", "b.sql" to "two", "c.sql" to "three\n")),
+        )
+        assertEquals("", joinFiles(emptyList()))
     }
 
     /** `.schemata` files directly in [dir], paths kept under [prefix] (`old/s.schemata`). */

@@ -19,9 +19,16 @@ import io.schemata.target.keyRecordName
  * left out, so the equivalence test can require the rest to match. [fields] are the names a
  * reference field is written under, before and after (`customer`, `customer_id`, and any name
  * override of either), and the stems of union members that stand for a keyed model; [keys] are the
- * `<Target>Key` types a composite key declares.
+ * `<Target>Key` types a composite key declares. [owners] says which declaration (by its simple
+ * name) writes which of [fields], so a name is masked only inside the block of a model that
+ * references by key under it, never in another model that merely shares the name; a block no entry
+ * names is masked by [fields] as a whole.
  */
-internal data class References(val fields: Set<String>, val keys: Set<String>) {
+internal data class References(
+    val fields: Set<String>,
+    val keys: Set<String>,
+    val owners: Map<String, Set<String>> = emptyMap(),
+) {
     /**
      * Whether [line] names one of the references, as a diagnostic about one does (`field
      * 'Order.customer_id': …`).
@@ -38,6 +45,7 @@ internal data class References(val fields: Set<String>, val keys: Set<String>) {
         fun of(schema: Schema): References {
             val fields = mutableSetOf<String>()
             val keys = mutableSetOf<String>()
+            val owners = mutableMapOf<String, MutableSet<String>>()
             fun keyed(type: Type): RecordType? =
                 when (type) {
                     is Ref ->
@@ -58,7 +66,8 @@ internal data class References(val fields: Set<String>, val keys: Set<String>) {
                 .flatMap { ns -> ns.declarations.flatMap { it.selfAndNested() } }
                 .forEach { decl ->
                     when (decl) {
-                        is RecordType ->
+                        is RecordType -> {
+                            owners.getOrPut(decl.name) { mutableSetOf() }
                             decl.storedFields.forEach { field ->
                                 val model = keyed(field.type) ?: return@forEach
                                 val key = model.keyFields()
@@ -67,22 +76,31 @@ internal data class References(val fields: Set<String>, val keys: Set<String>) {
                                         (it["name"] as? AnnotationValue.Str)?.value
                                     }
                                 (listOf(field.name) + overrides).forEach { name ->
+                                    val own = owners.getOrPut(decl.name) { mutableSetOf() }
                                     fields += name
-                                    if (key.size == 1 && field.type is Ref)
+                                    own += name
+                                    if (key.size == 1 && field.type is Ref) {
                                         fields += "${name}_${key.single().name}"
+                                        own += "${name}_${key.single().name}"
+                                    }
                                 }
                                 if (key.size > 1) keyRecord(model)
                             }
-                        is UnionType ->
+                        }
+                        is UnionType -> {
+                            owners.getOrPut(decl.name) { mutableSetOf() }
                             decl.members.forEach { member ->
                                 val model = keyed(member.type) ?: return@forEach
                                 fields += Names.snakeCase(model.name)
+                                owners.getOrPut(decl.name) { mutableSetOf() } +=
+                                    Names.snakeCase(model.name)
                                 if (model.keyFields().size > 1) keyRecord(model)
                             }
+                        }
                         else -> Unit
                     }
                 }
-            return References(fields, keys)
+            return References(fields, keys, owners)
         }
     }
 }
@@ -122,14 +140,14 @@ internal object ReferenceMask {
 
     private fun proto(lines: List<String>, other: String, refs: References): List<String> {
         val otherLines = other.lines().toSet()
-        val field = names(refs.fields)
+        val field = names(refs.fields, capture = true)
         val fieldLine =
             Regex("""^\s*(?:repeated |optional )?(?:map<[^>]*>|[\w.]+) $field = \d+;.*$""")
         val keyMessage = Regex("""^\s*message ${names(refs.keys)} \{$""")
-        return blocks(lines) { line ->
+        return blocks(lines, PROTO_MESSAGE, refs.owners) { line, scope ->
             when {
                 PROTO_IMPORT.matches(line) && line !in otherLines -> Drop.LINE
-                refs.fields.isNotEmpty() && fieldLine.matches(line) -> Drop.LINE
+                inScope(fieldLine, line, scope) -> Drop.LINE
                 refs.keys.isNotEmpty() && keyMessage.matches(line) -> Drop.BLOCK
                 else -> Drop.NONE
             }
@@ -140,7 +158,9 @@ internal object ReferenceMask {
         val otherLines = other.lines().toSet()
         val otherNamespaces = XMLNS.findAll(other).map { it.value.trim() }.toSet()
         val element =
-            Regex("""^\s*<xs:(?:element|attribute) name="${names(refs.fields)}"[ >/].*$""")
+            Regex(
+                """^\s*<xs:(?:element|attribute) name="${names(refs.fields, capture = true)}"[ >/].*$"""
+            )
         val keyType = Regex("""^\s*<xs:complexType name="${names(refs.keys)}\w*"[ >].*$""")
         val withoutNamespaces =
             lines.mapNotNull { line ->
@@ -148,10 +168,10 @@ internal object ReferenceMask {
                     XMLNS.replace(line) { if (it.value.trim() in otherNamespaces) it.value else "" }
                 if (kept.isBlank() && line.isNotBlank()) null else kept
             }
-        return blocks(withoutNamespaces) { line ->
+        return blocks(withoutNamespaces, XSD_TYPE, refs.owners) { line, scope ->
             when {
                 XSD_IMPORT.matches(line) && line !in otherLines -> Drop.LINE
-                refs.fields.isNotEmpty() && element.matches(line) ->
+                inScope(element, line, scope) ->
                     if (line.trimEnd().endsWith("/>")) Drop.LINE else Drop.BLOCK
                 refs.keys.isNotEmpty() && keyType.matches(line) -> Drop.BLOCK
                 else -> Drop.NONE
@@ -160,16 +180,16 @@ internal object ReferenceMask {
     }
 
     private fun json(lines: List<String>, refs: References): List<String> {
-        val property = Regex("""^\s*"${names(refs.fields)}": .*$""")
-        val required = Regex("""^\s*"${names(refs.fields)}",?$""")
+        val property = Regex("""^\s*"${names(refs.fields, capture = true)}": .*$""")
+        val required = Regex("""^\s*"${names(refs.fields, capture = true)}",?$""")
         val definition = Regex("""^\s*"(?:[\w.]*\.)?${names(refs.keys)}": .*$""")
-        return blocks(lines) { line ->
+        return blocks(lines, JSON_DEFINITION, refs.owners) { line, scope ->
             val named =
-                (refs.fields.isNotEmpty() && property.matches(line)) ||
+                inScope(property, line, scope) ||
                     (refs.keys.isNotEmpty() && definition.matches(line))
             when {
                 named -> if (opens(line)) Drop.BLOCK else Drop.LINE
-                refs.fields.isNotEmpty() && required.matches(line) -> Drop.LINE
+                inScope(required, line, scope) -> Drop.LINE
                 else -> Drop.NONE
             }
         }
@@ -188,16 +208,49 @@ internal object ReferenceMask {
     }
 
     /**
-     * [lines] less each line [drop] marks: a [Drop.LINE] alone, a [Drop.BLOCK] with every line
-     * indented deeper under it and the closing line at its own indent.
+     * Whether [line] matches [pattern], whose first group is the name a reference is written under,
+     * and that name belongs to [scope]: the names the enclosing model writes, or any name when the
+     * enclosing block is not a model [References.owners] knows.
      */
-    private fun blocks(lines: List<String>, drop: (String) -> Drop): List<String> {
+    private fun inScope(pattern: Regex, line: String, scope: Set<String>?): Boolean {
+        val match = pattern.matchEntire(line) ?: return false
+        return scope == null || match.groupValues[1] in scope
+    }
+
+    /**
+     * [lines] less each line [drop] marks: a [Drop.LINE] alone, a [Drop.BLOCK] with every line
+     * indented deeper under it and the closing line at its own indent. [drop] is also given the
+     * names the nearest enclosing block writes, found by indentation: a line matching [opener]
+     * (group 1 its name, a trailing `Type` ignored) opens a block that lasts until a line at its
+     * own indent or shallower, and the block's name is looked up in [owners]; null when no
+     * enclosing block is one of them.
+     */
+    private fun blocks(
+        lines: List<String>,
+        opener: Regex,
+        owners: Map<String, Set<String>>,
+        drop: (String, Set<String>?) -> Drop,
+    ): List<String> {
         val kept = mutableListOf<String>()
+        val open = mutableListOf<Pair<Int, String>>()
         var i = 0
         while (i < lines.size) {
             val line = lines[i]
-            when (drop(line)) {
-                Drop.NONE -> kept += line
+            if (line.isNotBlank()) {
+                while (open.isNotEmpty() && open.last().first >= indentOf(line)) open.removeAt(
+                    open.lastIndex
+                )
+            }
+            val scope = open.lastOrNull { it.second in owners }?.let { owners[it.second] }
+            when (drop(line, scope)) {
+                Drop.NONE -> {
+                    kept += line
+                    opener.matchEntire(line)?.let { m ->
+                        val name = m.groupValues[1]
+                        val owner = if (name in owners) name else name.removeSuffix("Type")
+                        open += indentOf(line) to owner
+                    }
+                }
                 Drop.LINE -> {}
                 Drop.BLOCK -> {
                     val indent = indentOf(line)
@@ -227,10 +280,17 @@ internal object ReferenceMask {
     private fun indentOf(line: String): Int =
         if (line.isBlank()) Int.MAX_VALUE else line.length - line.trimStart().length
 
-    /** An alternation of [names], quoted for a regex; never matches when there are none. */
-    private fun names(names: Set<String>): String =
-        if (names.isEmpty()) "(?!)" else "(?:" + names.joinToString("|") { Regex.escape(it) } + ")"
+    /**
+     * An alternation of [names], quoted for a regex, as a capturing group when [capture]; never
+     * matches when there are none.
+     */
+    private fun names(names: Set<String>, capture: Boolean = false): String =
+        if (names.isEmpty()) "(?!)"
+        else (if (capture) "(" else "(?:") + names.joinToString("|") { Regex.escape(it) } + ")"
 
+    private val PROTO_MESSAGE = Regex("""^\s*message (\w+) \{$""")
+    private val XSD_TYPE = Regex("""^\s*<xs:complexType name="(\w+)"[ >].*$""")
+    private val JSON_DEFINITION = Regex("""^\s*"(?:[\w.]*\.)?(\w+)": \{$""")
     private val PROTO_IMPORT = Regex("""^\s*import "[^"]+";\s*$""")
     private val XSD_IMPORT = Regex("""^\s*<xs:import [^>]*/>\s*$""")
     private val XMLNS = Regex("""\s+xmlns:\w+="[^"]*"""")

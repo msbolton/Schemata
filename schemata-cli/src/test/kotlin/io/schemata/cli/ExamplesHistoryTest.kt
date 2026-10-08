@@ -13,6 +13,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
@@ -106,8 +107,13 @@ class ExamplesHistoryTest {
             val content = git("show", "$sha:$path")
             assertNotNull(content, "git show failed for $sha:$path")
             val name = "old/${File(path).name}"
-            val upgraded = Upgrader.upgrade(content, name) as? FormatResult.Formatted
-            SourceInput(name, upgraded?.text ?: content)
+            val text =
+                when (val upgraded = Upgrader.upgrade(content, name)) {
+                    is FormatResult.Formatted -> upgraded.text
+                    is FormatResult.Failed ->
+                        fail("upgrade of $sha:$path failed: ${upgraded.diagnostics}")
+                }
+            SourceInput(name, text)
         }
     }
 

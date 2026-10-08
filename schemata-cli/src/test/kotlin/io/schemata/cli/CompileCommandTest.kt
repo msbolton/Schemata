@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.testing.test
 import java.nio.file.Files
 import kotlin.io.path.createDirectories
@@ -240,6 +241,30 @@ class CompileCommandTest {
         assertEquals(1, result.statusCode, result.stderr)
         assertTrue(result.stderr.contains("cannot write"), result.stderr)
         assertFalse(result.stderr.contains("at io.schemata"), result.stderr)
+    }
+
+    @Test
+    fun `a usage error raised while running prints the subcommand usage line`() {
+        val (src, _) = tempSources("a.schemata" to "schema a")
+        val result = Schemata().subcommands(CompileCommand()).test("compile --target avro $src")
+        assertEquals(1, result.statusCode)
+        assertTrue(result.stderr.contains("Usage: schemata compile "), result.stderr)
+        assertTrue(result.stderr.contains("unknown target 'avro'"), result.stderr)
+    }
+
+    @Test
+    fun `--strict skips the target holding a promoted warning and still writes the others`() {
+        val (src, out) =
+            tempSources(
+                "customers.schemata" to
+                    "schema shop.customers\n\nmodel Customer { #1 id uuid { id }  #2 name string }\n"
+            )
+        val result = CompileCommand().test("--target proto,sql --strict --out $out $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertFalse(Files.exists(out.resolve("proto")), result.stderr)
+        assertTrue(Files.exists(out.resolve("sql")), result.stderr)
+        assertTrue(result.stderr.contains("proto: not written"), result.stderr)
+        assertTrue(result.stderr.contains("wrote 1 file to $out/sql"), result.stderr)
     }
 
     @Test

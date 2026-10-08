@@ -1,6 +1,8 @@
 package io.schemata.cli.diagnostics
 
+import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
@@ -21,4 +23,16 @@ class DiagnosticFixturesTest {
                 )
             }
         }
+
+    @Test
+    fun `a header line with trailing text is rejected`() {
+        Fixture.checkHeader("# targets=proto", "ok")
+        Fixture.checkHeader("# diff=old,new targets=sql", "ok")
+        Fixture.checkHeader("# migrate=old,new allow-destructive", "ok")
+        assertFailsWith<IllegalArgumentException> {
+            Fixture.checkHeader("# targets=proto and more text", "bad")
+        }
+        assertFailsWith<IllegalArgumentException> { Fixture.checkHeader("# targets=Proto", "bad") }
+        assertFailsWith<IllegalArgumentException> { Fixture.checkHeader("# strictly", "bad") }
+    }
 }

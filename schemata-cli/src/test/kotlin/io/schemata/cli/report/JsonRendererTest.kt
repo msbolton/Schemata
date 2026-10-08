@@ -11,6 +11,7 @@ import io.schemata.target.sql.SqlCodes
 import io.schemata.testkit.Golden
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class JsonRendererTest {
@@ -93,6 +94,25 @@ class JsonRendererTest {
             Json.string("quote \" and backslash \\ and newline\n"),
         )
         assertEquals("\"tab\\t bell\\u0007\"", Json.string("tab\t bell\u0007"))
+    }
+
+    @Test
+    fun `value prints longs and finite doubles as numbers and rejects the rest`() {
+        assertEquals("7", Json.value(7))
+        assertEquals("9007199254740993", Json.value(9007199254740993L))
+        assertEquals("1.5", Json.value(1.5))
+        assertEquals("0.1", Json.value(0.1f))
+        assertEquals("[1,2.5]", Json.value(listOf(1L, 2.5)))
+        listOf(Double.NaN, Double.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY).forEach {
+            assertFailsWith<IllegalArgumentException> { Json.value(it) }
+        }
+    }
+
+    @Test
+    fun `the json validator rejects a unicode escape that is not four hex digits`() {
+        MiniJson.parse("\"\\u00e9\\uABCD\"")
+        assertFailsWith<IllegalStateException> { MiniJson.parse("\"\\uZZZZ\"") }
+        assertFailsWith<IllegalStateException> { MiniJson.parse("\"\\u12\"") }
     }
 
     @Test
@@ -186,7 +206,7 @@ object MiniJson {
                     if (s[i] == 'u') {
                         repeat(4) {
                             i++
-                            check(s[i].isLetterOrDigit())
+                            check(s[i] in "0123456789abcdefABCDEF") { "bad unicode escape at $i" }
                         }
                     } else check(s[i] in "\"\\/bfnrt") { "bad escape at $i" }
                 } else check(s[i] >= ' ') { "control character at $i" }

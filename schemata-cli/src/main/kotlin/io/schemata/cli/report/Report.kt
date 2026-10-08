@@ -97,7 +97,11 @@ data class Report(
             Entry(d, target, promoted = strict && d.severity == Severity.WARNING)
 
         private fun errorsIn(target: TargetResult, strict: Boolean): Int =
-            target.diagnostics.count { strict || it.severity == Severity.ERROR }
+            errorCount(target.diagnostics, strict)
+
+        /** How many of [diagnostics] are errors once [strict] promotes the warnings. */
+        internal fun errorCount(diagnostics: List<Diagnostic>, strict: Boolean): Int =
+            diagnostics.count { entry(it, null, strict).severity == Severity.ERROR }
     }
 }
 
@@ -107,7 +111,7 @@ data class Report(
  * is only ever one "target", `import`).
  */
 fun importReport(result: ImportResult, strict: Boolean): Report {
-    val errors = result.diagnostics.count { strict || it.severity == Severity.ERROR }
+    val errors = Report.errorCount(result.diagnostics, strict)
     val written =
         if (errors == 0) result.files.map { Written("import", "import/${it.path}") }
         else emptyList()
