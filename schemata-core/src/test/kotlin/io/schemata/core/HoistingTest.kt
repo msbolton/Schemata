@@ -7,6 +7,7 @@ import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.keyFields
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -123,5 +124,102 @@ class HoistingTest {
         val r = analyze("schema s\n@id(a)\nmodel M { a int32 }")
         assertEquals(listOf("SCH1015"), r.diagnostics.map { it.code.id })
         assertEquals(listOf("SCH1015"), codes("schema s\n@timestamps\nmodel M { a int32 }"))
+    }
+
+    @Test
+    fun `timestamps after implicit ordinals step over reserved ones`() {
+        val r = analyze("schema s\nmodel M { a int32  b int32  reserved #3, #5  @@timestamps }")
+        assertEquals(emptyList(), r.diagnostics)
+        assertEquals(listOf(1, 2, 4, 6), model(r, "M").fields.map { it.ordinal })
+    }
+
+    @Test
+    fun `an id inside an inline shape is SCH1049`() {
+        val r =
+            analyze(
+                "schema s\nmodel Order { #1 id uuid { id }  #2 shipping { code string { id }  street string } }"
+            )
+        assertEquals(listOf("SCH1049"), r.diagnostics.map { it.code.id })
+        assertEquals("declare a nested model to give it a key", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `a block id inside an inline shape is SCH1049`() {
+        val r =
+            analyze(
+                "schema s\nmodel Order {\n  #1 id uuid { id }\n  #2 shipping { a string  b string  @@id(a, b) }\n}"
+            )
+        assertEquals(listOf("SCH1049"), r.diagnostics.map { it.code.id })
+        assertEquals("declare a nested model to give it a key", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `an id inside a list of inline shapes is SCH1049`() {
+        assertEquals(
+            listOf("SCH1049"),
+            codes(
+                "schema s\nmodel Order { #1 id uuid { id }  #2 lines { sku string { id }  qty int32 }[] }"
+            ),
+        )
+        assertEquals(
+            listOf("SCH1049"),
+            codes(
+                "schema s\nmodel Order {\n  #1 id uuid { id }\n  #2 lines { sku string  qty int32  @@id(sku) }[]\n}"
+            ),
+        )
+    }
+
+    @Test
+    fun `a list of inline shapes stays composition`() {
+        val r =
+            analyze(
+                "schema s\nmodel Order { #1 id uuid { id }  #2 lines { sku string  qty int32 }[] }"
+            )
+        assertEquals(emptyList(), r.diagnostics)
+        val lines = model(r, "Order").fields[1].type as io.schemata.core.ir.ListOf
+        assertEquals(
+            QualifiedName("s", listOf("Order", "OrderLines")),
+            (lines.element as Ref).target,
+        )
+        assertTrue(model(r, "Order", "OrderLines").keyFields().isEmpty())
+    }
+
+    @Test
+    fun `a nullable inline shape hoists and stays nullable`() {
+        val r = analyze("schema s\nmodel Order { shipping { street string }? }")
+        assertEquals(emptyList(), r.diagnostics)
+        val field = model(r, "Order").fields.single()
+        assertTrue(field.nullable)
+        assertEquals(
+            QualifiedName("s", listOf("Order", "OrderShipping")),
+            (field.type as Ref).target,
+        )
+    }
+
+    @Test
+    fun `a hoisted name that hides a top-level declaration is SCH1053`() {
+        val r =
+            analyze(
+                "schema s\nenum OrderStatus { a b }\nmodel Order { status enum { x y }  prev OrderStatus }"
+            )
+        assertEquals(listOf("SCH1053"), r.diagnostics.map { it.code.id })
+        assertEquals("name it with @name(\"…\")", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `a hoisted name that hides an outer model's declaration is SCH1053`() {
+        val text =
+            "schema s\nmodel Outer {\n  inner Inner\n  model InnerKind { x int32 }\n" +
+                "  model Inner { kind enum { a b } }\n}"
+        assertEquals(listOf("SCH1053"), codes(text))
+    }
+
+    @Test
+    fun `a hoisted name named apart from a top-level one is fine`() {
+        val r =
+            analyze(
+                "schema s\nenum OrderStatus { a b }\nmodel Order { status enum { x y } @name(\"OrderState\")  prev OrderStatus }"
+            )
+        assertEquals(emptyList(), r.diagnostics)
     }
 }

@@ -170,6 +170,12 @@ fun RecordType.keyFields(): List<Field> =
     else fields.filter { it.key }
 
 /**
+ * Whether the record means to be keyed: a field carries `{ id }` or the record writes `@@id(…)`,
+ * whether or not every name in it resolves.
+ */
+fun RecordType.declaresKey(): Boolean = compositeKey.isNotEmpty() || fields.any { it.key }
+
+/**
  * The fields a target stores or sends: every field but the virtual back-references, which name a
  * relation the other side already holds and so occupy no column, element, or property anywhere.
  */

@@ -15,6 +15,7 @@ import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.Option
+import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
 import java.math.BigDecimal
@@ -25,6 +26,9 @@ import java.util.regex.PatternSyntaxException
 object Options {
     val FIELD_FLAGS = setOf("id", "unique", "index", "embed")
     val BOUNDS = setOf("min", "max", "minItems", "maxItems", "match")
+
+    /** The bounds written on a list that speak of its elements. */
+    private val ELEMENT_BOUNDS = setOf("min", "max", "match")
 
     /**
      * [own] bounds the type itself: a scalar's `min`/`max`/`match`, or a list's or map's
@@ -47,15 +51,18 @@ object Options {
 
     /**
      * What a resolved type is, as far as options care. For a list written `T[]` or `list<T>` it is
-     * the element's kind; the list itself is known from the [TypeExpr]. [SHAPE] is a record hoisted
-     * from an inline shape; [LIST] and [MAP] otherwise stand for a collection the expression does
-     * not spell as one (an alias to a list, or the element of a list of lists).
+     * the element's kind; the list itself is known from the [TypeExpr]. [MODEL] is a record with a
+     * key (`{ id }` on a field or `@@id(…)`), which a field references by that key; [RECORD] is one
+     * without, which a field composes. [SHAPE] is a record hoisted from an inline shape; [LIST] and
+     * [MAP] otherwise stand for a collection the expression does not spell as one (an alias to a
+     * list, or the element of a list of lists).
      */
     enum class ResolvedKind {
         STRING,
         NUMBER,
         OTHER_SCALAR,
         ENUM,
+        MODEL,
         RECORD,
         UNION,
         LIST,
@@ -76,9 +83,10 @@ object Options {
     // (its key's columns), and an embedded record, union, or inline shape (its columns together).
     // Only a list or a map, many values, cannot.
     private val constrainable =
-        keyable + ResolvedKind.RECORD + ResolvedKind.UNION + ResolvedKind.SHAPE
+        keyable + ResolvedKind.MODEL + ResolvedKind.RECORD + ResolvedKind.UNION + ResolvedKind.SHAPE
 
-    private val embeddable = setOf(ResolvedKind.RECORD, ResolvedKind.UNION, ResolvedKind.SHAPE)
+    private val embeddable =
+        setOf(ResolvedKind.MODEL, ResolvedKind.RECORD, ResolvedKind.UNION, ResolvedKind.SHAPE)
 
     private val numeric =
         setOf(Builtin.INT32, Builtin.INT64, Builtin.FLOAT32, Builtin.FLOAT64, Builtin.DECIMAL)
@@ -87,26 +95,19 @@ object Options {
      * Lowers [options] written on a field of type [type]: returns the refinements to merge into the
      * type (or its element, for a list) and the flags, reporting SCH1049 for an option the type
      * cannot carry. `min`/`max` on a list constrain its elements; `minItems`/`maxItems` the list or
-     * map itself; `match` needs a string; `id` needs a scalar or enum (not a list, map, or shape);
-     * `unique` and `index` need anything but a list or a map.
-     */
-    fun lower(
-        options: List<Option>,
-        type: TypeExpr,
-        resolvedKind: ResolvedKind,
-        report: (Diagnostic) -> Unit,
-    ): Lowered = lower(options, type, resolvedKind, null, report)
-
-    /**
-     * As above, with [builtin] the scalar [resolvedKind] describes, when it is one: a bound is then
-     * read within that builtin's range, and `min`/`max` apply only where the builtin takes them (a
-     * string's or bytes' length, a number's value). Without it a number is bounded as a decimal.
+     * map itself; `match` needs a string; `id` needs a non-null scalar or enum (not a list, map, or
+     * shape); `unique` and `index` need anything but a list or a map, except that `unique` on a
+     * list of a keyed model makes the list a set. [builtin] is the scalar [resolvedKind] describes,
+     * when it is one: a bound is then read within that builtin's range, and `min`/`max` apply only
+     * where the builtin takes them (a string's or bytes' length, a number's value). Without it a
+     * number is bounded as a decimal. [nullable] is whether the field may be null.
      */
     fun lower(
         options: List<Option>,
         type: TypeExpr,
         resolvedKind: ResolvedKind,
         builtin: Builtin?,
+        nullable: Boolean,
         report: (Diagnostic) -> Unit,
     ): Lowered {
         val listed = listed(type)
@@ -148,6 +149,11 @@ object Options {
                                 (collection == null && resolvedKind in keyable) to
                                     "a scalar or an enum"
                             "embed" -> (subject in embeddable) to "a model or a union"
+                            // a list of a keyed model holds copies of keys; unique, it is a set
+                            "unique" ->
+                                ((collection == null && resolvedKind in constrainable) ||
+                                    (listed && subject == ResolvedKind.MODEL)) to
+                                    "a single value or a list of keyed models"
                             else ->
                                 (collection == null && resolvedKind in constrainable) to
                                     "a single value, not a list or a map"
@@ -155,6 +161,17 @@ object Options {
                     if (!fits) {
                         val on = if (option.name == "embed" && listed) subjectName else ownName
                         report(misplaced(option, on, needs))
+                        continue
+                    }
+                    if (option.name == "id" && nullable) {
+                        report(
+                            Diagnostic(
+                                CoreCodes.OPTION_NOT_APPLICABLE,
+                                "option 'id' does not apply to a nullable field; a key is never null",
+                                option.span,
+                                help = "drop the `?`, or remove the option",
+                            )
+                        )
                         continue
                     }
                     if (option.value != null) {
@@ -263,14 +280,23 @@ object Options {
             is ListOf -> ResolvedKind.LIST to null
             is MapOf -> ResolvedKind.MAP to null
             is Ref ->
-                when (find(subject.target)) {
+                when (val decl = find(subject.target)) {
                     is EnumDecl -> ResolvedKind.ENUM
                     is UnionDecl -> ResolvedKind.UNION
                     else ->
-                        if (expr.inlineShape != null) ResolvedKind.SHAPE else ResolvedKind.RECORD
+                        when {
+                            expr.inlineShape != null -> ResolvedKind.SHAPE
+                            decl is RecordDecl && declaresKey(decl) -> ResolvedKind.MODEL
+                            else -> ResolvedKind.RECORD
+                        }
                 } to null
         }
     }
+
+    /** Whether [record] writes a key: `{ id }` on one of its fields, or `@@id(…)`. */
+    fun declaresKey(record: RecordDecl): Boolean =
+        record.fields.any { f -> f.options.any { it.name == "id" } } ||
+            record.annotations.any { it.block && it.name == "id" }
 
     /**
      * Lowers the [options] written on [expr], which resolved to [resolved], and returns the type
@@ -285,12 +311,15 @@ object Options {
         report: (Diagnostic) -> Unit,
     ): Pair<Resolved, Lowered> {
         if (options.isEmpty()) return resolved to Lowered.NONE
-        val alias = resolved.aliasName
+        // a list's element bounds are written on the list, so an alias element is guarded there
+        val elementAlias = resolved.elementAlias.takeIf { listed(expr) }
+        val alias = resolved.aliasName ?: elementAlias
+        val guarded = if (resolved.aliasName != null) BOUNDS else ELEMENT_BOUNDS
         val usable =
             if (alias == null) options
             else
                 options.filter { option ->
-                    val bound = option.name in BOUNDS
+                    val bound = option.name in guarded
                     if (bound)
                         report(
                             Diagnostic(
@@ -304,7 +333,7 @@ object Options {
                     !bound
                 }
         val (kind, builtin) = classify(resolved.type, expr, find)
-        val lowered = lower(usable, expr, kind, builtin, report)
+        val lowered = lower(usable, expr, kind, builtin, resolved.nullable, report)
         return resolved.copy(type = merge(resolved.type, expr, lowered)) to lowered
     }
 
@@ -346,6 +375,7 @@ object Options {
             ResolvedKind.NUMBER,
             ResolvedKind.OTHER_SCALAR -> builtin?.typeName ?: "a scalar"
             ResolvedKind.ENUM -> "an enum"
+            ResolvedKind.MODEL,
             ResolvedKind.RECORD -> "a model"
             ResolvedKind.UNION -> "a union"
             ResolvedKind.LIST -> "a list"

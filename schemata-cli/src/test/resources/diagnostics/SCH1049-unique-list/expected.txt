@@ -1,5 +1,5 @@
 # targets=sql
-error[SCH1049]: option 'unique' does not apply to a list; it needs a single value, not a list or a map
+error[SCH1049]: option 'unique' does not apply to a list; it needs a single value or a list of keyed models
  --> s.schemata:3:50
   = help: remove the option, or move it to the element type
 

@@ -173,4 +173,16 @@ class RelationsTest {
         """
         assertEquals(listOf("SCH1049", "SCH1018"), analyze(listed).diagnostics.map { it.code.id })
     }
+
+    @Test
+    fun `a reference sent by a reserved key name is SCH1020`() {
+        val text =
+            "schema s\nmodel Customer { #1 id uuid { id } }\n" +
+                "model Order { #1 customer Customer  reserved #2, \"customer_id\" }"
+        val r = analyze(text)
+        assertEquals(listOf("SCH1020"), r.diagnostics.map { it.code.id })
+        assertTrue(r.diagnostics.single().message.contains("'customer_id'"))
+        val embedded = text.replace("customer Customer", "customer Customer { embed }")
+        assertEquals(emptyList(), analyze(embedded).diagnostics)
+    }
 }

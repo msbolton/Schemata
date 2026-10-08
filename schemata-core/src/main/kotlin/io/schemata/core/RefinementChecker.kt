@@ -9,17 +9,13 @@ import io.schemata.lang.ast.Literal
 import io.schemata.lang.ast.Refinement
 import io.schemata.lang.ast.TypeExpr
 import java.math.BigDecimal
-import java.util.regex.Pattern
-import java.util.regex.PatternSyntaxException
 
 /**
- * Validates the refinements written on one type expression and builds its [Refinements]. The names
- * a builtin accepts come from [Builtin.refinementKeys]; collections take `min` and `max` element
- * counts. Returns null after reporting, so a bad refinement drops the type like any other
- * resolution failure.
+ * Validates the parenthesised refinements written on one type expression, which only `decimal(p,
+ * s)` takes, and reads the bound an option sets. Returns null after reporting, so a bad refinement
+ * drops the type like any other resolution failure.
  */
 object RefinementChecker {
-    private val collectionKeys = setOf("min", "max")
 
     /**
      * How a `min`/`max` literal is read for a given type: [range] bounds an integer type, [floats]
@@ -34,15 +30,12 @@ object RefinementChecker {
         COUNT(0L..Long.MAX_VALUE),
     }
 
-    private class Bounds(val min: BigDecimal?, val max: BigDecimal?, val pattern: String?)
-
     fun scalar(
         builtin: Builtin,
         expr: TypeExpr,
         diagnostics: MutableList<Diagnostic>,
     ): Refinements? {
         val positional = expr.refinements.filterIsInstance<Refinement.Positional>()
-        val named = expr.refinements.filterIsInstance<Refinement.Named>()
         var ok = true
         var precision: Int? = null
         var scale: Int? = null
@@ -104,10 +97,8 @@ object RefinementChecker {
                 ok = false
             }
         }
-        val values =
-            named(named, builtin.typeName, builtin.refinementKeys, boundOf(builtin), diagnostics)
-        if (!ok || values == null) return null
-        return Refinements(values.min, values.max, values.pattern, precision, scale)
+        if (!ok) return null
+        return Refinements(precision = precision, scale = scale)
     }
 
     /**
@@ -136,10 +127,9 @@ object RefinementChecker {
         builtin: Builtin?,
         typeName: String,
         diagnostics: MutableList<Diagnostic>,
-    ): BigDecimal? =
-        bound(Refinement.Named(name, value, span), boundOf(builtin), typeName, diagnostics)
+    ): BigDecimal? = bound(name, value, span, boundOf(builtin), typeName, diagnostics)
 
-    /** [kind] is `list` or `map`; both take element-count bounds only. */
+    /** [kind] is `list` or `map`; neither takes a parenthesised refinement. */
     fun collection(
         kind: String,
         expr: TypeExpr,
@@ -156,115 +146,17 @@ object RefinementChecker {
             )
             ok = false
         }
-        val named = expr.refinements.filterIsInstance<Refinement.Named>()
-        val values = named(named, kind, collectionKeys, Bound.COUNT, diagnostics)
-        if (!ok || values == null) return null
-        return Refinements(min = values.min, max = values.max)
-    }
-
-    private fun named(
-        items: List<Refinement.Named>,
-        typeName: String,
-        allowed: Set<String>,
-        bound: Bound,
-        diagnostics: MutableList<Diagnostic>,
-    ): Bounds? {
-        var ok = true
-        val seen = mutableSetOf<String>()
-        var min: BigDecimal? = null
-        var max: BigDecimal? = null
-        var pattern: String? = null
-        var lastBound: Refinement.Named? = null
-        for (item in items) {
-            if (item.name !in allowed) {
-                val message: String
-                val help: String
-                if (allowed.isEmpty()) {
-                    message = "'${item.name}' is not a refinement; $typeName takes no refinements"
-                    help = "remove the option; `$typeName` takes no refinements"
-                } else {
-                    val sorted = allowed.sorted()
-                    message =
-                        "'${item.name}' is not a refinement of $typeName; allowed: ${sorted.joinToString(", ")}"
-                    help =
-                        "write one of the allowed refinements, for example `$typeName { ${sorted.first()} … }`"
-                }
-                report(CoreCodes.INVALID_REFINEMENT, message, item.span, diagnostics, help)
-                ok = false
-                continue
-            }
-            if (!seen.add(item.name)) {
-                report(
-                    CoreCodes.DUPLICATE_REFINEMENT,
-                    "'${item.name}' is given more than once",
-                    item.span,
-                    diagnostics,
-                    help = "keep one of them",
-                )
-                ok = false
-                continue
-            }
-            if (item.name == "pattern") {
-                val literal = item.value as? Literal.StringLit
-                if (literal == null) {
-                    report(
-                        CoreCodes.INVALID_REFINEMENT,
-                        "match must be a string literal",
-                        item.span,
-                        diagnostics,
-                        help = "quote the pattern: `match \"^…\$\"`",
-                    )
-                    ok = false
-                    continue
-                }
-                try {
-                    Pattern.compile(literal.value)
-                    pattern = literal.value
-                } catch (e: PatternSyntaxException) {
-                    report(
-                        CoreCodes.INVALID_REFINEMENT,
-                        "pattern does not compile: ${e.description}",
-                        item.span,
-                        diagnostics,
-                        help =
-                            "fix the regular expression; Postgres and Java must both accept it, so keep to the shared subset",
-                    )
-                    ok = false
-                }
-                continue
-            }
-            val value = bound(item, bound, typeName, diagnostics)
-            if (value == null) {
-                ok = false
-                continue
-            }
-            when (item.name) {
-                "min" -> min = value
-                "max" -> max = value
-                else -> error("refinement '${item.name}' is allowed but has no handler")
-            }
-            lastBound = item
-        }
-        if (min != null && max != null && min > max) {
-            report(
-                CoreCodes.INVALID_REFINEMENT,
-                "min ${min.toPlainString()} exceeds max ${max.toPlainString()}",
-                checkNotNull(lastBound).span,
-                diagnostics,
-                help = "swap or fix the bounds",
-            )
-            ok = false
-        }
-        return if (ok) Bounds(min, max, pattern) else null
+        return if (ok) Refinements.NONE else null
     }
 
     private fun bound(
-        item: Refinement.Named,
+        name: String,
+        value: Literal,
+        span: Span,
         bound: Bound,
         typeName: String,
         diagnostics: MutableList<Diagnostic>,
     ): BigDecimal? {
-        val value = item.value
         return when (bound) {
             Bound.INT32,
             Bound.INT64 ->
@@ -272,8 +164,8 @@ object RefinementChecker {
                     value !is Literal.IntLit -> {
                         report(
                             CoreCodes.INVALID_REFINEMENT,
-                            "${item.name} for $typeName must be an integer literal",
-                            item.span,
+                            "${name} for $typeName must be an integer literal",
+                            span,
                             diagnostics,
                             help = "write a whole number",
                         )
@@ -282,8 +174,8 @@ object RefinementChecker {
                     value.value !in bound.range!! -> {
                         report(
                             CoreCodes.INVALID_REFINEMENT,
-                            "${item.name} ${value.value} is outside the range of $typeName",
-                            item.span,
+                            "${name} ${value.value} is outside the range of $typeName",
+                            span,
                             diagnostics,
                             help =
                                 "use a value between ${bound.range.first} and ${bound.range.last}",
@@ -302,8 +194,8 @@ object RefinementChecker {
                         else -> {
                             report(
                                 CoreCodes.INVALID_REFINEMENT,
-                                "${item.name} for $typeName must be a number",
-                                item.span,
+                                "${name} for $typeName must be a number",
+                                span,
                                 diagnostics,
                                 help = "write a number",
                             )
@@ -314,8 +206,8 @@ object RefinementChecker {
                 if (floats != null && !floats.contains(number)) {
                     report(
                         CoreCodes.INVALID_REFINEMENT,
-                        "${item.name} ${number.toPlainString()} is outside the range of $typeName (${floats.shown})",
-                        item.span,
+                        "${name} ${number.toPlainString()} is outside the range of $typeName (${floats.shown})",
+                        span,
                         diagnostics,
                         help = "use a value between ${floats.between}",
                     )
@@ -328,8 +220,8 @@ object RefinementChecker {
                     value !is Literal.IntLit -> {
                         report(
                             CoreCodes.INVALID_REFINEMENT,
-                            "${item.name} must be an integer literal",
-                            item.span,
+                            "${name} must be an integer literal",
+                            span,
                             diagnostics,
                             help = "write a whole number",
                         )
@@ -338,8 +230,8 @@ object RefinementChecker {
                     value.value < 0 -> {
                         report(
                             CoreCodes.INVALID_REFINEMENT,
-                            "${item.name} must not be negative",
-                            item.span,
+                            "${name} must not be negative",
+                            span,
                             diagnostics,
                             help = "use 0 or more",
                         )

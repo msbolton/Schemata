@@ -12,6 +12,8 @@ import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
+import io.schemata.core.ir.declaresKey
+import io.schemata.core.ir.keyFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
@@ -49,7 +51,27 @@ object Relations {
         private fun record(record: RecordType): RecordType {
             val fields = record.fields.map { field(record, it) }
             modelLists(record, fields)
+            fields.filterNot { it.virtual }.forEach { reservedReference(record, it) }
             return record.copy(fields = fields, nested = record.nested.map(::decl))
+        }
+
+        /**
+         * A reference to a model with one key field is sent as `<field>_<key>`, so that name must
+         * not be one the model keeps out of use: old readers still know it as the retired field.
+         */
+        private fun reservedReference(record: RecordType, field: Field) {
+            val ref = field.type as? Ref ?: return
+            if (ref.relation.embed) return
+            val target = schema.lookupOrNull(ref.target) as? RecordType ?: return
+            val key = target.keyFields().singleOrNull() ?: return
+            val sent = "${field.name}_${key.name}"
+            if (sent in record.reserved.names)
+                error(
+                    CoreCodes.RESERVED_CONFLICT,
+                    "field '${record.name}.${field.name}' is sent by key as '$sent', which is reserved in model '${record.name}'",
+                    field.nameSpan,
+                    "rename the field, or write `{ embed }` to send the whole record",
+                )
         }
 
         private fun field(record: RecordType, field: Field): Field {
@@ -216,12 +238,8 @@ object Relations {
         private fun referenced(type: Type): RecordType? {
             val ref = (if (type is ListOf) type.element else type) as? Ref ?: return null
             val record = schema.lookupOrNull(ref.target) as? RecordType ?: return null
-            return record.takeIf { keyed(it) }
+            return record.takeIf { it.declaresKey() }
         }
-
-        /** Whether [record] declares a key, whether or not every name in it resolves. */
-        private fun keyed(record: RecordType): Boolean =
-            record.compositeKey.isNotEmpty() || record.fields.any { it.key }
 
         private fun isBackReference(field: Field): Boolean =
             field.virtual ||

@@ -16,6 +16,7 @@ import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Relation
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
@@ -36,11 +37,13 @@ enum Level { low high }
 
 model User { #1 id uuid { id } }
 
-model Account { #1 user User  @@id(user) }
+model Account { #1 user_id uuid  @@id(user_id) }
 
 model Order { #1 id uuid { id } }
 
-model Line { #1 order Order  #2 n int32  @@id(order, n) }
+model Line { #1 order_id uuid  #2 n int32  @@id(order_id, n) }
+
+model Price { #1 level Level  #2 amount decimal(10, 2)  @@id(level, amount) }
 
 model Grade { #1 level Level { id } }
 
@@ -60,9 +63,16 @@ model Use {
   #9 copy    User    { embed }
   #10 labels map<string, User>
   #11 owners map<string, Line>
+  #12 price  Price
 }
 
 union Party = User | Line | Point
+
+union Hit = #1 Order { embed } | #2 Code
+
+model Query { #1 text string }
+
+service Search { #1 find(Query): Party  #2 hit(Query): Hit }
 """
 
 class KeysTest {
@@ -97,7 +107,7 @@ class KeysTest {
 
     @Test
     fun `the key of a model is its key fields and a value type has none`() {
-        assertEquals(listOf("order", "n"), schema.keyOf(qn("Line"))!!.map { it.name })
+        assertEquals(listOf("order_id", "n"), schema.keyOf(qn("Line"))!!.map { it.name })
         assertEquals(listOf("id"), schema.keyOf(qn("User"))!!.map { it.name })
         assertNull(schema.keyOf(qn("Point")))
         assertNull(schema.keyOf(qn("Level")))
@@ -125,6 +135,7 @@ class KeysTest {
                 Triple(9, "copy", record(schema, "Use").fields[8].type),
                 Triple(10, "labels", MapOf(Scalar(Builtin.STRING), uuid, false)),
                 Triple(11, "owners", MapOf(Scalar(Builtin.STRING), Ref(qn("LineKey")), false)),
+                Triple(12, "price", Ref(qn("PriceKey"))),
             ),
             shape(use),
         )
@@ -148,11 +159,15 @@ class KeysTest {
                 "Order",
                 "Line",
                 "LineKey",
+                "Price",
+                "PriceKey",
                 "Grade",
                 "Code",
                 "Point",
                 "Use",
                 "Party",
+                "Hit",
+                "Query",
             ),
             keyed.namespaces.single().declarations.map { it.name },
         )
@@ -198,5 +213,35 @@ class KeysTest {
                 Triple(it.type, it.byKey, unionMemberStem(it.named, keyed) { null })
             },
         )
+    }
+
+    @Test
+    fun `a composite key of an enum and a decimal keeps both types in key order`() {
+        val key = record(keyed, "PriceKey")
+        assertEquals(
+            listOf(
+                Triple(1, "level", Ref(qn("Level"))),
+                Triple(2, "amount", Scalar(Builtin.DECIMAL, Refinements(precision = 10, scale = 2))),
+            ),
+            shape(key),
+        )
+    }
+
+    @Test
+    fun `a union used as a payload carries keys and an embedded member copies the record`() {
+        val hit = keyed.lookup(qn("Hit")) as UnionType
+        assertEquals(
+            listOf(
+                Triple(Ref(qn("Order"), Relation(embed = true)), null, "order"),
+                Triple(
+                    Scalar(Builtin.STRING, Refinements(max = BigDecimal(8), pattern = "^[A-Z]+$")),
+                    qn("Code"),
+                    "code",
+                ),
+            ),
+            hit.members.map { Triple(it.type, it.byKey, unionMemberStem(it.named, keyed) { null }) },
+        )
+        val party = keyed.lookup(qn("Party")) as UnionType
+        assertEquals(qn("User"), party.members.first().byKey)
     }
 }

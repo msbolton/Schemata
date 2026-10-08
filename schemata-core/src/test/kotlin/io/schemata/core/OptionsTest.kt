@@ -41,7 +41,7 @@ class OptionsTest {
     fun `id unique and index become field flags and a composite key keeps its order`() {
         val r =
             analyze(
-                "schema s\nmodel M { a uuid { id }  b string { unique }  c int32 { index }  @@id(b, a) }"
+                "schema s\nmodel M { a uuid { id }  b string { id, unique }  c int32 { index }  @@id(b, a) }"
             )
         val m = r.schema!!.lookup(QualifiedName("s", listOf("M"))) as RecordType
         assertTrue(m.fields[0].key)
@@ -142,12 +142,22 @@ class OptionsTest {
         assertEquals(listOf(true, false, true, true), m.fields.map { it.unique })
         assertEquals(listOf(false, true, true, false), m.fields.map { it.index })
         assertEquals(
-            listOf("SCH1049", "SCH1049", "SCH1049"),
+            listOf("SCH1049", "SCH1049", "SCH1049", "SCH1049"),
             codes(
-                "schema s\nmodel R { k uuid { id } }\n" +
-                    "model M { l R[] { unique }  m map<string, int32> { index }  s string[] { unique } }"
+                "schema s\nmodel R { k uuid { id } }\nmodel C { x int32 }\n" +
+                    "model M { l R[] { index }  m map<string, int32> { index }  s string[] { unique }  c C[] { unique } }"
             ),
         )
+    }
+
+    @Test
+    fun `unique on a list of a keyed model makes it a set`() {
+        val r =
+            analyze(
+                "schema s\nmodel R { k uuid { id } }\nmodel M { #1 id uuid { id }  #2 l R[] { unique } }"
+            )
+        assertEquals(emptyList(), r.diagnostics)
+        assertTrue(model(r).fields[1].unique)
     }
 
     @Test
@@ -202,5 +212,96 @@ class OptionsTest {
             listOf("SCH1049"),
             codes("schema s\nalias Email = string { max 254 }\nmodel M { e Email { max 10 } }"),
         )
+    }
+
+    @Test
+    fun `id on a nullable field is SCH1049`() {
+        val r = analyze("schema s\nmodel M { a uuid? { id } }")
+        assertEquals(listOf("SCH1049"), r.diagnostics.map { it.code.id })
+        assertTrue(r.diagnostics.single().message.contains("nullable"))
+    }
+
+    @Test
+    fun `block id naming a field that cannot be a key is an annotation-value error`() {
+        val text =
+            "schema s\nmodel R { k uuid { id } }\nunion U = R | int32\n" +
+                "model M {\n  a string[]\n  b map<string, int32>\n  c U\n  d R\n  e string?\n  f string\n" +
+                "  @@id(a, b, c, d, e, f)\n}"
+        assertEquals(List(5) { "SCH1018" }, codes(text))
+    }
+
+    @Test
+    fun `block id may name an enum and a scalar`() {
+        val r =
+            analyze(
+                "schema s\nenum Region { eu us }\nmodel M { region Region  total decimal(10, 2)  @@id(region, total) }"
+            )
+        assertEquals(emptyList(), r.diagnostics)
+        assertEquals(listOf("region", "total"), model(r).keyFields().map { it.name })
+    }
+
+    @Test
+    fun `id fields that disagree with a block id are an error`() {
+        val text = "schema s\nmodel M { a uuid { id }  b string  c string  @@id(b, c) }"
+        val r = analyze(text)
+        assertEquals(List(3) { "SCH1049" }, r.diagnostics.map { it.code.id })
+        assertTrue(r.diagnostics.first().message.contains("@@id(b, c) does not name it"))
+    }
+
+    @Test
+    fun `id on exactly the block id fields is redundant and allowed`() {
+        val r = analyze("schema s\nmodel M { a uuid { id }  b string { id }  @@id(b, a) }")
+        assertEquals(emptyList(), r.diagnostics)
+        assertEquals(listOf("b", "a"), model(r).keyFields().map { it.name })
+    }
+
+    @Test
+    fun `a union member may carry embed but no other field flag`() {
+        val r =
+            analyze(
+                "schema s\nmodel R { k uuid { id } }\nmodel C { x int32 }\nunion U = #1 R { embed } | #2 C"
+            )
+        assertEquals(emptyList(), r.diagnostics)
+        val u = r.schema!!.lookup(QualifiedName("s", listOf("U"))) as UnionType
+        assertTrue((u.members[0].type as io.schemata.core.ir.Ref).relation.embed)
+        assertEquals(
+            listOf("SCH1049", "SCH1049", "SCH1049"),
+            codes(
+                "schema s\nmodel R { k uuid { id } }\nunion U = #1 R { id } | #2 int32 { unique } | #3 string { index }"
+            ),
+        )
+        assertEquals(listOf("SCH1049"), codes("schema s\nunion U = #1 int32 { embed } | #2 string"))
+    }
+
+    @Test
+    fun `an alias bound cannot be widened through a list element`() {
+        val text = "schema s\nalias Email = string { max 254 }\nmodel M { e Email[] { max 1000 } }"
+        assertEquals(listOf("SCH1049"), codes(text))
+        val ok =
+            analyze(
+                "schema s\nalias Email = string { max 254 }\nmodel M { e Email[] { maxItems 3 } }"
+            )
+        assertEquals(emptyList(), ok.diagnostics)
+        val list = model(ok).fields.single().type as ListOf
+        assertEquals(BigDecimal(254), (list.element as Scalar).refinements.max)
+        assertEquals(BigDecimal(3), list.refinements.max)
+        assertEquals(
+            listOf("SCH1049"),
+            codes(
+                "schema s\nalias Email = string { max 254 }\nmodel M { e list<Email> { match \"x\" } }"
+            ),
+        )
+    }
+
+    @Test
+    fun `nullable elements and nullable lists analyse apart`() {
+        val r = analyze("schema s\nmodel M { a string?[]  b string[]?  c string?[]?  d string[] }")
+        assertEquals(emptyList(), r.diagnostics)
+        val fields = model(r).fields
+        assertEquals(
+            listOf(true, false, true, false),
+            fields.map { (it.type as ListOf).nullableElement },
+        )
+        assertEquals(listOf(false, true, true, false), fields.map { it.nullable })
     }
 }

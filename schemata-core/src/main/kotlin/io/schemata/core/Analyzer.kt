@@ -11,6 +11,7 @@ import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Reserved
+import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
@@ -56,7 +57,18 @@ object Analyzer {
         options: AnalysisOptions = AnalysisOptions.DEFAULT,
     ): AnalysisResult {
         val diagnostics = mutableListOf<Diagnostic>()
-        val sorted = files.sortedBy { it.path }.map { Hoisting.apply(it) { d -> diagnostics += d } }
+        val topLevel =
+            files
+                .groupBy { it.namespace.name }
+                .mapValues { (_, group) -> group.flatMap { f -> f.declarations.map { it.name } } }
+        val sorted =
+            files
+                .sortedBy { it.path }
+                .map {
+                    Hoisting.apply(it, topLevel.getValue(it.namespace.name).toSet()) { d ->
+                        diagnostics += d
+                    }
+                }
         val index = DeclarationIndex(sorted, diagnostics)
         val resolver = Resolver(index, sorted, diagnostics, options.references)
         val annotations = AnnotationChecker(options.annotations, diagnostics)
@@ -236,7 +248,10 @@ object Analyzer {
                 record.name,
                 record.nameSpan,
                 record.fields.map {
-                    Ordinals.Element(it.ordinal, it.ordinalSpan, it.name, it.nameSpan)
+                    // an ordinal with no span is one Hoisting chose, never one that was written
+                    val written = it.ordinal.takeIf { _ -> it.ordinalSpan != null }
+                    val chosen = it.ordinal.takeIf { _ -> it.ordinalSpan == null }
+                    Ordinals.Element(written, it.ordinalSpan, it.name, it.nameSpan, chosen)
                 },
                 reserved,
                 options,
@@ -299,6 +314,7 @@ object Analyzer {
                 )
             }
         val lists = modelLists(record, listAnnotations, diagnostics)
+        keys(record, fields, lists.key, index, diagnostics)
         val nested =
             record.nested.mapNotNull {
                 analyzeDeclaration(it, inner, index, resolver, annotations, options, diagnostics)
@@ -414,6 +430,70 @@ object Analyzer {
             }
         }
         return ModelLists(key, uniques, indexes)
+    }
+
+    /**
+     * A key is one non-null scalar or enum value per field, whichever way it is written: `{ id }`
+     * is checked where the option is lowered, `@@id(…)` here against the fields it names. When a
+     * model writes `@@id(…)`, `{ id }` may sit on exactly the fields it names (repeating them) or
+     * on none, so the two spellings never disagree about which fields form the key.
+     */
+    private fun keys(
+        record: RecordDecl,
+        fields: List<Field>,
+        compositeKey: List<String>,
+        index: DeclarationIndex,
+        diagnostics: MutableList<Diagnostic>,
+    ) {
+        if (compositeKey.isEmpty()) return
+        val idSpan = record.annotations.first { it.block && it.name == "id" }.span
+        val display = "@@id(${compositeKey.joinToString(", ")})"
+        compositeKey.forEach { name ->
+            val field = fields.firstOrNull { it.name == name } ?: return@forEach
+            val type = field.type
+            val keyable =
+                type is Scalar || (type is Ref && index.find(type.target)?.decl is EnumDecl)
+            val problem =
+                when {
+                    !keyable -> "which is not a scalar or an enum"
+                    field.nullable -> "which is nullable"
+                    else -> null
+                }
+            if (problem != null)
+                diagnostics +=
+                    error(
+                        CoreCodes.ANNOTATION_VALUE,
+                        "$display names '$name', $problem; a key is one non-null scalar or enum value per field",
+                        idSpan,
+                        help = "name non-null scalar or enum fields only",
+                    )
+        }
+        val flagged = record.fields.filter { f -> f.options.any { it.name == "id" } }
+        if (flagged.isEmpty()) return
+        val flaggedNames = flagged.map { it.name }.toSet()
+        flagged
+            .filter { it.name !in compositeKey }
+            .forEach { field ->
+                diagnostics +=
+                    error(
+                        CoreCodes.OPTION_NOT_APPLICABLE,
+                        "field '${field.name}' has `{ id }`, but $display does not name it; the model's key is $display",
+                        field.options.first { it.name == "id" }.span,
+                        help = "remove `{ id }`, or name the field in @@id",
+                    )
+            }
+        compositeKey
+            .filter { it !in flaggedNames }
+            .mapNotNull { name -> record.fields.firstOrNull { it.name == name } }
+            .forEach { field ->
+                diagnostics +=
+                    error(
+                        CoreCodes.OPTION_NOT_APPLICABLE,
+                        "field '${field.name}' is in $display but has no `{ id }`, which other key fields carry",
+                        field.nameSpan,
+                        help = "write `{ id }` on every field $display names, or on none",
+                    )
+            }
     }
 
     private fun analyzeEnum(
@@ -553,7 +633,8 @@ object Analyzer {
                                 )
                             false
                         }
-                        !seen.add(type) -> {
+                        // `Customer` and `Customer { embed }` are one member written twice
+                        !seen.add(if (type is Ref) Ref(type.target) else type) -> {
                             diagnostics +=
                                 error(
                                     CoreCodes.DUPLICATE_UNION_MEMBER,
@@ -582,8 +663,9 @@ object Analyzer {
 
     /**
      * A union member's options bound its type as a field's options bound the field's, by the same
-     * table; the field flags among them (`id`, `unique`, `index`, `embed`) speak of a field's
-     * column or reference, which a member does not have, and are reported.
+     * table, and `{ embed }` copies a keyed model's record into the member as it does into a field.
+     * The other field flags (`id`, `unique`, `index`) speak of a field's column, which a member
+     * does not have, and are reported.
      */
     private fun memberOptions(
         member: UnionMemberDecl,
@@ -592,7 +674,8 @@ object Analyzer {
         diagnostics: MutableList<Diagnostic>,
     ): Resolved {
         if (member.options.isEmpty()) return resolved
-        val (flags, bounds) = member.options.partition { it.name in Options.FIELD_FLAGS }
+        val (flags, bounds) =
+            member.options.partition { it.name in Options.FIELD_FLAGS && it.name != "embed" }
         flags.forEach {
             diagnostics +=
                 error(

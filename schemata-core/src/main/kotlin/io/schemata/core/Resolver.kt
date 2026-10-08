@@ -19,8 +19,16 @@ import io.schemata.lang.ast.TypeExpr
 /** Where a type expression was written: its file, namespace, and the records enclosing it. */
 data class Scope(val file: SourceFile, val namespace: String, val enclosing: List<String>)
 
-/** A resolved type expression. [nullable] folds in a transparent alias's own `?`. */
-data class Resolved(val type: Type, val nullable: Boolean, val aliasName: String?)
+/**
+ * A resolved type expression. [nullable] folds in a transparent alias's own `?`. [elementAlias] is
+ * the alias a list's element is written as, so a bound written on the list cannot loosen it.
+ */
+data class Resolved(
+    val type: Type,
+    val nullable: Boolean,
+    val aliasName: String?,
+    val elementAlias: String? = null,
+)
 
 /**
  * Turns a [TypeExpr] into an IR [Type]. A bare name is looked up in the enclosing records' nested
@@ -138,7 +146,12 @@ class Resolver(
             val element =
                 resolve(expr.copy(list = false, listNullable = false, options = emptyList()), scope)
                     ?: return null
-            return Resolved(ListOf(element.type, element.nullable), expr.listNullable, null)
+            return Resolved(
+                ListOf(element.type, element.nullable),
+                expr.listNullable,
+                null,
+                element.aliasName,
+            )
         }
         when (expr.name) {
             "list" ->
@@ -215,7 +228,8 @@ class Resolver(
         }
         val args = expr.args.map { resolve(it, scope) ?: return null }
         val type = build(args) ?: return null
-        return Resolved(type, expr.nullable, null)
+        val elementAlias = if (expr.name == "list") args.single().aliasName else null
+        return Resolved(type, expr.nullable, null, elementAlias)
     }
 
     /**
