@@ -1,0 +1,77 @@
+# Every output that `schemata upgrade` plus the 2.0 compiler writes differently from the 1.4.0
+# compiler, for the examples and corpus cases as they stood at v1.4.0. One line per path and
+# reason: the case directory, the target's output path (or `diagnostics`), then the reason.
+#
+#   reference by key   a field typed as a keyed model carries the key, and the key's type is
+#                      declared beside the model (Protobuf, XSD, JSON Schema, OpenAPI)
+#   on delete          an ON DELETE clause on a foreign key
+#   type notes         the `schemata:` note on an emitted field is in 2.0 spelling
+#   warning text       a warning names a type in 2.0 spelling, or a field a reference emits
+#   keyword rename     an identifier that is a 2.0 keyword is renamed `<name>_value`
+
+corpus/attributes/proto/corpus/attributes.proto  type notes
+corpus/attributes/diagnostics  warning text
+corpus/children/proto/corpus/children.proto  type notes
+corpus/children/sql/corpus/children.sql  type notes
+corpus/children/diagnostics  warning text
+corpus/collections/proto/corpus/collections.proto  type notes
+corpus/collections/diagnostics  warning text
+corpus/crossref/jsonschema/x/alpha.schema.json  reference by key
+corpus/crossref/proto/x/alpha.proto  reference by key
+corpus/crossref/proto/x/alpha.proto  type notes
+corpus/crossref/xsd/x/alpha.xsd  reference by key
+corpus/crossref/diagnostics  warning text
+corpus/embedding/proto/corpus/embedding.proto  type notes
+corpus/embedding/diagnostics  warning text
+corpus/jsonschema/proto/s.proto  type notes
+corpus/jsonschema/diagnostics  warning text
+corpus/keys/proto/corpus/keys.proto  type notes
+corpus/keys/diagnostics  warning text
+corpus/references/jsonschema/corpus/references.schema.json  reference by key
+corpus/references/proto/corpus/references.proto  reference by key
+corpus/references/proto/corpus/references.proto  type notes
+corpus/references/xsd/corpus/references.xsd  reference by key
+corpus/references/diagnostics  warning text
+corpus/scalars/proto/corpus/scalars.proto  type notes
+corpus/scalars/diagnostics  warning text
+corpus/services/proto/corpus/services.proto  type notes
+corpus/services/diagnostics  warning text
+corpus/strings/proto/corpus/strings.proto  type notes
+corpus/strings/diagnostics  warning text
+corpus/types/proto/corpus/types.proto  type notes
+corpus/types/diagnostics  warning text
+corpus/unions/proto/corpus/unions.proto  type notes
+corpus/unions/diagnostics  warning text
+corpus/variants/proto/corpus/variants.proto  type notes
+corpus/variants/diagnostics  warning text
+corpus/worked-example/jsonschema/shop/orders.schema.json  reference by key
+corpus/worked-example/proto/shop/customers.proto  type notes
+corpus/worked-example/proto/shop/orders.proto  reference by key
+corpus/worked-example/proto/shop/orders.proto  type notes
+corpus/worked-example/xsd/shop/orders.xsd  reference by key
+corpus/worked-example/diagnostics  warning text
+examples/contacts/proto/contacts.proto  type notes
+examples/contacts/sql/contacts.sql  type notes
+examples/contacts/diagnostics  warning text
+examples/ledger/jsonschema/ledger/accounts.schema.json  reference by key
+examples/ledger/jsonschema/ledger/journal.schema.json  reference by key
+examples/ledger/jsonschema/ledger/reports.schema.json  reference by key
+examples/ledger/proto/ledger/accounts.proto  reference by key
+examples/ledger/proto/ledger/accounts.proto  type notes
+examples/ledger/proto/ledger/journal.proto  reference by key
+examples/ledger/proto/ledger/journal.proto  type notes
+examples/ledger/proto/ledger/reports.proto  reference by key
+examples/ledger/proto/ledger/reports.proto  type notes
+examples/ledger/xsd/ledger/accounts.xsd  reference by key
+examples/ledger/xsd/ledger/journal.xsd  reference by key
+examples/ledger/xsd/ledger/reports.xsd  reference by key
+examples/ledger/diagnostics  warning text
+examples/services/proto/shop/catalog.proto  type notes
+examples/services/proto/shop/orders.proto  type notes
+examples/services/diagnostics  warning text
+examples/shop/jsonschema/shop/orders.schema.json  reference by key
+examples/shop/proto/shop/customers.proto  type notes
+examples/shop/proto/shop/orders.proto  reference by key
+examples/shop/proto/shop/orders.proto  type notes
+examples/shop/xsd/shop/orders.xsd  reference by key
+examples/shop/diagnostics  warning text
