@@ -107,39 +107,56 @@ internal fun emit(
     sources: Sources,
     reporting: ReportStyle,
     out: String,
-    stderrIsTerminal: () -> Boolean = ::probeStderrTerminal,
+    stderrIsTerminal: () -> Boolean? = ::probeStderrTerminal,
 ) {
     val terminal = command.currentContext.terminal
-    // The human report goes to stderr, so colour needs stderr itself to be a terminal: the
-    // terminal Clikt detected reflects stdout, which can be a terminal while stderr is a file.
-    val ansiSupported = terminal.terminalInfo.ansiLevel != AnsiLevel.NONE && stderrIsTerminal()
     val width = if (terminal.terminalInfo.outputInteractive) terminal.size.width else 100
     when (reporting.format) {
         Format.JSON -> terminal.rawPrint(JsonRenderer.report(report, out))
-        Format.HUMAN ->
+        Format.HUMAN -> {
+            // The human report goes to stderr, so colour needs stderr itself to be a terminal: the
+            // terminal Clikt detected reflects stdout, which can be a terminal while stderr is a
+            // file. The probe runs only here, and an unknown answer defers to the detection.
+            val ansiSupported =
+                terminal.terminalInfo.ansiLevel != AnsiLevel.NONE && (stderrIsTerminal() ?: true)
             terminal.rawPrint(
                 HumanRenderer.render(report, sources, reporting.palette(ansiSupported), out, width),
                 stderr = true,
             )
+        }
     }
     if (report.exitCode != 0) throw ProgramResult(report.exitCode)
 }
 
 /**
- * Whether this process's stderr is a terminal. The JVM only offers `System.console()`, which covers
- * stdin and stdout, so ask the shell: a child that inherits stderr can run `test -t 2`. Where there
- * is no shell, stderr is taken not to be a terminal.
+ * Whether this process's stderr is a terminal, or null when that cannot be told. Mordant 3 only
+ * detects stdout and the JVM's `System.console()` covers stdin and stdout, so ask a POSIX shell: a
+ * child that inherits stderr can run `test -t 2`. On Windows, where a `sh` may be absent or
+ * disagree with the real console, when no shell can be started, or when the wait is interrupted,
+ * the answer is null and the caller trusts Mordant's own detection, as it did before this probe.
  */
-internal fun probeStderrTerminal(): Boolean =
-    try {
-        ProcessBuilder("sh", "-c", "test -t 2")
-            .redirectError(ProcessBuilder.Redirect.INHERIT)
-            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-            .start()
-            .waitFor() == 0
+internal fun probeStderrTerminal(): Boolean? {
+    if (System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true))
+        return null
+    return try {
+        val exit =
+            ProcessBuilder("sh", "-c", "test -t 2")
+                .redirectError(ProcessBuilder.Redirect.INHERIT)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start()
+                .waitFor()
+        when (exit) {
+            0 -> true
+            1 -> false
+            else -> null
+        }
     } catch (e: IOException) {
-        false
+        null
+    } catch (e: InterruptedException) {
+        Thread.currentThread().interrupt()
+        null
     }
+}
 
 /** Writes [content] to [destination], creating its parent directories. */
 internal fun writeOutput(destination: Path, content: String) {
