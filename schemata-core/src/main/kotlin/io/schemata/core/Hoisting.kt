@@ -52,20 +52,28 @@ object Hoisting {
 
     /**
      * The names a field's type could already mean from outside its own model: the schema's top
-     * level, then each enclosing model's nested declarations, mapped to the model that declares it.
+     * level, then each enclosing model's nested declarations, mapped to the model that holds it and
+     * whether that model got it by hoisting an inline type rather than by declaring it.
      */
     private class Visible(
         val schema: String,
         val topLevel: Set<String>,
-        val enclosing: Map<String, String>,
+        val enclosing: Map<String, Holder>,
     ) {
-        fun inside(model: RecordDecl, nested: Collection<String>): Visible =
-            Visible(schema, topLevel, enclosing + nested.associateWith { model.name })
+        class Holder(val model: String, val hoisted: Boolean)
 
-        /** Where [name] is visible from, worded for a message, or null when it is not. */
+        fun inside(model: RecordDecl, nested: Collection<String>, hoisted: Set<String>): Visible =
+            Visible(
+                schema,
+                topLevel,
+                enclosing + nested.associateWith { Holder(model.name, it in hoisted) },
+            )
+
+        /** Who holds [name] already, worded to follow "which", or null when nobody does. */
         fun owner(name: String): String? =
-            enclosing[name]?.let { "model '$it'" }
-                ?: if (name in topLevel) "the top level of schema '$schema'" else null
+            enclosing[name]?.let {
+                "model '${it.model}' ${if (it.hoisted) "also names" else "also declares"}"
+            } ?: if (name in topLevel) "the top level of schema '$schema' also declares" else null
     }
 
     private fun record(
@@ -78,7 +86,7 @@ object Hoisting {
         val fields = decl.fields.map { field(decl, it, taken, hoisted, visible, report) }
         // only the block attribute `@@timestamps`; a single-`@` one goes to the annotation checker
         val (stamps, annotations) = decl.annotations.partition { it.block && it.name == TIMESTAMPS }
-        val inner = visible.inside(decl, taken)
+        val inner = visible.inside(decl, taken, hoisted.map { it.name }.toSet())
         return decl.copy(
             fields = fields + timestamps(fields, decl.reserved, stamps, report),
             nested =
@@ -124,7 +132,11 @@ object Hoisting {
         if (inlineShape != null) keyless(inlineShape, report)
         val declaration: Declaration =
             inlineEnum?.copy(name = name)
-                ?: record(inlineShape!!.copy(name = name), visible.inside(owner, taken), report)
+                ?: record(
+                    inlineShape!!.copy(name = name),
+                    visible.inside(owner, taken, hoisted.map { it.name }.toSet()),
+                    report,
+                )
         val reference =
             type.copy(
                 name = name,
@@ -137,7 +149,7 @@ object Hoisting {
             report(
                 Diagnostic(
                     CoreCodes.HOISTED_NAME_COLLISION,
-                    "the inline $kind of field '${field.name}' is named '$name', which $hidden also declares; inside model '${owner.name}' the name would mean the inline $kind",
+                    "the inline $kind of field '${field.name}' is named '$name', which $hidden; inside model '${owner.name}' the name would mean the inline $kind",
                     field.nameSpan,
                     help = "name it with @name(\"…\")",
                 )
@@ -147,10 +159,13 @@ object Hoisting {
             hoisted += declaration
             return field.copy(type = reference)
         }
+        // a name already in [taken] is either a declared nested one or an earlier field's hoisted
+        // one
+        val twin = if (hoisted.any { it.name == name }) "also names" else "already declares"
         report(
             Diagnostic(
                 CoreCodes.HOISTED_NAME_COLLISION,
-                "the inline $kind of field '${field.name}' is named '$name', which model '${owner.name}' already declares",
+                "the inline $kind of field '${field.name}' is named '$name', which model '${owner.name}' $twin",
                 field.nameSpan,
                 help = "name it with @name(\"…\")",
             )

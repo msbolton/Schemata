@@ -1,7 +1,6 @@
 package io.schemata.target.sql
 
 import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Field
@@ -24,6 +23,7 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
 import io.schemata.target.NameClaims
+import io.schemata.target.OverrideNames
 import io.schemata.target.TypeText
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.string
@@ -46,15 +46,24 @@ import io.schemata.target.unionMemberStem
 object SqlLowering {
     fun lower(schema: Schema): Lowered<RelationalModel> {
         val diagnostics = mutableListOf<Diagnostic>()
+        // an empty `@sql(<key>)` override is reported and ignored, whichever key carries it
+        val overrides =
+            OverrideNames(
+                "sql",
+                SqlCodes.INVALID_OVERRIDE,
+                diagnostics,
+                { if (it.isEmpty()) "is empty" else null },
+            ) {
+                "give the name at least one character"
+            }
         val schemaNames =
             schema.namespaces.associate {
                 val override =
-                    validOverride(
+                    overrides.overrideName(
                         it.annotations,
-                        "schema",
                         "schema '${it.name}'",
                         it.span,
-                        diagnostics,
+                        key = "schema",
                     )
                 it.name to identifier(Naming.schemaOf(it, override), it.span, diagnostics)
             }
@@ -65,12 +74,19 @@ object SqlLowering {
                 schemaNames,
                 identifier = { name, span -> identifier(name, span, diagnostics) },
                 override = { annotations, key, where, span ->
-                    validOverride(annotations, key, where, span, diagnostics)
+                    overrides.overrideName(annotations, where, span, key)
                 },
             )
         val lowered =
             schema.namespaces.map {
-                NamespaceLowering(schema, catalog, it, schemaNames.getValue(it.name), diagnostics)
+                NamespaceLowering(
+                        schema,
+                        catalog,
+                        it,
+                        schemaNames.getValue(it.name),
+                        overrides,
+                        diagnostics,
+                    )
                     .lower()
             }
         return Lowered(RelationalModel(placeForeignKeys(schema, lowered)), diagnostics)
@@ -107,6 +123,7 @@ object SqlLowering {
         private val catalog: Catalog,
         private val namespace: Namespace,
         private val schemaName: String,
+        private val overrides: OverrideNames,
         private val diagnostics: MutableList<Diagnostic>,
     ) {
         /** Every name a table puts in the schema's relation namespace, with where it came from. */
@@ -415,7 +432,7 @@ object SqlLowering {
                 )
             sources.forEach { source ->
                 source.columns.forEach { column ->
-                    claims.claim(column, source.subject, source.span, kind = "column")
+                    claims.claim("column", column, source.subject, source.span, kind = "column")
                 }
             }
         }
@@ -809,7 +826,7 @@ object SqlLowering {
         private fun columnOf(field: Field, where: String): String =
             Naming.columnOf(
                 field,
-                validOverride(field.annotations, "column", where, field.nameSpan, diagnostics),
+                overrides.overrideName(field.annotations, where, field.nameSpan, key = "column"),
             )
 
         /**
@@ -1759,26 +1776,6 @@ object SqlLowering {
                         help = "set `@sql(schema: \"…\")` on one of them",
                     )
             }
-    }
-
-    /** The `@sql(<key>)` override when it is non-empty; an empty one is reported and ignored. */
-    private fun validOverride(
-        annotations: Annotations,
-        key: String,
-        where: String,
-        span: Span,
-        diagnostics: MutableList<Diagnostic>,
-    ): String? {
-        val value = annotations.string("sql", key) ?: return null
-        if (value.isNotEmpty()) return value
-        diagnostics +=
-            Diagnostic(
-                SqlCodes.INVALID_OVERRIDE,
-                "$where: @sql($key: \"\") is empty",
-                span,
-                help = "give the name at least one character",
-            )
-        return null
     }
 
     internal fun englishList(names: List<String>): String =

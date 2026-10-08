@@ -36,21 +36,17 @@ fun keyRecordName(target: QualifiedName): QualifiedName =
     QualifiedName(target.namespace, target.path.dropLast(1) + "${target.simpleName}Key")
 
 /**
- * Whether [decl] is a key record [referencesByKey] declared rather than one the schema wrote: it
- * sits beside a model with a composite key, is named for it, and shares its span.
+ * The annotation target [referencesByKey] gives each key record it declares. It holds a space, so
+ * no annotation a schema writes can carry it, and no target reads it.
  */
-fun Schema.isKeyRecord(decl: TypeDecl): Boolean {
-    if (decl !is RecordType || !decl.name.endsWith("Key")) return false
-    val qn = decl.qualifiedName
-    val model =
-        lookupOrNull(
-            QualifiedName(qn.namespace, qn.path.dropLast(1) + decl.name.removeSuffix("Key"))
-        )
-            as? RecordType ?: return false
-    return (keyOf(model.qualifiedName)?.size ?: 0) > 1 &&
-        decl.span == model.span &&
-        decl.nameSpan == model.nameSpan
-}
+private const val KEY_RECORD_MARK = "key record"
+
+/**
+ * Whether [decl] is a key record [referencesByKey] declared rather than one the schema wrote. The
+ * builder marks each one it makes, so a model that merely looks like a key record (named for a
+ * keyed model beside it) is never taken for one.
+ */
+fun Schema.isKeyRecord(decl: TypeDecl): Boolean = KEY_RECORD_MARK in decl.annotations.entries
 
 /**
  * The schema as a document target sends it, where a reference to a keyed model carries the model's
@@ -226,9 +222,13 @@ private class KeyedReferences(private val schema: Schema) {
             doc = null,
             span = model.span,
             nameSpan = model.nameSpan,
-            annotations = suffixed(model.annotations, "Key", keep = false),
+            annotations = marked(suffixed(model.annotations, "Key", keep = false)),
         )
     }
+
+    /** [annotations] with the mark [isKeyRecord] reads. */
+    private fun marked(annotations: Annotations): Annotations =
+        Annotations(annotations.entries + (KEY_RECORD_MARK to mapOf("of" to AnnotationValue.Flag)))
 
     /**
      * [annotations] with every target's `name` override followed by [suffix]. With [keep] false

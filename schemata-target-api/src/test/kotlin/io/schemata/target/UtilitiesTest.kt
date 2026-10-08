@@ -122,9 +122,9 @@ class UtilitiesTest {
     fun `claims report the second holder with the first's location`() {
         val sink = mutableListOf<Diagnostic>()
         val claims = NameClaims(code, "rename one", sink)
-        claims.claim("R/x", "field 'R.x'", at(3), display = "x", kind = "property")
-        claims.claim("R/x", "field 'R.y'", at(4), display = "x", kind = "property")
-        claims.claim("S/x", "field 'S.x'", at(5), display = "x", kind = "property")
+        claims.claim("R", "x", "field 'R.x'", at(3), kind = "property")
+        claims.claim("R", "x", "field 'R.y'", at(4), kind = "property")
+        claims.claim("S", "x", "field 'S.x'", at(5), kind = "property")
         assertEquals(
             listOf(
                 "SCH9999 field 'R.y' lowers to property 'x', already used by field 'R.x' (s.schemata:3)"
@@ -176,6 +176,45 @@ class UtilitiesTest {
             sink.map { "${it.code.id} ${it.message}" },
         )
         assertEquals(List(3) { "give it a name" }, sink.map { it.help })
+    }
+
+    @Test
+    fun `a claim is unique within its own scope only`() {
+        val sink = mutableListOf<Diagnostic>()
+        val claims = NameClaims(code, "rename one", sink)
+        claims.claim("a", "x", "field 'a.x'", at(1), kind = "property")
+        claims.claim("b", "x", "field 'b.x'", at(2), kind = "property")
+        assertEquals(emptyList(), sink)
+        claims.claim("b", "x", "field 'b.y'", at(3), display = "X", kind = "property")
+        assertEquals(
+            listOf(
+                "field 'b.y' lowers to property 'X', already used by field 'b.x' (s.schemata:2)"
+            ),
+            sink.map { it.message },
+        )
+    }
+
+    @Test
+    fun `an override under any key is validated the same way`() {
+        val sink = mutableListOf<Diagnostic>()
+        val names =
+            OverrideNames("t", code, sink, { if (it.isEmpty()) "is empty" else null }) {
+                "give it a name"
+            }
+        val bad = ann("t", "column" to AnnotationValue.Str(""))
+        assertNull(names.overrideName(bad, "field 'A.f'", at(7), key = "column"))
+        assertEquals(
+            "c",
+            names.overrideName(
+                ann("t", "column" to AnnotationValue.Str("c")),
+                "f",
+                at(8),
+                key = "column",
+            ),
+        )
+        assertNull(names.overrideName(bad, "field 'A.f'", at(7)))
+        assertEquals(listOf("field 'A.f': @t(column: \"\") is empty"), sink.map { it.message })
+        assertEquals("give it a name", sink.single().help)
     }
 
     @Test

@@ -223,7 +223,8 @@ class DocumentLowering(
         defs.getOrPut(decl.qualifiedName) {
             val key = keys(decl.qualifiedName)
             claims.claim(
-                key = "def:$key",
+                scope = "def",
+                name = key,
                 holder = "${decl.kindWord} '${decl.name}'",
                 span = decl.nameSpan,
                 display = key,
@@ -266,7 +267,8 @@ class DocumentLowering(
             enum.values.map { value ->
                 val string = names.overrides.enumValueName(enum, value)
                 claims.claim(
-                    key = "value:$key/$string",
+                    scope = "value:$key",
+                    name = string,
                     holder = "enum value '${enum.name}.${value.name}'",
                     span = value.nameSpan,
                     display = string,
@@ -297,7 +299,8 @@ class DocumentLowering(
             (member.named as? Ref)?.let { schema.lookup(it.target).name }
                 ?: (member.type as Scalar).builtin.typeName
         claims.claim(
-            key = "tag:${scope(union.qualifiedName, path)}/$tag",
+            scope = "tag:${scope(union.qualifiedName, path)}",
+            name = tag,
             holder = "union member '$declName'",
             span = member.span,
             display = tag,
@@ -322,8 +325,8 @@ class DocumentLowering(
             val name =
                 names.overrides.overrideName(field.annotations, where, field.nameSpan) ?: field.name
             claims.claim(
-                key =
-                    "property:${scope(record.qualifiedName, names.path(record.qualifiedName))}/$name",
+                scope = "property:${scope(record.qualifiedName, names.path(record.qualifiedName))}",
+                name = name,
                 holder = where,
                 span = field.nameSpan,
                 display = name,

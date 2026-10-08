@@ -173,14 +173,19 @@ object XsdLowering {
          */
         private fun types(decl: TypeDecl, path: List<String>): List<XsdType> {
             val here = path + (names.overrides.nameOverride(decl) ?: decl.name)
+            val reported = diagnostics.size
             val own =
                 when (decl) {
                     is EnumType -> enum(decl)
                     is RecordType -> record(decl, here)
                     is UnionType -> choice(decl, here)
                 }
+            // A key record's fields are copies of the model's key fields, which the model's own
+            // lowering has already judged; judging the copies would report each warning twice.
+            if (schema.isKeyRecord(decl)) diagnostics.subList(reported, diagnostics.size).clear()
             claims.claim(
-                key = "type:${own.name}",
+                scope = "type",
+                name = own.name,
                 holder = "${decl.kindWord} '${decl.name}'",
                 span = decl.nameSpan,
                 display = own.name,
@@ -197,7 +202,8 @@ object XsdLowering {
                 enum.values.map { value ->
                     val string = names.overrides.enumValueName(enum, value)
                     claims.claim(
-                        key = "value:$typeName/$string",
+                        scope = "value:$typeName",
+                        name = string,
                         holder = "enum value '${enum.name}.${value.name}'",
                         span = value.nameSpan,
                         display = string,
@@ -516,7 +522,8 @@ object XsdLowering {
             val name =
                 names.overrides.overrideName(field.annotations, where, field.nameSpan) ?: field.name
             claims.claim(
-                key = "element:${path.joinToString(".")}/$name",
+                scope = "element:${path.joinToString(".")}",
+                name = name,
                 holder = where,
                 span = field.nameSpan,
                 display = name,
@@ -548,7 +555,8 @@ object XsdLowering {
                 (member.named as? Ref)?.let { schema.lookup(it.target).name }
                     ?: (member.type as Scalar).builtin.typeName
             claims.claim(
-                key = "element:${path.joinToString(".")}/$name",
+                scope = "element:${path.joinToString(".")}",
+                name = name,
                 holder = "union member '$declName'",
                 span = member.span,
                 display = name,
@@ -565,7 +573,8 @@ object XsdLowering {
         private fun globalElement(record: RecordType): XsdElement {
             val name = names.overrides.nameOverride(record) ?: XsdNames.elementName(record.name)
             claims.claim(
-                key = "element:$name",
+                scope = "element",
+                name = name,
                 holder = "model '${record.name}'",
                 span = record.nameSpan,
                 display = name,
@@ -766,7 +775,8 @@ object XsdLowering {
             val key = XsdAttribute("key", typeRef(map.key, where, span), required = true)
             val unique = "${uniqueBase}_key"
             claims.claim(
-                key = "unique:$unique",
+                scope = "unique",
+                name = unique,
                 holder = where,
                 span = span,
                 display = unique,

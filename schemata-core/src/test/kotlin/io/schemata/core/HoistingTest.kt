@@ -117,6 +117,25 @@ class HoistingTest {
     fun `two inline types given one name collide`() {
         val text = "schema s\nmodel M { a { x int32 } @name(\"P\")\n b { y int32 } @name(\"P\") }"
         assertEquals(listOf("SCH1053"), codes(text))
+        val message = analyze(text).diagnostics.single().message
+        assertTrue("which model 'M' also names" in message, message)
+        assertFalse("declares" in message, message)
+    }
+
+    @Test
+    fun `a declared twin of a hoisted name still reads as declared`() {
+        val r =
+            analyze("schema s\nmodel Order { status enum { a }  model OrderStatus { x int32 } }")
+        assertTrue("which model 'Order' already declares" in r.diagnostics.single().message)
+    }
+
+    @Test
+    fun `a hoisted name from an enclosing model reads as named not declared`() {
+        val text =
+            "schema s\nmodel Outer {\n  inner Inner\n  kind enum { a }  @name(\"InnerKind\")\n" +
+                "  model Inner { kind enum { a b } }\n}"
+        val message = analyze(text).diagnostics.single().message
+        assertTrue("which model 'Outer' also names" in message, message)
     }
 
     @Test

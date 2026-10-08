@@ -989,6 +989,22 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `a key record does not repeat the warnings of the model it copies`() {
+        val schema =
+            compile(
+                "schema shop\n\nmodel Pair { #1 a int32 { id } @xsd(mixed)  #2 b int32 { id } }\n\n" +
+                    "model User { #1 id uuid { id }  #2 pair Pair }\n"
+            )
+        val lowered = XsdLowering.lower(schema)
+        assertEquals(
+            listOf(
+                "field 'Pair.a': @xsd(mixed) is not allowed on an int32; it takes a string or string?"
+            ),
+            lowered.diagnostics.map { it.message },
+        )
+    }
+
+    @Test
     fun `an attribute on a list field is rejected and the field is skipped`() {
         val r =
             record(

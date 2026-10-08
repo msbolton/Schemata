@@ -44,20 +44,20 @@ internal object Services {
     }
 
     /**
-     * [declarations] holds every lowered declaration of the compilation by qualified name, so a
-     * path parameter's field is judged by its resolved type.
+     * What every service of a compilation is judged against. [declarations] holds every lowered
+     * declaration by qualified name, so a path parameter's field is judged by its resolved type.
      */
-    fun analyze(
-        decl: ServiceDecl,
-        scope: Scope,
-        index: DeclarationIndex,
-        resolver: Resolver,
-        annotations: AnnotationChecker,
-        options: AnalysisOptions,
-        declarations: Map<QualifiedName, TypeDecl>,
-        routes: Routes,
-        diagnostics: MutableList<Diagnostic>,
-    ): Service {
+    data class Context(
+        val index: DeclarationIndex,
+        val resolver: Resolver,
+        val annotations: AnnotationChecker,
+        val options: AnalysisOptions,
+        val declarations: Map<QualifiedName, TypeDecl>,
+        val diagnostics: MutableList<Diagnostic>,
+    )
+
+    fun analyze(decl: ServiceDecl, scope: Scope, context: Context, routes: Routes): Service {
+        val (index, resolver, annotations, options, declarations, diagnostics) = context
         if (!Analyzer.upperCamel.matches(decl.name)) {
             val suggestion = Suggest.example(decl.name, Suggest.upperCamel(decl.name))
             diagnostics +=
@@ -202,7 +202,8 @@ internal object Services {
             ok = false
             diagnostics += error(CoreCodes.BINDING, "operation '${op.name}': $message", span, help)
         }
-        val streamed = request?.stream == true || (request == null && op.request?.stream == true)
+        // a payload that did not resolve is still streamed when it was written so
+        val streamed = op.request?.stream == true
         if (streamed && verb.parameterised) {
             bad(
                 "a streamed request cannot use ${verb.lower}",

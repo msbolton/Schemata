@@ -294,6 +294,48 @@ class ServicesTest {
     }
 
     @Test
+    fun `a duplicate service is reported once and not analysed`() {
+        val r =
+            analyze(
+                BASE +
+                    "service S { #1 a(OrderId): Order  get \"/x/{id}\" }\n" +
+                    "service S { #1 b(OrderId): Order  get \"/x/{id}\" }"
+            )
+        assertEquals(listOf("SCH1004 service 'S' is declared more than once"), messages(r))
+    }
+
+    @Test
+    fun `a service declared before its record resolves`() {
+        val r =
+            analyze(
+                "schema shop\nservice S { #1 get(Order): Order  get \"/orders/{id}\" }\n" +
+                    "model Order { #1 id uuid }"
+            )
+        assertEquals(emptyList(), messages(r))
+        val op = r.schema!!.services().single().operations.single()
+        assertEquals(Payload(qn("shop", "Order"), false), op.request)
+        assertEquals(HttpBinding(Verb.GET, "/orders/{id}", listOf("id")), op.binding)
+    }
+
+    @Test
+    fun `the same service name in two files of a schema is reported once`() {
+        val r = analyze("schema shop\nservice S { }", "schema shop\nservice S { }")
+        assertEquals(
+            listOf("SCH1004 service 'S' is declared in both t0.schemata:2 and t1.schemata:2"),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `same-named services in different schemas keep their routes apart`() {
+        val one =
+            "schema one\nmodel OrderId { #1 id uuid }\nservice S { #1 a(OrderId)  get \"/x/{id}\" }"
+        val two =
+            "schema two\nmodel OrderId { #1 id uuid }\nservice S { #1 a(OrderId)  get \"/x/{id}\" }"
+        assertEquals(emptyList(), messages(analyze(one, two)))
+    }
+
+    @Test
     fun `a service collides with a declaration in another file`() {
         val r =
             analyze("schema shop\nmodel Order { #1 id uuid }", "schema shop\n\nservice Order { }")
