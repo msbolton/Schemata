@@ -19,8 +19,8 @@ service. A doc comment may precede the `schema` line, and the schema's attribute
 on the same line (section 15); `examples/shop/orders.schemata` shows both. A UTF-8 byte-order mark
 at the start of a file is skipped; `fmt` never writes one.
 
-A file in the 1.x syntax, one whose first keyword is `namespace` or `record`, is reported as a
-single error, SCH0008, and nothing else; run `schemata upgrade` on it (section 23).
+A file in the 1.x syntax, one whose first keyword is `namespace`, is reported as a single error,
+SCH0008, and nothing else; run `schemata upgrade` on it (section 23).
 
 By default, a schema's Postgres schema is the last segment of its name: `shop.orders` lowers to
 Postgres schema `"orders"`. Two schemas with the same last segment collide (SCH2102) unless one sets
@@ -156,10 +156,11 @@ block of options in braces, any attributes, and an optional default.
 language's own facts about the field, written in one block separated by spaces or commas: a bound
 (`min`, `max`, `minItems`, `maxItems`), a pattern (`match`), a key (`id`), a constraint or an index
 (`unique`, `index`), and embedding (`embed`, section 9). Attributes, written with `@`, tune what one
-target writes (section 15). `fmt` writes one field per line in a body written over several lines and
-aligns the ordinal, the name, the type, and the rest in four columns; a short body written on the
-line of its braces, as many in this reference are, stays there. An option written on a type that
-cannot carry it, or one the language does not know, is an error (SCH1049).
+target writes (section 15). `fmt` prints a model body on the line of its braces when it fits there
+in 100 columns and holds no nested declaration, comment, doc, block attribute, or inline type, as
+many in this reference do, however it was written; otherwise it writes one field per line and
+aligns the ordinal, the name, the type, and the rest in four columns. An option written on a type
+that cannot carry it, or one the language does not know, is an error (SCH1049).
 
 | Type | Meaning | Protobuf | Postgres | Bounds and pattern |
 |---|---|---|---|---|
@@ -330,9 +331,15 @@ model Shipment { #1 id int64 { id }  #2 line Order.Line }
 
 A model is a value type unless it declares a key: the option `{ id }` on a field, on several fields
 for a composite key in declaration order, or `@@id(a, b)` to give a composite key its own order. A
-key field is a scalar or an enum, and never nullable (SCH2107). `{ unique }` and `{ index }` put a
+key field is a non-null scalar or enum on every target: `{ id }` on a nullable field, a list, a
+map, a union, or a reference is SCH1049, and `@@id` naming one is SCH1018. When a model writes
+`@@id(a, b)`, `{ id }` may repeat exactly the fields it names or sit on none of them (SCH1049).
+An inline shape is part of its model and has no key: `{ id }` or `@@id` inside one is SCH1049, and
+a nested model declared by name is the way to give it one. `{ unique }` and `{ index }` put a
 unique constraint or an index on a field's column, or on every column the field produces when it
-is an embedded model, a union, or an inline shape; neither goes on a list or a map (SCH1049).
+is an embedded model, a union, or an inline shape; neither goes on a list or a map (SCH1049),
+except that `{ unique }` on a list of a keyed model makes it a set: Postgres adds a unique over
+the parent's key and the copied key in the list's child table.
 `@@unique(a, b)` and `@@index(a, b)` span several fields. The Postgres target is the one that
 writes keys, constraints, and indexes; to the others a key matters only through the references
 to its model (below). A top-level model with no key that no field uses is an error for the
@@ -367,7 +374,9 @@ A field's type may be written in place. `shipping { street string { max 200 }  c
 hoisted to a declaration nested in the model and named `<Model><Field>` in UpperCamel
 (`OrderShipping`, `OrderStatus`), so every target, `diff`, `migrate`, and the editor see an
 ordinary nested model or enum; `@name("Address")` on the field gives it that name instead. A
-hoisted name that the model already declares is an error (SCH1053). Shapes nest, and their names
+hoisted name that the model already declares is an error (SCH1053), and so is one the model could
+already see from outside, at the schema's top level or in a model it is nested in, since every
+bare use of that name inside the model would then mean the hoisted type. Shapes nest, and their names
 chain: a shape `geo` inside `OrderAddress` is `OrderAddressGeo`. An inline type is legal only as a
 field's type, directly or as the element of its list (`{ … }[]`); a union member, an alias, a
 payload, or a type argument names a declared type. Enum values are written without commas, in an
@@ -414,14 +423,17 @@ as one field `<field>_<key field>` of the key's type, carrying the reference's o
 nullability, and doc, and a composite key as one field `<field>` of a `<Model>Key` type, declared
 once beside the model and holding the key fields in key order. A list of a keyed model is a list
 of its keys (a child table of key copies in Postgres), and a union member or a map value typed as a
-keyed model is referenced the same way. A service's request or response is still the whole model,
-since it is the document itself. A field typed as a model without a key is composition, as before:
-the model's columns are embedded in the containing table, and the other targets nest it.
+keyed model is referenced the same way. A service's request or response that names a model is
+still the whole model, since it is the document itself; one that names a union carries keys like
+any union. A field typed as a model without a key is composition, as before: the model's columns
+are embedded in the containing table, and the other targets nest it. A name `<field>_<key>` the
+model has `reserved` is an error (SCH1020), since old readers still know it as the retired field.
 
-`{ embed }` on a reference asks for the copy instead: Protobuf, XSD, JSON Schema, and OpenAPI
-write the whole model in place. Postgres refuses it on a keyed model (SCH2110), since a keyed
-model is referenced, never copied into another table, so a schema that embeds a keyed model
-compiles for every target but Postgres.
+`{ embed }` on a reference, or on a union member, asks for the copy instead, and means the same on
+every target: Protobuf, XSD, JSON Schema, and OpenAPI write the whole model in place, and Postgres
+copies the model's columns, its key among them, under the field's prefix with no foreign key, as
+1.x's `@sql(strategy = embed)` did. On a list of a keyed model, Postgres copies each element's
+columns into the list's child table.
 
 A **back-reference** is a field typed `Model[]` or `Model` that carries `@relation(field)`, naming
 a reference on that model back to this one: `orders Order[] @relation(customer)` on `Customer`.
@@ -478,14 +490,15 @@ model Order {
 }
 ```
 
-```schemata error SCH2110
+```schemata
 schema shop.orders
 
 model Customer { #1 id uuid { id }  #2 name string }
 
 model Order {
   #1 id       uuid     { id }
-  #2 customer Customer { embed }
+  #2 customer Customer
+  #3 billed   Customer { embed }
 }
 ```
 
@@ -553,7 +566,9 @@ column, a list of models without a key to a child table named `<parent>_<field>`
 keys (section 9), and `map` to `jsonb`; `@sql(strategy)` changes each of these, as section 15
 shows. Postgres does not enforce a collection's `minItems` or `maxItems` either way; the bound is
 dropped and reported as SCH2105, the same as any other unenforced refinement. A list of lists is
-written `list<T[]>`, since a type takes one `[]`. A collection nested inside another collection has
+written `list<T[]>`, since a type takes one `[]`, and so is a list of maps that bound their own
+size, `list<map<string, int32> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share
+one block; `fmt` writes every other `list<T>` as `T[]`. A collection nested inside another collection has
 no Protobuf form (SCH2005), and no relational form unless the outer collection takes
 `@sql(strategy: json)`.
 
@@ -628,7 +643,8 @@ model OrderLine { #1 id int64 { id }  quantity int32 }
 Attributes tune what a target writes; the language's own facts are options (section 5). An
 attribute is written `@target(key)` for a flag, `@target(key: value)` for a value, or
 `@target(k1, k2: v)` for several keys at once. A schema's attributes follow its name on the
-`schema` line; a field's follow its type and options on the field's line; an enum's, a union's, an
+`schema` line; a field's follow its type and options on the field's line, or lead the field on
+lines of their own above it, where `fmt` keeps them; an enum's, a union's, an
 alias's, a service's, an operation's, and an enum value's are written before it. A model's are
 block attributes, written `@@target(…)` at the end of its body after the fields and any
 `reserved` lines. A target's model-level key and `@deprecated` may instead lead the `model` line
@@ -1228,8 +1244,9 @@ would and left untouched.
 changed; a file that already reads as 2.0 is left alone and not named. It takes `--check`,
 `--format`, and `--color` exactly as `fmt` does, with the same exit codes, so
 `schemata upgrade --check .` in CI fails while any 1.x file is left. Doc comments and line
-comments are kept. Section 23 lists every rewrite it makes and the one change of meaning that
-comes with 2.0.
+comments are kept. Each name it renames because 2.0 keeps it as a keyword is reported as a
+warning (SCH0009), and a file it cannot convert is reported and left untouched. Section 23 lists
+every rewrite it makes, what it cannot convert, and the one change of meaning that comes with 2.0.
 
 `lsp` runs the language server for an editor; section 22 describes it. It takes no options and
 writes nothing but protocol messages to stdout.
@@ -2537,14 +2554,17 @@ override, so a pinned rename is a doc-level change only.
 | Declaration kind changed | breaking | breaking | breaking | breaking |
 | Schema removed | as its declarations removed one by one: note | breaking when any had a table | breaking when any had a root element, else note | breaking when it had declarations |
 | `@xsd(name)` / `@jsonschema(name)` changed on a declaration | compatible | compatible | breaking when the model had a root element, else note / compatible | compatible / breaking (the `$defs` key changes) |
-| `{ id }` or `@@id` added, removed, or moved | compatible | breaking | compatible | compatible |
+| `{ id }` or `@@id` added, removed, or moved, or a key made composite, on a model nothing references | compatible | breaking | compatible | compatible |
+| The same while other models reference the model by key | breaking (their reference fields change shape) | breaking | breaking (old documents carry the old key) | breaking |
+| A key field renamed while other models reference its model | note (their reference fields are named after it; the JSON mapping changes) | the field's own verdict | breaking | breaking |
 | A key field's type changed while other models reference its model | the field's own verdict, raised to a note when it is compatible (the references' emitted key fields change with it) | the field's own verdict | as Protobuf | as Protobuf |
 | `@sql(strategy)` changed | compatible | breaking | compatible | compatible |
 | `{ unique }` or `@@unique` added | compatible | breaking (existing duplicate rows) | compatible | compatible |
 | `{ unique }` or `@@unique` removed, `{ index }` or `@@index` added or removed | compatible | compatible | compatible | compatible |
 | Back-reference added or removed | compatible | compatible | compatible | compatible |
 | `@relation(onDelete)` added, removed, or changed | compatible | note (existing rows are unaffected; future deletes behave differently) | compatible | compatible |
-| `{ embed }` added or removed on a reference to a keyed model | breaking (the field becomes the model or its key) | as `@sql(strategy)` changed: breaking | breaking | breaking |
+| `{ embed }` added or removed on a reference to a keyed model | breaking (the field becomes the model or its key) | as `@sql(strategy)` changed: breaking (a foreign key becomes copied columns, or back) | breaking | breaking |
+| `{ embed }` added or removed on a reference to a model without a key | compatible | compatible | compatible | compatible |
 | `@sql(type)` changed | compatible | breaking | compatible | compatible |
 | `@proto(package)` / `@xsd(namespace)` / `@jsonschema(id)` changed | breaking / compatible / compatible | compatible | compatible / breaking / compatible | compatible / compatible / breaking |
 | `@xsd(attribute)` added or removed on a field | compatible | compatible | breaking (an element becomes an attribute or back) | compatible |
@@ -2559,10 +2579,16 @@ override, so a pinned rename is a doc-level change only.
 
 `T[]` → `T?[]` is compatible everywhere; the reverse is a nullability tightening on the element.
 `@@timestamps` added is two fields added, the second nullable: compatible on Protobuf, and on the
-others what a required field added is, for `created_at`. A key field's type change is judged by
-the scalar rows above; when other models reference its model, Protobuf, XSD, and JSON Schema add a
-note naming how many, since the key fields they write for those references change with it, and
-Postgres already judges the copied columns as part of the key's change.
+others what a required field added is, for `created_at`. A change to a model's key reaches every
+model that references it by key, though those models did not change: their reference fields carry
+the key, so Protobuf, XSD, and JSON Schema judge the key's change against them and name them. A
+key added, removed, moved, or made composite reshapes those fields, breaking on all three; a key
+field renamed renames them, a note on Protobuf, where only the JSON mapping uses names, and
+breaking elsewhere; a key field retyped retypes them as it retypes itself, so its own verdict
+stands, raised to a note when compatible. Fields, list elements, map values, and union members
+count as references; one written `{ embed }` does not. OpenAPI counts only the referencing models
+an operation of OLD reaches. Postgres already judges the copied columns as part of the key's
+change.
 
 The openapi rulebook judges a change to a model, enum, or union exactly as the JSON Schema column
 says when an operation of OLD reaches that declaration, since its component is the JSON Schema
@@ -3064,12 +3090,14 @@ In Zed the same options are `binary.path` and the `roots` and `strict` entries o
     schemata upgrade [--check] [--format human|json] [--color auto|always|never] PATHS...
 
 2.0 changed the syntax, not the data model: a 1.x schema means in 2.0 what it meant in 1.x, with
-one exception, below. `schemata upgrade` rewrites 1.x files in place, mechanically and completely;
-section 18 describes the command. A 1.x file given to any other command, or opened in the editor,
-is reported as one error, SCH0008, so nothing is compiled from it by mistake. To move a project:
+one exception, below. `schemata upgrade` rewrites 1.x files in place, mechanically, and reports
+the few it cannot convert (below) without touching them; section 18 describes the command. A 1.x
+file given to any other command, or opened in the editor, is reported as one error, SCH0008, so
+nothing is compiled from it by mistake. To move a project:
 
-1. Run `schemata upgrade` over every directory that holds `.schemata` files, and commit the
-   result on its own, so the review sees only the rewrite.
+1. Run `schemata upgrade` over every directory that holds `.schemata` files at once, so it sees
+   every schema name, and commit the result on its own, so the review sees only the rewrite. Read
+   its warnings: each names a name it renamed (SCH0009, below).
 2. Run `schemata upgrade --check` in CI beside `fmt --check`, so no 1.x file comes back.
 3. Compile, and read the outputs' diff for the change of meaning below: every Protobuf, XSD, JSON
    Schema, and OpenAPI output that held a keyed model inside another changes.
@@ -3087,6 +3115,7 @@ is reported as one error, SCH0008, so nothing is compiled from it by mistake. To
 | `list<T?>`, `list<T>?` | `T?[]`, `T[]?` |
 | `T(min = a, max = b, pattern = "p")` | `T { min a, max b, match "p" }` (`decimal(p, s)` unchanged) |
 | `list<string(max = 16)>` | `string[] { max 16 }`: the element's options share the list's block, after its own |
+| `list<list<T>>`, `list<map<K, V>(max = a)>(max = b)` | `list<T[]>`, `list<map<K, V> { maxItems a }> { maxItems b }`: the outer `list<…>` stays where `T[]` cannot say it |
 | `@sql(key)`, `@sql(unique)`, `@sql(index)` on a field | `{ id }`, `{ unique }`, `{ index }` |
 | `@sql(key = (a, b))` on a record | `@@id(a, b)` |
 | `@sql(strategy = embed)` | `{ embed }` |
@@ -3094,13 +3123,34 @@ is reported as one error, SCH0008, so nothing is compiled from it by mistake. To
 | annotations on a record | `@@` block attributes at the end of the body |
 | `enum E { a, b }` | `enum E { a b }` |
 | a union member's refinements, `string(max = 5)` | the member's option block, `string { max 5 }` |
-| an identifier that is a 2.0 keyword (`schema`, `model`) | `<name>_value`, with the emitted SQL name kept by `@sql(schema: …)` on the schema or `@sql(column: …)` on a field; references follow; an enum value or an operation is renamed without an override; a name already taken is an error that `upgrade` reports; the Protobuf, XSD, and JSON names change with it |
+| an identifier that is a 2.0 keyword (`schema`, `model`) | `<name>_value`, with the emitted SQL name kept by `@sql(schema: …)` on the schema or `@sql(column: …)` on a field; references follow; an enum value keeps its Protobuf, XSD, and JSON names through `@proto(name: …)`, `@xsd(name: …)`, and `@jsonschema(name: …)` written beside it; an operation is renamed without an override; every rename is reported as a warning (SCH0009) |
 | everything else (enums, unions, aliases, services, reserved, docs, comments) | unchanged spelling |
 
 Only a lower_snake name can be a keyword, so the rename touches a schema name segment, a field,
-an enum value, or an operation, never a type. A list of lists keeps its outer `list<…>`, since a
-type takes one `[]`. A 1.x annotation that carried a comment of its own stays on a line above its
-field, so the comment keeps its line.
+an enum value, an operation, or an import alias, never a type. A 1.x annotation that carried a
+comment of its own stays on a line above its field, so the comment keeps its line. `upgrade` reads
+its own output back and checks that it says what the 1.x file said; a difference is an error, and
+nothing is written.
+
+A renamed enum value changes what Postgres stores, since an enum is a text column with a CHECK of
+its values: from the next migration on, the column takes `schema_value`, and rows that still hold
+`schema` fail the new CHECK. `migrate` cannot plan this step, because both sides it compares are
+2.0 and agree on the new name, so run it by hand before applying the migration:
+
+    UPDATE shop.orders SET kind = 'schema_value' WHERE kind = 'schema';
+
+### What `upgrade` cannot convert
+
+Each of these is an error naming its place; fix the 1.x file and run `upgrade` again.
+
+- A positional refinement on anything but `decimal(p, s)`, such as `string(3)`: name the bound,
+  `string(max = 3)`.
+- A refinement given as a bare name, or written on a service payload: write it as a literal, or
+  move it to an alias.
+- A keyword rename onto a name already declared in the same scope: a field `model` beside a field
+  `model_value`, or an enum value `schema` beside `schema_value`.
+- A schema renamed onto a schema another file of the run declares: `shop.schema` beside
+  `shop.schema_value`, which would merge the two.
 
 ### The one change of meaning
 
@@ -3108,14 +3158,15 @@ In 1.x, a field typed as a keyed record was a foreign key in Postgres and a copy
 record everywhere else. In 2.0 every target holds the key (section 9): a Protobuf field, an XSD
 element, a JSON Schema property, and an OpenAPI property `<field>_<key>`, or one `<Model>Key`
 object for a composite key, where 1.x wrote the referenced message, element, or object. Lists,
-union members, and map values of a keyed model follow. Postgres output does not change. A
-service's request or response, which is the document itself, still holds the whole model.
+union members, and map values of a keyed model follow. Postgres output does not change, nor does
+a service's request or response that names a model, which is the document itself.
 
 Where a document should still carry the copy, add `{ embed }` to the field after upgrading;
-Protobuf, XSD, JSON Schema, and OpenAPI then write what 1.x wrote. `{ embed }` on a keyed model is
-an error for Postgres (SCH2110), so a schema that needs both the copy and a Postgres table keeps
-two fields, or two models. `upgrade` does not add `{ embed }` itself: holding the key is the
-behaviour 2.0 is for.
+Protobuf, XSD, JSON Schema, and OpenAPI then write what 1.x wrote. On Postgres, `{ embed }` copies
+the model's columns, its key among them, with no foreign key, which is what 1.x's
+`@sql(strategy = embed)` did and what `upgrade` turns it into, so a 1.x copy stays a copy on every
+target. `upgrade` does not add `{ embed }` anywhere else: holding the key is the behaviour 2.0 is
+for.
 
 ### What else looks different
 
@@ -3130,11 +3181,18 @@ behaviour 2.0 is for.
   compiling it again with 2.0.
 - `import` writes 2.0, carries `ON DELETE` and composite unique constraints and indexes back from
   Postgres DDL (section 19), and writes a name that is a 2.0 keyword with `_value`.
-- New codes: SCH0008 (a 1.x file), SCH1049 (an option a type cannot carry), SCH1050 and SCH1051
-  (a back-reference that names no reference, or could follow several), SCH1052 (`set_null` on a
-  reference that cannot be null), and SCH1053 (a hoisted name already taken).
+- New codes: SCH0008 (a 1.x file), SCH0009 (a name `upgrade` renamed), SCH1049 (an option a
+  type cannot carry), SCH1050 and SCH1051 (a back-reference that names no reference, or could
+  follow several), SCH1052 (`set_null` on a reference that cannot be null), and SCH1053 (a hoisted
+  name already taken).
+- Keys are checked for every target, not only Postgres: a nullable key field is SCH1049 where 1.x
+  reported SCH2107 under `--target sql`, and SCH2107 is retired. `@@id` naming a field that cannot
+  be a key is SCH1018.
+- `diff` judges a change to a model's key against the models that reference it (section 20).
 
-Each example and corpus case as it stood at 1.4.0 has been compiled by the 1.4.0 compiler and, once
-upgraded, by 2.0, and the outputs compared file by file: they differ only by references holding the
-key, the 2.0 spelling of notes and messages, and the warnings for the key fields a reference now
-writes.
+Every 1.x schema in the repository as it stood at 1.4.0 (each example, each corpus case, both
+sides of each evolution case) has been compiled by the 1.4.0 compiler and, once upgraded, by 2.0,
+and the outputs compared file by file: with the references' lines left out, they are identical, and
+otherwise they differ only by the 2.0 spelling of notes and messages and by warnings about the key
+fields a reference now writes. Each diagnostics fixture reports the same codes under both, apart
+from the checks 2.0 moved into options and the refinements `upgrade` cannot convert.

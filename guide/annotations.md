@@ -39,7 +39,6 @@ Codes:
 | SCH2102 | error | semantic | two schemas lower to the same Postgres schema |
 | SCH2105 | warning | lossy | something Postgres cannot enforce or type was relaxed by the lowering |
 | SCH2106 | error | semantic | a model has no primary key and no field uses it |
-| SCH2107 | error | semantic | a primary key declaration is malformed |
 | SCH2108 | error | semantic | embedding a model would recurse |
 | SCH2109 | warning | semantic | an identifier exceeds Postgres's 63-byte limit and was truncated |
 | SCH2110 | error | semantic | a strategy or constraint is not allowed for the field's shape |

@@ -47,8 +47,11 @@ the messages, which stay what they are. `operation` is still reserved.
 **References mean the key on every target.** A field, a list element, a union member, or a map
 value typed as a model with a key holds that model's key, on Protobuf, XML Schema, JSON Schema,
 and OpenAPI exactly as in Postgres: one field `<field>_<key>`, or one `<Model>Key` object for a
-composite key. `{ embed }` asks for the whole model instead, where a target can hold a copy. A
-back-reference, `@relation(field)`, stores nothing on any target.
+composite key. A union holds keys wherever it stands, as a service's response too; a model named
+as a request or response is the document itself and stays whole. `{ embed }` on a field or a union
+member asks for the whole model instead and means a copy on every target, Postgres included. A
+key is a non-null scalar or enum, checked for every target. A back-reference, `@relation(field)`,
+stores nothing on any target.
 
 A later version that needs a new keyword recognises it only where a keyword can appear, so a name
 you chose under 2.0 keeps working.
@@ -83,8 +86,12 @@ values of `diff` and `migrate` included; a minor may add fields. Not promised: `
 change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata` files
 `import` writes, and the wording of messages and of the human report.
 
-**Upgrading.** `schemata upgrade` keeps converting every schema a 1.x compiler accepted, for the
-whole of 2.x.
+**Upgrading.** `schemata upgrade` keeps converting every schema a 1.x compiler accepted, except
+those it reports, for the whole of 2.x. Section 23 of the reference lists them: a positional
+refinement on anything but a decimal (`string(3)`), a refinement given as a bare name or written
+on a service payload, a keyword rename onto a name already declared in the same scope (a field
+`model` beside `model_value`), and a schema renamed onto one another file declares
+(`shop.schema` beside `shop.schema_value`). A later 2.x may convert more, never fewer.
 
 **The editor.** `schemata lsp` keeps every capability it advertises in 2.0 and the shape of its
 initialization and configuration options.
@@ -113,13 +120,24 @@ Some behaviours are easy to miss. Each is part of the language as 2.0 defines it
 - An inline shape or enum is legal only as a field's type, directly or as its list's element; a
   union member, an alias, a payload, or a type argument names a declared type.
 - `{ unique }` and `{ index }` may sit on an embedded model, a union, or an inline shape, covering
-  every column the field produces, but never on a list or a map.
-- `{ embed }` on a reference to a keyed model compiles for every target but Postgres, which refuses
-  it (SCH2110): a keyed model is referenced, never copied into another table.
+  every column the field produces, but never on a list or a map, except `{ unique }` on a list of
+  a keyed model, which makes it a set: each parent holds each key once.
+- `{ embed }` on a reference to a keyed model copies the model on every target: Postgres writes
+  its columns, the key among them, under the field's prefix with no foreign key, as 1.x's
+  `@sql(strategy = embed)` did.
+- An inline shape has no key: `{ id }` on one of its fields or `@@id` in its body is an error;
+  declare a nested model to give it one. When a model writes `@@id(…)`, `{ id }` sits on exactly
+  the fields it names or on none.
+- A hoisted name may not hide a name the model can already see, at the schema's top level or in a
+  model it is nested in (SCH1053): `status enum { … }` in `Order` beside a top-level
+  `OrderStatus` needs `@name("…")`.
+- A reference sent by key as `<field>_<key>` may not land on a name the model reserves (SCH1020).
 - `@@timestamps` numbers its two fields after the last explicit ordinal, so a field added to the
   model later moves both, and `diff` reports that as renames and type changes. Where the ordinals
   must stay put, write `created_at instant` and `updated_at instant?` as fields instead.
-- A list of lists is written `list<T[]>`, since a type takes one `[]`.
+- `fmt` and `upgrade` write `list<T>` as `T[]`, except where `T[]` cannot say it: a list of lists,
+  `list<T[]>`, since a type takes one `[]`, and a list of maps that bound their own size,
+  `list<map<K, V> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share one block.
 - A string may not hold a control character below U+0020 other than tab, newline, and carriage
   return, nor U+FFFE or U+FFFF, written as itself or as `\u{…}` (SCH0005); a tab typed between
   the quotes means a tab. A doc comment follows the same rule.
@@ -129,7 +147,8 @@ Some behaviours are easy to miss. Each is part of the language as 2.0 defines it
 - A number keeps the scale it was written with: `= 1.50` stays `1.50` in every output.
 - Leading zeros are decimal, never octal: `= 007` and `#007` both mean 7.
 - Some spellings are accepted and rewritten by `fmt`: an ordinal written against its name (`#1x`),
-  spaces or comments inside a dotted name, and commas between enum values.
+  spaces or comments inside a dotted name, commas between enum values, and `list<T>` where `T[]`
+  says the same.
 - A line starting `////` is a doc comment whose text starts with `/`; a doc comment with no
   declaration after it is a syntax error (SCH0001).
 - A model may hold itself through a required field (`model A { a A }`, A without a key); no
@@ -152,8 +171,10 @@ Some behaviours are easy to miss. Each is part of the language as 2.0 defines it
 Section 23 of the reference covers the move: what `schemata upgrade` rewrites, the one change of
 meaning (a reference to a keyed model holds its key on Protobuf, XML Schema, JSON Schema, and
 OpenAPI, where 1.x copied the model, and `{ embed }` brings the copy back), and the JSON `kind`
-values and message wording that changed with it. A 1.x file given to any 2.0 command is one error,
-SCH0008, until `upgrade` rewrites it. 1.x stays installable from its release tags.
+values and message wording that changed with it. It also lists what `upgrade` reports: the names
+it renames because 2.0 keeps them as keywords (SCH0009), with the Postgres `UPDATE` a renamed enum
+value needs, and the few schemas it cannot convert. A 1.x file given to any 2.0 command is one
+error, SCH0008, until `upgrade` rewrites it. 1.x stays installable from its release tags.
 
 ## Retiring something
 
