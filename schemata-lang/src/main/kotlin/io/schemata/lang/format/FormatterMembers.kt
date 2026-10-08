@@ -1,5 +1,6 @@
 package io.schemata.lang.format
 
+import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.EnumValueDecl
@@ -170,7 +171,6 @@ private fun Formatter.Printer.reservedLines(
 
 private fun Formatter.Printer.reservedItemText(item: ReservedItem): String =
     when (item) {
-        is ReservedItem.Ordinals ->
-            if (item.from == item.to) "#${item.from}" else "#${item.from}..#${item.to}"
+        is ReservedItem.Ordinals -> SchemataText.ordinalRange(item.from, item.to)
         is ReservedItem.Name -> slice(item.span)
     }

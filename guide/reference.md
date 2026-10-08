@@ -1028,9 +1028,10 @@ too (SCH2004). An override that is not a valid Protobuf identifier is SCH2007.
 A request or a response is written the way a field of that type would be: the message's name as
 it stands in the file, `Order` or `Order.Line`, or `.shop.catalog.Money` with an `import` of its
 file when it comes from another schema. protoc looks an rpc's types up from inside the service,
-where the service's rpc names are names too, so a message whose name begins with one of them is
-written from the package instead: `order(Order.Line)` becomes
-`rpc Order(.shop.orders.Order.Line)`. A union is the message the union lowers to, and an
+where the service's rpc names are names too, so a message that is named like one of them, or whose
+path begins with one, is written from the package instead: `order(Order.Line)` becomes
+`rpc Order(.shop.orders.Order.Line)`, and a message `Order` under an rpc `Order` becomes
+`.shop.orders.Order`. A union is the message the union lowers to, and an
 alias the type it stands for. `stream` carries over as it is. An operation without a request or a
 response takes `.google.protobuf.Empty` in its place, and the file imports
 `google/protobuf/empty.proto`.

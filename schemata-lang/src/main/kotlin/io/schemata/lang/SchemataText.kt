@@ -32,4 +32,7 @@ object SchemataText {
      * before a quote, so the result always reads back as [regex].
      */
     fun pattern(regex: String): String = "\"" + regex.replace("\"", "\\\"") + "\""
+
+    /** A reserved ordinal range as source: `#n` for one ordinal, `#a..#b` for a range. */
+    fun ordinalRange(from: Int, to: Int): String = if (from == to) "#$from" else "#$from..#$to"
 }

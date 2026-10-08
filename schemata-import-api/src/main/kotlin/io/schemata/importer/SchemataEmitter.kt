@@ -164,8 +164,7 @@ object SchemataEmitter {
         val parts =
             items.map {
                 when (it) {
-                    is UnitReserved.Ordinals ->
-                        if (it.from == it.to) "#${it.from}" else "#${it.from}..#${it.to}"
+                    is UnitReserved.Ordinals -> SchemataText.ordinalRange(it.from, it.to)
                     is UnitReserved.Name -> SchemataText.string(it.name)
                 }
             }

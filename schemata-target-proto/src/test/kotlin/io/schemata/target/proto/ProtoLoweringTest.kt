@@ -1275,6 +1275,33 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a compound payload is spelled from the package only when its head is an rpc name`() {
+        val lowered =
+            lower(
+                "schema shop\n" +
+                    "\n" +
+                    "model Order {\n" +
+                    "  #1 x int32\n" +
+                    "\n" +
+                    "  model Line { #1 y int32 }\n" +
+                    "}\n" +
+                    "\n" +
+                    "model Other {\n" +
+                    "  #1 x int32\n" +
+                    "\n" +
+                    "  model Line { #1 y int32 }\n" +
+                    "}\n" +
+                    "\n" +
+                    "service Orders {\n" +
+                    "  #1 order(Order.Line): Other.Line\n" +
+                    "}"
+            )
+        val rpc = lowered.file("shop.proto").services.single().rpcs.single()
+        assertEquals(".shop.Order.Line", rpc.request.reference)
+        assertEquals("Other.Line", rpc.response.reference)
+    }
+
+    @Test
     fun `a schema without services imports no Empty`() {
         val file = lower("schema t\n\nmodel R { #1 x int32 }").file("t.proto")
         assertEquals(emptyList(), file.imports)
