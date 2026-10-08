@@ -1,0 +1,7 @@
+SCH2403 complex type 'PersonType': inline choice has no Schemata equivalent; members imported as optional fields
+SCH2403 complex type 'PersonType': repeated group 'nameGroup' imported as model 'NameGroup' in field 'name_group'
+SCH2403 element 'price': element 'price' has no Schemata equivalent; the regenerated root element will be named 'money'
+SCH2403 complex type 'MoneyType': simpleContent extension of 'decimal' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'MoneyType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
+SCH2403 complex type 'TaggedType': simpleContent restriction of 'LabelType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'LabelType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field

@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<!-- Abstract types, substitution groups, and extension, in one namespace. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:poly.shapes" targetNamespace="urn:schemata:poly.shapes" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:documentation>Shapes, vehicles, and animals: the three ways a schema says "one of these".</xs:documentation>
+  </xs:annotation>
+
+  <xs:complexType name="ShapeType" abstract="true">
+    <xs:annotation>
+      <xs:documentation>Anything with a label that can be drawn.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="label" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="CircleType">
+    <xs:complexContent>
+      <xs:extension base="tns:ShapeType">
+        <xs:sequence>
+          <xs:element name="radius" type="xs:double"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="SquareType">
+    <xs:complexContent>
+      <xs:extension base="tns:ShapeType">
+        <xs:sequence>
+          <xs:element name="side" type="xs:double"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="PolygonType" abstract="true">
+    <xs:complexContent>
+      <xs:extension base="tns:ShapeType">
+        <xs:sequence>
+          <xs:element name="vertices" type="xs:int"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="TriangleType">
+    <xs:complexContent>
+      <xs:extension base="tns:PolygonType">
+        <xs:sequence>
+          <xs:element name="base" type="xs:double"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="shape" type="tns:ShapeType"/>
+
+  <xs:complexType name="VehicleType">
+    <xs:sequence>
+      <xs:element name="plate" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CarType">
+    <xs:complexContent>
+      <xs:extension base="tns:VehicleType">
+        <xs:sequence>
+          <xs:element name="doors" type="xs:int"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="TruckType">
+    <xs:complexContent>
+      <xs:extension base="tns:VehicleType">
+        <xs:sequence>
+          <xs:element name="payload" type="xs:decimal"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="vehicle" type="tns:VehicleType" abstract="true"/>
+  <xs:element name="car" type="tns:CarType" substitutionGroup="tns:vehicle"/>
+  <xs:element name="truck" type="tns:TruckType" substitutionGroup="tns:vehicle"/>
+
+  <xs:complexType name="AnimalType">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="DogType">
+    <xs:complexContent>
+      <xs:extension base="tns:AnimalType">
+        <xs:sequence>
+          <xs:element name="breed" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="animal" type="tns:AnimalType"/>
+  <xs:element name="dog" type="tns:DogType" substitutionGroup="tns:animal"/>
+
+  <xs:complexType name="ParkType">
+    <xs:sequence>
+      <xs:element ref="tns:shape" maxOccurs="unbounded"/>
+      <xs:element ref="tns:vehicle" minOccurs="0"/>
+      <xs:element ref="tns:animal"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="park" type="tns:ParkType"/>
+</xs:schema>

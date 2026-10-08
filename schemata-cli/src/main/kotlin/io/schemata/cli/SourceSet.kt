@@ -1,11 +1,14 @@
 package io.schemata.cli
 
 import io.schemata.importer.ImportInput
+import io.schemata.importer.xsd.XsdReader
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.Path
+import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.isRegularFile
+import kotlin.io.path.readBytes
 import kotlin.io.path.readText
 import kotlin.streams.asSequence
 
@@ -56,7 +59,14 @@ private fun loadByExtension(paths: List<Path>, extension: String): List<SourceIn
         .distinctBy { it.first.toAbsolutePath().normalize() }
         .map { (path, relative) -> path.normalize() to relative }
         .sortedBy { it.first.toString() }
-        .map { (path, relative) -> SourceInput(path.toString(), path.readText(), relative) }
+        .map { (path, relative) -> SourceInput(path.toString(), text(path, extension), relative) }
+
+/**
+ * [path]'s text: UTF-8, except for an `.xsd`, which may name another encoding in its XML
+ * declaration.
+ */
+private fun text(path: Path, extension: String): String =
+    if (extension == "xsd") XsdReader.decode(path.readBytes()) else path.readText()
 
 /** Each file [path] names, with its `/`-separated path under [path] when [path] is a directory. */
 private fun expand(path: Path, extension: String): List<Pair<Path, String?>> =
@@ -79,5 +89,5 @@ private fun expand(path: Path, extension: String): List<Pair<Path, String?>> =
  */
 fun locate(path: String): ImportInput? {
     val file = Path(path)
-    return if (file.isRegularFile()) ImportInput(path, file.readText()) else null
+    return if (file.isRegularFile()) ImportInput(path, text(file, file.extension)) else null
 }

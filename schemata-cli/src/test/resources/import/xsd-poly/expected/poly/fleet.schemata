@@ -1,0 +1,18 @@
+schema poly.fleet
+
+import poly.shapes
+
+model ElectricCar {
+  plate string
+  doors int32
+  range int32
+
+  @@xsd(root: false)
+}
+
+model Fleet {
+  owner   string
+  vehicle poly.shapes.VehicleChoice[] { minItems 1 }
+  spare   poly.shapes.Vehicle?
+  mascot  poly.shapes.Animal?
+}

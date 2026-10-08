@@ -2,8 +2,9 @@ package io.schemata.importer.xsd
 
 /**
  * A head's concrete member types, in document order, and where the head itself is declared.
- * [dropped] are the member elements of a substitution group whose named type is not a complex type
- * of the set (a simple type, or one that cannot be resolved), left out of [members].
+ * [dropped] are the concrete elements of a substitution group, the head itself among them, whose
+ * named type is not a complex type of the set (a simple type, or one that cannot be resolved), left
+ * out of [members].
  */
 internal data class HeadMembers(
     val members: List<QName>,
@@ -20,35 +21,37 @@ internal data class HeadMembers(
  * reaches it, plus the head's own type when the head is concrete. An abstract member stands in for
  * its own members. A member whose type is not a named complex type of the set (an inline type, a
  * simple type, an unresolved one) is left out, a named one recorded as dropped. Order is document
- * order (input order, then line).
+ * order (input order, then line). A name declared twice (an invalid schema, but one an include can
+ * produce) means its first declaration, as the lowering reads it.
  */
 internal class Heads(docs: List<XsdDoc>) {
     private val complexTypesByName: Map<QName, Pair<XComplexType, XsdDoc>> =
-        docs
-            .flatMap { d ->
+        firstWins(
+            docs.flatMap { d ->
                 d.complexTypes.mapNotNull { ct ->
                     ct.name?.let { QName(d.targetNamespace, it) to (ct to d) }
                 }
             }
-            .toMap()
+        )
     private val elementsByName: Map<QName, Pair<XElement, XsdDoc>> =
-        docs
-            .flatMap { d ->
+        firstWins(
+            docs.flatMap { d ->
                 d.elements.mapNotNull { el ->
                     el.name?.let { QName(d.targetNamespace, it) to (el to d) }
                 }
             }
-            .toMap()
-    private val elementNames: Map<XElement, QName> =
-        elementsByName.entries.associate { it.value.first to it.key }
+        )
     private val order: Map<QName, Pair<Int, Int>> =
-        docs
-            .flatMapIndexed { i, d ->
+        firstWins(
+            docs.flatMapIndexed { i, d ->
                 d.complexTypes.mapNotNull { ct ->
                     ct.name?.let { QName(d.targetNamespace, it) to (i to ct.line) }
                 }
             }
-            .toMap()
+        )
+
+    /** The document that declares the complex type [name]; the first one that does. */
+    fun typeDoc(name: QName): XsdDoc = complexTypesByName.getValue(name).second
 
     /** Abstract complex types with at least one concrete descendant, by qualified name. */
     val types: Map<QName, HeadMembers>
@@ -90,13 +93,15 @@ internal class Heads(docs: List<XsdDoc>) {
                 }
                 .toMap()
 
-        val substitutes = mutableMapOf<QName, MutableList<XElement>>()
-        elementsByName.values.forEach { (el, _) ->
-            el.substitutionGroup?.let { substitutes.getOrPut(it) { mutableListOf() } += el }
+        // Keyed by qualified name, not by the element: two elements that read alike are still two.
+        val substitutes = mutableMapOf<QName, MutableList<Pair<QName, XElement>>>()
+        elementsByName.forEach { (name, pair) ->
+            pair.first.substitutionGroup?.let {
+                substitutes.getOrPut(it) { mutableListOf() } += name to pair.first
+            }
         }
         fun chain(head: QName, seen: MutableSet<QName>): List<XElement> =
-            substitutes[head].orEmpty().flatMap { el ->
-                val name = elementNames.getValue(el)
+            substitutes[head].orEmpty().flatMap { (name, el) ->
                 if (!seen.add(name)) emptyList() else listOf(el) + chain(name, seen)
             }
         val memberElementsByHead = mutableMapOf<QName, List<XElement>>()
@@ -113,7 +118,8 @@ internal class Heads(docs: List<XsdDoc>) {
                     val expanded = raw.flatMap { t -> types[t]?.members ?: listOf(t) }
                     val members = expanded.distinct().filter { it in complexTypesByName }
                     val dropped =
-                        concreteElements.filter { el ->
+                        (listOfNotNull(head.takeIf { !it.abstract }) + concreteElements).filter { el
+                            ->
                             el.type.let { it != null && it !in complexTypesByName }
                         }
                     name to HeadMembers(sorted(members), head.line, pair.second, dropped)
@@ -126,4 +132,13 @@ internal class Heads(docs: List<XsdDoc>) {
         names.sortedWith(
             compareBy({ order[it]?.first ?: Int.MAX_VALUE }, { order[it]?.second ?: Int.MAX_VALUE })
         )
+
+    private companion object {
+        /** [entries] as a map in which a key's first entry stays. */
+        fun <K, V> firstWins(entries: List<Pair<K, V>>): Map<K, V> {
+            val result = LinkedHashMap<K, V>()
+            entries.forEach { (k, v) -> result.putIfAbsent(k, v) }
+            return result
+        }
+    }
 }

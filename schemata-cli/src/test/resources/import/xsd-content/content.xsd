@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<!-- Mixed content, groups, wildcards, and simple content. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:content" targetNamespace="urn:schemata:content" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:documentation>The content-model corners of XSD that Schemata approximates.</xs:documentation>
+  </xs:annotation>
+
+  <xs:complexType name="NoteType" mixed="true">
+    <xs:annotation>
+      <xs:documentation>Prose with inline emphasis.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="emphasis" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="lang" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:group name="nameGroup">
+    <xs:sequence>
+      <xs:element name="first" type="xs:string"/>
+      <xs:element name="last" type="xs:string"/>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:group name="contactGroup">
+    <xs:choice>
+      <xs:element name="email" type="xs:string"/>
+      <xs:element name="phone" type="xs:string"/>
+    </xs:choice>
+  </xs:group>
+
+  <xs:attributeGroup name="auditGroup">
+    <xs:attribute name="created" type="xs:dateTime"/>
+    <xs:attribute name="author" type="xs:string"/>
+  </xs:attributeGroup>
+
+  <xs:complexType name="PersonType">
+    <xs:sequence>
+      <xs:group ref="tns:nameGroup"/>
+      <xs:group ref="tns:contactGroup"/>
+      <xs:group ref="tns:nameGroup" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attributeGroup ref="tns:auditGroup"/>
+  </xs:complexType>
+
+  <xs:complexType name="ExtensibleType">
+    <xs:sequence>
+      <xs:element name="id" type="xs:string"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:any namespace="##local" processContents="skip"/>
+    </xs:sequence>
+    <xs:anyAttribute processContents="lax"/>
+  </xs:complexType>
+
+  <xs:complexType name="MoneyType">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="currency" type="xs:string" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="TaggedType">
+    <xs:simpleContent>
+      <xs:restriction base="tns:LabelType">
+        <xs:maxLength value="20"/>
+      </xs:restriction>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="LabelType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="tag" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:element name="note" type="tns:NoteType"/>
+  <xs:element name="person" type="tns:PersonType"/>
+  <xs:element name="extensible" type="tns:ExtensibleType"/>
+  <xs:element name="price" type="tns:MoneyType"/>
+</xs:schema>

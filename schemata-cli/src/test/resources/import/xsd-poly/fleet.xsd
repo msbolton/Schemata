@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!-- A second namespace that extends and refers into the first. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:poly.fleet" xmlns:s="urn:schemata:poly.shapes" targetNamespace="urn:schemata:poly.fleet" elementFormDefault="qualified">
+  <xs:import namespace="urn:schemata:poly.shapes" schemaLocation="shapes.xsd"/>
+
+  <xs:complexType name="ElectricCarType">
+    <xs:complexContent>
+      <xs:extension base="s:CarType">
+        <xs:sequence>
+          <xs:element name="range" type="xs:int"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="FleetType">
+    <xs:sequence>
+      <xs:element name="owner" type="xs:string"/>
+      <xs:element ref="s:vehicle" maxOccurs="unbounded"/>
+      <xs:element name="spare" type="s:VehicleType" minOccurs="0"/>
+      <xs:element name="mascot" type="s:AnimalType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="fleet" type="tns:FleetType"/>
+</xs:schema>

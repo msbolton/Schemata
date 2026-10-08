@@ -1,5 +1,6 @@
 package io.schemata.importer.xsd
 
+import io.schemata.importer.ImportInput
 import io.schemata.importer.Imported
 import io.schemata.importer.UnitAnnotation
 import io.schemata.importer.UnitEnum
@@ -11,6 +12,7 @@ import io.schemata.importer.UnitUnion
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class XsdImportTest {
     private val xs = "xmlns:xs=\"http://www.w3.org/2001/XMLSchema\""
@@ -2775,6 +2777,495 @@ class XsdImportTest {
         assertEquals(
             listOf("SCH2401 s.xsd: import with no namespace cannot be resolved"),
             messages(imported),
+        )
+    }
+
+    private fun importAll(vararg files: Pair<String, String>) =
+        XsdImporter.import(files.map { ImportInput(it.first, it.second.trimIndent()) })
+
+    private fun located(result: io.schemata.importer.ImportResult): List<String> =
+        result.diagnostics.map {
+            "${it.code.id} ${it.span.file}:${it.span.startLine} ${it.message}"
+        }
+
+    @Test
+    fun `group content from an included file is reported at the group's file`() {
+        val result =
+            importAll(
+                "a.xsd" to
+                    """
+                    <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                      <xs:include schemaLocation="b.xsd"/>
+                      <xs:complexType name="TType">
+                        <xs:sequence>
+                          <xs:group ref="G"/>
+                          <xs:group ref="Pair" maxOccurs="2"/>
+                        </xs:sequence>
+                        <xs:attributeGroup ref="AG"/>
+                      </xs:complexType>
+                    </xs:schema>
+                    """,
+                "b.xsd" to
+                    """
+                    <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+
+                      <xs:group name="G">
+                        <xs:sequence>
+                          <xs:element name="x" type="Missing"/>
+                          <xs:group ref="Nope"/>
+                        </xs:sequence>
+                      </xs:group>
+                      <xs:group name="Pair">
+                        <xs:sequence>
+                          <xs:element name="y" type="MissingToo"/>
+                          <xs:group ref="NopeToo"/>
+                        </xs:sequence>
+                      </xs:group>
+                      <xs:attributeGroup name="AG">
+                        <xs:attribute name="q" type="Missing2"/>
+                        <xs:attributeGroup ref="NopeAg"/>
+                      </xs:attributeGroup>
+                    </xs:schema>
+                    """,
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 b.xsd:6 b.xsd: group 'Nope' cannot be resolved",
+                "SCH2401 b.xsd:5 element 'x': type 'Missing' cannot be resolved",
+                "SCH2401 b.xsd:12 b.xsd: group 'NopeToo' cannot be resolved",
+                "SCH2401 b.xsd:11 element 'y': type 'MissingToo' cannot be resolved",
+                "SCH2401 b.xsd:17 b.xsd: attribute group 'NopeAg' cannot be resolved",
+                "SCH2401 b.xsd:16 attribute 'q': type 'Missing2' cannot be resolved",
+            ),
+            located(result).filter { "SCH2401" in it },
+        )
+    }
+
+    @Test
+    fun `a concrete head of a simple type is reported when it leaves its union`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="AType"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="BType"><xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:element name="head" type="xs:string"/>
+                  <xs:element name="ma" type="AType" substitutionGroup="head"/>
+                  <xs:element name="mb" type="BType" substitutionGroup="head"/>
+                  <xs:element name="mc" type="xs:anyType" substitutionGroup="head"/>
+                  <xs:element name="md" type="DType" substitutionGroup="head"/>
+                  <xs:element name="me" substitutionGroup="head"><xs:complexType/></xs:element>
+                </xs:schema>
+                """
+            )
+        val dropped = messages(imported).filter { "dropped from union" in it }
+        assertEquals(
+            listOf(
+                "SCH2405 element 'head': substitution member of simple type dropped from union 'Head'",
+                "SCH2405 element 'mc': substitution member of xs:anyType dropped from union 'Head'",
+                "SCH2405 element 'md': substitution member of unresolved type dropped from union 'Head'",
+                "SCH2405 element 'me': substitution member with an inline type dropped from union 'Head'",
+            ),
+            dropped,
+        )
+    }
+
+    @Test
+    fun `a head union that lost its name to a record leaves no reference to it`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="ShapeType"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="CircleType"><xs:complexContent><xs:extension base="ShapeType"><xs:sequence><xs:element name="r" type="xs:int"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:element name="shape" type="ShapeType"/>
+                  <xs:element name="circle" type="CircleType" substitutionGroup="shape"/>
+                  <xs:element name="shapeChoice"><xs:complexType><xs:sequence><xs:element name="z" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+                  <xs:complexType name="UsesType"><xs:sequence><xs:element ref="shape"/></xs:sequence></xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 element 'shape' and element 'shapeChoice' both lower to type 'ShapeChoice'"
+            ),
+            messages(imported).filter { it.startsWith("SCH2401") },
+        )
+        assertEquals(UnitType.Ref("Shape"), record(imported, "Uses").fields.single().type)
+    }
+
+    @Test
+    fun `a choice of a group of wildcards is a record not a union`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:group name="G"><xs:sequence><xs:any/></xs:sequence></xs:group>
+                  <xs:complexType name="CType"><xs:choice><xs:group ref="G"/></xs:choice></xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("any"), record(imported, "C").fields.map { it.name })
+        assertEquals(emptyList(), messages(imported))
+    }
+
+    @Test
+    fun `the first of two declarations of a name is the one heads see`() {
+        val d =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="BaseType"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="BaseType" abstract="true"/>
+                  <xs:complexType name="SubType"><xs:complexContent><xs:extension base="BaseType"><xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:complexType name="AType"/>
+                  <xs:complexType name="BType"/>
+                  <xs:complexType name="CType"/>
+                  <xs:element name="h" type="AType"/>
+                  <xs:element name="h" type="BType" abstract="true"/>
+                  <xs:element name="m" type="CType" substitutionGroup="h"/>
+                </xs:schema>
+                """
+            )
+        val heads = Heads(listOf(d))
+        assertEquals(emptySet(), heads.types.keys)
+        assertEquals(
+            listOf("AType", "CType"),
+            heads.elements.getValue(QName("urn:schemata:p", "h")).members.map { it.local },
+        )
+    }
+
+    @Test
+    fun `two documents with no namespace each declare their own head union`() {
+        val a =
+            doc(
+                """
+                <xs:schema $xs>
+                  <xs:complexType name="AType"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="A2Type"><xs:sequence><xs:element name="a2" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:element name="ha" abstract="true" type="AType"/>
+                  <xs:element name="ma" type="AType" substitutionGroup="ha"/>
+                  <xs:element name="ma2" type="A2Type" substitutionGroup="ha"/>
+                </xs:schema>
+                """,
+                "a.xsd",
+            )
+        val b =
+            doc(
+                """
+                <xs:schema $xs>
+                  <xs:complexType name="BType"><xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="B2Type"><xs:sequence><xs:element name="b2" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:element name="hb" abstract="true" type="BType"/>
+                  <xs:element name="mb" type="BType" substitutionGroup="hb"/>
+                  <xs:element name="mb2" type="B2Type" substitutionGroup="hb"/>
+                </xs:schema>
+                """,
+                "b.xsd",
+            )
+        val imported = XsdImport.lower(listOf(a, b), null)
+        fun unions(namespace: String) =
+            imported.units
+                .single { it.namespace == namespace }
+                .declarations
+                .filterIsInstance<UnitUnion>()
+        assertEquals(listOf("Ha"), unions("a").map { it.name })
+        assertEquals(listOf("Hb"), unions("b").map { it.name })
+        assertEquals(
+            listOf(UnitType.Ref("B"), UnitType.Ref("B2")),
+            unions("b").single().members.map { it.type },
+        )
+        assertEquals(emptyList(), imported.units.single { it.namespace == "b" }.imports)
+    }
+
+    @Test
+    fun `mixed text follows an extension chain whichever type declares it`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="BaseType" mixed="true"><xs:sequence><xs:element name="e" type="xs:string" minOccurs="0"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="DType"><xs:complexContent><xs:extension base="BaseType"><xs:sequence><xs:element name="f" type="xs:string"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:complexType name="E1Type"><xs:sequence><xs:element name="e" type="xs:string" minOccurs="0"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="E2Type"><xs:complexContent mixed="true"><xs:extension base="E1Type"><xs:sequence><xs:element name="f" type="xs:string"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(listOf("e", "text", "f"), record(imported, "D").fields.map { it.name })
+        assertEquals(listOf("e", "f", "text"), record(imported, "E2").fields.map { it.name })
+        assertEquals(listOf("e"), record(imported, "E1").fields.map { it.name })
+    }
+
+    @Test
+    fun `an attribute clashing with an element is the only field renamed`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="x" type="xs:string"/>
+                      <xs:element name="y" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attribute name="id" type="xs:string"/>
+                    <xs:attribute name="x" type="xs:string"/>
+                    <xs:attribute name="z-z" type="xs:string"/>
+                  </xs:complexType>
+                  <xs:complexType name="OtherType">
+                    <xs:attribute name="x-y" type="xs:string"/>
+                    <xs:attribute name="w" type="xs:string"/>
+                    <xs:sequence>
+                      <xs:element name="x_y" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val thing = record(imported, "Thing").fields
+        assertEquals(listOf("x", "y", "id", "x_attribute", "z_z"), thing.map { it.name })
+        assertEquals(
+            listOf(xsd("attribute")),
+            thing.single { it.name == "x_attribute" }.annotations,
+        )
+        assertEquals(
+            listOf(xsd("name", "\"z-z\""), xsd("attribute")),
+            thing.single { it.name == "z_z" }.annotations,
+        )
+    }
+
+    @Test
+    fun `a record is not a collection because its one field is called item`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="RType"><xs:sequence>
+                    <xs:element name="order" maxOccurs="unbounded"><xs:complexType><xs:sequence><xs:element name="item" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+                    <xs:element name="grid" maxOccurs="unbounded"><xs:complexType><xs:sequence><xs:element name="item" type="xs:int" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+                  </xs:sequence></xs:complexType>
+                </xs:schema>
+                """
+            )
+        val r = record(imported, "R")
+        assertEquals(
+            UnitType.ListOf(UnitType.Ref("Order"), false, listOf("min" to "1")),
+            r.fields.single { it.name == "order" }.type,
+        )
+        assertEquals(
+            listOf("item"),
+            r.nested
+                .filterIsInstance<UnitRecord>()
+                .single { it.name == "Order" }
+                .fields
+                .map { it.name },
+        )
+        assertEquals(
+            UnitType.ListOf(
+                UnitType.ListOf(UnitType.Scalar("int32", emptyList()), false, listOf("min" to "1")),
+                false,
+                listOf("min" to "1"),
+            ),
+            r.fields.single { it.name == "grid" }.type,
+        )
+    }
+
+    @Test
+    fun `a union member whose element name differs is noted for a substitution group too`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="AType"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="BType"><xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:element name="head" abstract="true" type="AType"/>
+                  <xs:element name="alpha" type="AType" substitutionGroup="head"/>
+                  <xs:element name="bType" type="BType" substitutionGroup="head"/>
+                </xs:schema>
+                """
+            )
+        assertTrue(
+            "SCH2403 element 'head': member element 'alpha' has no Schemata equivalent; the regenerated element will be named 'a'" in
+                messages(imported)
+        )
+        assertTrue(
+            "SCH2403 element 'head': member element 'bType' has no Schemata equivalent; the regenerated element will be named 'b'" in
+                messages(imported)
+        )
+    }
+
+    @Test
+    fun `a substitution group is described by its union or its one member type`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="AType"><xs:sequence><xs:element name="a" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="BType"><xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:element name="one" abstract="true" type="AType"/>
+                  <xs:element name="oneMember" type="AType" substitutionGroup="one"/>
+                  <xs:element name="two" abstract="true" type="AType"/>
+                  <xs:element name="twoA" type="AType" substitutionGroup="two"/>
+                  <xs:element name="twoB" type="BType" substitutionGroup="two"/>
+                </xs:schema>
+                """
+            )
+        val wording = messages(imported).filter { "substitution group" in it }
+        assertEquals(
+            listOf(
+                    "SCH2403 element 'two': substitution group 'two' imported as union 'Two' of 2 member types; the regenerated XSD uses a choice",
+                    "SCH2403 element 'one': substitution group 'one' imported as its one member type 'A'",
+                )
+                .sorted(),
+            wording.sorted(),
+        )
+    }
+
+    @Test
+    fun `an element form that differs from the schema default is noted`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="a" type="xs:string" form="qualified"/>
+                      <xs:element name="b" type="xs:string" form="unqualified"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2403 element 'a': form 'qualified' differs from the schema default; dropped"
+            ),
+            messages(imported).filter { "form" in it },
+        )
+    }
+
+    @Test
+    fun `a group referenced twice is numbered the second time`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                  <xs:group name="pair"><xs:sequence>
+                    <xs:element name="l" type="xs:string"/><xs:element name="r" type="xs:string"/>
+                  </xs:sequence></xs:group>
+                  <xs:complexType name="BagType"><xs:sequence>
+                    <xs:group ref="pair" maxOccurs="unbounded"/>
+                    <xs:group ref="pair" minOccurs="0"/>
+                  </xs:sequence></xs:complexType>
+                </xs:schema>
+                """
+            )
+        val bag = record(imported, "Bag")
+        assertEquals(listOf("pair", "pair_2"), bag.fields.map { it.name })
+        assertEquals(listOf("Pair", "Pair2"), bag.nested.map { it.name })
+        assertTrue(
+            "SCH2403 complex type 'BagType': repeated group 'pair' imported as model 'Pair2' in field 'pair_2'" in
+                messages(imported)
+        )
+    }
+
+    @Test
+    fun `a redefined document is merged and its redefinition reported`() {
+        val result =
+            importAll(
+                "a.xsd" to
+                    """
+                    <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                      <xs:redefine schemaLocation="b.xsd">
+                        <xs:complexType name="BType">
+                          <xs:complexContent><xs:extension base="BType"><xs:sequence><xs:element name="more" type="xs:string"/></xs:sequence></xs:extension></xs:complexContent>
+                        </xs:complexType>
+                      </xs:redefine>
+                    </xs:schema>
+                    """,
+                "b.xsd" to
+                    """
+                    <xs:schema $xs targetNamespace="urn:schemata:p" xmlns="urn:schemata:p">
+                      <xs:complexType name="BType"><xs:sequence><xs:element name="b" type="xs:string"/></xs:sequence></xs:complexType>
+                    </xs:schema>
+                    """,
+            )
+        assertEquals(listOf("p.schemata"), result.files.map { it.path })
+        assertTrue("model B {" in result.files.single().content)
+        assertEquals(
+            listOf("SCH2405 a.xsd:2 schema: xs:redefine dropped"),
+            located(result).filter { "redefine" in it },
+        )
+    }
+
+    @Test
+    fun `a chameleon document is rebased so its unqualified references name the including namespace`() {
+        val chameleon =
+            doc(
+                """
+                <xs:schema $xs>
+                  <xs:complexType name="InnerType"><xs:sequence><xs:element name="v" type="xs:string"/></xs:sequence></xs:complexType>
+                  <xs:complexType name="OuterType"><xs:sequence><xs:element name="inner" type="InnerType"/></xs:sequence></xs:complexType>
+                  <xs:element name="outer" type="OuterType"/>
+                </xs:schema>
+                """,
+                "c.xsd",
+            )
+        val imported = XsdImport.lower(listOf(chameleon.rebased("urn:schemata:p")), null)
+        assertEquals(emptyList(), messages(imported))
+        assertEquals(UnitType.Ref("Inner"), record(imported, "Outer").fields.single().type)
+    }
+
+    @Test
+    fun `a map whose value is a list simple type keeps the list`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:p" targetNamespace="urn:schemata:p">
+                  <xs:simpleType name="IntList"><xs:list itemType="xs:int"/></xs:simpleType>
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="m">
+                        <xs:complexType>
+                          <xs:sequence>
+                            <xs:element name="entry" minOccurs="0" maxOccurs="unbounded">
+                              <xs:complexType>
+                                <xs:simpleContent>
+                                  <xs:extension base="tns:IntList">
+                                    <xs:attribute name="key" type="xs:string" use="required"/>
+                                  </xs:extension>
+                                </xs:simpleContent>
+                              </xs:complexType>
+                            </xs:element>
+                          </xs:sequence>
+                        </xs:complexType>
+                        <xs:unique name="k"><xs:selector xpath="tns:entry"/><xs:field xpath="@key"/></xs:unique>
+                      </xs:element>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), messages(imported))
+        assertEquals(
+            UnitType.MapOf(
+                UnitType.Scalar("string", emptyList()),
+                UnitType.ListOf(UnitType.Scalar("int32", emptyList()), false, emptyList()),
+                false,
+                emptyList(),
+            ),
+            record(imported, "Thing").fields.single().type,
         )
     }
 }

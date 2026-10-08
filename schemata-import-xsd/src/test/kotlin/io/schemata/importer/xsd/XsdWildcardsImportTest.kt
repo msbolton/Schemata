@@ -152,4 +152,68 @@ class XsdWildcardsImportTest {
             result.diagnostics.map { "${it.code.id} ${it.message}" },
         )
     }
+
+    @Test
+    fun `an all group whose elements repeat is reported and keeps its minimum`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:t">
+              <xs:complexType name="AllType">
+                <xs:all>
+                  <xs:element name="x" type="xs:string" maxOccurs="unbounded"/>
+                  <xs:element name="y" type="xs:string" minOccurs="2" maxOccurs="3"/>
+                  <xs:element name="z" type="xs:string" minOccurs="0"/>
+                </xs:all>
+              </xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val all = unit(imported, "t").declarations.filterIsInstance<UnitRecord>().single()
+        val string = UnitType.Scalar("string", emptyList())
+        assertEquals(
+            listOf(
+                UnitType.ListOf(string, false, listOf("min" to "1")),
+                UnitType.ListOf(string, false, listOf("min" to "2", "max" to "3")),
+                string,
+            ),
+            all.fields.map { it.type },
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 element 'x': repeats inside xs:all, which only XSD 1.1 allows; imported as a list",
+                "SCH2403 element 'y': repeats inside xs:all, which only XSD 1.1 allows; imported as a list",
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a choice of nothing but wildcards keeps the choice's occurrence`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:t">
+              <xs:complexType name="OptionalType">
+                <xs:choice minOccurs="0"><xs:any namespace="##other"/></xs:choice>
+              </xs:complexType>
+              <xs:complexType name="RepeatedType">
+                <xs:sequence>
+                  <xs:choice minOccurs="2" maxOccurs="3"><xs:any namespace="##other"/></xs:choice>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val records = unit(imported, "t").declarations.filterIsInstance<UnitRecord>()
+        val optional = records.single { it.name == "Optional" }.fields.single()
+        assertTrue(optional.nullable)
+        assertEquals(UnitType.Scalar("string", emptyList()), optional.type)
+        assertEquals(
+            UnitType.ListOf(
+                UnitType.Scalar("string", emptyList()),
+                false,
+                listOf("min" to "2", "max" to "3"),
+            ),
+            records.single { it.name == "Repeated" }.fields.single().type,
+        )
+    }
 }

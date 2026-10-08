@@ -2,6 +2,7 @@ package io.schemata.cli
 
 import java.nio.file.Files
 import kotlin.io.path.createDirectories
+import kotlin.io.path.writeBytes
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -57,5 +58,15 @@ class SourceSetTest {
 
         assertEquals(listOf("sub/a.proto"), fileFirst.map { it.relative })
         assertEquals(fileFirst, dirFirst)
+    }
+
+    @Test
+    fun `an xsd is read in the encoding its declaration names and located the same way`() {
+        val root = Files.createTempDirectory(tmp, "schemata-encoding")
+        val text = "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><schema>caf\u00e9</schema>"
+        root.resolve("a.xsd").writeBytes(text.toByteArray(Charsets.ISO_8859_1))
+
+        assertEquals(listOf(text), XsdSet.load(listOf(root)).map { it.content })
+        assertEquals(text, locate(root.resolve("a.xsd").toString())?.content)
     }
 }

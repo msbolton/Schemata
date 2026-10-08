@@ -159,4 +159,44 @@ class ImportCorpusTest {
         assertTrue(hand.isNotEmpty(), "sql-handwritten has an expected tree")
         assertEquals(hand, tree("sql-dump"))
     }
+
+    /**
+     * The corpus sets a missing key aside because an import cannot declare one, and compares every
+     * other sql error: that only means something if lowering goes on past a model with no key.
+     */
+    @Test
+    fun `sql lowering reports other errors beside a missing key`() {
+        val compiled =
+            Pipeline.compile(
+                listOf(
+                    SourceInput(
+                        "t.schemata",
+                        """
+                        schema t
+
+                        model A { id uuid { id }  @@sql(table: "same") }
+
+                        model B { id uuid { id }  @@sql(table: "same") }
+
+                        model Keyless { n int32 }
+                        """
+                            .trimIndent(),
+                    )
+                ),
+                listOf(SqlTarget),
+            )
+        assertEquals(
+            setOf(SqlCodes.MISSING_KEY, SqlCodes.TABLE_COLLISION),
+            compiled.diagnostics.filter { it.severity == Severity.ERROR }.map { it.code }.toSet(),
+        )
+    }
+
+    /**
+     * The gml case imports no key at all, so every sql error it has is a missing key and nothing
+     * else is left to expect.
+     */
+    @Test
+    fun `the gml case expects no sql errors beyond its missing keys`() {
+        assertFalse(File(root, "gml/expected/sql-errors.txt").exists())
+    }
 }

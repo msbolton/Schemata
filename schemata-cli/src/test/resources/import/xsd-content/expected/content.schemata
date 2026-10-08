@@ -1,0 +1,40 @@
+/// The content-model corners of XSD that Schemata approximates.
+schema content
+
+/// Prose with inline emphasis.
+model Note { emphasis string[]  text string? @xsd(mixed)  lang string? @xsd(attribute) }
+
+model Person {
+  first      string
+  last       string
+  email      string?
+  phone      string?
+  name_group NameGroup[]
+  created    instant?    @xsd(attribute)
+  author     string?     @xsd(attribute)
+
+  model NameGroup { first string  last string }
+}
+
+model Extensible {
+  id         string
+  any        string[]            @xsd(any) @xsd(wildcard: "##other")
+  any_2      string              @xsd(any) @xsd(process: "skip") @xsd(wildcard: "##local")
+  attributes map<string, string> @xsd(any_attribute)
+}
+
+model Money { value decimal(38, 9)  currency string @xsd(attribute) }
+
+model Tagged {
+  value string  { max 20 }
+  tag   string? @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+model Label {
+  value string
+  tag   string? @xsd(attribute)
+
+  @@xsd(root: false)
+}

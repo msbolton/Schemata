@@ -2,6 +2,7 @@ package io.schemata.importer.xsd
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -609,5 +610,33 @@ class XsdReaderTest {
                     "</xs:documentation></xs:annotation></xs:complexType>"
             )
         assertEquals("First line.\nSecond line.\n\nThird.", r.doc!!.complexTypes.single().doc)
+    }
+
+    @Test
+    fun `a document is decoded with the encoding its xml declaration names`() {
+        val xml =
+            "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n" +
+                "<xs:schema $xs><xs:annotation><xs:documentation>caf\u00e9</xs:documentation>" +
+                "</xs:annotation></xs:schema>"
+        val bytes = xml.toByteArray(Charsets.ISO_8859_1)
+        assertEquals("caf\u00e9", read(XsdReader.decode(bytes)).doc!!.doc)
+        // Read as UTF-8, as every file was before, the accented letter is lost.
+        assertNotEquals("caf\u00e9", read(String(bytes, Charsets.UTF_8)).doc?.doc)
+    }
+
+    @Test
+    fun `a document without an encoding in its declaration is read as UTF-8`() {
+        val plain =
+            "<xs:schema $xs><xs:annotation><xs:documentation>caf\u00e9</xs:documentation>" +
+                "</xs:annotation></xs:schema>"
+        assertEquals("caf\u00e9", read(XsdReader.decode(plain.toByteArray())).doc!!.doc)
+        val declared = "<?xml version='1.0' encoding='utf-8'?>$plain"
+        assertEquals("caf\u00e9", read(XsdReader.decode(declared.toByteArray())).doc!!.doc)
+    }
+
+    @Test
+    fun `a declaration naming an encoding the JVM lacks is read as UTF-8`() {
+        val xml = "<?xml version=\"1.0\" encoding=\"no-such-charset\"?><xs:schema $xs/>"
+        assertEquals(xml, XsdReader.decode(xml.toByteArray()))
     }
 }
