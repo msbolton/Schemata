@@ -30,6 +30,7 @@ import io.schemata.target.bool
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.flag
 import io.schemata.target.isKeyRecord
+import io.schemata.target.named
 import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
@@ -535,9 +536,9 @@ object XsdLowering {
             member: UnionMember,
             path: List<String>,
         ): XsdElement {
-            val name = unionMemberStem(member.type, schema) { names.overrides.nameOverride(it) }
+            val name = unionMemberStem(member.named, schema) { names.overrides.nameOverride(it) }
             val declName =
-                (member.type as? Ref)?.let { schema.lookup(it.target).name }
+                (member.named as? Ref)?.let { schema.lookup(it.target).name }
                     ?: (member.type as Scalar).builtin.typeName
             claims.claim(
                 key = "element:${path.joinToString(".")}/$name",

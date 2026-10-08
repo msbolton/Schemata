@@ -11,6 +11,7 @@ import io.schemata.core.annotations.ValueKind
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.MapOf
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
@@ -18,6 +19,7 @@ import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Type
+import io.schemata.core.ir.UnionType
 import io.schemata.lang.Parser
 import java.math.BigDecimal
 import kotlin.test.Test
@@ -57,7 +59,10 @@ model Use {
   #8 point   Point
   #9 copy    User    { embed }
   #10 labels map<string, User>
+  #11 owners map<string, Line>
 }
+
+union Party = User | Line | Point
 """
 
 class KeysTest {
@@ -118,7 +123,8 @@ class KeysTest {
                 Triple(7, "lines", ListOf(Ref(qn("LineKey")), false)),
                 Triple(8, "point", Ref(qn("Point"))),
                 Triple(9, "copy", record(schema, "Use").fields[8].type),
-                Triple(10, "labels", record(schema, "Use").fields[9].type),
+                Triple(10, "labels", MapOf(Scalar(Builtin.STRING), uuid, false)),
+                Triple(11, "owners", MapOf(Scalar(Builtin.STRING), Ref(qn("LineKey")), false)),
             ),
             shape(use),
         )
@@ -146,6 +152,7 @@ class KeysTest {
                 "Code",
                 "Point",
                 "Use",
+                "Party",
             ),
             keyed.namespaces.single().declarations.map { it.name },
         )
@@ -176,5 +183,20 @@ class KeysTest {
     fun `a schema without references to keyed models is unchanged`() {
         val plain = compile("schema t\n\nmodel P { #1 x int32 }\n\nmodel U { #1 p P }\n")
         assertEquals(plain, plain.referencesByKey())
+    }
+
+    @Test
+    fun `a union member carries the key and keeps its model's name`() {
+        val party = keyed.lookup(qn("Party")) as UnionType
+        assertEquals(
+            listOf(
+                Triple(Scalar(Builtin.UUID), qn("User"), "user"),
+                Triple(Ref(qn("LineKey")), qn("Line"), "line"),
+                Triple(Ref(qn("Point")), null, "point"),
+            ),
+            party.members.map {
+                Triple(it.type, it.byKey, unionMemberStem(it.named, keyed) { null })
+            },
+        )
     }
 }

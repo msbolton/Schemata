@@ -234,7 +234,17 @@ data class EnumValue(
     val annotations: Annotations = Annotations.NONE,
 )
 
-data class UnionMember(val ordinal: Int, val type: Type, val doc: String?, val span: Span)
+/**
+ * [byKey] is null as analysed. A target that carries a keyed model's key in place of the model sets
+ * it to that model and [type] to the key; the member is still named for the model it stands for.
+ */
+data class UnionMember(
+    val ordinal: Int,
+    val type: Type,
+    val doc: String?,
+    val span: Span,
+    val byKey: QualifiedName? = null,
+)
 
 /** A checked default. Numeric literals keep the scale they were written with. */
 sealed interface Value

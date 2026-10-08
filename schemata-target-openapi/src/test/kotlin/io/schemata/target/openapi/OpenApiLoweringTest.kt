@@ -116,6 +116,26 @@ service Orders {
 }
 """
 
+private const val MEMBERS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+union Party = Customer | Pair
+
+model Book {
+  #1 id    uuid { id }
+  #2 by    map<string, Customer>
+  #3 pairs map<string, Pair>
+  #4 party Party
+}
+
+service Books { #1 get(Book): Book  post "/books" }
+"""
+
 class OpenApiLoweringTest {
     private fun lower(vararg sources: String): Lowered<OpenApiModel> =
         OpenApiLowering.lower(compile(*sources))
@@ -850,5 +870,31 @@ class OpenApiLoweringTest {
         val key = RefSchema("#/components/schemas/shop.PairKey")
         assertEquals(key, property("Order", "pair").schema)
         assertEquals(ArraySchema(key), property("Order", "pairs").schema)
+    }
+
+    private val members by lazy { lower(MEMBERS).model.documents.single() }
+
+    private fun member(key: String) = members.components.single { it.key == "shop.$key" }.schema
+
+    @Test
+    fun `a union member typed as a keyed model carries its key`() {
+        val party = member("Party") as TaggedUnionSchema
+        assertEquals(listOf("customer", "pair"), party.members.map { it.tag })
+        assertEquals(uuid, party.members[0].schema)
+        assertEquals(RefSchema("#/components/schemas/shop.PairKey"), party.members[1].schema)
+    }
+
+    @Test
+    fun `a map value typed as a keyed model carries its key`() {
+        val book = (member("Book") as ObjectSchema).properties.associate { it.name to it.schema }
+        assertEquals(uuid, (book.getValue("by") as MapSchema).values)
+        assertEquals(
+            RefSchema("#/components/schemas/shop.PairKey"),
+            (book.getValue("pairs") as MapSchema).values,
+        )
+        assertEquals(
+            listOf("shop.Book", "shop.PairKey", "shop.Party"),
+            members.components.map { it.key }.sorted(),
+        )
     }
 }

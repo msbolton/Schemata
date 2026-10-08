@@ -30,6 +30,7 @@ import io.schemata.target.Names
 import io.schemata.target.OverrideNames
 import io.schemata.target.collidingNamespaces
 import io.schemata.target.deprecated
+import io.schemata.target.named
 import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
@@ -338,13 +339,13 @@ object ProtoLowering {
             scope(
                 listOf(Symbol("kind", "the oneof", union.nameSpan)) +
                     union.members.map { member ->
-                        val memberName = memberName(member.type)
+                        val memberName = memberName(member.named)
                         Symbol(memberName, "member '$memberName'", member.span)
                     }
             )
             val members =
                 union.members.map { member ->
-                    val memberName = memberName(member.type)
+                    val memberName = memberName(member.named)
                     val where = "member '${union.name}.$memberName'"
                     fieldNumber(where, member.ordinal, member.span)
                     val mapped = map(member.type, nullable = false, where, member.span, here)

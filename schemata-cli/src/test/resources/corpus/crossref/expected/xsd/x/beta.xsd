@@ -15,5 +15,11 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+  <xs:complexType name="MemoType">
+    <xs:sequence>
+      <xs:element name="text" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
   <xs:element name="Beta" type="tns:BetaType"/>
+  <xs:element name="Memo" type="tns:MemoType"/>
 </xs:schema>

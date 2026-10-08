@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package x.beta;
+
+message B {
+  string id = 1;  // schemata: uuid
+}
+
+message Memo {
+  string text = 1;
+}

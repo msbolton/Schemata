@@ -59,16 +59,18 @@ fun Schema.isKeyRecord(decl: TypeDecl): Boolean {
  *   field (its refinements included), keeping the reference's ordinal, nullability, and doc;
  * - a reference to a model with a composite key keeps its name and is typed as `<Target>Key`, a
  *   record holding the key fields in key order, numbered from 1, declared once beside the model;
- * - a list of a keyed model keeps its name and lists the key instead: the key field's type for a
- *   single key, `<Target>Key` for a composite one;
+ * - a list of a keyed model, or a map whose values are one, keeps its name and holds the key
+ *   instead: the key field's type for a single key, `<Target>Key` for a composite one;
+ * - a union member standing for a keyed model holds the key the same way and keeps the model's name
+ *   ([io.schemata.core.ir.UnionMember.byKey]);
  * - a reference written `{ embed }`, or to a model without a key, still copies the record.
  *
  * A key field that is itself a reference to a keyed model is replaced by that model's key the same
  * way, so a key copied from a key reaches the scalar or enum it is made of. A `name` override any
  * target gives the reference is suffixed as its name is (`_<key>`), and one on the model carries
- * over to its key record (`<override>Key`). Unions, map values, and service payloads are not
- * references between models and are left as written; the virtual back-references are skipped by
- * every target already and are left too.
+ * over to its key record (`<override>Key`). A service payload is the document itself, not a
+ * reference, so it is left as written; the virtual back-references are skipped by every target
+ * already and are left too.
  */
 fun Schema.referencesByKey(): Schema = KeyedReferences(this).rewrite()
 
@@ -113,7 +115,7 @@ private class KeyedReferences(private val schema: Schema) {
         when (decl) {
             is RecordType -> record(decl)
             is EnumType -> decl.copy(nested = decl.nested.map(::decl))
-            is UnionType -> decl.copy(nested = decl.nested.map(::decl))
+            is UnionType -> union(decl)
         }
 
     private fun record(record: RecordType): RecordType {
@@ -160,26 +162,51 @@ private class KeyedReferences(private val schema: Schema) {
                     }
                 }
             }
-            is ListOf -> {
-                val element = element(type.element, emptySet())
-                if (element == type.element) field
-                else field.copy(type = type.copy(element = element), aliasName = null)
+            is ListOf,
+            is MapOf -> {
+                val keyed = keyed(type, emptySet())
+                if (keyed == type) field else field.copy(type = keyed, aliasName = null)
             }
-            is Scalar,
-            is MapOf -> field
+            is Scalar -> field
         }
 
-    /** A listed reference's element as the key's type: what [field] gives the field itself. */
-    private fun element(type: Type, chain: Set<QualifiedName>): Type {
-        val ref = type as? Ref ?: return type
-        val key = byKey(ref) ?: return type
-        if (ref.target in chain) return type
-        return if (key.size == 1) element(key.single().type, chain + ref.target)
-        else {
-            composites += ref.target
-            Ref(keyRecordName(ref.target))
+    /**
+     * A union member standing for a keyed model carries its key, and remembers the model it stands
+     * for so it keeps that model's name.
+     */
+    private fun union(union: UnionType): UnionType =
+        union.copy(
+            members =
+                union.members.map { member ->
+                    val keyed = keyed(member.type, emptySet())
+                    if (keyed == member.type) member
+                    else member.copy(type = keyed, byKey = (member.type as Ref).target)
+                },
+            nested = union.nested.map(::decl),
+        )
+
+    /**
+     * [type] with every reference to a keyed model in it, itself or a list's element or a map's
+     * value, replaced by the key's type: the key field's for a single key, `<Target>Key` for a
+     * composite one. Nothing is renamed; only a field's own reference takes the key's name.
+     */
+    private fun keyed(type: Type, chain: Set<QualifiedName>): Type =
+        when (type) {
+            is Ref -> {
+                val key = byKey(type)
+                when {
+                    key == null || type.target in chain -> type
+                    key.size == 1 -> keyed(key.single().type, chain + type.target)
+                    else -> {
+                        composites += type.target
+                        Ref(keyRecordName(type.target))
+                    }
+                }
+            }
+            is ListOf -> type.copy(element = keyed(type.element, chain))
+            is MapOf -> type.copy(value = keyed(type.value, chain))
+            is Scalar -> type
         }
-    }
 
     /** The key a reference carries, or null when it copies the record. */
     private fun byKey(ref: Ref): List<Field>? =

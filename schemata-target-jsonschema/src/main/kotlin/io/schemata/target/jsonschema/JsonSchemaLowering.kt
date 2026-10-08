@@ -32,6 +32,7 @@ import io.schemata.target.deprecated
 import io.schemata.target.flag
 import io.schemata.target.json.JsonString
 import io.schemata.target.json.JsonValue
+import io.schemata.target.named
 import io.schemata.target.referencesByKey
 import io.schemata.target.string
 import io.schemata.target.unionMemberStem
@@ -291,9 +292,9 @@ class DocumentLowering(
      * becomes its schema's description.
      */
     private fun unionMember(union: UnionType, member: UnionMember, path: List<String>): Member {
-        val tag = unionMemberStem(member.type, schema) { names.overrides.nameOverride(it) }
+        val tag = unionMemberStem(member.named, schema) { names.overrides.nameOverride(it) }
         val declName =
-            (member.type as? Ref)?.let { schema.lookup(it.target).name }
+            (member.named as? Ref)?.let { schema.lookup(it.target).name }
                 ?: (member.type as Scalar).builtin.typeName
         claims.claim(
             key = "tag:${scope(union.qualifiedName, path)}/$tag",

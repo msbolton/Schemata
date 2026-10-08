@@ -5,3 +5,11 @@ model B {
 
   @@xsd(name: "Beta")
 }
+
+model Note {
+  #1 text string
+
+  @@xsd(name: "Memo")
+  @@jsonschema(name: "Memo")
+  @@proto(name: "Memo")
+}

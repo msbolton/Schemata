@@ -86,6 +86,24 @@ model Order {
 }
 """
 
+private const val MEMBERS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+union Party = Customer | Pair
+
+model Book {
+  #1 id    uuid { id }
+  #2 by    map<string, Customer>
+  #3 pairs map<string, Pair>
+  #4 party Party
+}
+"""
+
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
 
@@ -1540,6 +1558,31 @@ class ProtoLoweringTest {
             ProtoTarget.annotationSpecs.all {
                 it.target == "proto" && it.valueKind == ValueKind.STRING
             }
+        )
+    }
+
+    @Test
+    fun `a union member typed as a keyed model carries its key`() {
+        val party = message(lower(MEMBERS).file("shop.proto"), "Party").oneofs.single()
+        assertEquals(
+            listOf(
+                listOf(1, "customer", ProtoType.Scalar("string")),
+                listOf(2, "pair", ProtoType.Named("PairKey")),
+            ),
+            party.fields.map { listOf(it.number, it.name, it.type) },
+        )
+    }
+
+    @Test
+    fun `a map value typed as a keyed model carries its key`() {
+        val book = message(lower(MEMBERS).file("shop.proto"), "Book")
+        val string = ProtoType.Scalar("string")
+        assertEquals(
+            listOf(
+                listOf(2, "by", ProtoType.MapOf(string, string)),
+                listOf(3, "pairs", ProtoType.MapOf(string, ProtoType.Named("PairKey"))),
+            ),
+            book.fields.filter { it.number in 2..3 }.map { listOf(it.number, it.name, it.type) },
         )
     }
 }

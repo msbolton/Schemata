@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package x.alpha;
+
+import "x/beta.proto";
+
+message A {
+  string id = 1;  // schemata: uuid
+  string b_id = 2;  // schemata: uuid
+  .x.beta.Memo note = 3;
+}

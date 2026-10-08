@@ -15,11 +15,15 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "note": {
+          "$ref": "urn:schemata:x.beta#/$defs/Memo"
         }
       },
       "required": [
         "id",
-        "b_id"
+        "b_id",
+        "note"
       ],
       "additionalProperties": false
     }

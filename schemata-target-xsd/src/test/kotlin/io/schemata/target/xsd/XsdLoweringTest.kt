@@ -32,6 +32,8 @@ import io.schemata.lang.Span
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 private const val RELATIONS =
     """
@@ -67,6 +69,24 @@ private fun compile(vararg sources: String): Schema {
     assertEquals(emptyList(), analysis.diagnostics.map { "${it.code.id} ${it.message}" })
     return analysis.schema!!
 }
+
+private const val MEMBERS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+union Party = Customer | Pair
+
+model Book {
+  #1 id    uuid { id }
+  #2 by    map<string, Customer>
+  #3 pairs map<string, Pair>
+  #4 party Party
+}
+"""
 
 class XsdLoweringTest {
     /** The sequences these tests read hold only elements; each read goes through the element. */
@@ -1335,5 +1355,33 @@ class XsdLoweringTest {
         assertEquals(key, element("OrderType", "pair").type)
         assertEquals(key, element("OrderType", "pairs").type)
         assertEquals(listOf("customer", "tag", "pair", "order"), relations.elements.map { it.name })
+    }
+
+    private val members by lazy { XsdLowering.lower(compile(MEMBERS)).model.files.single() }
+
+    private fun memberType(name: String) = members.types.single { it.name == name }
+
+    @Test
+    fun `a union member typed as a keyed model carries its key`() {
+        val id = (memberType("CustomerType") as XsdComplex).sequence.single() as XsdElement
+        val party = memberType("PartyType") as XsdChoice
+        assertEquals(
+            listOf(
+                id.copy(name = "customer"),
+                XsdElement("pair", XsdTypeRef.Named("tns", "PairKeyType", false)),
+            ),
+            party.members.map { it.copy(minOccurs = 1, maxOccurs = 1) },
+        )
+    }
+
+    @Test
+    fun `a map value typed as a keyed model carries its key`() {
+        val id = (memberType("CustomerType") as XsdComplex).sequence.single() as XsdElement
+        val book = (memberType("BookType") as XsdComplex).sequence.map { it as XsdElement }
+        val by = book.single { it.name == "by" }.type.toString()
+        val pairs = book.single { it.name == "pairs" }.type.toString()
+        assertTrue(by.contains(id.type.toString()), by)
+        assertFalse(by.contains("CustomerType"), by)
+        assertTrue(pairs.contains("PairKeyType"), pairs)
     }
 }

@@ -71,6 +71,24 @@ private fun compile(vararg sources: String): Schema {
     return analysis.schema!!
 }
 
+private const val MEMBERS =
+    """
+schema shop
+
+model Customer { #1 id uuid { id } }
+
+model Pair { #1 a int32 { id }  #2 b int32 { id } }
+
+union Party = Customer | Pair
+
+model Book {
+  #1 id    uuid { id }
+  #2 by    map<string, Customer>
+  #3 pairs map<string, Pair>
+  #4 party Party
+}
+"""
+
 class JsonSchemaLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
 
@@ -738,5 +756,29 @@ class JsonSchemaLoweringTest {
         assertEquals(relation("Pair").properties, relation("PairKey").properties)
         assertEquals(RefSchema("#/\$defs/PairKey"), property("Order", "pair").schema)
         assertEquals(ArraySchema(RefSchema("#/\$defs/PairKey")), property("Order", "pairs").schema)
+    }
+
+    private val members by lazy {
+        JsonSchemaLowering.lower(compile(MEMBERS)).model.documents.single()
+    }
+
+    private fun member(key: String) = members.defs.single { it.key == key }.schema
+
+    @Test
+    fun `a union member typed as a keyed model carries its key`() {
+        val id = (member("Customer") as ObjectSchema).properties.single().schema
+        val party = member("Party") as TaggedUnionSchema
+        assertEquals(
+            listOf(Member("customer", id), Member("pair", RefSchema("#/\$defs/PairKey"))),
+            party.members,
+        )
+    }
+
+    @Test
+    fun `a map value typed as a keyed model carries its key`() {
+        val id = (member("Customer") as ObjectSchema).properties.single().schema
+        val book = (member("Book") as ObjectSchema).properties.associate { it.name to it.schema }
+        assertEquals(id, (book.getValue("by") as MapSchema).values)
+        assertEquals(RefSchema("#/\$defs/PairKey"), (book.getValue("pairs") as MapSchema).values)
     }
 }

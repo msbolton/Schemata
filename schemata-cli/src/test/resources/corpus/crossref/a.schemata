@@ -2,4 +2,4 @@ schema x.alpha
 
 import x.beta
 
-model A { #1 id uuid { id }  #2 b B }
+model A { #1 id uuid { id }  #2 b B  #3 note Note { embed } }

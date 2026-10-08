@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:tns="urn:schemata:x.alpha"
+           xmlns:ns1="urn:schemata:x.beta"
            targetNamespace="urn:schemata:x.alpha"
            elementFormDefault="qualified"
            attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:x.beta" schemaLocation="beta.xsd"/>
   <xs:complexType name="AType">
     <xs:sequence>
       <xs:element name="id">
@@ -20,6 +22,7 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
+      <xs:element name="note" type="ns1:MemoType"/>
     </xs:sequence>
   </xs:complexType>
   <xs:element name="a" type="tns:AType"/>
