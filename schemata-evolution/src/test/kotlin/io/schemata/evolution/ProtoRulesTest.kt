@@ -426,8 +426,8 @@ class ProtoRulesTest {
         val new = Schema(listOf(keep))
         assertEquals(
             Verdict.Breaking(
-                "t: the namespace was removed breaks clients that call /shop.v1.OrderApi/…",
-                "keep the namespace's services until no client calls them",
+                "t: the schema was removed breaks clients that call /shop.v1.OrderApi/…",
+                "keep the schema's services until no client calls them",
             ),
             only(old, new),
         )

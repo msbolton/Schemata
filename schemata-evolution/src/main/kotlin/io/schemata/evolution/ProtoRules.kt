@@ -100,14 +100,14 @@ object ProtoRules : Rulebook {
         return when {
             service != null ->
                 Verdict.Breaking(
-                    "${change.path}: the namespace was removed breaks clients that call " +
+                    "${change.path}: the schema was removed breaks clients that call " +
                         "${servicePath(ctx.old, service, ctx)}/…",
-                    "keep the namespace's services until no client calls them",
+                    "keep the schema's services until no client calls them",
                 )
             ctx.declarationsOf(Side.OLD, change.path).isEmpty() -> Verdict.Compatible
             else ->
                 Verdict.Note(
-                    "${change.path}: the namespace was removed; generated code loses its declarations",
+                    "${change.path}: the schema was removed; generated code loses its declarations",
                     "keep the types, or confirm nothing outside this schema still depends on them",
                 )
         }
@@ -165,7 +165,7 @@ object ProtoRules : Rulebook {
                 ),
             )
         }
-        return wrapTypeVerdict(change, verdict)
+        return wrapTypeVerdict(change, referencedKey(change, ctx, verdict))
     }
 
     /**

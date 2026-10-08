@@ -16,7 +16,7 @@ error[SCH2501]: jsonschema: s.Order.lines: the field was removed breaks old docu
   |
 3 | model Order { #1 id uuid { id }  #2 lines Line[] }
   |                                     ^^^^^
-  = help: keep the field, or mark the record @jsonschema(open)
+  = help: keep the field, or mark the model @jsonschema(open)
 
 error[SCH2501]: sql: s.Order.lines: the column was dropped breaks rows that still hold its data
  --> old/s.schemata:3:37

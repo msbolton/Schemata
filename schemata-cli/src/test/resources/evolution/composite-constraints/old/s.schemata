@@ -1,0 +1,10 @@
+schema s
+
+model Membership {
+  #1 id     uuid   { id }
+  #2 member string { max 32 }
+  #3 team   string { max 32 }
+  #4 region string { max 16 }
+
+  @@index(region, team)
+}

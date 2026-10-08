@@ -14,7 +14,7 @@ error[SCH2501]: jsonschema: s.Customer.note: the field was removed breaks old do
   |
 3 | model Customer { #1 id uuid { id }  #2 note string? { max 200 } }
   |                                        ^^^^
-  = help: keep the field, or mark the record @jsonschema(open)
+  = help: keep the field, or mark the model @jsonschema(open)
 
 error[SCH2501]: sql: s.Customer.note: the column was dropped breaks rows that still hold its data
  --> old/s.schemata:3:40

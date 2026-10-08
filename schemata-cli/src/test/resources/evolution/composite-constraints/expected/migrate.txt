@@ -1,0 +1,15 @@
+s.sql
+  drop index "ix_membership_region_team"    clean
+  add constraint "membership"."uq_membership_member_team"    may fail
+
+2 steps in 1 file
+0 destructive, 1 may fail
+
+warning[SCH2702] (lossy): s.Membership.member: UNIQUE "uq_membership_member_team" fails when rows duplicate the key
+ --> new/s.schemata:5:6
+  |
+5 |   #2 member string { max 32 }
+  |      ^^^^^^
+  = help: remove duplicate rows before applying
+
+0 errors, 1 warning

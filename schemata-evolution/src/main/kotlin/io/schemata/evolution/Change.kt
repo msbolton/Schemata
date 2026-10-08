@@ -355,6 +355,33 @@ fun changeWord(change: AnnotationChanged): String =
         else -> "changed"
     }
 
+/** A model-level constraint's key in the `sql` annotations [Differ] derives: `@@unique(a, b)`. */
+fun constraintKey(kind: String, columns: List<String>): String =
+    "@@$kind(${columns.joinToString(", ")})"
+
+/**
+ * How the schema text spells the thing [change] adds, removes, or changes: `{ id }` or `@@id` for a
+ * key, `{ unique }`, `{ index }`, `{ embed }`, `@@unique(a, b)`, or else `@<target>(<key>)`. The
+ * SQL facts [Differ] derives from the language's own options carry the `sql` target's keys, so they
+ * are spelled as the language writes them.
+ */
+fun annotationLabel(change: AnnotationChanged): String {
+    if (change.target == "sql") {
+        val embed = AnnotationValue.Name("embed")
+        when {
+            change.key.startsWith("@@") -> return change.key
+            change.key == "key" ->
+                return if (change.newOwner is DeclarationOwner) "@@id" else "{ id }"
+            change.key == "unique" -> return "{ unique }"
+            change.key == "index" -> return "{ index }"
+            change.key == "strategy" &&
+                ((change.from == null && change.to == embed) ||
+                    (change.to == null && change.from == embed)) -> return "{ embed }"
+        }
+    }
+    return "@${change.target}(${change.key})"
+}
+
 /**
  * Whether [change] touches only a back-reference: a virtual field added or removed, or changed
  * while it is virtual on both sides. A back-reference is emitted by no target, so every rulebook

@@ -1,0 +1,19 @@
+s.Membership
+  @@index(region, team) removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  @@unique(member, team) added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+2 changes
+proto: 0 breaking, 0 notes
+sql: 1 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: sql: s.Membership: @@unique(member, team) added breaks tables that already hold duplicate values
+ --> new/s.schemata:3:7
+  |
+3 | model Membership {
+  |       ^^^^^^^^^^
+  = help: remove duplicate rows before adding the constraint
+
+1 error, 0 warnings

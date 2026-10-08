@@ -225,6 +225,24 @@ class ChangeContext(val old: Schema, val new: Schema) {
         return decl.compositeKey.isNotEmpty() || decl.fields.any { it.key }
     }
 
+    /**
+     * How many models on NEW's side hold a stored reference to [record] by its key: a field typed
+     * as it, or a list or map of it, that is neither a back-reference nor `{ embed }`.
+     */
+    fun referencingModels(record: QualifiedName): Int =
+        new.namespaces
+            .flatMap { it.declarations.flatMap { d -> d.selfAndNested() } }
+            .filterIsInstance<RecordType>()
+            .count { r -> r.fields.any { f -> !f.virtual && keyReferenceTo(f.type, record) } }
+
+    private fun keyReferenceTo(type: Type, record: QualifiedName): Boolean =
+        when (type) {
+            is Ref -> type.target == record && !type.relation.embed
+            is ListOf -> keyReferenceTo(type.element, record)
+            is MapOf -> keyReferenceTo(type.value, record)
+            else -> false
+        }
+
     /** A top-level record (not nested in another declaration) not opted out with `@xsd(root)`. */
     fun isRoot(side: Side, record: QualifiedName): Boolean {
         val decl = schema(side).lookupOrNull(record) as? RecordType ?: return false

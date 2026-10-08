@@ -1,0 +1,70 @@
+s.Order
+  field 'customer' type changed from Customer to Customer { embed }    proto: breaking, sql: compatible, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'customer': { embed } added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'billing' type changed from Customer { embed } to Customer    proto: breaking, sql: compatible, xsd: breaking, jsonschema: breaking, openapi: compatible
+  field 'billing': { embed } removed    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+4 changes
+proto: 2 breaking, 0 notes
+sql: 2 breaking, 0 notes
+xsd: 2 breaking, 0 notes
+jsonschema: 2 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: jsonschema: s.Order.customer: type changed from Customer to Customer { embed } breaks old documents: the reference changed between a key and an embedded record
+  --> new/s.schemata:10:3
+   |
+10 |   #2 customer Customer { embed }
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new field instead of flipping { embed } on this one
+
+error[SCH2501]: proto: s.Order.customer: type changed from Customer to Customer { embed } breaks decoding: the wire types differ
+  --> new/s.schemata:10:3
+   |
+10 |   #2 customer Customer { embed }
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new field instead of changing this one's type
+
+error[SCH2501]: xsd: s.Order.customer: type changed from Customer to Customer { embed } breaks old documents: the reference changed between a key and an embedded record
+  --> new/s.schemata:10:3
+   |
+10 |   #2 customer Customer { embed }
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new field instead of flipping { embed } on this one
+
+error[SCH2501]: sql: s.Order.customer: { embed } added breaks how existing rows map onto tables
+  --> new/s.schemata:10:6
+   |
+10 |   #2 customer Customer { embed }
+   |      ^^^^^^^^
+   = help: avoid changing { embed } once the table holds data
+
+error[SCH2501]: jsonschema: s.Order.billing: type changed from Customer { embed } to Customer breaks old documents: the reference changed between a key and an embedded record
+  --> new/s.schemata:11:3
+   |
+11 |   #3 billing  Customer
+   |   ^^^^^^^^^^^^^^^^^^^^
+   = help: add a new field instead of flipping { embed } on this one
+
+error[SCH2501]: proto: s.Order.billing: type changed from Customer { embed } to Customer breaks decoding: the wire types differ
+  --> new/s.schemata:11:3
+   |
+11 |   #3 billing  Customer
+   |   ^^^^^^^^^^^^^^^^^^^^
+   = help: add a new field instead of changing this one's type
+
+error[SCH2501]: xsd: s.Order.billing: type changed from Customer { embed } to Customer breaks old documents: the reference changed between a key and an embedded record
+  --> new/s.schemata:11:3
+   |
+11 |   #3 billing  Customer
+   |   ^^^^^^^^^^^^^^^^^^^^
+   = help: add a new field instead of flipping { embed } on this one
+
+error[SCH2501]: sql: s.Order.billing: { embed } removed breaks how existing rows map onto tables
+  --> new/s.schemata:11:6
+   |
+11 |   #3 billing  Customer
+   |      ^^^^^^^
+   = help: avoid changing { embed } once the table holds data
+
+8 errors, 0 warnings

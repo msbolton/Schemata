@@ -8,6 +8,7 @@ import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.OnDelete
 import io.schemata.core.ir.Operation
+import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Relation
@@ -46,7 +47,7 @@ object Differ {
                     n.annotations,
                     out,
                 )
-                declarations(o, n, out)
+                declarations(old, new, o, n, out)
                 services(o, n, out)
             }
         }
@@ -56,7 +57,13 @@ object Differ {
         return out
     }
 
-    private fun declarations(old: Namespace, new: Namespace, out: MutableList<Change>) {
+    private fun declarations(
+        oldSchema: Schema,
+        newSchema: Schema,
+        old: Namespace,
+        new: Namespace,
+        out: MutableList<Change>,
+    ) {
         val oldDecls =
             old.declarations.flatMap { it.selfAndNested() }.associateBy { it.qualifiedName }
         val newDecls =
@@ -66,7 +73,7 @@ object Differ {
             when {
                 o == null -> out += DeclarationAdded(path(n), n.nameSpan, n)
                 o::class != n::class -> out += DeclarationKindChanged(path(n), n.nameSpan, o, n)
-                else -> declaration(o, n, out)
+                else -> declaration(oldSchema, newSchema, o, n, out)
             }
         }
         oldDecls.values
@@ -74,9 +81,15 @@ object Differ {
             .forEach { out += DeclarationRemoved(path(it), it.nameSpan, it) }
     }
 
-    private fun declaration(old: TypeDecl, new: TypeDecl, out: MutableList<Change>) {
+    private fun declaration(
+        oldSchema: Schema,
+        newSchema: Schema,
+        old: TypeDecl,
+        new: TypeDecl,
+        out: MutableList<Change>,
+    ) {
         when (new) {
-            is RecordType -> fields(new, old as RecordType, out)
+            is RecordType -> fields(oldSchema, newSchema, new, old as RecordType, out)
             is EnumType -> values(new, old as EnumType, out)
             is UnionType -> members(new, old as UnionType, out)
         }
@@ -93,13 +106,19 @@ object Differ {
         if (old.doc != new.doc) out += DocChanged(path(new), new.nameSpan, DeclarationOwner(new))
     }
 
-    private fun fields(new: RecordType, old: RecordType, out: MutableList<Change>) {
+    private fun fields(
+        oldSchema: Schema,
+        newSchema: Schema,
+        new: RecordType,
+        old: RecordType,
+        out: MutableList<Change>,
+    ) {
         val oldFields = old.fields.associateBy { it.ordinal }
         val newFields = new.fields.associateBy { it.ordinal }
         new.fields.forEach { nf ->
             val of = oldFields[nf.ordinal]
             if (of == null) out += FieldAdded(memberPath(new, nf.name), nf.nameSpan, new, nf)
-            else field(old, new, of, nf, out)
+            else field(oldSchema, newSchema, old, new, of, nf, out)
         }
         old.fields
             .filter { it.ordinal !in newFields }
@@ -113,6 +132,8 @@ object Differ {
      * compared then.
      */
     private fun field(
+        oldSchema: Schema,
+        newSchema: Schema,
         oldRecord: RecordType,
         record: RecordType,
         old: Field,
@@ -129,7 +150,7 @@ object Differ {
         val p = memberPath(record, new.name)
         if (old.name != new.name) out += FieldRenamed(p, new.nameSpan, record, old, new)
         when {
-            typeChanged(old.type, new.type) ->
+            typeChanged(old.type, new.type) || embedFlipped(oldSchema, newSchema, old, new) ->
                 out += FieldTypeChanged(p, new.span, record, old, new)
             refinementsChanged(old.type, new.type) ->
                 out +=
@@ -155,6 +176,36 @@ object Differ {
             out,
         )
         if (old.doc != new.doc) out += DocChanged(p, new.nameSpan, FieldOwner(record, new))
+    }
+
+    /**
+     * A reference flipped between `{ embed }` and by key changes the shape of every output that
+     * writes the referenced model, but only when that model has a key to write: an unkeyed model is
+     * always written inline.
+     */
+    private fun embedFlipped(
+        oldSchema: Schema,
+        newSchema: Schema,
+        old: Field,
+        new: Field,
+    ): Boolean {
+        val before = relationOf(old.type)
+        val after = relationOf(new.type)
+        if (before == null || after == null || before.embed == after.embed) return false
+        val target = referenced(new.type) ?: return false
+        return keyed(oldSchema, target) || keyed(newSchema, target)
+    }
+
+    private fun referenced(type: Type): QualifiedName? =
+        when (type) {
+            is Ref -> type.target
+            is ListOf -> (type.element as? Ref)?.target
+            else -> null
+        }
+
+    private fun keyed(schema: Schema, name: QualifiedName): Boolean {
+        val record = schema.lookupOrNull(name) as? RecordType ?: return false
+        return record.compositeKey.isNotEmpty() || record.fields.any { it.key }
     }
 
     private fun values(new: EnumType, old: EnumType, out: MutableList<Change>) {
@@ -339,11 +390,20 @@ object Differ {
             else -> null
         }
 
-    /** A declaration's annotations plus a record's `@@id(a, b)`, as the `sql` key `key`. */
+    /**
+     * A declaration's annotations plus a record's `@@id(a, b)`, as the `sql` key `key`, and each of
+     * its `@@unique(a, b)` and `@@index(a, b)` as a flag under the `sql` key spelled as written, so
+     * one constraint added or removed is one change and the SQL rulebook judges it.
+     */
     private fun withKeyFacts(decl: TypeDecl): Annotations {
-        val key = (decl as? RecordType)?.compositeKey.orEmpty()
-        if (key.isEmpty()) return decl.annotations
-        return withSql(decl.annotations, mapOf("key" to AnnotationValue.Names(key)))
+        val record = decl as? RecordType ?: return decl.annotations
+        val facts = buildMap {
+            if (record.compositeKey.isNotEmpty())
+                put("key", AnnotationValue.Names(record.compositeKey))
+            record.uniques.forEach { put(constraintKey("unique", it), AnnotationValue.Flag) }
+            record.indexes.forEach { put(constraintKey("index", it), AnnotationValue.Flag) }
+        }
+        return withSql(decl.annotations, facts)
     }
 
     private fun withSql(

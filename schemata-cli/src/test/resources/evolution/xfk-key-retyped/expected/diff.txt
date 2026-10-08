@@ -1,11 +1,11 @@
 b.Customer
-  field 'id' type changed from uuid to string    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'id' type changed from uuid to string    proto: note, sql: breaking, xsd: note, jsonschema: note, openapi: compatible
 
 1 change
-proto: 0 breaking, 0 notes
+proto: 0 breaking, 1 note
 sql: 1 breaking, 0 notes
-xsd: 0 breaking, 0 notes
-jsonschema: 0 breaking, 0 notes
+xsd: 0 breaking, 1 note
+jsonschema: 0 breaking, 1 note
 openapi: 0 breaking, 0 notes
 
 error[SCH2501]: sql: b.Customer.id: type changed from uuid to string breaks existing rows: old values do not fit the new type
@@ -15,4 +15,25 @@ error[SCH2501]: sql: b.Customer.id: type changed from uuid to string breaks exis
   |                  ^^^^^^^^^^^^^^^^^^^
   = help: add a new column instead of changing this one's type
 
-1 error, 0 warnings
+warning[SCH2502] (lossy): jsonschema: b.Customer.id: type changed from uuid to string; referenced by 1 model; their emitted key fields change with it
+ --> new/b.schemata:3:18
+  |
+3 | model Customer { #1 id string { id }  #2 name string { max 100 } }
+  |                  ^^^^^^^^^^^^^^^^^^^
+  = help: regenerate the code and schemas of the referencing models along with this one
+
+warning[SCH2502] (lossy): proto: b.Customer.id: type changed from uuid to string; referenced by 1 model; their emitted key fields change with it
+ --> new/b.schemata:3:18
+  |
+3 | model Customer { #1 id string { id }  #2 name string { max 100 } }
+  |                  ^^^^^^^^^^^^^^^^^^^
+  = help: regenerate the code and schemas of the referencing models along with this one
+
+warning[SCH2502] (lossy): xsd: b.Customer.id: type changed from uuid to string; referenced by 1 model; their emitted key fields change with it
+ --> new/b.schemata:3:18
+  |
+3 | model Customer { #1 id string { id }  #2 name string { max 100 } }
+  |                  ^^^^^^^^^^^^^^^^^^^
+  = help: regenerate the code and schemas of the referencing models along with this one
+
+1 error, 3 warnings

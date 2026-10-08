@@ -16,7 +16,7 @@ error[SCH2501]: jsonschema: s.Event: @jsonschema(open) was removed breaks old do
   |
 3 | model Event { #1 id uuid { id }  #2 note string? }
   |       ^^^^^
-  = help: keep the record open, or confirm no old document carries extra properties
+  = help: keep the model open, or confirm no old document carries extra properties
 
 error[SCH2501]: sql: s.Audit.actor: the column was dropped breaks rows that still hold its data
   --> old/s.schemata:12:6

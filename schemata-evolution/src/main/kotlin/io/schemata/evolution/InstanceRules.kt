@@ -86,14 +86,14 @@ class InstanceRules(
         return when {
             declarations.any { removedDeclarationBreaks(ctx, it) } ->
                 Verdict.Breaking(
-                    "${change.path}: the namespace was removed breaks documents validated " +
+                    "${change.path}: the schema was removed breaks documents validated " +
                         "against its declarations",
-                    "keep the namespace, or confirm nothing outside this schema still depends " +
+                    "keep the schema, or confirm nothing outside this schema still depends " +
                         "on it",
                 )
             declarations.isNotEmpty() ->
                 Verdict.Note(
-                    "${change.path}: the namespace was removed; none of its declarations was " +
+                    "${change.path}: the schema was removed; none of its declarations was " +
                         "reachable as a root element",
                     "confirm nothing outside this schema still depends on it",
                 )
@@ -117,7 +117,7 @@ class InstanceRules(
         return Verdict.Breaking(
             "${change.path}: the field was removed breaks old documents that still carry it",
             if (target == "xsd") "keep the field; an XSD document always carries every element"
-            else "keep the field, or mark the record @jsonschema(open)",
+            else "keep the field, or mark the model @jsonschema(open)",
         )
     }
 
@@ -133,11 +133,14 @@ class InstanceRules(
     }
 
     private fun fieldTypeChanged(change: FieldTypeChanged, ctx: ChangeContext): Verdict =
-        wrapTypeVerdict(change, typeVerdict(ctx).of(change.from.type, change.to.type))
+        wrapTypeVerdict(
+            change,
+            referencedKey(change, ctx, typeVerdict(ctx).of(change.from.type, change.to.type)),
+        )
 
     /**
      * Scalars widen by [TypeCompat.instanceWidening]; a reference is compatible only while it names
-     * the same declaration.
+     * the same declaration and is still either a key or an embedded copy.
      */
     private fun typeVerdict(ctx: ChangeContext) =
         StructuralTypeVerdict(
@@ -146,7 +149,12 @@ class InstanceRules(
             incompatible = "the new type cannot hold the old values",
             help = "add a new field instead of changing this one's type",
         ) { from, to ->
-            if (from.target == to.target) Verdict.Compatible
+            if (from.relation.embed != to.relation.embed)
+                Verdict.Breaking(
+                    "old documents: the reference changed between a key and an embedded record",
+                    "add a new field instead of flipping { embed } on this one",
+                )
+            else if (from.target == to.target) Verdict.Compatible
             else
                 Verdict.Breaking(
                     "old documents: the new type cannot hold the old values",
@@ -344,7 +352,7 @@ class InstanceRules(
             Verdict.Breaking(
                 "${change.path}: @jsonschema(open) was removed breaks old documents whose extra " +
                     "properties are now rejected",
-                "keep the record open, or confirm no old document carries extra properties",
+                "keep the model open, or confirm no old document carries extra properties",
             )
         else Verdict.Compatible
 }

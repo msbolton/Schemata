@@ -78,7 +78,7 @@ object SqlRules : Rulebook {
             }
         )
             Verdict.Breaking(
-                "${change.path}: the namespace was removed breaks reads of the tables backing its " +
+                "${change.path}: the schema was removed breaks reads of the tables backing its " +
                     "declarations",
                 "drop the tables only after migrating or archiving their data",
             )
@@ -190,11 +190,11 @@ object SqlRules : Rulebook {
         else Verdict.Compatible
 
     /**
-     * Every `@sql` key, decided explicitly: a primary key, storage strategy, uniqueness added, or
-     * column type override changes the DDL existing rows live under; a name override is a rename
-     * only when the emitted name moves; uniqueness removed and an index only relax or speed up
-     * access. A key this rulebook does not know is treated as breaking, so a new DDL-shaping key is
-     * never waved through by default.
+     * Every `@sql` key, and each `@@unique` and `@@index`, decided explicitly: a primary key,
+     * storage strategy, uniqueness added, or column type override changes the DDL existing rows
+     * live under; a name override is a rename only when the emitted name moves; uniqueness removed
+     * and an index only relax or speed up access. A key this rulebook does not know is treated as
+     * breaking, so a new DDL-shaping key is never waved through by default.
      */
     private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         if (change.target == "relation" && change.key == "onDelete")
@@ -206,37 +206,37 @@ object SqlRules : Rulebook {
         if (change.target != "sql") return Verdict.Compatible
         if (change.newOwner is ServiceOwner || change.newOwner is OperationOwner)
             return Verdict.Compatible
-        return when (change.key) {
-            "key" ->
+        val label = annotationLabel(change)
+        return when {
+            change.key == "key" ->
                 Verdict.Breaking(
-                    "${change.path}: @sql(key) ${changeWord(change)} breaks the primary key used " +
+                    "${change.path}: $label ${changeWord(change)} breaks the primary key used " +
                         "to address existing rows",
-                    "avoid changing @sql(key) once the table holds data",
+                    "avoid changing $label once the table holds data",
                 )
-            "strategy" ->
+            change.key == "strategy" ->
                 Verdict.Breaking(
-                    "${change.path}: @sql(strategy) changed breaks how existing rows map onto " +
-                        "tables",
-                    "avoid changing @sql(strategy) once the table holds data",
+                    "${change.path}: $label ${strategyWord(change, label)} breaks how existing " +
+                        "rows map onto tables",
+                    "avoid changing $label once the table holds data",
                 )
-            "unique" ->
+            change.key == "unique" || change.key.startsWith("@@unique(") ->
                 if (change.to != null)
                     Verdict.Breaking(
-                        "${change.path}: @sql(unique) added breaks tables that already hold " +
+                        "${change.path}: $label added breaks tables that already hold " +
                             "duplicate values",
                         "remove duplicate rows before adding the constraint",
                     )
                 else Verdict.Compatible
-            "type" ->
+            change.key == "type" ->
                 Verdict.Breaking(
                     "${change.path}: @sql(type) ${changeWord(change)} breaks existing rows: the " +
                         "column is retyped",
                     "add a new column instead of retyping this one",
                 )
-            "column",
-            "table",
-            "schema" -> renamed(change, ctx)
-            in INERT_KEYS -> Verdict.Compatible
+            change.key == "column" || change.key == "table" || change.key == "schema" ->
+                renamed(change, ctx)
+            change.key in INERT_KEYS || change.key.startsWith("@@index(") -> Verdict.Compatible
             else ->
                 Verdict.Breaking(
                     "${change.path}: @sql(${change.key}) ${changeWord(change)} has no known " +
@@ -245,6 +245,10 @@ object SqlRules : Rulebook {
                 )
         }
     }
+
+    /** A strategy fact keeps "changed" unless it is the `{ embed }` option itself. */
+    private fun strategyWord(change: AnnotationChanged, label: String): String =
+        if (label == "{ embed }") changeWord(change) else "changed"
 
     /** `@sql` keys whose change never touches data already stored. */
     private val INERT_KEYS = setOf("index")

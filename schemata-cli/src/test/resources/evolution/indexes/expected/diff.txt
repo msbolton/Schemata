@@ -1,7 +1,7 @@
 s.Customer
-  field 'email': @sql(index) removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'email': { index } removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
   field 'code' renamed to 'ref'    proto: note, sql: breaking, xsd: breaking, jsonschema: breaking, openapi: compatible
-  field 'city': @sql(index) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'city': { index } added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
 
 3 changes
 proto: 0 breaking, 1 note

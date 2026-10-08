@@ -13,7 +13,7 @@ error[SCH2501]: jsonschema: s.Customer.orders: the field was removed breaks old 
   |
 5 |   #2 orders Order[]
   |      ^^^^^^
-  = help: keep the field, or mark the record @jsonschema(open)
+  = help: keep the field, or mark the model @jsonschema(open)
 
 error[SCH2501]: sql: s.Customer.orders: the column was dropped breaks rows that still hold its data
  --> old/s.schemata:5:6

@@ -76,4 +76,139 @@ class RelationRulesTest {
         )
         assertIs<Verdict.Breaking>(SqlRules.classify(change, ChangeContext(old, new)))
     }
+
+    private val customerKey = "schema s\nmodel Customer { #1 id uuid { id } }\n"
+
+    @Test
+    fun `embed flipped on a keyed reference breaks the output shape and the sql strategy`() {
+        val byKey =
+            analysed(customerKey + "model Order { #1 id uuid { id }  #2 customer Customer }\n")
+        val embedded =
+            analysed(
+                customerKey + "model Order { #1 id uuid { id }  #2 customer Customer { embed } }\n"
+            )
+        listOf(byKey to embedded, embedded to byKey).forEach { (old, new) ->
+            val changes = Differ.diff(old, new)
+            assertIs<FieldTypeChanged>(changes.first())
+            val verdicts = judged(old, new)
+            listOf("proto", "xsd", "jsonschema").forEach { target ->
+                assertIs<Verdict.Breaking>(verdicts.getValue(target).first(), target)
+            }
+            assertIs<Verdict.Compatible>(verdicts.getValue("sql").first())
+            val strategy = assertIs<AnnotationChanged>(changes.last())
+            assertEquals("{ embed }", annotationLabel(strategy))
+            val breaking = assertIs<Verdict.Breaking>(verdicts.getValue("sql").last())
+            assertTrue(
+                breaking.message.startsWith("s.Order.customer: { embed } "),
+                breaking.message,
+            )
+        }
+    }
+
+    @Test
+    fun `embed flipped on a list of keyed references breaks`() {
+        val byKey =
+            analysed(customerKey + "model Order { #1 id uuid { id }  #2 customers Customer[] }\n")
+        val embedded =
+            analysed(
+                customerKey +
+                    "model Order { #1 id uuid { id }  #2 customers Customer[] { embed } }\n"
+            )
+        val verdicts = judged(byKey, embedded)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            assertIs<Verdict.Breaking>(verdicts.getValue(target).first(), target)
+        }
+    }
+
+    @Test
+    fun `embed flipped on an unkeyed reference changes no output`() {
+        val address = "model Address { #1 street string }\n"
+        val old =
+            analysed(customerKey + address + "model Order { #1 id uuid { id }  #2 a Address }\n")
+        val new =
+            analysed(
+                customerKey +
+                    address +
+                    "model Order { #1 id uuid { id }  #2 a Address { embed } }\n"
+            )
+        val changes = Differ.diff(old, new)
+        assertTrue(changes.none { it is FieldTypeChanged })
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema", "openapi").forEach { target ->
+            assertTrue(verdicts.getValue(target).all { it is Verdict.Compatible }, target)
+        }
+    }
+
+    private val membership =
+        "schema s\nmodel Membership { #1 id uuid { id }  #2 a string  #3 b string %s }\n"
+
+    @Test
+    fun `a composite unique added breaks sql only and removed is compatible`() {
+        val without = analysed(membership.format(""))
+        val with = analysed(membership.format("@@unique(a, b)"))
+        val added = judged(without, with)
+        val change = assertIs<AnnotationChanged>(Differ.diff(without, with).single())
+        assertEquals("@@unique(a, b)", annotationLabel(change))
+        val breaking = assertIs<Verdict.Breaking>(added.getValue("sql").single())
+        assertEquals(
+            "s.Membership: @@unique(a, b) added breaks tables that already hold duplicate values",
+            breaking.message,
+        )
+        added
+            .filterKeys { it != "sql" }
+            .forEach { (target, list) ->
+                assertEquals(listOf<Verdict>(Verdict.Compatible), list, target)
+            }
+        judged(with, without).forEach { (target, list) ->
+            assertEquals(listOf<Verdict>(Verdict.Compatible), list, target)
+        }
+    }
+
+    @Test
+    fun `a composite index added changed or removed is compatible everywhere`() {
+        val without = analysed(membership.format(""))
+        val one = analysed(membership.format("@@index(a, b)"))
+        val other = analysed(membership.format("@@index(b, a)"))
+        listOf(without to one, one to without, one to other).forEach { (old, new) ->
+            assertTrue(Differ.diff(old, new).isNotEmpty())
+            judged(old, new).forEach { (target, list) ->
+                assertTrue(list.all { it is Verdict.Compatible }, target)
+            }
+        }
+    }
+
+    @Test
+    fun `a key field retyped under referencing models is a note on the wire targets`() {
+        val old =
+            analysed(
+                "schema s\nmodel Customer { #1 id int32 { id } }\n" +
+                    "model Order { #1 id uuid { id }  #2 customer Customer }\n" +
+                    "model Invoice { #1 id uuid { id }  #2 customer Customer }\n"
+            )
+        val new =
+            analysed(
+                "schema s\nmodel Customer { #1 id int64 { id } }\n" +
+                    "model Order { #1 id uuid { id }  #2 customer Customer }\n" +
+                    "model Invoice { #1 id uuid { id }  #2 customer Customer }\n"
+            )
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            val note = assertIs<Verdict.Note>(verdicts.getValue(target).single(), target)
+            assertEquals(
+                "s.Customer.id: type changed from int32 to int64; referenced by 2 models; " +
+                    "their emitted key fields change with it",
+                note.message,
+            )
+        }
+        assertIs<Verdict.Compatible>(verdicts.getValue("sql").single())
+    }
+
+    @Test
+    fun `a key field retyped with no referencing model stays compatible`() {
+        val old = analysed("schema s\nmodel Customer { #1 id int32 { id } }\n")
+        val new = analysed("schema s\nmodel Customer { #1 id int64 { id } }\n")
+        judged(old, new).forEach { (target, list) ->
+            assertEquals(listOf<Verdict>(Verdict.Compatible), list, target)
+        }
+    }
 }

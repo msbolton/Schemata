@@ -78,9 +78,9 @@ object OpenApiRules : Rulebook {
     private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =
         if (ctx.old.namespaces.any { it.name == change.path && it.services.isNotEmpty() })
             Verdict.Breaking(
-                "${change.path}: the namespace was removed breaks clients that call its " +
+                "${change.path}: the schema was removed breaks clients that call its " +
                     "services' operations",
-                "keep the namespace's services until no client calls them",
+                "keep the schema's services until no client calls them",
             )
         else Verdict.Compatible
 

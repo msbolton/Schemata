@@ -30,7 +30,7 @@ class MigrationRoundTripTest {
     private val corpus = File("src/test/resources/evolution")
 
     /** The cases a side of which has SQL errors, so `migrate` plans nothing for them. */
-    private val notMigrated = setOf("services")
+    private val notMigrated = setOf("embed-flipped", "services")
 
     @TestFactory
     fun `a migrated database matches a fresh one`(): List<DynamicTest> =

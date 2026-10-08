@@ -147,8 +147,8 @@ class DiffCommandTest {
         val old = side("old", "schema s\n\nmodel R { #1 x int32 { id }  #2 y int32 }\n")
         val new = side("new", "schema s\n\nmodel R { #1 x int32  #2 y int32 { id } }\n")
         val r = DiffCommand().test("${old.path} ${new.path}")
-        assertTrue(r.stderr.contains("field 'x': @sql(key) removed"), r.stderr)
-        assertTrue(r.stderr.contains("field 'y': @sql(key) added"), r.stderr)
+        assertTrue(r.stderr.contains("field 'x': { id } removed"), r.stderr)
+        assertTrue(r.stderr.contains("field 'y': { id } added"), r.stderr)
     }
 
     @Test

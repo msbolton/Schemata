@@ -75,9 +75,9 @@ object TypeCompat {
     private fun protoKeyword(type: Type): String =
         when (type) {
             is Scalar -> scalarKeyword(type.builtin)
-            is ListOf -> "list<${protoKeyword(type.element)}>"
+            is ListOf -> "${protoKeyword(type.element)}[]"
             is MapOf -> "map<${protoKeyword(type.key)}, ${protoKeyword(type.value)}>"
-            is Ref -> "ref:${type.target}"
+            is Ref -> (if (type.relation.embed) "embed:" else "ref:") + type.target
         }
 
     private fun scalarKeyword(builtin: Builtin): String =
@@ -153,7 +153,8 @@ internal class StructuralTypeVerdict(
 
     /** An element or value keeps its type, or widens by the same rules as a top-level field. */
     private fun elementCompatible(from: Type, to: Type): Boolean =
-        typeCore(from) == typeCore(to) || shapeVerdict(from, to) is Verdict.Compatible
+        (typeCore(from) == typeCore(to) && embeds(from) == embeds(to)) ||
+            shapeVerdict(from, to) is Verdict.Compatible
 }
 
 /**
@@ -162,12 +163,47 @@ internal class StructuralTypeVerdict(
  * <reason>`.
  */
 internal fun wrapTypeVerdict(change: FieldTypeChanged, verdict: Verdict): Verdict {
-    val what =
-        "type changed from ${TypeText.of(change.from.type)} to ${TypeText.of(change.to.type)}"
+    val what = "type changed from ${shown(change.from.type)} to ${shown(change.to.type)}"
     return when (verdict) {
         is Verdict.Compatible -> verdict
         is Verdict.Note -> Verdict.Note("${change.path}: $what; ${verdict.message}", verdict.help)
         is Verdict.Breaking ->
             Verdict.Breaking("${change.path}: $what breaks ${verdict.message}", verdict.help)
+    }
+}
+
+/** [type] as written, with the `{ embed }` option a reference to a keyed model carries. */
+fun shown(type: Type, nullable: Boolean = false): String {
+    val text = TypeText.of(type, nullable)
+    if (!embeds(type)) return text
+    return if (text.endsWith(" }")) text.removeSuffix(" }") + ", embed }" else "$text { embed }"
+}
+
+/** Whether [type] is, or is a list of or map to, a reference copied inline with `{ embed }`. */
+internal fun embeds(type: Type): Boolean =
+    when (type) {
+        is Ref -> type.relation.embed
+        is ListOf -> embeds(type.element)
+        is MapOf -> embeds(type.value)
+        else -> false
+    }
+
+/**
+ * The verdict for a key field retyped while other models reference it: they write its key, so their
+ * own key fields change type with it. [inner] is the verdict on the retyped field itself, which
+ * this only raises from compatible to a note or adds to a note, never softens a break.
+ */
+internal fun referencedKey(change: FieldTypeChanged, ctx: ChangeContext, inner: Verdict): Verdict {
+    if (inner is Verdict.Breaking) return inner
+    val record = change.record
+    if (!(change.to.key || change.to.name in record.compositeKey)) return inner
+    val count = ctx.referencingModels(record.qualifiedName)
+    if (count == 0) return inner
+    val what = if (count == 1) "1 model" else "$count models"
+    val message = "referenced by $what; their emitted key fields change with it"
+    val help = "regenerate the code and schemas of the referencing models along with this one"
+    return when (inner) {
+        is Verdict.Note -> Verdict.Note("${inner.message}; $message", help)
+        else -> Verdict.Note(message, help)
     }
 }
