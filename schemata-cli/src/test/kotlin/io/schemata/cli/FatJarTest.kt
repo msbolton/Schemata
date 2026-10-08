@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import org.junit.jupiter.api.Assumptions.assumeTrue
@@ -26,8 +27,10 @@ class FatJarTest {
     private fun runProcess(
         command: List<String>,
         timeoutSeconds: Long,
+        onStart: (Process) -> Unit = {},
     ): Triple<Int, String, String> {
         val process = ProcessBuilder(command).redirectErrorStream(false).start()
+        onStart(process)
         var out = ""
         var err = ""
         val drainOut = Thread { out = process.inputStream.bufferedReader().readText() }
@@ -48,13 +51,17 @@ class FatJarTest {
     @Test
     fun `a child that outlives the limit is killed and the run fails with a timeout`() {
         assumeTrue(!System.getProperty("os.name").lowercase().contains("windows"), "needs sleep")
+        var child: Process? = null
         val started = System.nanoTime()
-        val failure = assertFailsWith<AssertionError> { runProcess(listOf("sleep", "30"), 1) }
+        val failure =
+            assertFailsWith<AssertionError> { runProcess(listOf("sleep", "30"), 1) { child = it } }
+        val elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
         assertTrue(failure.message!!.startsWith("timed out after 1 s"), failure.message)
-        assertTrue(
-            TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started) < 20,
-            "the child was not killed at the limit",
-        )
+        // Once the child is killed its pipes close and the drains return at once; left running
+        // it would hold them open for the full join wait.
+        assertTrue(elapsedMillis < 5000, "the run took $elapsedMillis ms")
+        assertTrue(child!!.waitFor(5, TimeUnit.SECONDS), "the child is still running")
+        assertFalse(child!!.isAlive)
     }
 
     @Test

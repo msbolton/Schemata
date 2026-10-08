@@ -1,6 +1,7 @@
 import java.net.URI
 import java.security.MessageDigest
 import org.gradle.api.tasks.PathSensitivity
+import org.gradle.process.CommandLineArgumentProvider
 
 plugins {
     id("buildsrc.convention.kotlin-jvm")
@@ -171,7 +172,12 @@ tasks.test {
     inputs
         .dir(rootProject.layout.projectDirectory.dir("examples"))
         .withPathSensitivity(PathSensitivity.RELATIVE)
-    systemProperty("schemata.fatJar", fatJar.map { it.asFile.absolutePath })
+    // A provider passed to systemProperty is not resolved, so the path goes through an argument
+    // provider, which is evaluated when the task runs.
+    val fatJarPath = fatJar.map { it.asFile.absolutePath }
+    jvmArgumentProviders.add(
+        CommandLineArgumentProvider { listOf("-Dschemata.fatJar=${fatJarPath.get()}") }
+    )
     systemProperty("schemata.version", project.version.toString())
     providers.gradleProperty("schemata.nativeBinary").orNull?.let {
         // Resolved against the repository root, so the workflow and a developer
