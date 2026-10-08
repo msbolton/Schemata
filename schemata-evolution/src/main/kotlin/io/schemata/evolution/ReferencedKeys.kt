@@ -12,9 +12,10 @@ import io.schemata.core.ir.keyFields
  * XSD, JSON Schema, and OpenAPI emit `<field>_<key>` (or a `<Model>Key` record for a composite key)
  * where the reference stands. So a change to that key reaches every referencing model, though the
  * referencing models themselves did not change: a key added, removed, moved, or made composite
- * reshapes their reference fields, a key field renamed renames them, and a key field retyped
- * retypes them. The document rulebooks judge such a change against the models that reference the
- * one it touches and name them.
+ * reshapes their reference fields, whether a fact on an existing field changed or a key field was
+ * added or removed, a key field renamed renames them, and a key field retyped retypes them. The
+ * document rulebooks judge such a change against the models that reference the one it touches and
+ * name them.
  */
 internal object ReferencedKeys {
     private sealed interface Effect {
@@ -82,8 +83,31 @@ internal object ReferencedKeys {
                     ctx.keyReferences(change.record.qualifiedName)
                         .takeIf { it.isNotEmpty() }
                         ?.let { Retyped(it) }
+            // a field that joins or leaves the key reshapes it as a fact on an existing one does
+            is FieldAdded ->
+                reshapedBy(ctx, change.record.qualifiedName, "key field added") {
+                    inKey(ctx.new, change.record.qualifiedName, change.field)
+                }
+            is FieldRemoved ->
+                reshapedBy(ctx, change.record.qualifiedName, "key field removed") {
+                    inKey(ctx.old, change.record.qualifiedName, change.field)
+                }
             else -> null
         }
+
+    /**
+     * A [Reshaped] effect when the field a change adds or removes is part of [record]'s key on the
+     * side that has it ([inKey]) and the key differs between the two sides.
+     */
+    private fun reshapedBy(
+        ctx: ChangeContext,
+        record: QualifiedName,
+        what: String,
+        inKey: () -> Boolean,
+    ): Effect? {
+        if (!inKey() || key(ctx.old, record) == key(ctx.new, record)) return null
+        return ctx.keyReferences(record).takeIf { it.isNotEmpty() }?.let { Reshaped(it, what) }
+    }
 
     /** The record whose key a `{ id }` or `@@id` fact belongs to, for a change to that fact. */
     private fun keyOwner(change: AnnotationChanged): QualifiedName? {
@@ -95,9 +119,12 @@ internal object ReferencedKeys {
         }
     }
 
-    /** The key of [record] in [schema] as its references copy it: each field's name and type. */
-    private fun key(schema: Schema, record: QualifiedName): List<Pair<String, Type>> =
-        (schema.lookupOrNull(record) as? RecordType)?.keyFields()?.map { it.name to it.type }
+    /**
+     * The key of [record] in [schema] as its references copy it: each field's ordinal and type, in
+     * key order. A key field's name is left to [FieldRenamed], which judges a rename on its own.
+     */
+    private fun key(schema: Schema, record: QualifiedName): List<Pair<Int, Type>> =
+        (schema.lookupOrNull(record) as? RecordType)?.keyFields()?.map { it.ordinal to it.type }
             ?: emptyList()
 
     private fun inKey(schema: Schema, record: QualifiedName, field: Field): Boolean =

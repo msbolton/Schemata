@@ -380,4 +380,53 @@ class RelationRulesTest {
             .filterKeys { it != "sql" }
             .forEach { (target, list) -> assertTrue(list.all { it is Verdict.Compatible }, target) }
     }
+
+    @Test
+    fun `a new key field on a referenced keyless model breaks the document targets`() {
+        val old = analysed(customerWith("#1 id uuid  #2 name string") + referencedBy)
+        val new =
+            analysed(
+                customerWith("#1 id uuid  #2 name string  #3 code string { id }") + referencedBy
+            )
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            val breaking = assertIs<Verdict.Breaking>(verdicts.getValue(target).single(), target)
+            assertTrue(
+                breaking.message.contains("breaks the reference fields of s.Order"),
+                breaking.message,
+            )
+        }
+        assertEquals(
+            "s.Customer.code: key field added breaks the reference fields of s.Order, which carry " +
+                "this model's key: the wire shape changes",
+            (verdicts.getValue("proto").single() as Verdict.Breaking).message,
+        )
+    }
+
+    @Test
+    fun `removing the only key field of a referenced model breaks the document targets`() {
+        val old = analysed(customerWith("#1 id uuid { id }  #2 name string") + referencedBy)
+        val new = analysed(customerWith("#2 name string  reserved #1, \"id\"") + referencedBy)
+        val verdicts = judged(old, new)
+        listOf("proto", "xsd", "jsonschema").forEach { target ->
+            val breaking = verdicts.getValue(target).filterIsInstance<Verdict.Breaking>().single()
+            assertTrue(
+                breaking.message.contains("breaks the reference fields of s.Order"),
+                breaking.message,
+            )
+        }
+    }
+
+    @Test
+    fun `renaming a field of a composite key is a note on proto`() {
+        val old = analysed(customerWith("#1 a uuid  #2 b string  @@id(a, b)") + referencedBy)
+        val new = analysed(customerWith("#1 a uuid  #2 c string  @@id(a, c)") + referencedBy)
+        val verdicts = judged(old, new)
+        assertTrue(
+            verdicts.getValue("proto").none { it is Verdict.Breaking },
+            "${verdicts["proto"]}",
+        )
+        assertEquals(1, verdicts.getValue("proto").count { it is Verdict.Note })
+        assertTrue(verdicts.getValue("xsd").any { it is Verdict.Breaking })
+    }
 }
