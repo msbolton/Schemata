@@ -4,7 +4,6 @@ import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ProtoImporterTest {
@@ -203,7 +202,7 @@ class ProtoImporterTest {
     }
 
     @Test
-    fun `a nullable note on a union member keeps the message a model`() {
+    fun `a nullable note on a union member is reported and the union is kept`() {
         val r =
             import(
                 "t.proto" to
@@ -218,9 +217,34 @@ class ProtoImporterTest {
                     }
                     """
             )
-        val out = r.text("t.schemata")
-        assertTrue(out.startsWith("schema t\n\nmodel U {"), out)
-        assertFalse("union" in out, out)
+        assertEquals("schema t\n\nunion U = #1 string | #2 int64\n", r.text("t.schemata"))
+        assertTrue(
+            "SCH2403 field 'U.text': note 'string?' marks the member nullable; the '?' is " +
+                "dropped, a union member cannot be nullable" in r.messages(),
+            r.messages().toString(),
+        )
+    }
+
+    @Test
+    fun `kept rpcs are numbered consecutively from one`() {
+        val r =
+            import(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M {}
+                    service S {
+                      rpc A(M) returns (M);
+                      rpc Bad(string) returns (M);
+                      rpc C(M) returns (M);
+                    }
+                    """
+            )
+        assertEquals(
+            "schema t\n\nmodel M {}\n\nservice S {\n  #1 a(M): M\n  #2 c(M): M\n}\n",
+            r.text("t.schemata"),
+        )
     }
 
     @Test

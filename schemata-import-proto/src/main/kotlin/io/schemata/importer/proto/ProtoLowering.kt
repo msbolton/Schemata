@@ -601,10 +601,7 @@ private class FileLowering(
                 m.enums.isEmpty() &&
                 m.reserved.isEmpty() &&
                 types.all { it != null } &&
-                types.distinct().size == types.size &&
-                // The target never marks a union member nullable, which Schemata refuses; a note
-                // that does means a hand-written message, whose oneof members stay nullable fields.
-                mapped.none { it.second.noteNullable }
+                types.distinct().size == types.size
         val kind = if (isUnion) "union" else "model"
         if (!claim(claims, name, kind, "message", m.name, m.pos)) return null
         val decl = if (isUnion) union(m, name, mapped) else record(m, name, here, path, mapped)
@@ -646,6 +643,16 @@ private class FileLowering(
                     report(
                         ImportCodes.DROPPED,
                         "$where: deprecated dropped; a union member cannot be deprecated",
+                        f.pos,
+                    )
+                }
+                // The target never marks a member nullable and Schemata refuses it, so a `?` in
+                // a hand-written note cannot be kept.
+                if (t.noteNullable) {
+                    report(
+                        ImportCodes.APPROXIMATED,
+                        "$where: note '${f.note}' marks the member nullable; the '?' is dropped, " +
+                            "a union member cannot be nullable",
                         f.pos,
                     )
                 }
