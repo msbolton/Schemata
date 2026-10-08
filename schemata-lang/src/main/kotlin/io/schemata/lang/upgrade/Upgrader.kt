@@ -74,8 +74,15 @@ object Upgrader {
             ?: Parser.parse1ForUpgrade(source, path).file?.namespace?.name
     }
 
+    /** What [map] produced: the mapped file and every problem the mapping reported on the way. */
+    internal data class Mapped(val file: SourceFile, val problems: List<Diagnostic>)
+
     /** The AST mapping alone, for tests. */
-    fun map(file: SourceFile): SourceFile = Mapper(CommentTable.EMPTY, emptySet()).file(file)
+    internal fun map(file: SourceFile): Mapped {
+        val mapper = Mapper(CommentTable.EMPTY, emptySet())
+        val mapped = mapper.file(file)
+        return Mapped(mapped, mapper.problems)
+    }
 
     /**
      * [file] with every position left out, so two trees that say the same thing compare equal

@@ -82,7 +82,7 @@ optionValue   : INT_LITERAL | FLOAT_LITERAL | STRING_LITERAL | TRUE | FALSE ;
 attribute      : '@' attributeName ('(' (attrArg (',' attrArg)*)? ')')? ;
 blockAttribute : '@@' attributeName ('(' (attrArg (',' attrArg)*)? ')')? ;
 attributeName  : IDENT | keyword ;
-attrArg        : attrKey ':' attrValue | IDENT | literal ;
+attrArg        : attrKey ':' attrValue | literal ;
 attrKey        : IDENT | keyword ;
 attrValue      : literal | '(' IDENT (',' IDENT)* ')' ;
 
@@ -114,6 +114,8 @@ INT_LITERAL    : '-'? [0-9]+ ;
 STRING_LITERAL : '"' (~["\\\r\n] | '\\' ~[\r\n])* '"' ;
 RANGE          : '..' ;
 QUESTION       : '?' ;
+// Named so the AST builder can find an operation's closing parenthesis by token type.
+RPAREN         : ')' ;
 IDENT          : [A-Za-z_] [A-Za-z0-9_]* ;
 
 DOC_COMMENT   : '///' ~[\r\n]* ;

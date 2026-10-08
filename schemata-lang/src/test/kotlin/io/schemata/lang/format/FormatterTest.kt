@@ -4,8 +4,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class FormatterTest {
-    private fun fmt(text: String) =
-        (Formatter.format(text, "t.schemata") as FormatResult.Formatted).text
+    /** Every case in this suite also proves that formatting its own output changes nothing. */
+    private fun fmt(text: String): String {
+        val once = (Formatter.format(text, "t.schemata") as FormatResult.Formatted).text
+        val twice = (Formatter.format(once, "t.schemata") as FormatResult.Formatted).text
+        assertEquals(once, twice, "not idempotent: $text")
+        return once
+    }
 
     @Test
     fun `a byte-order mark is read and never written`() {

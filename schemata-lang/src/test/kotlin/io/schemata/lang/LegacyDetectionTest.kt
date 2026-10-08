@@ -28,6 +28,16 @@ class LegacyDetectionTest {
     }
 
     @Test
+    fun `a 1x file that opens with a record is one SCH0008 at that word`() {
+        listOf("record R { #1 x: int32 }", "/// doc\n@deprecated\nrecord R {}").forEach { text ->
+            val r = Parser.parse(text, "t.schemata")
+            assertNull(r.file, text)
+            assertEquals(listOf("SCH0008"), r.diagnostics.map { it.code.id }, text)
+            assertEquals(text.lines().size, r.diagnostics[0].span.startLine, text)
+        }
+    }
+
+    @Test
     fun `a 2 file whose model is named namespace is not legacy`() {
         val r = Parser.parse("schema s\nmodel namespace_log { a int32 }", "t.schemata")
         assertNotNull(r.file)

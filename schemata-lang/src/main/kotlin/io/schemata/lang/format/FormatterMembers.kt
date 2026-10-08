@@ -115,8 +115,9 @@ internal fun Formatter.Printer.unionMemberOneLine(m: UnionMemberDecl): String {
 
 /**
  * An operation on one line, with two spaces before its binding (`get "/a/{id}"`); when that line is
- * wider than [Formatter.LINE_WIDTH] the binding moves to the next line, one level deeper. The path
- * prints as written, so its escapes stay as they were.
+ * wider than [Formatter.LINE_WIDTH] the binding moves to the next line, one level deeper, and so it
+ * does when the author wrote it on a later line than the signature. The path is never split, so a
+ * path wider than the line stays whole. It prints as written, so its escapes stay as they were.
  */
 internal fun Formatter.Printer.operationLines(
     op: OperationDecl,
@@ -131,7 +132,11 @@ internal fun Formatter.Printer.operationLines(
     val trailing = trailing(op.span)
     if (binding == null) return prelude.prefixLines + (head + trailing)
     val oneLine = "$head  $binding$trailing"
-    if (width(oneLine) <= Formatter.LINE_WIDTH) return prelude.prefixLines + oneLine
+    val signatureEnd =
+        maxOf(op.nameSpan.endLine, op.request?.span?.endLine ?: 0, op.response?.span?.endLine ?: 0)
+    val brokenByAuthor = op.binding.verbSpan.startLine > signatureEnd
+    if (!brokenByAuthor && width(oneLine) <= Formatter.LINE_WIDTH)
+        return prelude.prefixLines + oneLine
     return prelude.prefixLines + head + (indent + Formatter.INDENT + binding + trailing)
 }
 

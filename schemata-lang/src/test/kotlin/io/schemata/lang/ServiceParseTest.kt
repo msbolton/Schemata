@@ -142,6 +142,46 @@ class ServiceParseTest {
     }
 
     @Test
+    fun `a path is checked as written so an escape cannot hide a bad character`() {
+        fun problem(path: String) =
+            parse("schema t\nmodel A { #1 x int32 }\nservice S { #1 a(A): A  get \"$path\" }")
+                .diagnostics
+                .map { "${it.code.id} ${it.message}" }
+        // `\u{2f}` decodes to `/`, which would split a segment the author wrote as one.
+        assertEquals(
+            listOf(
+                "SCH0007 path \"/a\\u{2f}b\" is malformed: segment \"a\\u{2f}b\" holds a character outside A-Z a-z 0-9 . _ ~ -"
+            ),
+            problem("/a\\u{2f}b"),
+        )
+        // A `)` or a `}` inside a path segment is just a bad character.
+        assertEquals(
+            listOf(
+                "SCH0007 path \"/a)b\" is malformed: segment \"a)b\" holds a character outside A-Z a-z 0-9 . _ ~ -"
+            ),
+            problem("/a)b"),
+        )
+        assertEquals(
+            listOf(
+                "SCH0007 path \"/a\\u{29}\" is malformed: segment \"a\\u{29}\" holds a character outside A-Z a-z 0-9 . _ ~ -"
+            ),
+            problem("/a\\u{29}"),
+        )
+        assertEquals(listOf("SCH0007 path \"\" is malformed: it must start with /"), problem(""))
+    }
+
+    @Test
+    fun `request and response are told apart by the closing parenthesis`() {
+        val r =
+            parse(
+                "schema t\nmodel A { #1 x int32 }\nservice S { #1 a(A): A\n #2 b(A)\n #3 c(): A }"
+            )
+        val ops = r.file!!.services.single().operations
+        assertEquals(listOf(true, true, false), ops.map { it.request != null })
+        assertEquals(listOf(true, false, true), ops.map { it.response != null })
+    }
+
+    @Test
     fun `diagnostics in a service and a later record come out in source order`() {
         val r =
             parse(

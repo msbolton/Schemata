@@ -166,6 +166,16 @@ class ParserTest {
     }
 
     @Test
+    fun `a bare identifier argument is a positional name literal spanning its token`() {
+        val m = model("schema s\nmodel M {\n  @sql(unique) a int32\n  b int32\n}")
+        val arg = m.fields[0].annotations.single().args.single() as AnnotationArg.Positional
+        val lit = (arg.value as AnnotationValue.Lit).literal as Literal.NameLit
+        assertEquals("unique", lit.name)
+        assertEquals(Span("t.schemata", 3, 8, 3, 13), lit.span)
+        assertEquals(Span("t.schemata", 3, 8, 3, 13), arg.span)
+    }
+
+    @Test
     fun `block attributes follow the leading ones and take bare names`() {
         val m =
             model(
