@@ -5,5 +5,5 @@ package s;
 import "missing.proto";
 
 message Order {
-  string id = 1;
+  missing.Thing thing = 1;
 }

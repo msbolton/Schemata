@@ -17,8 +17,16 @@ import io.schemata.lang.Span
 /**
  * Runs the reader, the lowering, the emitter, and the formatter over a set of `.proto` inputs. An
  * `import` resolves among the inputs by its path under their roots, then beside the importing file,
- * then under each root through [Importer.import]'s `locate`; a file found that way is read and
- * lowered too.
+ * then under each root through [Importer.import]'s `locate`; a file found that way is read, and
+ * lowered when something needs it.
+ *
+ * An import that resolves nowhere only costs the types it would have declared, so it is a dropped
+ * construct (SCH2405), not an error; a type that needed it is reported where it is used. A file
+ * found beside an importer that sits under no root was read only to satisfy a lookup: it is lowered
+ * only when an input, or a file that is lowered, references a symbol it declares. A file found
+ * under a root, whether beside an importer there or through [Importer.import]'s `locate`, keeps
+ * being lowered whether or not anything references it, since a root names a body of schemas the
+ * caller asked for.
  */
 object ProtoImporter : Importer {
     /**
@@ -71,6 +79,11 @@ object ProtoImporter : Importer {
         val imports = LinkedHashMap<String, MutableList<ProtoFile>>()
         val publicImports = LinkedHashMap<String, MutableSet<String>>()
         val queue = ArrayDeque(files.values)
+        val inputPaths = files.keys.toSet()
+        // Files read only because an import named them from beside the importer; whether they are
+        // lowered waits on what references them.
+        val besideFound = mutableSetOf<String>()
+        val unresolvedImports = LinkedHashMap<String, MutableList<String>>()
         fun report(
             file: ProtoFile,
             code: DiagnosticCode,
@@ -98,7 +111,14 @@ object ProtoImporter : Importer {
         }
         fun found(input: ImportInput): ProtoFile? {
             val known = slashed(input.path) in files
-            return read(input)?.also { if (!known) queue += it }
+            return read(input)?.also {
+                if (!known) {
+                    queue += it
+                    // Under a root it is part of what the caller named; with no root it is a
+                    // neighbour read only to see what it declares.
+                    if (input.relative == null) besideFound += it.path
+                }
+            }
         }
         while (queue.isNotEmpty()) {
             val f = queue.removeFirst()
@@ -115,11 +135,13 @@ object ProtoImporter : Importer {
                             files[path] ?: locate(path)?.let { found(it.copy(relative = imp.path)) }
                         }
                 if (target == null) {
+                    unresolvedImports.getOrPut(f.path) { mutableListOf() } += imp.path
                     report(
                         f,
-                        ImportCodes.UNRESOLVED,
-                        "${f.path}: import '${imp.path}' cannot be resolved",
+                        ImportCodes.DROPPED,
+                        "${f.path}: import '${imp.path}' not found; dropped",
                         imp.pos,
+                        "add the directory that holds it with --include",
                     )
                 } else {
                     imports.getOrPut(f.path) { mutableListOf() } += target
@@ -128,7 +150,26 @@ object ProtoImporter : Importer {
             }
         }
 
-        val all = files.values.toList()
+        // A file read only through lookup and referenced by nothing that is lowered is dropped
+        // before it is named or lowered, so it costs no output and no diagnostics.
+        val wide = ProtoSymbols(files.values.toList(), imports, publicImports)
+        val needed =
+            files.values.filter { slashed(it.path) in inputPaths }.mapTo(mutableSetOf()) { it.path }
+        val pending = ArrayDeque(needed)
+        while (pending.isNotEmpty()) {
+            val f = files.getValue(slashed(pending.removeFirst()))
+            wide.referencedFiles(f).forEach { if (needed.add(it)) pending += it }
+        }
+        val all = files.values.filter { it.path !in besideFound || it.path in needed }
+        val kept = all.mapTo(mutableSetOf()) { it.path }
+        val keptImports =
+            imports
+                .filterKeys { it in kept }
+                .mapValues { (_, targets) -> targets.filter { it.path in kept } }
+        val keptPublic =
+            publicImports
+                .filterKeys { it in kept }
+                .mapValues { (_, v) -> v.filterTo(mutableSetOf()) { it in kept } }
         val namespaces = LinkedHashMap<String, String>()
         val annotations = LinkedHashMap<String, List<UnitAnnotation>>()
         val shared = sharedPackages(all, sources)
@@ -178,10 +219,11 @@ object ProtoImporter : Importer {
             ProtoLowering.lower(
                 all,
                 namespaces,
-                ProtoSymbols(all, imports, publicImports),
+                ProtoSymbols(all, keptImports, keptPublic),
                 annotations,
-                imports,
+                keptImports,
                 sources.mapValues { (_, input) -> input.relative ?: input.path },
+                unresolvedImports,
             )
         return importResult(lowered.units, diagnostics + lowered.diagnostics)
     }

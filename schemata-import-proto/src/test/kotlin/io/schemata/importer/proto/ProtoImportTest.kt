@@ -932,10 +932,114 @@ class ProtoImportTest {
                     """
             )
         assertEquals(
-            listOf("SCH2401 t.proto: import 'missing.proto' cannot be resolved"),
+            listOf("SCH2405 t.proto: import 'missing.proto' not found; dropped"),
             messages(missing),
         )
-        assertEquals(emptyList(), missing.files)
+        assertEquals(listOf("t.schemata"), missing.files.map { it.path })
+    }
+
+    @Test
+    fun `an unresolved import whose types are never used is a warning and the file is still emitted`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "udpa/annotations/status.proto";
+                    message M { string id = 1; }
+                    """
+            )
+        assertEquals(
+            listOf("SCH2405 t.proto: import 'udpa/annotations/status.proto' not found; dropped"),
+            messages(r),
+        )
+        assertEquals("add the directory that holds it with --include", r.diagnostics.single().help)
+        assertEquals(2, r.diagnostics.single().span?.startLine)
+        assertEquals(listOf("t.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `an unresolved type names the unresolved imports in its hint`() {
+        val one =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "a.proto";
+                    message M { a.A x = 1; }
+                    """
+            )
+        assertEquals(listOf("SCH2405", "SCH2401"), one.diagnostics.map { it.code.id })
+        assertEquals(
+            "import 'a.proto' was not found; add its directory with --include",
+            one.diagnostics.last().help,
+        )
+        val two =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "a.proto";
+                    import "b.proto";
+                    message M { a.A x = 1; }
+                    """
+            )
+        assertEquals(
+            "imports 'a.proto', 'b.proto' were not found; add their directory with --include",
+            two.diagnostics.last().help,
+        )
+        val none =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    message M { a.A x = 1; }
+                    """
+            )
+        assertEquals(
+            "add the schema that declares it to the inputs, or fix the reference",
+            none.diagnostics.single().help,
+        )
+    }
+
+    @Test
+    fun `a file found under a root is still emitted when nothing references it`() {
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "/r/a.proto",
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A {}\n",
+                        relative = "a.proto",
+                    )
+                ),
+                null,
+            ) { path ->
+                if (path == "/r/b.proto")
+                    ImportInput(path, "syntax = \"proto3\";\npackage b;\nmessage B {}\n")
+                else null
+            }
+        assertEquals(listOf("a.schemata", "b.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `a file found beside an importer is not emitted when nothing references it`() {
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "/in/a.proto",
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A {}\n",
+                    )
+                ),
+                null,
+            ) { path ->
+                if (path == "/in/b.proto")
+                    ImportInput(path, "syntax = \"proto3\";\npackage b;\nmessage B {}\n")
+                else null
+            }
+        assertEquals(listOf("a.schemata"), r.files.map { it.path })
+        assertEquals(emptyList(), messages(r))
     }
 
     @Test

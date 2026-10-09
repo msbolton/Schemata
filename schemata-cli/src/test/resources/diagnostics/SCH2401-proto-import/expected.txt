@@ -1,6 +1,10 @@
 # import=proto
-error[SCH2401]: s.proto: import 'missing.proto' cannot be resolved
+warning[SCH2405] (lossy): s.proto: import 'missing.proto' not found; dropped
  --> s.proto:5:1
-  = help: add the schema that declares it to the inputs, or fix the reference
+  = help: add the directory that holds it with --include
 
-1 error, 0 warnings
+error[SCH2401]: field 'Order.thing': type 'missing.Thing' cannot be resolved
+ --> s.proto:8:3
+  = help: import 'missing.proto' was not found; add its directory with --include
+
+1 error, 1 warning

@@ -38,8 +38,9 @@ internal object ProtoLowering {
         annotations: Map<String, List<UnitAnnotation>> = emptyMap(),
         imports: Map<String, List<ProtoFile>> = emptyMap(),
         sourceNames: Map<String, String> = emptyMap(),
+        unresolvedImports: Map<String, List<String>> = emptyMap(),
     ): Imported {
-        val context = Context(namespaces, symbols, sourceNames)
+        val context = Context(namespaces, symbols, sourceNames, unresolvedImports)
         val diagnostics = mutableListOf<Diagnostic>()
         val units =
             files
@@ -103,6 +104,8 @@ internal class Context(
     val symbols: ProtoSymbols,
     /** How an import statement names each file, by [ProtoFile.path], where it has a name. */
     val sourceNames: Map<String, String> = emptyMap(),
+    /** The import paths each file wrote that resolved nowhere, by [ProtoFile.path]. */
+    val unresolvedImports: Map<String, List<String>> = emptyMap(),
 ) {
     /** Each symbol's path from its namespace's root in Schemata: each proto name upper-camelled. */
     val paths: Map<String, List<String>> =
@@ -313,7 +316,22 @@ internal class FileLowering(
     val referenced = LinkedHashSet<String>()
 
     /** Imports of this file that could not be resolved. */
-    val unresolvedImports: List<String> = emptyList()
+    val unresolvedImports: List<String> = context.unresolvedImports[file.path].orEmpty()
+
+    /**
+     * The help for a type that resolves nowhere: when this file has imports that were not found the
+     * type may live in one of them, so the help names them.
+     */
+    fun unresolvedHelp(): String =
+        when (unresolvedImports.size) {
+            0 -> ImportCodes.helpFor(ImportCodes.UNRESOLVED)
+            1 ->
+                "import '${unresolvedImports.single()}' was not found; " +
+                    "add its directory with --include"
+            else ->
+                "imports ${unresolvedImports.joinToString { "'$it'" }} were not found; " +
+                    "add their directory with --include"
+        }
 
     /**
      * When [name] resolves to nothing this file can see but does resolve among all the files read:

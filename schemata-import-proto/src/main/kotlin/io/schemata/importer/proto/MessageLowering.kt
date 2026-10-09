@@ -517,7 +517,12 @@ internal class MessageLowering(private val lowering: FileLowering) {
                     "$where: type '$name' cannot be resolved; ${unimported.first}",
                     unimported.second,
                 )
-            } else note(ImportCodes.UNRESOLVED, "$where: type '$name' cannot be resolved")
+            } else
+                note(
+                    ImportCodes.UNRESOLVED,
+                    "$where: type '$name' cannot be resolved",
+                    lowering.unresolvedHelp(),
+                )
             return null
         }
         return Single(lowering.reference(symbol, enclosing), false, symbol)
