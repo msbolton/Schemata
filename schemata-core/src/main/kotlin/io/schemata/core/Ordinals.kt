@@ -134,6 +134,11 @@ object Ordinals {
                 }
         }
         val allExplicit = elements.mapNotNull { it.ordinal }.toSet()
+        // a chosen ordinal's help must also step over the positions the other elements hold
+        val held =
+            allExplicit +
+                elements.indices.filter { elements[it].chosen == null }.map { it + 1 } +
+                elements.mapNotNull { it.chosen }
         val seen = mutableSetOf<Int>()
         return elements.mapIndexed { index, element ->
             val ordinal = element.ordinal ?: element.chosen ?: (index + 1)
@@ -174,7 +179,7 @@ object Ordinals {
                         "ordinal #$ordinal is reserved in $kind '$name'",
                         at,
                         help =
-                            "pick another ordinal; the next free one is #${nextFree(allExplicit, reserved.ordinals)}",
+                            "pick another ordinal; the next free one is #${nextFree(if (element.chosen != null) held else allExplicit, reserved.ordinals)}",
                     )
             }
             ordinal

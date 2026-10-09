@@ -69,4 +69,32 @@ class TimestampsTest {
             analyze("schema s\nmodel Marker { @@timestamps }").diagnostics.map { it.code.id },
         )
     }
+
+    private fun codes(text: String) = analyze(text).diagnostics.map { it.code.id }
+
+    @Test
+    fun `a reserved pin on an implicit model is reported once with a right help`() {
+        val r =
+            analyze("schema s\nmodel M { id uuid { id }  reserved #11  @@timestamps(#11, #12) }")
+        assertEquals(listOf("SCH1020"), r.diagnostics.map { it.code.id })
+        assertEquals("pick another ordinal; the next free one is #2", r.diagnostics[0].help)
+    }
+
+    @Test
+    fun `implicit model pins are checked against positions and each other`() {
+        val m = "schema s\nmodel M { id uuid { id }  name string  "
+        assertEquals(listOf("SCH1019"), codes(m + "@@timestamps(#2, #12) }"))
+        assertEquals(listOf("SCH1035"), codes(m + "@@timestamps(#0, #12) }"))
+        assertEquals(listOf("SCH1019"), codes(m + "@@timestamps(#11, #11) }"))
+    }
+
+    @Test
+    fun `a repeated well-formed timestamps is only a duplicate annotation`() {
+        assertEquals(
+            listOf("SCH1036"),
+            codes(
+                "schema s\nmodel M { #1 id uuid { id }  @@timestamps(#11, #12)  @@timestamps(#13, #14) }"
+            ),
+        )
+    }
 }

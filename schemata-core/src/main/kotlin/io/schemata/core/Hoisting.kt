@@ -90,7 +90,7 @@ object Hoisting {
         val (stamps, annotations) = decl.annotations.partition { it.block && it.name == TIMESTAMPS }
         val inner = visible.inside(decl, taken, hoisted.map { it.name }.toSet())
         return decl.copy(
-            fields = fields + timestamps(fields, decl.reserved, stamps, report),
+            fields = fields + timestamps(decl.name, fields, decl.reserved, stamps, report),
             nested =
                 decl.nested.map { if (it is RecordDecl) record(it, inner, report) else it } +
                     hoisted,
@@ -228,16 +228,18 @@ object Hoisting {
      * `@@timestamps(#n, #m)` pins them: `created_at` takes `#n` and `updated_at` `#m`, in either
      * order. Both or neither, because a single pinned ordinal leaves the other to float with the
      * model. Under explicit ordinals the pinned ones are written ordinals like any field's, so the
-     * ordinal check reports a clash or a reserved one. In a body of implicit ordinals that check
-     * never sees them (the other fields are positions), so the clashes are reported here: against
-     * the positions 1..n the other fields hold, and the reserved ranges. The positional fields keep
-     * their positions and the stamps are appended after them, so the mix of written and implicit
-     * ordinals is never presented to the ordinal check.
+     * ordinal check reports a clash or a reserved one. In a body of implicit ordinals the pinned
+     * ones are handed over as chosen, so the ordinal check reports a reserved one itself but does
+     * not compare them with the positions 1..n the other fields hold or with each other; those
+     * clashes are reported here. The positional fields keep their positions and the stamps are
+     * appended after them, so the mix of written and implicit ordinals is never presented to the
+     * ordinal check.
      *
      * An unpinned `@@timestamps` over explicit ordinals draws SCH1054, since adding a field later
      * moves the stamps; a model with no fields has nothing to move, so it draws none.
      */
     private fun timestamps(
+        model: String,
         fields: List<FieldDecl>,
         reserved: List<ReservedItem>,
         stamps: List<Annotation>,
@@ -254,20 +256,17 @@ object Hoisting {
                 )
             )
         }
-        stamps.drop(1).filter { it.args.isNotEmpty() }.forEach { badShape(it, report) }
+        stamps.drop(1).filter { !wellShaped(it) }.forEach { badShape(it, report) }
         val explicit = fields.isNotEmpty() && fields.all { it.ordinal != null }
         val ranges = reserved.filterIsInstance<ReservedItem.Ordinals>().map { it.from..it.to }
-        val pinned =
-            first.args.map {
-                ((it as? AnnotationArg.Positional)?.value as? AnnotationValue.Ordinal)
-            }
-        val malformed = first.args.isNotEmpty() && (pinned.size != 2 || pinned.any { it == null })
+        val malformed = first.args.isNotEmpty() && !wellShaped(first)
         if (malformed) badShape(first, report)
         if (first.args.isNotEmpty() && !malformed) {
-            val (created, updated) = pinned.map { it!! }
+            val (created, updated) = ordinals(first)
             if (!explicit) {
                 // the other fields hold the positions 1..n
                 val taken = fields.size
+                val used = (1..taken).toSet() + created.ordinal + updated.ordinal
                 listOf(created, updated).forEach { p ->
                     when {
                         p.ordinal <= 0 ->
@@ -283,18 +282,10 @@ object Hoisting {
                             report(
                                 Diagnostic(
                                     CoreCodes.DUPLICATE_ORDINAL,
-                                    "ordinal #${p.ordinal} is used more than once in this model",
+                                    "ordinal #${p.ordinal} is used more than once in model '$model'",
                                     p.span,
-                                    help = "pin an ordinal no field holds",
-                                )
-                            )
-                        ranges.any { p.ordinal in it } ->
-                            report(
-                                Diagnostic(
-                                    CoreCodes.RESERVED_CONFLICT,
-                                    "ordinal #${p.ordinal} is reserved in this model",
-                                    p.span,
-                                    help = "pin an ordinal that is not reserved",
+                                    help =
+                                        "give each element its own ordinal; the next free one is #${Ordinals.nextFree(used, ranges)}",
                                 )
                             )
                     }
@@ -325,6 +316,15 @@ object Hoisting {
             stamp("updated_at", updated, at, nullable = true, first.span),
         )
     }
+
+    /** Exactly two ordinal arguments and nothing else. */
+    private fun ordinals(stamp: Annotation): List<AnnotationValue.Ordinal> =
+        stamp.args.mapNotNull {
+            (it as? AnnotationArg.Positional)?.value as? AnnotationValue.Ordinal
+        }
+
+    private fun wellShaped(stamp: Annotation) =
+        stamp.args.isEmpty() || (stamp.args.size == 2 && ordinals(stamp).size == 2)
 
     private fun badShape(stamp: Annotation, report: (Diagnostic) -> Unit) =
         report(
