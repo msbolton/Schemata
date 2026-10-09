@@ -681,6 +681,39 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `a backwards reserved range is a syntax error and a backwards reserved note is unreadable`() {
+        val range =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; reserved 5 to 3; }
+                    """
+            )
+        assertEquals(
+            listOf("SCH2401 t.proto:3:26: cannot parse: reserved range 5 to 3 runs backwards"),
+            messages(range),
+        )
+        val note =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      // schemata: reserved #5..#3
+                    }
+                    """
+            )
+        assertEquals(
+            listOf("SCH2403 service 'S': note 'reserved #5..#3' cannot be read; ignored"),
+            messages(note),
+        )
+    }
+
+    @Test
     fun `an unreadable reserved note is reported at its own line`() {
         val r =
             importText(

@@ -26,7 +26,7 @@ schema contacts
 
 enum Kind { personal work }
 
-/// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
+/// One person. Postgres checks the name, email, and age but not the tags; Protobuf checks none.
 model Contact {
   id    int64    { id }
   name  string   { max 100 }
@@ -327,13 +327,17 @@ From `examples/ledger/journal.schemata`:
 ```schemata
 /// A balanced entry: at least two lines.
 model Entry {
-  #1 id     uuid      { id }
-  #2 posted date
-  #3 memo   string?   { max 500 }
-  #4 lines  Line[]    { minItems 2 }
-  #5 ref    Reference
+  #1 id        uuid      { id }
+  #2 posted    date
+  #3 memo      string?   { max 500 }
+  #4 lines     Line[]    { minItems 2 }
+  #5 ref       Reference
   reserved #6
+  #7 tenant_id int64
 ```
+
+`Entry` carries a `tenant_id` of its own, as `Account` does; `#6` stays reserved, so the new field
+takes `#7`.
 
 From `examples/ledger/reports.schemata`:
 ```schemata
@@ -431,10 +435,10 @@ The `Kind`, `Source`, and `Side` enums each get a synthesized zero value, the sa
 `contacts`. Every refinement, on `Account.code`, `Account.name`, `Invoice.number`, and
 `Payment.reference`, is dropped the same way `email` and `age` were dropped in `contacts`; enforce
 them in application code. `Account.opened` and `Entry.id` have no Protobuf date or uuid type, so
-they lower to plain strings; parse them back in application code. `Entry.memo`'s max is dropped
-too. The map's decimal values lower to strings; parse them back to decimals in application code.
-The `minItems 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced
-by Protobuf; enforce them in application code.
+they lower to plain strings; parse them back in application code. `Entry.memo`'s max is dropped too.
+The map's decimal values lower to strings; parse them back to decimals in application code. The
+`minItems 2` bound on `Entry.lines` and the year-month pattern on `Close.period` are not enforced by
+Protobuf; enforce them in application code.
 
 Warnings from `examples/ledger/expected/sql-warnings.txt`:
 ```text
@@ -795,10 +799,14 @@ proto target gives `message Money` back with the same fields, numbers, and comme
 
 ## Keeping the examples current
 
-If you change one of these `.schemata` files, its `expected/` tree and warnings files need to
-change with it. Run
-`SCHEMATA_GOLDEN_UPDATE=1 ./gradlew :schemata-cli:test --tests 'io.schemata.cli.examples.ExamplesTest'`
-to regenerate them, then read the diff before committing: every change should trace back to the
-edit you made. `examples/shop/expected/xsd-sample.xml` is not regenerated this way; it is
-hand-written, and the same test run validates it against the regenerated `orders.xsd`, so update it
-by hand if a change to `shop` would make it invalid.
+If you change one of these `.schemata` files, its `expected/` tree and warnings files need to change
+with it. Run
+
+```text
+SCHEMATA_GOLDEN_UPDATE=1 ./gradlew :schemata-cli:test --tests 'io.schemata.cli.examples.ExamplesTest'
+```
+
+to regenerate them, then read the diff before committing: every change should trace back to the edit
+you made. `examples/shop/expected/xsd-sample.xml` is not regenerated this way; it is hand-written,
+and the same test run validates it against the regenerated `orders.xsd`, so update it by hand if a
+change to `shop` would make it invalid.

@@ -246,6 +246,24 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `three namespaces sharing a uri are reported once naming all of them`() {
+        val uri = xsd("namespace" to AnnotationValue.Str("urn:x"))
+        val lowered =
+            XsdLowering.lower(
+                Schema(
+                    listOf(
+                        namespace("a", uri, line = 1),
+                        namespace("b", uri, line = 5),
+                        namespace("c", uri, line = 9),
+                    )
+                )
+            )
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.NAMESPACE_COLLISION, d.code)
+        assertEquals("schemas a and b and c both lower to target namespace 'urn:x'", d.message)
+    }
+
+    @Test
     fun `a relative namespace override is rejected`() {
         val ns = namespace("shop.orders", xsd("namespace" to AnnotationValue.Str("orders")))
         val d = XsdLowering.lower(Schema(listOf(ns))).diagnostics.single()
@@ -985,6 +1003,22 @@ class XsdLoweringTest {
                 ),
             ),
             type.attributes,
+        )
+    }
+
+    @Test
+    fun `a key record does not repeat the warnings of the model it copies`() {
+        val schema =
+            compile(
+                "schema shop\n\nmodel Pair { #1 a int32 { id } @xsd(mixed)  #2 b int32 { id } }\n\n" +
+                    "model User { #1 id uuid { id }  #2 pair Pair }\n"
+            )
+        val lowered = XsdLowering.lower(schema)
+        assertEquals(
+            listOf(
+                "field 'Pair.a': @xsd(mixed) is not allowed on an int32; it takes a string or string?"
+            ),
+            lowered.diagnostics.map { it.message },
         )
     }
 

@@ -258,7 +258,7 @@ class PlannerTest {
         assertEquals("order_id", drop.column)
         assertEquals(Risk.DESTRUCTIVE, drop.risk)
         assertEquals(
-            "populate \"order_lines\".\"order_code\" from the parent before the foreign keys return, then rerun with --allow-destructive",
+            "populate \"order_lines\".\"order_code\" from the parent before the keys are re-added, then rerun with --allow-destructive",
             drop.help,
         )
         val fkDrop =
@@ -692,5 +692,87 @@ class PlannerTest {
                 it is AddConstraint && it.constraint.name == "fk_order_buyer"
             }
         )
+    }
+
+    @Test
+    fun `a grandchild table under a map of keyless records is labelled through value`() {
+        val old =
+            """
+            schema s
+            model Order {
+              #1 id uuid { id }
+              #2 lines map<string, Line> @sql(strategy: table)
+            }
+            model Line { #1 sku string  #2 notes Note[] }
+            model Note { #1 text string }
+            model Holder { #1 id uuid { id }  #2 n Note }
+            """
+        val dropped = old.replace("  #2 notes Note[]", "")
+        val drop = plan(old, dropped).filterIsInstance<DropTable>().single()
+        assertEquals("s.Order.lines.value.notes", drop.subject.path)
+    }
+
+    @Test
+    fun `a widening that also loosens a bound re-adds the check as safe`() {
+        val old =
+            """
+            schema s
+            model Item {
+              #1 id uuid { id }
+              #2 n int32 { max 10 }
+            }
+            """
+        val steps = plan(old, old.replace("int32 { max 10 }", "int64 { max 20 }"))
+        val alter = steps.filterIsInstance<AlterColumnType>().single()
+        assertEquals(Risk.CLEAN, alter.risk)
+        val add = steps.filterIsInstance<AddConstraint>().single()
+        assertEquals(Risk.CLEAN, add.risk, steps.toString())
+    }
+
+    @Test
+    fun `a retype to an array or an override spells its using cast`() {
+        val old =
+            """
+            schema s
+            model Item {
+              #1 id uuid { id }
+              #2 tags int32[]
+              #3 code string
+            }
+            """
+        val new =
+            old.replace("int32[]", "int64[]")
+                .replace("#3 code string", "#3 code string @sql(type: \"citext\")")
+        val sql = plan(old, new).filterIsInstance<AlterColumnType>().map(MigrationRenderer::sql)
+        assertEquals(
+            listOf(
+                "ALTER TABLE \"s\".\"item\" ALTER COLUMN \"tags\" TYPE bigint[] USING \"tags\"::bigint[];",
+                "ALTER TABLE \"s\".\"item\" ALTER COLUMN \"code\" TYPE citext USING \"code\"::citext;",
+            ),
+            sql,
+        )
+    }
+
+    @Test
+    fun `a moved key re-adds the primary keys before the foreign keys`() {
+        val old =
+            """
+            schema s
+            model Order {
+              #1 id uuid { id }
+              #2 code string { max 8 }
+              #3 lines Line[]
+              model Line { #1 sku string { max 8 } }
+            }
+            """
+        val new =
+            old.replace("#1 id uuid { id }", "#1 id uuid")
+                .replace("#2 code string { max 8 }", "#2 code string { id, max 8 }")
+        val steps = plan(old, new)
+        fun addOf(kind: (Constraint) -> Boolean) =
+            steps.indexOfFirst { it is AddConstraint && kind(it.constraint) }
+        val primary = addOf { it is Constraint.PrimaryKey }
+        val foreign = addOf { it is Constraint.Foreign }
+        assertTrue(primary in 0 until foreign, steps.toString())
     }
 }

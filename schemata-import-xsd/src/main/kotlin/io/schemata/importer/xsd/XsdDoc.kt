@@ -93,13 +93,15 @@ sealed interface XParticle {
         XParticle
 
     // a sequence/choice/all inside another; [name] is the group's when it came from a repeated
-    // reference to a named group
+    // reference to a named group, and [path] the file of that group, whose lines its own
+    // diagnostics point at (empty when it was written in place)
     data class Nested(
         val content: XContent,
         val minOccurs: Int,
         val maxOccurs: Int?,
         val line: Int,
         val name: String? = null,
+        val path: String = "",
     ) : XParticle
 }
 
@@ -156,6 +158,8 @@ data class XAttribute(
     val doc: String?,
     val line: Int,
     val form: String? = null,
+    // the file that declares it, which an include can make differ from the merged document's
+    val path: String = "",
 )
 
 data class XSimpleType(

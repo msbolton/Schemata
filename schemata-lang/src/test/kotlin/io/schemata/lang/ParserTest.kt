@@ -166,6 +166,16 @@ class ParserTest {
     }
 
     @Test
+    fun `a bare identifier argument is a positional name literal spanning its token`() {
+        val m = model("schema s\nmodel M {\n  @sql(unique) a int32\n  b int32\n}")
+        val arg = m.fields[0].annotations.single().args.single() as AnnotationArg.Positional
+        val lit = (arg.value as AnnotationValue.Lit).literal as Literal.NameLit
+        assertEquals("unique", lit.name)
+        assertEquals(Span("t.schemata", 3, 8, 3, 13), lit.span)
+        assertEquals(Span("t.schemata", 3, 8, 3, 13), arg.span)
+    }
+
+    @Test
     fun `block attributes follow the leading ones and take bare names`() {
         val m =
             model(
@@ -393,5 +403,15 @@ class ParserTest {
         assertEquals(emptyList(), r.diagnostics)
         assertEquals(Span("t", 1, 1, 1, 9), Parser.parse("schema a", "t").file!!.span)
         assertEquals(Span("t", 1, 1, 2, 1), Parser.parse("schema a\n", "t").file!!.span)
+    }
+
+    @Test
+    fun `a block attribute may take ordinal arguments`() {
+        val m = model("schema t\nmodel M { #1 id uuid  @@timestamps(#11, #12) }")
+        val args = m.annotations.single().args
+        assertEquals(
+            listOf(11, 12),
+            args.map { ((it as AnnotationArg.Positional).value as AnnotationValue.Ordinal).ordinal },
+        )
     }
 }

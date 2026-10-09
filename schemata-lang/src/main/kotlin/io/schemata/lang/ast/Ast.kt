@@ -246,6 +246,9 @@ sealed interface AnnotationValue {
 
     data class Lit(val literal: Literal, override val span: Span) : AnnotationValue
 
+    /** `#11` — used by `@@timestamps(#11, #12)` to pin the ordinals of the stamp fields. */
+    data class Ordinal(val ordinal: Int, override val span: Span) : AnnotationValue
+
     /**
      * `(a, b)` — used by `@sql(key = (tenant_id, id))`. [nameSpans] holds one span per name, in
      * order.

@@ -41,6 +41,7 @@ message Entry {
   optional string memo = 3;  // schemata: string? { max 500 }
   repeated Line lines = 4;  // schemata: Line[] { minItems 2 }
   Reference ref = 5;
+  int64 tenant_id = 7;
 
   message Line {
     .ledger.accounts.v1.AccountKey account = 1;

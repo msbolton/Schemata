@@ -1,6 +1,5 @@
 package io.schemata.lsp.workspace
 
-import io.schemata.core.Hoisting
 import io.schemata.core.IndexedDecl
 import io.schemata.core.ir.QualifiedName
 import io.schemata.lang.Span
@@ -46,7 +45,8 @@ class IndexBuilder private constructor(recorded: Recorded) {
     }
 
     private fun file(source: SourceFile) {
-        val file = hoisted(source)
+        val hoisted = HoistedFile.of(source)
+        val file = hoisted.file
         val namespace = file.namespace.name
         sites += Site(file.namespace.nameSpan, Symbol.Namespace(namespace), definition = true)
         file.imports.forEach { import ->
@@ -57,7 +57,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
                 sites += Site(aliasSpan, Symbol.ImportAlias(file.path, alias), definition = true)
             }
         }
-        file.declarations.forEach { declaration(file, namespace, emptyList(), it) }
+        file.declarations.forEach { declaration(file, hoisted, namespace, emptyList(), it) }
         file.services.forEach { service(file, namespace, it) }
     }
 
@@ -75,6 +75,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
 
     private fun declaration(
         file: SourceFile,
+        hoisted: HoistedFile,
         namespace: String,
         parent: List<String>,
         decl: Declaration,
@@ -84,24 +85,23 @@ class IndexBuilder private constructor(recorded: Recorded) {
         sites += Site(decl.nameSpan, Symbol.Declaration(name), definition = true)
         when (decl) {
             is RecordDecl -> {
-                decl.fields
-                    .filterNot { it.synthetic() }
-                    .forEach { field ->
-                        sites += Site(field.nameSpan, Symbol.Field(name, field.name), true)
-                        builtinsIn(field.type)
-                        enumDefault(field)
-                        backReference(field)
-                        val inline = field.type.inlineShape ?: field.type.inlineEnum
-                        // An inline type is the nested declaration that has its opening `{` or
-                        // `enum` for a name span; a declared one that merely shares the name does
-                        // not.
-                        if (inline != null && decl.nested.any { it.nameSpan == inline.nameSpan }) {
-                            hoistedNames +=
-                                QualifiedName(namespace, parent + decl.name + inline.name)
-                        }
+                decl.fields.filterNot(hoisted::generated).forEach { field ->
+                    sites += Site(field.nameSpan, Symbol.Field(name, field.name), true)
+                    builtinsIn(field.type)
+                    enumDefault(field)
+                    backReference(field)
+                    val inline = field.type.inlineShape ?: field.type.inlineEnum
+                    // An inline type is the nested declaration that has its opening `{` or
+                    // `enum` for a name span; a declared one that merely shares the name does
+                    // not.
+                    if (inline != null && decl.nested.any { it.nameSpan == inline.nameSpan }) {
+                        hoistedNames += QualifiedName(namespace, parent + decl.name + inline.name)
                     }
+                }
                 tupleNames(decl, name)
-                decl.nested.forEach { declaration(file, namespace, parent + decl.name, it) }
+                decl.nested.forEach {
+                    declaration(file, hoisted, namespace, parent + decl.name, it)
+                }
             }
             is EnumDecl ->
                 decl.values.forEach {
@@ -177,6 +177,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
                     val names =
                         when (value) {
                             is AnnotationValue.Tuple -> value.names.zip(value.nameSpans)
+                            is AnnotationValue.Ordinal -> emptyList()
                             is AnnotationValue.Lit ->
                                 (value.literal as? Literal.NameLit)
                                     ?.takeIf { annotation.block && annotation.name in fieldLists }
@@ -194,11 +195,6 @@ class IndexBuilder private constructor(recorded: Recorded) {
     private val fieldLists = setOf("id", "unique", "index")
 
     companion object {
-        /**
-         * [file] as the analyzer sees it: inline enums and shapes are declarations of their own.
-         */
-        internal fun hoisted(file: SourceFile): SourceFile = Hoisting.apply(file) {}
-
         fun build(files: List<SourceFile>, recorded: Recorded): ReferenceIndex {
             val builder = IndexBuilder(recorded)
             files.sortedBy { it.path }.forEach(builder::file)

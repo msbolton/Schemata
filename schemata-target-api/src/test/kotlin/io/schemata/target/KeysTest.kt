@@ -185,6 +185,35 @@ class KeysTest {
     }
 
     @Test
+    fun `a model named like a key record is not one`() {
+        val written =
+            compile(
+                "schema t\n\nmodel P { #1 a int32 { id }  #2 b int32 { id } }\n\nmodel PKey { #1 a int32  #2 b int32 }\n\nmodel U { #1 p P }\n"
+            )
+        assertFalse(written.isKeyRecord(record(written, "PKey")))
+        assertFalse(written.isKeyRecord(record(written, "P")))
+        val rewritten = written.referencesByKey()
+        assertFalse(
+            rewritten.isKeyRecord(
+                rewritten.namespaces.single().declarations.last { it.name == "PKey" }
+            )
+        )
+    }
+
+    @Test
+    fun `a self-referencing composite key terminates and marks one key record`() {
+        val node =
+            compile(
+                    "schema t\n\nmodel Node { #1 a int32 { id }  #2 b int32 { id }  #3 parent Node? }\n"
+                )
+                .referencesByKey()
+        assertEquals(
+            listOf("Node" to false, "NodeKey" to true),
+            node.namespaces.single().declarations.map { it.name to node.isKeyRecord(it) },
+        )
+    }
+
+    @Test
     fun `a key record carries its model's name overrides`() {
         val keyed =
             compile(

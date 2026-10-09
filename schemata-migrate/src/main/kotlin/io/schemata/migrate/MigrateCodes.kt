@@ -46,8 +46,9 @@ object MigrateCodes {
 
     /** `<path>: <statement> loses <reason>` / `<path>: <statement> fails when <reason>`. */
     fun message(step: Step): String {
+        val reason = checkNotNull(step.reason) { "${step::class.simpleName} is clean: no message" }
         val verb = if (step.risk == Risk.DESTRUCTIVE) "loses" else "fails when"
-        return "${step.subject.path}: ${statement(step)} $verb ${step.reason}"
+        return "${step.subject.path}: ${statement(step)} $verb $reason"
     }
 
     private fun statement(step: Step): String =
@@ -64,6 +65,7 @@ object MigrateCodes {
                     is Constraint.CheckConstraint -> "CONSTRAINT ${Naming.quote(c.name)}"
                     is Constraint.Foreign -> "FOREIGN KEY ${Naming.quote(c.name)}"
                 }
-            else -> MigrationRenderer.sql(step).removeSuffix(";")
+            // every other step is clean and has no message
+            else -> error("${step::class.simpleName} is clean: no message")
         }
 }

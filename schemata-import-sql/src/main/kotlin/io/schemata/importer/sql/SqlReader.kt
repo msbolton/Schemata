@@ -27,7 +27,9 @@ package io.schemata.importer.sql
  * makes it `serial`, `bigserial` or `smallserial` with no default, undoing the expansion of a
  * serial into a sequence. An inline `DEFAULT nextval(…)` on such a column reads the same way. An
  * `ALTER` folded into its table is not a statement of its own; one naming a table not in the file,
- * or a column the table lacks, stays [SqlStatement.Ignored].
+ * or a column the table lacks, stays [SqlStatement.Ignored]. A name qualified on both sides must
+ * match in schema; one unqualified on either side matches only when it names a single table. Any
+ * other `ALTER COLUMN … SET DEFAULT` is a [SqlStatement.Dropped], since the default is lost.
  *
  * A `schemata:` comment trailing a column on its line, or alone on the next line when the column's
  * line has none, is the column's note.
@@ -201,6 +203,12 @@ private class Reader(private val all: List<SqlToken>) {
     /** Set by [alter] when the statement it read is a [ColumnFix]; [file] collects it. */
     private var pendingFix: ColumnFix? = null
 
+    /**
+     * Deferral clauses read on a primary key, unique or check constraint, which the model cannot
+     * hold; the statement that read them reports each as dropped.
+     */
+    private val deferrals = mutableListOf<String>()
+
     init {
         val kept = all.withIndex().filter { it.value.kind != SqlTokenKind.COMMENT }
         toks = kept.map { it.value }
@@ -248,14 +256,19 @@ private class Reader(private val all: List<SqlToken>) {
                 .toMutableList()
         val folded = mutableSetOf<Int>()
         for ((index, fix) in fixes) {
-            val at =
-                out.indexOfFirst {
-                    it is SqlStatement.CreateTable &&
-                        it.table.name == fix.table &&
-                        (fix.schema == null ||
-                            it.table.schema == null ||
-                            fix.schema == it.table.schema)
+            val named =
+                out.indices.filter {
+                    val t = (out[it] as? SqlStatement.CreateTable)?.table
+                    t != null &&
+                        t.name == fix.table &&
+                        (fix.schema == null || t.schema == null || fix.schema == t.schema)
                 }
+            // The same schema on both sides wins; a name unqualified on one side matches only
+            // when no other table could be meant.
+            val at =
+                named.firstOrNull {
+                    (out[it] as SqlStatement.CreateTable).table.schema == fix.schema
+                } ?: named.singleOrNull() ?: -1
             if (at < 0) continue
             val table = (out[at] as SqlStatement.CreateTable).table
             val c = table.columns.indexOfFirst { it.name == fix.column }
@@ -392,6 +405,8 @@ private class Reader(private val all: List<SqlToken>) {
             do {
                 val before = columns.size
                 element(columns, constraints, dropped)
+                dropped += deferrals
+                deferrals.clear()
                 if (columns.size > before) {
                     val end = if (isSymbol(",")) i + 1 else i
                     columns[before] = columns[before].copy(note = note(i - 1, end))
@@ -453,6 +468,7 @@ private class Reader(private val all: List<SqlToken>) {
         var notNull = type.substringBefore('[') in SERIALS
         var default: SqlExpr? = null
         var identity = false
+        var generated: SqlExpr? = null
         var constraintName: String? = null
         while (true) {
             if (word("constraint")) {
@@ -468,13 +484,13 @@ private class Reader(private val all: List<SqlToken>) {
                 word("default") -> default = defaultExpr()
                 word("primary") -> {
                     expectWord("key")
-                    options(mutableListOf())
+                    constraintOptions()
                     constraints += SqlConstraint.PrimaryKey(constraintName, listOf(name))
                     notNull = true
                 }
                 word("unique") -> {
                     nullsDistinct()
-                    options(mutableListOf())
+                    constraintOptions()
                     constraints += SqlConstraint.Unique(constraintName, listOf(name))
                 }
                 isWord("check") -> constraints += check(constraintName)
@@ -491,9 +507,10 @@ private class Reader(private val all: List<SqlToken>) {
                         if (isSymbol("(")) skipParens()
                     } else {
                         if (!isSymbol("(")) fail("expected IDENTITY or '('")
+                        val open = i
                         skipParens()
+                        generated = SqlExprs.parse(toks, open + 1, i - 1)
                         expectWord("stored")
-                        dropped += "GENERATED … STORED on column '$name'"
                     }
                 }
                 word("collate") -> qualifiedName("a collation")
@@ -502,7 +519,7 @@ private class Reader(private val all: List<SqlToken>) {
             }
             constraintName = null
         }
-        return SqlColumn(name, type, notNull, default, null, null, identity, pos)
+        return SqlColumn(name, type, notNull, default, null, null, identity, pos, generated)
     }
 
     /**
@@ -512,11 +529,15 @@ private class Reader(private val all: List<SqlToken>) {
     private fun defaultExpr(): SqlExpr {
         val from = i
         var depth = 0
+        // `NULL` and `NOT` inside a `CASE … END` belong to the expression, not to the next clause.
+        var cases = 0
         while (!atStatementEnd()) {
             val t = peek()
+            if (t.kind == SqlTokenKind.IDENT && t.text == "case") cases++
+            if (t.kind == SqlTokenKind.IDENT && t.text == "end" && cases > 0) cases--
             if (depth == 0 && i > from) {
                 if (t.kind == SqlTokenKind.SYMBOL && (t.text == "," || t.text == ")")) break
-                if (t.kind == SqlTokenKind.IDENT && t.text in COLUMN_CLAUSES) break
+                if (cases == 0 && t.kind == SqlTokenKind.IDENT && t.text in COLUMN_CLAUSES) break
             }
             if (t.kind == SqlTokenKind.SYMBOL && (t.text == "(" || t.text == "[")) depth++
             if (t.kind == SqlTokenKind.SYMBOL && (t.text == ")" || t.text == "]")) {
@@ -538,13 +559,13 @@ private class Reader(private val all: List<SqlToken>) {
             word("primary") -> {
                 expectWord("key")
                 val columns = columnList()
-                options(mutableListOf())
+                constraintOptions()
                 SqlConstraint.PrimaryKey(name, columns)
             }
             word("unique") -> {
                 nullsDistinct()
                 val columns = columnList()
-                options(mutableListOf())
+                constraintOptions()
                 SqlConstraint.Unique(name, columns)
             }
             isWord("check") -> check(name)
@@ -565,7 +586,7 @@ private class Reader(private val all: List<SqlToken>) {
         val open = i
         skipParens()
         val close = i - 1
-        options(mutableListOf())
+        constraintOptions()
         return SqlConstraint.Check(
             name,
             SqlExprs.parse(toks, open + 1, close),
@@ -669,6 +690,15 @@ private class Reader(private val all: List<SqlToken>) {
         return true
     }
 
+    /** The options after a constraint that has no place for deferral, noting a deferral. */
+    private fun constraintOptions() {
+        val extras = mutableListOf<String>()
+        options(extras)
+        extras
+            .filter { it == "DEFERRABLE" || it == "INITIALLY DEFERRED" }
+            .forEach { deferrals += "$it on a constraint" }
+    }
+
     private fun nullsDistinct() {
         if (word("nulls")) {
             word("not")
@@ -745,10 +775,9 @@ private class Reader(private val all: List<SqlToken>) {
                     expectWord("identity")
                     if (isSymbol("(")) skipParens()
                 }
+                val setsDefault = !identity && isWord("set") && isWord("default", 1)
                 val nextval =
-                    !identity &&
-                        isWord("set") &&
-                        isWord("default", 1) &&
+                    setsDefault &&
                         run {
                             i += 2
                             isNextval(defaultExpr())
@@ -757,7 +786,11 @@ private class Reader(private val all: List<SqlToken>) {
                     pendingFix = ColumnFix(schema, table, column, identity)
                 }
                 skipStatement()
-                return out + SqlStatement.Ignored("ALTER COLUMN")
+                // A default that is not the sequence pg_dump splits out of a serial is lost.
+                return out +
+                    if (setsDefault && !nextval)
+                        SqlStatement.Dropped("ALTER COLUMN SET DEFAULT", pos)
+                    else SqlStatement.Ignored("ALTER COLUMN")
             }
             if (!word("add")) {
                 skipStatement()
@@ -775,6 +808,8 @@ private class Reader(private val all: List<SqlToken>) {
             out +=
                 tableConstraint(name)?.let { SqlStatement.AlterAdd(schema, table, it, pos) }
                     ?: SqlStatement.Dropped("EXCLUDE constraint", pos)
+            deferrals.forEach { out += SqlStatement.Dropped(it, pos) }
+            deferrals.clear()
         } while (symbol(","))
         return out
     }
@@ -1045,7 +1080,8 @@ private class Reader(private val all: List<SqlToken>) {
         var block = 0
         while (peek().kind != SqlTokenKind.EOF) {
             if (isSymbol("(")) depth++
-            if (isSymbol(")")) depth--
+            // A stray `)` must not take the depth below zero, or the `;` would never count.
+            if (isSymbol(")") && depth > 0) depth--
             if (depth == 0) {
                 when {
                     block == 0 && isWord("begin") && isWord("atomic", 1) -> {

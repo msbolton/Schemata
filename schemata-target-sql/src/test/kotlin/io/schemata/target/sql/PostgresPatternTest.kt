@@ -27,6 +27,8 @@ class PostgresPatternTest {
         assertEquals("\\b", bad("\\bword"))
         assertEquals("\\p{L}", bad("\\p{L}"))
         assertEquals("(?i)", bad("a(?i)b"))
+        assertEquals("(?m)", bad("(?m)a"))
+        assertEquals("(?im)", bad("(?im)a"))
         assertEquals("(?<n>", bad("(?<n>a)"))
         assertEquals("++", bad("a++"))
         assertEquals("&&", bad("[a&&b]"))
@@ -44,7 +46,7 @@ class PostgresPatternTest {
                 "\\d\\s\\w",
                 "\\Aabc",
                 "\\a\\e",
-                "(?imnsx)abc",
+                "(?insx)abc",
                 "a{255}",
                 "a{1,255}",
                 "a{0255}",
@@ -90,7 +92,7 @@ class PostgresPatternTest {
     }
 
     @Test
-    fun `a leading option group with letters outside imnsx is named as written`() {
+    fun `a leading option group with letters outside insx is named as written`() {
         assertEquals("(?u)", bad("(?u)abc"))
         assertEquals("(?d)", bad("(?d)abc"))
         assertEquals("(?iu)", bad("(?iu)abc"))

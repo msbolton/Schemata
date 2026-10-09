@@ -75,10 +75,10 @@ breaking does not ship in 2.x.
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,
 SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, and JSON Schema targets,
-SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target, SCH27 for migration. A minor release may add
-warnings, so a `--strict` build can fail after an upgrade; every new code is in that release's
-notes. A set that compiled without errors keeps compiling without errors, unless it compiled only
-because of a compiler bug, which the notes name.
+SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target, SCH27 for migration. A minor
+release may add warnings, so a `--strict` build can fail after an upgrade; every new code is in that
+release's notes. A set that compiled without errors keeps compiling without errors, unless it
+compiled only because of a compiler bug, which the notes name.
 
 **The command line.** Every command, flag, and exit code stays. The JSON report shapes of
 `check`, `compile`, `fmt`, `upgrade`, `diff`, `migrate`, `import`, and `targets` stay, the `kind`
@@ -134,7 +134,7 @@ Some behaviours are easy to miss. Each is part of the language as 2.0 defines it
 - A reference sent by key as `<field>_<key>` may not land on a name the model reserves (SCH1020).
 - `@@timestamps` numbers its two fields after the last explicit ordinal, so a field added to the
   model later moves both, and `diff` reports that as renames and type changes. Where the ordinals
-  must stay put, write `created_at instant` and `updated_at instant?` as fields instead.
+  must stay put, pin them: `@@timestamps(#n, #m)`.
 - `fmt` and `upgrade` write `list<T>` as `T[]`, except where `T[]` cannot say it: a list of lists,
   `list<T[]>`, since a type takes one `[]`, and a list of maps that bound their own size,
   `list<map<K, V> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share one block.

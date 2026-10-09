@@ -8,6 +8,7 @@ CREATE TABLE "ledger_journal"."entry" (
   "ref_invoice_number" varchar(32),
   "ref_payment_reference" varchar(64),
   "ref_source" text,
+  "tenant_id" bigint NOT NULL,
   CONSTRAINT "pk_entry" PRIMARY KEY ("id"),
   CONSTRAINT "ck_entry_ref_kind" CHECK ("ref_kind" IN ('invoice', 'payment', 'source')),
   CONSTRAINT "ck_entry_ref_invoice" CHECK (("ref_kind" <> 'invoice') OR ("ref_invoice_number" IS NOT NULL)),

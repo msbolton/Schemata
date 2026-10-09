@@ -8,7 +8,9 @@ import io.schemata.core.ir.QualifiedName
  * [embedding] starts with the record that owns the table. [parentTable] and [parentKeys] are the
  * table [table] itself is keyed by (its own name and primary key, name then column type); a
  * `list<Record>` field reads them to name and type the column it adds pointing back at that key, so
- * a child of a child points at the child's own key rather than the root's.
+ * a child of a child points at the child's own key rather than the root's. A [role] names the
+ * column that stands for something no declared field is (a child table's `value`), so its origin is
+ * that role rather than a field path.
  */
 data class FieldContext(
     val table: String,
@@ -20,6 +22,7 @@ data class FieldContext(
     val parentKeys: List<ParentKey> = emptyList(),
     val path: List<OriginStep> = emptyList(),
     val where: String,
+    val role: String? = null,
 ) {
     fun nested(
         field: String,
@@ -44,7 +47,8 @@ data class FieldContext(
      * The origin of a column [field] produces directly; [part] tells several such columns apart.
      */
     fun columnOrigin(field: Field, part: String? = null): ColumnOrigin =
-        ColumnOrigin.FieldPath(path + OriginStep.FieldOrdinal(field.ordinal), part)
+        if (role != null) ColumnOrigin.Role(role)
+        else ColumnOrigin.FieldPath(path + OriginStep.FieldOrdinal(field.ordinal), part)
 }
 
 /**

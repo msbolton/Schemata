@@ -72,6 +72,26 @@ class FormatterServicesTest {
     }
 
     @Test
+    fun `a path longer than the width stays whole on one line`() {
+        val path = "/" + "segment-".repeat(14) + "end/{identifier}"
+        val out =
+            fmt("schema t\nmodel A { #1 x int32 }\nservice S {\n  #1 a(A): A  get \"$path\"\n}\n")
+        assertTrue("    get \"$path\"\n" in out, out)
+        assertEquals(out, fmt(out))
+    }
+
+    @Test
+    fun `an operation written across lines keeps its binding on its own line`() {
+        val input =
+            "schema t\nmodel A { #1 x int32 }\nservice S {\n  #1 a(A): A\n      get \"/a\"\n  #2 b(A): A  get \"/b\"\n}\n"
+        val expected =
+            "schema t\n\nmodel A { #1 x int32 }\n\nservice S {\n  #1 a(A): A\n    get \"/a\"\n  #2 b(A): A  get \"/b\"\n}\n"
+        val out = fmt(input)
+        assertEquals(expected, out)
+        assertEquals(out, fmt(out))
+    }
+
+    @Test
     fun `a long operation wraps its binding`() {
         val long =
             "#1 find_the_order_by_its_identifier(OrderIdentifierRequest): OrderIdentifierResponse  get \"/orders/by-identifier/{identifier}/details\""

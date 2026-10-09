@@ -33,11 +33,12 @@ data class FormatParse(
  */
 object Parser {
     private const val BYTE_ORDER_MARK = "﻿"
+    private val LEGACY_OPENERS = setOf("namespace", "record")
 
     /**
-     * A 1.x file (one whose first word after its doc and leading annotations is `namespace`) is one
-     * SCH0008 at that word and nothing else: the parser never runs, so no cascade of syntax errors
-     * buries the one thing to do.
+     * A 1.x file (one whose first word after its doc and leading annotations is `namespace`, or
+     * `record` for a file that left its namespace out) is one SCH0008 at that word and nothing
+     * else: the parser never runs, so no cascade of syntax errors buries the one thing to do.
      */
     fun parse(input: String, path: String): ParseResult {
         val source = stripBom(input)
@@ -100,9 +101,10 @@ object Parser {
 
     /**
      * SCH0008 when [source] starts as a 1.x file does: past its doc comments and leading attributes
-     * (`@name`, or `@name(…)` through its closing parenthesis), the first token is the word
-     * `namespace`, which the 2.0 lexer reads as a plain identifier. Null otherwise; a 2.0 file
-     * starts with `schema`, a keyword, so a model or field named `namespace` is never mistaken.
+     * (`@name`, or `@name(…)` through its closing parenthesis), the first token is a word only 1.x
+     * opens a file with (`namespace`, `record`), which the 2.0 lexer reads as a plain identifier.
+     * Null otherwise; a 2.0 file starts with `schema`, a keyword, so a model or field with one of
+     * those names is never mistaken.
      */
     private fun legacy(source: String, path: String): Diagnostic? {
         val lexer = SchemataLexer(CharStreams.fromString(source))
@@ -129,7 +131,7 @@ object Parser {
                         if (t.text == "(") depth++ else if (t.text == ")") depth--
                     }
                 }
-                token.type == SchemataLexer.IDENT && token.text == "namespace" ->
+                token.type == SchemataLexer.IDENT && token.text in LEGACY_OPENERS ->
                     return Diagnostic(
                         LangCodes.LEGACY_SYNTAX,
                         "this is a 1.x schema",

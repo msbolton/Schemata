@@ -41,6 +41,24 @@ class CommentsTest {
     }
 
     @Test
+    fun `a comment before the closing brace of a one-line body breaks it and stays inside`() {
+        val out =
+            (Formatter.format("schema t\nmodel R { #1 a bool /* last */ }\n", "t.schemata")
+                    as FormatResult.Formatted)
+                .text
+        assertEquals("schema t\n\nmodel R {\n  #1 a bool  /* last */\n}\n", out)
+        assertEquals(out, (Formatter.format(out, "t.schemata") as FormatResult.Formatted).text)
+    }
+
+    @Test
+    fun `a comment trailing an operation's path stays on its line`() {
+        val src =
+            "schema t\n\nmodel A { #1 x int32 }\n\nservice S {\n  #1 a(A): A  get \"/a\"  // after path\n  #2 b(A): A  post \"/b\"  /* c */\n}\n"
+        val out = (Formatter.format(src, "t.schemata") as FormatResult.Formatted).text
+        assertEquals(src, out)
+    }
+
+    @Test
     fun `a comment after the last declaration trails the file`() {
         val p = parse("schema t\n\nmodel R { #1 a bool }\n// bye\n")
         assertEquals(listOf("// bye"), p.comments.fileTrailing.map { it.text })

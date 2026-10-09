@@ -115,7 +115,11 @@ internal class Constraints(
             val subject = subjectOf(new, p.new, columnsOf(n, p.new))
             val relation = o is Constraint.PrimaryKey || o is Constraint.UniqueKey
             (if (relation) relationRenames else renames) +=
-                Rename(if (relation) schemaName else p.at, o.name, n.name) { f, t ->
+                Rename(
+                    if (relation) RenameScope.InSchema(schemaName) else RenameScope.InTable(p.at),
+                    o.name,
+                    n.name,
+                ) { f, t ->
                     RenameConstraint(p.at, f, t, subject)
                 }
         }
@@ -134,7 +138,7 @@ internal class Constraints(
         indexes.renamed.forEach { (o, n) ->
             val subject = subjectOf(new, p.new, n.columns)
             relationRenames +=
-                Rename(schemaName, o.name, n.name) { f, t ->
+                Rename(RenameScope.InSchema(schemaName), o.name, n.name) { f, t ->
                     RenameIndex(schemaName, f, t, subject)
                 }
         }
@@ -172,7 +176,10 @@ internal class Constraints(
         keys.renamed.forEach { (o, n) ->
             val at = At(n.schema, n.table)
             val subject = subjectOf(context.new, context.newTable(at)!!, n.columns)
-            renames += Rename(at, o.name, n.name) { f, t -> RenameConstraint(at, f, t, subject) }
+            renames +=
+                Rename(RenameScope.InTable(at), o.name, n.name) { f, t ->
+                    RenameConstraint(at, f, t, subject)
+                }
         }
         keys.added.forEach { fk ->
             val at = At(fk.schema, fk.table)
@@ -323,13 +330,16 @@ internal class Constraints(
 
     /**
      * A check over a column whose type changed can reject the converted values, whatever else
-     * changed with it, so only a check over new columns or one the change purely widens is clean.
+     * changed with it, so only a check over new columns or one the change purely widens is clean. A
+     * type change every value survives (`int32` to `int64`) converts nothing the check could
+     * reject, so it counts as widening, and a bound loosened alongside it is judged on its own.
      */
     private fun checkIsClean(p: Pairing, columns: List<String>, expression: String): Boolean {
         val added = p.added.map { it.name }.toSet()
         if (columns.isNotEmpty() && columns.all { it in added }) return true
         val retyped = p.retyped.mapNotNull { p.names[it] }.toSet()
-        if (columns.any { it in retyped }) return false
+        val widened = columns.any { it in retyped }
+        if (widened && !p.lossless(columns)) return false
         val chains =
             columns.mapNotNull { name ->
                 p.new.columns
@@ -338,7 +348,7 @@ internal class Constraints(
             }
         val tightening = context.tightening
         val presence = isPresence(expression)
-        return chains.none { tightening.tightens(it) || tightening.retypes(it) } &&
+        return chains.none { tightening.tightens(it) || (!widened && tightening.retypes(it)) } &&
             chains.any { tightening.loosens(it, presence) }
     }
 

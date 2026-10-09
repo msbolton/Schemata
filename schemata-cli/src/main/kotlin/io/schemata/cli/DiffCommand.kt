@@ -3,7 +3,6 @@ package io.schemata.cli
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
-import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.groups.provideDelegate
 import com.github.ajalt.clikt.parameters.options.option
@@ -39,7 +38,7 @@ class DiffCommand : CliktCommand(name = "diff") {
             targetNames
                 ?.map { it.trim() }
                 ?.distinct()
-                ?.map { Rulebooks.named(it) ?: throw UsageError("unknown target '$it'") }
+                ?.map { Rulebooks.named(it) ?: throw usageError("unknown target '$it'") }
                 ?: Rulebooks.all
         val oldSide = load(old)
         val newSide = load(new)

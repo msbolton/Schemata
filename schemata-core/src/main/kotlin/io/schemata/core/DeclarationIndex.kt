@@ -43,7 +43,12 @@ class DeclarationIndex(files: List<SourceFile>, private val diagnostics: Mutable
 
     fun find(name: QualifiedName): IndexedDecl? = byName[name]
 
-    fun service(name: QualifiedName): ServiceDecl? = services[name]?.first
+    /**
+     * Whether [decl], written in [file], is the service its name belongs to; a duplicate of a
+     * service or a clash with a declaration was reported on building the index and is not held.
+     */
+    fun holds(file: SourceFile, decl: ServiceDecl): Boolean =
+        services[QualifiedName(file.namespace.name, listOf(decl.name))]?.first === decl
 
     fun namespaceExists(namespace: String): Boolean = namespace in namespaces
 

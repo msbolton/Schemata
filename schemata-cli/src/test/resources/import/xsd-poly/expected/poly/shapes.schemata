@@ -1,0 +1,46 @@
+/// Shapes, vehicles, and animals: the three ways a schema says "one of these".
+schema poly.shapes
+
+/// Anything with a label that can be drawn.
+union Shape = Circle | Square | Triangle
+
+model Circle {
+  label  string?
+  id     string  @xsd(attribute)
+  radius float64
+
+  @@xsd(root: false)
+}
+
+model Square {
+  label string?
+  id    string  @xsd(attribute)
+  side  float64
+
+  @@xsd(root: false)
+}
+
+model Triangle {
+  label    string?
+  id       string  @xsd(attribute)
+  vertices int32
+  base     float64
+
+  @@xsd(root: false)
+}
+
+model Vehicle { plate string }
+
+model Car { plate string  doors int32 }
+
+model Truck { plate string  payload decimal(38, 9) }
+
+model Animal { name string }
+
+model Dog { name string  breed string? }
+
+model Park { shape Shape[] { minItems 1 }  vehicle VehicleChoice?  animal AnimalChoice }
+
+union VehicleChoice = Car | Truck
+
+union AnimalChoice = Animal | Dog

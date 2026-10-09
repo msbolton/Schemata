@@ -14,7 +14,9 @@ import io.schemata.core.ir.Schema
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class SqlRulesTest {
     @Test
@@ -488,5 +490,29 @@ class SqlRulesTest {
                 field(1, "a", MapOf(Scalar(Builtin.INT32), Scalar(Builtin.INT32), false)),
             )
         assertIs<Verdict.Breaking>(verdict(SqlRules, ns(old), ns(new)))
+    }
+
+    @Test
+    fun `dropping a list of record field says the child table was dropped`() {
+        val line = record("s", "Line", field(1, "sku"))
+        val withLines = record("s", "Order", field(1, "lines", ListOf(Ref(qn("s", "Line")), false)))
+        val without = record("s", "Order", field(2, "id"))
+        val old = namespace("s", listOf(line, withLines))
+        val new = namespace("s", listOf(line, without))
+        val oldSchema = Schema(listOf(old))
+        val newSchema = Schema(listOf(new))
+        val removed = Differ.diff(oldSchema, newSchema).single { it is FieldRemoved }
+        val verdict = SqlRules.classify(removed, ChangeContext(oldSchema, newSchema))
+        assertIs<Verdict.Breaking>(verdict)
+        assertTrue("child table dropped" in verdict.message, verdict.message)
+        assertFalse("column was dropped" in verdict.message, verdict.message)
+    }
+
+    @Test
+    fun `dropping a scalar field still says the column was dropped`() {
+        val old = record("s", "R", field(1, "a"), field(2, "b"))
+        val new = record("s", "R", field(1, "a"))
+        val message = (verdict(SqlRules, ns(old), ns(new)) as Verdict.Breaking).message
+        assertTrue("the column was dropped" in message, message)
     }
 }

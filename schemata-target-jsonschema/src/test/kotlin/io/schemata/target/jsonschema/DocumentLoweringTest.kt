@@ -4,13 +4,19 @@ import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.core.annotations.CoreAnnotations
+import io.schemata.core.ir.Builtin
+import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.RecordType
+import io.schemata.core.ir.Refinements
+import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Parser
+import io.schemata.lang.Span
 import io.schemata.target.json.JsonNumber
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class DocumentLoweringTest {
     private val codes =
@@ -18,13 +24,14 @@ class DocumentLoweringTest {
             JsonSchemaCodes.LOSSY,
             JsonSchemaCodes.NAME_COLLISION,
             JsonSchemaCodes.INVALID_OVERRIDE,
-            JsonSchemaCodes.ID_COLLISION,
         )
 
-    private fun compile(text: String): Schema {
+    private fun compile(vararg texts: String): Schema {
         val analysis =
             Analyzer.analyze(
-                listOf(Parser.parse(text.trimIndent(), "t.schemata").file!!),
+                texts.mapIndexed { i, text ->
+                    Parser.parse(text.trimIndent(), "t$i.schemata").file!!
+                },
                 AnalysisOptions(
                     annotations =
                         AnnotationRegistry(CoreAnnotations.specs + JsonSchemaAnnotations.specs)
@@ -40,12 +47,13 @@ class DocumentLoweringTest {
     private fun componentsLowering(
         schema: Schema,
         diagnostics: MutableList<Diagnostic>,
+        namespace: Namespace = schema.namespaces.single(),
     ): DocumentLowering {
         val names = SchemaNames(schema, codes, diagnostics)
         return DocumentLowering(
             schema,
             names,
-            schema.namespaces.single(),
+            namespace,
             codes,
             diagnostics,
             refs = { "#/components/schemas/${it.namespace}.${names.defsKey(it)}" },
@@ -159,5 +167,69 @@ class DocumentLoweringTest {
         lowering.fieldSchema(order, order.fields[1])
         lowering.lower(listOf(order))
         assertEquals(listOf("SCH2302"), diagnostics.map { it.code.id })
+    }
+
+    @Test
+    fun `the later declaration in the source is blamed whatever order they are lowered in`() {
+        val schema =
+            compile(
+                """
+                schema a
+
+                @jsonschema(name: "Y")
+                model X { #1 v int32 }
+
+                model Y { #1 v int32 }
+                """
+            )
+        val diagnostics = mutableListOf<Diagnostic>()
+        val lowering = componentsLowering(schema, diagnostics)
+        val (x, y) = schema.namespaces.single().declarations
+        lowering.lower(listOf(y, x))
+        assertEquals(
+            listOf(
+                "SCH2302 model 'Y' lowers to \$defs key 'a.Y', already used by model 'X' (t0.schemata:4)"
+            ),
+            diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `a field of another record or namespace is refused`() {
+        val schema =
+            compile(
+                """
+                schema a
+
+                model Order { #1 id uuid }
+
+                model Line { #1 n int32 }
+                """,
+                """
+                schema b
+
+                model Other { #1 id uuid }
+                """,
+            )
+        val diagnostics = mutableListOf<Diagnostic>()
+        val lowering = componentsLowering(schema, diagnostics, schema.namespaces[0])
+        val (order, line) = schema.namespaces[0].declarations.filterIsInstance<RecordType>()
+        val other = schema.namespaces[1].declarations.single() as RecordType
+        assertFailsWith<IllegalArgumentException> { lowering.fieldSchema(order, line.fields[0]) }
+        assertFailsWith<IllegalArgumentException> { lowering.fieldSchema(order, other.fields[0]) }
+        lowering.fieldSchema(order, order.fields[0])
+        assertEquals(emptyList(), diagnostics)
+    }
+
+    @Test
+    fun `a construct reported while lowering a type again is reported once`() {
+        val schema = compile("schema a\n\nmodel Order { #1 id uuid }")
+        val diagnostics = mutableListOf<Diagnostic>()
+        val lowering = componentsLowering(schema, diagnostics)
+        val lossy = Scalar(Builtin.STRING, Refinements(pattern = "\\Aabc"))
+        val span = Span("t0.schemata", 3, 1, 3, 10)
+        lowering.typeSchema(lossy, false, "field 'Order.code'", span)
+        lowering.typeSchema(lossy, true, "field 'Order.code'", span)
+        assertEquals(listOf("SCH2301"), diagnostics.map { it.code.id })
     }
 }

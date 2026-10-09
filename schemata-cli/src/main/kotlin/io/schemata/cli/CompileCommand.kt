@@ -69,21 +69,32 @@ class CompileCommand : CliktCommand(name = "compile") {
     }
 }
 
-/** Resolves `--target`; every registered target when absent. */
-internal fun selectTargets(names: List<String>?): List<Target<*>> =
+/**
+ * Resolves `--target`; every registered target when absent. A usage error carries the running
+ * command's context so Clikt prints that command's usage line, not the root's.
+ */
+internal fun CliktCommand.selectTargets(names: List<String>?): List<Target<*>> =
     names?.distinct()?.map { name ->
         Pipeline.targetNamed(name)
-            ?: throw UsageError(
+            ?: throw usageError(
                 "unknown target '$name'; available: ${Pipeline.targets.joinToString(", ") { it.name }}"
             )
     } ?: Pipeline.targets
 
-internal fun loadSources(inputs: List<Path>): List<SourceInput> {
+internal fun CliktCommand.loadSources(inputs: List<Path>): List<SourceInput> {
     val sources = SourceSet.load(inputs)
     if (sources.isEmpty())
-        throw UsageError("no .schemata files found under: ${inputs.joinToString(", ")}")
+        throw usageError("no .schemata files found under: ${inputs.joinToString(", ")}")
     return sources
 }
+
+/**
+ * A usage error for the running command. Clikt prints the usage line of the command whose context
+ * the error carries, and an error thrown from `run()` carries none, so it would fall back to the
+ * root command's line.
+ */
+internal fun CliktCommand.usageError(message: String): UsageError =
+    UsageError(message).also { it.context = currentContext }
 
 /**
  * Prints the report in the chosen format and exits with its code when non-zero. Uses the terminal's
@@ -96,19 +107,55 @@ internal fun emit(
     sources: Sources,
     reporting: ReportStyle,
     out: String,
+    stderrIsTerminal: () -> Boolean? = ::probeStderrTerminal,
 ) {
     val terminal = command.currentContext.terminal
-    val ansiSupported = terminal.terminalInfo.ansiLevel != AnsiLevel.NONE
     val width = if (terminal.terminalInfo.outputInteractive) terminal.size.width else 100
     when (reporting.format) {
         Format.JSON -> terminal.rawPrint(JsonRenderer.report(report, out))
-        Format.HUMAN ->
+        Format.HUMAN -> {
+            // The human report goes to stderr, so colour needs stderr itself to be a terminal: the
+            // terminal Clikt detected reflects stdout, which can be a terminal while stderr is a
+            // file. The probe runs only here, and an unknown answer defers to the detection.
+            val ansiSupported =
+                terminal.terminalInfo.ansiLevel != AnsiLevel.NONE && (stderrIsTerminal() ?: true)
             terminal.rawPrint(
                 HumanRenderer.render(report, sources, reporting.palette(ansiSupported), out, width),
                 stderr = true,
             )
+        }
     }
     if (report.exitCode != 0) throw ProgramResult(report.exitCode)
+}
+
+/**
+ * Whether this process's stderr is a terminal, or null when that cannot be told. Mordant 3 only
+ * detects stdout and the JVM's `System.console()` covers stdin and stdout, so ask a POSIX shell: a
+ * child that inherits stderr can run `test -t 2`. On Windows, where a `sh` may be absent or
+ * disagree with the real console, when no shell can be started, or when the wait is interrupted,
+ * the answer is null and the caller trusts Mordant's own detection, as it did before this probe.
+ */
+internal fun probeStderrTerminal(): Boolean? {
+    if (System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true))
+        return null
+    return try {
+        val exit =
+            ProcessBuilder("sh", "-c", "test -t 2")
+                .redirectError(ProcessBuilder.Redirect.INHERIT)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start()
+                .waitFor()
+        when (exit) {
+            0 -> true
+            1 -> false
+            else -> null
+        }
+    } catch (e: IOException) {
+        null
+    } catch (e: InterruptedException) {
+        Thread.currentThread().interrupt()
+        null
+    }
 }
 
 /** Writes [content] to [destination], creating its parent directories. */

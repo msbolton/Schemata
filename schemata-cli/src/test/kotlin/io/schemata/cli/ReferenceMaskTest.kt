@@ -81,6 +81,42 @@ class ReferenceMaskTest {
         assertNotEquals(a, masked("proto/shop/orders.proto", before, changed).second)
     }
 
+    @Test
+    fun `a name is masked only inside the model that references by key`() {
+        val source =
+            SourceInput(
+                "s.schemata",
+                """
+                schema s
+
+                model Customer { #1 id uuid { id } }
+
+                model Order { #1 id uuid { id }  #2 customer Customer }
+
+                model Note { #1 id uuid { id }  #2 customer string }
+                """
+                    .trimIndent(),
+            )
+        val schema = Pipeline.analyze(listOf(source)).schema!!
+        val proto =
+            Pipeline.compile(listOf(source), listOf(Pipeline.targetNamed("proto")!!))
+                .targets
+                .single()
+                .files
+                .single()
+        val (masked, _) =
+            ReferenceMask.mask(
+                "proto/${proto.path}",
+                proto.content,
+                proto.content,
+                References.of(schema),
+            )
+        val order = masked.substringAfter("message Order {").substringBefore("}")
+        val note = masked.substringAfter("message Note {").substringBefore("}")
+        assertTrue("customer" !in order, masked)
+        assertTrue("string customer = 2;" in note, masked)
+    }
+
     private fun git(vararg args: String): String? {
         val process =
             ProcessBuilder(listOf("git") + args)

@@ -7,10 +7,12 @@ import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.LangCodes
+import io.schemata.lsp.LspCodes
 import io.schemata.migrate.MigrateCodes
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /**
  * `guide/diagnostics.md` and `guide/annotations.md` are rendered from the compiler and compared as
@@ -40,6 +42,15 @@ class GuideAppendicesTest {
             "field 'q' cannot be a query parameter",
             stripLocation("operation 'find': field 'q' cannot be a query parameter"),
         )
+    }
+
+    @Test
+    fun `a header that names no code fails and a plain line is not a header`() {
+        assertEquals("SCH1010", headerCode("warning[SCH1010] (lossy): x"))
+        assertEquals("SCH0001", headerCode("error[SCH0001]: x"))
+        assertEquals(null, headerCode("  = help: warning[SCH1010]"))
+        assertFailsWith<IllegalArgumentException> { headerCode("error[SCH10]: x") }
+        assertFailsWith<IllegalArgumentException> { headerCode("warning[lossy] x") }
     }
 
     private data class Module(
@@ -86,14 +97,16 @@ class GuideAppendicesTest {
                 emptyList(),
             ),
             Module("Migration (SCH27xx)", "SCH27", MigrateCodes.all, emptyList()),
+            Module("Language server (SCH28xx)", "SCH28", LspCodes.all, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {
         appendLine("# Diagnostics")
         appendLine()
         appendLine(
-            "Every code the compiler can report, with the message shapes and help text its fixtures show. `compile --strict` (or `check --strict`) promotes warnings to errors."
+            "Every code the compiler can report, with the message shapes and help text its fixtures show."
         )
+        appendLine("`compile --strict` (or `check --strict`) promotes warnings to errors.")
         val fixtures = Fixture.all().groupBy { it.code }
         for (m in modules()) {
             appendLine()
@@ -118,9 +131,16 @@ class GuideAppendicesTest {
         }
     }
 
-    /** The code named in a header line's `[…]`, such as `SCH1010` in `warning[SCH1010] ...`. */
-    private fun headerCode(line: String): String? =
-        Regex("^(?:error|warning)\\[([^]]+)]").find(line)?.groupValues?.get(1)
+    /**
+     * The code named in a header line's `[…]`, such as `SCH1010` in `warning[SCH1010] ...`; null
+     * for a line that is not a header. A line that opens like a header but names no `SCHnnnn` code
+     * is a malformed fixture, not something to skip, so it fails.
+     */
+    private fun headerCode(line: String): String? {
+        if (!line.startsWith("error[") && !line.startsWith("warning[")) return null
+        return Regex("^(?:error|warning)\\[(SCH\\d{4})]").find(line)?.groupValues?.get(1)
+            ?: throw IllegalArgumentException("not a diagnostic header: $line")
+    }
 
     /** The header messages in [expected] whose own code is [id]; a fixture may carry others too. */
     private fun messagesOf(expected: String, id: String) =
@@ -185,8 +205,9 @@ class GuideAppendicesTest {
         appendLine("# Annotations")
         appendLine()
         appendLine(
-            "Keys each target accepts, the elements they apply to, and the codes each target can report. `schemata targets --format json` prints the same data."
+            "Keys each target accepts, the elements they apply to, and the codes each target can report."
         )
+        appendLine("`schemata targets --format json` prints the same data.")
         for (t in Pipeline.targets) {
             appendLine()
             appendLine("## @${t.name}")

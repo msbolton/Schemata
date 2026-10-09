@@ -48,6 +48,13 @@ object ProtoLowering {
     private const val DURATION = "google/protobuf/duration.proto"
     private const val EMPTY = "google/protobuf/empty.proto"
 
+    /** What to do about a nullable list or list element: proto has no such thing. */
+    private const val LIST_HELP = "declare the list as `T[]`; an empty list already means absent"
+
+    /** What to do about a nullable map or map value: proto has no such thing. */
+    private const val MAP_HELP =
+        "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent"
+
     /** The largest field number proto allows. */
     private const val MAX_NUMBER = 536870911
 
@@ -178,7 +185,9 @@ object ProtoLowering {
          *
          * protoc resolves an rpc's types from inside the service, where every rpc name of the
          * service is a symbol, so a relative payload whose first segment is one of [rpcNames] would
-         * resolve to that rpc. Such a payload is spelled from the package, with a leading dot.
+         * resolve to that rpc. Such a payload is spelled from the package, with a leading dot,
+         * whether it is the bare name or a path through it (`Order.Line`); any other relative
+         * payload keeps its short spelling.
          */
         private fun rpcType(payload: Payload?, rpcNames: Set<String>): ProtoRpcType {
             if (payload == null) {
@@ -200,9 +209,8 @@ object ProtoLowering {
             // Ordinals then names: the importer prints its `reserved` statement in this order.
             if (reserved.ordinals.isEmpty() && reserved.names.isEmpty()) return null
             val items =
-                reserved.ordinals.map {
-                    if (it.first == it.last) "#${it.first}" else "#${it.first}..#${it.last}"
-                } + reserved.names.map { SchemataText.string(it) }
+                reserved.ordinals.map { SchemataText.ordinalRange(it.first, it.last) } +
+                    reserved.names.map { SchemataText.string(it) }
             return "reserved " + items.joinToString(", ")
         }
 
@@ -382,87 +390,108 @@ object ProtoLowering {
             span: Span,
             here: List<String>,
         ): Mapped {
-            var lossy = false
-            if (type.hasRefinements()) {
+            val refined = type.hasRefinements()
+            if (refined) {
                 lossy(
                     "$where: refinements on ${ProtoTypes.text(type)} are not enforced by Protobuf",
                     span,
                     help =
                         "enforce the refinement in application code; Protobuf carries no constraints",
                 )
-                lossy = true
             }
-            val (proto, label) =
+            val mapped =
                 when (type) {
-                    is Scalar -> {
-                        val (scalar, isLossy) = scalar(type.builtin, where, span)
-                        lossy = lossy || isLossy
-                        // A nullable Timestamp or Duration has no `optional`: the message's
-                        // presence already says absent. Nothing in the output records that the
-                        // field was nullable, so the note does, for whoever reads the file back.
-                        if (nullable && scalar !is ProtoType.Scalar) lossy = true
-                        val label =
-                            if (nullable && scalar is ProtoType.Scalar) Label.OPTIONAL
-                            else Label.NONE
-                        scalar to label
-                    }
-                    is Ref -> {
-                        // Likewise for a record or union: `optional` is written only for an
-                        // enum, so a nullable message-typed field is otherwise
-                        // indistinguishable from a required one.
-                        if (nullable && !isEnum(type.target)) lossy = true
-                        reference(type.target, here) to
-                            (if (nullable && isEnum(type.target)) Label.OPTIONAL else Label.NONE)
-                    }
-                    is ListOf -> {
-                        if (nullable) {
-                            lossy(
-                                "$where: a nullable list has no Protobuf representation; lowered to repeated",
-                                span,
-                                help =
-                                    "declare the list as `T[]`; an empty list already means absent",
-                            )
-                            lossy = true
-                        }
-                        if (type.nullableElement) {
-                            lossy(
-                                "$where: nullable list elements have no Protobuf representation; lowered to repeated",
-                                span,
-                                help =
-                                    "declare the list as `T[]`; an empty list already means absent",
-                            )
-                            lossy = true
-                        }
-                        val element =
-                            element(type.element, type, where, span, here) { lossy = true }
-                        element to Label.REPEATED
-                    }
-                    is MapOf -> {
-                        if (nullable) {
-                            lossy(
-                                "$where: a nullable map has no Protobuf representation; lowered to map",
-                                span,
-                                help =
-                                    "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent",
-                            )
-                            lossy = true
-                        }
-                        if (type.nullableValue) {
-                            lossy(
-                                "$where: nullable map values have no Protobuf representation; lowered to map",
-                                span,
-                                help =
-                                    "declare the map as `map<K, V>` with non-nullable values; a missing key already means absent",
-                            )
-                            lossy = true
-                        }
-                        val key =
-                            ProtoType.Scalar(ProtoTypes.keyword((type.key as Scalar).builtin)!!)
-                        val value = element(type.value, type, where, span, here) { lossy = true }
-                        ProtoType.MapOf(key, value) to Label.NONE
-                    }
+                    is Scalar -> scalarField(type, nullable, where, span)
+                    is Ref -> refField(type, nullable, here)
+                    is ListOf -> listField(type, nullable, where, span, here)
+                    is MapOf -> mapField(type, nullable, where, span, here)
                 }
-            return Mapped(proto, label, lossy)
+            return Mapped(mapped.type, mapped.label, mapped.lossy || refined)
+        }
+
+        private fun scalarField(
+            type: Scalar,
+            nullable: Boolean,
+            where: String,
+            span: Span,
+        ): Mapped {
+            val (scalar, isLossy) = scalar(type.builtin, where, span)
+            // A nullable Timestamp or Duration has no `optional`: the message's presence already
+            // says absent. Nothing in the output records that the field was nullable, so the
+            // note does, for whoever reads the file back.
+            val lossy = isLossy || (nullable && scalar !is ProtoType.Scalar)
+            val label = if (nullable && scalar is ProtoType.Scalar) Label.OPTIONAL else Label.NONE
+            return Mapped(scalar, label, lossy)
+        }
+
+        private fun refField(type: Ref, nullable: Boolean, here: List<String>): Mapped {
+            // `optional` is written only for an enum, so a nullable message-typed field is
+            // otherwise indistinguishable from a required one.
+            val enum = isEnum(type.target)
+            return Mapped(
+                reference(type.target, here),
+                if (nullable && enum) Label.OPTIONAL else Label.NONE,
+                lossy = nullable && !enum,
+            )
+        }
+
+        private fun listField(
+            type: ListOf,
+            nullable: Boolean,
+            where: String,
+            span: Span,
+            here: List<String>,
+        ): Mapped {
+            if (nullable) {
+                lossy(
+                    "$where: a nullable list has no Protobuf representation; lowered to repeated",
+                    span,
+                    help = LIST_HELP,
+                )
+            }
+            if (type.nullableElement) {
+                lossy(
+                    "$where: nullable list elements have no Protobuf representation; lowered to repeated",
+                    span,
+                    help = LIST_HELP,
+                )
+            }
+            val element = element(type.element, type, where, span, here)
+            return Mapped(
+                element.type,
+                Label.REPEATED,
+                nullable || type.nullableElement || element.lossy,
+            )
+        }
+
+        private fun mapField(
+            type: MapOf,
+            nullable: Boolean,
+            where: String,
+            span: Span,
+            here: List<String>,
+        ): Mapped {
+            if (nullable) {
+                lossy(
+                    "$where: a nullable map has no Protobuf representation; lowered to map",
+                    span,
+                    help = MAP_HELP,
+                )
+            }
+            if (type.nullableValue) {
+                lossy(
+                    "$where: nullable map values have no Protobuf representation; lowered to map",
+                    span,
+                    help = MAP_HELP,
+                )
+            }
+            val key = ProtoType.Scalar(ProtoTypes.keyword((type.key as Scalar).builtin)!!)
+            val value = element(type.value, type, where, span, here)
+            return Mapped(
+                ProtoType.MapOf(key, value.type),
+                Label.NONE,
+                nullable || type.nullableValue || value.lossy,
+            )
         }
 
         /** The element of a list or the value of a map. Collections do not nest in proto. */
@@ -472,17 +501,15 @@ object ProtoLowering {
             where: String,
             span: Span,
             here: List<String>,
-            markLossy: () -> Unit,
-        ): ProtoType =
+        ): Mapped =
             when (element) {
                 is Scalar -> {
                     val (scalar, isLossy) = scalar(element.builtin, where, span)
-                    if (isLossy) markLossy()
-                    scalar
+                    Mapped(scalar, Label.NONE, isLossy)
                 }
-                is Ref -> reference(element.target, here)
+                is Ref -> Mapped(reference(element.target, here), Label.NONE, lossy = false)
                 is ListOf,
-                is MapOf -> nested(owner, where, span)
+                is MapOf -> Mapped(nested(owner, where, span), Label.NONE, lossy = false)
             }
 
         private fun nested(owner: Type, where: String, span: Span): ProtoType {

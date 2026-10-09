@@ -69,15 +69,15 @@ object JsonSchema {
             builder.schemaLoaders { loaders -> loaders.schemas(byId) }
         }
 
-    /** Every `$ref` string in [tree], depth first. */
-    private fun walkRefs(tree: JsonNode, action: (String) -> Unit) {
-        if (tree.isObject) {
-            tree["\$ref"]?.takeIf { it.isTextual }?.let { action(it.asText()) }
-            tree.fields().forEach { (_, v) -> walkRefs(v, action) }
-        } else if (tree.isArray) tree.forEach { walkRefs(it, action) }
-    }
-
     /** `#/$defs/X` against [base]; an absolute ref is returned as is. */
     private fun resolve(base: String, ref: String): String =
         if (ref.startsWith("#")) base + ref else ref
+}
+
+/** Every `$ref` string in [tree], depth first. */
+internal fun walkRefs(tree: JsonNode, action: (String) -> Unit) {
+    if (tree.isObject) {
+        tree["\$ref"]?.takeIf { it.isTextual }?.let { action(it.asText()) }
+        tree.fields().forEach { (_, v) -> walkRefs(v, action) }
+    } else if (tree.isArray) tree.forEach { walkRefs(it, action) }
 }

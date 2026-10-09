@@ -93,6 +93,8 @@ object NoteText {
     fun parseReservedNote(note: String): List<UnitReserved>? {
         val service = service(note.trim()) ?: return null
         if (service.operations.isNotEmpty() || service.reserved.isEmpty()) return null
+        // A range that runs backwards is not a reserved statement the importer can rebuild.
+        if (service.reserved.any { it is ReservedItem.Ordinals && it.from > it.to }) return null
         return service.reserved.map {
             when (it) {
                 is ReservedItem.Ordinals -> UnitReserved.Ordinals(it.from, it.to)

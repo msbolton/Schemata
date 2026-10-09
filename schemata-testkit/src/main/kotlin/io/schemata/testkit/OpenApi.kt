@@ -3,6 +3,7 @@ package io.schemata.testkit
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.networknt.schema.JsonSchema as NetworkntSchema
 import com.networknt.schema.JsonSchemaFactory
 import com.networknt.schema.SchemaId
 import com.networknt.schema.SchemaLocation
@@ -30,6 +31,22 @@ object OpenApi {
         resource.readText()
     }
 
+    /** The OpenAPI 3.1 document schema, compiled once: it is large and the same for every call. */
+    internal val documentSchema: NetworkntSchema by lazy {
+        JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012) { builder ->
+                builder.schemaLoaders { loaders ->
+                    loaders.schemas(mapOf(DOCUMENT_SCHEMA_ID to documentSchemaText))
+                }
+            }
+            .getSchema(SchemaLocation.of(DOCUMENT_SCHEMA_ID))
+    }
+
+    /** Draft 2020-12's meta-schema, which every schema object of a document must satisfy. */
+    private val metaSchema: NetworkntSchema by lazy {
+        JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+            .getSchema(SchemaLocation.of(SchemaId.V202012))
+    }
+
     /**
      * @return null when [document] is valid under the OpenAPI 3.1 document schema, every schema
      *   object in it is valid draft 2020-12, every component schema compiles under the OpenAPI 3.1
@@ -42,19 +59,9 @@ object OpenApi {
             } catch (e: JsonProcessingException) {
                 return "not JSON: ${e.originalMessage}"
             }
-        val documentSchema =
-            JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012) { builder ->
-                    builder.schemaLoaders { loaders ->
-                        loaders.schemas(mapOf(DOCUMENT_SCHEMA_ID to documentSchemaText))
-                    }
-                }
-                .getSchema(SchemaLocation.of(DOCUMENT_SCHEMA_ID))
         val problems = documentSchema.validate(tree)
         if (problems.isNotEmpty()) return problems.take(REPORTED).joinToString("\n")
 
-        val metaSchema =
-            JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
-                .getSchema(SchemaLocation.of(SchemaId.V202012))
         for ((pointer, schema) in schemaObjects(tree)) {
             val meta = metaSchema.validate(schema)
             if (meta.isNotEmpty()) return "$pointer: ${meta.first()}"
@@ -111,13 +118,5 @@ object OpenApi {
             }
         }
         return out
-    }
-
-    /** Every `$ref` string in [tree], depth first. */
-    private fun walkRefs(tree: JsonNode, action: (String) -> Unit) {
-        if (tree.isObject) {
-            tree["\$ref"]?.takeIf { it.isTextual }?.let { action(it.asText()) }
-            tree.fields().forEach { (_, v) -> walkRefs(v, action) }
-        } else if (tree.isArray) tree.forEach { walkRefs(it, action) }
     }
 }

@@ -12,13 +12,15 @@ data class RelationalModel(val schemas: List<RelationalSchema>) : TargetModel
  * One namespace's DDL, legal by construction: names are final and quoted by the renderer, every
  * constraint names existing columns, and foreign keys are printed after every table. [path] is
  * decided here, in lowering, not in the renderer. Each table and column carries its provenance,
- * which the renderer ignores and `schemata migrate` matches on.
+ * which the renderer ignores and `schemata migrate` matches on. [namespace] is the name of the
+ * namespace the file was lowered from, so a consumer finds it without re-deriving [path].
  */
 data class RelationalSchema(
     val path: String,
     val schemaName: String,
     val tables: List<Table>,
     val foreignKeys: List<ForeignKey> = emptyList(),
+    val namespace: String = "",
 )
 
 /**

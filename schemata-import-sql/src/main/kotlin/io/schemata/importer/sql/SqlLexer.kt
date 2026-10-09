@@ -19,9 +19,17 @@ enum class SqlTokenKind {
  * One token. IDENT text is lower-cased, as Postgres folds unquoted identifiers; QIDENT and STRING
  * text is decoded; NUMBER is the source text; COMMENT is the body without its delimiters. SYMBOL
  * covers `( ) , ; . = < > <= >= <> != ~ ~* [ ] :: + - * /` and, one character at a time, the
- * remaining Postgres operator characters (`: @ # % ^ & | ? !`), so any operator lexes.
+ * remaining Postgres operator characters (`: @ # % ^ & | ? !`), so any operator lexes. A numbered
+ * parameter such as `$1` is one SYMBOL.
  */
-data class SqlToken(val kind: SqlTokenKind, val text: String, val pos: SqlPos)
+data class SqlToken(val kind: SqlTokenKind, val text: String, val pos: SqlPos) {
+    /**
+     * The position just past the token's last source character, so adjacency can be told. It is not
+     * part of equality: two tokens are the same token wherever they end.
+     */
+    var end: SqlPos = pos
+        internal set
+}
 
 class SqlSyntaxError(val pos: SqlPos, message: String) : Exception(message)
 
@@ -56,6 +64,7 @@ object SqlLexer {
         fun lineEnd(from: Int) = text.indexOf('\n', from).let { if (it < 0) text.length else it }
         while (i < text.length) {
             val c = text[i]
+            val before = out.size
             when {
                 c.isWhitespace() -> advanceTo(i + 1)
                 c == '-' && text.startsWith("--", i) -> {
@@ -123,6 +132,13 @@ object SqlLexer {
                             quoted(text, i, '"', start, ::advanceTo),
                             start,
                         )
+                }
+                c == '$' && i + 1 < text.length && text[i + 1].isDigit() -> {
+                    val start = pos()
+                    val s = i
+                    i++
+                    while (i < text.length && text[i].isDigit()) i++
+                    out += SqlToken(SqlTokenKind.SYMBOL, text.substring(s, i), start)
                 }
                 c == '$' -> {
                     val start = pos()
@@ -205,6 +221,8 @@ object SqlLexer {
                     }
                 }
             }
+            // One token read: it ends where the lexer now stands. (`;` before COPY data adds two.)
+            if (out.size == before + 1) out[before].end = pos()
         }
         out += SqlToken(SqlTokenKind.EOF, "", pos())
         return out

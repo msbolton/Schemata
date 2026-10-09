@@ -83,13 +83,18 @@ class HoistingTest {
     @Test
     fun `timestamps step over reserved ordinals`() {
         val r = analyze("schema s\nmodel M { #1 a int32  reserved #2..#3, #5  @@timestamps }")
-        assertEquals(emptyList(), r.diagnostics)
+        assertEquals(listOf("SCH1054"), r.diagnostics.map { it.code.id })
         assertEquals(listOf(1, 4, 6), model(r, "M").fields.map { it.ordinal })
     }
 
     @Test
     fun `timestamps take no arguments`() {
         assertEquals(listOf("SCH1018"), codes("schema s\nmodel M { a int32  @@timestamps(x) }"))
+    }
+
+    @Test
+    fun `an ordinal on an attribute other than timestamps is SCH1018`() {
+        assertEquals(listOf("SCH1018"), codes("schema s\nmodel M { @deprecated(#3) #1 a int32 }"))
     }
 
     @Test
@@ -117,6 +122,25 @@ class HoistingTest {
     fun `two inline types given one name collide`() {
         val text = "schema s\nmodel M { a { x int32 } @name(\"P\")\n b { y int32 } @name(\"P\") }"
         assertEquals(listOf("SCH1053"), codes(text))
+        val message = analyze(text).diagnostics.single().message
+        assertTrue("which model 'M' hoists from field 'a'" in message, message)
+        assertFalse("declares" in message, message)
+    }
+
+    @Test
+    fun `a declared twin of a hoisted name still reads as declared`() {
+        val r =
+            analyze("schema s\nmodel Order { status enum { a }  model OrderStatus { x int32 } }")
+        assertTrue("which model 'Order' already declares" in r.diagnostics.single().message)
+    }
+
+    @Test
+    fun `a hoisted name from an enclosing model reads as named not declared`() {
+        val text =
+            "schema s\nmodel Outer {\n  inner Inner\n  kind enum { a }  @name(\"InnerKind\")\n" +
+                "  model Inner { kind enum { a b } }\n}"
+        val message = analyze(text).diagnostics.single().message
+        assertTrue("which model 'Outer' also names" in message, message)
     }
 
     @Test

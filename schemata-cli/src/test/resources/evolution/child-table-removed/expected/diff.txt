@@ -18,12 +18,12 @@ error[SCH2501]: jsonschema: s.Order.lines: the field was removed breaks old docu
   |                                     ^^^^^
   = help: keep the field, or mark the model @jsonschema(open)
 
-error[SCH2501]: sql: s.Order.lines: the column was dropped breaks rows that still hold its data
+error[SCH2501]: sql: s.Order.lines: child table dropped, which breaks rows that still hold its data
  --> old/s.schemata:3:37
   |
 3 | model Order { #1 id uuid { id }  #2 lines Line[] }
   |                                     ^^^^^
-  = help: migrate the column's data elsewhere before dropping it
+  = help: migrate the child table's data elsewhere before dropping it
 
 error[SCH2501]: xsd: s.Order.lines: the field was removed breaks old documents that still carry it
  --> old/s.schemata:3:37

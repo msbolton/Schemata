@@ -1,8 +1,11 @@
 package io.schemata.cli.guide
 
 import io.schemata.cli.Pipeline
+import io.schemata.importer.ImportCodes
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import org.junit.jupiter.api.DynamicTest
@@ -32,8 +35,35 @@ class GuideReferenceTest {
         assertTrue(Guide.blocks(referenceFile.readText(), "schemata").isNotEmpty())
     }
 
+    /** The import family table's SCH2402 row says what the code's own description says. */
+    @Test
+    fun `the SCH2402 row repeats the import code description`() {
+        val row = referenceFile.readLines().single { it.startsWith("| SCH2402 | ") }
+        assertTrue(
+            row.contains(ImportCodes.RENAMED.description),
+            "the SCH2402 row does not contain '${ImportCodes.RENAMED.description}':\n$row",
+        )
+    }
+
+    @Test
+    fun `a block that does not open with a schema line is a fragment`() {
+        assertTrue(isFullExample("schema shop.orders\n\nmodel A { #1 x int32 }"))
+        assertTrue(isFullExample("\n  schema a"))
+        assertFalse(isFullExample("model A { #1 x int32 }"))
+        assertFalse(isFullExample("#1 x int32"))
+        assertFalse(isFullExample("schemas a"))
+        assertFalse(isFullExample("schema"))
+        assertFailsWith<AssertionError> {
+            check(readmeFile, Guide.Block("schemata", "model A { #1 x int32 }", 1))
+        }
+    }
+
+    /** True when [body] opens with a `schema <name>` line, so it compiles on its own. */
+    private fun isFullExample(body: String) =
+        Regex("^schema +\\S").containsMatchIn(body.trimStart())
+
     private fun check(file: File, block: Guide.Block) {
-        if (file == readmeFile && !block.body.trimStart().startsWith("schema "))
+        if (file == readmeFile && !isFullExample(block.body))
             fail("${file.name}:${block.line} is not a full example; give it a schema line")
         val result = Pipeline.check(Guide.sources(block.body), Pipeline.targets, strict = false)
         val errors = result.diagnostics.filter { it.severity.name == "ERROR" }

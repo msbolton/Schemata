@@ -59,4 +59,57 @@ class ProtoLexerTest {
         assertEquals(Token(TokenKind.STRING, "ab", Pos(1, 1), 2), tokens[0])
         assertEquals(Pos(2, 7), tokens[1].pos)
     }
+
+    @Test
+    fun `a long run of octal escapes lexes in linear time`() {
+        val count = 300_000
+        val source = "\"" + "\\101".repeat(count) + "\""
+        val start = System.nanoTime()
+        val tokens = ProtoLexer.lex(source)
+        val millis = (System.nanoTime() - start) / 1_000_000
+        assertEquals("A".repeat(count), tokens[0].text)
+        // quadratic lexing of this input is orders of magnitude slower, so a loose bound still
+        // catches it
+        // while a slow or loaded runner cannot trip it
+        assertTrue(millis < 20_000, "took $millis ms")
+    }
+
+    @Test
+    fun `octal escapes take at most three digits`() {
+        assertEquals("A7", ProtoLexer.lex("\"\\1017\"")[0].text)
+        assertEquals("\u0001", ProtoLexer.lex("\"\\1\"")[0].text)
+    }
+
+    @Test
+    fun `a hex prefix or an exponent with no digits is an error at the number`() {
+        assertEquals(Pos(1, 5), assertFailsWith<ProtoSyntaxError> { ProtoLexer.lex("a = 0x;") }.pos)
+        assertEquals(Pos(1, 5), assertFailsWith<ProtoSyntaxError> { ProtoLexer.lex("a = 1e;") }.pos)
+        assertEquals(
+            Pos(1, 5),
+            assertFailsWith<ProtoSyntaxError> { ProtoLexer.lex("a = 1e+;") }.pos,
+        )
+        assertEquals(TokenKind.FLOAT to "1e+5", kinds("1e+5")[0])
+        assertEquals(TokenKind.INT to "0x1f", kinds("0x1f")[0])
+    }
+
+    @Test
+    fun `a byte order mark is skipped and does not shift the columns`() {
+        val tokens = ProtoLexer.lex("\uFEFFa b")
+        assertEquals(TokenKind.IDENT to "a", tokens[0].kind to tokens[0].text)
+        assertEquals(Pos(1, 1), tokens[0].pos)
+        assertEquals(Pos(1, 3), tokens[1].pos)
+    }
+
+    @Test
+    fun `a non-ASCII letter or digit is an unexpected character at its position`() {
+        assertEquals(
+            Pos(1, 4),
+            assertFailsWith<ProtoSyntaxError> { ProtoLexer.lex("ab \u00e9x") }.pos,
+        )
+        assertEquals(
+            Pos(1, 3),
+            assertFailsWith<ProtoSyntaxError> { ProtoLexer.lex("ab\u00e9") }.pos,
+        )
+        assertEquals(Pos(1, 1), assertFailsWith<ProtoSyntaxError> { ProtoLexer.lex("\u0663") }.pos)
+    }
 }

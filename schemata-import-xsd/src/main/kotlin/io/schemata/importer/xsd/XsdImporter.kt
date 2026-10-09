@@ -5,6 +5,7 @@ import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportResult
 import io.schemata.importer.Importer
 import io.schemata.importer.importResult
+import io.schemata.importer.resolvePath
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Span
 
@@ -190,27 +191,5 @@ object XsdImporter : Importer {
             read[input.path] = result.doc
             return result.doc
         }
-    }
-
-    /**
-     * [relative] joined to [basePath]'s directory, with `.` segments dropped and each `..` taking
-     * back the segment before it, so `maindoc/a.xsd` and `../common/b.xsd` name `common/b.xsd`; a
-     * `..` with nothing left to take back is kept.
-     */
-    private fun resolvePath(basePath: String, relative: String): String {
-        val dir = basePath.substringBeforeLast('/', "")
-        val joined = if (dir.isEmpty()) relative else "$dir/$relative"
-        val out = ArrayDeque<String>()
-        joined.split('/').forEach { seg ->
-            when (seg) {
-                "",
-                "." -> Unit
-                ".." ->
-                    if (out.isNotEmpty() && out.last() != "..") out.removeLast()
-                    else out.addLast(seg)
-                else -> out.addLast(seg)
-            }
-        }
-        return (if (joined.startsWith("/")) "/" else "") + out.joinToString("/")
     }
 }

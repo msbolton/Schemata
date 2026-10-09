@@ -539,4 +539,79 @@ class ServerSessionTest {
             session.diagnostics(a) { it.isNotEmpty() }
         }
     }
+
+    @Test
+    fun `rapid edits publish diagnostics once, for the final text`() {
+        val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x int32 }\n")
+        // A pause far longer than the test: only the request after the edits can end it.
+        LspSession.inProcess { input, output ->
+                SchemataServer.launch(
+                    input,
+                    output,
+                    AnnotationRegistry.CORE,
+                    debounceMs = 600_000,
+                ) {}
+            }
+            .use { session ->
+                session.initialize(dir)
+                session.open(a, "schema m\n\nmodel R { #1 x One }\n")
+                session.change(a, "schema m\n\nmodel R { #1 x Two }\n")
+                session.change(a, "schema m\n\nmodel R { #1 x Three }\n")
+                session.settle(a)
+                assertEquals(1, session.publishCount(a))
+                val only = session.latest(a)!!.single()
+                assertTrue("'Three'" in only.message, only.message)
+            }
+    }
+
+    @Test
+    fun `every folder of the roots setting gathers its own subtree`() {
+        val cA = write("model/one/customers/c.schemata", customers)
+        val oA = write("model/one/orders/o.schemata", orders)
+        val cB = write("model/two/customers/c.schemata", customers)
+        val oB = write("model/two/orders/o.schemata", orders)
+        session(mapOf("roots" to listOf("model/one", "model/two"))).use { session ->
+            session.open(oA, orders)
+            session.open(oB, orders)
+            listOf(cA, oA, cB, oB).forEach { session.diagnostics(it) { d -> d.isEmpty() } }
+        }
+    }
+
+    @Test
+    fun `a closed document stops being published under the uri the editor used`() {
+        val text = "schema m\n\nmodel R { #1 x Missing }\n"
+        val a = write("m/a.schemata", text)
+        // The same file as the platform spells it, and as an editor may: one slash after `file:`.
+        val odd = "file:" + a.toAbsolutePath().normalize().toString()
+        assertTrue(odd != a.toAbsolutePath().normalize().toUri().toString())
+        session().use { session ->
+            session.openUri(odd, text)
+            wait(
+                session.server.textDocumentService.documentSymbol(
+                    DocumentSymbolParams(TextDocumentIdentifier(odd))
+                )
+            )
+            assertEquals(1, session.publishCountUri(odd))
+            assertEquals(0, session.publishCount(a))
+            session.closeUri(odd)
+            a.writeText("schema m\n\nmodel R { #1 x int32 }\n")
+            session.watchedUri(odd, FileChangeType.Changed)
+            session.diagnostics(a) { it.isEmpty() }
+            assertEquals(1, session.publishCountUri(odd))
+        }
+    }
+
+    @Test
+    fun `a dependency that changes on disk republishes its dependants with no further edit`() {
+        val c = write("shop/customers.schemata", customers)
+        val o = write("shop/orders.schemata", orders)
+        session().use { session ->
+            session.open(o, orders)
+            session.diagnostics(o) { it.isEmpty() }
+            c.writeText("schema shop.customers\n\nmodel Client { #1 id uuid }\n")
+            session.watched(c, FileChangeType.Changed)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertTrue("SCH1006" in shown.map { it.code.left }, shown.toString())
+        }
+    }
 }

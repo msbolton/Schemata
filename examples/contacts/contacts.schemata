@@ -3,7 +3,7 @@ schema contacts
 
 enum Kind { personal work }
 
-/// One person. Email and age are checked by Postgres; Protobuf carries them unchecked.
+/// One person. Postgres checks the name, email, and age but not the tags; Protobuf checks none.
 model Contact {
   id    int64    { id }
   name  string   { max 100 }

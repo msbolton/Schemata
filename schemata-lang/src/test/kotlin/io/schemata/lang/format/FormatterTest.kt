@@ -4,8 +4,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class FormatterTest {
-    private fun fmt(text: String) =
-        (Formatter.format(text, "t.schemata") as FormatResult.Formatted).text
+    /** Every case in this suite also proves that formatting its own output changes nothing. */
+    private fun fmt(text: String): String {
+        val once = (Formatter.format(text, "t.schemata") as FormatResult.Formatted).text
+        val twice = (Formatter.format(once, "t.schemata") as FormatResult.Formatted).text
+        assertEquals(once, twice, "not idempotent: $text")
+        return once
+    }
 
     @Test
     fun `a byte-order mark is read and never written`() {
@@ -294,5 +299,17 @@ class FormatterTest {
         val input = "schema t\r\nmodel R {\r\n#1 a bool /* x\r\ny */\r#2 b bool\r\n}\r\n"
         val expected = "schema t\n\nmodel R {\n  #1 a bool  /* x\ny */\n  #2 b bool\n}\n"
         assertEquals(expected, fmt(input))
+    }
+
+    @Test
+    fun `fmt keeps pinned timestamps as written`() {
+        assertEquals(
+            "schema t\n\nmodel M {\n  #1 id int64\n\n  @@timestamps(#11, #12)\n}\n",
+            fmt("schema t\nmodel M {\n#1 id int64\n@@timestamps(#11,#12)\n}\n"),
+        )
+        assertEquals(
+            "schema t\n\nmodel M {\n  #1 id int64\n\n  @@timestamps\n}\n",
+            fmt("schema t\nmodel M {\n#1 id int64\n@@timestamps\n}\n"),
+        )
     }
 }

@@ -1240,4 +1240,198 @@ class SqlImportTest {
         )
         assertEquals(text(hand, "shop.schemata"), text(dump, "shop.schemata"))
     }
+
+    @Test
+    fun `a composite reference listed in another order than the key warns and follows the key`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.person (
+                      tenant_id uuid NOT NULL,
+                      code varchar(8) NOT NULL,
+                      PRIMARY KEY (tenant_id, code)
+                    );
+                    CREATE TABLE t.account (
+                      id uuid PRIMARY KEY,
+                      owner_code varchar(8) NOT NULL,
+                      owner_tenant_id uuid NOT NULL,
+                      FOREIGN KEY (owner_code, owner_tenant_id) REFERENCES t.person (code, tenant_id)
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                schema t
+
+                model Person { tenant_id uuid { id }  code string { id, max 8 } }
+
+                model Account { id uuid { id }  owner Person }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 column 'Account.owner_code': foreign key columns (owner_code, owner_tenant_id) are listed in another order than the key (tenant_id, code) of 'Person'; imported in the key's order"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `statements naming a table that is not in the inputs are reported`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.a (id uuid PRIMARY KEY);
+                    ALTER TABLE t.ghost ADD CONSTRAINT pk_ghost PRIMARY KEY (id);
+                    CREATE INDEX ix_ghost ON t.ghost (id);
+                    COMMENT ON TABLE t.ghost IS 'Gone.';
+                    COMMENT ON COLUMN t.ghost.id IS 'Gone.';
+                    """
+            )
+        assertEquals(schemata("schema t\n\nmodel A { id uuid { id } }"), text(r, "t.schemata"))
+        assertEquals(
+            listOf(
+                "SCH2405 t.sql: ALTER TABLE on 't.ghost' dropped; the table is not in the inputs",
+                "SCH2405 t.sql: CREATE INDEX on 't.ghost' dropped; the table is not in the inputs",
+                "SCH2405 t.sql: COMMENT ON TABLE on 't.ghost' dropped; the table is not in the inputs",
+                "SCH2405 t.sql: COMMENT ON COLUMN on 't.ghost' dropped; the table is not in the inputs",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an unqualified name that finds no table is reported with its default schema`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.a (id uuid PRIMARY KEY);
+                    ALTER TABLE ghost ADD PRIMARY KEY (id);
+                    """
+            )
+        assertEquals(
+            listOf(
+                "SCH2405 t.sql: ALTER TABLE on 'public.ghost' dropped; the table is not in the inputs"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a default set after the table is created is reported`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.a (id uuid PRIMARY KEY, n integer);
+                    ALTER TABLE t.a ALTER COLUMN n SET DEFAULT 5;
+                    """
+            )
+        assertEquals(listOf("SCH2405 t.sql: ALTER COLUMN SET DEFAULT dropped"), messages(r))
+    }
+
+    @Test
+    fun `a name option with two schemas in one file names the first and derives the rest`() {
+        val r =
+            SqlImporter.import(
+                listOf(
+                    ImportInput(
+                        "two.sql",
+                        """
+                        CREATE SCHEMA first_s;
+                        CREATE SCHEMA second_s;
+                        CREATE TABLE first_s.a (id uuid PRIMARY KEY);
+                        CREATE TABLE second_s.b (id uuid PRIMARY KEY);
+                        """
+                            .trimIndent(),
+                    )
+                ),
+                "chosen",
+            )
+        assertEquals(
+            listOf("chosen.schemata", "second_s.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+        assertEquals(
+            schemata("schema chosen @sql(schema: \"first_s\")\n\nmodel A { id uuid { id } }"),
+            text(r, "chosen.schemata"),
+        )
+        assertEquals(
+            schemata("schema second_s\n\nmodel B { id uuid { id } }"),
+            text(r, "second_s.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `a json note naming the record it sits in refers to that record`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t."order" (id uuid PRIMARY KEY);
+                    CREATE TABLE t."order_lines" (
+                      order_id uuid NOT NULL,
+                      position integer NOT NULL,
+                      meta jsonb NOT NULL,  -- schemata: Line
+                      PRIMARY KEY (order_id, position)
+                    );
+                    ALTER TABLE t."order_lines" ADD CONSTRAINT fk_lines FOREIGN KEY (order_id) REFERENCES t."order" (id) ON DELETE CASCADE;
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                schema t
+
+                model Order {
+                  id    uuid   { id }
+                  lines Line[]
+
+                  model Line { meta Line @sql(strategy: json) }
+                }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `an array or json column in a primary key stays a plain key field`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.k (
+                      tags text[] NOT NULL,
+                      doc jsonb NOT NULL,
+                      PRIMARY KEY (tags, doc)
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                schema t
+
+                model K { tags string { id } @sql(type: "text[]")  doc string { id } @sql(type: "jsonb") }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2404 column 'K.tags': text[] imported as string with @sql(type)",
+                "SCH2404 column 'K.doc': jsonb imported as string with @sql(type)",
+            ),
+            messages(r),
+        )
+    }
 }

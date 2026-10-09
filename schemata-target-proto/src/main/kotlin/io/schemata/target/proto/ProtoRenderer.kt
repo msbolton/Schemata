@@ -41,20 +41,27 @@ object ProtoRenderer {
             }
         }
         if (body.isNotEmpty()) sections += body
-        return buildString {
-            doc(service.doc, "")
+        return braced(service.doc, "", "service ${service.name}", sections)
+    }
+
+    /**
+     * [comment], then [header] and its [sections] between braces, one blank line apart; no sections
+     * is an empty `{}` on the header's line.
+     */
+    private fun braced(comment: String?, indent: String, header: String, sections: List<String>) =
+        buildString {
+            doc(comment, indent)
             if (sections.isEmpty()) {
-                appendLine("service ${service.name} {}")
+                appendLine("$indent$header {}")
                 return@buildString
             }
-            appendLine("service ${service.name} {")
+            appendLine("$indent$header {")
             sections.forEachIndexed { i, section ->
                 if (i > 0) appendLine()
                 append(section)
             }
-            appendLine("}")
+            appendLine("$indent}")
         }
-    }
 
     private fun rpc(rpc: ProtoRpc, indent: String): String = buildString {
         doc(rpc.doc, indent)
@@ -87,19 +94,7 @@ object ProtoRenderer {
                 is ProtoMessage -> messageSections(decl, inner)
                 is ProtoEnum -> enumSections(decl, inner)
             }
-        return buildString {
-            doc(decl.doc, indent)
-            if (sections.isEmpty()) {
-                appendLine("$indent$keyword ${decl.name} {}")
-                return@buildString
-            }
-            appendLine("$indent$keyword ${decl.name} {")
-            sections.forEachIndexed { i, section ->
-                if (i > 0) appendLine()
-                append(section)
-            }
-            appendLine("$indent}")
-        }
+        return braced(decl.doc, indent, "$keyword ${decl.name}", sections)
     }
 
     private fun messageSections(message: ProtoMessage, indent: String): List<String> {

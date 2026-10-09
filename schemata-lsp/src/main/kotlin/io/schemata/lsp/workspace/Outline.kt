@@ -42,23 +42,22 @@ data class OutlineNode(
  */
 internal fun outline(snapshot: Snapshot): List<OutlineNode> {
     val lines = snapshot.lines
+    val hoisted = HoistedFile.of(snapshot.file)
     fun node(decl: Declaration): OutlineNode {
         val children =
             when (decl) {
                 is RecordDecl -> {
                     val fields =
-                        decl.fields
-                            .filterNot { it.synthetic() }
-                            .map {
-                                it.span to
-                                    OutlineNode(
-                                        it.name,
-                                        OutlineKind.FIELD,
-                                        lines.range(it.span),
-                                        lines.range(it.nameSpan),
-                                        emptyList(),
-                                    )
-                            }
+                        decl.fields.filterNot(hoisted::generated).map {
+                            it.span to
+                                OutlineNode(
+                                    it.name,
+                                    OutlineKind.FIELD,
+                                    lines.range(it.span),
+                                    lines.range(it.nameSpan),
+                                    emptyList(),
+                                )
+                        }
                     // Fields and nested declarations interleave in the source; keep that order.
                     (fields + decl.nested.map { it.span to node(it) })
                         .sortedWith(compareBy({ it.first.startLine }, { it.first.startColumn }))
@@ -112,7 +111,7 @@ internal fun outline(snapshot: Snapshot): List<OutlineNode> {
             operations,
         )
     }
-    val file = IndexBuilder.hoisted(snapshot.file)
+    val file = hoisted.file
     val members =
         (file.declarations.map { it.span to node(it) } +
                 file.services.map { it.span to service(it) })

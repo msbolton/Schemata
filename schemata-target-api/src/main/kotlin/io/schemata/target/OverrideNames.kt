@@ -12,8 +12,10 @@ import io.schemata.lang.Span
 
 /**
  * A target's `@<target>(name = "…")` overrides, validated once per declaration or enum value
- * however many files refer to them. [problem] returns null for a valid value, else the message
- * tail; an invalid override is reported with [code] and ignored, so the declared name is used.
+ * however many files refer to them. [overrideName] validates any other override key the same way
+ * (`@sql(column: "…")`, say), reporting each use. [problem] returns null for a valid value, else
+ * the message tail; an invalid override is reported with [code] and ignored, so the declared name
+ * is used.
  */
 class OverrideNames(
     private val target: String,
@@ -44,13 +46,39 @@ class OverrideNames(
     fun enumValueName(enum: EnumType, value: EnumValue): String =
         enumValueOverride(enum, value) ?: value.name
 
-    /** The valid override on [annotations], or null (reported once per call) for an invalid one. */
-    fun overrideName(annotations: Annotations, where: String, span: Span): String? {
-        val value = annotations.string(target, "name") ?: return null
+    /**
+     * The valid `@<target>([key])` override on [annotations], or null (reported once per call) for
+     * an invalid one.
+     */
+    fun overrideName(
+        annotations: Annotations,
+        where: String,
+        span: Span,
+        key: String = "name",
+    ): String? {
+        val value = annotations.string(target, key) ?: return null
         val tail = problem(value) ?: return value
         sink +=
-            Diagnostic(code, "$where: @$target(name: \"$value\") $tail", span, help = help(tail))
+            Diagnostic(
+                code,
+                "$where: @$target($key: \"${escaped(value)}\") $tail",
+                span,
+                help = help(tail),
+            )
         return null
+    }
+
+    /** [value] with its control characters written as escapes, so a message stays on one line. */
+    private fun escaped(value: String): String = buildString {
+        value.forEach {
+            when {
+                it == '\t' -> append("\\t")
+                it == '\n' -> append("\\n")
+                it == '\r' -> append("\\r")
+                it < ' ' -> append("\\u").append(it.code.toString(16).uppercase().padStart(4, '0'))
+                else -> append(it)
+            }
+        }
     }
 
     private fun <K> MutableMap<K, String?>.memo(key: K, compute: () -> String?): String? {

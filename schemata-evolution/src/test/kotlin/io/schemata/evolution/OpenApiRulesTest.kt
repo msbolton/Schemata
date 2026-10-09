@@ -233,8 +233,8 @@ class OpenApiRulesTest {
         val tagged = analysed(base + "@openapi(name: \"T\") service S { #1 get(A)  get \"/a\" }")
         assertEquals(
             Verdict.Breaking(
-                "t.S: @openapi(name) added, so the tag changes from S to T, and with it every " +
-                    "operationId it prefixes",
+                "t.S: @openapi(name) added, so the tag changes from S to T, and every " +
+                    "operationId built on it changes too",
                 "keep @openapi(name: \"S\")",
             ),
             only(old, tagged),
@@ -323,5 +323,85 @@ class OpenApiRulesTest {
         assertIs<Verdict.Breaking>(removed)
         val plain = Schema(analysed(keep).namespaces + analysed(base).namespaces)
         assertEquals(Verdict.Compatible, only(plain, new))
+    }
+
+    @Test
+    fun `a type reachable only through a removed operation's payload is judged by OLD's document`() {
+        val head = "schema t\n\nmodel Id { #1 id uuid }\n\n"
+        fun text(field: String, service: String) =
+            head + "model Order { #1 id uuid  #2 note $field }\n\nservice S { $service }"
+        val old = analysed(text("int32", "#1 keep(Id)  get \"/k\"  #2 place(Order)  post \"/o\""))
+        val new = analysed(text("string", "#1 keep(Id)  get \"/k\"  reserved #2, \"place\""))
+        val verdicts = judged(old, new).associate { it.first.kind to it.second }
+        assertIs<Verdict.Breaking>(verdicts["operation.removed"])
+        assertIs<Verdict.Breaking>(verdicts["field.typeChanged"])
+    }
+
+    @Test
+    fun `a type behind two operations is still judged as data after one is removed`() {
+        val head = "schema t\n\nmodel Id { #1 id uuid }\n\n"
+        fun text(field: String, service: String) =
+            head + "model Order { #1 id uuid  #2 note $field }\n\nservice S { $service }"
+        val old = analysed(text("int32", "#1 a(Order)  post \"/a\"  #2 b(Id): Order  get \"/b\""))
+        val new = analysed(text("string", "#1 a(Order)  post \"/a\"  reserved #2, \"b\""))
+        val verdicts = judged(old, new).associate { it.first.kind to it.second }
+        assertIs<Verdict.Breaking>(verdicts["field.typeChanged"])
+    }
+
+    @Test
+    fun `a cyclic type reachable from a service is judged as data`() {
+        val text = { field: String ->
+            "schema t\n\nmodel A { #1 b B?  #2 n $field }\n\nmodel B { #1 a A? }\n\n" +
+                "service S { #1 get(B)  get \"/b\" }"
+        }
+        val verdict = only(analysed(text("int32")), analysed(text("string")))
+        assertIs<Verdict.Breaking>(verdict)
+    }
+
+    @Test
+    fun `a service tag change says the operationIds built on it change too`() {
+        val old = analysed(base + "service S { #1 get(A)  get \"/a\" }")
+        val tagged = analysed(base + "@openapi(name: \"T\") service S { #1 get(A)  get \"/a\" }")
+        assertEquals(
+            Verdict.Breaking(
+                "t.S: @openapi(name) added, so the tag changes from S to T, and every " +
+                    "operationId built on it changes too",
+                "keep @openapi(name: \"S\")",
+            ),
+            only(old, tagged),
+        )
+    }
+
+    @Test
+    fun `a rename with a rebind names each URL once`() {
+        val old = analysed(base + "service Orders { #1 get(A): B  get \"/a\" }")
+        val new = analysed(base + "service Orders { #1 fetch(A): B  get \"/b\" }")
+        val pinned =
+            analysed(
+                base +
+                    "service Orders { @openapi(name: \"Orders_get\") #1 fetch(A): B  get \"/b\" }"
+            )
+        for (side in listOf(new, pinned)) {
+            val messages =
+                judged(old, side)
+                    .map { it.second }
+                    .filterIsInstance<Verdict.Breaking>()
+                    .joinToString("\n") { it.message }
+            assertEquals(1, Regex("get /a").findAll(messages).count(), messages)
+            assertEquals(1, Regex("get /b").findAll(messages).count(), messages)
+        }
+    }
+
+    @Test
+    fun `a rename alone still names both derived URLs`() {
+        val old = analysed(base + "service Orders { #1 get(A): B }")
+        val new = analysed(base + "service Orders { #1 fetch(A): B }")
+        val message = (only(old, new) as Verdict.Breaking).message
+        assertEquals(
+            "t.Orders.fetch: the operation was renamed, so its operationId changes from " +
+                "Orders_get to Orders_fetch, and its URL changes from post /Orders/get to " +
+                "post /Orders/fetch",
+            message,
+        )
     }
 }

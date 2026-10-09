@@ -2,7 +2,6 @@ package io.schemata.lang.internal
 
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.LangCodes
-import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.ast.BindingDecl
 import io.schemata.lang.ast.Literal
@@ -134,12 +133,16 @@ internal class AstSupport(
         val pathSpan = span(literal.symbol)
         val path = string(literal, pathSpan)
         val parameters = mutableListOf<String>()
-        val problem = pathProblem(path, parameters)
+        // The shape is checked on the text as written, never on its decoded form: an escape such
+        // as `\u{2f}` would otherwise decode to a `/` and pass for a separator the author never
+        // typed. A backslash is outside the allowed characters, so any escape is a bad character.
+        val written = literal.text.substring(1, literal.text.length - 1)
+        val problem = pathProblem(written, parameters)
         if (problem != null) {
             diagnostics +=
                 Diagnostic(
                     LangCodes.MALFORMED_PATH,
-                    "path ${SchemataText.string(path)} is malformed: $problem",
+                    "path ${literal.text} is malformed: $problem",
                     pathSpan,
                     help = "write the path as /segment/{param}; parameters are lower_snake",
                 )

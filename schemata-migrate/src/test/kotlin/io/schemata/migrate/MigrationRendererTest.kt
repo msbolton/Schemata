@@ -134,4 +134,18 @@ class MigrationRendererTest {
             ),
         )
     }
+
+    @Test
+    fun `a cascading constraint drop renders cascade and a plain one does not`() {
+        val at = At("s", "customer")
+        val subject = Subject("s.Customer", io.schemata.lang.Span("t.schemata", 1, 1, 1, 1))
+        assertEquals(
+            "ALTER TABLE \"s\".\"customer\" DROP CONSTRAINT \"pk_customer\" CASCADE;",
+            MigrationRenderer.sql(DropConstraint(at, "pk_customer", false, true, subject)),
+        )
+        assertEquals(
+            "ALTER TABLE \"s\".\"customer\" DROP CONSTRAINT IF EXISTS \"fk_x\";",
+            MigrationRenderer.sql(DropConstraint(at, "fk_x", true, false, subject)),
+        )
+    }
 }

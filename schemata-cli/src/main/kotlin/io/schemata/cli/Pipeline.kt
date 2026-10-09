@@ -133,10 +133,10 @@ object Pipeline {
 
     fun compile(
         sources: List<SourceInput>,
-        targets: List<Target<*>>,
+        selected: List<Target<*>>,
         strict: Boolean = false,
     ): PipelineResult =
-        run(sources, targets, strict) { target, schema ->
+        run(sources, selected, strict) { target, schema ->
             val out = target.compile(schema)
             TargetResult(target.name, out.files, out.diagnostics)
         }
@@ -144,21 +144,21 @@ object Pipeline {
     /** Every stage of [compile] except rendering; the result carries no files. */
     fun check(
         sources: List<SourceInput>,
-        targets: List<Target<*>>,
+        selected: List<Target<*>>,
         strict: Boolean = false,
     ): PipelineResult =
-        run(sources, targets, strict) { target, schema ->
+        run(sources, selected, strict) { target, schema ->
             TargetResult(target.name, emptyList(), target.lower(schema).diagnostics)
         }
 
     private fun run(
         sources: List<SourceInput>,
-        targets: List<Target<*>>,
+        selected: List<Target<*>>,
         strict: Boolean,
         perTarget: (Target<*>, Schema) -> TargetResult,
     ): PipelineResult {
         val analyzed = analyze(sources, strict)
         val schema = analyzed.schema ?: return PipelineResult(analyzed.diagnostics, emptyList())
-        return PipelineResult(analyzed.diagnostics, targets.map { perTarget(it, schema) })
+        return PipelineResult(analyzed.diagnostics, selected.map { perTarget(it, schema) })
     }
 }

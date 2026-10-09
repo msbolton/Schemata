@@ -210,4 +210,71 @@ class SqlHelpTest {
         val diagnostic = ds.single { it.code == SqlCodes.NAME_COLLISION }
         assertEquals("rename one of them, or set `@sql(table: \"…\")` on one", diagnostic.help)
     }
+
+    @Test
+    fun `a keyed self-copy points at referencing the model by key`() {
+        val ds =
+            diagnostics(
+                """
+                schema t
+
+                model Node {
+                  #1 id uuid { id }
+                  #2 parent Node? { embed }
+                }
+                """
+                    .trimIndent()
+            )
+        val diagnostic = ds.single { it.code == SqlCodes.RECURSIVE_EMBED }
+        assertEquals(
+            "reference 'Node' by key instead of embedding it: remove `{ embed }` from this field, or use `@sql(strategy: json)`",
+            diagnostic.help,
+        )
+    }
+
+    @Test
+    fun `a composite constraint naming a field with no column says where the field is stored`() {
+        val ds =
+            diagnostics(
+                """
+                schema t
+
+                model R {
+                  #1 id   uuid { id }
+                  #2 code string
+                  #3 tags string[] @sql(strategy: table)
+                  @@unique(code, tags)
+                }
+                """
+                    .trimIndent()
+            )
+        val diagnostic = ds.single { it.code == SqlCodes.STRATEGY_NOT_ALLOWED }
+        assertEquals(
+            "name only fields stored in the model's own columns; 'tags' is stored elsewhere or not at all",
+            diagnostic.help,
+        )
+    }
+
+    @Test
+    fun `a model embedded in two fields reports its bad override and pattern once`() {
+        val ds =
+            diagnostics(
+                """
+                schema t
+
+                model Inner {
+                  #1 x string { max 5, match "\bx" } @sql(column: "")
+                }
+
+                model R {
+                  #1 id uuid { id }
+                  #2 a  Inner
+                  #3 b  Inner
+                }
+                """
+                    .trimIndent()
+            )
+        assertEquals(1, ds.count { it.code == SqlCodes.INVALID_OVERRIDE }, ds.toString())
+        assertEquals(1, ds.count { it.code == SqlCodes.LOSSY }, ds.toString())
+    }
 }

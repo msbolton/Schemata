@@ -588,6 +588,24 @@ class XsdImporterTest {
     }
 
     @Test
+    fun `a located include from a windows path is asked for with forward slashes`() {
+        val main =
+            ImportInput(
+                "C:\\xsd\\a\\main.xsd",
+                """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:shop"><xs:include schemaLocation="../b/types.xsd"/></xs:schema>""",
+            )
+        val asked = mutableListOf<String>()
+        XsdImporter.import(
+            listOf(main),
+            locate = {
+                asked += it
+                null
+            },
+        )
+        assertEquals(listOf("C:/xsd/b/types.xsd"), asked)
+    }
+
+    @Test
     fun `an include of another namespace is an error`() {
         val main =
             ImportInput(

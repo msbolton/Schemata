@@ -18,8 +18,9 @@ interface ReportStyle {
     val format: Format
 
     /**
-     * ANSI when asked for; when auto, ANSI only if [ansiSupported] (the terminal Clikt detected for
-     * this run) is true and `NO_COLOR` is unset.
+     * ANSI when asked for; when auto, ANSI only if [ansiSupported] (the terminal supports colour
+     * and the stream the report is written to, stderr, is that terminal) is true and `NO_COLOR` is
+     * unset.
      */
     fun palette(ansiSupported: Boolean): Palette
 }

@@ -115,13 +115,19 @@
         },
         "ref": {
           "$ref": "#/$defs/Reference"
+        },
+        "tenant_id": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
         }
       },
       "required": [
         "id",
         "posted",
         "lines",
-        "ref"
+        "ref",
+        "tenant_id"
       ],
       "additionalProperties": false
     },

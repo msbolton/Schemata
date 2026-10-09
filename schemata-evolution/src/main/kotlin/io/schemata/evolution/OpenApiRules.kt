@@ -1,10 +1,8 @@
 package io.schemata.evolution
 
-import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.Operation
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Service
-import io.schemata.core.ir.service
 
 /**
  * What each kind of [Change] means for a client generated from the old OpenAPI document: whether
@@ -113,15 +111,20 @@ object OpenApiRules : Rulebook {
      * an operation with no binding also the derived URL, which is built from the name itself.
      */
     private fun operationRenamed(change: OperationRenamed, ctx: ChangeContext): Verdict {
-        val oldService = oldService(change.service, ctx)
+        val oldService = ctx.oldService(change.service)
         val fromId = ctx.emittedName(target, OperationOwner(oldService, change.from))
         val toId = ctx.emittedName(target, OperationOwner(change.service, change.to))
         val fromUrl = url(oldService, change.from, ctx)
         val toUrl = url(change.service, change.to, ctx)
+        // A binding rewritten in the same step has its own change, which names both URLs; the
+        // rename only says that the URL moves with it.
+        val urlWord =
+            if (change.from.binding != change.to.binding) "its URL changes with its binding"
+            else "its URL changes from $fromUrl to $toUrl"
         val what =
             listOfNotNull(
                     "its operationId changes from $fromId to $toId".takeIf { fromId != toId },
-                    "its URL changes from $fromUrl to $toUrl".takeIf { fromUrl != toUrl },
+                    urlWord.takeIf { fromUrl != toUrl },
                 )
                 .joinToString(", and ")
         if (what.isEmpty()) return Verdict.Compatible
@@ -138,12 +141,13 @@ object OpenApiRules : Rulebook {
      * compatible.
      */
     private fun bindingChanged(change: OperationBindingChanged, ctx: ChangeContext): Verdict {
-        val oldService = oldService(change.service, ctx)
+        val oldService = ctx.oldService(change.service)
         val oldOp =
             oldService.operations.firstOrNull { it.ordinal == change.operation.ordinal }
                 ?: change.operation
-        val fromUrl = bindingText(change.from) ?: derivedUrl(oldService, oldOp, ctx)
-        val toUrl = bindingText(change.to) ?: derivedUrl(change.service, change.operation, ctx)
+        val fromUrl = change.from?.let(::bindingText) ?: derivedUrl(oldService, oldOp, ctx)
+        val toUrl =
+            change.to?.let(::bindingText) ?: derivedUrl(change.service, change.operation, ctx)
         if (fromUrl == toUrl) return Verdict.Compatible
         val how =
             when {
@@ -182,8 +186,8 @@ object OpenApiRules : Rulebook {
         if (fromName == toName) return Verdict.Compatible
         val what =
             if (owner is ServiceOwner)
-                "the tag changes from $fromName to $toName, and with it every operationId it " +
-                    "prefixes"
+                "the tag changes from $fromName to $toName, and every operationId built on it " +
+                    "changes too"
             else "the operationId changes from $fromName to $toName"
         return Verdict.Breaking(
             "${change.path}: @openapi(name) ${changeWord(change)}, so $what",
@@ -215,16 +219,10 @@ object OpenApiRules : Rulebook {
             )
     }
 
-    private fun oldService(service: Service, ctx: ChangeContext): Service =
-        ctx.old.service(service.qualifiedName) ?: service
-
     /** `get /orders/{id}` as written, or the derived `post /<tag>/<operation>` when unbound. */
     private fun url(service: Service, op: Operation, ctx: ChangeContext): String =
-        bindingText(op.binding) ?: derivedUrl(service, op, ctx)
+        op.binding?.let(::bindingText) ?: derivedUrl(service, op, ctx)
 
     private fun derivedUrl(service: Service, op: Operation, ctx: ChangeContext): String =
         "post /${ctx.emittedName(target, ServiceOwner(service))}/${op.name}"
-
-    private fun bindingText(binding: HttpBinding?): String? =
-        binding?.let { "${it.verb.lower} ${it.path}" }
 }

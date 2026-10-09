@@ -6,6 +6,7 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import java.io.IOException
 import java.io.StringReader
+import java.nio.charset.Charset
 import javax.xml.XMLConstants
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
@@ -21,6 +22,33 @@ data class ReadResult(val doc: XsdDoc?, val diagnostics: List<Diagnostic>)
 object XsdReader {
     const val XS = "http://www.w3.org/2001/XMLSchema"
     private const val XML = "http://www.w3.org/XML/1998/namespace"
+
+    /**
+     * The text of an `.xsd` file's [bytes]: UTF-8, as an XML document is unless it says otherwise,
+     * or the encoding its XML declaration names when the JVM knows it. A byte order mark means
+     * UTF-8, whatever the declaration says, and a name that is not a charset, or is a wide one a
+     * declaration written in ASCII cannot be using, is ignored.
+     */
+    fun decode(bytes: ByteArray): String {
+        val bom =
+            bytes.size >= 3 &&
+                bytes[0] == 0xEF.toByte() &&
+                bytes[1] == 0xBB.toByte() &&
+                bytes[2] == 0xBF.toByte()
+        if (bom) return String(bytes, Charsets.UTF_8)
+        // The declaration is ASCII in every encoding it may name, so it reads the same as Latin-1.
+        val head = String(bytes, 0, minOf(bytes.size, DECLARATION_LIMIT), Charsets.ISO_8859_1)
+        val declared =
+            DECLARED_ENCODING.find(head)?.groupValues?.get(1)?.let {
+                runCatching { Charset.forName(it) }.getOrNull()
+            }
+        val wide = declared?.name()?.let { it.startsWith("UTF-16") || it.startsWith("UTF-32") }
+        return String(bytes, if (declared == null || wide == true) Charsets.UTF_8 else declared)
+    }
+
+    private const val DECLARATION_LIMIT = 256
+    private val DECLARED_ENCODING =
+        Regex("""^<\?xml\s[^>]*?\bencoding\s*=\s*["']([A-Za-z][A-Za-z0-9._-]*)["']""")
 
     fun read(path: String, text: String): ReadResult {
         val tree =
@@ -507,6 +535,7 @@ object XsdReader {
                 documentation(n),
                 n.line,
                 form = n.attr("form"),
+                path = path,
             )
 
         /**

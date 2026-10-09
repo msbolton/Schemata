@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.testing.test
 import java.nio.file.Files
 import kotlin.io.path.createDirectories
@@ -9,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.io.TempDir
 
 class CompileCommandTest {
     private val orders =
@@ -32,10 +34,13 @@ class CompileCommandTest {
         """
             .trimIndent()
 
+    // JUnit removes this directory after each test, so the sources and outputs never outlive it.
+    @TempDir lateinit var tmp: java.nio.file.Path
+
     private fun tempSources(
         vararg files: Pair<String, String>
     ): Pair<java.nio.file.Path, java.nio.file.Path> {
-        val dir = Files.createTempDirectory("schemata-cli")
+        val dir = Files.createTempDirectory(tmp, "schemata-cli")
         val src = dir.resolve("src").createDirectories()
         files.forEach { (name, text) -> src.resolve(name).writeText(text) }
         return src to dir.resolve("out")
@@ -201,7 +206,7 @@ class CompileCommandTest {
 
     @Test
     fun `rejects a directory with no schemata files`() {
-        val dir = Files.createTempDirectory("schemata-empty")
+        val dir = Files.createTempDirectory(tmp, "schemata-empty")
         val result = CompileCommand().test("--target proto $dir")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("no .schemata files"), result.stderr)
@@ -236,6 +241,30 @@ class CompileCommandTest {
         assertEquals(1, result.statusCode, result.stderr)
         assertTrue(result.stderr.contains("cannot write"), result.stderr)
         assertFalse(result.stderr.contains("at io.schemata"), result.stderr)
+    }
+
+    @Test
+    fun `a usage error raised while running prints the subcommand usage line`() {
+        val (src, _) = tempSources("a.schemata" to "schema a")
+        val result = Schemata().subcommands(CompileCommand()).test("compile --target avro $src")
+        assertEquals(1, result.statusCode)
+        assertTrue(result.stderr.contains("Usage: schemata compile "), result.stderr)
+        assertTrue(result.stderr.contains("unknown target 'avro'"), result.stderr)
+    }
+
+    @Test
+    fun `--strict skips the target holding a promoted warning and still writes the others`() {
+        val (src, out) =
+            tempSources(
+                "customers.schemata" to
+                    "schema shop.customers\n\nmodel Customer { #1 id uuid { id }  #2 name string }\n"
+            )
+        val result = CompileCommand().test("--target proto,sql --strict --out $out $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertFalse(Files.exists(out.resolve("proto")), result.stderr)
+        assertTrue(Files.exists(out.resolve("sql")), result.stderr)
+        assertTrue(result.stderr.contains("proto: not written"), result.stderr)
+        assertTrue(result.stderr.contains("wrote 1 file to $out/sql"), result.stderr)
     }
 
     @Test

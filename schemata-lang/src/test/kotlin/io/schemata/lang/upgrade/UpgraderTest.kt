@@ -254,8 +254,24 @@ class UpgraderTest {
     }
 
     @Test
+    fun `map surfaces a rename collision instead of dropping it`() {
+        val mapped =
+            Upgrader.map(
+                Parser.parse1ForUpgrade(
+                        "namespace s\nrecord R { model: string model_value: int32 }",
+                        "t",
+                    )
+                    .file!!
+            )
+        assertEquals(
+            listOf("cannot rename 'model': 'model_value' is already declared"),
+            mapped.problems.map { it.message },
+        )
+    }
+
+    @Test
     fun `map moves refinements into options and flags`() {
-        val file =
+        val mapped =
             Upgrader.map(
                 Parser.parse1ForUpgrade(
                         "namespace s\nrecord M { @sql(key) a: string(max = 5) }",
@@ -263,6 +279,8 @@ class UpgraderTest {
                     )
                     .file!!
             )
+        assertTrue(mapped.problems.isEmpty(), "${mapped.problems}")
+        val file = mapped.file
         val a = (file.declarations.single() as RecordDecl).fields.single()
         assertEquals(listOf("id", "max"), a.options.map(Option::name))
         assertTrue(a.type.refinements.isEmpty() && a.annotations.isEmpty())

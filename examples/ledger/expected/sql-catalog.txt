@@ -26,6 +26,7 @@ table ledger_journal.entry -- A balanced entry: at least two lines.
   column ref_invoice_number character varying(32)
   column ref_payment_reference character varying(64)
   column ref_source text
+  column tenant_id bigint not null
   constraint ck_entry_ref_invoice CHECK (((ref_kind <> 'invoice'::text) OR (ref_invoice_number IS NOT NULL)))
   constraint ck_entry_ref_kind CHECK ((ref_kind = ANY (ARRAY['invoice'::text, 'payment'::text, 'source'::text])))
   constraint ck_entry_ref_payment CHECK (((ref_kind <> 'payment'::text) OR (ref_payment_reference IS NOT NULL)))

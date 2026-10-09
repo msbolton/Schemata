@@ -1,14 +1,18 @@
 package io.schemata.lsp.workspace
 
 import io.schemata.core.annotations.AnnotationRegistry
+import io.schemata.core.ir.QualifiedName
+import io.schemata.lang.Parser
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
 import kotlin.io.path.createDirectories
 import kotlin.io.path.deleteExisting
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.io.TempDir
@@ -204,5 +208,183 @@ class WorkspaceTest {
         val ws = workspace()
         val analysis = ws.analysis(ws.open(o, ""))
         assertTrue(codes(analysis, o).isNotEmpty())
+    }
+
+    @Test
+    fun `a deleted file loses its symbols and its diagnostics, and its dependants see it go`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        val key = ws.open(o, orders)
+        val customer = QualifiedName("shop.customers", listOf("Customer"))
+        assertTrue(customer in ws.analysis(key).index.declarations)
+        Path.of(c).deleteExisting()
+        val after = ws.analysis(ws.diskChanged(c))
+        assertFalse(customer in after.index.declarations)
+        assertNull(ws.document(c))
+        assertNull(after.snapshot(c))
+        assertFalse(c in after.diagnostics.keys)
+        assertTrue("SCH1006" in codes(after, o), codes(after, o).toString())
+    }
+
+    @Test
+    fun `a dependant is analysed against the new disk text of a file that changed under it`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        val key = ws.open(o, orders)
+        assertEquals(emptyList(), codes(ws.analysis(key), o))
+        file("shop/customers.schemata", "schema shop.customers\nmodel Client { #1 id uuid }\n")
+        val after = ws.analysis(ws.diskChanged(c))
+        assertTrue("SCH1006" in codes(after, o), codes(after, o).toString())
+    }
+
+    @Test
+    fun `a file whose parse throws is reported as a diagnostic and stays a member`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws =
+            Workspace(
+                AnnotationRegistry.CORE,
+                parse = { text, path ->
+                    if ("Customer" in text && path == c) error("parser exploded")
+                    else Parser.parse(text, path)
+                },
+            )
+        val analysis = ws.analysis(ws.open(o, orders))
+        assertEquals(setOf(c, o), analysis.diagnostics.keys)
+        val reported = analysis.diagnostics.getValue(c).single()
+        assertTrue("parser exploded" in reported.message, reported.message)
+        assertTrue(ws.document(c)!!.broken)
+        // The file that parses is judged without the one that does not.
+        assertTrue("SCH1006" in codes(analysis, o), codes(analysis, o).toString())
+    }
+
+    @Test
+    fun `an open file whose parse throws is reported and recovers with the next edit`() {
+        val o = file("solo/a.schemata", "schema a\nmodel R { #1 x int32 }\n")
+        val ws =
+            Workspace(
+                AnnotationRegistry.CORE,
+                parse = { text, path ->
+                    if ("boom" in text) throw IllegalStateException("boom")
+                    else Parser.parse(text, path)
+                },
+            )
+        val broken = ws.analysis(ws.open(o, "schema a\nmodel R { #1 boom int32 }\n"))
+        assertTrue(ws.document(o)!!.broken)
+        assertTrue("boom" in broken.diagnostics.getValue(o).single().message)
+        val fixed = ws.analysis(ws.change(o, "schema a\nmodel R { #1 x int32 }\n"))
+        assertFalse(ws.document(o)!!.broken)
+        assertEquals(emptyList(), codes(fixed, o))
+    }
+
+    @Test
+    fun `a root given relative to the working directory gathers its subtree`() {
+        val c = file("model/customers/c.schemata", customers)
+        val o = file("model/orders/o.schemata", orders)
+        val relative = Path.of("").toAbsolutePath().relativize(dir.resolve("model"))
+        assertFalse(relative.isAbsolute)
+        val ws = workspace()
+        ws.configure(listOf(relative), strict = false)
+        val analysis = ws.analysis(ws.open(o, orders))
+        assertEquals(setOf(c, o), analysis.diagnostics.keys)
+        assertEquals(emptyList(), codes(analysis, o))
+    }
+
+    @Test
+    fun `change on a file that was never opened opens it and a later change parses again`() {
+        val o = file("solo/a.schemata", "schema a\nmodel R { #1 x int32 }\n")
+        val ws = workspace()
+        ws.analysis(ws.change(o, "schema a\nmodel R { #1 x Missing }\n"))
+        assertTrue(ws.document(o)!!.open)
+        val key = ws.change(o, "schema a\nmodel R { #1 y int32 }\n")
+        assertEquals("schema a\nmodel R { #1 y int32 }\n", ws.document(o)!!.snapshot!!.text)
+        assertEquals(emptyList(), codes(ws.analysis(key), o))
+    }
+
+    @Test
+    fun `a file that cannot be read is reported and not dropped`() {
+        val a = file("model/a.schemata", "schema a\nmodel R { #1 x int32 }\n")
+        val b = file("model/b.schemata", "schema b\nmodel S { #1 x int32 }\n")
+        val locked = Path.of(b)
+        assumeTrue(
+            Files.getFileStore(locked).supportsFileAttributeView("posix"),
+            "permissions cannot be removed here",
+        )
+        val permissions = Files.getPosixFilePermissions(locked)
+        Files.setPosixFilePermissions(locked, emptySet())
+        try {
+            assumeTrue(!Files.isReadable(locked), "this user reads every file")
+            val ws = workspace()
+            val analysis = ws.analysis(ws.open(a, Files.readString(Path.of(a))))
+            assertEquals(setOf(a, b), analysis.diagnostics.keys)
+            assertEquals(emptyList(), codes(analysis, a))
+            assertEquals(1, analysis.diagnostics.getValue(b).size)
+            assertTrue(ws.document(b)!!.broken)
+        } finally {
+            Files.setPosixFilePermissions(locked, permissions)
+        }
+    }
+
+    @Test
+    fun `a closed file with the same size and a newer modification time is read again`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        assertEquals(emptyList(), codes(ws.analysis(ws.open(o, orders)), o))
+        val renamed = customers.replace("Customer", "Consumer")
+        assertEquals(customers.length, renamed.length)
+        val stamp = Files.getLastModifiedTime(Path.of(c))
+        file("shop/customers.schemata", renamed)
+        Files.setLastModifiedTime(Path.of(c), FileTime.fromMillis(stamp.toMillis() + 5000))
+        assertTrue("SCH1006" in codes(ws.analysis(ws.change(o, orders)), o))
+    }
+
+    @Test
+    fun `the file list is read once between two lookups and again after a change on disk`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        var listed = 0
+        val ws =
+            Workspace(
+                AnnotationRegistry.CORE,
+                walk = { directory, recursive ->
+                    listed++
+                    walkSchemata(directory, recursive)
+                },
+            )
+        val key = ws.open(o, orders)
+        ws.analysis(key)
+        assertEquals(1, listed)
+        // An edit of a file already in the list cannot change what the directory holds.
+        val extra = file("shop/extra.schemata", "schema shop.extra\nmodel E { #1 x int32 }\n")
+        val edited = ws.analysis(ws.change(o, "$orders\n"))
+        assertEquals(1, listed)
+        assertFalse(extra in edited.diagnostics.keys)
+        assertTrue(extra in ws.analysis(ws.diskChanged(extra)).diagnostics.keys)
+        assertEquals(2, listed)
+        ws.analysis(ws.close(c))
+        assertEquals(3, listed)
+        ws.refresh(key)
+        ws.analysis(key)
+        assertEquals(4, listed)
+        ws.analysis(ws.open(file("shop/new.schemata", "schema shop.n\n"), "schema shop.n\n"))
+        assertEquals(5, listed)
+    }
+
+    @Test
+    fun `a file deleted with no event while the list is cached is gone and not unreadable`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        val key = ws.open(o, orders)
+        assertEquals(emptyList(), codes(ws.analysis(key), o))
+        Path.of(c).deleteExisting()
+        val after = ws.analysis(ws.change(o, "$orders\n"))
+        assertEquals(setOf(c), after.gone)
+        assertFalse(c in after.diagnostics.keys)
+        assertNull(ws.document(c))
+        assertTrue("SCH1006" in codes(after, o), codes(after, o).toString())
     }
 }

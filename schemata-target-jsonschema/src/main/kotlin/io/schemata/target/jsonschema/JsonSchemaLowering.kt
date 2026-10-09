@@ -20,6 +20,7 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
@@ -45,7 +46,6 @@ object JsonSchemaLowering {
             lossy = JsonSchemaCodes.LOSSY,
             nameCollision = JsonSchemaCodes.NAME_COLLISION,
             invalidOverride = JsonSchemaCodes.INVALID_OVERRIDE,
-            idCollision = JsonSchemaCodes.ID_COLLISION,
         )
 
     fun lower(written: Schema): Lowered<JsonSchemaModel> {
@@ -73,7 +73,7 @@ object JsonSchemaLowering {
             .forEach { group ->
                 diagnostics +=
                     Diagnostic(
-                        codes.idCollision,
+                        JsonSchemaCodes.ID_COLLISION,
                         "schemas ${group.joinToString(" and ") { it.name }} both lower to \$id '${ids.getValue(group.first().name)}'",
                         group[1].span,
                         help = "set `@jsonschema(id: \"…\")` on one of them",
@@ -109,7 +109,6 @@ data class LoweringCodes(
     val lossy: DiagnosticCode,
     val nameCollision: DiagnosticCode,
     val invalidOverride: DiagnosticCode,
-    val idCollision: DiagnosticCode,
 )
 
 /**
@@ -139,7 +138,7 @@ class SchemaNames(
         }
 
     /** The final names of [qn]'s enclosing declarations and its own, outermost first. */
-    fun path(qn: QualifiedName): List<String> =
+    internal fun path(qn: QualifiedName): List<String> =
         schema.declarationPath(qn).map { overrides.nameOverride(it) ?: it.name }
 
     /** `Order.Line`, each segment its valid override when it has one. */
@@ -156,8 +155,17 @@ class SchemaNames(
                     is RealValue -> value.value
                     else -> null
                 }
-            if (number != null && scale != null)
-                return JsonString(number.setScale(scale).toPlainString())
+            // a value with more digits than the scale holds keeps its own: rounding it would
+            // change what the default says
+            val scaled =
+                if (number == null || scale == null) null
+                else
+                    try {
+                        number.setScale(scale).toPlainString()
+                    } catch (_: ArithmeticException) {
+                        null
+                    }
+            if (scaled != null) return JsonString(scaled)
         }
         return JsonSchemaTypes.defaultValue(value, builtin) { ref ->
             val enum = schema.lookup(ref.enum) as EnumType
@@ -190,15 +198,14 @@ class DocumentLowering(
      * A declaring scope carries the namespace: one lowering may span namespaces, and `a.Money {
      * amount }` and `b.Money { amount }` are two scopes.
      */
-    private val claims =
-        NameClaims(
-            codes.nameCollision,
-            "rename one of them, or set `@jsonschema(name: \"…\")` on one",
-            diagnostics,
+    private val filed =
+        Filed(
+            NameClaims(
+                codes.nameCollision,
+                "rename one of them, or set `@jsonschema(name: \"…\")` on one",
+                diagnostics,
+            )
         )
-
-    private val defs = HashMap<QualifiedName, JsonDef>()
-    private val properties = HashMap<Pair<QualifiedName, String>, Property>()
 
     /** Every declaration of the namespace as one document at [path]. */
     fun lower(path: String, id: String, title: String): JsonSchemaDocument =
@@ -209,9 +216,46 @@ class DocumentLowering(
      * as a nested one listed beside its parent, appears once, where it is first reached.
      */
     fun lower(decls: List<TypeDecl>): List<JsonDef> {
+        claimKeys(decls)
         val emitted = mutableSetOf<QualifiedName>()
         return decls.flatMap { defs(it, emitted) }
     }
+
+    /**
+     * Claims the `$defs` key of every declaration in [decls], nested ones included, in source order
+     * (a file's declarations by position, files in the order they first appear), so that whichever
+     * order they are lowered in, the later declaration is the one a collision blames. A declaration
+     * that loses its key files its names apart from the winner's: the collision is reported once,
+     * not again for each property, tag, or value the two share.
+     */
+    private fun claimKeys(decls: List<TypeDecl>) {
+        decls
+            .flatMap { it.selfAndNested() }
+            .distinctBy { it.qualifiedName }
+            .filter { filed.keyed.add(it.qualifiedName) }
+            .groupBy { it.nameSpan.file }
+            .values
+            .flatMap { inFile ->
+                inFile.sortedWith(compareBy({ it.nameSpan.startLine }, { it.nameSpan.startColumn }))
+            }
+            .forEach { decl ->
+                val key = keys(decl.qualifiedName)
+                filed.claims.claim(
+                    scope = "def",
+                    name = key,
+                    holder = "${decl.kindWord} '${decl.name}'",
+                    span = decl.nameSpan,
+                    display = key,
+                    kind = "\$defs key",
+                )
+                if (filed.keyOwners.putIfAbsent(key, decl.qualifiedName) != null)
+                    filed.losers += decl.qualifiedName
+            }
+    }
+
+    /** [base], apart from the winner's names when [qn] lost its `$defs` key to another. */
+    private fun scoped(base: String, qn: QualifiedName): String =
+        if (qn in filed.losers) "$base#$qn" else base
 
     /** [decl] and its nested declarations, leaving out those in [emitted]. */
     private fun defs(decl: TypeDecl, emitted: MutableSet<QualifiedName>): List<JsonDef> {
@@ -220,15 +264,8 @@ class DocumentLowering(
     }
 
     private fun def(decl: TypeDecl): JsonDef =
-        defs.getOrPut(decl.qualifiedName) {
+        filed.defs.getOrPut(decl.qualifiedName) {
             val key = keys(decl.qualifiedName)
-            claims.claim(
-                key = "def:$key",
-                holder = "${decl.kindWord} '${decl.name}'",
-                span = decl.nameSpan,
-                display = key,
-                kind = "\$defs key",
-            )
             val own =
                 when (decl) {
                     // a back-reference is virtual: no property carries it
@@ -251,7 +288,12 @@ class DocumentLowering(
     }
 
     /** [field]'s schema with its description, default, and deprecation applied, as in [record]. */
-    fun fieldSchema(record: RecordType, field: Field): JsonSchema = property(record, field).schema
+    fun fieldSchema(record: RecordType, field: Field): JsonSchema {
+        require(field in record.fields) {
+            "field '${field.name}' must belong to ${record.qualifiedName}"
+        }
+        return property(record, field).schema
+    }
 
     private fun record(record: RecordType, fields: List<Field>): ObjectSchema =
         ObjectSchema(
@@ -265,8 +307,9 @@ class DocumentLowering(
         return EnumSchema(
             enum.values.map { value ->
                 val string = names.overrides.enumValueName(enum, value)
-                claims.claim(
-                    key = "value:$key/$string",
+                filed.claims.claim(
+                    scope = scoped("value:$key", enum.qualifiedName),
+                    name = string,
                     holder = "enum value '${enum.name}.${value.name}'",
                     span = value.nameSpan,
                     display = string,
@@ -296,8 +339,9 @@ class DocumentLowering(
         val declName =
             (member.named as? Ref)?.let { schema.lookup(it.target).name }
                 ?: (member.type as Scalar).builtin.typeName
-        claims.claim(
-            key = "tag:${scope(union.qualifiedName, path)}/$tag",
+        filed.claims.claim(
+            scope = scoped("tag:${scope(union.qualifiedName, path)}", union.qualifiedName),
+            name = tag,
             holder = "union member '$declName'",
             span = member.span,
             display = tag,
@@ -317,13 +361,17 @@ class DocumentLowering(
 
     /** [field]'s property, its name claimed in [record]'s scope; built once per field. */
     private fun property(record: RecordType, field: Field): Property =
-        properties.getOrPut(record.qualifiedName to field.name) {
+        filed.properties.getOrPut(record.qualifiedName to field.name) {
             val where = fieldWhere(record, field)
             val name =
                 names.overrides.overrideName(field.annotations, where, field.nameSpan) ?: field.name
-            claims.claim(
-                key =
-                    "property:${scope(record.qualifiedName, names.path(record.qualifiedName))}/$name",
+            filed.claims.claim(
+                scope =
+                    scoped(
+                        "property:${scope(record.qualifiedName, names.path(record.qualifiedName))}",
+                        record.qualifiedName,
+                    ),
+                name = name,
                 holder = where,
                 span = field.nameSpan,
                 display = name,
@@ -386,12 +434,35 @@ class DocumentLowering(
 
     /** Reports a construct JSON Schema cannot express at [where]. */
     private fun lossy(where: String, span: Span): (String, String) -> Unit = { message, help ->
-        diagnostics += Diagnostic(codes.lossy, "$where: $message", span, help = help)
+        val report = Diagnostic(codes.lossy, "$where: $message", span, help = help)
+        if (filed.lossy.add(report)) diagnostics += report
     }
 
     private companion object {
         const val INTEGER_KEY = "^(0|-?[1-9][0-9]*)$"
     }
+}
+
+/**
+ * What one [DocumentLowering] has filed so far: the definitions built, the properties built, the
+ * name [claims] with the declarations that claimed a `$defs` key, and the lossy reports already
+ * made, so nothing is built, claimed, or reported twice.
+ */
+private class Filed(val claims: NameClaims) {
+    val defs = HashMap<QualifiedName, JsonDef>()
+    val properties = HashMap<Pair<QualifiedName, String>, Property>()
+
+    /** Declarations whose `$defs` key has been claimed. */
+    val keyed = HashSet<QualifiedName>()
+
+    /** Who first claimed each `$defs` key. */
+    val keyOwners = HashMap<String, QualifiedName>()
+
+    /** Declarations whose key another claimed first. */
+    val losers = HashSet<QualifiedName>()
+
+    /** Lossy reports made, so lowering a type again reports it once. */
+    val lossy = HashSet<Diagnostic>()
 }
 
 /** [schema] with [common] in place of its own. */

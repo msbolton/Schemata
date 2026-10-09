@@ -80,20 +80,19 @@ internal class AstBuilder(
         // One pass over the top level, so diagnostics come out in source order whether they sit in
         // a declaration or a service.
         val services = mutableListOf<ServiceDecl>()
-        val declarations =
-            ctx.topLevel().mapIndexedNotNull { index, top ->
-                val lead = if (index == 0) leading else emptyList()
-                val service = top.serviceDecl()
-                if (service != null) {
-                    val built = build(service)
-                    services +=
-                        built.copy(
-                            annotations = lead + built.annotations,
-                            span = widen(built.span, lead),
-                        )
-                    null
-                } else build(top)?.let { lead(it, lead) }
-            }
+        val declarations = mutableListOf<Declaration>()
+        for ((index, top) in ctx.topLevel().withIndex()) {
+            val lead = if (index == 0) leading else emptyList()
+            val service = top.serviceDecl()
+            if (service != null) {
+                val built = build(service)
+                services +=
+                    built.copy(
+                        annotations = lead + built.annotations,
+                        span = widen(built.span, lead),
+                    )
+            } else build(top)?.let { declarations += lead(it, lead) }
+        }
         return SourceFile(
             path = file,
             doc = doc,
@@ -354,13 +353,16 @@ internal class AstBuilder(
     }
 
     /**
-     * The `(`, `)`, and `:` literals have no stable token names, so the request is told from the
-     * response by where each payload sits relative to the `)`.
+     * The request is told from the response by where each payload sits relative to the `)`, found
+     * by its token type.
      */
     private fun build(ctx: SchemataParser.OperationContext): OperationDecl {
         val doc = doc(ctx.doc())
         val annotations = ctx.attribute().map { build(it) }
-        val close = ctx.children.indexOfFirst { it is TerminalNode && it.text == ")" }
+        val close =
+            ctx.children.indexOfFirst {
+                it is TerminalNode && it.symbol.type == SchemataParser.RPAREN
+            }
         val payloads = ctx.payload()
         val request = payloads.firstOrNull { ctx.children.indexOf(it) < close }?.let { build(it) }
         val response = payloads.firstOrNull { ctx.children.indexOf(it) > close }?.let { build(it) }
@@ -514,19 +516,26 @@ internal class AstBuilder(
         )
 
     /**
-     * `key: value` is named; a bare name is `Positional(Lit(NameLit(name)))`, as is any literal.
+     * `key: value` is named; any literal, a bare name included, is `Positional(Lit(…))`. A bare
+     * name is a `NameLit`.
      */
     private fun build(ctx: SchemataParser.AttrArgContext): AnnotationArg {
         ctx.attrKey()?.let {
             return AnnotationArg.Named(it.text, build(ctx.attrValue()), ctx.span())
         }
-        val value =
-            ctx.IDENT()?.let { Literal.NameLit(it.text, it.symbol.span()) } ?: build(ctx.literal())
+        ctx.ORDINAL()?.let {
+            return AnnotationArg.Positional(
+                AnnotationValue.Ordinal(support.ordinal(it), ctx.span()),
+                ctx.span(),
+            )
+        }
+        val value = build(ctx.literal())
         return AnnotationArg.Positional(AnnotationValue.Lit(value, ctx.span()), ctx.span())
     }
 
     private fun build(ctx: SchemataParser.AttrValueContext): AnnotationValue =
         ctx.literal()?.let { AnnotationValue.Lit(build(it), ctx.span()) }
+            ?: ctx.ORDINAL()?.let { AnnotationValue.Ordinal(support.ordinal(it), ctx.span()) }
             ?: AnnotationValue.Tuple(
                 ctx.IDENT().map { it.text },
                 ctx.IDENT().map { it.symbol.span() },

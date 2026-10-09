@@ -91,4 +91,37 @@ class ProtoHelpTest {
         assertEquals(1, found.size)
         assertTrue(found.single().help != null)
     }
+
+    @Test
+    fun `list and map help come from one definition`() {
+        val helps =
+            lossyHelp(
+                """
+                schema t
+
+                model R {
+                  #1 a string[]?
+                  #2 b string?[]
+                  #3 c map<string, string>?
+                  #4 d map<string, string?>
+                }
+                """
+                    .trimIndent()
+            )
+        assertEquals(4, helps.size)
+        assertEquals(helps[0], helps[1])
+        assertEquals(helps[2], helps[3])
+    }
+
+    @Test
+    fun `no retired code set remains in ProtoCodes`() {
+        assertEquals(
+            emptyList(),
+            ProtoCodes::class.java.declaredFields.filter { it.name.contains("retired", true) },
+        )
+        assertEquals(
+            listOf("SCH2001", "SCH2004", "SCH2005", "SCH2006", "SCH2007", "SCH2008"),
+            ProtoCodes.all.map { it.id },
+        )
+    }
 }

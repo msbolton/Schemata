@@ -40,6 +40,10 @@ data class ProtoField(
     val pos: Pos,
 )
 
+/**
+ * An enum value. [note] is the text after `schemata:` in a trailing `//` comment that starts with
+ * it; [trailing] is any other trailing comment.
+ */
 data class ProtoEnumValue(
     val name: String,
     val number: Int,
@@ -47,6 +51,7 @@ data class ProtoEnumValue(
     val doc: String?,
     val trailing: String?,
     val pos: Pos,
+    val note: String? = null,
 )
 
 data class ProtoEnum(
@@ -99,7 +104,9 @@ data class ProtoRpc(
  * A service. [options] are its own `option` statements; [doc] is its leading comment block.
  * [reservedNotes] holds the `//` comments in its body that stand on their own line and start with
  * `schemata: reserved` (such as `// schemata: reserved #6`), each as the trimmed text after
- * `schemata:` with where the comment starts.
+ * `schemata:` with where the comment starts. [strayNotes] holds the other own-line `// schemata:`
+ * comments that stand last in the body, after the final rpc, each as the trimmed text after
+ * `schemata:` with where the comment starts; no rpc follows to take them.
  */
 data class ProtoService(
     val name: String,
@@ -108,6 +115,7 @@ data class ProtoService(
     val doc: String?,
     val reservedNotes: List<Pair<String, Pos>>,
     val pos: Pos,
+    val strayNotes: List<Pair<String, Pos>> = emptyList(),
 )
 
 /**

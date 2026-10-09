@@ -297,6 +297,42 @@ class ProtoRendererTest {
         )
     }
 
+    private fun serviceText(service: ProtoService): String =
+        ProtoRenderer.render(
+                ProtoModel(
+                    listOf(
+                        ProtoFile(
+                            "shop/orders.proto",
+                            "shop.orders",
+                            emptyList(),
+                            emptyList(),
+                            listOf(service),
+                        )
+                    )
+                )
+            )
+            .single()
+            .content
+            .substringAfter("shop.orders;\n\n")
+
+    @Test
+    fun `a deprecated rpc without notes renders only the option`() {
+        val rpc =
+            ProtoRpc("Old", ProtoRpcType("A", false), ProtoRpcType("B", false), deprecated = true)
+        assertEquals(
+            "service S {\n  rpc Old(A) returns (B) {\n    option deprecated = true;\n  }\n}\n",
+            serviceText(ProtoService("S", null, listOf(rpc))),
+        )
+    }
+
+    @Test
+    fun `a deprecated service with no rpcs renders only the option`() {
+        assertEquals(
+            "service S {\n  option deprecated = true;\n}\n",
+            serviceText(ProtoService("S", null, emptyList(), deprecated = true)),
+        )
+    }
+
     @Test
     fun `renders one output per file in model order`() {
         val outs = ProtoRenderer.render(ProtoModel(listOf(customer, user)))

@@ -90,7 +90,10 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
             if (op == null || lines == null) null
             else {
                 // The operation's line as the formatter prints it, without its annotations.
-                val ordinal = op.ordinal?.let { "#$it " } ?: ""
+                // The ordinal is padded to the widest one in the service, as the formatter pads it.
+                val width =
+                    at.decl.operations.maxOf { op -> op.ordinal?.let { "#$it".length } ?: 0 }
+                val ordinal = op.ordinal?.let { "#$it".padEnd(width) + " " } ?: ""
                 val binding = op.binding?.let { "  ${it.verb} ${lines.slice(it.pathSpan)}" } ?: ""
                 block("$ordinal${op.name}${payloadsText(op, lines::slice)}$binding", op.doc)
             }

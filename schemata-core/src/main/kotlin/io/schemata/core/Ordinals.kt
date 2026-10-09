@@ -22,26 +22,27 @@ object Ordinals {
     )
 
     /**
-     * The smallest positive ordinal in neither [used] nor any range in [reserved]. Jumps to the end
-     * of a reserved range instead of counting through it, so a huge range costs one step, not one
-     * per ordinal; stops at [Int.MAX_VALUE] instead of overflowing past it.
+     * The smallest ordinal above [above] (default 0) in neither [used] nor any range in [reserved].
+     * Sweeps the ranges once in order of their start, jumping to the end of one instead of counting
+     * through it, so a huge range costs one step, not one per ordinal; stops at [Int.MAX_VALUE]
+     * instead of overflowing past it.
      */
-    fun nextFree(used: Set<Int>, reserved: List<IntRange>): Int {
-        val sorted = reserved.sortedBy { it.first }
-        var candidate = 1
+    fun nextFree(used: Set<Int>, reserved: List<IntRange>, above: Int = 0): Int {
+        val sorted = reserved.filterNot { it.isEmpty() }.sortedBy { it.first }
+        var next = 0
+        var candidate = if (above == Int.MAX_VALUE) above else above + 1
         while (true) {
-            val hit = sorted.firstOrNull { candidate in it }
-            when {
-                hit != null -> {
-                    if (hit.last == Int.MAX_VALUE) return Int.MAX_VALUE
-                    candidate = hit.last + 1
+            // the candidate only grows, so a range it has passed is never looked at again
+            while (next < sorted.size && sorted[next].first <= candidate) {
+                val range = sorted[next++]
+                if (candidate <= range.last) {
+                    if (range.last == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate = range.last + 1
                 }
-                candidate in used -> {
-                    if (candidate == Int.MAX_VALUE) return Int.MAX_VALUE
-                    candidate++
-                }
-                else -> return candidate
             }
+            if (candidate !in used) return candidate
+            if (candidate == Int.MAX_VALUE) return Int.MAX_VALUE
+            candidate++
         }
     }
 
@@ -133,6 +134,11 @@ object Ordinals {
                 }
         }
         val allExplicit = elements.mapNotNull { it.ordinal }.toSet()
+        // a chosen ordinal's help must also step over the positions the other elements hold
+        val held =
+            allExplicit +
+                elements.indices.filter { elements[it].chosen == null }.map { it + 1 } +
+                elements.mapNotNull { it.chosen }
         val seen = mutableSetOf<Int>()
         return elements.mapIndexed { index, element ->
             val ordinal = element.ordinal ?: element.chosen ?: (index + 1)
@@ -173,7 +179,15 @@ object Ordinals {
                         "ordinal #$ordinal is reserved in $kind '$name'",
                         at,
                         help =
-                            "pick another ordinal; the next free one is #${nextFree(allExplicit, reserved.ordinals)}",
+                            "pick another ordinal; the next free one is #${
+                                if (element.chosen != null) {
+                                    // an ordinal pinned on a positional model must sit above the fields,
+                                    // or the next field added would take it
+                                    nextFree(held, reserved.ordinals, above = held.max())
+                                } else {
+                                    nextFree(allExplicit, reserved.ordinals)
+                                }
+                            }",
                     )
             }
             ordinal

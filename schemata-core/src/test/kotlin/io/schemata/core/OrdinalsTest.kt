@@ -6,6 +6,7 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Parser
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -150,5 +151,48 @@ class OrdinalsTest {
             "give each element its own ordinal; the next free one is #5",
             r.diagnostics.single { it.code.id == "SCH1019" }.help,
         )
+    }
+
+    /** The scan `nextFree` replaced: every step looks through all the ranges again. */
+    private fun rescanning(used: Set<Int>, reserved: List<IntRange>): Int {
+        var candidate = 1
+        while (true) {
+            val hit = reserved.firstOrNull { candidate in it }
+            when {
+                hit != null -> {
+                    if (hit.last == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate = hit.last + 1
+                }
+                candidate in used -> {
+                    if (candidate == Int.MAX_VALUE) return Int.MAX_VALUE
+                    candidate++
+                }
+                else -> return candidate
+            }
+        }
+    }
+
+    @Test
+    fun `the next free ordinal sweeps overlapping ranges to the same answer as a rescan`() {
+        val random = Random(90)
+        repeat(2000) {
+            val ranges =
+                List(random.nextInt(0, 7)) {
+                    val from = random.nextInt(-2, 40)
+                    val to =
+                        if (random.nextInt(25) == 0) Int.MAX_VALUE
+                        else from + random.nextInt(-2, 12)
+                    from..to
+                }
+            val used = List(random.nextInt(0, 15)) { random.nextInt(1, 40) }.toSet()
+            assertEquals(rescanning(used, ranges), Ordinals.nextFree(used, ranges), "$used $ranges")
+        }
+    }
+
+    @Test
+    fun `the next free ordinal steps over used ones that touch a reserved range`() {
+        assertEquals(9, Ordinals.nextFree(setOf(1, 2, 8), listOf(3..5, 4..7)))
+        assertEquals(1, Ordinals.nextFree(emptySet(), emptyList()))
+        assertEquals(Int.MAX_VALUE, Ordinals.nextFree(setOf(1), listOf(2..Int.MAX_VALUE)))
     }
 }

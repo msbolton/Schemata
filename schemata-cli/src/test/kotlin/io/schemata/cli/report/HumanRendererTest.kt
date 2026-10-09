@@ -14,6 +14,7 @@ import io.schemata.target.proto.ProtoCodes
 import io.schemata.target.sql.SqlCodes
 import io.schemata.testkit.Golden
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
  * Spans are inclusive: `Span(f, 3, 7, 3, 11)` covers columns 7 to 11, the five letters of `Order`.
@@ -176,5 +177,58 @@ class HumanRendererTest {
                 checkOnly = false,
             )
         Golden.assertMatches("report/writes.txt", render(r))
+    }
+
+    @Test
+    fun `diagnostics with equal sort keys print in the order they arrive`() {
+        val d = Diagnostic(SqlCodes.LOSSY, "lost", Span("shop/orders.schemata", 3, 7, 3, 11))
+        val text =
+            render(
+                report(
+                    TargetResult("sql", emptyList(), listOf(d)),
+                    TargetResult("proto", emptyList(), listOf(d)),
+                )
+            )
+        val sql = text.indexOf("(sql)")
+        val proto = text.indexOf("(proto)")
+        assertTrue(sql in 0 until proto, text)
+    }
+
+    @Test
+    fun `the trailer lists written targets before skipped ones whatever the target order`() {
+        val d =
+            Diagnostic(
+                SqlCodes.MISSING_KEY,
+                "model 'Order' has no key",
+                Span("shop/orders.schemata", 3, 7, 3, 11),
+            )
+        val text =
+            render(
+                report(
+                    TargetResult("sql", emptyList(), listOf(d)),
+                    TargetResult("proto", listOf(OutputFile("shop/orders.proto", "")), emptyList()),
+                    checkOnly = false,
+                )
+            )
+        assertTrue(text.endsWith("wrote 1 file to out/proto\nsql: not written (1 error)\n"), text)
+    }
+
+    @Test
+    fun `a target that lowered cleanly still gets its line when core reported an error`() {
+        val d =
+            Diagnostic(
+                CoreCodes.NULL_DEFAULT,
+                "a default may not be null",
+                Span("shop/orders.schemata", 4, 19, 4, 22),
+            )
+        val text =
+            render(
+                report(
+                    TargetResult("proto", listOf(OutputFile("shop/orders.proto", "")), emptyList()),
+                    core = listOf(d),
+                    checkOnly = false,
+                )
+            )
+        assertTrue(text.contains("1 error, 0 warnings\nwrote 1 file to out/proto"), text)
     }
 }

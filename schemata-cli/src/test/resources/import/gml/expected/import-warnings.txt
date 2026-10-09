@@ -160,19 +160,19 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2404 union 'RangeSet': xs:anyType imported as string
-SCH2403 union 'RangeSet': member element 'ValueArray' has no Schemata equivalent; the regenerated element will be named 'value_array'
-SCH2403 union 'RangeSet': member element 'AbstractScalarValueList' has no Schemata equivalent; the regenerated element will be named 'string'
-SCH2403 union 'RangeSet': member element 'DataBlock' has no Schemata equivalent; the regenerated element will be named 'data_block'
-SCH2403 union 'RangeSet': member element 'File' has no Schemata equivalent; the regenerated element will be named 'file'
+SCH2403 union 'RangeSet': member element name 'ValueArray' has no Schemata equivalent and is dropped; the regenerated element will be named 'value_array'
+SCH2403 union 'RangeSet': member element name 'AbstractScalarValueList' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
+SCH2403 union 'RangeSet': member element name 'DataBlock' has no Schemata equivalent and is dropped; the regenerated element will be named 'data_block'
+SCH2403 union 'RangeSet': member element name 'File' has no Schemata equivalent and is dropped; the regenerated element will be named 'file'
 SCH2403 complex type 'DataBlockType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 element 'doubleOrNilReasonTupleList': union simple type imported as string
 SCH2403 element 'doubleOrNilReasonTupleList': union simple type imported as string
 SCH2403 complex type 'FileType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 union 'CoverageFunction': member element 'MappingRule' has no Schemata equivalent; the regenerated element will be named 'string_or_ref'
-SCH2403 union 'CoverageFunction': member element 'CoverageMappingRule' has no Schemata equivalent; the regenerated element will be named 'mapping_rule'
-SCH2403 union 'CoverageFunction': member element 'GridFunction' has no Schemata equivalent; the regenerated element will be named 'grid_function'
-SCH2403 union 'MappingRule': member element 'ruleDefinition' has no Schemata equivalent; the regenerated element will be named 'string'
-SCH2403 union 'MappingRule': member element 'ruleReference' has no Schemata equivalent; the regenerated element will be named 'reference'
+SCH2403 union 'CoverageFunction': member element name 'MappingRule' has no Schemata equivalent and is dropped; the regenerated element will be named 'string_or_ref'
+SCH2403 union 'CoverageFunction': member element name 'CoverageMappingRule' has no Schemata equivalent and is dropped; the regenerated element will be named 'mapping_rule'
+SCH2403 union 'CoverageFunction': member element name 'GridFunction' has no Schemata equivalent and is dropped; the regenerated element will be named 'grid_function'
+SCH2403 union 'MappingRule': member element name 'ruleDefinition' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
+SCH2403 union 'MappingRule': member element name 'ruleReference' has no Schemata equivalent and is dropped; the regenerated element will be named 'reference'
 SCH2403 complex type 'SequenceRuleType': simpleContent extension of 'SequenceRuleEnumeration' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'componentReferenceSystem': element 'componentReferenceSystem' has no Schemata equivalent; the regenerated root element will be named 'single_crs_property'
 SCH2405 attribute 'type': fixed value imported as a default
@@ -403,7 +403,7 @@ SCH2404 element 'seconds': facet maxExclusive dropped
 SCH2403 complex type 'DegreesType': simpleContent extension of 'DegreeValueType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 enum value 'Direction.+': enum value 'Direction.+' has no Schemata equivalent; imported as 'plus'
 SCH2403 enum value 'Direction.-': enum value 'Direction.-' has no Schemata equivalent; imported as 'minus'
-SCH2403 union 'AngleChoice': member element 'dmsAngle' has no Schemata equivalent; the regenerated element will be named 'dms_angle'
+SCH2403 union 'AngleChoice': member element name 'dmsAngle' has no Schemata equivalent and is dropped; the regenerated element will be named 'dms_angle'
 SCH2403 element 'members': element 'members' has no Schemata equivalent; the regenerated root element will be named 'array_association'
 SCH2403 element 'dataSource': element 'dataSource' has no Schemata equivalent; the regenerated root element will be named 'string_or_ref'
 SCH2403 complex type 'StringOrRefType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
@@ -473,13 +473,13 @@ SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 complex type 'ConversionToPreferredUnitType': extension of 'UnitOfMeasureType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ConversionToPreferredUnitType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 complex type 'AbstractFeatureType': abstract type 'AbstractFeatureType' imported as union 'AbstractFeature' of 7 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'AbstractFeatureType': member element 'AbstractDiscreteCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 complex type 'AbstractFeatureType': member element 'MultiPointCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 complex type 'AbstractFeatureType': member element 'MultiCurveCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 complex type 'AbstractFeatureType': member element 'MultiSurfaceCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 complex type 'AbstractFeatureType': member element 'MultiSolidCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 complex type 'AbstractFeatureType': member element 'GridCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 complex type 'AbstractFeatureType': member element 'RectifiedGridCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'AbstractDiscreteCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'MultiPointCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'MultiCurveCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'MultiSurfaceCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'MultiSolidCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'GridCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 complex type 'AbstractFeatureType': member element name 'RectifiedGridCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
 SCH2403 element 'featureMember': element 'featureMember' has no Schemata equivalent; the regenerated root element will be named 'feature_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -500,9 +500,9 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 union 'DirectionVector': choice branch imported as model 'HorizontalAngleGroup'
-SCH2403 union 'DirectionDescription': member element 'compassPoint' has no Schemata equivalent; the regenerated element will be named 'compass_point_enumeration'
-SCH2403 union 'DirectionDescription': member element 'keyword' has no Schemata equivalent; the regenerated element will be named 'code'
-SCH2403 union 'DirectionDescription': member element 'description' has no Schemata equivalent; the regenerated element will be named 'string'
+SCH2403 union 'DirectionDescription': member element name 'compassPoint' has no Schemata equivalent and is dropped; the regenerated element will be named 'compass_point_enumeration'
+SCH2403 union 'DirectionDescription': member element name 'keyword' has no Schemata equivalent and is dropped; the regenerated element will be named 'code'
+SCH2403 union 'DirectionDescription': member element name 'description' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
 SCH2403 complex type 'GeometricComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeometricComplexType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'GeometricComplexPropertyType': inline choice has no Schemata equivalent; members imported as optional fields
@@ -738,9 +738,9 @@ SCH2403 complex type 'EllipsoidType': restriction of 'AbstractGMLType' has no Sc
 SCH2403 complex type 'EllipsoidType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'EllipsoidType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'EllipsoidType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 union 'SecondDefiningParameter': member element 'inverseFlattening' has no Schemata equivalent; the regenerated element will be named 'measure'
-SCH2403 union 'SecondDefiningParameter': member element 'semiMinorAxis' has no Schemata equivalent; the regenerated element will be named 'length'
-SCH2403 union 'SecondDefiningParameter': member element 'isSphere' has no Schemata equivalent; the regenerated element will be named 'bool'
+SCH2403 union 'SecondDefiningParameter': member element name 'inverseFlattening' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure'
+SCH2403 union 'SecondDefiningParameter': member element name 'semiMinorAxis' has no Schemata equivalent and is dropped; the regenerated element will be named 'length'
+SCH2403 union 'SecondDefiningParameter': member element name 'isSphere' has no Schemata equivalent and is dropped; the regenerated element will be named 'bool'
 SCH2403 element 'usesEllipsoid': element 'usesEllipsoid' has no Schemata equivalent; the regenerated root element will be named 'ellipsoid_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -1160,9 +1160,9 @@ SCH2403 complex type 'TinType': extension of 'AbstractGeometryType' has no Schem
 SCH2403 complex type 'TinType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TinType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TinType': extension of 'SurfaceType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 union 'ControlPoint': member element 'posList' has no Schemata equivalent; the regenerated element will be named 'direct_position_list'
-SCH2403 union 'ControlPoint': member element 'pos' has no Schemata equivalent; the regenerated element will be named 'direct_position'
-SCH2403 union 'ControlPoint': member element 'pointProperty' has no Schemata equivalent; the regenerated element will be named 'point_property'
+SCH2403 union 'ControlPoint': member element name 'posList' has no Schemata equivalent and is dropped; the regenerated element will be named 'direct_position_list'
+SCH2403 union 'ControlPoint': member element name 'pos' has no Schemata equivalent and is dropped; the regenerated element will be named 'direct_position'
+SCH2403 union 'ControlPoint': member element name 'pointProperty' has no Schemata equivalent and is dropped; the regenerated element will be named 'point_property'
 SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometryType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
@@ -1198,8 +1198,8 @@ SCH2403 element 'abstractInlineProperty': element 'abstractInlineProperty' has n
 SCH2403 complex type 'AbstractMemberType': abstract type 'AbstractMemberType' imported as its one concrete type 'DictionaryEntry'
 SCH2405 complex type 'AbstractMetadataPropertyType': abstract dropped
 SCH2403 complex type 'AbstractSurfaceType': abstract type 'AbstractSurfaceType' imported as union 'AbstractSurface' of 6 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'AbstractSurfaceType': member element 'PolyhedralSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
-SCH2403 complex type 'AbstractSurfaceType': member element 'TriangulatedSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
+SCH2403 complex type 'AbstractSurfaceType': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
+SCH2403 complex type 'AbstractSurfaceType': member element name 'TriangulatedSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
 SCH2403 element 'extentOf': element 'extentOf' has no Schemata equivalent; the regenerated root element will be named 'surface_property'
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -1388,13 +1388,13 @@ SCH2405 element 'primeMeridian': second root element for 'PrimeMeridianPropertyT
 SCH2405 element 'ellipsoid': second root element for 'EllipsoidPropertyType' dropped
 SCH2405 element 'semiMajorAxis': second root element for 'MeasureType' dropped
 SCH2403 element 'secondDefiningParameter': the regenerated root element will be named 'second_defining_parameter'
-SCH2403 union 'SecondDefiningParameter': member element 'inverseFlattening' has no Schemata equivalent; the regenerated element will be named 'measure'
-SCH2403 union 'SecondDefiningParameter': member element 'semiMinorAxis' has no Schemata equivalent; the regenerated element will be named 'length'
-SCH2403 union 'SecondDefiningParameter': member element 'isSphere' has no Schemata equivalent; the regenerated element will be named 'bool'
+SCH2403 union 'SecondDefiningParameter': member element name 'inverseFlattening' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure'
+SCH2403 union 'SecondDefiningParameter': member element name 'semiMinorAxis' has no Schemata equivalent and is dropped; the regenerated element will be named 'length'
+SCH2403 union 'SecondDefiningParameter': member element name 'isSphere' has no Schemata equivalent and is dropped; the regenerated element will be named 'bool'
 SCH2403 element 'SecondDefiningParameter': element 'secondDefiningParameter' already lowers to model 'SecondDefiningParameter'; imported as 'SecondDefiningParameter2'
-SCH2403 union 'SecondDefiningParameter2': member element 'inverseFlattening' has no Schemata equivalent; the regenerated element will be named 'measure'
-SCH2403 union 'SecondDefiningParameter2': member element 'semiMinorAxis' has no Schemata equivalent; the regenerated element will be named 'length'
-SCH2403 union 'SecondDefiningParameter2': member element 'isSphere' has no Schemata equivalent; the regenerated element will be named 'bool'
+SCH2403 union 'SecondDefiningParameter2': member element name 'inverseFlattening' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure'
+SCH2403 union 'SecondDefiningParameter2': member element name 'semiMinorAxis' has no Schemata equivalent and is dropped; the regenerated element will be named 'length'
+SCH2403 union 'SecondDefiningParameter2': member element name 'isSphere' has no Schemata equivalent and is dropped; the regenerated element will be named 'bool'
 SCH2405 element 'greenwichLongitude': second root element for 'AngleType' dropped
 SCH2405 element 'pixelInCell': second root element for 'CodeWithAuthorityType' dropped
 SCH2405 element 'origin': root element of simple type dropped
@@ -1497,7 +1497,7 @@ SCH2403 element 'TimeReferenceSystem': substitution group 'TimeReferenceSystem' 
 SCH2403 element 'AbstractOperation': substitution group 'AbstractOperation' imported as union 'AbstractOperation' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractMetaData': substitution group 'AbstractMetaData' imported as its one member type 'GenericMetaData'
 SCH2403 element 'location': substitution group 'location' imported as union 'Location' of 2 member types; the regenerated XSD uses a choice
-SCH2403 element 'location': member element 'priorityLocation' has no Schemata equivalent; the regenerated element will be named 'priority_location_property'
+SCH2403 element 'location': member element name 'priorityLocation' has no Schemata equivalent and is dropped; the regenerated element will be named 'priority_location_property'
 SCH2403 element 'generalOperationParameter': substitution group 'generalOperationParameter' imported as its one member type 'AbstractGeneralOperationParameterProperty'
 SCH2403 element 'UnitDefinition': substitution group 'UnitDefinition' imported as union 'UnitDefinitionChoice' of 4 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractFeature': substitution group 'AbstractFeature' imported as union 'AbstractFeature' of 7 member types; the regenerated XSD uses a choice
@@ -1509,8 +1509,8 @@ SCH2405 element 'Quantity': substitution member with an inline type dropped from
 SCH2405 element 'BooleanList': substitution member of simple type dropped from union 'AbstractValue'
 SCH2405 element 'CountList': substitution member of simple type dropped from union 'AbstractValue'
 SCH2405 element 'CountExtent': substitution member of simple type dropped from union 'AbstractValue'
-SCH2403 element 'AbstractValue': member element 'CategoryList' has no Schemata equivalent; the regenerated element will be named 'code_or_nil_reason_list'
-SCH2403 element 'AbstractValue': member element 'QuantityList' has no Schemata equivalent; the regenerated element will be named 'measure_or_nil_reason_list'
+SCH2403 element 'AbstractValue': member element name 'CategoryList' has no Schemata equivalent and is dropped; the regenerated element will be named 'code_or_nil_reason_list'
+SCH2403 element 'AbstractValue': member element name 'QuantityList' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure_or_nil_reason_list'
 SCH2405 element 'Boolean': substitution member with an inline type dropped from substitution group 'AbstractScalarValue'
 SCH2405 element 'Category': substitution member with an inline type dropped from substitution group 'AbstractScalarValue'
 SCH2405 element 'Count': substitution member with an inline type dropped from substitution group 'AbstractScalarValue'
@@ -1518,8 +1518,8 @@ SCH2405 element 'Quantity': substitution member with an inline type dropped from
 SCH2403 element 'AbstractScalarValueList': substitution group 'AbstractScalarValueList' imported as union 'AbstractScalarValueList' of 2 member types; the regenerated XSD uses a choice
 SCH2405 element 'BooleanList': substitution member of simple type dropped from union 'AbstractScalarValueList'
 SCH2405 element 'CountList': substitution member of simple type dropped from union 'AbstractScalarValueList'
-SCH2403 element 'AbstractScalarValueList': member element 'CategoryList' has no Schemata equivalent; the regenerated element will be named 'code_or_nil_reason_list'
-SCH2403 element 'AbstractScalarValueList': member element 'QuantityList' has no Schemata equivalent; the regenerated element will be named 'measure_or_nil_reason_list'
+SCH2403 element 'AbstractScalarValueList': member element name 'CategoryList' has no Schemata equivalent and is dropped; the regenerated element will be named 'code_or_nil_reason_list'
+SCH2403 element 'AbstractScalarValueList': member element name 'QuantityList' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure_or_nil_reason_list'
 SCH2403 element 'CompositeValue': substitution group 'CompositeValue' imported as union 'CompositeValueChoice' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'Grid': substitution group 'Grid' imported as union 'GridChoice' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractImplicitGeometry': substitution group 'AbstractImplicitGeometry' imported as union 'AbstractImplicitGeometry' of 2 member types; the regenerated XSD uses a choice
@@ -1545,20 +1545,20 @@ SCH2403 element 'parameter': substitution group 'parameter' imported as its one 
 SCH2403 element 'AbstractGeneralOperationParameter': substitution group 'AbstractGeneralOperationParameter' imported as union 'AbstractGeneralOperationParameter' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractTimeTopologyPrimitive': substitution group 'AbstractTimeTopologyPrimitive' imported as union 'AbstractTimeTopologyPrimitive' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'Definition': substitution group 'Definition' imported as union 'DefinitionChoice' of 49 member types; the regenerated XSD uses a choice
-SCH2403 element 'Definition': member element 'DefinitionCollection' has no Schemata equivalent; the regenerated element will be named 'dictionary'
-SCH2403 element 'Definition': member element 'Dictionary' has no Schemata equivalent; the regenerated element will be named 'dictionary'
+SCH2403 element 'Definition': member element name 'DefinitionCollection' has no Schemata equivalent and is dropped; the regenerated element will be named 'dictionary'
+SCH2403 element 'Definition': member element name 'Dictionary' has no Schemata equivalent and is dropped; the regenerated element will be named 'dictionary'
 SCH2403 element 'dictionaryEntry': substitution group 'dictionaryEntry' imported as its one member type 'DictionaryEntry'
 SCH2403 element 'AbstractTimeObject': substitution group 'AbstractTimeObject' imported as union 'AbstractTimeObjectChoice' of 5 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractTimePrimitive': substitution group 'AbstractTimePrimitive' imported as union 'AbstractTimePrimitive' of 4 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractTimeComplex': substitution group 'AbstractTimeComplex' imported as its one member type 'TimeTopologyComplex'
 SCH2403 element 'AbstractTimeGeometricPrimitive': substitution group 'AbstractTimeGeometricPrimitive' imported as union 'AbstractTimeGeometricPrimitive' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractGeometry': substitution group 'AbstractGeometry' imported as union 'AbstractGeometryChoice' of 23 member types; the regenerated XSD uses a choice
-SCH2403 element 'AbstractGeometry': member element 'PolyhedralSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
-SCH2403 element 'AbstractGeometry': member element 'TriangulatedSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractGeometry': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractGeometry': member element name 'TriangulatedSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
 SCH2403 element 'Envelope': substitution group 'Envelope' imported as union 'EnvelopeChoice' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractGeometricPrimitive': substitution group 'AbstractGeometricPrimitive' imported as union 'AbstractGeometricPrimitiveChoice' of 15 member types; the regenerated XSD uses a choice
-SCH2403 element 'AbstractGeometricPrimitive': member element 'PolyhedralSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
-SCH2403 element 'AbstractGeometricPrimitive': member element 'TriangulatedSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractGeometricPrimitive': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractGeometricPrimitive': member element name 'TriangulatedSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
 SCH2403 element 'AbstractCurve': substitution group 'AbstractCurve' imported as union 'AbstractCurve' of 6 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractCurveSegment': substitution group 'AbstractCurveSegment' imported as union 'AbstractCurveSegment' of 15 member types; the regenerated XSD uses a choice
 SCH2403 element 'ArcString': substitution group 'ArcString' imported as union 'ArcStringChoice' of 3 member types; the regenerated XSD uses a choice
@@ -1568,8 +1568,8 @@ SCH2403 element 'ArcByCenterPoint': substitution group 'ArcByCenterPoint' import
 SCH2403 element 'BSpline': substitution group 'BSpline' imported as union 'BSplineChoice' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'GeodesicString': substitution group 'GeodesicString' imported as union 'GeodesicStringChoice' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'Surface': substitution group 'Surface' imported as union 'SurfaceChoice' of 2 member types; the regenerated XSD uses a choice
-SCH2403 element 'Surface': member element 'PolyhedralSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
-SCH2403 element 'Surface': member element 'TriangulatedSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
+SCH2403 element 'Surface': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
+SCH2403 element 'Surface': member element name 'TriangulatedSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
 SCH2403 element 'AbstractSurfacePatch': substitution group 'AbstractSurfacePatch' imported as union 'AbstractSurfacePatch' of 6 member types; the regenerated XSD uses a choice
 SCH2403 element 'patches': substitution group 'patches' imported as its one member type 'SurfacePatchArrayProperty'
 SCH2403 element 'AbstractParametricCurveSurface': substitution group 'AbstractParametricCurveSurface' imported as union 'AbstractParametricCurveSurface' of 3 member types; the regenerated XSD uses a choice
@@ -1585,33 +1585,33 @@ SCH2405 element 'Quantity': substitution member with an inline type dropped from
 SCH2405 element 'BooleanList': substitution member of simple type dropped from union 'AbstractObject'
 SCH2405 element 'CountList': substitution member of simple type dropped from union 'AbstractObject'
 SCH2405 element 'CountExtent': substitution member of simple type dropped from union 'AbstractObject'
-SCH2403 element 'AbstractObject': member element 'coverageFunction' has no Schemata equivalent; the regenerated element will be named 'coverage_function'
-SCH2403 element 'AbstractObject': member element 'CoverageMappingRule' has no Schemata equivalent; the regenerated element will be named 'mapping_rule'
-SCH2403 element 'AbstractObject': member element 'CategoryList' has no Schemata equivalent; the regenerated element will be named 'code_or_nil_reason_list'
-SCH2403 element 'AbstractObject': member element 'QuantityList' has no Schemata equivalent; the regenerated element will be named 'measure_or_nil_reason_list'
-SCH2403 element 'AbstractObject': member element 'AbstractDiscreteCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'MultiPointCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'MultiCurveCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'MultiSurfaceCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'MultiSolidCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'GridCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'RectifiedGridCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractObject': member element 'DefinitionCollection' has no Schemata equivalent; the regenerated element will be named 'dictionary'
-SCH2403 element 'AbstractObject': member element 'Dictionary' has no Schemata equivalent; the regenerated element will be named 'dictionary'
-SCH2403 element 'AbstractObject': member element 'PolyhedralSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
-SCH2403 element 'AbstractObject': member element 'TriangulatedSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractObject': member element name 'coverageFunction' has no Schemata equivalent and is dropped; the regenerated element will be named 'coverage_function'
+SCH2403 element 'AbstractObject': member element name 'CoverageMappingRule' has no Schemata equivalent and is dropped; the regenerated element will be named 'mapping_rule'
+SCH2403 element 'AbstractObject': member element name 'CategoryList' has no Schemata equivalent and is dropped; the regenerated element will be named 'code_or_nil_reason_list'
+SCH2403 element 'AbstractObject': member element name 'QuantityList' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure_or_nil_reason_list'
+SCH2403 element 'AbstractObject': member element name 'AbstractDiscreteCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'MultiPointCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'MultiCurveCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'MultiSurfaceCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'MultiSolidCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'GridCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'RectifiedGridCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractObject': member element name 'DefinitionCollection' has no Schemata equivalent and is dropped; the regenerated element will be named 'dictionary'
+SCH2403 element 'AbstractObject': member element name 'Dictionary' has no Schemata equivalent and is dropped; the regenerated element will be named 'dictionary'
+SCH2403 element 'AbstractObject': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractObject': member element name 'TriangulatedSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
 SCH2403 element 'AbstractGML': substitution group 'AbstractGML' imported as union 'AbstractGMLChoice' of 98 member types; the regenerated XSD uses a choice
-SCH2403 element 'AbstractGML': member element 'AbstractDiscreteCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'MultiPointCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'MultiCurveCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'MultiSurfaceCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'MultiSolidCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'GridCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'RectifiedGridCoverage' has no Schemata equivalent; the regenerated element will be named 'discrete_coverage'
-SCH2403 element 'AbstractGML': member element 'DefinitionCollection' has no Schemata equivalent; the regenerated element will be named 'dictionary'
-SCH2403 element 'AbstractGML': member element 'Dictionary' has no Schemata equivalent; the regenerated element will be named 'dictionary'
-SCH2403 element 'AbstractGML': member element 'PolyhedralSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
-SCH2403 element 'AbstractGML': member element 'TriangulatedSurface' has no Schemata equivalent; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractGML': member element name 'AbstractDiscreteCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'MultiPointCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'MultiCurveCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'MultiSurfaceCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'MultiSolidCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'GridCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'RectifiedGridCoverage' has no Schemata equivalent and is dropped; the regenerated element will be named 'discrete_coverage'
+SCH2403 element 'AbstractGML': member element name 'DefinitionCollection' has no Schemata equivalent and is dropped; the regenerated element will be named 'dictionary'
+SCH2403 element 'AbstractGML': member element name 'Dictionary' has no Schemata equivalent and is dropped; the regenerated element will be named 'dictionary'
+SCH2403 element 'AbstractGML': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
+SCH2403 element 'AbstractGML': member element name 'TriangulatedSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
 SCH2403 element 'AbstractSurface': substitution group 'AbstractSurface' imported as union 'AbstractSurface' of 6 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractRing': substitution group 'AbstractRing' imported as union 'AbstractRing' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'EX_Extent': element 'EX_Extent' has no Schemata equivalent; the regenerated root element will be named 'EX_Extent_'

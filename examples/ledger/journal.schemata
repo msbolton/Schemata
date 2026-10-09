@@ -16,12 +16,13 @@ union Reference = #1 Invoice | #2 Payment | #3 Source
 
 /// A balanced entry: at least two lines.
 model Entry {
-  #1 id     uuid      { id }
-  #2 posted date
-  #3 memo   string?   { max 500 }
-  #4 lines  Line[]    { minItems 2 }
-  #5 ref    Reference
+  #1 id        uuid      { id }
+  #2 posted    date
+  #3 memo      string?   { max 500 }
+  #4 lines     Line[]    { minItems 2 }
+  #5 ref       Reference
   reserved #6
+  #7 tenant_id int64
 
   model Line { #1 account Account  #2 amount Money  #3 side Side }
 }

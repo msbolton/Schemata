@@ -1,6 +1,6 @@
 # import=sql lone
 warning[SCH2402] (lossy): s.sql: schema name 's' was derived from the file name
  --> s.sql:1:1
-  = help: set --namespace to choose it, or keep it and rename later
+  = help: import the file on its own with --namespace to choose it, or keep it and rename later
 
 0 errors, 1 warning

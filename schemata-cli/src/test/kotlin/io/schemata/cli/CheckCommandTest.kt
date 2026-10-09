@@ -2,12 +2,14 @@ package io.schemata.cli
 
 import com.github.ajalt.clikt.testing.test
 import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.io.TempDir
 
 class CheckCommandTest {
     private val customers =
@@ -18,8 +20,11 @@ class CheckCommandTest {
         """
             .trimIndent()
 
-    private fun source(text: String): java.nio.file.Path {
-        val dir = Files.createTempDirectory("schemata-check")
+    // JUnit removes this directory after each test, so the sources and outputs never outlive it.
+    @TempDir lateinit var tmp: Path
+
+    private fun source(text: String): Path {
+        val dir = Files.createTempDirectory(tmp, "schemata-check")
         val src = dir.resolve("src").createDirectories()
         src.resolve("customers.schemata").writeText(text)
         return src
@@ -32,9 +37,11 @@ class CheckCommandTest {
         assertFalse(Files.exists(src.parent.resolve("out")))
         val compile = CompileCommand().test("--out ${src.parent.resolve("out")} $src")
         assertEquals(compile.statusCode, check.statusCode)
+        // The whole report, excerpts and counts included, is compile's less the lines naming what
+        // it wrote.
         assertEquals(
-            compile.stderr.lines().filter { it.startsWith("warning") || it.startsWith("error") },
-            check.stderr.lines().filter { it.startsWith("warning") || it.startsWith("error") },
+            compile.stderr.lines().filterNot { it.startsWith("wrote ") }.joinToString("\n"),
+            check.stderr,
         )
         assertFalse(check.stderr.contains("wrote "), check.stderr)
     }

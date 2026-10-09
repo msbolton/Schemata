@@ -1,6 +1,8 @@
 package io.schemata.testkit
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -81,5 +83,17 @@ class JsonSchemaTest {
         assertNull(JsonSchema.check(files, "urn:schemata:shop.orders", "Order", good))
         assertNotNull(JsonSchema.check(files, "urn:schemata:shop.orders", "Order", badUuid))
         assertNotNull(JsonSchema.check(files, "urn:schemata:shop.orders", "Order", extra))
+    }
+
+    @Test
+    fun `every ref is found through objects and arrays depth first`() {
+        val tree =
+            ObjectMapper()
+                .readTree(
+                    """{"${'$'}ref": "#/a", "x": [{"${'$'}ref": "#/b"}, {"y": {"${'$'}ref": "#/c"}}], "z": {"${'$'}ref": 7}}"""
+                )
+        val found = mutableListOf<String>()
+        walkRefs(tree) { found += it }
+        assertEquals(listOf("#/a", "#/b", "#/c"), found)
     }
 }

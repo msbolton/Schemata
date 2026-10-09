@@ -1,6 +1,7 @@
 package io.schemata.cli.diagnostics
 
 import io.schemata.cli.Pipeline
+import io.schemata.cli.PipelineResult
 import io.schemata.cli.SourceInput
 import io.schemata.cli.analyzeSide
 import io.schemata.cli.cannotDiff
@@ -36,24 +37,31 @@ class Fixture(val dir: File) {
             .takeIf { it.isFile }
             ?.useLines { it.firstOrNull() }
             ?.takeIf { it.startsWith("#") }
+            ?.also { checkHeader(it, name) }
 
-    val strict: Boolean = header?.contains("strict") == true
+    /** The header's options, each compared whole: `strict` is not matched inside `strictly`. */
+    private val options: List<String> =
+        header?.removePrefix("#")?.split(' ')?.filter { it.isNotEmpty() } ?: emptyList()
+
+    private fun option(prefix: String): String? =
+        options.firstOrNull { it.startsWith(prefix) }?.removePrefix(prefix)
+
+    val strict: Boolean = "strict" in options
 
     /** True for a `# migrate=old,new` fixture: planned through `schemata migrate`. */
-    val isMigrate: Boolean = header?.contains("migrate=") == true
+    val isMigrate: Boolean = option("migrate=") != null
 
-    val allowDestructive: Boolean = header?.contains("allow-destructive") == true
+    val allowDestructive: Boolean = "allow-destructive" in options
 
     /** True for a `# upgrade` fixture: its 1.x sources are run through `schemata upgrade`. */
-    val isUpgrade: Boolean = header?.trim() == "# upgrade"
+    val isUpgrade: Boolean = header == "# upgrade"
 
     /**
      * True for a `# diff=old,new` fixture: compared through [Evolution], not compiled or checked.
      */
-    val isDiff: Boolean = header?.contains("diff=") == true
+    val isDiff: Boolean = option("diff=") != null
 
-    private val targetNames: List<String>? =
-        header?.let { Regex("targets=([a-z,]+)").find(it) }?.groupValues?.get(1)?.split(',')
+    private val targetNames: List<String>? = option("targets=")?.split(',')
 
     val targets: List<Target<*>> =
         if (isDiff || isMigrate) emptyList()
@@ -86,7 +94,7 @@ class Fixture(val dir: File) {
      * otherwise a proto or SQL file is read as found under the fixture directory, its name its path
      * under the root.
      */
-    private val lone: Boolean = header?.contains("lone") == true
+    private val lone: Boolean = "lone" in options
 
     /**
      * The two sides of a diff fixture, loaded from its `old/` and `new/` subdirectories. Paths keep
@@ -137,8 +145,7 @@ class Fixture(val dir: File) {
                     )
                 }
                 else -> {
-                    val result = Pipeline.check(sources, targets, strict)
-                    val report = Report.of(result, strict, checkOnly = true)
+                    val report = Report.of(checked, strict, checkOnly = true)
                     HumanRenderer.render(
                         report,
                         Sources.of(sources),
@@ -160,15 +167,26 @@ class Fixture(val dir: File) {
             isUpgrade -> upgradeDiagnostics()
             isDiff || isMigrate -> diffDiagnostics()
             foreign.isNotEmpty() -> importDiagnostics()
-            else -> Pipeline.check(sources, targets, strict).diagnostics
+            else -> checked.diagnostics
         }
+
+    /**
+     * What the compile pipeline reports for [sources]. Every query on a fixture (its rendering, its
+     * codes, its helps) reads the same run, so each case is compiled once. The same goes for the
+     * other kinds of run below.
+     */
+    private val checked: PipelineResult by lazy { Pipeline.check(sources, targets, strict) }
 
     /**
      * The diagnostics `schemata diff` reports for the two sides: [cannotDiff]'s when either side
      * fails to load or the two share no namespace, else the comparison's. Both sides are analysed
      * the way `diff` analyses them, so a `strict` header only promotes notes, as `--strict` does.
      */
-    private fun diffDiagnostics(): List<Diagnostic> {
+    private fun diffDiagnostics(): List<Diagnostic> = diffed
+
+    private val diffed: List<Diagnostic> by lazy { computeDiff() }
+
+    private fun computeDiff(): List<Diagnostic> {
         val old = analyzeSide(oldSources)
         val new = analyzeSide(newSources)
         val cannotDiff = cannotDiff(old, new)
@@ -181,20 +199,25 @@ class Fixture(val dir: File) {
      * What `schemata upgrade` reports for each source: its errors when it cannot upgrade, else its
      * warnings.
      */
-    private fun upgradeDiagnostics(): List<Diagnostic> =
+    private fun upgradeDiagnostics(): List<Diagnostic> = upgraded
+
+    private val upgraded: List<Diagnostic> by lazy {
         sources.flatMap { source ->
             when (val r = Upgrader.upgrade(source.content, source.path)) {
                 is FormatResult.Failed -> r.diagnostics
                 is FormatResult.Formatted -> r.warnings
             }
         }
+    }
 
     /** What the importer for [foreign]'s format reports, as `schemata import` would. */
-    fun importDiagnostics(): List<Diagnostic> {
+    fun importDiagnostics(): List<Diagnostic> = imported
+
+    private val imported: List<Diagnostic> by lazy {
         val extension = foreign.map { it.path.substringAfterLast('.') }.distinct().single()
         val importer = importers.getValue(extension)
         val rooted = importer !is XsdImporter && !lone
-        return importer
+        importer
             .import(foreign.map { ImportInput(it.path, it.content, it.path.takeIf { rooted }) })
             .diagnostics
     }
@@ -219,6 +242,36 @@ class Fixture(val dir: File) {
 
     companion object {
         val root = File("src/test/resources/diagnostics")
+
+        /**
+         * A header is `#` then space-separated options, each one of a fixed set; any other text, or
+         * text after an option, is a mistake in the fixture rather than something to ignore.
+         */
+        private val HEADER =
+            Regex(
+                "^#(?: (?:strict|upgrade|lone|allow-destructive|diff=old,new|migrate=old,new" +
+                    "|import=(?:xsd|proto|sql)|targets=[a-z,]+))+$"
+            )
+
+        /**
+         * The report blocks (a header line, its location, its help) that [expected] holds more than
+         * once. A fixture shows each shape once; two identical blocks are a pasted duplicate that
+         * proves nothing the first does not.
+         */
+        fun duplicateBlocks(expected: String): List<String> =
+            expected
+                .trim()
+                .split(Regex("\\n\\s*\\n"))
+                .filter { it.startsWith("error[") || it.startsWith("warning[") }
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
+                .toList()
+
+        fun checkHeader(header: String, fixture: String) {
+            require(HEADER.matches(header)) { "$fixture: unrecognised header '$header'" }
+        }
 
         private val importers: Map<String, Importer> =
             mapOf("xsd" to XsdImporter, "proto" to ProtoImporter, "sql" to SqlImporter)

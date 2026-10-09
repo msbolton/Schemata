@@ -14,7 +14,10 @@ import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DocumentFormattingParams
 import org.eclipse.lsp4j.FileChangeType
 import org.eclipse.lsp4j.FormattingOptions
+import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.ReferenceContext
+import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.TextEdit
@@ -164,6 +167,104 @@ class LspExamplesTest {
                     )
                     .get(10, TimeUnit.SECONDS)
             assertEquals(emptyList(), edits)
+        }
+    }
+
+    /** A forward reference and the back-reference that follows it, as a model would write them. */
+    private val relations =
+        "schema crm\n\n" +
+            "model Customer {\n  id     uuid     { id }\n" +
+            "  orders Order[]  @relation(customer)\n}\n\n" +
+            "model Order {\n  id       uuid     { id }\n" +
+            "  customer Customer @relation(onDelete: cascade)\n}\n"
+
+    /** Opens [text] as the only file of a folder and runs [body] against its session. */
+    private fun withRelations(text: String, body: (LspSession, Path) -> Unit) {
+        val folder = dir.resolve("relations").also { it.toFile().mkdirs() }
+        val file = folder.resolve("crm.schemata")
+        file.toFile().writeText(text)
+        session(folder).use { session ->
+            session.open(file, text)
+            body(session, file)
+        }
+    }
+
+    private fun positionIn(text: String, anchor: String, needle: String): Position =
+        position(text, anchor).let { start ->
+            val offset = anchor.indexOf(needle)
+            require(offset >= 0) { "'$needle' not in '$anchor'" }
+            Position(start.line, start.character + offset)
+        }
+
+    @Test
+    fun `the name a back-reference follows goes to the forward field and back`() {
+        withRelations(relations) { session, file ->
+            assertEquals(emptyList(), session.diagnostics(file) { it.isEmpty() })
+            val id = TextDocumentIdentifier(session.uri(file))
+            val service = session.server.textDocumentService
+            val inRelation = positionIn(relations, "@relation(customer)", "customer")
+            val forwardField = position(relations, "customer Customer")
+
+            val definition =
+                service.definition(DefinitionParams(id, inRelation)).get(10, TimeUnit.SECONDS)
+            assertEquals(forwardField, definition.left.single().range.start)
+
+            val references =
+                service
+                    .references(ReferenceParams(id, forwardField, ReferenceContext(true)))
+                    .get(10, TimeUnit.SECONDS)
+            assertEquals(
+                listOf(inRelation, forwardField),
+                references.map { it.range.start }.sortedBy { it.line },
+            )
+        }
+    }
+
+    @Test
+    fun `a relation that also sets onDelete is reported and still navigates`() {
+        val mixed =
+            relations.replace("@relation(customer)", "@relation(customer, onDelete: cascade)")
+        withRelations(mixed) { session, file ->
+            val shown = session.diagnostics(file) { it.isNotEmpty() }
+            assertTrue(
+                shown
+                    .single()
+                    .message
+                    .startsWith("@relation names a forward field or sets onDelete")
+            )
+            val definition =
+                session.server.textDocumentService
+                    .definition(
+                        DefinitionParams(
+                            TextDocumentIdentifier(session.uri(file)),
+                            positionIn(mixed, "@relation(customer, onDelete", "customer"),
+                        )
+                    )
+                    .get(10, TimeUnit.SECONDS)
+            assertEquals(position(mixed, "customer Customer"), definition.left.single().range.start)
+        }
+    }
+
+    @Test
+    fun `hover on a back-reference and on its forward field shows the relation as written`() {
+        withRelations(relations) { session, file ->
+            session.diagnostics(file) { it.isEmpty() }
+            val id = TextDocumentIdentifier(session.uri(file))
+            fun hover(at: Position) =
+                session.server.textDocumentService
+                    .hover(HoverParams(id, at))
+                    .get(10, TimeUnit.SECONDS)
+                    .contents
+                    .right
+                    .value
+            assertEquals(
+                "```schemata\nfield crm.Customer.orders Order[] @relation(customer)\n```",
+                hover(position(relations, "orders Order[]")),
+            )
+            assertEquals(
+                "```schemata\nfield crm.Order.customer Customer @relation(onDelete: cascade)\n```",
+                hover(position(relations, "customer Customer")),
+            )
         }
     }
 

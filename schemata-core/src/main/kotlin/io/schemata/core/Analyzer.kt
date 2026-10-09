@@ -86,25 +86,25 @@ object Analyzer {
             lowered
                 .flatMap { ns -> ns.declarations.flatMap { it.selfAndNested() } }
                 .associateBy { it.qualifiedName }
+        val context =
+            Services.Context(index, resolver, annotations, options, declarations, diagnostics)
         val namespaces =
             Recursion.mark(
                 lowered.map { ns ->
                     val routes = Services.Routes()
                     val services =
                         groups.getValue(ns.name).flatMap { file ->
-                            file.services.map {
-                                Services.analyze(
-                                    it,
-                                    Scope(file, ns.name, emptyList()),
-                                    index,
-                                    resolver,
-                                    annotations,
-                                    options,
-                                    declarations,
-                                    routes,
-                                    diagnostics,
-                                )
-                            }
+                            file.services
+                                // a service the index rejected (SCH1004) is not analysed again
+                                .filter { index.holds(file, it) }
+                                .map {
+                                    Services.analyze(
+                                        it,
+                                        Scope(file, ns.name, emptyList()),
+                                        context,
+                                        routes,
+                                    )
+                                }
                         }
                     ns.copy(services = services)
                 }

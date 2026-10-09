@@ -1,8 +1,12 @@
 package io.schemata.cli.report
 
 /**
- * The subset of JSON the reports need: objects with fixed field order, arrays, strings, ints,
+ * The subset of JSON the reports need: objects with fixed field order, arrays, strings, numbers,
  * bools, null.
+ *
+ * This is the report's JSON-lines contract: [value] prints on one line, and [document] puts one
+ * top-level field per line so a report diffs by field. The shared `JsonPrinter` is not used here
+ * because it prints one pretty, indented document, which would change every report's bytes.
  */
 object Json {
     fun string(s: String): String {
@@ -25,12 +29,23 @@ object Json {
         when (v) {
             null -> "null"
             is String -> string(v)
-            is Int -> v.toString()
+            is Double -> finite(v).toString()
+            is Float -> {
+                finite(v.toDouble())
+                v.toString()
+            }
+            is Number -> v.toString()
             is Boolean -> v.toString()
             is List<*> -> v.joinToString(",", "[", "]") { value(it) }
             is Obj -> v.fields.joinToString(",", "{", "}") { (k, x) -> "${string(k)}:${value(x)}" }
             else -> error("unsupported JSON value: ${v::class}")
         }
+
+    /** JSON has no NaN or infinity, so a report holding one is a bug, not a value to print. */
+    private fun finite(d: Double): Double {
+        require(d.isFinite()) { "JSON cannot represent $d" }
+        return d
+    }
 
     /** An object whose fields print in insertion order. */
     class Obj(vararg fields: Pair<String, Any?>) {

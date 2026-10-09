@@ -16,4 +16,4 @@ CREATE TABLE "contacts"."contact" (
   CONSTRAINT "ck_contact_kind_enum" CHECK ("kind" IN ('personal', 'work'))
 );
 
-COMMENT ON TABLE "contacts"."contact" IS 'One person. Email and age are checked by Postgres; Protobuf carries them unchecked.';
+COMMENT ON TABLE "contacts"."contact" IS 'One person. Postgres checks the name, email, and age but not the tags; Protobuf checks none.';

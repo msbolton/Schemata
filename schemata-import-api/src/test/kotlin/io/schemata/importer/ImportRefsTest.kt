@@ -83,4 +83,34 @@ class ImportRefsTest {
             )
         assertEquals(listOf(basic, alone), qualifyAmbiguousRefs(listOf(basic, alone)))
     }
+
+    @Test
+    fun `only a name declared in more than one visible namespace is qualified`() {
+        val other = unit("other", emptyList(), record("Location"), record("Stamp"))
+        val aggregate =
+            unit(
+                "aggregate",
+                listOf("basic", "other"),
+                record("Location"),
+                record("Own"),
+                record(
+                    "Party",
+                    field("at", UnitType.Ref("Location")),
+                    field("code", UnitType.Ref("Code")),
+                    field("stamp", UnitType.Ref("Stamp")),
+                    field("own", UnitType.Ref("Own")),
+                ),
+            )
+        val party =
+            qualifyAmbiguousRefs(listOf(basic, other, aggregate))[2].declarations[2] as UnitRecord
+        assertEquals(
+            listOf(
+                UnitType.Ref("aggregate.Location"),
+                UnitType.Ref("Code"),
+                UnitType.Ref("Stamp"),
+                UnitType.Ref("Own"),
+            ),
+            party.fields.map { it.type },
+        )
+    }
 }

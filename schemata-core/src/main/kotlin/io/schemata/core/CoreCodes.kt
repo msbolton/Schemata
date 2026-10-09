@@ -74,6 +74,8 @@ object CoreCodes {
         error("SCH1052", "a required reference sets itself null when its target is deleted")
     val HOISTED_NAME_COLLISION =
         error("SCH1053", "an inline shape's or enum's name collides with a declaration")
+    val TIMESTAMPS_UNPINNED =
+        warning("SCH1054", "timestamps are unpinned in a model with explicit ordinals")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -127,5 +129,6 @@ object CoreCodes {
             AMBIGUOUS_BACK_REFERENCE,
             SET_NULL_REQUIRED,
             HOISTED_NAME_COLLISION,
+            TIMESTAMPS_UNPINNED,
         )
 }

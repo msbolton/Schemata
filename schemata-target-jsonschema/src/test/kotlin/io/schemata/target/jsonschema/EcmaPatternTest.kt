@@ -3,6 +3,7 @@ package io.schemata.target.jsonschema
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class EcmaPatternTest {
     private fun bad(p: String) = EcmaPattern.firstUnsupported(p)
@@ -68,5 +69,22 @@ class EcmaPatternTest {
     @Test
     fun `an escaped backslash before a letter is ordinary text`() {
         assertNull(bad("\\\\Aabc"))
+    }
+
+    @Test
+    fun `a python style named group is named with its ecmascript form`() {
+        val text = bad("(?P<year>[0-9]{4})")!!
+        assertTrue(text.startsWith("(?P<year>"), text)
+        assertTrue(text.contains("Python-style named group"), text)
+        assertTrue(text.contains("(?<year>...)"), text)
+    }
+
+    @Test
+    fun `a word boundary negation and a named backreference inside a class are refused`() {
+        assertEquals("\\B", bad("[\\B]"))
+        assertEquals("\\k<n>", bad("(?<n>a)[\\k<n>]"))
+        assertEquals("\\k<n>", bad("[x\\k<n>]"))
+        assertNull(bad("[\\b]"))
+        assertNull(bad("\\B(?<n>a)\\k<n>"))
     }
 }

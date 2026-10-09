@@ -3,9 +3,7 @@ package io.schemata.cli.report
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.EnumRef
-import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.IntValue
-import io.schemata.core.ir.Payload
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RealValue
 import io.schemata.core.ir.Reserved
@@ -56,7 +54,9 @@ import io.schemata.evolution.UnionMemberRemoved
 import io.schemata.evolution.UnionMemberTypeChanged
 import io.schemata.evolution.Verdict
 import io.schemata.evolution.annotationLabel
+import io.schemata.evolution.bindingText
 import io.schemata.evolution.changeWord
+import io.schemata.evolution.payloadText
 import io.schemata.evolution.shown
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.SchemataText
@@ -99,9 +99,10 @@ object DiffRenderer {
         val implicitNames = implicitOrdinals.map { it.toString() }.toSet()
         if (groups.keys.any { it in implicitNames }) {
             lines += ""
+            val n = implicitOrdinals.size
             lines +=
-                "note: ordinals are implicit in ${plural(implicitOrdinals.size, "declaration")}; " +
-                    "run check --strict"
+                "note: ${plural(n, "declaration")} ${if (n == 1) "has" else "have"} implicit " +
+                    "ordinals; run check --strict"
         }
         return lines.joinToString("\n") + "\n"
     }
@@ -211,18 +212,6 @@ object DiffRenderer {
             is OperationBindingChanged -> bindingText(c.to)
             else -> null
         }
-
-    /** `Order` or `stream Order`; `none` for an operation without one. */
-    private fun payloadText(p: Payload?): String =
-        when {
-            p == null -> "none"
-            p.stream -> "stream ${p.target.simpleName}"
-            else -> p.target.simpleName
-        }
-
-    /** `get /orders/{id}` as written; `none` for an operation with no binding. */
-    private fun bindingText(b: HttpBinding?): String =
-        if (b == null) "none" else "${b.verb.lower} ${b.path}"
 
     private fun valueText(v: Value?): String? =
         when (v) {

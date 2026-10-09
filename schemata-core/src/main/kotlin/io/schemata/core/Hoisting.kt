@@ -52,20 +52,28 @@ object Hoisting {
 
     /**
      * The names a field's type could already mean from outside its own model: the schema's top
-     * level, then each enclosing model's nested declarations, mapped to the model that declares it.
+     * level, then each enclosing model's nested declarations, mapped to the model that holds it and
+     * whether that model got it by hoisting an inline type rather than by declaring it.
      */
     private class Visible(
         val schema: String,
         val topLevel: Set<String>,
-        val enclosing: Map<String, String>,
+        val enclosing: Map<String, Holder>,
     ) {
-        fun inside(model: RecordDecl, nested: Collection<String>): Visible =
-            Visible(schema, topLevel, enclosing + nested.associateWith { model.name })
+        class Holder(val model: String, val hoisted: Boolean)
 
-        /** Where [name] is visible from, worded for a message, or null when it is not. */
+        fun inside(model: RecordDecl, nested: Collection<String>, hoisted: Set<String>): Visible =
+            Visible(
+                schema,
+                topLevel,
+                enclosing + nested.associateWith { Holder(model.name, it in hoisted) },
+            )
+
+        /** Who holds [name] already, worded to follow "which", or null when nobody does. */
         fun owner(name: String): String? =
-            enclosing[name]?.let { "model '$it'" }
-                ?: if (name in topLevel) "the top level of schema '$schema'" else null
+            enclosing[name]?.let {
+                "model '${it.model}' ${if (it.hoisted) "also names" else "also declares"}"
+            } ?: if (name in topLevel) "the top level of schema '$schema' also declares" else null
     }
 
     private fun record(
@@ -75,12 +83,14 @@ object Hoisting {
     ): RecordDecl {
         val taken = decl.nested.map { it.name }.toMutableSet()
         val hoisted = mutableListOf<Declaration>()
-        val fields = decl.fields.map { field(decl, it, taken, hoisted, visible, report) }
+        // the field each hoisted name came from, so a later twin can name it
+        val sources = mutableMapOf<String, String>()
+        val fields = decl.fields.map { field(decl, it, taken, hoisted, sources, visible, report) }
         // only the block attribute `@@timestamps`; a single-`@` one goes to the annotation checker
         val (stamps, annotations) = decl.annotations.partition { it.block && it.name == TIMESTAMPS }
-        val inner = visible.inside(decl, taken)
+        val inner = visible.inside(decl, taken, hoisted.map { it.name }.toSet())
         return decl.copy(
-            fields = fields + timestamps(fields, decl.reserved, stamps, report),
+            fields = fields + timestamps(decl.name, fields, decl.reserved, stamps, report),
             nested =
                 decl.nested.map { if (it is RecordDecl) record(it, inner, report) else it } +
                     hoisted,
@@ -99,6 +109,7 @@ object Hoisting {
         field: FieldDecl,
         taken: MutableSet<String>,
         hoisted: MutableList<Declaration>,
+        sources: MutableMap<String, String>,
         visible: Visible,
         report: (Diagnostic) -> Unit,
     ): FieldDecl {
@@ -124,7 +135,11 @@ object Hoisting {
         if (inlineShape != null) keyless(inlineShape, report)
         val declaration: Declaration =
             inlineEnum?.copy(name = name)
-                ?: record(inlineShape!!.copy(name = name), visible.inside(owner, taken), report)
+                ?: record(
+                    inlineShape!!.copy(name = name),
+                    visible.inside(owner, taken, hoisted.map { it.name }.toSet()),
+                    report,
+                )
         val reference =
             type.copy(
                 name = name,
@@ -137,7 +152,7 @@ object Hoisting {
             report(
                 Diagnostic(
                     CoreCodes.HOISTED_NAME_COLLISION,
-                    "the inline $kind of field '${field.name}' is named '$name', which $hidden also declares; inside model '${owner.name}' the name would mean the inline $kind",
+                    "the inline $kind of field '${field.name}' is named '$name', which $hidden; inside model '${owner.name}' the name would mean the inline $kind",
                     field.nameSpan,
                     help = "name it with @name(\"…\")",
                 )
@@ -145,12 +160,17 @@ object Hoisting {
         }
         if (taken.add(name)) {
             hoisted += declaration
+            sources[name] = field.name
             return field.copy(type = reference)
         }
+        // a name already in [taken] is either a declared nested one or an earlier field's hoisted
+        // one
+        val earlier = sources[name]
+        val twin = if (earlier != null) "hoists from field '$earlier'" else "already declares"
         report(
             Diagnostic(
                 CoreCodes.HOISTED_NAME_COLLISION,
-                "the inline $kind of field '${field.name}' is named '$name', which model '${owner.name}' already declares",
+                "the inline $kind of field '${field.name}' is named '$name', which model '${owner.name}' $twin",
                 field.nameSpan,
                 help = "name it with @name(\"…\")",
             )
@@ -199,30 +219,33 @@ object Hoisting {
     }
 
     /**
-     * The two fields `@@timestamps` appends. When every field has an explicit ordinal, they take
-     * the next two after the highest one; otherwise the next two after the last field's position.
-     * Either way they step over reserved ordinals. In a body of implicit ordinals the chosen ones
-     * carry no span, since nobody wrote them, and the analyzer reads them as positions.
+     * The two fields `@@timestamps` appends. Unpinned, and when every field has an explicit
+     * ordinal, they take the next two after the highest one; otherwise the next two after the last
+     * field's position. Either way they step over reserved ordinals. In a body of implicit ordinals
+     * the chosen ones carry no span, since nobody wrote them, and the analyzer reads them as
+     * positions.
+     *
+     * `@@timestamps(#n, #m)` pins them: `created_at` takes `#n` and `updated_at` `#m`, in either
+     * order. Both or neither, because a single pinned ordinal leaves the other to float with the
+     * model. Under explicit ordinals the pinned ones are written ordinals like any field's, so the
+     * ordinal check reports a clash or a reserved one. In a body of implicit ordinals the pinned
+     * ones are handed over as chosen, so the ordinal check reports a reserved one itself but does
+     * not compare them with the positions 1..n the other fields hold or with each other; those
+     * clashes are reported here. The positional fields keep their positions and the stamps are
+     * appended after them, so the mix of written and implicit ordinals is never presented to the
+     * ordinal check.
+     *
+     * An unpinned `@@timestamps` over explicit ordinals draws SCH1054, since adding a field later
+     * moves the stamps; a model with no fields has nothing to move, so it draws none.
      */
     private fun timestamps(
+        model: String,
         fields: List<FieldDecl>,
         reserved: List<ReservedItem>,
         stamps: List<Annotation>,
         report: (Diagnostic) -> Unit,
     ): List<FieldDecl> {
         val first = stamps.firstOrNull() ?: return emptyList()
-        stamps
-            .filter { it.args.isNotEmpty() }
-            .forEach {
-                report(
-                    Diagnostic(
-                        CoreCodes.ANNOTATION_VALUE,
-                        "@@timestamps takes no arguments",
-                        it.span,
-                        help = "write `@@timestamps`",
-                    )
-                )
-            }
         stamps.drop(1).forEach {
             report(
                 Diagnostic(
@@ -233,17 +256,85 @@ object Hoisting {
                 )
             )
         }
+        stamps.drop(1).filter { !wellShaped(it) }.forEach { badShape(it, report) }
         val explicit = fields.isNotEmpty() && fields.all { it.ordinal != null }
         val ranges = reserved.filterIsInstance<ReservedItem.Ordinals>().map { it.from..it.to }
+        val malformed = first.args.isNotEmpty() && !wellShaped(first)
+        if (malformed) badShape(first, report)
+        if (first.args.isNotEmpty() && !malformed) {
+            val (created, updated) = ordinals(first)
+            if (!explicit) {
+                // the other fields hold the positions 1..n
+                val taken = fields.size
+                val used = (1..taken).toSet() + created.ordinal + updated.ordinal
+                listOf(created, updated).forEach { p ->
+                    when {
+                        p.ordinal <= 0 ->
+                            report(
+                                Diagnostic(
+                                    CoreCodes.INVALID_ORDINAL,
+                                    "ordinal #${p.ordinal} is not positive",
+                                    p.span,
+                                    help = "ordinals start at #1",
+                                )
+                            )
+                        p.ordinal <= taken || (p === updated && p.ordinal == created.ordinal) ->
+                            report(
+                                Diagnostic(
+                                    CoreCodes.DUPLICATE_ORDINAL,
+                                    "ordinal #${p.ordinal} is used more than once in model '$model'",
+                                    p.span,
+                                    help =
+                                        "give each element its own ordinal; the next free one is #${Ordinals.nextFree(used, ranges)}",
+                                )
+                            )
+                    }
+                }
+            }
+            val at = { p: AnnotationValue.Ordinal -> p.span.takeIf { explicit } }
+            return listOf(
+                stamp("created_at", created.ordinal, at(created), nullable = false, first.span),
+                stamp("updated_at", updated.ordinal, at(updated), nullable = true, first.span),
+            )
+        }
         val last = if (explicit) fields.maxOf { it.ordinal!! } else fields.size
         val created = free(last + 1, ranges)
         val updated = free(created + 1, ranges)
+        if (explicit && !malformed) {
+            report(
+                Diagnostic(
+                    CoreCodes.TIMESTAMPS_UNPINNED,
+                    "timestamps are unpinned; adding a field later renumbers them",
+                    first.span,
+                    help = "write `@@timestamps(#$created, #$updated)`",
+                )
+            )
+        }
         val at = first.span.takeIf { explicit }
         return listOf(
             stamp("created_at", created, at, nullable = false, first.span),
             stamp("updated_at", updated, at, nullable = true, first.span),
         )
     }
+
+    /** Exactly two ordinal arguments and nothing else. */
+    private fun ordinals(stamp: Annotation): List<AnnotationValue.Ordinal> =
+        stamp.args.mapNotNull {
+            (it as? AnnotationArg.Positional)?.value as? AnnotationValue.Ordinal
+        }
+
+    private fun wellShaped(stamp: Annotation) =
+        stamp.args.isEmpty() || (stamp.args.size == 2 && ordinals(stamp).size == 2)
+
+    private fun badShape(stamp: Annotation, report: (Diagnostic) -> Unit) =
+        report(
+            Diagnostic(
+                CoreCodes.ANNOTATION_VALUE,
+                "@@timestamps takes both ordinals or none",
+                stamp.span,
+                help = "write `@@timestamps` or `@@timestamps(#n, #m)`",
+            )
+        )
 
     /** The first ordinal from [from] on that no range in [reserved] holds. */
     private fun free(from: Int, reserved: List<IntRange>): Int {

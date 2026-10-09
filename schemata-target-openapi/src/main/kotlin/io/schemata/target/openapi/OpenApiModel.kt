@@ -9,9 +9,10 @@ import io.schemata.target.jsonschema.JsonSchema
 data class OpenApiModel(val documents: List<OpenApiDocument>) : TargetModel
 
 /**
- * One OpenAPI 3.1 document, legal by construction: every `$ref` points into [components], every
- * `operationId` and verb-and-path pair is unique, and no two paths differ only in their parameters'
- * names.
+ * One OpenAPI 3.1 document: every `$ref` points into [components], every verb-and-path pair is
+ * unique, and no two paths differ only in their parameters' names. An `operationId` is unique among
+ * the operations kept; an operation dropped for repeating a route claims none, and two kept
+ * operations that share one are reported (SCH2602) but both stay.
  */
 data class OpenApiDocument(
     val path: String,

@@ -32,7 +32,7 @@ object JsonPrinter {
                 c == '\n' -> sb.append("\\n")
                 c == '\r' -> sb.append("\\r")
                 c == '\t' -> sb.append("\\t")
-                c < ' ' -> sb.append(String.format("\\u%04x", c.code))
+                c < ' ' -> sb.append("\\u").append(c.code.toString(16).padStart(4, '0'))
                 else -> sb.append(c)
             }
         }

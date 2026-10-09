@@ -3,6 +3,7 @@ package io.schemata.cli
 import io.schemata.testkit.LspSession
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
@@ -22,6 +23,9 @@ import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
 
+/** The shop example's forward reference; a cursor two characters into its type is on `Customer`. */
+private const val FORWARD_FIELD = "customer  Customer"
+
 /**
  * One editor session against `<command> lsp` as a child process, touching every message shape the
  * server sends: the watcher registration, a diagnostic for an unknown type, a definition across an
@@ -39,21 +43,15 @@ internal fun runLspSession(command: List<String>, examples: File) {
         val extra = File(dir, "shop/extra.schemata")
         extra.writeText("schema shop.extra\n\nmodel Extra { #1 x Missing }\n")
         val text = orders.readText()
-        val process = ProcessBuilder(command + "lsp").redirectErrorStream(false).start()
-        var err = ""
-        val drain = Thread { err = process.errorStream.bufferedReader().readText() }
-        drain.start()
-        val session = LspSession.overProcess(process)
-        try {
-            session.initialize(dir.toPath())
-            session.open(orders.toPath(), text.replace("customer  Customer", "customer  Custmer"))
+        inLspProcess(command, dir) { session ->
+            session.open(orders.toPath(), text.replace(FORWARD_FIELD, "customer  Custmer"))
             val shown = session.diagnostics(orders.toPath()) { it.isNotEmpty() }
             // The misspelled name is unknown, and the import it no longer uses is reported too.
             assertEquals(setOf("SCH1006", "SCH1012"), shown.map { it.code.left }.toSet())
             session.change(orders.toPath(), text)
             session.diagnostics(orders.toPath()) { it.isEmpty() }
 
-            val index = text.indexOf("customer  Customer") + 12
+            val index = text.indexOf(FORWARD_FIELD) + FORWARD_FIELD.indexOf("Customer") + 2
             val line = text.substring(0, index).count { it == '\n' }
             val character = index - (text.lastIndexOf('\n', index - 1) + 1)
             val id = TextDocumentIdentifier(session.uri(orders.toPath()))
@@ -109,13 +107,71 @@ internal fun runLspSession(command: List<String>, examples: File) {
             extra.delete()
             session.watched(extra.toPath(), FileChangeType.Deleted)
             session.diagnostics(extra.toPath()) { it.isEmpty() }
-        } finally {
-            session.close()
         }
-        assertTrue(process.waitFor(30, TimeUnit.SECONDS), "the server did not exit")
-        drain.join(5000)
-        assertEquals(0, process.exitValue(), err)
-        assertEquals("", err)
+    } finally {
+        dir.deleteRecursively()
+    }
+}
+
+/**
+ * Runs [body] against `<command> lsp` as a child process whose working folder is [dir], then shuts
+ * it down and checks that it exited with 0 and wrote nothing to stderr.
+ */
+private fun inLspProcess(command: List<String>, dir: File, body: (LspSession) -> Unit) {
+    val process = ProcessBuilder(command + "lsp").redirectErrorStream(false).start()
+    // The reader thread hands the text over through a future, so the test thread never reads a
+    // string another thread is still writing.
+    val errText = CompletableFuture<String>()
+    Thread {
+            try {
+                errText.complete(process.errorStream.bufferedReader().readText())
+            } catch (e: Throwable) {
+                errText.completeExceptionally(e)
+            }
+        }
+        .start()
+    val session = LspSession.overProcess(process)
+    try {
+        session.initialize(dir.toPath())
+        body(session)
+    } finally {
+        session.close()
+    }
+    assertTrue(process.waitFor(30, TimeUnit.SECONDS), "the server did not exit")
+    val err = errText.get(5, TimeUnit.SECONDS)
+    assertEquals(0, process.exitValue(), err)
+    assertEquals("", err)
+}
+
+/**
+ * A folder holding one file, renamed through the process: the rename edits that file alone, in
+ * every place the name is written, and the server shuts down cleanly afterwards.
+ */
+internal fun runOneFileRename(command: List<String>, examples: File) {
+    val dir = Files.createTempDirectory("schemata-lsp-one").toFile()
+    try {
+        File(examples, "contacts/contacts.schemata").copyTo(File(dir, "contacts.schemata"))
+        val file = File(dir, "contacts.schemata")
+        val text = file.readText()
+        inLspProcess(command, dir) { session ->
+            session.open(file.toPath(), text)
+            session.diagnostics(file.toPath()) { it.isEmpty() }
+            val id = TextDocumentIdentifier(session.uri(file.toPath()))
+            val index = text.indexOf("enum Kind") + "enum ".length
+            val line = text.substring(0, index).count { it == '\n' }
+            val at = Position(line, index - (text.lastIndexOf('\n', index - 1) + 1))
+            val renamed =
+                session.server.textDocumentService
+                    .rename(RenameParams(id, at, "Category"))
+                    .get(30, TimeUnit.SECONDS)
+            assertEquals(setOf(session.uri(file.toPath())), renamed.changes.keys)
+            // The declaration and the one field typed with it.
+            assertEquals(
+                listOf(line, text.lines().indexOfFirst { it.trimStart().startsWith("kind ") }),
+                renamed.changes.values.single().map { it.range.start.line }.sorted(),
+            )
+            assertTrue(renamed.changes.values.single().all { it.newText == "Category" })
+        }
     } finally {
         dir.deleteRecursively()
     }

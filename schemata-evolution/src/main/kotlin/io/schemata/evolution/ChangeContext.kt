@@ -26,12 +26,15 @@ import io.schemata.target.deprecated
 import io.schemata.target.flag
 import io.schemata.target.string
 
-/** Whether a removed member's ordinal, name, both, or neither are still reserved in NEW. */
+/**
+ * Whether a removed member's ordinal, name, both, or neither ([UNRESERVED], free to be reused) are
+ * still reserved in NEW.
+ */
 enum class ReservedStatus {
     BOTH,
     ORDINAL_ONLY,
     NAME_ONLY,
-    NEITHER,
+    UNRESERVED,
 }
 
 /**
@@ -53,7 +56,7 @@ class ChangeContext(val old: Schema, val new: Schema) {
             ordinalReserved && nameReserved -> ReservedStatus.BOTH
             ordinalReserved -> ReservedStatus.ORDINAL_ONLY
             nameReserved -> ReservedStatus.NAME_ONLY
-            else -> ReservedStatus.NEITHER
+            else -> ReservedStatus.UNRESERVED
         }
     }
 
@@ -83,9 +86,13 @@ class ChangeContext(val old: Schema, val new: Schema) {
             else -> false
         }
 
+    /** [service] as OLD declares it, or [service] itself when OLD has no service by that name. */
+    internal fun oldService(service: Service): Service =
+        old.service(service.qualifiedName) ?: service
+
     private fun oldOperationDeprecated(service: Service, operation: Operation): Boolean =
-        old.service(service.qualifiedName)
-            ?.operations
+        oldService(service)
+            .operations
             ?.firstOrNull { it.ordinal == operation.ordinal }
             ?.annotations
             ?.deprecated == true
@@ -281,11 +288,21 @@ class ChangeContext(val old: Schema, val new: Schema) {
             .filterIsInstance<RecordType>()
             .any { r -> r.fields.any { f -> listsTableOf(f, record) } }
 
-    private fun listsTableOf(field: Field, record: QualifiedName): Boolean {
-        val element = (field.type as? ListOf)?.element as? Ref ?: return false
-        if (element.target != record) return false
+    private fun listsTableOf(field: Field, record: QualifiedName): Boolean =
+        listedRecord(field) == record
+
+    /**
+     * Whether [field], a field of a record on [side], is a `Model[]` whose elements live in a child
+     * table of their own rather than in a JSON column.
+     */
+    internal fun hasChildTable(side: Side, field: Field): Boolean =
+        listedRecord(field)?.let { schema(side).lookupOrNull(it) is RecordType } == true
+
+    /** The element record of a `Model[]` field stored as a child table, else null. */
+    private fun listedRecord(field: Field): QualifiedName? {
+        val element = (field.type as? ListOf)?.element as? Ref ?: return null
         val strategy = (field.annotations["sql"]["strategy"] as? AnnotationValue.Name)?.value
-        return strategy == null || strategy == "table"
+        return element.target.takeIf { strategy == null || strategy == "table" }
     }
 
     private fun schema(side: Side): Schema = if (side == Side.OLD) old else new

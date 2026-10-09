@@ -291,6 +291,43 @@ class SchemataEmitterTest {
     }
 
     @Test
+    fun `an emitter refuses ordinals on some enum values but not all`() {
+        val enum =
+            UnitEnum(
+                "E",
+                listOf(
+                    UnitEnumValue("A", null, emptyList(), 1),
+                    UnitEnumValue("B", null, emptyList()),
+                ),
+                null,
+                emptyList(),
+            )
+        val unit = SchemataUnit("x", emptyList(), null, emptyList(), listOf(enum), sourcePath = "x")
+        assertFailsWith<IllegalStateException> { SchemataEmitter.emit(unit) }
+    }
+
+    @Test
+    fun `an emitter refuses ordinals on some union members but not all`() {
+        val ref = UnitType.Scalar("bool", emptyList())
+        val union =
+            UnitUnion(
+                "U",
+                listOf(UnionMember(ref, ordinal = 1), UnionMember(ref)),
+                null,
+                emptyList(),
+            )
+        val unit =
+            SchemataUnit("x", emptyList(), null, emptyList(), listOf(union), sourcePath = "x")
+        assertFailsWith<IllegalStateException> { SchemataEmitter.emit(unit) }
+    }
+
+    @Test
+    fun `reserved ordinals refuse a range that runs backwards`() {
+        assertFailsWith<IllegalArgumentException> { UnitReserved.Ordinals(5, 3) }
+        assertEquals(UnitReserved.Ordinals(3, 3), UnitReserved.Ordinals(3, 3))
+    }
+
+    @Test
     fun `services print after declarations in the formatter's form`() {
         val id = UnitType.Ref("Id")
         val unit =

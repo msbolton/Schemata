@@ -149,31 +149,22 @@ private class NamespacePlan(
     private fun schemas(): Pair<List<Step>, List<Step>> =
         when {
             old == null ->
-                listOf(CreateSchema(new!!.schemaName, namespaceSubject(newSide, new))) to
+                listOf(CreateSchema(new!!.schemaName, context.namespaceSubject(newSide, new))) to
                     emptyList()
             new == null ->
                 emptyList<Step>() to
-                    listOf(DropSchema(old.schemaName, namespaceSubject(oldSide, old)))
+                    listOf(DropSchema(old.schemaName, context.namespaceSubject(oldSide, old)))
             old.schemaName != new.schemaName ->
-                (listOf(CreateSchema(new.schemaName, namespaceSubject(newSide, new))) +
+                (listOf(CreateSchema(new.schemaName, context.namespaceSubject(newSide, new))) +
                     matched.map {
                         SetSchema(
                             At(old.schemaName, it.old.name),
                             new.schemaName,
                             tableSubject(newSide, it.new),
                         )
-                    }) to listOf(DropSchema(old.schemaName, namespaceSubject(oldSide, old)))
+                    }) to listOf(DropSchema(old.schemaName, context.namespaceSubject(oldSide, old)))
             else -> emptyList<Step>() to emptyList()
         }
-
-    /**
-     * The namespace a file belongs to: the SQL target names it `<namespace, dots as slashes>.sql`.
-     */
-    private fun namespaceSubject(side: Side, schema: RelationalSchema): Subject {
-        val namespace =
-            side.schema.namespaces.first { it.name.replace('.', '/') + ".sql" == schema.path }
-        return Subject(namespace.name, namespace.span)
-    }
 
     private fun tableRenames(): List<Step> =
         ordered(
@@ -181,7 +172,7 @@ private class NamespacePlan(
                 .filter { it.old.name != it.new.name }
                 .map { p ->
                     val subject = tableSubject(newSide, p.new)
-                    Rename(schemaName, p.old.name, p.new.name) { from, to ->
+                    Rename(RenameScope.InSchema(schemaName), p.old.name, p.new.name) { from, to ->
                         RenameTable(At(schemaName, from), to, subject)
                     }
                 }
@@ -194,7 +185,7 @@ private class NamespacePlan(
                     .filter { (o, n) -> o.name != n.name }
                     .map { (o, n) ->
                         val subject = columnSubject(newSide, p.new, n)
-                        Rename(p.at, o.name, n.name) { from, to ->
+                        Rename(RenameScope.InTable(p.at), o.name, n.name) { from, to ->
                             RenameColumn(p.at, from, to, subject)
                         }
                     }
@@ -369,7 +360,7 @@ private class NamespacePlan(
      * parent.
      */
     private fun rekeyHelp(p: Pairing, into: List<Column>): String =
-        "populate ${into.joinToString(", ") { "${Naming.quote(p.new.name)}.${Naming.quote(it.name)}" }} from the parent before the foreign keys return, then rerun with --allow-destructive"
+        "populate ${into.joinToString(", ") { "${Naming.quote(p.new.name)}.${Naming.quote(it.name)}" }} from the parent before the keys are re-added, then rerun with --allow-destructive"
 
     /** Child tables first, though `CASCADE` would take them with their parent anyway. */
     private fun tableDrops(early: Boolean): List<Step> =

@@ -2,7 +2,6 @@ package io.schemata.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
-import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.groups.provideDelegate
@@ -51,15 +50,15 @@ class ImportCommand : CliktCommand(name = "import") {
                 else -> XsdImporter to XsdSet.load(inputs)
             }
         if (files.isEmpty()) {
-            throw UsageError("no .$from files found under: ${inputs.joinToString(", ")}")
+            throw usageError("no .$from files found under: ${inputs.joinToString(", ")}")
         }
         namespace?.let { ns ->
             if (!ns.split('.').all(ImportNames::isNamespaceSegment)) {
-                throw UsageError("--namespace must be dotted lower-snake segments")
+                throw usageError("--namespace must be dotted lower-snake segments")
             }
         }
         if (namespace != null && files.size != 1) {
-            throw UsageError("--namespace applies to a single input file")
+            throw usageError("--namespace applies to a single input file")
         }
         val result =
             importer.import(

@@ -27,6 +27,16 @@ object JsonSchemaNames {
         name.firstOrNull { it.isWhitespace() || it < ' ' || it in REF_RESERVED }
 }
 
-/** A space as itself; any other whitespace or control character as a `\u` escape. */
+/**
+ * A space as itself; a tab, line feed, or carriage return as `\t`, `\n`, or `\r`; any other
+ * whitespace or control character as a `\u` escape.
+ */
 internal fun shown(c: Char): String =
-    if (c != ' ' && (c.isWhitespace() || c < ' ')) "\\u%04X".format(c.code) else c.toString()
+    when {
+        c == ' ' -> " "
+        c == '\t' -> "\\t"
+        c == '\n' -> "\\n"
+        c == '\r' -> "\\r"
+        c.isWhitespace() || c < ' ' -> "\\u" + c.code.toString(16).uppercase().padStart(4, '0')
+        else -> c.toString()
+    }
