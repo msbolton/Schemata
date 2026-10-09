@@ -312,8 +312,15 @@ object ProtoReader {
                         at("[") -> {
                             next()
                             val sb = StringBuilder("[")
+                            // Read the dotted name here: qualifiedName() raises a syntax error,
+                            // and the structured parse may only signal that it cannot read.
                             if (peek().kind != TokenKind.IDENT) unreadable()
-                            sb.append(qualifiedName())
+                            sb.append(next().text)
+                            while (at(".")) {
+                                next()
+                                if (peek().kind != TokenKind.IDENT) unreadable()
+                                sb.append('.').append(next().text)
+                            }
                             if (!at("]")) unreadable()
                             next()
                             sb.append(']').toString()

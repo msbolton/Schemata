@@ -529,4 +529,38 @@ class ProtoReaderTest {
         assertNull(o.aggregate)
         assertEquals("M", f.messages.single().name)
     }
+
+    @Test
+    fun `an unreadable extension key inside an aggregate falls back to the raw text`() {
+        val f = read("option (x) = {[a.]: 1};\nmessage M {}")
+        val o = f.options.single()
+        assertEquals("{…}", o.value)
+        assertNull(o.aggregate)
+        assertEquals("M", f.messages.single().name)
+    }
+
+    @Test
+    fun `braces inside a string value do not end the aggregate`() {
+        val f = read("option (x) = {pattern: \"}{\"};\nmessage M {}")
+        assertEquals(
+            OptionValue.Aggregate(listOf("pattern" to OptionValue.Literal("}{"))),
+            f.options.single().aggregate,
+        )
+        assertEquals("M", f.messages.single().name)
+    }
+
+    @Test
+    fun `aggregate pairs may omit separators and repeat keys`() {
+        val f = read("option (x) = {seconds: 1 nanos: 0; seconds: 2};")
+        assertEquals(
+            OptionValue.Aggregate(
+                listOf(
+                    "seconds" to OptionValue.Literal("1"),
+                    "nanos" to OptionValue.Literal("0"),
+                    "seconds" to OptionValue.Literal("2"),
+                )
+            ),
+            f.options.single().aggregate,
+        )
+    }
 }
