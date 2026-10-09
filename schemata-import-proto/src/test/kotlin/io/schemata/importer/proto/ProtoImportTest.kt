@@ -1563,7 +1563,10 @@ class ProtoImportTest {
             { path ->
                 includes.entries.firstNotNullOfOrNull { (dir, files) ->
                     files.entries
-                        .firstOrNull { "$dir/${it.key}" == path }
+                        .firstOrNull {
+                            val base = dir.trimEnd('/')
+                            (if (base.isEmpty()) it.key else "$base/${it.key}") == path
+                        }
                         ?.let { ImportInput(path, it.value.trimIndent()) }
                 }
             },
@@ -1677,5 +1680,58 @@ class ProtoImportTest {
             r.files.map { it.path }.sorted(),
         )
         assertEquals(emptyList(), messages(r).filter { it.startsWith("SCH2402") })
+    }
+
+    private fun statusUser() =
+        listOf(
+            "app/t.proto" to
+                """
+                syntax = "proto3";
+                package app;
+                import "google/rpc/status.proto";
+                message T { google.rpc.Status status = 1; }
+                """
+        )
+
+    private fun statusFile() =
+        mapOf(
+            "google/rpc/status.proto" to
+                """
+                syntax = "proto3";
+                package google.rpc;
+                message Status { int32 code = 1; }
+                """
+        )
+
+    @Test
+    fun `an include root given as the current directory resolves imports by their bare path`() {
+        // The input sits under src, so the roots step looks under src, not at the bare path.
+        val files = statusFile()
+        val r =
+            ProtoImporter.import(
+                statusUser().map {
+                    ImportInput("src/${it.first}", it.second.trimIndent(), relative = it.first)
+                },
+                null,
+                { path -> files[path]?.let { ImportInput(path, it.trimIndent()) } },
+                listOf(""),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+    }
+
+    @Test
+    fun `a trailing slash on an include root resolves the same as none`() {
+        val plain = withIncludes(statusUser(), mapOf("deps" to statusFile()))
+        val slash = withIncludes(statusUser(), mapOf("deps/" to statusFile()))
+        assertEquals(emptyList(), messages(slash))
+        assertEquals(
+            plain.files.map { it.path to it.content },
+            slash.files.map { it.path to it.content },
+        )
+        assertEquals(2, slash.files.size)
     }
 }

@@ -158,7 +158,8 @@ object ProtoImporter : Importer {
                                 }
                         }
                         ?: includeRoots.firstNotNullOfOrNull { inc ->
-                            val path = "$inc/${imp.path}"
+                            // An include given as the current directory has no prefix.
+                            val path = if (inc.isEmpty()) imp.path else "$inc/${imp.path}"
                             files[path]
                                 ?: locate(path)?.let {
                                     found(it.copy(relative = imp.path), Lookup.Include)
