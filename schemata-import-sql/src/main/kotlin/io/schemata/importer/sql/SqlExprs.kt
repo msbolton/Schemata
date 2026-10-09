@@ -47,8 +47,9 @@ object SqlExprs {
             if (t.kind == SqlTokenKind.COMMENT || t.kind == SqlTokenKind.EOF) continue
             val written = written(t)
             prev?.let { p ->
-                val adjacent =
-                    p.pos.line == t.pos.line && p.pos.col + written(p).length >= t.pos.col
+                // Adjacent when the source ran one straight into the other, whatever the length
+                // of the first token's source (an `E'…'` string is longer than its re-quoted text).
+                val adjacent = p.end == t.pos
                 if (!adjacent) append(' ')
             }
             append(written)

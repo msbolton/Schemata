@@ -394,16 +394,7 @@ class SqlReaderTest {
             ),
             t.constraints,
         )
-        assertEquals(
-            listOf(
-                "GENERATED … STORED on column 'd'",
-                "EXCLUDE constraint",
-                "LIKE",
-                "INHERITS",
-                "TABLESPACE",
-            ),
-            t.dropped,
-        )
+        assertEquals(listOf("EXCLUDE constraint", "LIKE", "INHERITS", "TABLESPACE"), t.dropped)
     }
 
     @Test
@@ -638,7 +629,13 @@ class SqlReaderTest {
             cols.map { it.type },
         )
         assertEquals(listOf(null, null, null, null, SqlExpr.Num("0")), cols.map { it.default })
-        assertEquals(3, f.statements.drop(1).count { it == SqlStatement.Ignored("ALTER COLUMN") })
+        assertEquals(2, f.statements.drop(1).count { it == SqlStatement.Ignored("ALTER COLUMN") })
+        assertEquals(
+            1,
+            f.statements.count {
+                it == SqlStatement.Dropped("ALTER COLUMN SET DEFAULT", SqlPos(11, 1))
+            },
+        )
         assertEquals(4, f.statements.size)
     }
 
@@ -652,6 +649,74 @@ class SqlReaderTest {
         assertEquals(
             listOf("serial"),
             (f.statements.single() as SqlStatement.CreateTable).table.columns.map { it.type },
+        )
+    }
+
+    @Test
+    fun `a stored generation is a field of its column and not a dropped entry`() {
+        val t = table("CREATE TABLE t (a integer, d numeric GENERATED ALWAYS AS (a * 2) STORED);")
+        assertEquals(listOf(null, SqlExpr.Raw("a * 2")), t.columns.map { it.generated })
+        assertEquals(emptyList(), t.dropped)
+    }
+
+    @Test
+    fun `a serial alter finds the table of its own schema when the name is shared`() {
+        val f =
+            SqlReader.read(
+                "d.sql",
+                """
+                CREATE TABLE t (a integer NOT NULL);
+                CREATE TABLE s.t (a integer NOT NULL);
+                ALTER TABLE s.t ALTER COLUMN a SET DEFAULT nextval('q');
+                """
+                    .trimIndent(),
+            )
+        assertEquals(
+            listOf("integer", "serial"),
+            f.statements.map { (it as SqlStatement.CreateTable).table.columns.single().type },
+        )
+    }
+
+    @Test
+    fun `an unqualified serial alter that could mean two tables folds into neither`() {
+        val f =
+            SqlReader.read(
+                "d.sql",
+                """
+                CREATE TABLE a.t (n integer NOT NULL);
+                CREATE TABLE b.t (n integer NOT NULL);
+                ALTER TABLE t ALTER COLUMN n SET DEFAULT nextval('q');
+                """
+                    .trimIndent(),
+            )
+        assertEquals(
+            listOf("integer", "integer"),
+            f.statements.filterIsInstance<SqlStatement.CreateTable>().map {
+                it.table.columns.single().type
+            },
+        )
+        assertEquals(SqlStatement.Ignored("ALTER COLUMN"), f.statements.last())
+    }
+
+    @Test
+    fun `a default set after creation is dropped and a dropped nothing else`() {
+        val f =
+            SqlReader.read(
+                "d.sql",
+                """
+                ALTER TABLE t ALTER COLUMN a SET DEFAULT 5;
+                ALTER TABLE t ALTER COLUMN a SET DEFAULT 'x' || y;
+                ALTER TABLE t ALTER COLUMN a DROP DEFAULT;
+                """
+                    .trimIndent(),
+            )
+        assertEquals(
+            listOf(
+                SqlStatement.Dropped("ALTER COLUMN SET DEFAULT", SqlPos(1, 1)),
+                SqlStatement.Dropped("ALTER COLUMN SET DEFAULT", SqlPos(2, 1)),
+                SqlStatement.Ignored("ALTER COLUMN"),
+            ),
+            f.statements,
         )
     }
 
@@ -683,5 +748,72 @@ class SqlReaderTest {
         assertNull(t.schema)
         val f = SqlReader.read("x.sql", "CREATE SCHEMA a CREATE SCHEMA b;")
         assertEquals(listOf(SqlParseError(SqlPos(1, 17), "expected ';'")), f.errors)
+    }
+
+    @Test
+    fun `a default that is a case expression is read whole`() {
+        val t =
+            table(
+                "CREATE TABLE t (a integer DEFAULT CASE WHEN b IS NULL THEN 1 WHEN NOT c THEN 2 ELSE 3 END NOT NULL, b integer);"
+            )
+        assertEquals(
+            SqlExpr.Raw("case when b is null then 1 when not c then 2 else 3 end"),
+            t.columns[0].default,
+        )
+        assertTrue(t.columns[0].notNull)
+        assertEquals(listOf("a", "b"), t.columns.map { it.name })
+    }
+
+    @Test
+    fun `an unbalanced closing parenthesis does not hide the end of a skipped statement`() {
+        val f = SqlReader.read("x.sql", "GRANT ALL ON t) TO app;\nCREATE TABLE a (id int);")
+        assertEquals(emptyList(), f.errors)
+        assertEquals(2, f.statements.size)
+        assertEquals("a", (f.statements[1] as SqlStatement.CreateTable).table.name)
+    }
+
+    @Test
+    fun `deferral on a primary key unique or check constraint is reported as dropped`() {
+        val t =
+            table(
+                """
+                CREATE TABLE t (
+                  a integer PRIMARY KEY DEFERRABLE,
+                  b integer UNIQUE DEFERRABLE INITIALLY DEFERRED,
+                  c integer,
+                  UNIQUE (c) DEFERRABLE,
+                  CHECK (c > 0) NOT DEFERRABLE
+                );
+                """
+                    .trimIndent()
+            )
+        assertEquals(
+            listOf(
+                "DEFERRABLE on a constraint",
+                "DEFERRABLE on a constraint",
+                "INITIALLY DEFERRED on a constraint",
+                "DEFERRABLE on a constraint",
+            ),
+            t.dropped,
+        )
+        val f = SqlReader.read("x.sql", "ALTER TABLE t ADD PRIMARY KEY (a) DEFERRABLE;")
+        assertEquals(
+            listOf(
+                SqlStatement.AlterAdd(
+                    null,
+                    "t",
+                    SqlConstraint.PrimaryKey(null, listOf("a")),
+                    SqlPos(1, 1),
+                ),
+                SqlStatement.Dropped("DEFERRABLE on a constraint", SqlPos(1, 1)),
+            ),
+            f.statements,
+        )
+    }
+
+    @Test
+    fun `a numbered parameter in a default is kept as source text`() {
+        val t = table("CREATE TABLE t (a integer DEFAULT ${'$'}1 + 1);")
+        assertEquals(SqlExpr.Raw("${'$'}1 + 1"), t.columns[0].default)
     }
 }

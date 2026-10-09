@@ -42,7 +42,8 @@ sealed interface SqlExpr {
  * [notNull] holds when the definition itself rules out null: `NOT NULL`, an inline `PRIMARY KEY`,
  * an identity, or a serial type. [note] is the text after `schemata:` in a comment trailing the
  * column; [doc] is left null here, as docs come from `COMMENT ON`. [identity] marks `GENERATED … AS
- * IDENTITY`.
+ * IDENTITY`. [generated] is the expression of a `GENERATED ALWAYS AS (…) STORED` column, which has
+ * no place in the result, so it is not in the table's `dropped` list.
  */
 data class SqlColumn(
     val name: String,
@@ -53,6 +54,7 @@ data class SqlColumn(
     val doc: String?,
     val identity: Boolean,
     val pos: SqlPos,
+    val generated: SqlExpr? = null,
 )
 
 /**
@@ -91,8 +93,9 @@ sealed interface SqlConstraint {
 /**
  * A `CREATE TABLE`. [constraints] holds the inline column constraints and the table constraints in
  * the order written. [dropped] names what the table carried that has no place here: `EXCLUDE`
- * constraints, `LIKE`, generated columns, and trailing clauses such as `INHERITS` or `PARTITION
- * BY`. [doc] is left null here, as docs come from `COMMENT ON`.
+ * constraints, `LIKE`, a deferral on a primary key, unique or check constraint, and trailing
+ * clauses such as `INHERITS` or `PARTITION BY`. [doc] is left null here, as docs come from `COMMENT
+ * ON`.
  */
 data class SqlTable(
     val schema: String?,

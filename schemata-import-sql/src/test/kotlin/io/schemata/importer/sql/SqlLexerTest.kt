@@ -85,4 +85,14 @@ class SqlLexerTest {
         assertEquals(listOf("a", "@", ">", "b", "|", "|", "c", ""), t)
         assertEquals(SqlPos(1, 3), assertFailsWith<SqlSyntaxError> { SqlLexer.lex("a `b`") }.pos)
     }
+
+    @Test
+    fun `numbered parameters lex as one symbol with their position`() {
+        val t = SqlLexer.lex("a = ${d}1 AND b = ${d}12").filter { it.kind != SqlTokenKind.EOF }
+        assertEquals(listOf("a", "=", "${d}1", "and", "b", "=", "${d}12"), t.map { it.text })
+        assertEquals(SqlTokenKind.SYMBOL, t[2].kind)
+        assertEquals(SqlPos(1, 5), t[2].pos)
+        assertEquals(SqlPos(1, 16), t[6].pos)
+        assertEquals(SqlPos(1, 1), assertFailsWith<SqlSyntaxError> { SqlLexer.lex("${d}") }.pos)
+    }
 }

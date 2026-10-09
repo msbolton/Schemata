@@ -100,4 +100,18 @@ class SqlExprsTest {
         val tokens = SqlLexer.lex("CHECK ( \"Q\"  >= 1 AND\n x::text <> 'it''s' )")
         assertEquals("\"Q\" >= 1 and x::text <> 'it''s'", SqlExprs.text(tokens, 2, tokens.size - 2))
     }
+
+    @Test
+    fun `text keeps adjacent tokens together and separate ones apart`() {
+        fun text(src: String) = SqlLexer.lex(src).let { SqlExprs.text(it, 0, it.size - 1) }
+        assertEquals("a||b", text("a||b"))
+        assertEquals("a || b", text("a || b"))
+        // A string whose source is longer than its re-quoted text (an E string, a dollar-quoted
+        // string, or one spanning lines) still joins the token written right after it.
+        assertEquals("'x'||b", text("E'x'||b"))
+        assertEquals("'x'||b", text("${'$'}${'$'}x${'$'}${'$'}||b"))
+        assertEquals("'a\nb'||c", text("'a\nb'||c"))
+        assertEquals("'x' || b", text("E'x' || b"))
+        assertEquals("'x' b", text("E'x'  b"))
+    }
 }

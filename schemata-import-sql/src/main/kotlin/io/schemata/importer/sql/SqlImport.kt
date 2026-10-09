@@ -143,11 +143,28 @@ private class Catalog(files: List<SqlFile>, diagnostics: MutableList<Diagnostic>
         tables.values.forEach { t -> t.table.constraints.forEach(t::add) }
         for (f in files) {
             for (s in f.statements) {
+                fun table(what: String, schema: String?, name: String, pos: SqlPos): TableInfo? =
+                    resolve(schema, name)
+                        ?: null.also {
+                            val why =
+                                if (schema == null && tables.values.count { it.name == name } > 1)
+                                    "the name matches tables in several schemas"
+                                else "the table is not in the inputs"
+                            report(
+                                diagnostics,
+                                f,
+                                ImportCodes.DROPPED,
+                                "${f.path}: $what on '${schema ?: PUBLIC}.$name' dropped; $why",
+                                pos,
+                            )
+                        }
                 when (s) {
-                    is SqlStatement.AlterAdd -> resolve(s.schema, s.table)?.add(s.constraint)
-                    is SqlStatement.CreateIndex -> resolve(s.schema, s.table)?.indexes?.add(s)
+                    is SqlStatement.AlterAdd ->
+                        table("ALTER TABLE", s.schema, s.table, s.pos)?.add(s.constraint)
+                    is SqlStatement.CreateIndex ->
+                        table("CREATE INDEX", s.schema, s.table, s.pos)?.indexes?.add(s)
                     is SqlStatement.CommentOn ->
-                        resolve(s.schema, s.table)?.let { t ->
+                        table("COMMENT ON ${s.kind}", s.schema, s.table, s.pos)?.let { t ->
                             if (s.column == null) t.doc = s.text
                             else t.columnDocs[s.column] = s.text
                         }
@@ -461,18 +478,17 @@ private class Lowering(
     }
 
     private fun reportDropped(ctx: TableCtx) {
-        ctx.info.table.dropped.forEach { what ->
-            val generated = Regex("^GENERATED … STORED on column '(.*)'$").find(what)
-            val column = generated?.let { ctx.info.column(it.groupValues[1]) }
-            if (column != null) {
+        ctx.info.table.columns
+            .filter { it.generated != null }
+            .forEach {
                 say(
                     ctx,
-                    column,
+                    it,
                     ImportCodes.DROPPED,
                     "GENERATED … STORED dropped; imported as a plain column",
                 )
-            } else sayTable(ctx.info, ImportCodes.DROPPED, "$what dropped")
-        }
+            }
+        ctx.info.table.dropped.forEach { sayTable(ctx.info, ImportCodes.DROPPED, "$it dropped") }
     }
 
     /**
@@ -871,32 +887,43 @@ private class Lowering(
         fk: FkInfo,
         claimed: MutableSet<String>,
     ): Slot? {
-        val fkCols = fk.columns.map { n -> cols.first { it.name == n } }
-        val first = fkCols.first()
-        val target = refTarget(ctx, fk, first.column) ?: return null
+        val written = fk.columns.map { n -> cols.first { it.name == n } }
+        val target = refTarget(ctx, fk, written.first().column) ?: return null
         fk.consumed = true
-        fkCols.forEach { claimed += it.name }
-        val refColumns = fk.fk.refColumns.ifEmpty { target.pk!! }
-        val suffix = "_${refColumns.first()}"
+        written.forEach { claimed += it.name }
+        // The columns pair with the referenced columns one for one; the field stands for them in
+        // the order of the target's key, whatever order the constraint wrote them in.
+        val key = target.pk!!
+        val refColumns = fk.fk.refColumns.ifEmpty { key }
+        val fkCols = key.map { k -> written[refColumns.indexOf(k)] }
+        val first = fkCols.first()
+        if (fkCols != written) {
+            say(
+                ctx,
+                written.first().column,
+                ImportCodes.APPROXIMATED,
+                "foreign key columns (${fk.columns.joinToString(", ")}) are listed in another order than the key (${key.joinToString(", ")}) of '${recordNames.getValue(target.key)}'; imported in the key's order",
+            )
+        }
+        val suffix = "_${key.first()}"
         val f =
             first.local.removeSuffix(suffix).takeIf {
                 first.local.endsWith(suffix) && it.isNotEmpty()
             }
-        val follows =
-            f != null && fkCols.indices.all { fkCols[it].local == "${f}_${refColumns[it]}" }
+        val follows = f != null && fkCols.indices.all { fkCols[it].local == "${f}_${key[it]}" }
         val (name, column) =
             if (follows) spec.fieldName(f!!)
             else {
                 say(
                     ctx,
-                    first.column,
+                    written.first().column,
                     ImportCodes.APPROXIMATED,
                     "foreign key column is not named after the field and key; kept as the field name",
                 )
                 spec.fieldName(first.local).first to first.local
             }
         val nullable = fkCols.all { it.nullable }
-        val onDelete = actions(ctx, fk, first.column, nullable)
+        val onDelete = actions(ctx, fk, written.first().column, nullable)
         ctx.info.checks
             .firstOrNull { !it.consumed && allOrNone(it.expr)?.toSet() == fk.columns.toSet() }
             ?.consumed = true
@@ -905,8 +932,8 @@ private class Lowering(
                 refTo(ctx, target),
                 nullable,
                 null,
-                ctx.info.columnDocs[first.name],
-                fk.columns,
+                ctx.info.columnDocs[written.first().name],
+                fkCols.map { it.name },
                 scalar = false,
             )
             .also {
