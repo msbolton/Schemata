@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package s;
-
-import public "t.proto";
-
-message Order {
-  string id = 1;
-}

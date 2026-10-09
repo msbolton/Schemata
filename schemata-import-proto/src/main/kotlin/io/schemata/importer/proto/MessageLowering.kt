@@ -33,6 +33,16 @@ private class FieldType(
 /** One value type: a scalar, a well-known type, or a reference. */
 private class Single(val type: UnitType, val nullable: Boolean, val symbol: Symbol?)
 
+/** A sink for one field's diagnostics; [help] replaces the code's stock help when given. */
+internal fun interface Note {
+    fun report(code: DiagnosticCode, message: String, help: String?)
+
+    operator fun invoke(code: DiagnosticCode, message: String) = report(code, message, null)
+
+    operator fun invoke(code: DiagnosticCode, message: String, help: String?) =
+        report(code, message, help)
+}
+
 /** Lowers proto messages to records and unions: fields, oneofs, maps, nested messages, notes. */
 internal class MessageLowering(private val lowering: FileLowering) {
     /**
@@ -244,17 +254,19 @@ internal class MessageLowering(private val lowering: FileLowering) {
         where: String,
     ): FieldType {
         val notes = mutableListOf<Diagnostic>()
-        fun note(code: DiagnosticCode, message: String) {
-            notes += diagnostic(lowering.file, code, message, f.pos)
+        val note = Note { code, message, help ->
+            notes +=
+                if (help == null) diagnostic(lowering.file, code, message, f.pos)
+                else diagnostic(lowering.file, code, message, f.pos, help)
         }
         val base: Single? =
             when {
-                f.type == "map" -> map(f, scope, enclosing, where, ::note)
+                f.type == "map" -> map(f, scope, enclosing, where, note)
                 f.label == Label.REPEATED ->
-                    single(f.type, scope, enclosing, where, ::note)?.let {
+                    single(f.type, scope, enclosing, where, note)?.let {
                         Single(UnitType.ListOf(it.type, it.nullable, emptyList()), false, it.symbol)
                     }
-                else -> single(f.type, scope, enclosing, where, ::note)
+                else -> single(f.type, scope, enclosing, where, note)
             }
         if (base == null) return FieldType(null, false, null, null, notes)
         var type = base.type
@@ -437,7 +449,7 @@ internal class MessageLowering(private val lowering: FileLowering) {
         scope: List<String>,
         enclosing: List<String>,
         where: String,
-        note: (DiagnosticCode, String) -> Unit,
+        note: Note,
     ): Single? {
         val keyName = f.mapKey!!
         val key =
@@ -483,7 +495,7 @@ internal class MessageLowering(private val lowering: FileLowering) {
         scope: List<String>,
         enclosing: List<String>,
         where: String,
-        note: (DiagnosticCode, String) -> Unit,
+        note: Note,
     ): Single? {
         scalar(name, where, note)?.let {
             return Single(it, false, null)
@@ -491,24 +503,27 @@ internal class MessageLowering(private val lowering: FileLowering) {
         wellKnown(name, where, note)?.let {
             return it
         }
-        val symbol = lowering.context.symbols.resolve(name, scope)
+        val symbol = lowering.context.symbols.resolve(name, scope, lowering.file)
         if (symbol == null) {
             val full = name.removePrefix(".")
             if (full.startsWith("google.protobuf.")) {
                 note(ImportCodes.WIDENED, "$where: $full imported as string")
                 return Single(UnitType.Scalar("string", emptyList()), false, null)
             }
-            note(ImportCodes.UNRESOLVED, "$where: type '$name' cannot be resolved")
+            val unimported = lowering.unimported(name, scope)
+            if (unimported != null) {
+                note(
+                    ImportCodes.UNRESOLVED,
+                    "$where: type '$name' cannot be resolved; ${unimported.first}",
+                    unimported.second,
+                )
+            } else note(ImportCodes.UNRESOLVED, "$where: type '$name' cannot be resolved")
             return null
         }
         return Single(lowering.reference(symbol, enclosing), false, symbol)
     }
 
-    private fun scalar(
-        name: String,
-        where: String,
-        note: (DiagnosticCode, String) -> Unit,
-    ): UnitType? {
+    private fun scalar(name: String, where: String, note: Note): UnitType? {
         fun widened(type: UnitType.Scalar, suffix: String = ""): UnitType.Scalar {
             note(ImportCodes.WIDENED, "$where: $name imported as ${text(type)}$suffix")
             return type
@@ -537,11 +552,7 @@ internal class MessageLowering(private val lowering: FileLowering) {
      * `google.protobuf` types known without their files: a timestamp and a duration are Schemata
      * scalars; a wrapper is its scalar, nullable; the rest have no Schemata shape.
      */
-    private fun wellKnown(
-        name: String,
-        where: String,
-        note: (DiagnosticCode, String) -> Unit,
-    ): Single? {
+    private fun wellKnown(name: String, where: String, note: Note): Single? {
         val simple = name.removePrefix(".").removePrefix("google.protobuf.")
         if (simple == name.removePrefix(".")) return null
         val full = "google.protobuf.$simple"

@@ -1,4 +1,3 @@
-SCH2403 kitchen/services.proto: import public 'kitchen/enums.proto' re-exports nothing in Schemata
 SCH2403 kitchen/editions.proto: edition 2023 read as proto3; explicit presence assumed for optional fields only
 SCH2403 enum 'Level': zero value 'LEVEL_UNKNOWN' dropped; the regenerated enum names it 'LEVEL_UNSPECIFIED'
 SCH2403 enum 'Color': values renumbered; 0 is not a Schemata ordinal

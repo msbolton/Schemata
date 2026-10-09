@@ -102,14 +102,6 @@ object ProtoImporter : Importer {
         while (queue.isNotEmpty()) {
             val f = queue.removeFirst()
             f.imports.forEach { imp ->
-                if (imp.public) {
-                    report(
-                        f,
-                        ImportCodes.APPROXIMATED,
-                        "${f.path}: import public '${imp.path}' re-exports nothing in Schemata",
-                        imp.pos,
-                    )
-                }
                 if (imp.path.startsWith(WELL_KNOWN)) return@forEach
                 val listed = byRelative[imp.path]
                 if (listed != null && slashed(listed.path) in unreadable) return@forEach
@@ -180,7 +172,15 @@ object ProtoImporter : Importer {
                     }
             }
 
-        val lowered = ProtoLowering.lower(all, namespaces, ProtoSymbols(all), annotations, imports)
+        val lowered =
+            ProtoLowering.lower(
+                all,
+                namespaces,
+                ProtoSymbols(all, imports),
+                annotations,
+                imports,
+                sources.mapValues { (_, input) -> input.relative ?: input.path },
+            )
         return importResult(lowered.units, diagnostics + lowered.diagnostics)
     }
 

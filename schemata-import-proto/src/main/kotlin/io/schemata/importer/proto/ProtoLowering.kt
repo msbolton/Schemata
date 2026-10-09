@@ -37,8 +37,9 @@ internal object ProtoLowering {
         symbols: ProtoSymbols,
         annotations: Map<String, List<UnitAnnotation>> = emptyMap(),
         imports: Map<String, List<ProtoFile>> = emptyMap(),
+        sourceNames: Map<String, String> = emptyMap(),
     ): Imported {
-        val context = Context(namespaces, symbols)
+        val context = Context(namespaces, symbols, sourceNames)
         val diagnostics = mutableListOf<Diagnostic>()
         val units =
             files
@@ -97,7 +98,12 @@ internal fun doc(doc: String?, trailing: String?): String? {
 internal data class Claim(val path: String, val kind: String, val protoName: String)
 
 /** What every file's lowering reads about the whole input set. */
-internal class Context(val namespaces: Map<String, String>, val symbols: ProtoSymbols) {
+internal class Context(
+    val namespaces: Map<String, String>,
+    val symbols: ProtoSymbols,
+    /** How an import statement names each file, by [ProtoFile.path], where it has a name. */
+    val sourceNames: Map<String, String> = emptyMap(),
+) {
     /** Each symbol's path from its namespace's root in Schemata: each proto name upper-camelled. */
     val paths: Map<String, List<String>> =
         symbols.all.associate { it.fullName to it.path.map(::typeName) }
@@ -305,6 +311,21 @@ internal class FileLowering(
 
     /** Namespaces other than this one that a reference named. */
     val referenced = LinkedHashSet<String>()
+
+    /** Imports of this file that nothing in it uses. */
+    val unresolvedImports: List<String> = emptyList()
+
+    /**
+     * When [name] resolves to nothing this file can see but does resolve among all the files read:
+     * the message to append to the unresolved text, and its help. Protoc would reject such a file
+     * for want of the import, so the text names the file that declares the type.
+     */
+    fun unimported(name: String, scope: List<String>): Pair<String, String>? {
+        val symbol = context.symbols.resolve(name, scope, null) ?: return null
+        val declared = context.sourceNames[symbol.file.path] ?: symbol.file.path
+        return "'$declared' declares '${symbol.fullName}' but ${file.path} does not import it" to
+            "add import \"$declared\" to ${file.path}"
+    }
 
     internal fun report(
         code: DiagnosticCode,

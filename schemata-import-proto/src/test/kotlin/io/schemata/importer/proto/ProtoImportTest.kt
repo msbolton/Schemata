@@ -917,7 +917,6 @@ class ProtoImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 t.proto: import public 'x.proto' re-exports nothing in Schemata",
                 "SCH2404 field 'M.e': google.protobuf.Empty imported as string",
                 "SCH2404 field 'M.a': google.protobuf.Any imported as bytes",
             ),
@@ -937,6 +936,62 @@ class ProtoImportTest {
             messages(missing),
         )
         assertEquals(emptyList(), missing.files)
+    }
+
+    @Test
+    fun `a type from an unimported file is reported with the file that declares it`() {
+        val r =
+            importText(
+                "shop/a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop.a;
+                    message A { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { shop.a.A a = 1; }
+                    """,
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 field 'M.a': type 'shop.a.A' cannot be resolved; " +
+                    "'shop/a.proto' declares 'shop.a.A' but t.proto does not import it"
+            ),
+            messages(r),
+        )
+        assertEquals("add import \"shop/a.proto\" to t.proto", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `import public makes the re-exported types visible to the importing file`() {
+        val r =
+            importText(
+                "a.proto" to
+                    """
+                    syntax = "proto3";
+                    package a;
+                    import public "b.proto";
+                    message A { string id = 1; }
+                    """,
+                "b.proto" to
+                    """
+                    syntax = "proto3";
+                    package b;
+                    message B { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "a.proto";
+                    message M { b.B b = 1; a.A a = 2; }
+                    """,
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(true, text(r, "t.schemata").contains("#1 b b.B  #2 a a.A"))
     }
 
     @Test
@@ -1083,6 +1138,7 @@ class ProtoImportTest {
                     """
                     syntax = "proto3";
                     package corp;
+                    import "a.proto";
                     message B { A a = 1; }
                     """,
             )
