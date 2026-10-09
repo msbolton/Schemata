@@ -1314,7 +1314,7 @@ past the last character.
 
 ## 19. Importing
 
-    schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--include DIR]... [--strict] [--format human|json] [--color auto|always|never] PATHS...
 
 `import` reads a schema that already exists, as XML Schema, Protobuf, or Postgres DDL, and writes
 the `.schemata` source, in the 2.0 syntax, that describes the same data, reporting everything it
@@ -1356,6 +1356,14 @@ Each format names its schemas from what it has:
 keeps its 1.x name. It applies
 only when exactly one input file is given; more than one is a usage error, as is a name that is not
 dotted lower_snake segments.
+
+`--include DIR` (`-I DIR`) is repeatable and applies only to `--from proto`; with another source it
+is a usage error. A Protobuf `import` that is not found among the inputs, beside the importing file,
+or under one of their roots is looked up under each include directory in command-line order. A file
+found there is named by its path under the include, and it is lowered and written only when an input
+refers to one of its types, directly or through another such file; the rest of the directory is
+never written. For a corpus managed by `buf`, `buf export` writes the dependencies into a directory
+that `--include` can take.
 
 Every import reports in one family:
 
@@ -1826,12 +1834,24 @@ missing an attribute it cannot be read without (a `group` with no `name`, an `ex
 
 `import --from proto` reads proto2, proto3, and editions files. An `import` resolves among the
 inputs by its path under their roots (the directories named on the command line), then beside the
-importing file, then under each root on disk; a file found that way is read and imported too. An
-import of protoc's own files under `google/protobuf/`, `timestamp.proto` and `descriptor.proto`
-alike, needs no file at all, since their types are known by name. Files under one root that declare
-one package are one package to `protoc`, so they import as one schema, the package's, with each
-segment lower-snaked if need be (SCH2402). Two files whose schema names coincide but whose packages
-differ are an error (SCH2401).
+importing file, then under each root on disk, then under each `--include` directory; a file found
+that way is read and imported too. An import of protoc's own files under `google/protobuf/`,
+`timestamp.proto` and `descriptor.proto` alike, needs no file at all, since their types are known by
+name. Files under one root that declare one package are one package to `protoc`, so they import as
+one schema, the package's, with each segment lower-snaked if need be (SCH2402). Two files whose
+schema names coincide but whose packages differ are an error (SCH2401).
+
+A name resolves as it does in `protoc`: against the file itself, the files it imports directly, and
+the files those re-export with `import public`. A type declared in a file that the importing file
+does not import is an error (SCH2401), and its help gives the line to add, `add import "<file>" to
+<file>`. An `import` that resolves nowhere is a warning (SCH2405), `import '<path>' not found;
+dropped`, and the file is imported anyway; so a file's option-only dependencies, such as
+`validate/validate.proto` and the `udpa` and `xds` annotations, never need to be present. If a type
+then fails to resolve, its error (SCH2401) names the imports that were not found, with the help `add
+its directory with --include`. The `.schemata` written has an `import` for exactly the schemas whose
+declarations it uses: an import used only for its options, an `import public`, and an unused import
+give no `import` line, so compiling the result under the proto target and importing it again gives
+the same schema.
 
 | Protobuf type | Schemata type | Notes |
 |---|---|---|
@@ -1884,11 +1904,14 @@ member (SCH2403): at most one of them is set, which Schemata cannot say.
 
 `reserved` numbers and ranges become `reserved` ordinals and reserved names become reserved names,
 lower-snaked when need be (SCH2403). An enum's reserved numbers below 1 are dropped (SCH2403),
-since Schemata ordinals start at 1.
+since Schemata ordinals start at 1; so are the reserved numbers of an enum whose values were
+renumbered, because the numbers it reserved no longer mean anything (SCH2403). A zero value named
+`Unspecified`, `Unknown`, or `Unset` is dropped in any case, as the upper-case spelling is.
 
 Options steer how code is generated and how fields are encoded, not what the data is, so they are
 ignored silently: file options such as `java_package` and `go_package`, message and enum options,
-`packed`, editions `features`, and custom options in parentheses. One is read: `deprecated`, on a
+`packed`, editions `features`, and custom options in parentheses, except `(validate.rules)`, read
+as described under Validate rules below. One is read: `deprecated`, on a
 message, enum, field, or value, becomes `@deprecated`. `json_name` is dropped (SCH2405), since
 Schemata derives every JSON name itself.
 
@@ -1919,8 +1942,8 @@ literal (a string, a boolean, a decimal or hex or octal integer, a decimal numbe
 by its imported name) and dropped otherwise (SCH2403). Groups, `extensions` ranges, and `extend`
 blocks are dropped (SCH2405). An editions file (`edition = "2023"`) is read as proto3, reported
 once (SCH2403): a field is `T?` only when it says `optional`, whatever its features say.
-`import public` re-exports nothing in Schemata (SCH2403); the importing file imports the schema
-directly.
+`import public` re-exports its types to the files that import it, as in `protoc`, so a type
+declared behind one resolves without a note; the written file imports the schema that declares it.
 
 Most of the above, in one file, `protos/shop/orders.proto`:
 
@@ -2061,6 +2084,51 @@ service Orders {
 and the service gives one report, `service 'Orders': rpc 'GetURL': renamed to 'get_url'` (SCH2402).
 `submit` has no note, so it takes its position, `#4`.
 
+#### Validate rules
+
+A field's `(validate.rules)`, from `protoc-gen-validate`, become Schemata options where Schemata has
+one for the rule: a bound is `min` or `max`, a list's size is `minItems` or `maxItems`, a regular
+expression is `match`, and `uuid` is the type `uuid`. The rules of a list's `items` and a map's
+`keys` and `values` apply to the element. A rule with no option is dropped, and the file gets one
+report for each rule it drops, `validate rule 'string.email' dropped on 3 fields` (SCH2405), not
+one per field. A rule that imports with a change of meaning is noted on its field. A bound beyond
+64 bits and a range whose minimum is above its maximum are dropped. `ignore_empty: true` drops
+every rule on its field, because the rules do not apply to an empty value. A `// schemata:` note on
+the field wins over a rule.
+
+| Rule | Imported as | Code |
+|---|---|---|
+| number `gte`, `lte` | `min`, `max` | |
+| integer `gt`, `lt` | `min N+1`, `max N-1` | |
+| `float`, `double` `gt`, `lt` | `min`, `max`, which are inclusive | SCH2403 |
+| number `const` | `min N, max N` | |
+| number `in`, `not_in` | dropped | SCH2405 |
+| string `min_len`, `max_len`, `len` | `min`, `max` | |
+| string `min_bytes: 1` | `min 1` | |
+| string `min_bytes: N`, N above 1 | `min` of N divided by 4, rounded up | SCH2404 |
+| string `max_bytes` | `max N`; Schemata counts characters | SCH2404 |
+| string `pattern` | `match "<re>"` | SCH2405 when it does not compile, and it is dropped |
+| string `prefix`, `suffix`, `contains` | `match "^<s>"`, `"<s>$"`, `"<s>"`, escaped | |
+| string `in` | `match "^(a\|b)$"`, escaped | |
+| string `uuid: true` | the type `uuid` | |
+| string `not_in`, `not_contains`, `well_known_regex`, `strict`, `email`, `hostname`, `ip*`, `uri*`, `address` | dropped | SCH2405 |
+| two or more of `pattern`, `prefix`, `suffix`, `contains`, `in` | `pattern` kept, the others dropped | SCH2405 |
+| bytes `min_len`, `max_len`, `len` | `min`, `max` | |
+| other bytes rules | dropped | SCH2405 |
+| repeated `min_items`, `max_items` | `minItems`, `maxItems` | |
+| repeated `items` | the scalar rows above, on the element | |
+| repeated `unique` | dropped | SCH2405 |
+| map `min_pairs`, `max_pairs` | `minItems`, `maxItems` | |
+| map `keys`, `values` | the scalar rows above, on the key or value | |
+| map `no_sparse` | dropped | SCH2405 |
+| enum `defined_only` | nothing | |
+| enum `const`, `in`, `not_in` | dropped | SCH2405 |
+| bool `const` | dropped | SCH2405 |
+| message `required` on a wrapper field | the `?` comes off; the wrapper's note stays | SCH2403 |
+| message `required` on another message field or a `oneof` member, `skip`, any `required` | nothing; the field is already `T` | |
+| `duration`, `timestamp` rules; any `in`, `not_in` | dropped | SCH2405 |
+| `ignore_empty: true` | every rule on the field dropped | SCH2405 |
+
 #### What each construct becomes
 
 | Protobuf construct | Imported as | Code |
@@ -2068,8 +2136,10 @@ and the service gives one report, `service 'Orders': rpc 'GetURL': renamed to 'g
 | `syntax = "proto2"` or `"proto3"` | read | |
 | `edition = "…"` | read as proto3 | SCH2403 |
 | `package` | the schema name, or `@proto(package)` beside a path's | SCH2402 when derived |
-| `import` | an `import` of the schema the file lowers to | SCH2401 when unresolved |
-| `import public` | an `import`; nothing re-exported | SCH2403 |
+| `import` | an `import` of the schema the file lowers to, when a declaration uses it | SCH2401 when a type is unresolved |
+| an `import` of a file found under `--include` | the file, written only when an input references one of its types | |
+| an `import` that is found nowhere | dropped; the file is still imported | SCH2405 |
+| `import public` | no `import`; its types are visible to the importer | |
 | a message | a model, nested messages and enums nested in it | |
 | a message that is exactly one `oneof` of distinct types | a union | SCH2403 when its names differ from the target's |
 | any other `oneof` | one nullable field per member | SCH2403 |
@@ -2078,14 +2148,16 @@ and the service gives one report, `service 'Orders': rpc 'GetURL': renamed to 'g
 | a map with a `bool` key | nothing | SCH2405 |
 | a map with another integer key | `map<int32, V>` or `map<int64, V>` | SCH2404 |
 | an enum | an enum without the prefix and the synthesized zero value | |
-| a zero value spelled another way | nothing | SCH2403 |
-| an enum value numbered 0 or below | values renumbered without ordinals | SCH2403 |
+| a zero value spelled another way, in any case (`Unknown`, `UNSET`) | nothing | SCH2403 |
+| an enum value numbered 0 or below | values renumbered without ordinals; its reserved numbers dropped | SCH2403 |
 | an alias | nothing | SCH2405 |
-| `reserved` | `reserved` | SCH2403 when a name is renamed or a number is below 1 |
+| `reserved` | `reserved` | SCH2403 when a name is renamed, or a number is below 1 or its enum was renumbered |
 | `// schemata:` note | the type and default it gives; after an rpc, its ordinal and binding; in a service, its `reserved` | SCH2403 when ignored |
 | a proto2 `[default]` | a default | SCH2403 when it has no Schemata literal |
 | `[deprecated = true]`, `option deprecated = true` | `@deprecated`, on a service and an rpc too | SCH2405 on a union member |
 | `json_name` | nothing | SCH2405 |
+| `(validate.rules)` | options and refinements, per Validate rules | SCH2403, SCH2404, SCH2405 |
+| `option (validate.required)` on a `oneof` | nothing | |
 | any other option | nothing, silently | |
 | a group | nothing | SCH2405 |
 | `extensions`, `extend` | nothing | SCH2405 |
