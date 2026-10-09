@@ -390,6 +390,10 @@ Schemata writes no trigger; setting them is the application's job. Because they 
 ordinal, a field added to the model later moves both, which `diff` reports as renames and type
 changes; where the ordinals must stay put, write the two fields yourself.
 
+Write `@@timestamps(#11, #12)` to pin the two ordinals. Without them the stamps take the next two
+ordinals after the last field, so adding a field later renumbers them; a model with explicit
+ordinals that leaves them unpinned gets SCH1054.
+
 ```schemata
 schema shop.orders
 
