@@ -2,9 +2,25 @@ package io.schemata.importer.proto
 
 /**
  * An option as written: [name] keeps parentheses on extension names; [value] is the constant's
- * text.
+ * text, `{…}` for an aggregate. [aggregate] is the aggregate's fields when the reader could read
+ * them, and null for a scalar or an aggregate it skipped.
  */
-data class ProtoOption(val name: String, val value: String)
+data class ProtoOption(
+    val name: String,
+    val value: String,
+    val aggregate: OptionValue.Aggregate? = null,
+)
+
+/** A value inside an aggregate option in text format. */
+sealed interface OptionValue {
+    /** A scalar as written: strings keep their quotes, numbers and enum names their source text. */
+    data class Literal(val text: String) : OptionValue
+
+    data class ListValue(val items: List<OptionValue>) : OptionValue
+
+    /** Fields in source order; a repeated key keeps every occurrence. */
+    data class Aggregate(val fields: List<Pair<String, OptionValue>>) : OptionValue
+}
 
 /**
  * One `reserved` statement: inclusive numeric ranges and names. `max` reads as

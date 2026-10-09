@@ -253,9 +253,9 @@ object ProtoReader {
             next() // option
             val name = optionName()
             expect("=")
-            val value = constant()
+            val (value, aggregate) = constantAndAggregate()
             expect(";")
-            return ProtoOption(name, value)
+            return ProtoOption(name, value, aggregate)
         }
 
         /** `name`, `(ext.name)`, and either followed by `.sub` parts, kept as written. */
@@ -276,16 +276,107 @@ object ProtoReader {
         }
 
         /**
-         * A constant's source text; an aggregate `{ … }` is skipped by brace balance and returned
-         * as `{…}`.
+         * A constant's source text, with the fields of an aggregate `{ … }`, whose text is `{…}`.
+         * An aggregate the reader cannot read is skipped by brace balance as before and leaves the
+         * fields null, so no file that parses today stops parsing.
          */
-        private fun constant(): String {
+        private fun constantAndAggregate(): Pair<String, OptionValue.Aggregate?> {
+            if (!at("{")) return constantScalar() to null
+            val start = i
+            val startLine = lastLine
+            val parsed =
+                try {
+                    aggregate("}")
+                } catch (_: UnreadableAggregate) {
+                    null
+                }
+            if (parsed == null) {
+                i = start
+                lastLine = startLine
+                skipBlock()
+            }
+            return "{…}" to parsed
+        }
+
+        private class UnreadableAggregate : Exception()
+
+        private fun unreadable(): Nothing = throw UnreadableAggregate()
+
+        /** Text-format fields up to the [close] symbol, after the opening `{` or `<`. */
+        private fun aggregate(close: String): OptionValue.Aggregate {
+            next() // { or <
+            val fields = mutableListOf<Pair<String, OptionValue>>()
+            while (!at(close)) {
+                val key =
+                    when {
+                        at("[") -> {
+                            next()
+                            val sb = StringBuilder("[")
+                            if (peek().kind != TokenKind.IDENT) unreadable()
+                            sb.append(qualifiedName())
+                            if (!at("]")) unreadable()
+                            next()
+                            sb.append(']').toString()
+                        }
+                        peek().kind == TokenKind.IDENT -> next().text
+                        else -> unreadable()
+                    }
+                val colon = at(":")
+                if (colon) next()
+                val value =
+                    when {
+                        at("{") || at("<") -> aggregateValue()
+                        !colon -> unreadable()
+                        at("[") -> {
+                            next()
+                            val items = mutableListOf<OptionValue>()
+                            while (!at("]")) {
+                                items += if (at("{") || at("<")) aggregateValue() else scalar()
+                                if (at(",")) next() else if (!at("]")) unreadable()
+                            }
+                            next()
+                            OptionValue.ListValue(items)
+                        }
+                        else -> scalar()
+                    }
+                fields += key to value
+                if (at(",") || at(";")) next()
+            }
+            next() // close
+            return OptionValue.Aggregate(fields)
+        }
+
+        private fun aggregateValue(): OptionValue.Aggregate = aggregate(if (at("{")) "}" else ">")
+
+        /**
+         * A scalar: a string, a number with an optional sign, or an identifier (`inf`, an enum).
+         */
+        private fun scalar(): OptionValue.Literal {
             val t = peek()
             return when {
-                at("{") -> {
-                    skipBlock()
-                    "{…}"
+                t.kind == TokenKind.STRING ||
+                    t.kind == TokenKind.INT ||
+                    t.kind == TokenKind.FLOAT ||
+                    t.kind == TokenKind.IDENT -> OptionValue.Literal(next().text)
+                at("-") || at("+") -> {
+                    next()
+                    val n = peek()
+                    if (
+                        n.kind != TokenKind.INT &&
+                            n.kind != TokenKind.FLOAT &&
+                            n.kind != TokenKind.IDENT
+                    )
+                        unreadable()
+                    next()
+                    OptionValue.Literal(t.text + n.text)
                 }
+                else -> unreadable()
+            }
+        }
+
+        private fun constantScalar(): String {
+            val t = peek()
+            return when {
                 at("-") || at("+") -> {
                     next()
                     val n = peek()
@@ -350,7 +441,8 @@ object ProtoReader {
             while (true) {
                 val name = optionName()
                 expect("=")
-                out += ProtoOption(name, constant())
+                val (value, aggregate) = constantAndAggregate()
+                out += ProtoOption(name, value, aggregate)
                 if (at(",")) {
                     next()
                     continue

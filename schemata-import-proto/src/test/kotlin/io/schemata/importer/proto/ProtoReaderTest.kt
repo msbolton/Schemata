@@ -467,4 +467,66 @@ class ProtoReaderTest {
         val e = assertFailsWith<ProtoSyntaxError> { read("message Caf\u00e9 {}") }
         assertEquals(Pos(1, 12), e.pos)
     }
+
+    @Test
+    fun `an aggregate option value is read as fields`() {
+        val f =
+            read(
+                """
+                message M { uint32 port = 1 [(validate.rules).uint32 = {gte: 1, lte: 65535}]; }
+                """
+            )
+        val o = f.messages.single().fields.single().options.single()
+        assertEquals("(validate.rules).uint32", o.name)
+        assertEquals("{…}", o.value)
+        assertEquals(
+            OptionValue.Aggregate(
+                listOf("gte" to OptionValue.Literal("1"), "lte" to OptionValue.Literal("65535"))
+            ),
+            o.aggregate,
+        )
+    }
+
+    @Test
+    fun `a nested aggregate and a list are read`() {
+        val f =
+            read("option (x) = {repeated {items {string {min_len: 1}}} in: [1, 2] t: <a: -inf>};")
+        val o = f.options.single()
+        assertEquals("{…}", o.value)
+        assertEquals(
+            OptionValue.Aggregate(
+                listOf(
+                    "repeated" to
+                        OptionValue.Aggregate(
+                            listOf(
+                                "items" to
+                                    OptionValue.Aggregate(
+                                        listOf(
+                                            "string" to
+                                                OptionValue.Aggregate(
+                                                    listOf("min_len" to OptionValue.Literal("1"))
+                                                )
+                                        )
+                                    )
+                            )
+                        ),
+                    "in" to
+                        OptionValue.ListValue(
+                            listOf(OptionValue.Literal("1"), OptionValue.Literal("2"))
+                        ),
+                    "t" to OptionValue.Aggregate(listOf("a" to OptionValue.Literal("-inf"))),
+                )
+            ),
+            o.aggregate,
+        )
+    }
+
+    @Test
+    fun `an aggregate the reader cannot read keeps the raw text`() {
+        val f = read("option (x) = {a: 1 / 2};\nmessage M {}")
+        val o = f.options.single()
+        assertEquals("{…}", o.value)
+        assertNull(o.aggregate)
+        assertEquals("M", f.messages.single().name)
+    }
 }
