@@ -228,6 +228,55 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `a renumbered enum drops its reserved numbers`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Lb {
+                      ROUND_ROBIN = 0;
+                      LEAST_REQUEST = 1;
+                      reserved 4;
+                      reserved "LB_OLD";
+                      MAGLEV = 5;
+                      OTHER = 7;
+                    }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue(!out.contains("reserved #"), out)
+        assertTrue(out.contains("reserved \"old\""), out)
+        assertEquals(
+            listOf(
+                "SCH2403 enum 'Lb': values renumbered; 0 is not a Schemata ordinal",
+                "SCH2403 enum 'Lb': reserved numbers dropped; the values were renumbered",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an enum that keeps its numbers keeps its reserved numbers`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Status {
+                      STATUS_UNSPECIFIED = 0;
+                      STATUS_PENDING = 1;
+                      reserved 5 to 6;
+                      reserved "STATUS_OLD";
+                    }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue(out.contains("reserved #5..#6, \"old\""), out)
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
     fun `oneofs`() {
         val r =
             importText(

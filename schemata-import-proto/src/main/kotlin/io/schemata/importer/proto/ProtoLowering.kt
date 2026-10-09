@@ -251,10 +251,24 @@ internal class EnumLowering(e: ProtoEnum, file: ProtoFile) {
                 )
         }
         var below = false
-        e.reserved.forEach { r ->
-            r.ranges.forEach { (from, to) ->
-                if (from < 1) below = true
-                if (to >= 1) reserved += UnitReserved.Ordinals(maxOf(from, 1), to)
+        if (notOrdinal != null) {
+            // Reserved numbers refer to the proto numbering; the values now take positional
+            // ordinals, so keeping them could reserve a number a renumbered value lands on.
+            e.reserved
+                .firstOrNull { it.ranges.isNotEmpty() }
+                ?.let { first ->
+                    report(
+                        ImportCodes.APPROXIMATED,
+                        "$where: reserved numbers dropped; the values were renumbered",
+                        first.pos,
+                    )
+                }
+        } else {
+            e.reserved.forEach { r ->
+                r.ranges.forEach { (from, to) ->
+                    if (from < 1) below = true
+                    if (to >= 1) reserved += UnitReserved.Ordinals(maxOf(from, 1), to)
+                }
             }
         }
         if (below) {
