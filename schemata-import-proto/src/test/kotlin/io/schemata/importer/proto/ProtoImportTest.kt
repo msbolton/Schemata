@@ -277,6 +277,26 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `a mixed-case zero value is dropped like an upper-case one`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Unit { Unspecified = 0; Bytes = 1; Seconds = 2; }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue(!out.contains("unspecified"), out)
+        assertEquals(
+            listOf(
+                "SCH2403 enum 'Unit': zero value 'Unspecified' dropped; the regenerated enum names it 'UNIT_UNSPECIFIED'"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `oneofs`() {
         val r =
             importText(

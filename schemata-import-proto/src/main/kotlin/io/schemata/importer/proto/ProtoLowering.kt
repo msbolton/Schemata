@@ -310,8 +310,11 @@ internal class EnumLowering(e: ProtoEnum, file: ProtoFile) {
     private fun regenerated(name: String): String = prefix + name.uppercase()
 
     companion object {
-        /** A zero value that means "not set" under another spelling than the target's. */
-        private val zeroLike = Regex("(.*_)?(UNSPECIFIED|UNKNOWN|UNSET)")
+        /**
+         * A zero value that means "not set" under another spelling than the target's, whatever its
+         * case.
+         */
+        private val zeroLike = Regex("(.*_)?(UNSPECIFIED|UNKNOWN|UNSET)", RegexOption.IGNORE_CASE)
     }
 }
 
