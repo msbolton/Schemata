@@ -1854,4 +1854,73 @@ class ProtoImportTest {
         )
         assertEquals(2, slash.files.size)
     }
+
+    @Test
+    fun `a file found beside an include file is written only when referenced`() {
+        val r =
+            withIncludes(
+                listOf(
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "status.proto";
+                        message T { google.rpc.Status status = 1; }
+                        """
+                ),
+                mapOf(
+                    "/inc" to
+                        mapOf(
+                            "status.proto" to
+                                """
+                                syntax = "proto3";
+                                package google.rpc;
+                                import "unused.proto";
+                                message Status { int32 code = 1; }
+                                """,
+                            "unused.proto" to
+                                """
+                                syntax = "proto3";
+                                package unused;
+                                message Unused {}
+                                """,
+                        )
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(listOf("app/t.schemata", "status.schemata"), r.files.map { it.path }.sorted())
+    }
+
+    @Test
+    fun `a root file keeps the include files it references`() {
+        val files =
+            mapOf(
+                "/r/lib/u.proto" to
+                    """
+                    syntax = "proto3";
+                    package lib;
+                    import "google/rpc/status.proto";
+                    message U { google.rpc.Status status = 1; }
+                    """,
+                "/inc/google/rpc/status.proto" to statusFile().getValue("google/rpc/status.proto"),
+            )
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "/r/app/t.proto",
+                        "syntax = \"proto3\";\npackage app;\nimport \"lib/u.proto\";\nmessage T {}\n",
+                        relative = "app/t.proto",
+                    )
+                ),
+                null,
+                { path -> files[path]?.let { ImportInput(path, it.trimIndent()) } },
+                listOf("/inc"),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata", "lib/u.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+    }
 }

@@ -144,10 +144,14 @@ object ProtoImporter : Importer {
                         ?: (files[beside]
                             ?: locate(beside)?.let {
                                 val input = placed(it, f, beside)
-                                // Beside an importer under a root, it sits under that root too.
+                                // A file found beside an include file is an include file: it is
+                                // written only when something references it, though it is still
+                                // placed under the include root for its namespace. Beside any
+                                // other importer under a root, it sits under that root too.
                                 found(
                                     input,
-                                    if (input.relative != null) Lookup.Root else Lookup.Beside,
+                                    if (lookups[f.path] == Lookup.Include) Lookup.Include
+                                    else if (input.relative != null) Lookup.Root else Lookup.Beside,
                                 )
                             })
                         ?: roots.firstNotNullOfOrNull { root ->
@@ -185,8 +189,13 @@ object ProtoImporter : Importer {
         // A file read only through lookup and referenced by nothing that is lowered is dropped
         // before it is named or lowered, so it costs no output and no diagnostics.
         val wide = ProtoSymbols(files.values.toList(), imports, publicImports)
+        // Every file that is always written has its references followed: the inputs and each
+        // file found under a root. Otherwise a type such a file uses from an include file would
+        // leave that file unneeded, dropping the import the lowering checks the type against.
         val needed =
-            files.values.filter { slashed(it.path) in inputPaths }.mapTo(mutableSetOf()) { it.path }
+            files.values
+                .filter { slashed(it.path) in inputPaths || lookups[it.path] == Lookup.Root }
+                .mapTo(mutableSetOf()) { it.path }
         val pending = ArrayDeque(needed)
         while (pending.isNotEmpty()) {
             val f = files.getValue(slashed(pending.removeFirst()))
