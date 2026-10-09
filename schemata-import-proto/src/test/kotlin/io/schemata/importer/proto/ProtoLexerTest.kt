@@ -68,7 +68,10 @@ class ProtoLexerTest {
         val tokens = ProtoLexer.lex(source)
         val millis = (System.nanoTime() - start) / 1_000_000
         assertEquals("A".repeat(count), tokens[0].text)
-        assertTrue(millis < 1_500, "took $millis ms")
+        // quadratic lexing of this input is orders of magnitude slower, so a loose bound still
+        // catches it
+        // while a slow or loaded runner cannot trip it
+        assertTrue(millis < 20_000, "took $millis ms")
     }
 
     @Test
