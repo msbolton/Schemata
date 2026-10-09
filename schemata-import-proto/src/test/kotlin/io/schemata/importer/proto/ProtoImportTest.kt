@@ -1552,4 +1552,130 @@ class ProtoImportTest {
             )
         assertEquals(3, r.files.size)
     }
+
+    private fun withIncludes(
+        inputs: List<Pair<String, String>>,
+        includes: Map<String, Map<String, String>>,
+    ): ImportResult =
+        ProtoImporter.import(
+            inputs.map { ImportInput(it.first, it.second.trimIndent(), relative = it.first) },
+            null,
+            { path ->
+                includes.entries.firstNotNullOfOrNull { (dir, files) ->
+                    files.entries
+                        .firstOrNull { "$dir/${it.key}" == path }
+                        ?.let { ImportInput(path, it.value.trimIndent()) }
+                }
+            },
+            includes.keys.toList(),
+        )
+
+    @Test
+    fun `an import found under an include root is read and takes its namespace from its path there`() {
+        val r =
+            withIncludes(
+                listOf(
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "google/rpc/status.proto";
+                        message T { google.rpc.Status status = 1; }
+                        """
+                ),
+                mapOf(
+                    "/inc" to
+                        mapOf(
+                            "google/rpc/status.proto" to
+                                """
+                                syntax = "proto3";
+                                package google.rpc;
+                                message Status { int32 code = 1; }
+                                """
+                        )
+                ),
+            )
+        assertEquals(emptyList(), messages(r).filter { it.startsWith("SCH2405") })
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+        assertTrue(text(r, "google/rpc/status.schemata").startsWith("schema google.rpc.status"))
+        assertTrue(
+            text(r, "google/rpc/status.schemata").contains("@proto(package: \"google.rpc\")")
+        )
+    }
+
+    @Test
+    fun `an input beats an include root and the first include root beats the second`() {
+        fun dep(name: String) =
+            """
+            syntax = "proto3";
+            package x;
+            message $name {}
+            """
+        val r =
+            withIncludes(
+                listOf(
+                    "x/dep.proto" to dep("Input"),
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "x/dep.proto";
+                        import "x/other.proto";
+                        message T { x.Input a = 1; x.FromA b = 2; }
+                        """,
+                ),
+                mapOf(
+                    "/a" to mapOf("x/dep.proto" to dep("FromA"), "x/other.proto" to dep("FromA")),
+                    "/b" to mapOf("x/dep.proto" to dep("FromB"), "x/other.proto" to dep("FromB")),
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        val all = r.files.joinToString("\n") { it.content }
+        assertTrue(all.contains("Input"), all)
+        assertTrue(all.contains("FromA"), all)
+        assertFalse(all.contains("FromB"), all)
+    }
+
+    @Test
+    fun `an include file is emitted only when an input references it`() {
+        val r =
+            withIncludes(
+                listOf(
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "validate/validate.proto";
+                        import "google/rpc/status.proto";
+                        message T { google.rpc.Status status = 1 [(validate.rules).message.required = true]; }
+                        """
+                ),
+                mapOf(
+                    "/inc" to
+                        mapOf(
+                            "validate/validate.proto" to
+                                """
+                                syntax = "proto2";
+                                package validate;
+                                import "google/protobuf/descriptor.proto";
+                                extend google.protobuf.FieldOptions { optional string rules = 1071; }
+                                """,
+                            "google/rpc/status.proto" to
+                                """
+                                syntax = "proto3";
+                                package google.rpc;
+                                message Status { int32 code = 1; }
+                                """,
+                        )
+                ),
+            )
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+        assertEquals(emptyList(), messages(r).filter { it.startsWith("SCH2402") })
+    }
 }

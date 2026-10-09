@@ -38,7 +38,20 @@ object ProtoImporter : Importer {
         inputs: List<ImportInput>,
         namespace: String?,
         locate: (String) -> ImportInput?,
+    ): ImportResult = import(inputs, namespace, locate, emptyList())
+
+    /**
+     * Like [import], with directories searched last for an import that is not among the inputs,
+     * beside its importer, or under a root: in the order given. A file found under an include is
+     * named by its path under that directory, and is lowered only when an input needs it.
+     */
+    fun import(
+        inputs: List<ImportInput>,
+        namespace: String?,
+        locate: (String) -> ImportInput?,
+        includes: List<String>,
     ): ImportResult {
+        val includeRoots = includes.map { slashed(it).trimEnd('/') }
         val diagnostics = mutableListOf<Diagnostic>()
         // Keyed by the path with `/` separators, so a path the platform spells with `\` still
         // matches one joined from an import.
@@ -142,6 +155,13 @@ object ProtoImporter : Importer {
                             files[path]
                                 ?: locate(path)?.let {
                                     found(it.copy(relative = imp.path), Lookup.Root)
+                                }
+                        }
+                        ?: includeRoots.firstNotNullOfOrNull { inc ->
+                            val path = "$inc/${imp.path}"
+                            files[path]
+                                ?: locate(path)?.let {
+                                    found(it.copy(relative = imp.path), Lookup.Include)
                                 }
                         }
                 if (target == null) {

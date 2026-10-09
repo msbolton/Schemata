@@ -6,6 +6,7 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.groups.provideDelegate
 import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.choice
@@ -39,10 +40,22 @@ class ImportCommand : CliktCommand(name = "import") {
                 "Schema name for a single input file: one whose XSD targetNamespace is not " +
                     "urn:schemata:, or whose proto package or SQL schema is not a schema name",
         )
+    private val include by
+        option(
+                "--include",
+                "-I",
+                help =
+                    "Directory where a proto import not among the inputs is looked up; repeatable",
+            )
+            .path(mustExist = true, canBeFile = false)
+            .multiple()
     private val reporting by ReportingOptions()
     private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
 
     override fun run() {
+        if (include.isNotEmpty() && from != "proto") {
+            throw usageError("--include applies to --from proto")
+        }
         val (importer: Importer, files) =
             when (from) {
                 "proto" -> ProtoImporter to ProtoSet.load(inputs)
@@ -60,12 +73,18 @@ class ImportCommand : CliktCommand(name = "import") {
         if (namespace != null && files.size != 1) {
             throw usageError("--namespace applies to a single input file")
         }
+        val sources = files.map { ImportInput(it.path, it.content, it.relative) }
         val result =
-            importer.import(
-                files.map { ImportInput(it.path, it.content, it.relative) },
-                namespace,
-                ::locate,
-            )
+            if (importer is ProtoImporter) {
+                importer.import(
+                    sources,
+                    namespace,
+                    ::locate,
+                    include.map { it.normalize().toString() },
+                )
+            } else {
+                importer.import(sources, namespace, ::locate)
+            }
         val report = importReport(result, reporting.strict)
         if (report.errors == 0) {
             result.files.forEach { writeOutput(out.resolve("import").resolve(it.path), it.content) }
