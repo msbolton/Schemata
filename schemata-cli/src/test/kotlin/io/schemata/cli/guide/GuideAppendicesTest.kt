@@ -7,6 +7,7 @@ import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.LangCodes
+import io.schemata.lsp.LspCodes
 import io.schemata.migrate.MigrateCodes
 import java.io.File
 import kotlin.test.Test
@@ -96,6 +97,7 @@ class GuideAppendicesTest {
                 emptyList(),
             ),
             Module("Migration (SCH27xx)", "SCH27", MigrateCodes.all, emptyList()),
+            Module("Language server (SCH28xx)", "SCH28", LspCodes.all, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {

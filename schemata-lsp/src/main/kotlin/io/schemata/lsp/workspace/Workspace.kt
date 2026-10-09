@@ -5,15 +5,13 @@ import io.schemata.core.Analyzer
 import io.schemata.core.IndexedDecl
 import io.schemata.core.ReferenceRecorder
 import io.schemata.core.annotations.AnnotationRegistry
-import io.schemata.lang.Category
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.ParseResult
 import io.schemata.lang.Parser
-import io.schemata.lang.Severity
 import io.schemata.lang.Span
 import io.schemata.lang.ast.ImportDecl
 import io.schemata.lang.ast.SourceFile
+import io.schemata.lsp.LspCodes
 import java.io.IOException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -23,14 +21,6 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.extension
 import kotlin.io.path.isRegularFile
-
-/** A file the parser threw on; the editor shows it like a syntax error. */
-private val PARSE_FAILED =
-    DiagnosticCode("LSP0001", Severity.ERROR, Category.SYNTAX, "the parser failed on a file")
-
-/** A file the set lists but the disk would not let the server read. */
-private val UNREADABLE =
-    DiagnosticCode("LSP0002", Severity.ERROR, Category.SYNTAX, "a file could not be read")
 
 /** Everything the resolver reported while one set was analysed. */
 class Recorded : ReferenceRecorder {
@@ -190,7 +180,11 @@ class Workspace(
             ParseResult(
                 null,
                 listOf(
-                    Diagnostic(PARSE_FAILED, "the parser failed on this file: $why", startOf(path))
+                    Diagnostic(
+                        LspCodes.PARSE_FAILED,
+                        "the parser failed on this file: $why",
+                        startOf(path),
+                    )
                 ),
             )
         }
@@ -208,7 +202,12 @@ class Workspace(
 
     private fun analyze(key: SetKey): SetAnalysis {
         val previous = documents.keys.filter { sets.contains(key, it) }.toSet()
-        val onDisk = listFiles(key)
+        val listed = listFiles(key)
+        // Without a watcher the cached list can still name a file that has since been deleted;
+        // a closed file the disk cannot even stat is gone, not unreadable.
+        val vanished = listed.filter { documents[it]?.open != true && stamp(it) == null }.toSet()
+        if (vanished.isNotEmpty()) listings.remove(key)
+        val onDisk = listed - vanished
         for (path in onDisk) {
             val document = documents[path]
             if (document?.open == true) continue
@@ -229,7 +228,11 @@ class Workspace(
                     read.unreadable = true
                     read.parseDiagnostics =
                         listOf(
-                            Diagnostic(UNREADABLE, "cannot read this file from disk", startOf(path))
+                            Diagnostic(
+                                LspCodes.UNREADABLE,
+                                "cannot read this file from disk",
+                                startOf(path),
+                            )
                         )
                 }
             }

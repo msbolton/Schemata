@@ -372,4 +372,19 @@ class WorkspaceTest {
         ws.analysis(ws.open(file("shop/new.schemata", "schema shop.n\n"), "schema shop.n\n"))
         assertEquals(5, listed)
     }
+
+    @Test
+    fun `a file deleted with no event while the list is cached is gone and not unreadable`() {
+        val c = file("shop/customers.schemata", customers)
+        val o = file("shop/orders.schemata", orders)
+        val ws = workspace()
+        val key = ws.open(o, orders)
+        assertEquals(emptyList(), codes(ws.analysis(key), o))
+        Path.of(c).deleteExisting()
+        val after = ws.analysis(ws.change(o, "$orders\n"))
+        assertEquals(setOf(c), after.gone)
+        assertFalse(c in after.diagnostics.keys)
+        assertNull(ws.document(c))
+        assertTrue("SCH1006" in codes(after, o), codes(after, o).toString())
+    }
 }

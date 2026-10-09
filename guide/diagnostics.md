@@ -158,3 +158,10 @@ Retired, never reused: SCH2103, SCH2104, SCH2107.
 |---|---|---|---|---|---|
 | SCH2701 | error | lossy | a migration step loses data; a warning under --allow-destructive | s.Customer.note: DROP COLUMN "note" loses every value the column holds | rerun with --allow-destructive once the data is migrated or no longer needed |
 | SCH2702 | warning | lossy | a migration step can fail on existing rows | s.Customer.note: SET NOT NULL on "note" fails when a row holds NULL | run UPDATE "s"."customer" SET "note" = … WHERE "note" IS NULL before applying |
+
+## Language server (SCH28xx)
+
+| Code | Severity | Category | Fires when | Message | Help |
+|---|---|---|---|---|---|
+| SCH2801 | error | syntax | the parser failed on a file |  |  |
+| SCH2802 | error | semantic | a file could not be read |  |  |
