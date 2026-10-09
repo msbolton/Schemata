@@ -93,6 +93,11 @@ class HoistingTest {
     }
 
     @Test
+    fun `an ordinal on an attribute other than timestamps is SCH1018`() {
+        assertEquals(listOf("SCH1018"), codes("schema s\nmodel M { @deprecated(#3) #1 a int32 }"))
+    }
+
+    @Test
     fun `an inline enum as a list element hoists and the field stays a list`() {
         val r = analyze("schema s\nmodel Post { tags enum { news sport }[] }")
         val tags = model(r, "Post").fields[0].type as io.schemata.core.ir.ListOf
