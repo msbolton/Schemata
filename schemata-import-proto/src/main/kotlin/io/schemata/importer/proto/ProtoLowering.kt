@@ -27,16 +27,17 @@ import io.schemata.target.Names
 internal object ProtoLowering {
     /**
      * [namespaces] names each file's namespace, [annotations] what its unit carries above the
-     * `namespace` line, and [imports] the files each one's `import` statements resolved to; all
-     * three are keyed by [ProtoFile.path], since a file's tree is too large to hash and compare on
-     * every lookup.
+     * `namespace` line; both are keyed by [ProtoFile.path], since a file's tree is too large to
+     * hash and compare on every lookup. A unit imports exactly the namespaces its declarations
+     * reference, in the order they are first used: a Schemata file imports what it uses, so a proto
+     * import whose types it never uses, an option-only import and an `import public` produce no
+     * line, which is what makes the Protobuf round trip exact.
      */
     fun lower(
         files: List<ProtoFile>,
         namespaces: Map<String, String>,
         symbols: ProtoSymbols,
         annotations: Map<String, List<UnitAnnotation>> = emptyMap(),
-        imports: Map<String, List<ProtoFile>> = emptyMap(),
         sourceNames: Map<String, String> = emptyMap(),
         unresolvedImports: Map<String, List<String>> = emptyMap(),
     ): Imported {
@@ -54,9 +55,6 @@ internal object ProtoLowering {
                         val lowering = FileLowering(file, namespace, context, diagnostics, topLevel)
                         declarations += lowering.declarations()
                         services += lowering.serviceLowering.services()
-                        imports[file.path].orEmpty().forEach {
-                            unitImports += namespaces.getValue(it.path)
-                        }
                         unitImports += lowering.referenced
                     }
                     unitImports -= namespace

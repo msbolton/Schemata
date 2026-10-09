@@ -875,6 +875,58 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `an import used only by options is not written to the schemata file`() {
+        val r =
+            importText(
+                "opts.proto" to
+                    """
+                    syntax = "proto3";
+                    package opts;
+                    message Marker { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "opts.proto";
+                    import public "x.proto";
+                    message M { string id = 1; }
+                    """,
+                "x.proto" to
+                    """
+                    syntax = "proto3";
+                    package x;
+                    message X {}
+                    """,
+            )
+        assertEquals("schema t\n\nmodel M { #1 id string }\n", text(r, "t.schemata"))
+    }
+
+    @Test
+    fun `an import whose types are used is kept`() {
+        val r =
+            importText(
+                "opts.proto" to
+                    """
+                    syntax = "proto3";
+                    package opts;
+                    message Marker { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "opts.proto";
+                    message M { opts.Marker m = 1; }
+                    """,
+            )
+        assertEquals(
+            "schema t\n\nimport opts\n\nmodel M { #1 m opts.Marker }\n",
+            text(r, "t.schemata"),
+        )
+    }
+
+    @Test
     fun `imports name the namespace the imported file lowers to`() {
         val r =
             importText(
@@ -908,7 +960,6 @@ class ProtoImportTest {
             schema t
 
             import shop.customers
-            import x
 
             model M { #1 c shop.customers.Customer  #2 e string  #3 a bytes }
             """
@@ -1099,8 +1150,8 @@ class ProtoImportTest {
             """
             schema t
 
-            import a
             import b
+            import a
 
             model M { #1 b b.B  #2 a a.A }
             """

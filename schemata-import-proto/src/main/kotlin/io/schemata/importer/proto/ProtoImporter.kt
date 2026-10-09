@@ -257,7 +257,6 @@ object ProtoImporter : Importer {
                 namespaces,
                 ProtoSymbols(every, keptImports, keptPublic),
                 annotations,
-                keptImports,
                 sources.mapValues { (_, input) -> input.relative ?: input.path },
                 unresolvedImports,
             )

@@ -49,6 +49,13 @@ class ImportRoundTripTest {
     private val tolerated: Map<String, Regex> =
         mapOf("sql" to Regex("SCH2403 .*: '.*' is stored as json; its fields are not in the DDL"))
 
+    /**
+     * The one diagnostic a faithful proto round trip can produce: the note that a name which does
+     * not invert (an rpc `GetURL` lowered to `get_url` with `@proto(name: "GetURL")`) was renamed.
+     * Only the imported proto cases tolerate it; every other diagnostic fails the case.
+     */
+    private val protoRename = Regex("SCH2402 .*: renamed to '.*'")
+
     @TestFactory
     fun `importing a target's output regenerates it byte for byte`(): List<DynamicTest> =
         formats.flatMap { (format, target, importer) ->
@@ -98,18 +105,59 @@ class ImportRoundTripTest {
         )
     }
 
-    private fun check(case: File, format: String, target: Target<*>, importer: Importer) {
-        val original = Pipeline.compile(TestSources.of(case), listOf(target))
+    /**
+     * The `.schemata` files of every imported proto case's `expected/` tree compile to proto,
+     * import back, and regenerate that proto byte for byte. A Schemata file imports what its
+     * declarations reference, and the importer writes the same: a proto import whose types are
+     * never used, an option-only import and an `import public` produce no line, so the round trip
+     * is exact.
+     */
+    @TestFactory
+    fun `imported proto cases regenerate their proto byte for byte`(): List<DynamicTest> =
+        File("src/test/resources/import")
+            .listFiles { f -> f.isDirectory && f.name.startsWith("proto-") }!!
+            .filter { File(it, "expected").isDirectory }
+            .sortedBy { it.name }
+            .map { case ->
+                DynamicTest.dynamicTest(case.name) {
+                    val expected = File(case, "expected")
+                    val sources =
+                        expected
+                            .walkTopDown()
+                            .filter { it.isFile && it.extension == "schemata" }
+                            .sortedBy { it.relativeTo(expected).path }
+                            .map {
+                                SourceInput(
+                                    it.relativeTo(expected).path.replace(File.separatorChar, '/'),
+                                    it.readText(),
+                                )
+                            }
+                            .toList()
+                    roundTrip(case.name, sources, "proto", ProtoTarget, ProtoImporter, protoRename)
+                }
+            }
+
+    private fun check(case: File, format: String, target: Target<*>, importer: Importer) =
+        roundTrip(case.name, TestSources.of(case), format, target, importer)
+
+    private fun roundTrip(
+        name: String,
+        sources: List<SourceInput>,
+        format: String,
+        target: Target<*>,
+        importer: Importer,
+        allowed: Regex? = tolerated[format],
+    ) {
+        val original = Pipeline.compile(sources, listOf(target))
         assertFalse(original.hasErrors)
         val output = original.files.map { ImportInput(it.file.path, it.file.content, it.file.path) }
         val imported = importer.import(output)
-        val allowed = tolerated[format]
         assertEquals(
             emptyList(),
             imported.diagnostics
                 .map { "${it.code.id} ${it.message}" }
                 .filterNot { allowed?.matches(it) == true },
-            "import of ${case.name}",
+            "import of ${name}",
         )
         val again =
             Pipeline.compile(
@@ -125,24 +173,25 @@ class ImportRoundTripTest {
                 .filterNot { format == "sql" && schemaOnly.matches(it.file.content) }
                 .associate { it.file.path to it.file.content },
             again.files.associate { it.file.path to it.file.content },
-            "regenerated $format for ${case.name}",
+            "regenerated $format for ${name}",
         )
-        val sources = imported.files.map { SourceInput(it.path, it.content) }
-        val noSql = Pipeline.compile(sources, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
+        val importedSources = imported.files.map { SourceInput(it.path, it.content) }
+        val noSql =
+            Pipeline.compile(importedSources, listOf(ProtoTarget, XsdTarget, JsonSchemaTarget))
         assertFalse(
             noSql.hasErrors,
-            "imported ${case.name} under proto, xsd, and jsonschema: " +
+            "imported ${name} under proto, xsd, and jsonschema: " +
                 noSql.diagnostics
                     .filter { it.severity == Severity.ERROR }
                     .joinToString("\n") { "${it.code.id} ${it.message}" },
         )
         val sqlErrors =
-            Pipeline.compile(sources, listOf(SqlTarget)).diagnostics.filter {
+            Pipeline.compile(importedSources, listOf(SqlTarget)).diagnostics.filter {
                 it.severity == Severity.ERROR
             }
         assertTrue(
             sqlErrors.all { it.code == SqlCodes.MISSING_KEY },
-            "imported ${case.name} under sql had an error other than a missing key: " +
+            "imported ${name} under sql had an error other than a missing key: " +
                 sqlErrors.joinToString("\n") { "${it.code.id} ${it.message}" },
         )
     }
