@@ -386,13 +386,11 @@ declared type. Enum values are written without commas, in an inline enum as in a
 `@@timestamps` appends two fields after the declared ones, `created_at instant` and
 `updated_at instant?`, numbered after the last explicit ordinal, or by position when the model's
 ordinals are implicit. They are ordinary fields on every target, and `diff` sees them as fields.
-Schemata writes no trigger; setting them is the application's job. Because they follow the last
-ordinal, a field added to the model later moves both, which `diff` reports as renames and type
-changes; where the ordinals must stay put, write the two fields yourself.
-
-Write `@@timestamps(#11, #12)` to pin the two ordinals. Without them the stamps take the next two
-ordinals after the last field, so adding a field later renumbers them; a model with explicit
-ordinals that leaves them unpinned gets SCH1054.
+Schemata writes no trigger; setting them is the application's job. Without a pin they take the next
+two ordinals after the last field, so a field added later renumbers them, which `diff` reports as
+renames and type changes. Write `@@timestamps(#11, #12)` to pin the two ordinals where they must
+stay put; a model with explicit ordinals that leaves them unpinned gets SCH1054. On a model with
+implicit ordinals a pin holds until the field count reaches it, after which SCH1019 fires.
 
 ```schemata
 schema shop.orders
@@ -403,7 +401,7 @@ model Order {
   #3 shipping { street string { max 200 }  city string { max 100 } }
   #4 billing  { street string { max 200 }  city string { max 100 } } @name("Address")
 
-  @@timestamps
+  @@timestamps(#5, #6)
 }
 ```
 
@@ -1153,7 +1151,7 @@ every target.
 | a bound or pattern (`min`, `max`, `match`, `minItems`, `maxItems`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint; a `match` pattern with a construct Postgres regexes lack (`\p{…}`, `\b` as a word boundary, named groups, possessive quantifiers) drops the CHECK with a warning (SCH2105); lookahead and lookbehind are fine | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301), including an identity escape such as `\-` outside a class, which the Unicode dialect JSON Schema assumes rejects; `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) | as JSON Schema, with SCH2604 where JSON Schema reports SCH2301 |
 | a back-reference (`@relation(field)`) | nothing | nothing | nothing | nothing | nothing |
 | `@relation(onDelete: …)` | nothing | `ON DELETE CASCADE` or `ON DELETE SET NULL` on the foreign key; `restrict`, the default, writes no clause | nothing | nothing | nothing |
-| `@@timestamps` | two fields, `created_at` and `updated_at`, like any declared | two columns, `created_at timestamptz NOT NULL` and a nullable `updated_at` | two elements | two properties | as JSON Schema |
+| `@@timestamps`; `@@timestamps(#n, #m)` pins the two ordinals | two fields, `created_at` and `updated_at`, like any declared | two columns, `created_at timestamptz NOT NULL` and a nullable `updated_at` | two elements | two properties | as JSON Schema |
 | `{ unique }`, `{ index }`, `@@unique`, `@@index` | nothing | a `UNIQUE` constraint or an index | nothing | nothing | nothing |
 | an alias | transparent: it lowers exactly as its underlying type would | transparent, for the same reason | inlined: the alias itself is not represented | inlined | inlined |
 | a doc comment (`///`) | a `//` comment above the declaration | `COMMENT ON TABLE` or `COMMENT ON COLUMN` | an `xs:documentation` element inside `xs:annotation` | `description` | `description`, as JSON Schema |

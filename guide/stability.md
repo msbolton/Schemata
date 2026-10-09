@@ -134,7 +134,7 @@ Some behaviours are easy to miss. Each is part of the language as 2.0 defines it
 - A reference sent by key as `<field>_<key>` may not land on a name the model reserves (SCH1020).
 - `@@timestamps` numbers its two fields after the last explicit ordinal, so a field added to the
   model later moves both, and `diff` reports that as renames and type changes. Where the ordinals
-  must stay put, write `created_at instant` and `updated_at instant?` as fields instead.
+  must stay put, pin them: `@@timestamps(#n, #m)`.
 - `fmt` and `upgrade` write `list<T>` as `T[]`, except where `T[]` cannot say it: a list of lists,
   `list<T[]>`, since a type takes one `[]`, and a list of maps that bound their own size,
   `list<map<K, V> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share one block.
