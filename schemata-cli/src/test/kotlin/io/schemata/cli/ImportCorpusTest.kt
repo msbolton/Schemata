@@ -49,7 +49,8 @@ class ImportCorpusTest {
                 .filter {
                     it.isFile &&
                         it.extension in setOf("xsd", "proto", "sql") &&
-                        !it.relativeTo(case).path.startsWith("expected")
+                        !it.relativeTo(case).path.startsWith("expected") &&
+                        !it.relativeTo(case).path.startsWith("include/")
                 }
                 .sortedBy { it.relativeTo(case).path }
                 .toList()
@@ -69,10 +70,15 @@ class ImportCorpusTest {
                 "sql" -> SqlImporter
                 else -> XsdImporter
             }
+        val locate = { path: String ->
+            File(case, path).takeIf { it.isFile }?.let { ImportInput(path, it.readText()) }
+        }
+        // A top-level include/ directory holds files a proto import reaches but does not own: it is
+        // a lookup root, never an input.
+        val includes = if (File(case, "include").isDirectory) listOf("include") else emptyList()
         val result =
-            importer.import(inputs, null) { path ->
-                File(case, path).takeIf { it.isFile }?.let { ImportInput(path, it.readText()) }
-            }
+            if (importer === ProtoImporter) ProtoImporter.import(inputs, null, locate, includes)
+            else importer.import(inputs, null, locate)
         assertFalse(
             result.diagnostics.any { it.severity == Severity.ERROR },
             "${case.name} imports without errors: " +

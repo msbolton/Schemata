@@ -1,0 +1,25 @@
+Subset of the Envoy proxy data plane API, copied verbatim as test input for the Protobuf importer.
+Nothing in the copied files was changed.
+
+  everything outside include/
+                   https://github.com/envoyproxy/envoy, directory api/, version 1.40.0-dev as
+                   checked out on 2026-10-09. Apache License, Version 2.0; see LICENSE.
+
+  include/         xds/core/v3/context_params.proto, xds/core/v3/extension.proto
+                   exported with buf from buf.build/cncf/xds (Apache-2.0).
+                   google/rpc/status.proto
+                   exported with buf from buf.build/googleapis/googleapis (Apache-2.0).
+                   The importer reads these as include files: they are reached through imports
+                   and emitted, but they are not inputs.
+
+Imports deliberately left unresolved, so the case also exercises dropping an import that is not
+found:
+
+  udpa/annotations/status.proto
+  udpa/annotations/versioning.proto
+  udpa/annotations/migrate.proto
+  validate/validate.proto
+  xds/annotations/v3/status.proto
+  google/api/annotations.proto
+
+  They declare only options, and the importer drops each with a warning.

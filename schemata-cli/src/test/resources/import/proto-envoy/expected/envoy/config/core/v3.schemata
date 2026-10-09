@@ -1,0 +1,812 @@
+schema envoy.config.core.v3
+
+import envoy.type.v3
+import xds.core.v3
+
+model Pipe {
+  /// Unix Domain Socket path. On Linux, paths starting with '@' will use the
+  /// abstract namespace. The starting '@' is replaced by a null byte by Envoy.
+  /// Paths starting with '@' will result in an error in environments other than
+  /// Linux.
+  #1 path string { min 1 }
+  /// The mode for the Pipe. Not applicable for abstract sockets.
+  #2 mode int64  { min 0, max 511 }
+}
+
+/// The address represents an envoy internal listener.
+/// [#comment: TODO(asraa): When address available, remove workaround from test/server/server_fuzz_test.cc:30.]
+model EnvoyInternalAddress {
+  /// Specifies the :ref:`name <envoy_v3_api_field_config.listener.v3.Listener.name>` of the
+  /// internal listener.
+  #1 server_listener_name string?
+  /// Specifies an endpoint identifier to distinguish between multiple endpoints for the same internal listener in a
+  /// single upstream pool. Only used in the upstream addresses for tracking changes to individual endpoints. This, for
+  /// example, may be set to the final destination IP for the target internal listener.
+  #2 endpoint_id          string
+}
+
+/// [#next-free-field: 8]
+model SocketAddress {
+  #1 protocol                   Protocol
+  /// The address for this socket. :ref:`Listeners <config_listeners>` will bind
+  /// to the address. An empty address is not allowed. Specify ``0.0.0.0`` or ``::``
+  /// to bind to any address. [#comment:TODO(zuercher) reinstate when implemented:
+  /// It is possible to distinguish a Listener address via the prefix/suffix matching
+  /// in :ref:`FilterChainMatch <envoy_v3_api_msg_config.listener.v3.FilterChainMatch>`.] When used
+  /// within an upstream :ref:`BindConfig <envoy_v3_api_msg_config.core.v3.BindConfig>`, the address
+  /// controls the source address of outbound connections. For :ref:`clusters
+  /// <envoy_v3_api_msg_config.cluster.v3.Cluster>`, the cluster type determines whether the
+  /// address must be an IP (``STATIC`` or ``EDS`` clusters) or a hostname resolved by DNS
+  /// (``STRICT_DNS`` or ``LOGICAL_DNS`` clusters). Address resolution can be customized
+  /// via :ref:`resolver_name <envoy_v3_api_field_config.core.v3.SocketAddress.resolver_name>`.
+  #2 address                    string   { min 1 }
+  #3 port_value                 int64?   { min 0, max 65535 }
+  /// This is only valid if :ref:`resolver_name
+  /// <envoy_v3_api_field_config.core.v3.SocketAddress.resolver_name>` is specified below and the
+  /// named resolver is capable of named port resolution.
+  #4 named_port                 string?
+  /// The name of the custom resolver. This must have been registered with Envoy. If
+  /// this is empty, a context dependent default applies. If the address is a concrete
+  /// IP address, no resolution will occur. If address is a hostname this
+  /// should be set for resolution other than DNS. Specifying a custom resolver with
+  /// ``STRICT_DNS`` or ``LOGICAL_DNS`` will generate an error at runtime.
+  #5 resolver_name              string
+  /// When binding to an IPv6 address above, this enables `IPv4 compatibility
+  /// <https://tools.ietf.org/html/rfc3493#page-11>`_. Binding to ``::`` will
+  /// allow both IPv4 and IPv6 connections, with peer IPv4 addresses mapped into
+  /// IPv6 space as ``::FFFF:<IPv4-address>``.
+  #6 ipv4_compat                bool
+  /// Filepath that specifies the Linux network namespace this socket will be created in (see ``man 7
+  /// network_namespaces``). If this field is set, Envoy will create the socket in the specified
+  /// network namespace.
+  ///
+  /// .. note::
+  ///    Setting this parameter requires Envoy to run with the ``CAP_SYS_ADMIN`` capability.
+  ///
+  /// .. attention::
+  ///     Network namespaces are only configurable on Linux. Otherwise, this field has no effect.
+  #7 network_namespace_filepath string
+
+  enum Protocol { @proto(name: "TCP") tcp @proto(name: "UDP") udp }
+}
+
+model TcpKeepalive {
+  /// Maximum number of keepalive probes to send without response before deciding
+  /// the connection is dead. Default is to use the OS level configuration (unless
+  /// overridden, Linux defaults to 9.) Setting this to ``0`` disables TCP keepalive.
+  #1 keepalive_probes   int64? { min 0, max 4294967295 }
+  /// The number of seconds a connection needs to be idle before keep-alive probes
+  /// start being sent. Default is to use the OS level configuration (unless
+  /// overridden, Linux defaults to 7200s (i.e., 2 hours.) Setting this to ``0`` disables
+  /// TCP keepalive.
+  #2 keepalive_time     int64? { min 0, max 4294967295 }
+  /// The number of seconds between keep-alive probes. Default is to use the OS
+  /// level configuration (unless overridden, Linux defaults to 75s.) Setting this to
+  /// ``0`` disables TCP keepalive.
+  #3 keepalive_interval int64? { min 0, max 4294967295 }
+}
+
+model ExtraSourceAddress {
+  /// The additional address to bind.
+  #1 address        SocketAddress
+  /// Additional socket options that may not be present in Envoy source code or
+  /// precompiled binaries. If specified, this will override the
+  /// :ref:`socket_options <envoy_v3_api_field_config.core.v3.BindConfig.socket_options>`
+  /// in the BindConfig. If specified with no
+  /// :ref:`socket_options <envoy_v3_api_field_config.core.v3.SocketOptionsOverride.socket_options>`
+  /// or an empty list of :ref:`socket_options <envoy_v3_api_field_config.core.v3.SocketOptionsOverride.socket_options>`,
+  /// it means no socket option will apply.
+  #2 socket_options SocketOptionsOverride
+}
+
+/// [#next-free-field: 8]
+model BindConfig {
+  /// The address to bind to when creating a socket.
+  #1 source_address              SocketAddress
+  /// Whether to set the ``IP_FREEBIND`` option when creating the socket. When this
+  /// flag is set to true, allows the :ref:`source_address
+  /// <envoy_v3_api_field_config.core.v3.BindConfig.source_address>` to be an IP address
+  /// that is not configured on the system running Envoy. When this flag is set
+  /// to false, the option ``IP_FREEBIND`` is disabled on the socket. When this
+  /// flag is not set (default), the socket is not modified, i.e. the option is
+  /// neither enabled nor disabled.
+  #2 freebind                    bool?
+  /// Additional socket options that may not be present in Envoy source code or
+  /// precompiled binaries.
+  #3 socket_options              SocketOption[]
+  /// Extra source addresses appended to the address specified in the ``source_address``
+  /// field. This enables to specify multiple source addresses.
+  /// The source address selection is determined by :ref:`local_address_selector
+  /// <envoy_v3_api_field_config.core.v3.BindConfig.local_address_selector>`.
+  #5 extra_source_addresses      ExtraSourceAddress[]
+  /// Deprecated by
+  /// :ref:`extra_source_addresses <envoy_v3_api_field_config.core.v3.BindConfig.extra_source_addresses>`
+  #4 additional_source_addresses SocketAddress[]                           @deprecated
+  /// Custom local address selector to override the default (i.e.
+  /// :ref:`DefaultLocalAddressSelector
+  /// <envoy_v3_api_msg_config.upstream.local_address_selector.v3.DefaultLocalAddressSelector>`).
+  /// [#extension-category: envoy.upstream.local_address_selector]
+  #6 local_address_selector      envoy.config.core.v3.TypedExtensionConfig
+  /// If set to true, the :ref:`network_namespace_filepath
+  /// <envoy_v3_api_field_config.core.v3.SocketAddress.network_namespace_filepath>` of every source
+  /// address in this bind config is validated when the configuration is loaded, and the
+  /// configuration is rejected if a referenced network namespace cannot be opened.
+  ///
+  /// By default no such validation is performed: a network namespace that does not exist when the
+  /// configuration is loaded may be created later, before connections are actually established, so
+  /// eager validation would wrongly reject such configurations. If a namespace is unavailable when
+  /// a connection is created, the connection attempt fails gracefully.
+  ///
+  /// Listener addresses do not need an equivalent option: a listener creates and binds its socket
+  /// in the configured network namespace when the listener configuration is loaded, so an
+  /// unavailable namespace always rejects the listener configuration.
+  ///
+  /// .. attention::
+  ///     Network namespaces are only configurable on Linux. Otherwise, this field has no effect.
+  #7 validate_network_namespaces bool
+}
+
+/// Addresses specify either a logical or physical address and port, which are
+/// used to tell Envoy where to bind/listen, connect to upstream and find
+/// management servers.
+union Address =
+  #1 SocketAddress |
+  #2 Pipe |
+  /// Specifies a user-space address handled by :ref:`internal listeners
+  /// <envoy_v3_api_field_config.listener.v3.Listener.internal_listener>`.
+  #3 EnvoyInternalAddress
+
+/// CidrRange specifies an IP Address and a prefix length to construct
+/// the subnet mask for a `CIDR <https://tools.ietf.org/html/rfc4632>`_ range.
+model CidrRange {
+  /// IPv4 or IPv6 address, e.g. ``192.0.0.0`` or ``2001:db8::``.
+  #1 address_prefix string { min 1 }
+  /// Length of prefix, e.g. 0, 32. Defaults to 0 when unset.
+  #2 prefix_len     int64? { min 0, max 128 }
+}
+
+/// Configuration defining a jittered exponential back off strategy.
+model BackoffStrategy {
+  /// The base interval to be used for the next back off computation. It should
+  /// be greater than zero and less than or equal to :ref:`max_interval
+  /// <envoy_v3_api_field_config.core.v3.BackoffStrategy.max_interval>`.
+  #1 base_interval duration
+  /// Specifies the maximum interval between retries. This parameter is optional,
+  /// but must be greater than or equal to the :ref:`base_interval
+  /// <envoy_v3_api_field_config.core.v3.BackoffStrategy.base_interval>` if set. The default
+  /// is 10 times the :ref:`base_interval
+  /// <envoy_v3_api_field_config.core.v3.BackoffStrategy.base_interval>`.
+  #2 max_interval  duration
+}
+
+/// Envoy supports :ref:`upstream priority routing
+/// <arch_overview_http_routing_priority>` both at the route and the virtual
+/// cluster level. The current priority implementation uses different connection
+/// pool and circuit breaking settings for each priority level. This means that
+/// even for HTTP/2 requests, two physical connections will be used to an
+/// upstream host. In the future Envoy will likely support true HTTP/2 priority
+/// over a single upstream connection.
+enum RoutingPriority { @proto(name: "DEFAULT") default @proto(name: "HIGH") high }
+
+/// HTTP request method.
+enum RequestMethod {
+  @proto(name: "GET") #1 get
+  @proto(name: "HEAD") #2 head
+  @proto(name: "POST") #3 post
+  @proto(name: "PUT") #4 put
+  @proto(name: "DELETE") #5 delete
+  @proto(name: "CONNECT") #6 connect
+  @proto(name: "OPTIONS") #7 options
+  @proto(name: "TRACE") #8 trace
+  @proto(name: "PATCH") #9 patch
+}
+
+/// Identifies the direction of the traffic relative to the local Envoy.
+enum TrafficDirection {
+  /// The transport is used for incoming traffic.
+  @proto(name: "INBOUND") #1 inbound
+  /// The transport is used for outgoing traffic.
+  @proto(name: "OUTBOUND") #2 outbound
+}
+
+/// Identifies location of where either Envoy runs or where upstream hosts run.
+model Locality {
+  /// Region this :ref:`zone <envoy_v3_api_field_config.core.v3.Locality.zone>` belongs to.
+  #1 region   string
+  /// Defines the local service zone where Envoy is running. Though optional, it
+  /// should be set if discovery service routing is used and the discovery
+  /// service exposes :ref:`zone data <envoy_v3_api_field_config.endpoint.v3.LocalityLbEndpoints.locality>`,
+  /// either in this message or via :option:`--service-zone`. The meaning of zone
+  /// is context dependent, e.g. `Availability Zone (AZ)
+  /// <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html>`_
+  /// on AWS, `Zone <https://cloud.google.com/compute/docs/regions-zones/>`_ on
+  /// GCP, etc.
+  #2 zone     string
+  /// When used for locality of upstream hosts, this field further splits zone
+  /// into smaller chunks of sub-zones so they can be load balanced
+  /// independently.
+  #3 sub_zone string
+}
+
+/// BuildVersion combines SemVer version of extension with free-form build information
+/// (i.e. 'alpha', 'private-build') as a set of strings.
+model BuildVersion {
+  /// SemVer version of extension.
+  #1 version  envoy.type.v3.SemanticVersion
+  /// Free-form build information.
+  /// Envoy defines several well known keys in the source/common/version/version.h file
+  #2 metadata string
+}
+
+/// Version and identification for an Envoy extension.
+/// [#next-free-field: 7]
+model Extension {
+  /// This is the name of the Envoy filter as specified in the Envoy
+  /// configuration, e.g. envoy.filters.http.router, com.acme.widget.
+  #1 name            string
+  /// Category of the extension.
+  /// Extension category names use reverse DNS notation. For instance "envoy.filters.listener"
+  /// for Envoy's built-in listener filters or "com.acme.filters.http" for HTTP filters from
+  /// acme.com vendor.
+  /// [#comment:TODO(yanavlasov): Link to the doc with existing envoy category names.]
+  #2 category        string
+  /// [#not-implemented-hide:] Type descriptor of extension configuration proto.
+  /// [#comment:TODO(yanavlasov): Link to the doc with existing configuration protos.]
+  /// [#comment:TODO(yanavlasov): Add tests when PR #9391 lands.]
+  #3 type_descriptor string       @deprecated
+  /// The version is a property of the extension and maintained independently
+  /// of other extensions and the Envoy API.
+  /// This field is not set when extension did not provide version information.
+  #4 version         BuildVersion
+  /// Indicates that the extension is present but was disabled via dynamic configuration.
+  #5 disabled        bool
+  /// Type URLs of extension configuration protos.
+  #6 type_urls       string[]
+}
+
+/// Identifies a specific Envoy instance. The node identifier is presented to the
+/// management server, which may use this identifier to distinguish per Envoy
+/// configuration for serving.
+/// [#next-free-field: 13]
+model Node {
+  /// An opaque node identifier for the Envoy node. This also provides the local
+  /// service node name. It should be set if any of the following features are
+  /// used: :ref:`statsd <arch_overview_statistics>`, :ref:`CDS
+  /// <config_cluster_manager_cds>`, and :ref:`HTTP tracing
+  /// <arch_overview_tracing>`, either in this message or via
+  /// :option:`--service-node`.
+  #1  id                       string
+  /// Defines the local service cluster name where Envoy is running. Though
+  /// optional, it should be set if any of the following features are used:
+  /// :ref:`statsd <arch_overview_statistics>`, :ref:`health check cluster
+  /// verification
+  /// <envoy_v3_api_field_config.core.v3.HealthCheck.HttpHealthCheck.service_name_matcher>`,
+  /// :ref:`runtime override directory <envoy_v3_api_msg_config.bootstrap.v3.Runtime>`,
+  /// :ref:`user agent addition
+  /// <envoy_v3_api_field_extensions.filters.network.http_connection_manager.v3.HttpConnectionManager.add_user_agent>`,
+  /// :ref:`HTTP global rate limiting <config_http_filters_rate_limit>`,
+  /// :ref:`CDS <config_cluster_manager_cds>`, and :ref:`HTTP tracing
+  /// <arch_overview_tracing>`, either in this message or via
+  /// :option:`--service-cluster`.
+  #2  cluster                  string
+  /// Opaque metadata extending the node identifier. Envoy will pass this
+  /// directly to the management server.
+  #3  metadata                 string
+  /// Map from xDS resource type URL to dynamic context parameters. These may vary at runtime (unlike
+  /// other fields in this message). For example, the xDS client may have a shard identifier that
+  /// changes during the lifetime of the xDS client. In Envoy, this would be achieved by updating the
+  /// dynamic context on the Server::Instance's LocalInfo context provider. The shard ID dynamic
+  /// parameter then appears in this field during future discovery requests.
+  #12 dynamic_parameters       map<string, xds.core.v3.ContextParams>
+  /// Locality specifying where the Envoy instance is running.
+  #4  locality                 Locality
+  /// Free-form string that identifies the entity requesting config.
+  /// E.g. "envoy" or "grpc"
+  #6  user_agent_name          string
+  /// Free-form string that identifies the version of the entity requesting config.
+  /// E.g. "1.12.2" or "abcd1234", or "SpecialEnvoyBuild"
+  #7  user_agent_version       string?
+  /// Structured version of the entity requesting config.
+  #8  user_agent_build_version BuildVersion?
+  /// List of extensions and their versions supported by the node.
+  #9  extensions               Extension[]
+  /// Client feature support list. These are well known features described
+  /// in the Envoy API repository for a given major version of an API. Client features
+  /// use reverse DNS naming scheme, for example ``com.acme.feature``.
+  /// See :ref:`the list of features <client_features>` that xDS client may
+  /// support.
+  #10 client_features          string[]
+  /// Known listening ports on the node as a generic hint to the management server
+  /// for filtering :ref:`listeners <config_listeners>` to be returned. For example,
+  /// if there is a listener bound to port 80, the list can optionally contain the
+  /// SocketAddress ``(0.0.0.0,80)``. The field is optional and just a hint.
+  #11 listening_addresses      Address[]                              @deprecated
+  reserved #5, "build_version"
+}
+
+/// Metadata provides additional inputs to filters based on matched listeners,
+/// filter chains, routes and endpoints. It is structured as a map, usually from
+/// filter name (in reverse DNS format) to metadata specific to the filter. Metadata
+/// key-values for a filter are merged as connection and request handling occurs,
+/// with later values for the same key overriding earlier values.
+///
+/// An example use of metadata is providing additional values to
+/// http_connection_manager in the envoy.http_connection_manager.access_log
+/// namespace.
+///
+/// Another example use of metadata is to per service config info in cluster metadata, which may get
+/// consumed by multiple filters.
+///
+/// For load balancing, Metadata provides a means to subset cluster endpoints.
+/// Endpoints have a Metadata object associated and routes contain a Metadata
+/// object to match against. There are some well defined metadata used today for
+/// this purpose:
+///
+/// * ``{"envoy.lb": {"canary": <bool> }}`` This indicates the canary status of an
+///   endpoint and is also used during header processing
+///   (x-envoy-upstream-canary) and for stats purposes.
+/// [#next-major-version: move to type/metadata/v2]
+model Metadata {
+  /// Key is the reverse DNS filter name, e.g. com.acme.widget. The ``envoy.*``
+  /// namespace is reserved for Envoy's built-in filters.
+  /// If both ``filter_metadata`` and
+  /// :ref:`typed_filter_metadata <envoy_v3_api_field_config.core.v3.Metadata.typed_filter_metadata>`
+  /// fields are present in the metadata with same keys,
+  /// only ``typed_filter_metadata`` field will be parsed.
+  #1 filter_metadata       map<string { min 1 }, string>
+  /// Key is the reverse DNS filter name, e.g. com.acme.widget. The ``envoy.*``
+  /// namespace is reserved for Envoy's built-in filters.
+  /// The value is encoded as google.protobuf.Any.
+  /// If both :ref:`filter_metadata <envoy_v3_api_field_config.core.v3.Metadata.filter_metadata>`
+  /// and ``typed_filter_metadata`` fields are present in the metadata with same keys,
+  /// only ``typed_filter_metadata`` field will be parsed.
+  #2 typed_filter_metadata map<string { min 1 }, bytes>
+}
+
+/// Runtime derived uint32 with a default when not specified.
+model RuntimeUInt32 {
+  /// Default value if runtime value is not available.
+  #2 default_value int64  { min 0, max 4294967295 }
+  /// Runtime key to get value for comparison. This value is used if defined.
+  #3 runtime_key   string
+}
+
+/// Runtime derived uint64 with a default when not specified.
+model RuntimeUInt64 {
+  /// Default value if runtime value is not available.
+  #2 default_value int64  { min 0 }
+  /// Runtime key to get value for comparison. This value is used if defined.
+  #3 runtime_key   string
+}
+
+/// Runtime derived percentage with a default when not specified.
+model RuntimePercent {
+  /// Default value if runtime value is not available.
+  #1 default_value envoy.type.v3.Percent
+  /// Runtime key to get value for comparison. This value is used if defined.
+  #2 runtime_key   string
+}
+
+/// Runtime derived double with a default when not specified.
+model RuntimeDouble {
+  /// Default value if runtime value is not available.
+  #1 default_value float64
+  /// Runtime key to get value for comparison. This value is used if defined.
+  #2 runtime_key   string
+}
+
+/// Runtime derived bool with a default when not specified.
+model RuntimeFeatureFlag {
+  /// Default value if runtime value is not available.
+  #1 default_value bool
+  /// Runtime key to get value for comparison. This value is used if defined. The boolean value must
+  /// be represented via its
+  /// `canonical JSON encoding <https://developers.google.com/protocol-buffers/docs/proto3#json>`_.
+  #2 runtime_key   string
+}
+
+/// Please use :ref:`KeyValuePair <envoy_api_msg_config.core.v3.KeyValuePair>` instead.
+/// [#not-implemented-hide:]
+model KeyValue {
+  /// The key of the key/value pair.
+  #1 key   string { min 1, max 16384 } @deprecated
+  /// The value of the key/value pair.
+  ///
+  /// The ``bytes`` type is used. This means if JSON or YAML is used to to represent the
+  /// configuration, the value must be base64 encoded. This is unfriendly for users in most
+  /// use scenarios of this message.
+  #2 value bytes  @deprecated
+}
+
+model KeyValuePair {
+  /// The key of the key/value pair.
+  #1 key   string { min 1, max 16384 }
+  /// The value of the key/value pair.
+  #2 value string
+}
+
+/// Key/value pair plus option to control append behavior. This is used to specify
+/// key/value pairs that should be appended to a set of existing key/value pairs.
+model KeyValueAppend {
+  /// The single key/value pair record to be appended or overridden. This field must be set.
+  #3 record KeyValuePair
+  /// Key/value pair entry that this option to append or overwrite. This field is deprecated
+  /// and please use :ref:`record <envoy_v3_api_field_config.core.v3.KeyValueAppend.record>`
+  /// as replacement.
+  /// [#not-implemented-hide:]
+  #1 entry  KeyValue             @deprecated
+  /// Describes the action taken to append/overwrite the given value for an existing
+  /// key or to only add this key if it's absent.
+  #2 action KeyValueAppendAction
+
+  /// Describes the supported actions types for key/value pair append action.
+  enum KeyValueAppendAction {
+    /// If the key already exists, this action will result in the following behavior:
+    ///
+    /// - Comma-concatenated value if multiple values are not allowed.
+    /// - New value added to the list of values if multiple values are allowed.
+    ///
+    /// If the key doesn't exist then this will add pair with specified key and value.
+    @proto(name: "APPEND_IF_EXISTS_OR_ADD") append_if_exists_or_add
+    /// This action will add the key/value pair if it doesn't already exist. If the
+    /// key already exists then this will be a no-op.
+    @proto(name: "ADD_IF_ABSENT") add_if_absent
+    /// This action will overwrite the specified value by discarding any existing
+    /// values if the key already exists. If the key doesn't exist then this will add
+    /// the pair with specified key and value.
+    @proto(name: "OVERWRITE_IF_EXISTS_OR_ADD") overwrite_if_exists_or_add
+    /// This action will overwrite the specified value by discarding any existing
+    /// values if the key already exists. If the key doesn't exist then this will
+    /// be no-op.
+    @proto(name: "OVERWRITE_IF_EXISTS") overwrite_if_exists
+  }
+}
+
+/// Key/value pair to append or remove.
+model KeyValueMutation {
+  /// Key/value pair to append or overwrite. Only one of ``append`` or ``remove`` can be set or
+  /// the configuration will be rejected.
+  #1 append KeyValueAppend
+  /// Key to remove. Only one of ``append`` or ``remove`` can be set or the configuration will be
+  /// rejected.
+  #2 remove string         { max 16384 }
+}
+
+/// Query parameter name/value pair.
+model QueryParameter {
+  /// The key of the query parameter. Case sensitive.
+  #1 key   string { min 1 }
+  /// The value of the query parameter.
+  #2 value string
+}
+
+/// Header name/value pair.
+model HeaderValue {
+  /// Header name.
+  #1 key       string { min 1, max 16384 }
+  /// Header value.
+  ///
+  /// The same :ref:`format specifier <config_access_log_format>` as used for
+  /// :ref:`HTTP access logging <config_access_log>` applies here, however
+  /// unknown header values are replaced with the empty string instead of ``-``.
+  /// Header value is encoded as string. This does not work for non-utf8 characters.
+  /// Only one of ``value`` or ``raw_value`` can be set.
+  #2 value     string { max 16384 }
+  /// Header value is encoded as bytes which can support non-utf8 characters.
+  /// Only one of ``value`` or ``raw_value`` can be set.
+  #3 raw_value bytes  { min 0, max 16384 }
+}
+
+/// Header name/value pair plus option to control append behavior.
+model HeaderValueOption {
+  /// Header name/value pair that this option applies to.
+  #1 header           HeaderValue
+  /// Should the value be appended? If true (default), the value is appended to
+  /// existing values. Otherwise it replaces any existing values.
+  /// This field is deprecated and please use
+  /// :ref:`append_action <envoy_v3_api_field_config.core.v3.HeaderValueOption.append_action>` as replacement.
+  ///
+  /// .. note::
+  ///   The :ref:`external authorization service <envoy_v3_api_msg_service.auth.v3.CheckResponse>` and
+  ///   :ref:`external processor service <envoy_v3_api_msg_service.ext_proc.v3.ProcessingResponse>` have
+  ///   default value (``false``) for this field.
+  #2 append           bool?              @deprecated
+  /// Describes the action taken to append/overwrite the given value for an existing header
+  /// or to only add this header if it's absent.
+  /// Value defaults to :ref:`APPEND_IF_EXISTS_OR_ADD
+  /// <envoy_v3_api_enum_value_config.core.v3.HeaderValueOption.HeaderAppendAction.APPEND_IF_EXISTS_OR_ADD>`.
+  #3 append_action    HeaderAppendAction
+  /// Is the header value allowed to be empty? If false (default), custom headers with empty values are dropped,
+  /// otherwise they are added.
+  ///
+  /// .. note::
+  ///   In any context other than the router filter, we always act as if keep_empty_value is true,
+  ///   regardless of the setting of this field.
+  #4 keep_empty_value bool
+
+  /// Describes the supported actions types for header append action.
+  enum HeaderAppendAction {
+    /// If the header already exists, this action will result in:
+    ///
+    /// - Comma-concatenated for predefined inline headers.
+    /// - Duplicate header added in the ``HeaderMap`` for other headers.
+    ///
+    /// If the header doesn't exist then this will add new header with specified key and value.
+    @proto(name: "APPEND_IF_EXISTS_OR_ADD") append_if_exists_or_add
+    /// This action will add the header if it doesn't already exist. If the header
+    /// already exists then this will be a no-op.
+    @proto(name: "ADD_IF_ABSENT") add_if_absent
+    /// This action will overwrite the specified value by discarding any existing values if
+    /// the header already exists. If the header doesn't exist then this will add the header
+    /// with specified key and value.
+    @proto(name: "OVERWRITE_IF_EXISTS_OR_ADD") overwrite_if_exists_or_add
+    /// This action will overwrite the specified value by discarding any existing values if
+    /// the header already exists. If the header doesn't exist then this will be no-op.
+    @proto(name: "OVERWRITE_IF_EXISTS") overwrite_if_exists
+  }
+}
+
+/// Wrapper for a set of headers.
+model HeaderMap {
+  /// A list of header names and their values.
+  #1 headers HeaderValue[]
+}
+
+/// A directory that is watched for changes, e.g. by inotify on Linux. Move/rename
+/// events inside this directory trigger the watch.
+model WatchedDirectory {
+  /// Directory path to watch.
+  #1 path         string { min 1 }
+  /// If set to true, the watcher will also subscribe to file modification events
+  /// (``IN_MODIFY`` on Linux) in addition to move events (``IN_MOVED_TO``). This allows
+  /// in-place file writes to trigger reload callbacks. Use this when the writing process
+  /// cannot use atomic rename (e.g. certain secret managers that write certificate files
+  /// directly). By default, only move/rename events are watched, which is the safe choice
+  /// for atomic updates (e.g. Kubernetes ConfigMap symlink swaps).
+  #2 watch_modify bool
+}
+
+/// Data source consisting of a file, an inline value, or an environment variable.
+/// [#next-free-field: 6]
+model DataSource {
+  /// Local filesystem data source.
+  #1 filename             string?          { min 1 }
+  /// Bytes inlined in the configuration.
+  #2 inline_bytes         bytes?
+  /// String inlined in the configuration.
+  #3 inline_string        string?
+  /// Environment variable data source.
+  #4 environment_variable string?          { min 1 }
+  /// Watched directory that is watched for file changes. If this is set explicitly, the file
+  /// specified in the ``filename`` field will be reloaded when relevant file move events occur.
+  ///
+  /// .. note::
+  ///   This field only makes sense when the ``filename`` field is set.
+  ///
+  /// .. note::
+  ///   Envoy only updates when the file is replaced by a file move, and not when the file is
+  ///   edited in place.
+  ///
+  /// .. note::
+  ///   Not all use cases of ``DataSource`` support watching directories. It depends on the
+  ///   specific usage of the ``DataSource``. See the documentation of the parent message for
+  ///   details.
+  #5 watched_directory    WatchedDirectory
+}
+
+/// The message specifies the retry policy of remote data source when fetching fails.
+/// [#next-free-field: 7]
+model RetryPolicy {
+  /// Specifies parameters that control :ref:`retry backoff strategy <envoy_v3_api_msg_config.core.v3.BackoffStrategy>`.
+  /// This parameter is optional, in which case the default base interval is 1000 milliseconds. The
+  /// default maximum interval is 10 times the base interval.
+  #1 retry_back_off                    BackoffStrategy
+  /// Specifies the allowed number of retries. This parameter is optional and
+  /// defaults to 1.
+  #2 num_retries                       int64?               { min 0, max 4294967295 }
+  /// For details, see :ref:`retry_on <envoy_v3_api_field_config.route.v3.RetryPolicy.retry_on>`.
+  #3 retry_on                          string
+  /// For details, see :ref:`retry_priority <envoy_v3_api_field_config.route.v3.RetryPolicy.retry_priority>`.
+  #4 retry_priority                    RetryPriority
+  /// For details, see :ref:`RetryHostPredicate <envoy_v3_api_field_config.route.v3.RetryPolicy.retry_host_predicate>`.
+  #5 retry_host_predicate              RetryHostPredicate[]
+  /// For details, see :ref:`host_selection_retry_max_attempts <envoy_v3_api_field_config.route.v3.RetryPolicy.host_selection_retry_max_attempts>`.
+  #6 host_selection_retry_max_attempts int64
+
+  /// See :ref:`RetryPriority <envoy_v3_api_field_config.route.v3.RetryPolicy.retry_priority>`.
+  model RetryPriority { #1 name string { min 1 }  #2 typed_config bytes? }
+
+  /// See :ref:`RetryHostPredicate <envoy_v3_api_field_config.route.v3.RetryPolicy.retry_host_predicate>`.
+  model RetryHostPredicate { #1 name string { min 1 }  #2 typed_config bytes? }
+}
+
+/// The message specifies how to fetch data from remote and how to verify it.
+model RemoteDataSource {
+  /// The HTTP URI to fetch the remote data.
+  #1 http_uri     HttpUri
+  /// SHA256 string for verifying data.
+  #2 sha256       string      { min 1 }
+  /// Retry policy for fetching remote data.
+  #3 retry_policy RetryPolicy
+}
+
+/// Async data source which support async data fetch.
+union AsyncDataSource =
+  /// Local async data source.
+  #1 DataSource |
+  /// Remote async data source.
+  #2 RemoteDataSource
+
+/// Configuration for transport socket in :ref:`listeners <config_listeners>` and
+/// :ref:`clusters <envoy_v3_api_msg_config.cluster.v3.Cluster>`. If the configuration is
+/// empty, a default transport socket implementation and configuration will be
+/// chosen based on the platform and existence of tls_context.
+model TransportSocket {
+  /// The name of the transport socket to instantiate. The name must match a supported transport
+  /// socket implementation.
+  #1 name         string { min 1 }
+  #3 typed_config bytes?
+  reserved #2, "config"
+}
+
+/// Runtime derived FractionalPercent with defaults for when the numerator or denominator is not
+/// specified via a runtime key.
+///
+/// .. note::
+///
+///   Parsing of the runtime key's data is implemented such that it may be represented as a
+///   :ref:`FractionalPercent <envoy_v3_api_msg_type.v3.FractionalPercent>` proto represented as JSON/YAML
+///   and may also be represented as an integer with the assumption that the value is an integral
+///   percentage out of 100. For instance, a runtime key lookup returning the value "42" would parse
+///   as a ``FractionalPercent`` whose numerator is 42 and denominator is HUNDRED.
+model RuntimeFractionalPercent {
+  /// Default value if the runtime value's for the numerator/denominator keys are not available.
+  #1 default_value envoy.type.v3.FractionalPercent
+  /// Runtime key for a YAML representation of a FractionalPercent.
+  #2 runtime_key   string
+}
+
+/// Identifies a specific ControlPlane instance that Envoy is connected to.
+model ControlPlane {
+  /// An opaque control plane identifier that uniquely identifies an instance
+  /// of control plane. This can be used to identify which control plane instance,
+  /// the Envoy is connected to.
+  #1 identifier string
+}
+
+/// Message type for extension configuration.
+/// [#next-major-version: revisit all existing typed_config that doesn't use this wrapper.].
+model TypedExtensionConfig {
+  /// The name of an extension. This is not used to select the extension, instead
+  /// it serves the role of an opaque identifier.
+  #1 name         string { min 1 }
+  /// The typed config for the extension. The type URL will be used to identify
+  /// the extension. In the case that the type URL is ``xds.type.v3.TypedStruct``
+  /// (or, for historical reasons, ``udpa.type.v1.TypedStruct``), the inner type
+  /// URL of ``TypedStruct`` will be utilized. See the
+  /// :ref:`extension configuration overview
+  /// <config_overview_extension_configuration>` for further details.
+  #2 typed_config bytes
+}
+
+/// A list of gRPC methods which can be used as an allowlist, for example.
+model GrpcMethodList {
+  #1 services Service[]
+
+  model Service {
+    /// The name of the gRPC service.
+    #1 name         string   { min 1 }
+    /// The names of the gRPC methods in this service.
+    #2 method_names string[] { minItems 1 }
+  }
+}
+
+/// Envoy external URI descriptor
+model HttpUri {
+  /// The HTTP server URI. It should be a full FQDN with protocol, host and path.
+  ///
+  /// Example:
+  ///
+  /// .. code-block:: yaml
+  ///
+  ///    uri: https://www.googleapis.com/oauth2/v1/certs
+  #1 uri     string   { min 1 }
+  /// A cluster is created in the Envoy "cluster_manager" config
+  /// section. This field specifies the cluster name.
+  ///
+  /// Example:
+  ///
+  /// .. code-block:: yaml
+  ///
+  ///    cluster: jwks_cluster
+  #2 cluster string?  { min 1 }
+  /// Sets the maximum duration in milliseconds that a response can take to arrive upon request.
+  #3 timeout duration
+}
+
+/// Generic socket option message. This would be used to set socket options that
+/// might not exist in upstream kernels or precompiled Envoy binaries.
+///
+/// For example:
+///
+/// .. code-block:: json
+///
+///  {
+///    "description": "support tcp keep alive",
+///    "state": 0,
+///    "level": 1,
+///    "name": 9,
+///    "int_value": 1,
+///  }
+///
+/// 1 means SOL_SOCKET and 9 means SO_KEEPALIVE on Linux.
+/// With the above configuration, `TCP Keep-Alives <https://www.freesoft.org/CIE/RFC/1122/114.htm>`_
+/// can be enabled in socket with Linux, which can be used in
+/// :ref:`listener's<envoy_v3_api_field_config.listener.v3.Listener.socket_options>` or
+/// :ref:`admin's <envoy_v3_api_field_config.bootstrap.v3.Admin.socket_options>` socket_options etc.
+///
+/// It should be noted that the name or level may have different values on different platforms.
+/// [#next-free-field: 9]
+model SocketOption {
+  /// An optional name to give this socket option for debugging, etc.
+  /// Uniqueness is not required and no special meaning is assumed.
+  #1 description string
+  /// Corresponding to the level value passed to setsockopt, such as IPPROTO_TCP
+  #2 level       int64
+  /// The numeric name as passed to setsockopt
+  #3 name        int64
+  /// Because many sockopts take an int value.
+  #4 int_value   int64?
+  /// Otherwise it's a byte buffer.
+  #5 buf_value   bytes?
+  /// The state in which the option will be applied. When used in BindConfig
+  /// STATE_PREBIND is currently the only valid value.
+  #6 state       SocketState
+  /// Apply the socket option to the specified `socket type <https://linux.die.net/man/2/socket>`_.
+  /// If not specified, the socket option will be applied to all socket types.
+  #7 type        SocketType
+  /// Apply the socket option to the specified `socket Ip version
+  /// <https://linux.die.net/man/2/socket>`_. If not specified, the socket option
+  /// will be applied to all socket ip versions.
+  #8 ip_version  SocketIpVersion
+
+  enum SocketState {
+    /// Socket options are applied after socket creation but before binding the socket to a port
+    @proto(name: "STATE_PREBIND") state_prebind
+    /// Socket options are applied after binding the socket to a port but before calling listen()
+    @proto(name: "STATE_BOUND") state_bound
+    /// Socket options are applied after calling listen()
+    @proto(name: "STATE_LISTENING") state_listening
+  }
+
+  /// The `socket IP version <https://linux.die.net/man/2/socket>`_ to apply the
+  /// socket option to.
+  enum SocketIpVersion {
+    /// Apply the socket option to the IPv4 socket type.
+    #1 ipv4
+    /// Apply the socket option to the IPv6 socket type.
+    #2 ipv6
+  }
+
+  /// The `socket type <https://linux.die.net/man/2/socket>`_ to apply the socket option to.
+  /// Only one field should be set. If multiple fields are set, the precedence order will determine
+  /// the selected one. If none of the fields is set, the socket option will be applied to all socket types.
+  ///
+  /// For example:
+  /// If :ref:`stream <envoy_v3_api_field_config.core.v3.SocketOption.SocketType.stream>` is set,
+  /// it takes precedence over :ref:`datagram <envoy_v3_api_field_config.core.v3.SocketOption.SocketType.datagram>`.
+  model SocketType {
+    /// Apply the socket option to the stream socket type.
+    #1 stream_value Stream   @proto(name: "stream")
+    /// Apply the socket option to the datagram socket type.
+    #2 datagram     Datagram
+
+    /// The stream socket type.
+    model Stream {}
+
+    /// The datagram socket type.
+    model Datagram {}
+  }
+}
+
+model SocketOptionsOverride { #1 socket_options SocketOption[] }

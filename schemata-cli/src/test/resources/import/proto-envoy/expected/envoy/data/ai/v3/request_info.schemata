@@ -1,0 +1,29 @@
+schema envoy.data.ai.v3.request_info @proto(package: "envoy.data.ai.v3")
+
+import envoy.type.ai.v3.llm_protocol
+
+/// Request attributes published as typed dynamic metadata by the :ref:`request info AI
+/// filter <envoy_v3_api_msg_extensions.http.ai_filters.request_info.v3.RequestInfo>`. Values are
+/// client-declared and unverified, apart from ``estimated_input_tokens``, which Envoy computes.
+/// A value the client sent that Envoy cannot use, such as one of the wrong type, out of range,
+/// or a string over 256 bytes, is ignored.
+/// [#next-free-field: 8]
+model RequestInfo {
+  /// The route's declared wire API. When unspecified, only ``model`` and ``stream`` are read.
+  #1 input_llm_protocol     envoy.type.ai.v3.llm_protocol.LLMProtocol
+  /// The requested model.
+  #2 model_value            string                                    @proto(name: "model")
+  /// Whether a streamed response was requested.
+  #3 stream_value           bool?                                     @proto(name: "stream")
+  /// The requested output token cap.
+  #4 max_output_tokens      int64?                                    { min 0 }
+  /// Number of messages in the conversation.
+  #5 message_count          int64?                                    { min 0, max 4294967295 }
+  /// Number of tools declared.
+  #6 tool_count             int64?                                    { min 0, max 4294967295 }
+  /// Envoy's estimate of the input tokens, published only when :ref:`token_estimation
+  /// <envoy_v3_api_field_extensions.http.ai_filters.request_info.v3.RequestInfo.token_estimation>`
+  /// is configured: ``ceil(tokens_per_byte * request payload bytes)``. A size heuristic, not a
+  /// tokenizer result, and independent of the wire API.
+  #7 estimated_input_tokens int64?                                    { min 0 }
+}

@@ -1,0 +1,22 @@
+schema envoy.type.ai.v3.llm_protocol @proto(package: "envoy.type.ai.v3")
+
+/// Identifies the AI API contract spoken on the wire.
+///
+/// This names request/response schemas and streaming event semantics, not the
+/// organization operating the backend: OpenAI, Azure OpenAI, vLLM, and any
+/// other OpenAI-compatible backend all speak ``OPENAI_CHAT_COMPLETIONS``.
+/// Provider identity, when needed, must come from configuration or routing
+/// metadata.
+///
+/// Response framing is separate: JSON, SSE, and streamed JSON-array variants
+/// of the same API share one ``LLMProtocol`` value.
+enum LLMProtocol {
+  /// OpenAI-compatible ``/v1/chat/completions`` API.
+  @proto(name: "OPENAI_CHAT_COMPLETIONS") #1 openai_chat_completions
+  /// OpenAI-compatible ``/v1/responses`` API.
+  @proto(name: "OPENAI_RESPONSES") #2 openai_responses
+  /// Anthropic-compatible ``/v1/messages`` API.
+  @proto(name: "ANTHROPIC_MESSAGES") #3 anthropic_messages
+  /// Gemini ``generateContent`` / ``streamGenerateContent`` APIs.
+  @proto(name: "GEMINI_GENERATE_CONTENT") #4 gemini_generate_content
+}

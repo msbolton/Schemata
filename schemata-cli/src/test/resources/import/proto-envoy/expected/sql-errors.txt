@@ -1,0 +1,2 @@
+SCH2102 schemas envoy.config.core.v3, envoy.type.matcher.v3, envoy.type.v3 and xds.core.v3 all lower to Postgres schema 'v3'
+SCH2102 schemas envoy.extensions.compression.gzip.compressor.v3.gzip and envoy.extensions.filters.http.gzip.v3.gzip both lower to Postgres schema 'gzip'

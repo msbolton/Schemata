@@ -15,7 +15,6 @@ import io.schemata.target.xsd.XsdTarget
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
@@ -133,7 +132,15 @@ class ImportRoundTripTest {
                                 )
                             }
                             .toList()
-                    roundTrip(case.name, sources, "proto", ProtoTarget, ProtoImporter, protoRename)
+                    roundTrip(
+                        case.name,
+                        sources,
+                        "proto",
+                        ProtoTarget,
+                        ProtoImporter,
+                        protoRename,
+                        File(expected, "sql-errors.txt"),
+                    )
                 }
             }
 
@@ -147,6 +154,7 @@ class ImportRoundTripTest {
         target: Target<*>,
         importer: Importer,
         allowed: Regex? = tolerated[format],
+        sqlErrorsFile: File? = null,
     ) {
         val original = Pipeline.compile(sources, listOf(target))
         assertFalse(original.hasErrors)
@@ -189,10 +197,17 @@ class ImportRoundTripTest {
             Pipeline.compile(importedSources, listOf(SqlTarget)).diagnostics.filter {
                 it.severity == Severity.ERROR
             }
-        assertTrue(
-            sqlErrors.all { it.code == SqlCodes.MISSING_KEY },
-            "imported ${name} under sql had an error other than a missing key: " +
-                sqlErrors.joinToString("\n") { "${it.code.id} ${it.message}" },
+        // A case that records the sql errors its import has (namespaces sharing a last segment
+        // lower to one Postgres schema) expects exactly those; any other must have none.
+        val expectedSqlErrors =
+            sqlErrorsFile?.takeIf { it.isFile }?.readText()?.lines()?.filter { it.isNotEmpty() }
+                ?: emptyList()
+        assertEquals(
+            expectedSqlErrors,
+            sqlErrors
+                .filter { it.code != SqlCodes.MISSING_KEY }
+                .map { "${it.code.id} ${it.message}" },
+            "imported ${name} under sql had an error other than a missing key",
         )
     }
 }
