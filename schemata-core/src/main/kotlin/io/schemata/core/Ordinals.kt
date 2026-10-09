@@ -22,15 +22,15 @@ object Ordinals {
     )
 
     /**
-     * The smallest positive ordinal in neither [used] nor any range in [reserved]. Sweeps the
-     * ranges once in order of their start, jumping to the end of one instead of counting through
-     * it, so a huge range costs one step, not one per ordinal; stops at [Int.MAX_VALUE] instead of
-     * overflowing past it.
+     * The smallest ordinal above [above] (default 0) in neither [used] nor any range in [reserved].
+     * Sweeps the ranges once in order of their start, jumping to the end of one instead of counting
+     * through it, so a huge range costs one step, not one per ordinal; stops at [Int.MAX_VALUE]
+     * instead of overflowing past it.
      */
-    fun nextFree(used: Set<Int>, reserved: List<IntRange>): Int {
+    fun nextFree(used: Set<Int>, reserved: List<IntRange>, above: Int = 0): Int {
         val sorted = reserved.filterNot { it.isEmpty() }.sortedBy { it.first }
         var next = 0
-        var candidate = 1
+        var candidate = if (above == Int.MAX_VALUE) above else above + 1
         while (true) {
             // the candidate only grows, so a range it has passed is never looked at again
             while (next < sorted.size && sorted[next].first <= candidate) {
@@ -179,7 +179,15 @@ object Ordinals {
                         "ordinal #$ordinal is reserved in $kind '$name'",
                         at,
                         help =
-                            "pick another ordinal; the next free one is #${nextFree(if (element.chosen != null) held else allExplicit, reserved.ordinals)}",
+                            "pick another ordinal; the next free one is #${
+                                if (element.chosen != null) {
+                                    // an ordinal pinned on a positional model must sit above the fields,
+                                    // or the next field added would take it
+                                    nextFree(held, reserved.ordinals, above = held.max())
+                                } else {
+                                    nextFree(allExplicit, reserved.ordinals)
+                                }
+                            }",
                     )
             }
             ordinal

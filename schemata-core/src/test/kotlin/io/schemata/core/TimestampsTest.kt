@@ -77,7 +77,7 @@ class TimestampsTest {
         val r =
             analyze("schema s\nmodel M { id uuid { id }  reserved #11  @@timestamps(#11, #12) }")
         assertEquals(listOf("SCH1020"), r.diagnostics.map { it.code.id })
-        assertEquals("pick another ordinal; the next free one is #2", r.diagnostics[0].help)
+        assertEquals("pick another ordinal; the next free one is #13", r.diagnostics[0].help)
     }
 
     @Test
