@@ -22,11 +22,10 @@ import io.schemata.lang.Span
  *
  * An import that resolves nowhere only costs the types it would have declared, so it is a dropped
  * construct (SCH2405), not an error; a type that needed it is reported where it is used. A file
- * found beside an importer that sits under no root was read only to satisfy a lookup: it is lowered
- * only when an input, or a file that is lowered, references a symbol it declares. A file found
- * under a root, whether beside an importer there or through [Importer.import]'s `locate`, keeps
- * being lowered whether or not anything references it, since a root names a body of schemas the
- * caller asked for.
+ * found beside an importer was read only to satisfy a lookup: it is lowered only when an input, or
+ * a file that is lowered, references a symbol it declares. A file found under a root, whether
+ * beside an importer there or through [Importer.import]'s `locate`, keeps being lowered whether or
+ * not anything references it, since a root names a body of schemas the caller asked for.
  */
 object ProtoImporter : Importer {
     /**
@@ -80,9 +79,11 @@ object ProtoImporter : Importer {
         val publicImports = LinkedHashMap<String, MutableSet<String>>()
         val queue = ArrayDeque(files.values)
         val inputPaths = files.keys.toSet()
-        // Files read only because an import named them from beside the importer; whether they are
-        // lowered waits on what references them.
-        val besideFound = mutableSetOf<String>()
+        // How each file read through lookup was found, by path; an input has no entry. Whether a
+        // file found beside an importer is lowered waits on what references it.
+        val lookups = HashMap<String, Lookup>()
+        // The SCH2405 for each file's unresolved imports, held until it is known the file is kept.
+        val droppedImports = LinkedHashMap<String, MutableList<Diagnostic>>()
         val unresolvedImports = LinkedHashMap<String, MutableList<String>>()
         fun report(
             file: ProtoFile,
@@ -109,14 +110,12 @@ object ProtoImporter : Importer {
                 input.copy(relative = under)
             else input
         }
-        fun found(input: ImportInput): ProtoFile? {
+        fun found(input: ImportInput, kind: Lookup): ProtoFile? {
             val known = slashed(input.path) in files
             return read(input)?.also {
                 if (!known) {
                     queue += it
-                    // Under a root it is part of what the caller named; with no root it is a
-                    // neighbour read only to see what it declares.
-                    if (input.relative == null) besideFound += it.path
+                    lookups[it.path] = kind
                 }
             }
         }
@@ -129,20 +128,32 @@ object ProtoImporter : Importer {
                 val beside = resolvePath(f.path, imp.path)
                 val target =
                     listed?.let { files[slashed(it.path)] }
-                        ?: (files[beside] ?: locate(beside)?.let { found(placed(it, f, beside)) })
+                        ?: (files[beside]
+                            ?: locate(beside)?.let {
+                                val input = placed(it, f, beside)
+                                // Beside an importer under a root, it sits under that root too.
+                                found(
+                                    input,
+                                    if (input.relative != null) Lookup.Root else Lookup.Beside,
+                                )
+                            })
                         ?: roots.firstNotNullOfOrNull { root ->
                             val path = if (root.isEmpty()) imp.path else "$root/${imp.path}"
-                            files[path] ?: locate(path)?.let { found(it.copy(relative = imp.path)) }
+                            files[path]
+                                ?: locate(path)?.let {
+                                    found(it.copy(relative = imp.path), Lookup.Root)
+                                }
                         }
                 if (target == null) {
                     unresolvedImports.getOrPut(f.path) { mutableListOf() } += imp.path
-                    report(
-                        f,
-                        ImportCodes.DROPPED,
-                        "${f.path}: import '${imp.path}' not found; dropped",
-                        imp.pos,
-                        "add the directory that holds it with --include",
-                    )
+                    droppedImports.getOrPut(f.path) { mutableListOf() } +=
+                        diagnostic(
+                            f,
+                            ImportCodes.DROPPED,
+                            "${f.path}: import '${imp.path}' not found; dropped",
+                            imp.pos,
+                            "add the directory that holds it with --include",
+                        )
                 } else {
                     imports.getOrPut(f.path) { mutableListOf() } += target
                     if (imp.public) publicImports.getOrPut(f.path) { mutableSetOf() } += target.path
@@ -160,8 +171,12 @@ object ProtoImporter : Importer {
             val f = files.getValue(slashed(pending.removeFirst()))
             wide.referencedFiles(f).forEach { if (needed.add(it)) pending += it }
         }
-        val all = files.values.filter { it.path !in besideFound || it.path in needed }
+        val every = files.values.toList()
+        val all =
+            every.filter { (lookups[it.path] ?: Lookup.Root) == Lookup.Root || it.path in needed }
         val kept = all.mapTo(mutableSetOf()) { it.path }
+        droppedImports.forEach { (path, reports) -> if (path in kept) diagnostics += reports }
+        unresolvedImports.keys.retainAll(kept)
         val keptImports =
             imports
                 .filterKeys { it in kept }
@@ -219,7 +234,7 @@ object ProtoImporter : Importer {
             ProtoLowering.lower(
                 all,
                 namespaces,
-                ProtoSymbols(all, keptImports, keptPublic),
+                ProtoSymbols(every, keptImports, keptPublic),
                 annotations,
                 keptImports,
                 sources.mapValues { (_, input) -> input.relative ?: input.path },
@@ -244,6 +259,18 @@ object ProtoImporter : Importer {
             .flatten()
             .map { it.path }
             .toSet()
+
+    /** How a file was found when an input did not name it. */
+    private enum class Lookup {
+        /** Beside the file that imported it, under no root. */
+        Beside,
+
+        /** Under a root, or beside an importer under one: part of what the caller named. */
+        Root,
+
+        /** Under an include directory. */
+        Include,
+    }
 
     private fun packageText(f: ProtoFile): String = f.pkg?.let { "package '$it'" } ?: "no package"
 

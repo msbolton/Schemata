@@ -116,6 +116,7 @@ internal class Context(
      */
     val declared: Map<String, Set<List<String>>> =
         symbols.all
+            .filter { it.file.path in namespaces }
             .groupBy({ namespaces.getValue(it.file.path) }, { paths.getValue(it.fullName) })
             .mapValues { it.value.toSet() }
 

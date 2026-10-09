@@ -1466,4 +1466,90 @@ class ProtoImportTest {
             messages(r),
         )
     }
+
+    private fun beside(
+        inputs: List<Pair<String, String>>,
+        located: Map<String, String>,
+    ): ImportResult =
+        ProtoImporter.import(inputs.map { ImportInput(it.first, it.second.trimIndent()) }, null) {
+            path ->
+            located[path]?.let { ImportInput(path, it.trimIndent()) }
+        }
+
+    @Test
+    fun `an unreferenced beside file leaves no diagnostics for its own unresolved imports`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T {}"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"gone.proto\";\nmessage A {}"
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(listOf("t.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `a type declared only in a dropped beside file is named in the hint`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T { b.B x = 1; }"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A {}",
+                    "/in/b.proto" to "syntax = \"proto3\";\npackage b;\nmessage B {}",
+                ),
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 field 'T.x': type 'b.B' cannot be resolved; " +
+                    "'/in/b.proto' declares 'b.B' but /in/t.proto does not import it"
+            ),
+            messages(r),
+        )
+        assertEquals("add import \"/in/b.proto\" to /in/t.proto", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `a beside file referenced only through another beside file is kept`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T { a.A x = 1; }"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A { b.B y = 1; }",
+                    "/in/b.proto" to "syntax = \"proto3\";\npackage b;\nmessage B {}",
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(listOf("t.schemata", "a.schemata", "b.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `a cycle between beside files terminates`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T { a.A x = 1; }"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A { b.B y = 1; }",
+                    "/in/b.proto" to
+                        "syntax = \"proto3\";\npackage b;\nimport \"a.proto\";\nmessage B { a.A z = 1; }",
+                ),
+            )
+        assertEquals(3, r.files.size)
+    }
 }
