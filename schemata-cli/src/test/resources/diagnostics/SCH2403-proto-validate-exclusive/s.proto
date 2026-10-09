@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  double ratio = 1 [(validate.rules).double.gt = 0];
+}

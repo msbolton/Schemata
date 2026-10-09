@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package s;
+
+message Order {
+  string name = 1 [(validate.rules).string.max_bytes = 64];
+}

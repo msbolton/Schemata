@@ -310,6 +310,13 @@ internal class FileLowering(
 ) {
     val messageLowering = MessageLowering(this)
     val serviceLowering = ServiceLowering(this)
+    val validateLowering = ValidateLowering(this)
+
+    /**
+     * Validate rules with no Schemata counterpart, by `kind.key`: where the first field carrying
+     * the rule is, and how many fields carry it. Reported once each when the declarations are done.
+     */
+    val droppedRules = LinkedHashMap<String, Pair<Pos, Int>>()
 
     /** Namespaces other than this one that a reference named. */
     val referenced = LinkedHashSet<String>()
@@ -368,6 +375,14 @@ internal class FileLowering(
         }
         val out =
             nested(file.messages, file.enums, context.symbols.scopeOf(file), emptyList(), topLevel)
+        droppedRules.forEach { (rule, where) ->
+            val (pos, count) = where
+            report(
+                ImportCodes.DROPPED,
+                "${file.path}: validate rule '$rule' dropped on $count field${if (count == 1) "" else "s"}",
+                pos,
+            )
+        }
         file.dropped.forEach { (what, pos) ->
             report(ImportCodes.DROPPED, "${file.path}: $what dropped", pos)
         }

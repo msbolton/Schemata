@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2403] (lossy): field 'Order.ratio': gt 0 imported as min 0; the bound is inclusive
+ --> s.proto:6:3
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

@@ -269,8 +269,12 @@ internal class MessageLowering(private val lowering: FileLowering) {
                 else -> single(f.type, scope, enclosing, where, note)
             }
         if (base == null) return FieldType(null, false, null, null, notes)
-        var type = base.type
-        var nullable = base.nullable || f.label == Label.OPTIONAL || f.oneof != null
+        val (validated, stillNullable) =
+            lowering.validateLowering.apply(f, base.type, base.nullable, where) { code, message ->
+                note(code, message)
+            }
+        var type = validated
+        var nullable = stillNullable || f.label == Label.OPTIONAL || f.oneof != null
         var noteNullable = false
         var default: String? = null
         f.note?.let { text ->
@@ -410,7 +414,8 @@ internal class MessageLowering(private val lowering: FileLowering) {
     private fun fits(note: UnitType, lowered: UnitType, symbol: Symbol?): Boolean =
         when {
             note is UnitType.Scalar && lowered is UnitType.Scalar ->
-                if (lowered.builtin == "string") note.builtin in stringCarried
+                if (lowered.builtin == "string" || lowered.builtin == "uuid")
+                    note.builtin in stringCarried
                 else note.builtin == lowered.builtin
             note is UnitType.Ref && lowered is UnitType.Ref ->
                 symbol != null &&
