@@ -553,6 +553,7 @@ object ProtoReader {
                                     int()
                                 }
                         }
+                        if (from > to) fail("reserved range $from to $to runs backwards", start.pos)
                         ranges += from to to
                     }
                 }
