@@ -177,6 +177,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
                     val names =
                         when (value) {
                             is AnnotationValue.Tuple -> value.names.zip(value.nameSpans)
+                            is AnnotationValue.Ordinal -> emptyList()
                             is AnnotationValue.Lit ->
                                 (value.literal as? Literal.NameLit)
                                     ?.takeIf { annotation.block && annotation.name in fieldLists }

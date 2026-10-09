@@ -219,10 +219,23 @@ object Hoisting {
     }
 
     /**
-     * The two fields `@@timestamps` appends. When every field has an explicit ordinal, they take
-     * the next two after the highest one; otherwise the next two after the last field's position.
-     * Either way they step over reserved ordinals. In a body of implicit ordinals the chosen ones
-     * carry no span, since nobody wrote them, and the analyzer reads them as positions.
+     * The two fields `@@timestamps` appends. Unpinned, and when every field has an explicit
+     * ordinal, they take the next two after the highest one; otherwise the next two after the last
+     * field's position. Either way they step over reserved ordinals. In a body of implicit ordinals
+     * the chosen ones carry no span, since nobody wrote them, and the analyzer reads them as
+     * positions.
+     *
+     * `@@timestamps(#n, #m)` pins them: `created_at` takes `#n` and `updated_at` `#m`, in either
+     * order. Both or neither, because a single pinned ordinal leaves the other to float with the
+     * model. Under explicit ordinals the pinned ones are written ordinals like any field's, so the
+     * ordinal check reports a clash or a reserved one. In a body of implicit ordinals that check
+     * never sees them (the other fields are positions), so the clashes are reported here: against
+     * the positions 1..n the other fields hold, and the reserved ranges. The positional fields keep
+     * their positions and the stamps are appended after them, so the mix of written and implicit
+     * ordinals is never presented to the ordinal check.
+     *
+     * An unpinned `@@timestamps` over explicit ordinals draws SCH1054, since adding a field later
+     * moves the stamps; a model with no fields has nothing to move, so it draws none.
      */
     private fun timestamps(
         fields: List<FieldDecl>,
@@ -231,18 +244,6 @@ object Hoisting {
         report: (Diagnostic) -> Unit,
     ): List<FieldDecl> {
         val first = stamps.firstOrNull() ?: return emptyList()
-        stamps
-            .filter { it.args.isNotEmpty() }
-            .forEach {
-                report(
-                    Diagnostic(
-                        CoreCodes.ANNOTATION_VALUE,
-                        "@@timestamps takes no arguments",
-                        it.span,
-                        help = "write `@@timestamps`",
-                    )
-                )
-            }
         stamps.drop(1).forEach {
             report(
                 Diagnostic(
@@ -253,17 +254,87 @@ object Hoisting {
                 )
             )
         }
+        stamps.drop(1).filter { it.args.isNotEmpty() }.forEach { badShape(it, report) }
         val explicit = fields.isNotEmpty() && fields.all { it.ordinal != null }
         val ranges = reserved.filterIsInstance<ReservedItem.Ordinals>().map { it.from..it.to }
+        val pinned =
+            first.args.map {
+                ((it as? AnnotationArg.Positional)?.value as? AnnotationValue.Ordinal)
+            }
+        val malformed = first.args.isNotEmpty() && (pinned.size != 2 || pinned.any { it == null })
+        if (malformed) badShape(first, report)
+        if (first.args.isNotEmpty() && !malformed) {
+            val (created, updated) = pinned.map { it!! }
+            if (!explicit) {
+                // the other fields hold the positions 1..n
+                val taken = fields.size
+                listOf(created, updated).forEach { p ->
+                    when {
+                        p.ordinal <= 0 ->
+                            report(
+                                Diagnostic(
+                                    CoreCodes.INVALID_ORDINAL,
+                                    "ordinal #${p.ordinal} is not positive",
+                                    p.span,
+                                    help = "ordinals start at #1",
+                                )
+                            )
+                        p.ordinal <= taken || (p === updated && p.ordinal == created.ordinal) ->
+                            report(
+                                Diagnostic(
+                                    CoreCodes.DUPLICATE_ORDINAL,
+                                    "ordinal #${p.ordinal} is used more than once in this model",
+                                    p.span,
+                                    help = "pin an ordinal no field holds",
+                                )
+                            )
+                        ranges.any { p.ordinal in it } ->
+                            report(
+                                Diagnostic(
+                                    CoreCodes.RESERVED_CONFLICT,
+                                    "ordinal #${p.ordinal} is reserved in this model",
+                                    p.span,
+                                    help = "pin an ordinal that is not reserved",
+                                )
+                            )
+                    }
+                }
+            }
+            val at = { p: AnnotationValue.Ordinal -> p.span.takeIf { explicit } }
+            return listOf(
+                stamp("created_at", created.ordinal, at(created), nullable = false, first.span),
+                stamp("updated_at", updated.ordinal, at(updated), nullable = true, first.span),
+            )
+        }
         val last = if (explicit) fields.maxOf { it.ordinal!! } else fields.size
         val created = free(last + 1, ranges)
         val updated = free(created + 1, ranges)
+        if (explicit && !malformed) {
+            report(
+                Diagnostic(
+                    CoreCodes.TIMESTAMPS_UNPINNED,
+                    "timestamps are unpinned; adding a field later renumbers them",
+                    first.span,
+                    help = "write `@@timestamps(#$created, #$updated)`",
+                )
+            )
+        }
         val at = first.span.takeIf { explicit }
         return listOf(
             stamp("created_at", created, at, nullable = false, first.span),
             stamp("updated_at", updated, at, nullable = true, first.span),
         )
     }
+
+    private fun badShape(stamp: Annotation, report: (Diagnostic) -> Unit) =
+        report(
+            Diagnostic(
+                CoreCodes.ANNOTATION_VALUE,
+                "@@timestamps takes both ordinals or none",
+                stamp.span,
+                help = "write `@@timestamps` or `@@timestamps(#n, #m)`",
+            )
+        )
 
     /** The first ordinal from [from] on that no range in [reserved] holds. */
     private fun free(from: Int, reserved: List<IntRange>): Int {

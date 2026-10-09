@@ -72,6 +72,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1051 | error | semantic | a back-reference could follow more than one forward reference | field 'Customer.bought' could follow any of 'Order.buyer', 'Order.seller' back | add @relation(…) naming one of buyer, seller |
 | SCH1052 | error | semantic | a required reference sets itself null when its target is deleted | field 'Order.customer' sets itself null when its target is deleted, but it is required | make the reference nullable or choose restrict |
 | SCH1053 | error | semantic | an inline shape's or enum's name collides with a declaration | the inline enum of field 'status' is named 'OrderStatus', which model 'Order' already declares | name it with @name("…") |
+| SCH1054 | warning | semantic | timestamps are unpinned in a model with explicit ordinals | timestamps are unpinned; adding a field later renumbers them | write `@@timestamps(#2, #3)` |
 
 Retired, never reused: SCH1007, SCH1008, SCH1037.
 

@@ -214,6 +214,7 @@ object Formatter {
             when (v) {
                 is AnnotationValue.Lit -> literal(v.literal)
                 is AnnotationValue.Tuple -> "(" + v.names.joinToString(", ") + ")"
+                is AnnotationValue.Ordinal -> "#${v.ordinal}"
             }
 
         /**

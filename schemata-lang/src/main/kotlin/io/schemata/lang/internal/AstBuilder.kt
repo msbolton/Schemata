@@ -523,12 +523,19 @@ internal class AstBuilder(
         ctx.attrKey()?.let {
             return AnnotationArg.Named(it.text, build(ctx.attrValue()), ctx.span())
         }
+        ctx.ORDINAL()?.let {
+            return AnnotationArg.Positional(
+                AnnotationValue.Ordinal(support.ordinal(it), ctx.span()),
+                ctx.span(),
+            )
+        }
         val value = build(ctx.literal())
         return AnnotationArg.Positional(AnnotationValue.Lit(value, ctx.span()), ctx.span())
     }
 
     private fun build(ctx: SchemataParser.AttrValueContext): AnnotationValue =
         ctx.literal()?.let { AnnotationValue.Lit(build(it), ctx.span()) }
+            ?: ctx.ORDINAL()?.let { AnnotationValue.Ordinal(support.ordinal(it), ctx.span()) }
             ?: AnnotationValue.Tuple(
                 ctx.IDENT().map { it.text },
                 ctx.IDENT().map { it.symbol.span() },

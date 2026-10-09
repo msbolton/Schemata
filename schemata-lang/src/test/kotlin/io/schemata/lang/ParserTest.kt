@@ -404,4 +404,14 @@ class ParserTest {
         assertEquals(Span("t", 1, 1, 1, 9), Parser.parse("schema a", "t").file!!.span)
         assertEquals(Span("t", 1, 1, 2, 1), Parser.parse("schema a\n", "t").file!!.span)
     }
+
+    @Test
+    fun `a block attribute may take ordinal arguments`() {
+        val m = model("schema t\nmodel M { #1 id uuid  @@timestamps(#11, #12) }")
+        val args = m.annotations.single().args
+        assertEquals(
+            listOf(11, 12),
+            args.map { ((it as AnnotationArg.Positional).value as AnnotationValue.Ordinal).ordinal },
+        )
+    }
 }

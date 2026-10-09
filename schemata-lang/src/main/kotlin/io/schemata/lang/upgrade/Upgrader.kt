@@ -299,6 +299,7 @@ private class Mapper(private val table: CommentTable, private val otherSchemas: 
         when (v) {
             is AnnotationValue.Lit -> v.copy(literal = renamed(v.literal))
             is AnnotationValue.Tuple -> v.copy(names = v.names.map(::renamed))
+            is AnnotationValue.Ordinal -> v
         }
 
     private fun renamed(l: Literal): Literal =

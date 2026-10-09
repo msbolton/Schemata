@@ -300,4 +300,16 @@ class FormatterTest {
         val expected = "schema t\n\nmodel R {\n  #1 a bool  /* x\ny */\n  #2 b bool\n}\n"
         assertEquals(expected, fmt(input))
     }
+
+    @Test
+    fun `fmt keeps pinned timestamps as written`() {
+        assertEquals(
+            "schema t\n\nmodel M {\n  #1 id int64\n\n  @@timestamps(#11, #12)\n}\n",
+            fmt("schema t\nmodel M {\n#1 id int64\n@@timestamps(#11,#12)\n}\n"),
+        )
+        assertEquals(
+            "schema t\n\nmodel M {\n  #1 id int64\n\n  @@timestamps\n}\n",
+            fmt("schema t\nmodel M {\n#1 id int64\n@@timestamps\n}\n"),
+        )
+    }
 }

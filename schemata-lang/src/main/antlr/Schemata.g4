@@ -82,9 +82,9 @@ optionValue   : INT_LITERAL | FLOAT_LITERAL | STRING_LITERAL | TRUE | FALSE ;
 attribute      : '@' attributeName ('(' (attrArg (',' attrArg)*)? ')')? ;
 blockAttribute : '@@' attributeName ('(' (attrArg (',' attrArg)*)? ')')? ;
 attributeName  : IDENT | keyword ;
-attrArg        : attrKey ':' attrValue | literal ;
+attrArg        : attrKey ':' attrValue | literal | ORDINAL ;
 attrKey        : IDENT | keyword ;
-attrValue      : literal | '(' IDENT (',' IDENT)* ')' ;
+attrValue      : literal | ORDINAL | '(' IDENT (',' IDENT)* ')' ;
 
 keyword       : SCHEMA | IMPORT | AS | MODEL | ENUM | UNION | ALIAS | RESERVED | TRUE | FALSE | SERVICE | OPERATION | STREAM ;
 literal       : INT_LITERAL | FLOAT_LITERAL | STRING_LITERAL | TRUE | FALSE | IDENT ;

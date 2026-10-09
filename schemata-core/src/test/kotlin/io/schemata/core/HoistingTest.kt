@@ -83,7 +83,7 @@ class HoistingTest {
     @Test
     fun `timestamps step over reserved ordinals`() {
         val r = analyze("schema s\nmodel M { #1 a int32  reserved #2..#3, #5  @@timestamps }")
-        assertEquals(emptyList(), r.diagnostics)
+        assertEquals(listOf("SCH1054"), r.diagnostics.map { it.code.id })
         assertEquals(listOf(1, 4, 6), model(r, "M").fields.map { it.ordinal })
     }
 

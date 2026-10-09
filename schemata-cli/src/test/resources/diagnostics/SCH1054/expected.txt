@@ -1,0 +1,6 @@
+# targets=sql
+warning[SCH1054]: timestamps are unpinned; adding a field later renumbers them
+ --> t.schemata:6:3
+  = help: write `@@timestamps(#2, #3)`
+
+0 errors, 1 warning

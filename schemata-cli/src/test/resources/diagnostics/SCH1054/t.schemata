@@ -1,0 +1,7 @@
+schema t
+
+model M {
+  #1 id uuid { id }
+
+  @@timestamps
+}
