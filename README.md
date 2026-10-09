@@ -236,3 +236,6 @@ Dependencies point strictly downward; the build fails if they do not.
   pinning its message and help; the coverage test fails the build for a code without one.
   Run `SCHEMATA_GOLDEN_UPDATE=1 ./gradlew :schemata-cli:test --tests '*DiagnosticFixturesTest*'`
   after changing a message, then review the diff.
+- `scripts/check-envoy-import <envoy-checkout>` runs the Protobuf importer over a real Envoy
+  tree and checks that every target, `protoc` and a proto round trip accept the result. It is a
+  local check, not part of CI.
