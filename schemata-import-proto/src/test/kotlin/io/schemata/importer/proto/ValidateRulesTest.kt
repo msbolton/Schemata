@@ -381,6 +381,92 @@ class ValidateRulesTest {
                 listOf(dropped("repeated.ignore_empty")),
             ),
             Row(
+                "uint64 gt near the top of the range",
+                "uint64 f = 1 [(validate.rules).uint64.gt = 18446744073709551614];",
+                "#1 f int64 { min 0 }",
+                listOf(
+                    w("SCH2404", "uint64 imported as int64(min = 0); the top bit is lost"),
+                    dropped("uint64.gt"),
+                ),
+            ),
+            Row(
+                "int64 gt Long max",
+                "int64 f = 1 [(validate.rules).int64.gt = 9223372036854775807];",
+                "#1 f int64",
+                listOf(dropped("int64.gt")),
+            ),
+            Row(
+                "huge min_bytes",
+                "string f = 1 [(validate.rules).string.min_bytes = 9223372036854775807];",
+                "#1 f string { min 2305843009213693952 }",
+                listOf(
+                    w(
+                        "SCH2404",
+                        "min_bytes 9223372036854775807 imported as min 2305843009213693952; " +
+                            "Schemata counts characters",
+                    )
+                ),
+            ),
+            Row(
+                "min_bytes past 64 bits is dropped",
+                "string f = 1 [(validate.rules).string.min_bytes = 99999999999999999999];",
+                "#1 f string",
+                listOf(dropped("string.min_bytes")),
+            ),
+            Row(
+                "inverted range is dropped",
+                "uint32 f = 1 [(validate.rules).uint32 = {gt: 10, lt: 5}];",
+                "#1 f int64 { min 0, max 4294967295 }",
+                listOf(
+                    w("SCH2404", "uint32 imported as int64(min = 0, max = 4294967295)"),
+                    dropped("uint32.gt"),
+                    dropped("uint32.lt"),
+                ),
+            ),
+            Row(
+                "inverted float range is dropped without a note",
+                "double f = 1 [(validate.rules).double = {gt: 10, lt: 5}];",
+                "#1 f float64",
+                listOf(dropped("double.gt"), dropped("double.lt")),
+            ),
+            Row(
+                "string in with an empty string",
+                "string f = 1 [(validate.rules).string = {in: [\"\"]}];",
+                """#1 f string { match "^()$" }""",
+            ),
+            Row(
+                "string in with one value",
+                "string f = 1 [(validate.rules).string = {in: [\"a\"]}];",
+                """#1 f string { match "^(a)$" }""",
+            ),
+            Row(
+                "string in with no values is dropped",
+                "string f = 1 [(validate.rules).string = {in: []}];",
+                "#1 f string",
+                listOf(dropped("string.in")),
+            ),
+            Row(
+                "string prefix and suffix keep the prefix",
+                "string f = 1 [(validate.rules).string = {prefix: \"a\", suffix: \"b\"}];",
+                """#1 f string { match "^a" }""",
+                listOf(dropped("string.suffix")),
+            ),
+            Row(
+                "message required on a wrapper oneof member stays nullable",
+                "oneof o { google.protobuf.StringValue f = 1 " +
+                    "[(validate.rules).message.required = true]; string g = 2; }",
+                "#1 f string? #2 g string?",
+                listOf(
+                    "SCH2403 model 'M': oneof 'o' imported as nullable fields; at most one of " +
+                        "them is set, which Schemata cannot say",
+                    w(
+                        "SCH2403",
+                        "google.protobuf.StringValue imported as string?; the regenerated " +
+                            "field is optional, not a wrapper",
+                    ),
+                ),
+            ),
+            Row(
                 "the rules named in one aggregate",
                 "string f = 1 [(validate.rules) = {string: {min_len: 1}}];",
                 "#1 f string { min 1 }",
@@ -409,6 +495,10 @@ class ValidateRulesTest {
         val alternatives =
             import("string f = 1 [(validate.rules).string = {in: [\"a|b\", \"c.d\"]}];")
         assertEquals("""#1 f string { match "^(a\\|b|c\\.d)$" }""", fieldLine(alternatives))
+        // Hyphen, slash and quote are not regex syntax outside a class; only the quote is
+        // escaped, as the string literal needs.
+        val plain = import("string f = 1 [(validate.rules).string.prefix = \"a-b/c\\\"d\"];")
+        assertEquals("""#1 f string { match "^a-b/c\"d" }""", fieldLine(plain))
     }
 
     @Test
@@ -440,5 +530,6 @@ class ValidateRulesTest {
         val result =
             import("oneof k { option (validate.required) = true; string a = 1; string b = 2; }\n")
         assertEquals(emptyList(), messages(result).filter { "validate" in it })
+        assertEquals("#1 a string? #2 b string?", fieldLine(result))
     }
 }

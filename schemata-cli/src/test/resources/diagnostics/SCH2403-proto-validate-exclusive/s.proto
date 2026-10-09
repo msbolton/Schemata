@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto3"; // the validate import is left out on purpose so the fixture shows one code
 
 package s;
 

@@ -5,6 +5,7 @@ import io.schemata.importer.UnitType
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
 
@@ -163,6 +164,8 @@ internal class ValidateLowering(private val lowering: FileLowering) {
                 return type
             }
             val refinements = type.refinements.toMutableList()
+            val notes = mutableListOf<String>()
+            val written = mutableListOf<String>()
             for ((key, value) in rules.fields) {
                 val text = literal(value)?.let { number(it, integer) }
                 when {
@@ -174,29 +177,38 @@ internal class ValidateLowering(private val lowering: FileLowering) {
                         tighten(refinements, "min", text)
                         tighten(refinements, "max", text)
                     }
-                    // An integer bound that excludes N is the bound one step in.
+                    // An integer bound that excludes N is the bound one step in. BigInteger so a
+                    // literal at the edge of the range cannot overflow; a bound past 64 bits is
+                    // not a literal Schemata reads, so it goes to the summary.
                     integer -> {
-                        val n = text.toLong()
+                        val n = BigInteger(text)
                         val bound =
-                            try {
-                                if (key == "gt") Math.addExact(n, 1) else Math.subtractExact(n, 1)
-                            } catch (_: ArithmeticException) {
-                                drop(kind, key)
-                                continue
-                            }
+                            if (key == "gt") n.add(BigInteger.ONE) else n.subtract(BigInteger.ONE)
+                        if (!fitsLong(bound)) {
+                            drop(kind, key)
+                            continue
+                        }
                         tighten(refinements, if (key == "gt") "min" else "max", bound.toString())
                     }
                     // A float has no next value, so the exclusive bound becomes the inclusive one.
                     else -> {
                         val bound = if (key == "gt") "min" else "max"
                         tighten(refinements, bound, text)
-                        note(
-                            ImportCodes.APPROXIMATED,
-                            "$where: $key $text imported as $bound $text; the bound is inclusive",
-                        )
+                        notes +=
+                            "$where: $key $text imported as $bound $text; the bound is inclusive"
                     }
                 }
+                if (key in NUMERIC_BOUNDS && text != null) written += key
             }
+            // protoc-gen-validate reads gt above lt as "outside the range", which a pair of bounds
+            // cannot say; the bounds that would exclude every value go instead.
+            val min = refinements.firstOrNull { it.first == "min" }?.second
+            val max = refinements.firstOrNull { it.first == "max" }?.second
+            if (min != null && max != null && BigDecimal(min) > BigDecimal(max)) {
+                written.forEach { drop(kind, it) }
+                return type
+            }
+            notes.forEach { note(ImportCodes.APPROXIMATED, it) }
             return type.copy(refinements = ordered(refinements))
         }
 
@@ -208,7 +220,8 @@ internal class ValidateLowering(private val lowering: FileLowering) {
             val refinements = type.refinements.toMutableList()
             var uuid = false
             val hasWellKnown = rules.fields.any { it.first == "well_known_regex" }
-            // Only one pattern fits the slot: the first of these that is written is kept.
+            // Only one pattern fits the slot: the first in PATTERN_RULES order that is written is
+            // kept.
             val patternRule =
                 PATTERN_RULES.firstOrNull { name -> rules.fields.any { it.first == name } }
             for ((key, value) in rules.fields) {
@@ -239,7 +252,10 @@ internal class ValidateLowering(private val lowering: FileLowering) {
                                 // N bytes hold at least ceil(N/4) characters, as a character is at
                                 // most four bytes of UTF-8; fewer characters than that cannot fill
                                 // N.
-                                val chars = (n.toLong() + 3) / 4
+                                val chars =
+                                    BigInteger(n)
+                                        .add(BigInteger.valueOf(3))
+                                        .divide(BigInteger.valueOf(4))
                                 tighten(refinements, "min", chars.toString())
                                 note(
                                     ImportCodes.WIDENED,
@@ -410,11 +426,17 @@ internal class ValidateLowering(private val lowering: FileLowering) {
 
         /** A bound as a number, or null when it is not one this kind takes. */
         fun number(text: String, integer: Boolean): String? =
-            text.takeIf { if (integer) INTEGER.matches(it) else DECIMAL.matches(it) }
+            text.takeIf {
+                if (integer) INTEGER.matches(it) && fitsLong(BigInteger(it))
+                else DECIMAL.matches(it)
+            }
+
+        /** Schemata integer literals are 64-bit; a larger one does not read. */
+        fun fitsLong(n: BigInteger): Boolean = n.bitLength() < 64
 
         /** A size: a non-negative integer, or null. */
         fun count(text: String?): String? =
-            text?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
+            text?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) && fitsLong(BigInteger(it)) }
 
         /** Only min, max, and (on a string) pattern have a place; other scalars take none. */
         fun accepts(type: UnitType.Scalar, key: String): Boolean =

@@ -407,9 +407,9 @@ internal class MessageLowering(private val lowering: FileLowering) {
 
     /**
      * Whether a note's type can stand for what the proto type lowered to: a proto `string` carries
-     * `string`, `uuid`, `decimal`, `date`, or `time`; every other scalar carries itself; a
-     * reference carries the declaration of that simple name; collections compare element by
-     * element.
+     * `string`, `uuid`, `decimal`, `date`, or `time`, and a string a validate rule made a `uuid`
+     * still carries the same; every other scalar carries itself; a reference carries the
+     * declaration of that simple name; collections compare element by element.
      */
     private fun fits(note: UnitType, lowered: UnitType, symbol: Symbol?): Boolean =
         when {
