@@ -1,9 +1,13 @@
 package io.schemata.lsp.workspace
 
 import io.schemata.core.ir.QualifiedName
+import io.schemata.lang.Parser
+import io.schemata.lang.Span
+import io.schemata.lang.ast.RecordDecl
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import org.junit.jupiter.api.io.TempDir
 
 class ReferenceIndexTest {
@@ -276,6 +280,69 @@ class ReferenceIndexTest {
         assertEquals(
             listOf(f.location(a, "Customer", occurrence = 0)),
             f.queries.definition(a, f.at(a, "Customer }")),
+        )
+    }
+
+    @Test
+    fun `a generated field is not a symbol and a written one is, whatever its span`() {
+        val f = Fixture(dir)
+        val a = f.open("m/a.schemata", "schema m\nmodel R { #1 name string  @@timestamps }\n")
+        val owner = QualifiedName("m", listOf("R"))
+        val index = f.workspace.analysis(f.workspace.keyOf(a)).index
+        assertEquals(1, index.definitions(Symbol.Field(owner, "name")).size)
+        assertEquals(emptyList(), index.definitions(Symbol.Field(owner, "created_at")))
+        assertEquals(emptyList(), index.definitions(Symbol.Field(owner, "updated_at")))
+        assertEquals(
+            listOf("name"),
+            f.queries.symbols(a).single().children.single().children.map { it.name },
+        )
+    }
+
+    @Test
+    fun `a written field whose name span equals its span is still a symbol`() {
+        val parsed =
+            Parser.parse("schema m\nmodel R { #1 name string  @@timestamps }\n", "m.schemata")
+        val file = parsed.file!!
+        val record = file.declarations.single() as RecordDecl
+        // The shape the old span comparison mistook for a generated field.
+        val squeezed = record.fields.single().let { it.copy(span = it.nameSpan) }
+        val index =
+            IndexBuilder.build(
+                listOf(file.copy(declarations = listOf(record.copy(fields = listOf(squeezed))))),
+                Recorded(),
+            )
+        val owner = QualifiedName("m", listOf("R"))
+        assertEquals(1, index.definitions(Symbol.Field(owner, "name")).size)
+        assertEquals(emptyList(), index.definitions(Symbol.Field(owner, "created_at")))
+    }
+
+    @Test
+    fun `lookup among many sites finds the first listed match and honours the slack`() {
+        fun span(file: String, line: Int, from: Int, to: Int) = Span(file, line, from, line, to)
+        val symbols = (0 until 3000).map { Symbol.Field(QualifiedName("m", listOf("R")), "f$it") }
+        val sites =
+            (0 until 3000).flatMap { i ->
+                listOf(
+                    Site(span("a", i + 1, 1, 5), symbols[i], definition = true),
+                    Site(span("b", i + 1, 1, 5), symbols[i], definition = false),
+                )
+            } + Site(span("a", 10, 3, 12), Symbol.Namespace("wide"), definition = false)
+        val listed = sites.shuffled(java.util.Random(7))
+        val index = ReferenceIndex(listed, emptyList(), emptyMap())
+        assertEquals(symbols[1499], index.at("a", 1500, 1)!!.symbol)
+        assertEquals(true, index.at("a", 1500, 1)!!.definition)
+        assertEquals(false, index.at("b", 1500, 5)!!.definition)
+        // Just past the end counts only when nothing covers the position itself.
+        assertEquals(symbols[2999], index.at("a", 3000, 6)!!.symbol)
+        assertNull(index.at("a", 3000, 7))
+        assertNull(index.at("c", 1, 1))
+        assertNull(index.at("a", 3001, 1))
+        // Of two sites that cover a position, the one listed first wins.
+        assertEquals(
+            listed.first {
+                it.span.file == "a" && it.span.startLine == 10 && it.span.endColumn > 4
+            },
+            index.at("a", 10, 4),
         )
     }
 }

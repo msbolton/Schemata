@@ -19,8 +19,10 @@ service Orders {
 """
 
 /** Files written under a temporary directory and opened in a workspace, for query tests. */
-class Fixture(private val dir: Path) {
-    val workspace = Workspace(AnnotationRegistry.CORE)
+class Fixture(
+    private val dir: Path,
+    val workspace: Workspace = Workspace(AnnotationRegistry.CORE),
+) {
     val queries = Queries(workspace)
     private val texts = mutableMapOf<String, String>()
 

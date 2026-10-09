@@ -168,4 +168,35 @@ class HoverTest {
             f.queries.hover(a, f.at(a, "{ street"))!!.markdown,
         )
     }
+
+    @Test
+    fun `hover on a back-reference field shows its target and its relation`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "shop/a.schemata",
+                "schema shop\n" +
+                    "model Customer { #1 id uuid { id }  " +
+                    "#2 orders Order[] @relation(customer) }\n" +
+                    "model Order { #1 id uuid { id }  #2 customer Customer @relation(onDelete: cascade) }\n",
+            )
+        assertEquals(
+            block("field shop.Customer.orders Order[] @relation(customer)"),
+            f.queries.hover(a, f.at(a, "orders"))!!.markdown,
+        )
+        assertEquals(
+            block("field shop.Order.customer Customer @relation(onDelete: cascade)"),
+            f.queries.hover(a, f.at(a, "customer)"))!!.markdown,
+        )
+        assertEquals(block("model shop.Order"), f.queries.hover(a, f.at(a, "Order[]"))!!.markdown)
+    }
+
+    @Test
+    fun `an operation hover pads the ordinal to the widest one in its service as the formatter does`() {
+        val f = Fixture(dir)
+        val ops = (1..10).joinToString("\n") { "  #$it op$it()" }
+        val a = f.open("t/a.schemata", "schema t\nservice S {\n$ops\n}\n")
+        assertEquals(block("#1  op1()"), f.queries.hover(a, f.at(a, "op1("))!!.markdown)
+        assertEquals(block("#10 op10()"), f.queries.hover(a, f.at(a, "op10("))!!.markdown)
+    }
 }

@@ -31,6 +31,9 @@ sealed interface RenameResult {
 /** Not a lexer keyword, but it reads as one, so rename refuses it as one. */
 private val reservedWords = setOf("null")
 
+private const val NAME_RULE =
+    "a name starts with a letter or underscore, then letters, digits, or underscores"
+
 // A service is named like a type and an operation like a field; the analyser rejects anything else.
 private val upperCamel = Regex("[A-Z][A-Za-z0-9]*")
 private val lowerSnake = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
@@ -65,10 +68,12 @@ internal class Rename(
                     "fix the syntax errors in ${fileName(it.path)} before renaming"
                 )
             }
+        // Nothing to change, and nothing to refuse: the name is taken only by the symbol itself.
+        if (newName == currentName()) return RenameResult.Edits(emptyMap())
         val refusal =
             when {
                 newName in Names.keywords || newName in reservedWords -> "'$newName' is a keyword"
-                !Names.isIdentifier(newName) -> "'$newName' is not a valid name"
+                !Names.isIdentifier(newName) -> "'$newName' is not a valid name: $NAME_RULE"
                 symbol is Symbol.Declaration && isBuiltin(newName) ->
                     "'$newName' is a builtin type name"
                 symbol is Symbol.Service && !upperCamel.matches(newName) ->
@@ -93,6 +98,18 @@ internal class Rename(
         }
         return RenameResult.Edits(edits)
     }
+
+    /** The name [symbol] is written with now. */
+    private fun currentName(): String =
+        when (symbol) {
+            is Symbol.Declaration -> symbol.name.path.last()
+            is Symbol.Service -> symbol.name.path.last()
+            is Symbol.Field -> symbol.name
+            is Symbol.EnumValue -> symbol.name
+            is Symbol.Operation -> symbol.name
+            is Symbol.ImportAlias -> symbol.alias
+            is Symbol.Namespace -> symbol.name
+        }
 
     private fun isBuiltin(name: String) =
         Builtin.byName(name) != null || name == "list" || name == "map"

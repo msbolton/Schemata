@@ -23,6 +23,9 @@ class Document(val path: String) {
     var open: Boolean = false
     var stamp: DiskStamp? = null
     var snapshot: Snapshot? = null
+
+    /** Whether the disk refused to give up this file's text when it was last read. */
+    var unreadable: Boolean = false
     var parseDiagnostics: List<Diagnostic> = emptyList()
 
     val broken: Boolean

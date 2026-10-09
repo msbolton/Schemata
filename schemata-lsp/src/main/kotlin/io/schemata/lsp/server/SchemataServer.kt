@@ -78,8 +78,11 @@ import org.eclipse.lsp4j.services.WorkspaceService
  * after a short pause; a request that arrives during the pause publishes first, so it answers from
  * the text the editor already holds. Only files whose diagnostics changed are published again.
  */
-class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) -> Unit) :
-    LanguageServer, LanguageClientAware, TextDocumentService, WorkspaceService {
+class SchemataServer(
+    annotations: AnnotationRegistry,
+    private val debounceMs: Long = DEBOUNCE_MS,
+    private val onExit: (Int) -> Unit,
+) : LanguageServer, LanguageClientAware, TextDocumentService, WorkspaceService {
     private val workspace = Workspace(annotations)
     private val queries = Queries(workspace)
     private val executor =
@@ -88,7 +91,11 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         }
     private val pending = mutableMapOf<SetKey, ScheduledFuture<*>>()
 
-    /** The URI the editor used for each path, so publishes name files the way it does. */
+    /**
+     * The URI the editor used for each open document's path, so publishes name files the way it
+     * does. A closed document is dropped: the editor no longer holds it, and nothing else would
+     * ever remove its entry.
+     */
     private val uris = mutableMapOf<String, String>()
 
     /** What was last published for each path; a publish goes out only when it differs. */
@@ -187,12 +194,15 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
 
     // ---- documents ----------------------------------------------------------------------------
 
-    private fun path(uri: String): String? = Uris.toPath(uri)?.also { uris[it] = uri }
+    private fun path(uri: String): String? = Uris.toPath(uri)
+
+    /** [path] for a document the editor holds open, remembering the URI it spelled it with. */
+    private fun openPath(uri: String): String? = path(uri)?.also { uris[it] = uri }
 
     private fun uriOf(path: String): String = uris[path] ?: Uris.toUri(path)
 
     override fun didOpen(params: DidOpenTextDocumentParams) = notify {
-        path(params.textDocument.uri)?.let {
+        openPath(params.textDocument.uri)?.let {
             // An editor may have dropped a closed file's diagnostics; send them again on reopen.
             published.remove(it)
             touch(workspace.open(it, params.textDocument.text))
@@ -200,13 +210,16 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
     }
 
     override fun didChange(params: DidChangeTextDocumentParams) = notify {
-        val path = path(params.textDocument.uri)
+        val path = openPath(params.textDocument.uri)
         val text = params.contentChanges.lastOrNull()?.text
         if (path != null && text != null) touch(workspace.change(path, text))
     }
 
     override fun didClose(params: DidCloseTextDocumentParams) = notify {
-        path(params.textDocument.uri)?.let { touch(workspace.close(it)) }
+        path(params.textDocument.uri)?.let {
+            uris.remove(it)
+            touch(workspace.close(it))
+        }
     }
 
     override fun didSave(params: DidSaveTextDocumentParams) = Unit
@@ -247,7 +260,7 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
                         publish(key)
                     }
                 },
-                DEBOUNCE_MS,
+                debounceMs,
                 TimeUnit.MILLISECONDS,
             )
     }
@@ -281,6 +294,7 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
         analysis.gone.forEach {
             published.remove(it)
             client?.publishDiagnostics(PublishDiagnosticsParams(uriOf(it), emptyList()))
+            uris.remove(it)
         }
         return analysis.members.map { it.path }
     }
@@ -448,8 +462,9 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            debounceMs: Long = DEBOUNCE_MS,
             onExit: (Int) -> Unit,
-        ): Future<Void> = start(input, output, annotations, onExit).second
+        ): Future<Void> = start(input, output, annotations, debounceMs, onExit).second
 
         /**
          * Serves one client on the given streams until the input ends, and returns the exit code: 0
@@ -462,7 +477,7 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
             annotations: AnnotationRegistry,
             onExit: (Int) -> Unit,
         ): Int {
-            val (server, listening) = start(input, output, annotations, onExit)
+            val (server, listening) = start(input, output, annotations, DEBOUNCE_MS, onExit)
             listening.get()
             return if (server.shutdownRequested) 0 else 1
         }
@@ -471,9 +486,10 @@ class SchemataServer(annotations: AnnotationRegistry, private val onExit: (Int) 
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            debounceMs: Long,
             onExit: (Int) -> Unit,
         ): Pair<SchemataServer, Future<Void>> {
-            val server = SchemataServer(annotations, onExit)
+            val server = SchemataServer(annotations, debounceMs, onExit)
             val launcher = LSPLauncher.createServerLauncher(server, input, output)
             server.connect(launcher.remoteProxy)
             return server to launcher.startListening()

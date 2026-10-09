@@ -1,5 +1,7 @@
 package io.schemata.lsp.workspace
 
+import io.schemata.core.annotations.AnnotationRegistry
+import io.schemata.lang.Parser
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -135,6 +137,9 @@ class RenameTest {
         assertNull(f.queries.prepareRename(o, f.at(o, "model")))
     }
 
+    private val nameRule =
+        "a name starts with a letter or underscore, then letters, digits, or underscores"
+
     private fun refusal(f: Fixture, path: String, position: TextPosition, name: String): String =
         assertIs<RenameResult.Refused>(f.queries.rename(path, position, name)).message
 
@@ -144,8 +149,8 @@ class RenameTest {
         f.open("shop/customers.schemata", customers)
         val o = f.open("shop/orders.schemata", orders)
         val at = f.at(o, "Order")
-        assertEquals("'9lives' is not a valid name", refusal(f, o, at, "9lives"))
-        assertEquals("'has space' is not a valid name", refusal(f, o, at, "has space"))
+        assertEquals("'9lives' is not a valid name: $nameRule", refusal(f, o, at, "9lives"))
+        assertEquals("'has space' is not a valid name: $nameRule", refusal(f, o, at, "has space"))
         assertEquals("'model' is a keyword", refusal(f, o, at, "model"))
         assertEquals(
             "'all' is already a field of shop.orders.Order",
@@ -536,5 +541,106 @@ class RenameTest {
         assertNull(f.queries.prepareRename(a, f.at(a, "{ street")))
         assertIs<RenameResult.Refused>(f.queries.rename(a, f.at(a, "{ street"), "Place"))
         assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "Order"), "Purchase"))
+    }
+
+    @Test
+    fun `renaming an imported payload record edits the service and the file that declares it`() {
+        val f = Fixture(dir)
+        val types =
+            f.open(
+                "shop/types.schemata",
+                "schema shop.types\nmodel Id { #1 id uuid }\nmodel Order { #1 id uuid }\n",
+            )
+        val api =
+            f.open(
+                "shop/api.schemata",
+                "schema shop.api\nimport shop.types\n" +
+                    "service Orders {\n  #1 get(Id): Order\n  #2 list(): stream Order\n}\n",
+            )
+        val after = renameAndReanalyse(f, api, f.at(api, "Order\n  #2"), "Purchase")
+        assertEquals(setOf(types, api), after.keys)
+        assertEquals(
+            "schema shop.api\nimport shop.types\n" +
+                "service Orders {\n  #1 get(Id): Purchase\n  #2 list(): stream Purchase\n}\n",
+            after[api],
+        )
+        assertEquals(
+            "schema shop.types\nmodel Id { #1 id uuid }\nmodel Purchase { #1 id uuid }\n",
+            after[types],
+        )
+    }
+
+    @Test
+    fun `renaming an imported request record from its declaration reaches the importing service`() {
+        val f = Fixture(dir)
+        val types = f.open("shop/types.schemata", "schema shop.types\nmodel Id { #1 id uuid }\n")
+        val api =
+            f.open(
+                "shop/api.schemata",
+                "schema shop.api\nimport shop.types\nservice Orders { #1 get(Id): Id }\n",
+            )
+        val after = renameAndReanalyse(f, types, f.at(types, "Id"), "Key")
+        assertEquals(
+            "schema shop.api\nimport shop.types\nservice Orders { #1 get(Key): Key }\n",
+            after[api],
+        )
+    }
+
+    @Test
+    fun `a rename goes ahead in a set whose files already have errors it does not touch`() {
+        val f = Fixture(dir)
+        val c = f.open("shop/customers.schemata", customers)
+        val o = f.open("shop/orders.schemata", orders)
+        f.open("shop/broken.schemata", "schema shop.broken\nmodel B { #1 x Missing }\n")
+        val edits = assertIs<RenameResult.Edits>(f.queries.rename(o, f.at(o, "Customer"), "Client"))
+        assertEquals(setOf(c, o), edits.edits.keys)
+    }
+
+    @Test
+    fun `rename refuses while a file whose parse threw is still in the set`() {
+        val boom = "schema shop.boom\nmodel Boom { #1 x int32 }\n"
+        val workspace =
+            Workspace(
+                AnnotationRegistry.CORE,
+                parse = { text, path ->
+                    if (text == boom) error("parser exploded") else Parser.parse(text, path)
+                },
+            )
+        val f = Fixture(dir, workspace)
+        f.open("shop/customers.schemata", customers)
+        val o = f.open("shop/orders.schemata", orders)
+        f.write("shop/boom.schemata", boom)
+        val message = refusal(f, o, f.at(o, "Order"), "Purchase")
+        assertTrue(message.startsWith("fix the syntax errors in boom.schemata"), message)
+    }
+
+    @Test
+    fun `an enum default under a type that does not resolve is left alone`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "m/a.schemata",
+                "schema m\nenum Status { #1 pending, #2 paid }\n" +
+                    "model R { #1 s Status = pending  #2 t Missing = pending }\n",
+            )
+        val edits = assertIs<RenameResult.Edits>(f.queries.rename(a, f.at(a, "pending,"), "open"))
+        assertEquals(
+            "schema m\nenum Status { #1 open, #2 paid }\n" +
+                "model R { #1 s Status = open  #2 t Missing = pending }\n",
+            apply(f.text(a), edits.edits.getValue(a)),
+        )
+    }
+
+    @Test
+    fun `renaming to the name it already has returns no edits`() {
+        val f = Fixture(dir)
+        f.open("shop/customers.schemata", customers)
+        val o = f.open("shop/orders.schemata", orders)
+        assertEquals(
+            RenameResult.Edits(emptyMap()),
+            f.queries.rename(o, f.at(o, "Customer"), "Customer"),
+        )
+        assertEquals(RenameResult.Edits(emptyMap()), f.queries.rename(o, f.at(o, "who"), "who"))
+        assertEquals(RenameResult.Edits(emptyMap()), f.queries.rename(o, f.at(o, "Order"), "Order"))
     }
 }

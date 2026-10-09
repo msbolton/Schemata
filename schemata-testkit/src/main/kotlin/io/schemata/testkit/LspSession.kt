@@ -135,16 +135,18 @@ private constructor(
         )
     }
 
-    fun close(path: Path) {
-        server.textDocumentService.didClose(
-            DidCloseTextDocumentParams(TextDocumentIdentifier(uri(path)))
-        )
+    fun close(path: Path) = closeUri(uri(path))
+
+    fun closeUri(uri: String) {
+        server.textDocumentService.didClose(DidCloseTextDocumentParams(TextDocumentIdentifier(uri)))
     }
 
     /** Tells the server a file changed on disk, as the editor's file watcher would. */
-    fun watched(path: Path, type: FileChangeType) {
+    fun watched(path: Path, type: FileChangeType) = watchedUri(uri(path), type)
+
+    fun watchedUri(uri: String, type: FileChangeType) {
         server.workspaceService.didChangeWatchedFiles(
-            DidChangeWatchedFilesParams(listOf(FileEvent(uri(path), type)))
+            DidChangeWatchedFilesParams(listOf(FileEvent(uri, type)))
         )
     }
 
