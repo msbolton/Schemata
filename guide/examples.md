@@ -799,8 +799,9 @@ proto target gives `message Money` back with the same fields, numbers, and comme
 
 ## importing envoy
 
-Envoy's API is a large Protobuf corpus: files under `envoy/`, `contrib/`, and `xds/` that import
-Google's `google/type/`, `udpa/` and `validate/` files, most of which a checkout does not hold.
+Envoy's API is a large Protobuf corpus: files under `envoy/` and `contrib/` that import `udpa/`,
+`xds/`, `google/api/`, `google/rpc/` and `validate/` files, which come from its dependencies and not
+from the `api/` tree.
 `schemata import --from proto --include DIR` names a directory to look in for an import the inputs
 do not hold; a file found there is imported only when an input uses one of its types. An import that
 is found nowhere, such as `validate/validate.proto` or `udpa/annotations/status.proto`, is dropped

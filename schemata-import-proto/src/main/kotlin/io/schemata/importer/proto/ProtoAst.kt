@@ -13,7 +13,10 @@ data class ProtoOption(
 
 /** A value inside an aggregate option in text format. */
 sealed interface OptionValue {
-    /** A scalar as written: strings keep their quotes, numbers and enum names their source text. */
+    /**
+     * A scalar as written: strings are the decoded text without quotes, numbers and enum names
+     * their source text.
+     */
     data class Literal(val text: String) : OptionValue
 
     data class ListValue(val items: List<OptionValue>) : OptionValue

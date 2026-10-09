@@ -1835,7 +1835,8 @@ missing an attribute it cannot be read without (a `group` with no `name`, an `ex
 `import --from proto` reads proto2, proto3, and editions files. An `import` resolves among the
 inputs by its path under their roots (the directories named on the command line), then beside the
 importing file, then under each root on disk, then under each `--include` directory; a file found
-that way is read and imported too. An import of protoc's own files under `google/protobuf/`,
+that way is read, but it is written only when an input uses one of its types; a file under a
+directory argument is always written. An import of protoc's own files under `google/protobuf/`,
 `timestamp.proto` and `descriptor.proto` alike, needs no file at all, since their types are known by
 name. Files under one root that declare one package are one package to `protoc`, so they import as
 one schema, the package's, with each segment lower-snaked if need be (SCH2402). Two files whose
@@ -2112,7 +2113,7 @@ the field wins over a rule.
 | string `in` | `match "^(a\|b)$"`, escaped | |
 | string `uuid: true` | the type `uuid` | |
 | string `not_in`, `not_contains`, `well_known_regex`, `strict`, `email`, `hostname`, `ip*`, `uri*`, `address` | dropped | SCH2405 |
-| two or more of `pattern`, `prefix`, `suffix`, `contains`, `in` | `pattern` kept, the others dropped | SCH2405 |
+| two or more of `pattern`, `prefix`, `suffix`, `contains`, `in` | the first written of `pattern`, `prefix`, `suffix`, `contains`, `in` kept, in that order, the others dropped | SCH2405 |
 | bytes `min_len`, `max_len`, `len` | `min`, `max` | |
 | other bytes rules | dropped | SCH2405 |
 | repeated `min_items`, `max_items` | `minItems`, `maxItems` | |
