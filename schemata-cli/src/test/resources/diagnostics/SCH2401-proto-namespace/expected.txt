@@ -1,7 +1,7 @@
 # import=proto
 warning[SCH2402] (lossy): a-b.proto: schema name 'a_b' was derived from the file name
  --> a-b.proto:1:1
-  = help: set --namespace to choose it, or keep it and rename later
+  = help: import the file on its own with --namespace to choose it, or keep it and rename later
 
 error[SCH2401]: a_b.proto: package 'x' and a-b.proto's package 'y' both lower to schema 'a_b'
  --> a_b.proto:1:1

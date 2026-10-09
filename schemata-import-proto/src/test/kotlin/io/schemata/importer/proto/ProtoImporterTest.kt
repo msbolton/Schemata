@@ -12,14 +12,6 @@ class ProtoImporterTest {
         val input = ImportInput("C:\\protos\\a\\orders.proto", "", relative = "a/orders.proto")
         assertEquals("C:/protos", ProtoImporter.root(input))
         assertEquals("C:/protos", ProtoImporter.root(input.copy(relative = "a\\orders.proto")))
-        assertEquals(
-            "C:/protos/a/people.proto",
-            ProtoImporter.resolvePath("C:\\protos\\a\\orders.proto", "people.proto"),
-        )
-        assertEquals(
-            "C:/protos/b/people.proto",
-            ProtoImporter.resolvePath("C:\\protos\\a\\orders.proto", "../b/people.proto"),
-        )
     }
 
     @Test

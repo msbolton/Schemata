@@ -18,7 +18,7 @@ object ImportCodes {
             "SCH2402",
             Severity.WARNING,
             Category.LOSSY,
-            "a name was derived from a file name or changed on import",
+            "a name was derived from a file or directory name or changed on import",
         )
     val APPROXIMATED =
         DiagnosticCode("SCH2403", Severity.WARNING, Category.LOSSY, "a construct was approximated")
@@ -41,7 +41,8 @@ object ImportCodes {
     fun helpFor(code: DiagnosticCode): String =
         when (code) {
             UNRESOLVED -> "add the schema that declares it to the inputs, or fix the reference"
-            RENAMED -> "set --namespace to choose it, or keep it and rename later"
+            RENAMED ->
+                "import the file on its own with --namespace to choose it, or keep it and rename later"
             APPROXIMATED ->
                 "review the imported declaration; the regenerated schema will differ here"
             WIDENED -> "narrow the type by hand if the data needs it"

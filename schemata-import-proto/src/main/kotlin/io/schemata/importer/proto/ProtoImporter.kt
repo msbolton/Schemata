@@ -8,6 +8,7 @@ import io.schemata.importer.Importer
 import io.schemata.importer.Roots
 import io.schemata.importer.UnitAnnotation
 import io.schemata.importer.importResult
+import io.schemata.importer.resolvePath
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
@@ -221,25 +222,4 @@ object ProtoImporter : Importer {
      */
     internal fun root(input: ImportInput): String? =
         input.relative?.let { slashed(input.path).removeSuffix(slashed(it)).trimEnd('/') }
-
-    /**
-     * [relative] joined to [basePath]'s directory, `/`-separated, with `.` segments dropped and
-     * each `..` taking back the segment before it.
-     */
-    internal fun resolvePath(basePath: String, relative: String): String {
-        val dir = slashed(basePath).substringBeforeLast('/', "")
-        val joined = if (dir.isEmpty()) slashed(relative) else "$dir/${slashed(relative)}"
-        val out = ArrayDeque<String>()
-        joined.split('/').forEach { seg ->
-            when (seg) {
-                "",
-                "." -> Unit
-                ".." ->
-                    if (out.isNotEmpty() && out.last() != "..") out.removeLast()
-                    else out.addLast(seg)
-                else -> out.addLast(seg)
-            }
-        }
-        return (if (joined.startsWith("/")) "/" else "") + out.joinToString("/")
-    }
 }

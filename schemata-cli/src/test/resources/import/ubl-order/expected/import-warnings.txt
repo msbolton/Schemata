@@ -1646,11 +1646,11 @@ SCH2403 union 'UnsignedSignaturePropertiesChoice': members 'RevocationValues' an
 SCH2403 union 'UnsignedSignaturePropertiesChoice': members 'SignatureTimeStamp' and 'ArchiveTimeStamp' share type 'XAdESTimeStamp'; each imported as a model holding it
 SCH2403 element 'SigningCertificate': element 'SigningCertificate' has no Schemata equivalent; the regenerated root element will be named 'cert_id_list'
 SCH2404 union 'SignaturePolicyIdentifier': no declared type; treated as xs:anyType, imported as string
-SCH2403 union 'SignaturePolicyIdentifier': member element 'SignaturePolicyId' has no Schemata equivalent; the regenerated element will be named 'signature_policy_id'
-SCH2403 union 'SignaturePolicyIdentifier': member element 'SignaturePolicyImplied' has no Schemata equivalent; the regenerated element will be named 'string'
+SCH2403 union 'SignaturePolicyIdentifier': member element name 'SignaturePolicyId' has no Schemata equivalent and is dropped; the regenerated element will be named 'signature_policy_id'
+SCH2403 union 'SignaturePolicyIdentifier': member element name 'SignaturePolicyImplied' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
 SCH2403 complex type 'CommitmentTypeIndicationType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 union 'ResponderID': member element 'ByName' has no Schemata equivalent; the regenerated element will be named 'string'
-SCH2403 union 'ResponderID': member element 'ByKey' has no Schemata equivalent; the regenerated element will be named 'bytes'
+SCH2403 union 'ResponderID': member element name 'ByName' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
+SCH2403 union 'ResponderID': member element name 'ByKey' has no Schemata equivalent and is dropped; the regenerated element will be named 'bytes'
 SCH2403 complex type 'CertificateValuesType': inline choice has no Schemata equivalent; imported as union 'CertificateValuesChoice' in field 'choice'
 SCH2405 element 'SigningTime': root element of simple type dropped
 SCH2405 element 'SPURI': root element of simple type dropped

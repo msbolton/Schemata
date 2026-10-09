@@ -1097,7 +1097,7 @@ object XsdImport {
                             lossy(
                                 ImportCodes.APPROXIMATED,
                                 where,
-                                "member element '${el.name}' has no Schemata equivalent; the " +
+                                "member element name '${el.name}' has no Schemata equivalent and is dropped; the " +
                                     "regenerated element will be named '$stem'",
                                 el.line,
                             )
@@ -2277,7 +2277,7 @@ object XsdImport {
                             lossy(
                                 ImportCodes.APPROXIMATED,
                                 unionWhere,
-                                "member element '${e.name}' has no Schemata equivalent; the " +
+                                "member element name '${e.name}' has no Schemata equivalent and is dropped; the " +
                                     "regenerated element will be named '$stem'",
                                 e.el.line,
                             )

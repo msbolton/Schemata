@@ -1,5 +1,5 @@
 # import=xsd
-warning[SCH2403] (lossy): union 'Contact': member element 'email' has no Schemata equivalent; the regenerated element will be named 'string'
+warning[SCH2403] (lossy): union 'Contact': member element name 'email' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
  --> s.xsd:5:1
   = help: review the imported declaration; the regenerated schema will differ here
 

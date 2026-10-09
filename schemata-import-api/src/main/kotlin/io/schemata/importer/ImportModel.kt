@@ -142,7 +142,11 @@ data class UnitField(
  * single ordinal is a range whose [Ordinals.from] equals its [Ordinals.to].
  */
 sealed interface UnitReserved {
-    data class Ordinals(val from: Int, val to: Int) : UnitReserved
+    data class Ordinals(val from: Int, val to: Int) : UnitReserved {
+        init {
+            require(from <= to) { "reserved ordinals run from $from to $to, which is backwards" }
+        }
+    }
 
     data class Name(val name: String) : UnitReserved
 }

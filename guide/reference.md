@@ -1360,7 +1360,7 @@ Every import reports in one family:
 | Code | Meaning |
 |---|---|
 | SCH2401 | error: a file cannot be read, a reference, import, or include cannot be resolved, or two constructs lower to one name |
-| SCH2402 | warning: a name was derived from a file name or changed on import; a schema name derived rather than taken as written, or an rpc's name lower-snaked into one the target would not write back |
+| SCH2402 | warning: a name was derived from a file or directory name or changed on import; a schema name derived rather than taken as written, or an rpc's name lower-snaked into one the target would not write back |
 | SCH2403 | warning: a construct was approximated; it is kept, but the regenerated schema will differ |
 | SCH2404 | warning: a type or facet was widened or dropped |
 | SCH2405 | warning: a construct was dropped |

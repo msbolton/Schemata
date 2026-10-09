@@ -1020,11 +1020,11 @@ class XsdImportTest {
         assertEquals("code", voucher.fields.single().name)
         assertEquals(
             listOf(
-                "SCH2403 union 'Payment': member element 'creditCard' has no Schemata equivalent; " +
+                "SCH2403 union 'Payment': member element name 'creditCard' has no Schemata equivalent and is dropped; " +
                     "the regenerated element will be named 'card'",
                 "SCH2403 union 'Payment': members 'cash' and 'coins' share type 'Cash'; each " +
                     "imported as a model holding it",
-                "SCH2403 union 'Payment': member element 'cash' has no Schemata equivalent; the " +
+                "SCH2403 union 'Payment': member element name 'cash' has no Schemata equivalent and is dropped; the " +
                     "regenerated element will be named 'cash2'",
                 "SCH2403 union 'Payment': members 'cash' and 'coins' share type 'Cash'; each " +
                     "imported as a model holding it",
@@ -1075,7 +1075,7 @@ class XsdImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 union 'Pick': member element 'a' has no Schemata equivalent; the " +
+                "SCH2403 union 'Pick': member element name 'a' has no Schemata equivalent and is dropped; the " +
                     "regenerated element will be named 'grid'"
             ),
             messages(imported),
@@ -1111,9 +1111,9 @@ class XsdImportTest {
                     "regenerated root element will be named 'id'",
                 "SCH2404 union 'Policy': no declared type; treated as xs:anyType, imported as " +
                     "string",
-                "SCH2403 union 'Policy': member element 'implied' has no Schemata equivalent; the " +
+                "SCH2403 union 'Policy': member element name 'implied' has no Schemata equivalent and is dropped; the " +
                     "regenerated element will be named 'string'",
-                "SCH2403 union 'Policy': member element 'alias' has no Schemata equivalent; the " +
+                "SCH2403 union 'Policy': member element name 'alias' has no Schemata equivalent and is dropped; the " +
                     "regenerated element will be named 'id'",
                 "SCH2403 element 'head': substitution group 'head' imported as its one member " +
                     "type 'Id'",
@@ -3092,11 +3092,11 @@ class XsdImportTest {
                 """
             )
         assertTrue(
-            "SCH2403 element 'head': member element 'alpha' has no Schemata equivalent; the regenerated element will be named 'a'" in
+            "SCH2403 element 'head': member element name 'alpha' has no Schemata equivalent and is dropped; the regenerated element will be named 'a'" in
                 messages(imported)
         )
         assertTrue(
-            "SCH2403 element 'head': member element 'bType' has no Schemata equivalent; the regenerated element will be named 'b'" in
+            "SCH2403 element 'head': member element name 'bType' has no Schemata equivalent and is dropped; the regenerated element will be named 'b'" in
                 messages(imported)
         )
     }
