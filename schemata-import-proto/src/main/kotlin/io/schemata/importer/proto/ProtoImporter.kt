@@ -69,6 +69,7 @@ object ProtoImporter : Importer {
         val roots = inputs.mapNotNull { root(it) }.distinct()
 
         val imports = LinkedHashMap<String, MutableList<ProtoFile>>()
+        val publicImports = LinkedHashMap<String, MutableSet<String>>()
         val queue = ArrayDeque(files.values)
         fun report(
             file: ProtoFile,
@@ -122,6 +123,7 @@ object ProtoImporter : Importer {
                     )
                 } else {
                     imports.getOrPut(f.path) { mutableListOf() } += target
+                    if (imp.public) publicImports.getOrPut(f.path) { mutableSetOf() } += target.path
                 }
             }
         }
@@ -176,7 +178,7 @@ object ProtoImporter : Importer {
             ProtoLowering.lower(
                 all,
                 namespaces,
-                ProtoSymbols(all, imports),
+                ProtoSymbols(all, imports, publicImports),
                 annotations,
                 imports,
                 sources.mapValues { (_, input) -> input.relative ?: input.path },

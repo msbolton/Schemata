@@ -991,7 +991,73 @@ class ProtoImportTest {
                     """,
             )
         assertEquals(emptyList(), messages(r))
-        assertEquals(true, text(r, "t.schemata").contains("#1 b b.B  #2 a a.A"))
+        assertEquals(
+            """
+            schema t
+
+            import a
+            import b
+
+            model M { #1 b b.B  #2 a a.A }
+            """
+                .trimIndent() + "\n",
+            text(r, "t.schemata"),
+        )
+    }
+
+    @Test
+    fun `import public resolves by the resolved path when files sit under a root`() {
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "api/x.proto",
+                        "syntax = \"proto3\";\npackage x;\nmessage X { string id = 1; }\n",
+                        relative = "x.proto",
+                    ),
+                    ImportInput(
+                        "api/a.proto",
+                        "syntax = \"proto3\";\npackage a;\nimport public \"x.proto\";\n" +
+                            "message A { string id = 1; }\n",
+                        relative = "a.proto",
+                    ),
+                    ImportInput(
+                        "api/t.proto",
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\n" +
+                            "message M { x.X x = 1; }\n",
+                        relative = "t.proto",
+                    ),
+                )
+            )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `an rpc payload from an unimported file is reported with the file that declares it`() {
+        val r =
+            importText(
+                "shop/a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop.a;
+                    message A { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { string id = 1; }
+                    service S { rpc Get(shop.a.A) returns (M); }
+                    """,
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 rpc 'S.Get': type 'shop.a.A' cannot be resolved; " +
+                    "'shop/a.proto' declares 'shop.a.A' but t.proto does not import it"
+            ),
+            messages(r),
+        )
+        assertEquals("add import \"shop/a.proto\" to t.proto", r.diagnostics.single().help)
     }
 
     @Test

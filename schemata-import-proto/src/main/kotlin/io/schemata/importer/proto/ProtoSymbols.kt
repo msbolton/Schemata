@@ -20,6 +20,12 @@ class ProtoSymbols(
     files: List<ProtoFile>,
     /** Each file's path to the files its `import` statements resolved to. */
     imports: Map<String, List<ProtoFile>> = emptyMap(),
+    /**
+     * Each file's path to the paths of the files its `import public` statements resolved to. An
+     * import string is not a path once a file is found under a root or beside its importer, so the
+     * importer reports what each one resolved to.
+     */
+    publicImports: Map<String, Set<String>> = emptyMap(),
 ) {
     private val byName = LinkedHashMap<String, Symbol>()
 
@@ -30,8 +36,7 @@ class ProtoSymbols(
     private val prefixOwners = HashMap<String, MutableSet<String>>()
 
     private val importedBy: Map<String, List<ProtoFile>> = imports
-    private val publicOf: Map<String, Set<String>> =
-        files.associate { f -> f.path to f.imports.filter { it.public }.map { it.path }.toSet() }
+    private val publicOf: Map<String, Set<String>> = publicImports
     private val visible = HashMap<String, Set<String>>()
 
     init {
@@ -102,19 +107,19 @@ class ProtoSymbols(
      * visible file. Without it, every file read is visible.
      */
     fun resolve(name: String, scope: List<String>, from: ProtoFile? = null): Symbol? {
-        val seen = from?.let { visibleFrom(it) }
+        val visible = from?.let { visibleFrom(it) }
         fun hit(full: String): Symbol? =
-            byName[full]?.takeIf { seen == null || it.file.path in seen }
+            byName[full]?.takeIf { visible == null || it.file.path in visible }
         if (name.startsWith(".")) return hit(name.substring(1))
         val first = name.substringBefore('.')
         val rest = name.substringAfter('.', "")
         for (depth in scope.size downTo 0) {
             val candidate = (scope.take(depth) + first).joinToString(".")
             val counts =
-                if (seen == null) candidate in byName || candidate in prefixes
+                if (visible == null) candidate in byName || candidate in prefixes
                 else
-                    byName[candidate]?.file?.path in seen ||
-                        prefixOwners[candidate].orEmpty().any { it in seen }
+                    byName[candidate]?.file?.path in visible ||
+                        prefixOwners[candidate].orEmpty().any { it in visible }
             if (counts) return hit(if (rest.isEmpty()) candidate else "$candidate.$rest")
         }
         return null

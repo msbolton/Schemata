@@ -135,7 +135,12 @@ class ProtoSymbolsTest {
                 "syntax = \"proto3\"; package b; import public \"c.proto\"; message B {}",
             )
         val a = file("a.proto", "syntax = \"proto3\"; package a; import \"b.proto\"; message A {}")
-        val s = ProtoSymbols(listOf(a, b, c), mapOf(a.path to listOf(b), b.path to listOf(c)))
+        val s =
+            ProtoSymbols(
+                listOf(a, b, c),
+                mapOf(a.path to listOf(b), b.path to listOf(c)),
+                mapOf(b.path to setOf(c.path)),
+            )
         assertEquals(setOf("a.proto", "b.proto", "c.proto"), s.visibleFrom(a))
         assertEquals("b.B", s.resolve("b.B", listOf("a"), a)?.fullName)
         assertEquals("c.C", s.resolve("c.C", listOf("a"), a)?.fullName)
@@ -143,8 +148,18 @@ class ProtoSymbolsTest {
 
     @Test
     fun `a name declared in a file the importing file does not import is not visible`() {
-        val s = ProtoSymbols(listOf(lua, base, validators), mapOf(lua.path to emptyList()))
-        assertNull(s.resolve(".envoy.config.core.v3.DataSource", inLua, lua))
+        val bare =
+            file(
+                "envoy/extensions/filters/http/lua/v3/bare.proto",
+                """
+                syntax = "proto3";
+                package envoy.extensions.filters.http.lua.v3;
+                message Bare {}
+                """,
+            )
+        val s = ProtoSymbols(listOf(bare, base, validators), mapOf(bare.path to emptyList()))
+        assertNull(s.resolve(".envoy.config.core.v3.DataSource", inLua, bare))
+        assertNull(s.resolve("config.core.v3.DataSource", inLua, bare))
         assertEquals(base, s.declaringFile("envoy.config.core.v3.DataSource"))
     }
 
@@ -162,8 +177,8 @@ class ProtoSymbolsTest {
     fun `a nested message still shadows a package prefix inside its own file`() {
         val x =
             file("x.proto", "syntax = \"proto3\"; package p; message config { message Inner {} }")
-        val y = file("y.proto", "syntax = \"proto3\"; package q; message Y {}")
-        val s = ProtoSymbols(listOf(x, y), mapOf(x.path to emptyList()))
+        val y = file("y.proto", "syntax = \"proto3\"; package config; message Inner {}")
+        val s = ProtoSymbols(listOf(x, y), mapOf(x.path to listOf(y)))
         assertEquals(
             "p.config.Inner",
             s.resolve("config.Inner", listOf("p", "config"), x)?.fullName,
@@ -172,22 +187,32 @@ class ProtoSymbolsTest {
 
     @Test
     fun `referencedFiles lists the files that declare the types a file names`() {
+        fun decl(pkg: String, type: String) =
+            file("$pkg.proto", "syntax = \"proto3\"; package $pkg; message $type {}")
+        val mapped = decl("mapped", "V")
+        val listed = decl("listed", "E")
+        val member = decl("member", "O")
+        val payload = decl("payload", "P")
+        val unused = decl("unused", "U")
         val svc =
             file(
                 "svc.proto",
                 """
                 syntax = "proto3";
-                package envoy.extensions.filters.http.lua.v3;
-                import "envoy/config/core/v3/base.proto";
-                message Lua {
-                  message In { map<string, config.core.v3.DataSource> m = 1; string s = 2; }
-                  repeated config.core.v3.DataSource d = 1;
-                  oneof o { Lua self = 2; }
+                package svc;
+                message Top {
+                  message In { map<string, mapped.V> m = 1; string s = 2; }
+                  repeated listed.E d = 1;
+                  oneof o { member.O self = 2; }
                 }
-                service S { rpc Do(config.core.v3.DataSource) returns (google.protobuf.Empty); }
+                service S { rpc Do(payload.P) returns (google.protobuf.Empty); }
                 """,
             )
-        val s = ProtoSymbols(listOf(validators, base, svc), mapOf(svc.path to listOf(base)))
-        assertEquals(setOf(base.path), s.referencedFiles(svc))
+        val all = listOf(mapped, listed, member, payload, unused, svc)
+        val s = ProtoSymbols(all, mapOf(svc.path to listOf(mapped, listed, member, payload)))
+        assertEquals(
+            setOf(mapped.path, listed.path, member.path, payload.path),
+            s.referencedFiles(svc),
+        )
     }
 }

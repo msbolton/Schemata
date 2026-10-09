@@ -312,7 +312,7 @@ internal class FileLowering(
     /** Namespaces other than this one that a reference named. */
     val referenced = LinkedHashSet<String>()
 
-    /** Imports of this file that nothing in it uses. */
+    /** Imports of this file that could not be resolved. */
     val unresolvedImports: List<String> = emptyList()
 
     /**

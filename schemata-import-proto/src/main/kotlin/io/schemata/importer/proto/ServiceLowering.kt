@@ -126,7 +126,15 @@ internal class ServiceLowering(private val lowering: FileLowering) {
                 val symbol = lowering.context.symbols.resolve(t.name, scope, lowering.file)
                 if (symbol == null) {
                     lowering.unimported(t.name, scope)?.let { (text, help) ->
-                        return drop("type '${t.name}' cannot be resolved; $text", help)
+                        val named =
+                            "${service.removePrefix("service '").removeSuffix("'")}.${rpc.name}"
+                        lowering.report(
+                            ImportCodes.UNRESOLVED,
+                            "rpc '$named': type '${t.name}' cannot be resolved; $text",
+                            rpc.pos,
+                            help,
+                        )
+                        return null
                     }
                 }
                 if (symbol?.message == null) return drop("type '${t.name}' is not a message")
