@@ -29,7 +29,7 @@ object SqlRules : Rulebook {
                     "introduce a new declaration instead of changing this one's kind",
                 )
             is FieldAdded -> fieldAdded(change)
-            is FieldRemoved -> fieldRemoved(change)
+            is FieldRemoved -> fieldRemoved(change, ctx)
             is FieldRenamed -> fieldRenamed(change, ctx)
             is FieldTypeChanged -> fieldTypeChanged(change, ctx)
             is FieldNullabilityChanged -> fieldNullabilityChanged(change)
@@ -95,11 +95,18 @@ object SqlRules : Rulebook {
         else Verdict.Compatible
     }
 
-    private fun fieldRemoved(change: FieldRemoved): Verdict =
-        Verdict.Breaking(
-            "${change.path}: the column was dropped breaks rows that still hold its data",
-            "migrate the column's data elsewhere before dropping it",
-        )
+    /** A `Model[]` field's elements are rows of a child table, which goes with the field. */
+    private fun fieldRemoved(change: FieldRemoved, ctx: ChangeContext): Verdict =
+        if (ctx.hasChildTable(Side.OLD, change.field))
+            Verdict.Breaking(
+                "${change.path}: child table dropped, which breaks rows that still hold its data",
+                "migrate the child table's data elsewhere before dropping it",
+            )
+        else
+            Verdict.Breaking(
+                "${change.path}: the column was dropped breaks rows that still hold its data",
+                "migrate the column's data elsewhere before dropping it",
+            )
 
     private fun fieldRenamed(change: FieldRenamed, ctx: ChangeContext): Verdict {
         val fromName = ctx.emittedFieldName(target, change.from)

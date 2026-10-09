@@ -57,7 +57,7 @@ class ChangeContextTest {
         Namespace(name, declarations.toList(), at())
 
     @Test
-    fun `reservedInNew reports both ordinal only name only and neither`() {
+    fun `reservedInNew reports both ordinal only name only and unreserved`() {
         fun schemaWith(reserved: Reserved) =
             Schema(listOf(namespace("s", record("s", "R", field(1, "x"), reserved = reserved))))
 
@@ -79,7 +79,7 @@ class ChangeContextTest {
                 .reservedInNew(path, 2, "b"),
         )
         assertEquals(
-            ReservedStatus.NEITHER,
+            ReservedStatus.UNRESERVED,
             ChangeContext(old, schemaWith(Reserved.NONE)).reservedInNew(path, 2, "b"),
         )
     }
@@ -267,5 +267,52 @@ class ChangeContextTest {
         assertFalse(ctx.isRoot(Side.NEW, missing))
         assertFalse(ctx.isOpen(Side.NEW, missing))
         assertFalse(ctx.hasTable(Side.NEW, missing))
+    }
+
+    private fun reach(old: String, new: String = old): ChangeContext =
+        ChangeContext(analysed(old), analysed(new))
+
+    @Test
+    fun `a type reachable only through a removed operation's payload stops being reachable`() {
+        val head = "schema t\n\nmodel Id { #1 id uuid }\n\nmodel Order { #1 line Line }\n\n"
+        val tail = "model Line { #1 sku string }\n\n"
+        val ctx =
+            reach(
+                head + tail + "service S { #1 keep(Id)  #2 place(Order) }",
+                head + tail + "service S { #1 keep(Id)  reserved #2 }",
+            )
+        val order = qn("t", "Order")
+        val line = qn("t", "Line")
+        assertTrue(ctx.reachableFromServices(Side.OLD, order))
+        assertTrue(ctx.reachableFromServices(Side.OLD, line))
+        assertFalse(ctx.reachableFromServices(Side.NEW, order))
+        assertFalse(ctx.reachableFromServices(Side.NEW, line))
+        assertTrue(ctx.reachableFromServices(Side.NEW, qn("t", "Id")))
+    }
+
+    @Test
+    fun `reachability terminates on a cycle and still reaches the whole loop`() {
+        val ctx =
+            reach(
+                "schema t\n\nmodel A { #1 b B? }\n\nmodel B { #1 a A? }\n\n" +
+                    "model Loose { #1 x int32 }\n\nservice S { #1 get(A) }"
+            )
+        assertTrue(ctx.reachableFromServices(Side.OLD, qn("t", "A")))
+        assertTrue(ctx.reachableFromServices(Side.OLD, qn("t", "B")))
+        assertFalse(ctx.reachableFromServices(Side.OLD, qn("t", "Loose")))
+    }
+
+    @Test
+    fun `a type reached through two operations stays reachable when one is removed`() {
+        val head = "schema t\n\nmodel Shared { #1 x int32 }\n\nmodel Id { #1 id uuid }\n\n"
+        val ctx =
+            reach(
+                head + "service S { #1 a(Shared)  #2 b(Id): Shared }",
+                head + "service S { #1 a(Shared)  reserved #2 }",
+            )
+        val shared = qn("t", "Shared")
+        assertTrue(ctx.reachableFromServices(Side.OLD, shared))
+        assertTrue(ctx.reachableFromServices(Side.NEW, shared))
+        assertFalse(ctx.reachableFromServices(Side.NEW, qn("t", "Id")))
     }
 }

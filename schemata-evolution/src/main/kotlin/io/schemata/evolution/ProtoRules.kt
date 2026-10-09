@@ -130,7 +130,7 @@ object ProtoRules : Rulebook {
                     "${change.path}: field removed; name '$name' is free to be reused",
                     help,
                 )
-            ReservedStatus.NEITHER ->
+            ReservedStatus.UNRESERVED ->
                 Verdict.Note(
                     "${change.path}: field removed; number $ordinal and name '$name' are free to be reused",
                     help,
@@ -334,7 +334,7 @@ object ProtoRules : Rulebook {
      * compatible only while the emitted rpc name stays the same, as when a pin keeps the old one.
      */
     private fun operationRenamed(change: OperationRenamed, ctx: ChangeContext): Verdict {
-        val oldService = ctx.old.service(change.service.qualifiedName) ?: change.service
+        val oldService = ctx.oldService(change.service)
         val fromName = ctx.emittedName(target, OperationOwner(oldService, change.from))
         val toName = ctx.emittedName(target, OperationOwner(change.service, change.to))
         if (fromName == toName) return Verdict.Compatible
@@ -372,7 +372,11 @@ object ProtoRules : Rulebook {
             when (change.owner) {
                 is ServiceOwner -> "service"
                 is OperationOwner -> "rpc"
-                else -> return Verdict.Compatible
+                is NamespaceOwner,
+                is DeclarationOwner,
+                is FieldOwner,
+                is EnumValueOwner,
+                is UnionMemberOwner -> return Verdict.Compatible
             }
         return if (change.deprecated)
             Verdict.Note(

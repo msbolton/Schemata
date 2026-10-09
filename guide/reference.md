@@ -2507,7 +2507,7 @@ the 1.x syntax is one of those: upgrade both sides before comparing them.
   instead, so reordering a field, value, or member without numbering it reads as a rename and a
   type change; number a schema (`check --strict` reports every implicit ordinal) before relying on
   `diff`. When a compared declaration still carries an implicit ordinal on either side, the report's
-  trailer says so (`note: ordinals are implicit in 2 declarations; run check --strict`).
+  trailer says so (`note: 2 declarations have implicit ordinals; run check --strict`).
 - A field, value, or member that keeps its name but moves to a new ordinal is a removal of the old
   ordinal and an addition of the new one, on every target — even Postgres, XSD, and JSON Schema,
   which never emit ordinals and so judge the move by those two changes, not as a rename. Keep an

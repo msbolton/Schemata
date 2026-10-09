@@ -549,4 +549,39 @@ class ProtoRulesTest {
         val new = record("s", "R", field(1, "a", ListOf(Scalar(Builtin.INT32), true)))
         assertEquals(Verdict.Compatible, verdict(ProtoRules, ns(old), ns(new)))
     }
+
+    @Test
+    fun `a rename that also drops the old proto name pin moves the rpc path`() {
+        val old = analysed(pinnedBase + "service S { @proto(name: \"Get\") #1 fetch(Id): Id }")
+        val new = analysed(pinnedBase + "service S { #1 load(Id): Id }")
+        val verdicts = judged(old, new).associate { it.first.kind to it.second }
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.load: the operation was renamed, so its rpc path changes from " +
+                    "/shop.v1.S/Get to /shop.v1.S/Load",
+                "pin the rpc name with @proto(name: \"Get\")",
+            ),
+            verdicts["operation.renamed"],
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.load: the rpc path changes from /shop.v1.S/Get to /shop.v1.S/Load",
+                "pin the rpc name with @proto(name: \"Get\")",
+            ),
+            verdicts["annotation.changed"],
+        )
+    }
+
+    @Test
+    fun `a service deprecation added is a note`() {
+        val old = analysed(serviceBase + "service S { #1 get(A): B }")
+        val new = analysed(serviceBase + "@deprecated\nservice S { #1 get(A): B }")
+        assertEquals(
+            Verdict.Note(
+                "t.S: the service is now deprecated; generated stubs flag every call to it",
+                "tell clients when the service will be removed",
+            ),
+            judged(old, new).single { it.first.kind == "deprecation.changed" }.second,
+        )
+    }
 }

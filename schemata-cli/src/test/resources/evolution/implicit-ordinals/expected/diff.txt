@@ -11,7 +11,7 @@ xsd: 4 breaking, 0 notes
 jsonschema: 4 breaking, 0 notes
 openapi: 0 breaking, 0 notes
 
-note: ordinals are implicit in 1 declaration; run check --strict
+note: 1 declaration has implicit ordinals; run check --strict
 
 error[SCH2501]: jsonschema: s.Customer.age: the field was renamed from 'name' to 'age' breaks old documents that still use the old name
  --> new/s.schemata:3:34
