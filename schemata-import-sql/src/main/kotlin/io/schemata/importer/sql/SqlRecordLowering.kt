@@ -3,7 +3,6 @@ package io.schemata.importer.sql
 import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportNames
 import io.schemata.importer.NoteText
-import io.schemata.importer.SchemataUnit
 import io.schemata.importer.UnionMember
 import io.schemata.importer.UnitAnnotation
 import io.schemata.importer.UnitDecl
@@ -14,7 +13,6 @@ import io.schemata.importer.UnitRecord
 import io.schemata.importer.UnitType
 import io.schemata.importer.UnitUnion
 import io.schemata.lang.Diagnostic
-import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
 import io.schemata.target.Names
 
@@ -37,7 +35,7 @@ private val BUILTINS =
 
 // ---- what a record lowers to, before it is built ----
 
-private sealed interface Nested {
+internal sealed interface Nested {
     val name: String
 
     fun decl(): UnitDecl
@@ -56,7 +54,7 @@ private class FixedDecl(val value: UnitDecl) : Nested {
  * enclosing record's name. [key] is a primary key whose fields are not in key order, and [uniques]
  * and [indexes] the constraints over more than one field, each as the fields' names.
  */
-private class RecordSpec(
+internal class RecordSpec(
     override var name: String,
     val parent: RecordSpec?,
     private val reserved: Set<String>,
@@ -119,7 +117,7 @@ private class RecordSpec(
  * primary key must match; [inner] are the records whose own fields stand for some of them.
  * [onDelete] is a reference's `ON DELETE` action as the language spells it.
  */
-private class Slot(
+internal class Slot(
     val name: String,
     var type: UnitType,
     val nullable: Boolean,
@@ -167,7 +165,7 @@ private class Col(val column: SqlColumn, val local: String, val nullable: Boolea
 }
 
 /** What one top-level record's lowering shares: its namespace, imports, and json fields. */
-private class Run(
+internal class Run(
     val namespace: String,
     val imports: MutableSet<String>,
     val topNames: Set<String>,
@@ -176,10 +174,10 @@ private class Run(
 }
 
 /** A table being lowered into a record; [label] names the record in messages. */
-private class TableCtx(val info: TableInfo, val label: String, val run: Run)
+internal class TableCtx(val info: TableInfo, val label: String, val run: Run)
 
 /** A field stored as json whose note names types to find once the record is complete. */
-private class JsonUse(
+internal class JsonUse(
     val owner: RecordSpec,
     val slot: Slot,
     val ctx: TableCtx,
@@ -199,87 +197,11 @@ private class ScalarOut(
 /**
  * Lowers the catalog's tables into records: columns, references, unions, embeds, and child tables.
  */
-internal class Lowering(
-    val catalog: Catalog,
-    val namespaces: Map<String, SchemaNamespace>,
-    val diagnostics: MutableList<Diagnostic>,
-) {
-    /** Where diagnostics go; a column group collects its own to report them in column order. */
-    private var sink: MutableList<Diagnostic> = diagnostics
-
-    /** The record each table that is not a child table lowers to, unique within its namespace. */
-    private val recordNames = LinkedHashMap<String, String>()
-
-    init {
-        catalog.tables.values
-            .filter { it.child == null }
-            .groupBy { namespaceOf(it) }
-            .values
-            .forEach { group ->
-                val taken = mutableSetOf<String>()
-                group.forEach { t ->
-                    val base = ImportNames.upperCamel(t.name)
-                    val name =
-                        generateSequence(1) { it + 1 }
-                            .map { if (it == 1) base else "$base$it" }
-                            .first { it !in taken }
-                    taken += name
-                    recordNames[t.key] = name
-                }
-            }
-    }
-
-    private fun namespaceOf(t: TableInfo): String = namespaces.getValue(t.schema).name
-
-    fun units(): List<SchemataUnit> =
-        namespaces.entries.groupBy({ it.value.name }, { it.key }).mapNotNull { (namespace, schemas)
-            ->
-            val tables = catalog.tables.values.filter { it.schema in schemas && it.child == null }
-            if (tables.isEmpty()) return@mapNotNull null
-            val first = namespaces.getValue(schemas.first())
-            val topNames = tables.map { recordNames.getValue(it.key) }.toSet()
-            val imports = LinkedHashSet<String>()
-            val records = tables.map { record(it, Run(namespace, imports, topNames)) }
-            SchemataUnit(
-                namespace,
-                first.annotations,
-                null,
-                imports.toList(),
-                records,
-                sourcePath = first.sourcePath,
-            )
-        }
-
-    // ---- diagnostics ----
-
-    private fun say(ctx: TableCtx, column: SqlColumn, code: DiagnosticCode, message: String) {
-        report(
-            sink,
-            ctx.info.file,
-            code,
-            "column '${ctx.label}.${column.name}': $message",
-            column.pos,
-        )
-    }
-
-    private fun sayTable(info: TableInfo, code: DiagnosticCode, message: String) {
-        report(sink, info.file, code, "table '${info.name}': $message", info.table.pos)
-    }
-
-    private inline fun <T> capture(into: MutableList<Diagnostic>, block: () -> T): T {
-        val saved = sink
-        sink = into
-        try {
-            return block()
-        } finally {
-            sink = saved
-        }
-    }
-
+internal class RecordLowering(private val context: ImportContext) {
     // ---- records ----
 
-    private fun record(info: TableInfo, run: Run): UnitRecord {
-        val name = recordNames.getValue(info.key)
+    internal fun record(info: TableInfo, run: Run): UnitRecord {
+        val name = context.recordNames.getValue(info.key)
         val spec = RecordSpec(name, null, run.topNames)
         spec.doc = info.doc
         if (Names.snakeCase(name) != info.name) {
@@ -303,14 +225,16 @@ internal class Lowering(
         ctx.info.table.columns
             .filter { it.generated != null }
             .forEach {
-                say(
+                context.say(
                     ctx,
                     it,
                     ImportCodes.DROPPED,
                     "GENERATED … STORED dropped; imported as a plain column",
                 )
             }
-        ctx.info.table.dropped.forEach { sayTable(ctx.info, ImportCodes.DROPPED, "$it dropped") }
+        ctx.info.table.dropped.forEach {
+            context.sayTable(ctx.info, ImportCodes.DROPPED, "$it dropped")
+        }
     }
 
     /**
@@ -324,7 +248,7 @@ internal class Lowering(
             val first = ctx.info.column(fk.columns.first()) ?: continue
             if (refTarget(ctx, fk, first) == null) continue
             fk.consumed = true
-            sayTable(
+            context.sayTable(
                 ctx.info,
                 ImportCodes.DROPPED,
                 "foreign key over (${fk.columns.joinToString(", ")}) dropped; a key field cannot be a reference",
@@ -351,7 +275,7 @@ internal class Lowering(
         val notes = mutableListOf<Pair<Int, List<Diagnostic>>>()
         fun step(anchor: Int, block: () -> Slot?) {
             val found = mutableListOf<Diagnostic>()
-            capture(found, block)?.let {
+            context.capture(found, block)?.let {
                 it.anchor = anchor
                 slots += it
             }
@@ -383,7 +307,7 @@ internal class Lowering(
                 }
             }
         }
-        notes.sortedBy { it.first }.forEach { sink += it.second }
+        notes.sortedBy { it.first }.forEach { context.sink += it.second }
         return slots.sortedBy { it.anchor }
     }
 
@@ -517,7 +441,7 @@ internal class Lowering(
         if (same != null) return UnitType.Ref(base) to (same as RecordSpec)
         record.name = spec.claim(base)
         if (record.name != base) {
-            say(
+            context.say(
                 ctx,
                 kind.column,
                 ImportCodes.APPROXIMATED,
@@ -627,10 +551,10 @@ internal class Lowering(
      * null, reported, and [fk] is done with.
      */
     private fun refTarget(ctx: TableCtx, fk: FkInfo, first: SqlColumn): TableInfo? {
-        val target = catalog.resolve(fk.fk.refSchema, fk.fk.refTable)
+        val target = context.catalog.resolve(fk.fk.refSchema, fk.fk.refTable)
         if (target == null) {
             fk.consumed = true
-            say(
+            context.say(
                 ctx,
                 first,
                 ImportCodes.UNRESOLVED,
@@ -648,7 +572,7 @@ internal class Lowering(
                 fk.columns.size == pk.size
         if (!keyed) {
             fk.consumed = true
-            say(
+            context.say(
                 ctx,
                 first,
                 ImportCodes.DROPPED,
@@ -661,8 +585,8 @@ internal class Lowering(
 
     /** A reference to [target]'s record, qualified and imported when it is in another namespace. */
     private fun refTo(ctx: TableCtx, target: TableInfo): UnitType {
-        val namespace = namespaceOf(target)
-        val name = recordNames.getValue(target.key)
+        val namespace = context.namespaceOf(target)
+        val name = context.recordNames.getValue(target.key)
         if (namespace == ctx.run.namespace) return UnitType.Ref(name)
         ctx.run.imports += namespace
         return UnitType.Ref("$namespace.$name")
@@ -688,12 +612,12 @@ internal class Lowering(
             val why =
                 if (action == "SET NULL" && nullable == false) "; the reference cannot be null"
                 else ""
-            say(ctx, first, ImportCodes.APPROXIMATED, "ON DELETE $action dropped$why")
+            context.say(ctx, first, ImportCodes.APPROXIMATED, "ON DELETE $action dropped$why")
         }
         fk.fk.onUpdate
             ?.takeIf { it != "NO ACTION" }
-            ?.let { say(ctx, first, ImportCodes.APPROXIMATED, "ON UPDATE $it dropped") }
-        fk.fk.extras.forEach { say(ctx, first, ImportCodes.APPROXIMATED, "$it dropped") }
+            ?.let { context.say(ctx, first, ImportCodes.APPROXIMATED, "ON UPDATE $it dropped") }
+        fk.fk.extras.forEach { context.say(ctx, first, ImportCodes.APPROXIMATED, "$it dropped") }
         return onDelete
     }
 
@@ -720,11 +644,11 @@ internal class Lowering(
         val fkCols = key.map { k -> written[refColumns.indexOf(k)] }
         val first = fkCols.first()
         if (fkCols != written) {
-            say(
+            context.say(
                 ctx,
                 written.first().column,
                 ImportCodes.APPROXIMATED,
-                "foreign key columns (${fk.columns.joinToString(", ")}) are listed in another order than the key (${key.joinToString(", ")}) of '${recordNames.getValue(target.key)}'; imported in the key's order",
+                "foreign key columns (${fk.columns.joinToString(", ")}) are listed in another order than the key (${key.joinToString(", ")}) of '${context.recordNames.getValue(target.key)}'; imported in the key's order",
             )
         }
         val suffix = "_${key.first()}"
@@ -736,7 +660,7 @@ internal class Lowering(
         val (name, column) =
             if (follows) spec.fieldName(f!!)
             else {
-                say(
+                context.say(
                     ctx,
                     written.first().column,
                     ImportCodes.APPROXIMATED,
@@ -806,7 +730,7 @@ internal class Lowering(
             column.note?.let { text ->
                 NoteText.parse(text)
                     ?: null.also {
-                        say(
+                        context.say(
                             ctx,
                             column,
                             ImportCodes.APPROXIMATED,
@@ -837,7 +761,7 @@ internal class Lowering(
         if (noted is UnitType.ListOf && refs(noted).isEmpty()) {
             type = noted
         } else if (noted != null) {
-            say(
+            context.say(
                 ctx,
                 column,
                 ImportCodes.APPROXIMATED,
@@ -845,7 +769,12 @@ internal class Lowering(
             )
         }
         if (noted !is UnitType.ListOf && spell(element) != mapped.canonical) {
-            say(ctx, column, ImportCodes.WIDENED, "${column.type} imported as ${mapped.builtin}[]")
+            context.say(
+                ctx,
+                column,
+                ImportCodes.WIDENED,
+                "${column.type} imported as ${mapped.builtin}[]",
+            )
         }
         dropDefault(ctx, column)
         return ScalarOut(type, null, null, null, json = false, keyable = false)
@@ -862,7 +791,8 @@ internal class Lowering(
         val noted = note?.type
         if (noted == null || noted is UnitType.Scalar)
             return plain(ctx, spec, c, note, "", overridable)
-        if (column.type == "json") say(ctx, column, ImportCodes.WIDENED, "json imported as jsonb")
+        if (column.type == "json")
+            context.say(ctx, column, ImportCodes.WIDENED, "json imported as jsonb")
         dropDefault(ctx, column)
         val strategy = if (noted is UnitType.MapOf) null else "json"
         return ScalarOut(noted, null, null, strategy, json = true, keyable = false)
@@ -903,7 +833,7 @@ internal class Lowering(
             )
         }
         if (noted != null && noted !is UnitType.Scalar) {
-            say(
+            context.say(
                 ctx,
                 column,
                 ImportCodes.APPROXIMATED,
@@ -927,14 +857,14 @@ internal class Lowering(
             if (overridable) sqlType = written
             if (note == null && mapped.foreign) {
                 val with = if (overridable) " with @sql(type)" else ""
-                say(ctx, column, ImportCodes.WIDENED, "$written imported as $builtin$with")
+                context.say(ctx, column, ImportCodes.WIDENED, "$written imported as $builtin$with")
             }
         }
-        mapped.approximated?.let { say(ctx, column, ImportCodes.APPROXIMATED, it) }
+        mapped.approximated?.let { context.say(ctx, column, ImportCodes.APPROXIMATED, it) }
         if (mapped.generated)
-            say(ctx, column, ImportCodes.APPROXIMATED, "$written generation dropped")
+            context.say(ctx, column, ImportCodes.APPROXIMATED, "$written generation dropped")
         if (column.identity)
-            say(ctx, column, ImportCodes.APPROXIMATED, "identity generation dropped")
+            context.say(ctx, column, ImportCodes.APPROXIMATED, "identity generation dropped")
         val default = scalarDefault(ctx, column, builtin)
         return ScalarOut(type, default, sqlType, null, json = false, keyable = true)
     }
@@ -962,7 +892,7 @@ internal class Lowering(
                 .filterIsInstance<Atom.Pattern>()
                 .filter { it.insensitive }
                 .forEach { _ ->
-                    say(
+                    context.say(
                         ctx,
                         column,
                         ImportCodes.WIDENED,
@@ -984,7 +914,7 @@ internal class Lowering(
                     .first { it !in taken }
             taken += name
             if (name != literal) {
-                say(
+                context.say(
                     ctx,
                     c.column,
                     ImportCodes.APPROXIMATED,
@@ -1006,7 +936,7 @@ internal class Lowering(
         if (d == SqlExpr.Null) return null
         val index = literals.indexOf((d as? SqlExpr.Str)?.value)
         if (index >= 0) return values[index].name
-        say(ctx, column, ImportCodes.APPROXIMATED, "default ${exprText(d)} dropped")
+        context.say(ctx, column, ImportCodes.APPROXIMATED, "default ${exprText(d)} dropped")
         return null
     }
 
@@ -1026,20 +956,20 @@ internal class Lowering(
                 else -> null
             }
         if (literal == null)
-            say(ctx, column, ImportCodes.APPROXIMATED, "default ${exprText(d)} dropped")
+            context.say(ctx, column, ImportCodes.APPROXIMATED, "default ${exprText(d)} dropped")
         return literal
     }
 
     private fun dropDefault(ctx: TableCtx, column: SqlColumn) {
         val d = column.default ?: return
         if (d != SqlExpr.Null)
-            say(ctx, column, ImportCodes.APPROXIMATED, "default ${exprText(d)} dropped")
+            context.say(ctx, column, ImportCodes.APPROXIMATED, "default ${exprText(d)} dropped")
     }
 
     // ---- child tables ----
 
     private fun childSlots(ctx: TableCtx, spec: RecordSpec): List<Slot> =
-        catalog.children[ctx.info.key].orEmpty().map { childSlot(ctx, spec, it) }
+        context.catalog.children[ctx.info.key].orEmpty().map { childSlot(ctx, spec, it) }
 
     /**
      * The list or map field a child table lowers to. Its element is the table's columns past the
@@ -1059,7 +989,7 @@ internal class Lowering(
             t.table.columns
                 .filter { it.name !in keyColumns }
                 .map { Col(it, it.name, !it.notNull && it.name !in pk) }
-        val hasChildren = catalog.children[t.key].orEmpty().isNotEmpty()
+        val hasChildren = context.catalog.children[t.key].orEmpty().isNotEmpty()
         val value = cols.singleOrNull()?.takeIf { it.name == "value" && !hasChildren }
         val valueCols =
             cols.takeIf { c ->
@@ -1088,7 +1018,7 @@ internal class Lowering(
                 valueFk.consumed = true
                 val refColumns = valueFk.fk.refColumns.ifEmpty { target.pk!! }
                 if (valueFk.columns != refColumns.map { "value_$it" }) {
-                    say(
+                    context.say(
                         tableCtx,
                         valueCols.first().column,
                         ImportCodes.APPROXIMATED,
@@ -1205,7 +1135,7 @@ internal class Lowering(
     private fun keys(ctx: TableCtx, spec: RecordSpec) {
         val pk = ctx.info.pk
         if (pk == null) {
-            sayTable(
+            context.sayTable(
                 ctx.info,
                 ImportCodes.APPROXIMATED,
                 "no primary key; add { id } to a field before compiling to SQL",
@@ -1214,7 +1144,7 @@ internal class Lowering(
         }
         val slots = pk.map { c -> spec.slots.firstOrNull { c in it.columns } }
         if (slots.any { it == null || !it.scalar }) {
-            sayTable(
+            context.sayTable(
                 ctx.info,
                 ImportCodes.APPROXIMATED,
                 "primary key names a column not in the table; add { id } to a field before compiling to SQL",
@@ -1258,7 +1188,7 @@ internal class Lowering(
             if (u.toSet() == pk) continue
             match(u)?.let { it.unique = true }
                 ?: fields(u)?.let { spec!!.uniques += it }
-                ?: sayTable(
+                ?: context.sayTable(
                     ctx.info,
                     ImportCodes.DROPPED,
                     "unique constraint over (${u.joinToString(", ")}) dropped; no fields hold exactly its columns",
@@ -1269,13 +1199,13 @@ internal class Lowering(
             val unique = if (ix.unique) "unique " else ""
             when {
                 ix.filtered ->
-                    sayTable(
+                    context.sayTable(
                         ctx.info,
                         ImportCodes.DROPPED,
                         "partial ${unique}index over ($listed) dropped",
                     )
                 ix.using != null && ix.using != "btree" ->
-                    sayTable(
+                    context.sayTable(
                         ctx.info,
                         ImportCodes.DROPPED,
                         "${unique}index using ${ix.using} over ($listed) dropped",
@@ -1286,7 +1216,7 @@ internal class Lowering(
                         ?: fields(ix.columns)?.let {
                             if (ix.unique) spec!!.uniques += it else spec!!.indexes += it
                         }
-                        ?: sayTable(
+                        ?: context.sayTable(
                             ctx.info,
                             ImportCodes.DROPPED,
                             "${unique}index over ($listed) dropped; no fields hold exactly its columns",
@@ -1307,7 +1237,7 @@ internal class Lowering(
             .filter { !it.consumed }
             .forEach {
                 it.consumed = true
-                sayTable(
+                context.sayTable(
                     ctx.info,
                     ImportCodes.DROPPED,
                     "check constraint dropped: (${it.check.text})",
@@ -1317,7 +1247,7 @@ internal class Lowering(
             .filter { !it.consumed }
             .forEach {
                 it.consumed = true
-                sayTable(
+                context.sayTable(
                     ctx.info,
                     ImportCodes.DROPPED,
                     "foreign key over (${it.columns.joinToString(", ")}) dropped",
@@ -1345,7 +1275,7 @@ internal class Lowering(
                 if (use.owner.lookup(name) != null || name in run.topNames) continue
                 use.owner.claim(name)
                 use.owner.nested += use.owner.child(name)
-                say(
+                context.say(
                     use.ctx,
                     use.column,
                     ImportCodes.APPROXIMATED,
