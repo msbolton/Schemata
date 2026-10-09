@@ -32,6 +32,8 @@ SCH2405 envoy/config/core/v3/extension.proto: import 'validate/validate.proto' n
 SCH2405 envoy/config/core/v3/grpc_method_list.proto: import 'udpa/annotations/status.proto' not found; dropped
 SCH2405 envoy/config/core/v3/grpc_method_list.proto: import 'udpa/annotations/versioning.proto' not found; dropped
 SCH2405 envoy/config/core/v3/grpc_method_list.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_service.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_service.proto: import 'validate/validate.proto' not found; dropped
 SCH2405 envoy/config/core/v3/http_uri.proto: import 'udpa/annotations/status.proto' not found; dropped
 SCH2405 envoy/config/core/v3/http_uri.proto: import 'udpa/annotations/versioning.proto' not found; dropped
 SCH2405 envoy/config/core/v3/http_uri.proto: import 'validate/validate.proto' not found; dropped
@@ -52,6 +54,11 @@ SCH2405 envoy/extensions/filters/http/gzip/v3/gzip.proto: import 'validate/valid
 SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: import 'udpa/annotations/status.proto' not found; dropped
 SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: import 'udpa/annotations/versioning.proto' not found; dropped
 SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/maxmind/v3/maxmind.proto: import 'xds/annotations/v3/status.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/maxmind/v3/maxmind.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/maxmind/v3/maxmind.proto: import 'validate/validate.proto' not found; dropped
 SCH2405 envoy/service/discovery/v3/discovery.proto: import 'udpa/annotations/status.proto' not found; dropped
 SCH2405 envoy/service/discovery/v3/discovery.proto: import 'udpa/annotations/versioning.proto' not found; dropped
 SCH2405 envoy/service/discovery/v3/discovery.proto: import 'validate/validate.proto' not found; dropped
@@ -206,6 +213,7 @@ SCH2404 field 'Lua.filter_context': google.protobuf.Struct imported as string
 SCH2403 model 'LuaPerRoute': oneof 'override' imported as nullable fields; at most one of them is set, which Schemata cannot say
 SCH2404 field 'LuaPerRoute.filter_context': google.protobuf.Struct imported as string
 SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: validate rule 'bool.const' dropped on 1 field
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: validate rule 'string.ignore_empty' dropped on 13 fields
 SCH2404 field 'DiscoveryResponse.resources': google.protobuf.Any imported as bytes
 SCH2403 model 'DynamicParameterConstraints': oneof 'type' imported as nullable fields; at most one of them is set, which Schemata cannot say
 SCH2403 model 'SingleConstraint': oneof 'constraint_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
