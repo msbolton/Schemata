@@ -977,12 +977,16 @@ internal class ComplexLowering(private val context: ImportContext) {
 
     /**
      * Attribute groups referenced by `xs:attributeGroup ref` expand into their own attribute uses
-     * in place, recursively; an unresolved group is reported and dropped.
+     * in place, recursively; an unresolved group is reported and dropped. The xml namespace's
+     * `specialAttrs` group is built in; any other group in that namespace is unresolved.
      */
     private fun expandAttributeUses(uses: List<XAttributeUse>): List<XAttributeUse> =
         uses.flatMap { use ->
             when (use) {
                 is XAttributeUse.GroupRef -> {
+                    if (use.ref == QName(XsdReader.XML, "specialAttrs")) {
+                        return@flatMap xmlSpecialAttrs(use.line)
+                    }
                     val group =
                         context.docsByNamespace[use.ref.namespace]?.attributeGroups?.firstOrNull {
                             it.name == use.ref.local
@@ -1008,6 +1012,29 @@ internal class ComplexLowering(private val context: ImportContext) {
                 }
                 else -> listOf(use)
             }
+        }
+
+    /**
+     * The xml namespace's `specialAttrs` group, which the xml namespace has no file to look up: a
+     * reference to each of `xml:base`, `xml:lang`, `xml:space` and `xml:id`, in that order, each
+     * optional, resolved as a reference written out would be.
+     */
+    private fun xmlSpecialAttrs(line: Int): List<XAttributeUse> =
+        listOf("base", "lang", "space", "id").map {
+            XAttributeUse.Attribute(
+                XAttribute(
+                    name = null,
+                    ref = QName(XsdReader.XML, it),
+                    type = null,
+                    inlineSimple = null,
+                    use = "optional",
+                    default = null,
+                    fixed = null,
+                    doc = null,
+                    line = line,
+                    path = context.sourcePath,
+                )
+            )
         }
 
     /**
