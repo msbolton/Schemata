@@ -124,7 +124,9 @@ internal class ComplexLowering(private val context: ImportContext) {
                 ?.let { inheritedAttributes(it, ct.attributes) }
                 .orEmpty()
                 .mapNotNull { (path, a) ->
-                    context.at(path) { attribute(a, claimed, whereCollision, nested) }
+                    context.at(path) {
+                        context.inheriting { attribute(a, claimed, whereCollision, nested) }
+                    }
                 }
         return elementFields + mixedFields + attributeFields + inheritedFields
     }
@@ -791,17 +793,19 @@ internal class ComplexLowering(private val context: ImportContext) {
         }
         // The base's own lines are in its own document, so its diagnostics point there.
         return context.at(baseCt.path.ifEmpty { targetDoc.path }) {
-            allFieldsOf(
-                baseCt,
-                whereCollision,
-                baseQName.local,
-                claimed,
-                nested,
-                siblings,
-                visited,
-                enclosing,
-                baseQName.namespace,
-            )
+            context.inheriting {
+                allFieldsOf(
+                    baseCt,
+                    whereCollision,
+                    baseQName.local,
+                    claimed,
+                    nested,
+                    siblings,
+                    visited,
+                    enclosing,
+                    baseQName.namespace,
+                )
+            }
         }
     }
 

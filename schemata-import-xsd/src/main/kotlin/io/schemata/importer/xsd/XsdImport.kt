@@ -25,6 +25,8 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Names
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * A type's resolved Schemata name, the `@xsd(name)` annotation it needs (when its name can be
@@ -54,6 +56,7 @@ internal sealed interface TypeNote {
 object XsdImport {
     fun lower(docs: List<XsdDoc>, namespaceOverride: String?): Imported {
         val diagnostics = mutableListOf<Diagnostic>()
+        val inherited: MutableSet<Diagnostic> = Collections.newSetFromMap(IdentityHashMap())
         val names = LinkedHashMap<XsdDoc, String>()
         val claimed = mutableMapOf<String, XsdDoc>()
         val live = mutableListOf<XsdDoc>()
@@ -152,6 +155,7 @@ object XsdImport {
                         heads,
                         diagnostics,
                         doc.unresolvedImports,
+                        inherited,
                     )
                 context.simpleTypes = SimpleTypes(context)
                 context.choiceLowering = ChoiceLowering(context)
@@ -200,17 +204,23 @@ object XsdImport {
                 )
             }
         // A note on a component many types share (an attribute flattened into every derived
-        // type) is reported once, at its declaration, which comes first.
-        return Imported(
-            units,
-            diagnostics.distinctBy {
-                Triple(
-                    it.code.id,
-                    it.span?.let { s -> s.file to s.startLine },
-                    it.message.substringAfter(": "),
-                )
-            },
-        )
+        // type) is reported once. The note reported while lowering the declaring type wins over
+        // a copy made while flattening it into a derived type, since only it names the right
+        // type; among equals the first wins, and the survivors keep their emission order.
+        val survivors =
+            diagnostics
+                .withIndex()
+                .sortedBy { it.value in inherited }
+                .distinctBy {
+                    Triple(
+                        it.value.code.id,
+                        it.value.span?.let { s -> s.file to s.startLine },
+                        it.value.message.substringAfter(": "),
+                    )
+                }
+                .sortedBy { it.index }
+                .map { it.value }
+        return Imported(units, survivors)
     }
 
     /**
@@ -811,10 +821,24 @@ internal class ImportContext(
     val heads: Heads,
     val diagnostics: MutableList<Diagnostic>,
     val unresolvedImports: List<String> = emptyList(),
+    /**
+     * The notes reported while a base's fields were flattened into a derived type, as opposed to
+     * while the base itself was lowered: the same note then comes up once per derived type, and
+     * only the base's own copy says where the construct is declared. Shared by every document.
+     */
+    val inherited: MutableSet<Diagnostic> = Collections.newSetFromMap(IdentityHashMap()),
 ) {
     lateinit var simpleTypes: SimpleTypes
     lateinit var choiceLowering: ChoiceLowering
     lateinit var complexLowering: ComplexLowering
+
+    /** The result of [block], with the diagnostics it reported marked as [inherited]. */
+    fun <T> inheriting(block: () -> T): T {
+        val start = diagnostics.size
+        val result = block()
+        if (diagnostics.size > start) inherited += diagnostics.subList(start, diagnostics.size)
+        return result
+    }
 
     /** Namespaces a head union's members live in, which the unit must import. */
     val extraImports = linkedSetOf<String>()

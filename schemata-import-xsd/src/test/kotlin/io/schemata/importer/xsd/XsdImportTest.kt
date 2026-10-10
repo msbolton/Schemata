@@ -2726,11 +2726,15 @@ class XsdImportTest {
         val imported = XsdImport.lower(listOf(derived, base), null)
         val spans =
             imported.diagnostics
-                .filter { it.message.startsWith("complex type 'DerivedType'") }
+                .filter {
+                    it.message.contains("'BaseType'") || it.message.contains("'DerivedType'")
+                }
                 .associate { it.message to (it.span.file to it.span.startLine) }
+        // The nested sequence is the base's: its own note, not the copy made while flattening
+        // it into the derived type, is the one kept.
         assertEquals(
             mapOf(
-                "complex type 'DerivedType': nested sequence imported as model 'XGroup' in " +
+                "complex type 'BaseType': nested sequence imported as model 'XGroup' in " +
                     "field 'x_group'" to ("a.xsd" to 4),
                 "complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; " +
                     "base fields flattened into the model" to ("b.xsd" to 6),
@@ -3437,5 +3441,34 @@ class XsdImportTest {
             listOf("SCH2405 element 'Typed': abstract dropped"),
             msgs.filter { "abstract dropped" in it },
         )
+    }
+
+    @Test
+    fun `the declaring type keeps a note when a derived type lowers first`() {
+        val derived =
+            doc(
+                """
+                <xs:schema $xs xmlns:b="urn:schemata:b" xmlns:a="urn:schemata:a" targetNamespace="urn:schemata:a">
+                  <xs:import namespace="urn:schemata:b" schemaLocation="b.xsd"/>
+                  <xs:complexType name="DerivedType"><xs:complexContent><xs:extension base="b:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                </xs:schema>
+                """,
+                "a.xsd",
+            )
+        val base =
+            doc(
+                """
+                <xs:schema $xs xmlns:b="urn:schemata:b" targetNamespace="urn:schemata:b">
+                  <xs:complexType name="BaseType"><xs:attribute name="refs" type="xs:IDREFS"/></xs:complexType>
+                </xs:schema>
+                """,
+                "b.xsd",
+            )
+        val imported = XsdImport.lower(listOf(derived, base), null)
+        val note = imported.diagnostics.single { "xs:IDREFS" in it.message }
+        assertEquals("attribute 'refs': xs:IDREFS imported as a list of string", note.message)
+        assertEquals("b.xsd", note.span?.file)
+        val extension = imported.diagnostics.single { "extension of 'BaseType'" in it.message }
+        assertTrue(extension.message.startsWith("complex type 'DerivedType'"))
     }
 }

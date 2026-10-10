@@ -27,7 +27,6 @@ SCH2403 element 'graphStyle': element 'graphStyle' has no Schemata equivalent; t
 SCH2403 complex type 'GraphStyleType': extension of 'BaseStyleDescriptorType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'StyleVariationType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'LengthType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
-SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 complex type 'ScaleType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'TimeType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'GridLengthType': simpleContent extension of 'MeasureType' has no Schemata equivalent; imported as a model with a 'value' field
@@ -95,8 +94,6 @@ SCH2403 union 'MappingRule': member element name 'ruleReference' has no Schemata
 SCH2403 complex type 'SequenceRuleType': simpleContent extension of 'SequenceRuleEnumeration' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'componentReferenceSystem': element 'componentReferenceSystem' has no Schemata equivalent; the regenerated root element will be named 'single_crs_property'
 SCH2403 complex type 'AbstractGeneralDerivedCRSType': abstract type 'AbstractGeneralDerivedCRSType' imported as union 'AbstractGeneralDerivedCRS' of 2 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'CompoundCRSType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
-SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompoundCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompoundCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
@@ -212,8 +209,6 @@ SCH2403 element 'boundedBy': element 'boundedBy' has no Schemata equivalent; the
 SCH2403 complex type 'BoundingShapeType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
-SCH2403 complex type 'EnvelopeWithTimePeriodType': inline choice has no Schemata equivalent; members imported as optional fields
-SCH2403 complex type 'EnvelopeWithTimePeriodType': nested sequence imported as model 'LowerCornerGroup' in field 'lower_corner_group'
 SCH2403 complex type 'EnvelopeWithTimePeriodType': extension of 'EnvelopeType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractFeatureMemberType': abstract type 'AbstractFeatureMemberType' imported as its one concrete type 'DynamicFeatureMember'
 SCH2403 element 'direction': element 'direction' has no Schemata equivalent; the regenerated root element will be named 'direction_property'
@@ -230,7 +225,6 @@ SCH2403 complex type 'CompositeCurveType': extension of 'AbstractGeometricPrimit
 SCH2403 complex type 'CompositeCurveType': extension of 'AbstractCurveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompositeSurfaceType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'CompositeSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompositeSolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'valueProperty': element 'valueProperty' has no Schemata equivalent; the regenerated root element will be named 'value_property'
 SCH2403 complex type 'ValuePropertyType': inline choice has no Schemata equivalent; members imported as optional fields
@@ -339,14 +333,14 @@ SCH2403 complex type 'OperationParameterGroupType': extension of 'AbstractGenera
 SCH2403 element 'valuesOfGroup': element 'valuesOfGroup' has no Schemata equivalent; the regenerated root element will be named 'operation_parameter_group_property'
 SCH2403 complex type 'AbstractTimeTopologyPrimitiveType': abstract type 'AbstractTimeTopologyPrimitiveType' imported as union 'AbstractTimeTopologyPrimitive' of 2 concrete types; the regenerated XSD uses a choice
 SCH2405 complex type 'TimeTopologyComplexType': abstract dropped
-SCH2405 complex type 'TimeTopologyComplexType': abstract dropped
 SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractGMLType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeTopologyComplexType': extension of 'AbstractTimeComplexType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeNodeType': extension of 'AbstractTimeTopologyPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeEdgeType': extension of 'AbstractTimeTopologyPrimitiveType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 complex type 'DefinitionBaseType': restriction of 'AbstractGMLType' has no Schemata equivalent; its own content is used
+SCH2403 complex type 'DefinitionType': extension of 'DefinitionBaseType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'DefinitionCollection': element 'DefinitionCollection' has no Schemata equivalent; the regenerated root element will be named 'dictionary'
 SCH2403 complex type 'DictionaryType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'DictionaryType': inline choice has no Schemata equivalent; members imported as optional fields
@@ -356,6 +350,8 @@ SCH2403 complex type 'AbstractTimeObjectType': abstract type 'AbstractTimeObject
 SCH2403 complex type 'AbstractTimePrimitiveType': abstract type 'AbstractTimePrimitiveType' imported as union 'AbstractTimePrimitive' of 4 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'validTime': element 'validTime' has no Schemata equivalent; the regenerated root element will be named 'time_primitive_property'
 SCH2403 complex type 'RelatedTimeType': extension of 'TimePrimitivePropertyType' has no Schemata equivalent; base fields flattened into the model
+SCH2405 complex type 'AbstractTimeComplexType': abstract dropped
+SCH2403 complex type 'AbstractTimeComplexType': extension of 'AbstractTimeObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractTimeGeometricPrimitiveType': abstract type 'AbstractTimeGeometricPrimitiveType' imported as union 'AbstractTimeGeometricPrimitive' of 2 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimePrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TimeInstantType': extension of 'AbstractTimeGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
@@ -381,6 +377,8 @@ SCH2403 complex type 'DirectPositionType': simpleContent extension of 'doubleLis
 SCH2403 element 'posList': element 'posList' has no Schemata equivalent; the regenerated root element will be named 'direct_position_list'
 SCH2403 complex type 'DirectPositionListType': simpleContent extension of 'doubleList' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'VectorType': simpleContent restriction of 'DirectPositionType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'EnvelopeType': inline choice has no Schemata equivalent; members imported as optional fields
+SCH2403 complex type 'EnvelopeType': nested sequence imported as model 'LowerCornerGroup' in field 'lower_corner_group'
 SCH2403 complex type 'AbstractGeometricPrimitiveType': abstract type 'AbstractGeometricPrimitiveType' imported as union 'AbstractGeometricPrimitive' of 16 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'PointType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'PointType': inline choice has no Schemata equivalent; members imported as optional fields
@@ -479,6 +477,7 @@ SCH2403 complex type 'TinType': extension of 'SurfaceType' has no Schemata equiv
 SCH2403 union 'ControlPoint': member element name 'posList' has no Schemata equivalent and is dropped; the regenerated element will be named 'direct_position_list'
 SCH2403 union 'ControlPoint': member element name 'pos' has no Schemata equivalent and is dropped; the regenerated element will be named 'direct_position'
 SCH2403 union 'ControlPoint': member element name 'pointProperty' has no Schemata equivalent and is dropped; the regenerated element will be named 'point_property'
+SCH2403 complex type 'AbstractSolidType': extension of 'AbstractGeometricPrimitiveType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'solidMember': element 'solidMember' has no Schemata equivalent; the regenerated root element will be named 'solid_property'
 SCH2403 element 'solidArrayProperty': element 'solidArrayProperty' has no Schemata equivalent; the regenerated root element will be named 'solid_array_property'
 SCH2403 complex type 'SolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the model
@@ -508,6 +507,7 @@ SCH2403 complex type 'CodeType': simpleContent extension of 'string' has no Sche
 SCH2403 element 'derivedCRSType': element 'derivedCRSType' has no Schemata equivalent; the regenerated root element will be named 'code_with_authority'
 SCH2403 complex type 'CodeWithAuthorityType': simpleContent restriction of 'CodeType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'MeasureType': simpleContent extension of 'double' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 attribute 'uom': union simple type imported as string
 SCH2403 element 'tupleList': element 'tupleList' has no Schemata equivalent; the regenerated root element will be named 'coordinates'
 SCH2403 complex type 'CoordinatesType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'CodeListType': simpleContent extension of 'NameList' has no Schemata equivalent; imported as a model with a 'value' field
