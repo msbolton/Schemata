@@ -239,3 +239,6 @@ Dependencies point strictly downward; the build fails if they do not.
 - `scripts/check-envoy-import <envoy-checkout>` runs the Protobuf importer over a real Envoy
   tree and checks that every target, `protoc` and a proto round trip accept the result. It is a
   local check, not part of CI.
+- `scripts/check-uc2-import <iepd-dir>` runs the XSD importer over a real UC2 IEPD and checks that
+  every target, `xmllint` and an xsd round trip accept the result, and that the whole `core-xsd`
+  tree imports without a crash. It is a local check, not part of CI.

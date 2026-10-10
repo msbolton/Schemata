@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Run the Schemata XSD importer over a UC2 IEPD and check every stage of the result.
+
+usage: check-uc2-import IEPD_DIR [--schemata BIN]
+BIN is a command that may carry arguments, e.g. --schemata "java -jar schemata-cli/build/libs/schemata-2.2.0-dev.jar".
+Default: $SCHEMATA, else the native binary in schemata-cli/build/native/nativeCompile, else the newest
+fat jar in schemata-cli/build/libs (build it with ./gradlew :schemata-cli:shadowJar). Needs xmllint.
+
+Stages, all inside a temporary directory that is removed afterwards (the IEPD is only read):
+  1. import of IEPD_DIR/core-xsd/extension/uc2-sos-all.xsd, which pulls in its imports to closure; any error fails
+  2. compile of the imported schemas to every target; any error fails, except on sql the two known ones:
+     SCH2106 (a type without a key) and SCH2102 (namespaces that share a last segment)
+  3. xmllint --schema over every emitted .xsd against a one-element instance: exit 0 or 3 means the schema
+     loaded, exit 5 (the schema failed to compile) or anything else fails
+  4. round trip: import the emitted .xsd tree, compile to xsd again, and compare the two trees file by file;
+     SCH2402 (a schema name derived from the file name) and SCH2403 (a dropped member element name)
+     are the only tolerated diagnostics on the way back
+  5. import of the whole IEPD_DIR/core-xsd directory: only a JSON report is required (exit 0, 1 or 2);
+     a crash or a missing report fails, and the diagnostics are tallied
+Prints one summary and exits 0 only when every stage passes. Local use only, not part of CI.
+"""
+import filecmp
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from collections import Counter
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TARGETS = ["proto", "sql", "xsd", "jsonschema", "openapi"]
+SQL_TOLERATED = {"SCH2106", "SCH2102"}
+ROUND_TRIP_TOLERATED = [
+    re.compile(r"SCH2402 .*: schema name '.*' was derived from the file name"),
+    re.compile(r"SCH2403 (union|element) '.*': member element name '.*' has no Schemata equivalent and is dropped; .*"),
+]
+
+
+def find_binary(explicit):
+    if explicit:
+        return shlex.split(explicit)
+    if os.environ.get("SCHEMATA"):
+        return shlex.split(os.environ["SCHEMATA"])
+    native = ROOT / "schemata-cli/build/native/nativeCompile/schemata"
+    if native.is_file():
+        return [str(native)]
+    jars = sorted(
+        (ROOT / "schemata-cli/build/libs").glob("schemata-[0-9]*.jar"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if jars:
+        return ["java", "-jar", str(jars[-1])]
+    sys.exit("check-uc2-import: no schemata binary or jar found; run ./gradlew :schemata-cli:shadowJar")
+
+
+def run_json(cmd, label):
+    """Run a schemata command with a JSON report on stdout; return the report dict."""
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        return json.loads(p.stdout)
+    except json.JSONDecodeError:
+        sys.exit(f"check-uc2-import: {label} printed no JSON report (exit {p.returncode})\n{p.stdout[:2000]}{p.stderr[:2000]}")
+
+
+def tally(report):
+    codes = Counter()
+    for d in report["diagnostics"]:
+        codes[(d["code"], d["severity"])] += 1
+    return codes
+
+
+def fmt(codes):
+    if not codes:
+        return "none"
+    return ", ".join(f"{c} {s} x{n}" for (c, s), n in sorted(codes.items()))
+
+
+def errors_of(report, tolerated=()):
+    return [d for d in report["diagnostics"] if d["severity"] == "error" and d["code"] not in tolerated]
+
+
+def where(d):
+    s = d.get("span") or {}
+    return f'{s.get("file")}:{s.get("startLine")}'
+
+
+def tolerated_on_return(d):
+    if d["severity"] == "error":
+        return False
+    text = f'{d["code"]} {d["message"]}'
+    return any(r.fullmatch(text) for r in ROUND_TRIP_TOLERATED)
+
+
+def main():
+    args = sys.argv[1:]
+    explicit = None
+    if "--schemata" in args:
+        i = args.index("--schemata")
+        if i + 1 >= len(args):
+            sys.exit(__doc__.strip())
+        explicit = args[i + 1]
+        del args[i : i + 2]
+    if len(args) != 1:
+        sys.exit(__doc__.strip())
+    iepd = Path(args[0]).resolve()
+    tree_dir = iepd / "core-xsd"
+    root_xsd = tree_dir / "extension" / "uc2-sos-all.xsd"
+    if not root_xsd.is_file():
+        sys.exit(f"check-uc2-import: {root_xsd} is not a file")
+    if not shutil.which("xmllint"):
+        sys.exit("check-uc2-import: xmllint is required on PATH")
+    bin_ = find_binary(explicit)
+
+    failures = []
+    lines = []
+    inputs = sum(1 for _ in tree_dir.rglob("*.xsd"))
+
+    with tempfile.TemporaryDirectory(prefix="check-uc2-import-") as tmp:
+        work = Path(tmp)
+
+        # 1. import
+        imported = work / "imported"
+        rep = run_json(
+            bin_ + ["import", "--from", "xsd", "--out", str(imported), "--format", "json", str(root_xsd)],
+            "import",
+        )
+        import_codes = tally(rep)
+        for d in errors_of(rep):
+            failures.append(f'import: {d["code"]} {where(d)} {d["message"]}')
+        schemata_dir = imported / "import"
+        files = sorted(str(f) for f in schemata_dir.rglob("*.schemata"))
+        if not files:
+            failures.append("import: no .schemata files were written")
+
+        # 2. compile every target
+        compile_results = {}
+        for target in TARGETS:
+            if not files:
+                break
+            rep = run_json(
+                bin_ + ["compile", "--target", target, "--out", str(work / target), "--format", "json", str(schemata_dir)],
+                f"compile {target}",
+            )
+            compile_results[target] = tally(rep)
+            tolerated = SQL_TOLERATED if target == "sql" else ()
+            for d in errors_of(rep, tolerated):
+                failures.append(f'compile {target}: {d["code"]} {where(d)} {d["message"]}')
+
+        # 3. xmllint
+        emitted = work / "xsd" / "xsd"
+        xsds = sorted(emitted.rglob("*.xsd")) if emitted.is_dir() else []
+        if not xsds:
+            lint_result = "FAIL (no emitted .xsd files)"
+            failures.append("xmllint: no emitted .xsd files")
+        else:
+            dummy = work / "dummy.xml"
+            dummy.write_text("<zzz/>\n")
+            bad = 0
+            for f in xsds:
+                p = subprocess.run(
+                    ["xmllint", "--noout", "--schema", str(f), str(dummy)],
+                    cwd=f.parent, capture_output=True, text=True,
+                )
+                if p.returncode not in (0, 3):
+                    bad += 1
+                    head = "\n".join(p.stderr.splitlines()[:5])
+                    failures.append(f"xmllint: exit {p.returncode} on {f.relative_to(emitted)}\n{head}")
+            lint_result = f"ok ({len(xsds)} files)" if not bad else f"FAIL ({bad} of {len(xsds)} files)"
+
+        # 4. round trip
+        rt_result = "skipped"
+        if xsds:
+            rt_imp = work / "rt-imported"
+            rep = run_json(
+                bin_ + ["import", "--from", "xsd", "--out", str(rt_imp), "--format", "json", str(emitted)],
+                "round-trip import",
+            )
+            rt_codes = tally(rep)
+            bad = [d for d in rep["diagnostics"] if not tolerated_on_return(d)]
+            for d in bad:
+                failures.append(f'round trip import: {d["code"]} {where(d)} {d["message"]}')
+            rt_files = sorted(str(f) for f in (rt_imp / "import").rglob("*.schemata"))
+            rt_out = work / "rt-xsd"
+            rt_tree = rt_out / "xsd"
+            if rt_files:
+                rep = run_json(
+                    bin_ + ["compile", "--target", "xsd", "--out", str(rt_out), "--format", "json", str(rt_imp / "import")],
+                    "round-trip compile",
+                )
+                for d in errors_of(rep):
+                    failures.append(f'round trip compile: {d["code"]} {where(d)} {d["message"]}')
+            else:
+                failures.append("round trip: no .schemata files were written")
+            first = {str(f.relative_to(emitted)) for f in emitted.rglob("*.xsd")}
+            second = {str(f.relative_to(rt_tree)) for f in rt_tree.rglob("*.xsd")} if rt_tree.is_dir() else set()
+            missing = sorted(first - second)
+            extra = sorted(second - first)
+            differing = sorted(r for r in first & second if not filecmp.cmp(emitted / r, rt_tree / r, shallow=False))
+            for r in missing:
+                failures.append(f"round trip: {r} missing from the second pass")
+            for r in extra:
+                failures.append(f"round trip: {r} appeared only in the second pass")
+            for r in differing:
+                failures.append(f"round trip: {r} differs")
+            identical = not (missing or extra or differing or bad or not rt_files)
+            rt_result = (
+                f"{'identical' if identical else 'DIFFERS'} ({len(first)} files; import: {fmt(rt_codes)}; "
+                f"missing {len(missing)}, extra {len(extra)}, differing {len(differing)})"
+            )
+
+        # 5. whole tree
+        p = subprocess.run(
+            bin_ + ["import", "--from", "xsd", "--out", str(work / "tree"), "--format", "json", str(tree_dir)],
+            capture_output=True, text=True,
+        )
+        try:
+            if p.returncode not in (0, 1, 2):
+                raise ValueError(f"exit {p.returncode}")
+            tree_rep = json.loads(p.stdout)
+            tree_codes = tally(tree_rep)
+            n_err = sum(n for (c, s), n in tree_codes.items() if s == "error")
+            n_warn = sum(n for (c, s), n in tree_codes.items() if s == "warning")
+            tree_result = f"ok ({n_err} errors, {n_warn} warnings)"
+        except (ValueError, KeyError, TypeError) as e:
+            tree_codes = Counter()
+            tree_result = "CRASH"
+            failures.append(f"whole tree: CRASH ({e}); exit {p.returncode}\n{p.stderr[:1500]}")
+
+    lines.append("check-uc2-import summary")
+    lines.append(f"  iepd:              {iepd}")
+    lines.append(f"  binary:            {' '.join(bin_)}")
+    lines.append(f"  closure inputs:    {inputs} .xsd files under core-xsd/")
+    lines.append(f"  emitted:           {len(files)} .schemata files")
+    lines.append(f"  import diagnostics: {fmt(import_codes)}")
+    for target in TARGETS:
+        if target in compile_results:
+            lines.append(f"  compile {target + ':':<12} {fmt(compile_results[target])}")
+    lines.append(f"  xmllint:           {lint_result}")
+    lines.append(f"  round trip:        {rt_result}")
+    lines.append(f"  whole tree:        {tree_result}")
+    lines.append(f"  whole tree codes:  {fmt(tree_codes)}")
+    if failures:
+        lines.append(f"  failures ({len(failures)}), first 20:")
+        for f in failures[:20]:
+            lines.append(f"    {f}")
+    lines.append("FAIL" if failures else "PASS")
+    print("\n".join(lines))
+    sys.exit(1 if failures else 0)
+
+
+if __name__ == "__main__":
+    main()
