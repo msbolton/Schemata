@@ -1389,8 +1389,23 @@ carries the keys its tables declare.
 ### From XSD
 
 `import --from xsd` resolves an `xs:import` or `xs:include` by its own `schemaLocation` against the
-importing file's directory, so an input never needs naming twice because another input imports it,
-and an input that another input includes is merged into that one rather than imported on its own.
+directory of the document that carries it, whether that is an input or a document found by a
+location, so an input never needs naming twice because another input imports it, and an input that
+another input includes is merged into that one rather than imported on its own. The imports and
+includes of a document found this way are followed in turn until the set is complete, so naming the
+documents at the top of a schema set is enough. An import with no `schemaLocation`, or one whose
+location names no file, still resolves when some document read declares its namespace. Otherwise it
+is dropped (SCH2405, `import '<namespace>' not found; dropped`, with the help `add the schema that
+declares it to the inputs`) and the document is imported anyway; a type that then cannot be resolved
+is an error (SCH2401) whose help names the imports that were not found. There is no `--include` for
+xsd.
+
+The XML namespace (`http://www.w3.org/XML/1998/namespace`) and the XML Schema namespace are built in
+and never read from a file. An import of either is skipped silently, and a document whose
+`targetNamespace` is one of them is skipped (SCH2405, `namespace '<namespace>' is built in;
+skipped`). `xml:lang`, `xml:base`, `xml:space`, and `xml:id` lower to `string?` attributes with no
+note. A second document that declares a namespace an earlier one declared is dropped (SCH2405,
+`namespace '<namespace>' is also declared by <first>; dropped`); the first is kept.
 
 An XML Schema's `targetNamespace` names the output's schema. `urn:schemata:<name>` becomes
 `schema <name>`, matching what the xsd target itself writes for a Schemata schema. Any other URI
@@ -1413,7 +1428,8 @@ without the attribute; the note still appears, and `--namespace` silences it.
 | `float` | `float32` | |
 | `double` | `float64` | |
 | `decimal` | `decimal(p, s)` | `p` and `s` are `totalDigits` and `fractionDigits`; without both, `decimal(38, 9)` (SCH2403) |
-| `string`, `normalizedString`, `token`, `language`, `Name`, `NCName`, `NMTOKEN`, `ID`, `IDREF`, `anyURI` | `string` | |
+| `string`, `normalizedString`, `token`, `language`, `Name`, `NCName`, `NMTOKEN`, `ID`, `IDREF`, `ENTITY`, `anyURI` | `string` | |
+| `IDREFS`, `NMTOKENS`, `ENTITIES` | `string[]` with `@xsd(list)` | SCH2404, on an element or an attribute |
 | a `string` restricted by the UUID pattern | `uuid` | |
 | `base64Binary` | `bytes` | |
 | `hexBinary` | `bytes` | SCH2404 |
@@ -1449,7 +1465,10 @@ becomes an `enum`, and a choice-only complex type a `union`, so `paymentType` be
 The first global element naming a complex type marks that model as a root. Its name regenerates as
 the model name in lower_snake (`Order` gives `order`), or as the `@xsd(name)` override; when the
 element is named otherwise, the override is added if it alone makes the name exact, and otherwise
-the mismatch is reported (SCH2403) with the name it will regenerate as. A global element with its
+the mismatch is reported (SCH2403) with the name it will regenerate as. A global element
+that a content model uses by `ref` is a property declaration, not a root, so the second-root and
+other-namespace notes below are not reported for it; the first global element of a type still marks
+the root. A global element with its
 own anonymous complex type becomes a top-level model named after it, reported the same way when that
 name will not regenerate (`myThing` will regenerate as `my_thing`); one whose model name a named
 type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped, while one
@@ -1494,6 +1513,13 @@ the base's simple type, beside the type's attributes (SCH2403). When the base is
 type with simple content, the chain is followed to the simple type at its root, whose type `value`
 takes with every facet along the way, and the attributes declared along the chain are inherited;
 only a chain that reaches a type with element content imports `value` as `string` (SCH2403).
+
+A `ref` to a global element that has no `type` and an anonymous complex type lowers to a reference,
+by name, to the model that element becomes at the top level; across namespaces the name is
+qualified and the namespace imported. Lowering always terminates. An inline type whose extension
+base chain reaches a type whose content is being lowered is referenced by name instead of being
+lowered again (SCH2403, once per declaration), which is how a content model that contains itself,
+such as the `div` and `Flow` cycle in XHTML, comes out finite.
 
 What XSD expresses through derivation, a value that is one of several types, Schemata expresses as
 a union, and the importer makes that union. A polymorphic head is either of two things:
@@ -1555,11 +1581,22 @@ another model of that schema already has that name; when the head element's type
 abstract type with exactly the same members, the type's union serves both. A head with one member
 lowers to that member's type wherever it is used, with no union (SCH2403). An abstract type with
 no members stays a model, its `abstract` dropped (SCH2405), and a head element with no members
-stays an element of its own type. A member element declared with an inline type has no type a
+stays an element of its own type. An abstract type that no element or field names is written as a
+plain model, not a union (SCH2405, `abstract type is not referenced; no union written`), and the
+types derived from it stay models with its fields flattened in; one that some element or field names
+keeps its union, and a substitution group's head is unaffected. A head element that is abstract, has
+no type, and has no substituting element, which is what a NIEM augmentation point with nothing
+plugged in looks like, is dropped where it is referenced (SCH2405, `abstract element '<name>' has
+no type and no substituting element; dropped`); with one member it lowers to that member's type,
+and with more, to the union. A member element declared with an inline type has no type a
 union could name, and one of a simple type or of a type that cannot be resolved has no model a
 union could hold, so each is left out of the union (SCH2405); a member element with no type at all
 takes its head's. `block`, `final`, `blockDefault`, and `finalDefault` have no Schemata
 equivalent and are dropped, once per document (SCH2405).
+
+A note is kept once for each code, file, line, and text. When the same note is reported at a
+declaration and again while a base's fields are flattened into a type derived from it, the one
+reported at the declaration itself is kept.
 
 Only an abstract type or a substitution group makes a union. A concrete base type stays a model
 of its own fields, and each type derived from it a separate model with the base's fields flattened
@@ -1765,12 +1802,13 @@ including document has none. `xs:redefine` and `xs:override` are read as include
 they name, and the redefinitions themselves are dropped (SCH2405). A `schemaLocation` with `..`
 segments is normalized, so one that climbs out of its directory still finds an input.
 
-An unresolved import, include, or type reference is an error (SCH2401), as are two inputs declaring
-the same namespace without one including the other, and two elements lowering to the same field. So
-is a simple type, group, or attribute group whose references lead back to itself, a construct
-missing an attribute it cannot be read without (a `group` with no `name`, an `extension` with no
-`base`), and a document whose `DOCTYPE` names an external DTD, which the importer refuses to read. A
-`DOCTYPE` with only an internal subset is read, and nothing external it names is ever loaded.
+An unresolved include or type reference is an error (SCH2401), as are two elements lowering to the
+same field. (An import that resolves nowhere is only a warning, as described at the top of this
+section.) So is a simple type, group, or attribute group whose references lead back to itself, a
+construct missing an attribute it cannot be read without (a `group` with no `name`, an `extension`
+with no `base`), and a document whose `DOCTYPE` names an external DTD, which the importer refuses to
+read. A `DOCTYPE` with only an internal subset is read, and nothing external it names is ever
+loaded.
 
 #### What each construct becomes
 

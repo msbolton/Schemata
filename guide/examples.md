@@ -908,6 +908,252 @@ SCH2403 model 'StringMatcher': oneof 'match_pattern' imported as nullable fields
 The whole file holds 236 such lines; each shape is quoted once here. Section 19 of the reference
 says what each one means.
 
+## importing niem
+
+NIEM exchanges are built on a family of schemas that import each other: the exchange's own
+`xs:import` lines name `niem-core.xsd`, the XML Schema adapters, and the intelligence community's
+security markings by `schemaLocation`, and those files import more. `schemata import --from xsd`
+reads them all from the two inputs that name the exchange, resolving each location against the
+directory of the document that carries it, and writes one schema for each file. An import whose
+location names no file is dropped with a warning when no document read declares its namespace, and
+the file is imported anyway.
+
+From `schemata-cli/src/test/resources/import/xsd-niem/exchange/ex-core.xsd`:
+```xml
+  <xs:complexType name="EntityType" abstract="true">
+    <xs:annotation><xs:documentation>A data type for a thing on the battlefield.</xs:documentation></xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:Identification" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element ref="exc:EntityName" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element ref="exc:EntityAugmentationPoint" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute ref="exc:relatedEntityRefs" use="optional"/>
+        <xs:attribute ref="ism:classification" use="optional"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="AirEntityType">
+    <xs:annotation><xs:documentation>A data type for an entity in the air.</xs:documentation></xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="exc:EntityType">
+        <xs:sequence>
+          <xs:element ref="exc:AltitudeMeasure" minOccurs="0"/>
+          <xs:element ref="exc:AirEntityAugmentationPoint" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+```
+
+From `schemata-cli/src/test/resources/import/xsd-niem/expected/ex_core.schemata`:
+```schemata
+/// A data type for a thing on the battlefield.
+union Entity = AirEntity | GroundEntity
+
+/// A data type for an entity in the air.
+model AirEntity {
+  /// A document-relative identifier for an XML element.
+  id                        string?                                                    @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                       string?                                                    @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                       string?                                                    @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                  string[]?                                                  @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata     string[]?                                                  @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id               int64?                                                     { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                map<string, string>                                        @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// An identification to represent an identity.
+  identification            niem_core.Identification[]                                 @xsd(name: "Identification")
+  /// A name of an entity.
+  entity_name               niem_core.Text[]                                           @xsd(name: "EntityName")
+  /// An augmentation point for EntityType.
+  entity_augmentation_point EntityAugmentation[]                                       @xsd(name: "EntityAugmentationPoint")
+  /// Entities related to this one.
+  related_entity_refs       string[]?                                                  @xsd(name: "relatedEntityRefs") @xsd(list) @xsd(attribute)
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification            cv_enum_ism_classification_all.CVEnumISMClassificationAll? @xsd(attribute)
+  /// A height above sea level.
+  altitude_measure          niem_core.LengthMeasure?                                   @xsd(name: "AltitudeMeasure")
+
+  @@xsd(name: "AirEntity")
+```
+
+`EntityType` is abstract and two types extend it, so it becomes the union `Entity = AirEntity |
+GroundEntity`, and each derived type is a model with the base's fields, and the base's own base,
+`ObjectType`, flattened in ahead of its own: the `id`, `ref` and `uri` attributes come from
+`structures.xsd`. `relatedEntityRefs` is an `xs:IDREFS` attribute, so it is a list of `string`.
+`EntityAugmentationPoint` is an abstract element with one substituting element, so the reference to
+it holds that member's model, `EntityAugmentation`; `AirEntityAugmentationPoint` has none, and its
+reference is dropped. `ObjectType` is abstract and no element names it, so it is a plain model and
+no union is written for it.
+
+Warnings from `schemata-cli/src/test/resources/import/xsd-niem/expected/import-warnings.txt`:
+```text
+SCH2402 exchange/ex-core.xsd: schema name 'ex_core' was derived from the file name
+SCH2402 exchange/ex-msg.xsd: schema name 'ex_msg' was derived from the file name
+SCH2402 include/niem/xsd/utility/structures.xsd: schema name 'structures' was derived from the file name
+SCH2402 include/niem/xsd/niem-core.xsd: schema name 'niem_core' was derived from the file name
+SCH2402 include/niem/xsd/adapters/niem-xs.xsd: schema name 'niem_xs' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/IC-ISM.xsd: schema name 'ic_ism' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISM25X.xsd: schema name 'cv_enum_ism25_x' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMAtomicEnergyMarkings.xsd: schema name 'cv_enum_ism_atomic_energy_markings' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMClassificationAll.xsd: schema name 'cv_enum_ism_classification_all' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMDissem.xsd: schema name 'cv_enum_ism_dissem' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISMCAT/CVEGenerated/CVEnumISMCATFGIOpen.xsd: schema name 'cv_enum_ismcatfgi_open' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISMCAT/CVEGenerated/CVEnumISMCATFGIProtected.xsd: schema name 'cv_enum_ismcatfgi_protected' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMNonIC.xsd: schema name 'cv_enum_ism_non_ic' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMNonUSControls.xsd: schema name 'cv_enum_ism_non_us_controls' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMNotice.xsd: schema name 'cv_enum_ism_notice' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISMCAT/CVEGenerated/CVEnumISMCATOwnerProducer.xsd: schema name 'cv_enum_ismcat_owner_producer' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMPocType.xsd: schema name 'cv_enum_ism_poc_type' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISMCAT/CVEGenerated/CVEnumISMCATRelTo.xsd: schema name 'cv_enum_ismcat_rel_to' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMSAR.xsd: schema name 'cv_enum_ismsar' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMSCIControls.xsd: schema name 'cv_enum_ismsci_controls' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMExemptFrom.xsd: schema name 'cv_enum_ism_exempt_from' was derived from the file name
+SCH2402 include/IC-TDF/Schema/ISM/CVEGenerated/CVEnumISMCompliesWith.xsd: schema name 'cv_enum_ism_complies_with' was derived from the file name
+SCH2403 complex type 'EntityType': abstract type 'EntityType' imported as union 'Entity' of 2 concrete types; the regenerated XSD uses a choice
+SCH2403 complex type 'AirEntityType': extension of 'ObjectType' has no Schemata equivalent; base fields flattened into the model
+SCH2404 attribute 'relatedEntityRefs': xs:IDREFS imported as a list of string
+SCH2403 complex type 'AirEntityType': extension of 'EntityType' has no Schemata equivalent; base fields flattened into the model
+SCH2405 element 'AirEntityAugmentationPoint': abstract element 'AirEntityAugmentationPoint' has no type and no substituting element; dropped
+SCH2403 complex type 'EntityAugmentationType': extension of 'AugmentationType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 element 'CallSignText': element 'CallSignText' has no Schemata equivalent; the regenerated root element will be named 'marked_text'
+SCH2403 complex type 'MarkedTextType': simpleContent extension of 'string' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 element 'Entity': substitution group 'Entity' imported as union 'Entity' of 2 member types; the regenerated XSD uses a choice
+SCH2403 element 'EntityAugmentationPoint': substitution group 'EntityAugmentationPoint' imported as its one member type 'EntityAugmentation'
+SCH2403 complex type 'SituationMessageType': inline choice has no Schemata equivalent; members imported as optional fields
+SCH2405 element 'MessageID': root element of simple type dropped
+SCH2405 complex type 'ObjectType': abstract type is not referenced; no union written
+SCH2405 element 'ObjectAugmentationPoint': abstract element 'ObjectAugmentationPoint' has no type and no substituting element; dropped
+SCH2405 complex type 'AssociationType': abstract dropped
+SCH2405 element 'AssociationAugmentationPoint': abstract element 'AssociationAugmentationPoint' has no type and no substituting element; dropped
+SCH2403 element 'LocationArea': element 'LocationArea' has no Schemata equivalent; the regenerated root element will be named 'area'
+SCH2403 element 'AreaCircularRegion': element 'AreaCircularRegion' has no Schemata equivalent; the regenerated root element will be named 'circular_region'
+SCH2403 element 'TaskEndDate': element 'TaskEndDate' has no Schemata equivalent; the regenerated root element will be named 'date'
+SCH2403 complex type 'Degree180PlusMinusType': simpleContent extension of 'Degree180PlusMinusSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'Degree180PlusMinusType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
+SCH2404 complex type 'Degree180PlusMinusType': facet minExclusive dropped
+SCH2403 complex type 'Degree360Type': simpleContent extension of 'Degree360SimpleType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2404 complex type 'Degree360Type': facet maxExclusive dropped
+SCH2403 complex type 'Degree90PlusMinusType': simpleContent extension of 'Degree90PlusMinusSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2405 element 'IdentificationCategoryAbstract': abstract element 'IdentificationCategoryAbstract' has no type and no substituting element; dropped
+SCH2403 element 'GeographicCoordinateLatitude': element 'GeographicCoordinateLatitude' has no Schemata equivalent; the regenerated root element will be named 'latitude_coordinate'
+SCH2403 element 'LatitudeDegreeValue': element 'LatitudeDegreeValue' has no Schemata equivalent; the regenerated root element will be named 'latitude_degree'
+SCH2403 complex type 'LatitudeDegreeType': simpleContent extension of 'LatitudeDegreeSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 element 'CircularRegionRadiusLengthMeasure': element 'CircularRegionRadiusLengthMeasure' has no Schemata equivalent; the regenerated root element will be named 'length_measure'
+SCH2403 complex type 'LengthMeasureType': extension of 'MeasureType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 element 'CircularRegionCenterCoordinate': element 'CircularRegionCenterCoordinate' has no Schemata equivalent; the regenerated root element will be named 'location2_d_geospatial_coordinate'
+SCH2403 complex type 'Location3DGeospatialCoordinateType': extension of 'Location2DGeospatialCoordinateType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 element 'LocationAltitude': element 'LocationAltitude' has no Schemata equivalent; the regenerated root element will be named 'location_height_measure'
+SCH2403 complex type 'LocationHeightMeasureType': extension of 'LengthMeasureType' has no Schemata equivalent; base fields flattened into the model
+SCH2405 element 'LocationAugmentationPoint': abstract element 'LocationAugmentationPoint' has no type and no substituting element; dropped
+SCH2403 element 'GeographicCoordinateLongitude': element 'GeographicCoordinateLongitude' has no Schemata equivalent; the regenerated root element will be named 'longitude_coordinate'
+SCH2403 element 'LongitudeDegreeValue': element 'LongitudeDegreeValue' has no Schemata equivalent; the regenerated root element will be named 'longitude_degree'
+SCH2403 complex type 'LongitudeDegreeType': simpleContent extension of 'LongitudeDegreeSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'MetadataType': extension of 'MetadataType' has no Schemata equivalent; base fields flattened into the model
+SCH2403 element 'AreaPolygonRegion': element 'AreaPolygonRegion' has no Schemata equivalent; the regenerated root element will be named 'polygon_region'
+SCH2403 element 'TaskStatus': element 'TaskStatus' has no Schemata equivalent; the regenerated root element will be named 'status'
+SCH2405 element 'StatusAbstract': abstract element 'StatusAbstract' has no type and no substituting element; dropped
+SCH2403 element 'IdentificationCategoryDescriptionText': element 'IdentificationCategoryDescriptionText' has no Schemata equivalent; the regenerated root element will be named 'text'
+SCH2403 complex type 'ZuluDateTimeType': simpleContent extension of 'ZuluDateTimeSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2404 complex type 'ZuluDateTimeType': facet pattern dropped
+SCH2405 element 'MeasureDoubleValue': root element of a type in another namespace dropped
+SCH2405 element 'MeasureUnitText': second root element for 'TextType' dropped
+SCH2403 element 'AreaRegionAbstract': substitution group 'AreaRegionAbstract' imported as union 'AreaRegionAbstract' of 2 member types; the regenerated XSD uses a choice
+SCH2403 element 'AreaRegionAbstract': member element name 'AreaCircularRegion' has no Schemata equivalent and is dropped; the regenerated element will be named 'circular_region'
+SCH2403 element 'AreaRegionAbstract': member element name 'AreaPolygonRegion' has no Schemata equivalent and is dropped; the regenerated element will be named 'polygon_region'
+SCH2403 element 'DateRepresentation': substitution group 'DateRepresentation' imported as its one member type 'ZuluDateTime'
+SCH2403 element 'LocationGeospatialCoordinateAbstract': substitution group 'LocationGeospatialCoordinateAbstract' imported as its one member type 'Location3DGeospatialCoordinate'
+SCH2403 element 'LocationHeightAbstract': substitution group 'LocationHeightAbstract' imported as its one member type 'LocationHeightMeasure'
+SCH2403 element 'MeasurePointAbstract': substitution group 'MeasurePointAbstract' imported as its one member type 'Double'
+SCH2403 element 'MeasureUnitAbstract': substitution group 'MeasureUnitAbstract' imported as its one member type 'Text'
+SCH2403 element 'MeasureValueAbstract': substitution group 'MeasureValueAbstract' imported as its one member type 'Double'
+SCH2403 complex type 'anyURI': complex type 'anyURI' has no Schemata equivalent; the regenerated type will be named 'AnyURIType'
+SCH2403 complex type 'anyURI': simpleContent extension of 'anyURI' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'base64Binary': complex type 'base64Binary' has no Schemata equivalent; the regenerated type will be named 'Base64BinaryType'
+SCH2403 complex type 'base64Binary': simpleContent extension of 'base64Binary' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'boolean': complex type 'boolean' has no Schemata equivalent; the regenerated type will be named 'BooleanType'
+SCH2403 complex type 'boolean': simpleContent extension of 'boolean' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'date': complex type 'date' has no Schemata equivalent; the regenerated type will be named 'DateType'
+SCH2403 complex type 'date': simpleContent extension of 'date' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'dateTime': complex type 'dateTime' has no Schemata equivalent; the regenerated type will be named 'DateTimeType'
+SCH2403 complex type 'dateTime': simpleContent extension of 'dateTime' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'decimal': complex type 'decimal' has no Schemata equivalent; the regenerated type will be named 'DecimalType'
+SCH2403 complex type 'decimal': simpleContent extension of 'decimal' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'double': complex type 'double' has no Schemata equivalent; the regenerated type will be named 'DoubleType'
+SCH2403 complex type 'double': simpleContent extension of 'double' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'duration': complex type 'duration' has no Schemata equivalent; the regenerated type will be named 'DurationType'
+SCH2403 complex type 'duration': simpleContent extension of 'duration' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'hexBinary': complex type 'hexBinary' has no Schemata equivalent; the regenerated type will be named 'HexBinaryType'
+SCH2403 complex type 'hexBinary': simpleContent extension of 'hexBinary' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2404 complex type 'hexBinary': xs:hexBinary imported as bytes
+SCH2403 complex type 'integer': complex type 'integer' has no Schemata equivalent; the regenerated type will be named 'IntegerType'
+SCH2403 complex type 'integer': simpleContent extension of 'integer' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'nonNegativeInteger': complex type 'nonNegativeInteger' has no Schemata equivalent; the regenerated type will be named 'NonNegativeIntegerType'
+SCH2403 complex type 'nonNegativeInteger': simpleContent extension of 'nonNegativeInteger' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'positiveInteger': complex type 'positiveInteger' has no Schemata equivalent; the regenerated type will be named 'PositiveIntegerType'
+SCH2403 complex type 'positiveInteger': simpleContent extension of 'positiveInteger' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'string': complex type 'string' has no Schemata equivalent; the regenerated type will be named 'StringType'
+SCH2403 complex type 'token': complex type 'token' has no Schemata equivalent; the regenerated type will be named 'TokenType'
+SCH2403 complex type 'token': simpleContent extension of 'token' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 complex type 'LongStringWithSecurityType': simpleContent extension of 'LongStringType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 attribute 'ownerProducer': union simple type imported as string
+SCH2403 complex type 'NoticeType': extension of 'NoticeBaseType' has no Schemata equivalent; base fields flattened into the model
+SCH2405 attribute 'externalNotice': fixed value imported as a default
+SCH2403 complex type 'ShortStringWithSecurityType': simpleContent extension of 'ShortStringType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 element 'NoticeText': the regenerated root element will be named 'notice_text'
+SCH2403 element 'NoticeText': simpleContent extension of 'LongStringWithSecurityType' has no Schemata equivalent; imported as a model with a 'value' field
+SCH2403 simple type 'CVEnumISM25X': simple type 'CVEnumISM25X' has no Schemata equivalent; the regenerated type will be named 'CVEnumISM25XType'
+SCH2403 enum value 'CVEnumISM25X.25X1': enum value 'CVEnumISM25X.25X1' has no Schemata equivalent; imported as 'v25_x1'
+SCH2403 enum value 'CVEnumISM25X.25X1-EO-12951': enum value 'CVEnumISM25X.25X1-EO-12951' has no Schemata equivalent; imported as 'v25_x1_eo_12951'
+SCH2403 enum value 'CVEnumISM25X.25X2': enum value 'CVEnumISM25X.25X2' has no Schemata equivalent; imported as 'v25_x2'
+SCH2403 enum value 'CVEnumISM25X.25X3': enum value 'CVEnumISM25X.25X3' has no Schemata equivalent; imported as 'v25_x3'
+SCH2403 enum value 'CVEnumISM25X.25X4': enum value 'CVEnumISM25X.25X4' has no Schemata equivalent; imported as 'v25_x4'
+SCH2403 enum value 'CVEnumISM25X.25X5': enum value 'CVEnumISM25X.25X5' has no Schemata equivalent; imported as 'v25_x5'
+SCH2403 enum value 'CVEnumISM25X.25X6': enum value 'CVEnumISM25X.25X6' has no Schemata equivalent; imported as 'v25_x6'
+SCH2403 enum value 'CVEnumISM25X.25X7': enum value 'CVEnumISM25X.25X7' has no Schemata equivalent; imported as 'v25_x7'
+SCH2403 enum value 'CVEnumISM25X.25X8': enum value 'CVEnumISM25X.25X8' has no Schemata equivalent; imported as 'v25_x8'
+SCH2403 enum value 'CVEnumISM25X.25X9': enum value 'CVEnumISM25X.25X9' has no Schemata equivalent; imported as 'v25_x9'
+SCH2403 enum value 'CVEnumISM25X.50X1': enum value 'CVEnumISM25X.50X1' has no Schemata equivalent; imported as 'v50_x1'
+SCH2403 enum value 'CVEnumISM25X.50X1-HUM': enum value 'CVEnumISM25X.50X1-HUM' has no Schemata equivalent; imported as 'v50_x1_hum'
+SCH2403 enum value 'CVEnumISM25X.50X2': enum value 'CVEnumISM25X.50X2' has no Schemata equivalent; imported as 'v50_x2'
+SCH2403 enum value 'CVEnumISM25X.50X2-WMD': enum value 'CVEnumISM25X.50X2-WMD' has no Schemata equivalent; imported as 'v50_x2_wmd'
+SCH2403 enum value 'CVEnumISM25X.50X3': enum value 'CVEnumISM25X.50X3' has no Schemata equivalent; imported as 'v50_x3'
+SCH2403 enum value 'CVEnumISM25X.50X4': enum value 'CVEnumISM25X.50X4' has no Schemata equivalent; imported as 'v50_x4'
+SCH2403 enum value 'CVEnumISM25X.50X5': enum value 'CVEnumISM25X.50X5' has no Schemata equivalent; imported as 'v50_x5'
+SCH2403 enum value 'CVEnumISM25X.50X6': enum value 'CVEnumISM25X.50X6' has no Schemata equivalent; imported as 'v50_x6'
+SCH2403 enum value 'CVEnumISM25X.50X7': enum value 'CVEnumISM25X.50X7' has no Schemata equivalent; imported as 'v50_x7'
+SCH2403 enum value 'CVEnumISM25X.50X8': enum value 'CVEnumISM25X.50X8' has no Schemata equivalent; imported as 'v50_x8'
+SCH2403 enum value 'CVEnumISM25X.50X9': enum value 'CVEnumISM25X.50X9' has no Schemata equivalent; imported as 'v50_x9'
+SCH2403 simple type 'CVEnumISMClassificationAll': simple type 'CVEnumISMClassificationAll' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMClassificationAllType'
+SCH2403 simple type 'CVEnumISMDissemValues': simple type 'CVEnumISMDissemValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMDissemValuesType'
+SCH2403 simple type 'CVEnumISMNonICValues': simple type 'CVEnumISMNonICValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMNonICValuesType'
+SCH2403 simple type 'CVEnumISMNonUSControlsValues': simple type 'CVEnumISMNonUSControlsValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMNonUSControlsValuesType'
+SCH2403 simple type 'CVEnumISMNoticeValues': simple type 'CVEnumISMNoticeValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMNoticeValuesType'
+SCH2403 simple type 'CVEnumISMPocTypeValues': simple type 'CVEnumISMPocTypeValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMPocTypeValuesType'
+SCH2403 simple type 'CVEnumISMSCIControlsValues': simple type 'CVEnumISMSCIControlsValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMSCIControlsValuesType'
+SCH2403 simple type 'CVEnumISMExemptFromValues': simple type 'CVEnumISMExemptFromValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMExemptFromValuesType'
+SCH2403 simple type 'CVEnumISMCompliesWithValues': simple type 'CVEnumISMCompliesWithValues' has no Schemata equivalent; the regenerated type will be named 'CVEnumISMCompliesWithValuesType'
+```
+
+The whole file holds 179 such lines; each shape is quoted once here. Section 19 of the reference
+says what each one means.
+
 ## Keeping the examples current
 
 If you change one of these `.schemata` files, its `expected/` tree and warnings files need to change
