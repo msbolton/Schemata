@@ -117,6 +117,7 @@ object XsdImport {
         }
         val cycles = Cycles(cyclicGroups(docsByNamespace), cyclicAttributeGroups(docsByNamespace))
         val heads = Heads(live)
+        val propertyElements = elementRefs(live)
 
         val units =
             live.map { doc ->
@@ -156,6 +157,7 @@ object XsdImport {
                         diagnostics,
                         doc.unresolvedImports,
                         inherited,
+                        propertyElements,
                     )
                 context.simpleTypes = SimpleTypes(context)
                 context.choiceLowering = ChoiceLowering(context)
@@ -623,6 +625,15 @@ object XsdImport {
             context.heads.types[headQName]?.let { head ->
                 return context.choiceLowering.typeHeadDeclaration(ct, original, info, head)
             }
+            if (headQName in context.heads.unreferenced) {
+                context.diagnostics +=
+                    context.lossy(
+                        ImportCodes.DROPPED,
+                        "complex type '$original'",
+                        "abstract type is not referenced; no union written",
+                        ct.line,
+                    )
+            }
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
             if (content is XContent.Choice && context.choiceLowering.isUnionType(ct)) {
@@ -770,6 +781,7 @@ object XsdImport {
             context.reportIdentityConstraints(el, where)
             val type = el.type
             val simple = "root element of simple type dropped"
+            val property = QName(context.doc.targetNamespace, name) in context.propertyElements
             when {
                 type == null -> {
                     if (el.inlineSimple != null) {
@@ -781,15 +793,17 @@ object XsdImport {
                     context.diagnostics +=
                         context.lossy(ImportCodes.DROPPED, where, simple, el.line)
                 type.namespace != context.doc.targetNamespace ->
-                    context.diagnostics +=
-                        context.lossy(
-                            ImportCodes.DROPPED,
-                            where,
-                            "root element of a type in another namespace dropped",
-                            el.line,
-                        )
+                    if (!property) {
+                        context.diagnostics +=
+                            context.lossy(
+                                ImportCodes.DROPPED,
+                                where,
+                                "root element of a type in another namespace dropped",
+                                el.line,
+                            )
+                    }
                 context.doc.complexTypes.any { it.name == type.local } ->
-                    if (!roots.add(type)) {
+                    if (!roots.add(type) && !property) {
                         context.diagnostics +=
                             context.lossy(
                                 ImportCodes.DROPPED,
@@ -827,6 +841,11 @@ internal class ImportContext(
      * only the base's own copy says where the construct is declared. Shared by every document.
      */
     val inherited: MutableSet<Diagnostic> = Collections.newSetFromMap(IdentityHashMap()),
+    /**
+     * The global elements some other element uses by `ref`: properties of content models, not
+     * roots, so that only the first of a type marks a root and the rest are not reported as lost.
+     */
+    val propertyElements: Set<QName> = emptySet(),
 ) {
     lateinit var simpleTypes: SimpleTypes
     lateinit var choiceLowering: ChoiceLowering

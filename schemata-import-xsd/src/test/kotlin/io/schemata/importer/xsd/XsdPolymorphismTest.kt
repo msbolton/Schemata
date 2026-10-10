@@ -125,6 +125,91 @@ class XsdPolymorphismTest {
         )
     }
 
+    private val derivedShapes =
+        """
+        <xs:complexType name="CircleType"><xs:complexContent><xs:extension base="t:ShapeType"><xs:sequence><xs:element name="r" type="xs:int"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+        <xs:complexType name="SquareType"><xs:complexContent><xs:extension base="t:ShapeType"><xs:sequence><xs:element name="side" type="xs:int"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+        """
+
+    @Test
+    fun `an abstract type nothing references writes no union`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:t="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="BaseType" abstract="true"><xs:sequence><xs:element name="id" type="xs:string"/></xs:sequence></xs:complexType>
+              <xs:complexType name="CircleType"><xs:complexContent><xs:extension base="t:BaseType"><xs:sequence><xs:element name="r" type="xs:int"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+              <xs:complexType name="SquareType"><xs:complexContent><xs:extension base="t:BaseType"><xs:sequence><xs:element name="side" type="xs:int"/></xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val declarations = unit(imported, "t").declarations
+        assertEquals(emptyList(), declarations.filterIsInstance<UnitUnion>())
+        assertEquals(
+            listOf("Base", "Circle", "Square"),
+            declarations.filterIsInstance<UnitRecord>().map { it.name },
+        )
+        assertEquals(
+            listOf("id", "r"),
+            declarations
+                .filterIsInstance<UnitRecord>()
+                .single { it.name == "Circle" }
+                .fields
+                .map { it.name },
+        )
+        val messages = messages(imported)
+        assertTrue(
+            "SCH2405 complex type 'BaseType': abstract type is not referenced; no union written" in
+                messages
+        )
+        assertEquals(1, messages.count { "BaseType" in it && "not referenced" in it })
+        assertFalse(messages.any { "abstract dropped" in it })
+        assertFalse(messages.any { "imported as union" in it })
+    }
+
+    @Test
+    fun `an abstract type referenced only by a head element keeps its union`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:t="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="ShapeType" abstract="true"><xs:sequence/></xs:complexType>
+              $derivedShapes
+              <xs:element name="shape" type="t:ShapeType" abstract="true"/>
+              <xs:element name="circle" type="t:CircleType" substitutionGroup="t:shape"/>
+              <xs:element name="square" type="t:SquareType" substitutionGroup="t:shape"/>
+              <xs:complexType name="DrawingType"><xs:sequence><xs:element ref="t:shape"/></xs:sequence></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val t = unit(imported, "t")
+        assertEquals(
+            listOf("Circle", "Square"),
+            t.declarations
+                .filterIsInstance<UnitUnion>()
+                .single { it.name == "Shape" }
+                .members
+                .map { (it.type as UnitType.Ref).name },
+        )
+        val drawing = t.declarations.filterIsInstance<UnitRecord>().single { it.name == "Drawing" }
+        assertEquals(UnitType.Ref("Shape"), drawing.fields.single { it.name == "shape" }.type)
+        assertFalse(messages(imported).any { "not referenced" in it })
+    }
+
+    @Test
+    fun `an abstract type referenced by a local element keeps its union`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:t="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="ShapeType" abstract="true"><xs:sequence/></xs:complexType>
+              $derivedShapes
+              <xs:complexType name="DrawingType"><xs:sequence><xs:element name="main" type="t:ShapeType"/></xs:sequence></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val t = unit(imported, "t")
+        assertEquals(1, t.declarations.filterIsInstance<UnitUnion>().count { it.name == "Shape" })
+        assertFalse(messages(imported).any { "not referenced" in it })
+    }
+
     @Test
     fun `a head with one member lowers to that member and a head with none stays a record`() {
         val xml =

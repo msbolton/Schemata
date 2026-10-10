@@ -57,7 +57,17 @@ model ReferenceInfo {
   @@xsd(name: "ReferenceInfo")
 }
 
-union GenericTimeStamp = XAdESTimeStamp | OtherTimeStamp
+model GenericTimeStamp {
+  include                 Include[]                                           @xsd(name: "Include")
+  reference_info          ReferenceInfo[]                                     @xsd(name: "ReferenceInfo")
+  canonicalization_method ubl_xmldsig_core_schema_2_1.CanonicalizationMethod? @xsd(name: "CanonicalizationMethod")
+  choice_2                GenericTimeStampChoice2[]                           { minItems 1 }
+  id                      string?                                             @xsd(name: "Id") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+union GenericTimeStampChoice2 = EncapsulatedPKIData | Any
 
 model XAdESTimeStamp {
   include                 Include[]                                           @xsd(name: "Include")

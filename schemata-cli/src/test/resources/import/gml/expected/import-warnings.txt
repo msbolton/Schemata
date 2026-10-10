@@ -94,7 +94,6 @@ SCH2403 union 'MappingRule': member element name 'ruleReference' has no Schemata
 SCH2403 complex type 'SequenceRuleType': simpleContent extension of 'SequenceRuleEnumeration' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 element 'componentReferenceSystem': element 'componentReferenceSystem' has no Schemata equivalent; the regenerated root element will be named 'single_crs_property'
 SCH2403 complex type 'AbstractGeneralDerivedCRSType': abstract type 'AbstractGeneralDerivedCRSType' imported as union 'AbstractGeneralDerivedCRS' of 2 concrete types; the regenerated XSD uses a choice
-SCH2403 complex type 'CompoundCRSType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompoundCRSType': extension of 'IdentifiedObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CompoundCRSType': extension of 'AbstractCRSType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'compoundCRSRef': element 'compoundCRSRef' has no Schemata equivalent; the regenerated root element will be named 'compound_crs_property'
@@ -210,7 +209,7 @@ SCH2403 complex type 'BoundingShapeType': inline choice has no Schemata equivale
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 attribute 'nilReason': union simple type imported as string
 SCH2403 complex type 'EnvelopeWithTimePeriodType': extension of 'EnvelopeType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'AbstractFeatureMemberType': abstract type 'AbstractFeatureMemberType' imported as its one concrete type 'DynamicFeatureMember'
+SCH2405 complex type 'AbstractFeatureMemberType': abstract type is not referenced; no union written
 SCH2403 element 'direction': element 'direction' has no Schemata equivalent; the regenerated root element will be named 'direction_property'
 SCH2403 complex type 'DirectionPropertyType': inline choice has no Schemata equivalent; members imported as optional fields
 SCH2403 union 'DirectionVector': choice branch imported as model 'HorizontalAngleGroup'
@@ -294,9 +293,9 @@ SCH2403 complex type 'ImageDatumType': extension of 'AbstractDatumType' has no S
 SCH2403 element 'imageDatum': element 'imageDatum' has no Schemata equivalent; the regenerated root element will be named 'image_datum_property'
 SCH2403 complex type 'VerticalDatumType': extension of 'AbstractDatumType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'verticalDatum': element 'verticalDatum' has no Schemata equivalent; the regenerated root element will be named 'vertical_datum_property'
-SCH2403 complex type 'TemporalDatumType': restriction of 'AbstractDatumType' has no Schemata equivalent; its own content is used
 SCH2403 complex type 'TemporalDatumType': extension of 'TemporalDatumBaseType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'TemporalDatumBaseType': abstract type 'TemporalDatumBaseType' imported as its one concrete type 'TemporalDatum'
+SCH2405 complex type 'TemporalDatumBaseType': abstract type is not referenced; no union written
+SCH2403 complex type 'TemporalDatumBaseType': restriction of 'AbstractDatumType' has no Schemata equivalent; its own content is used
 SCH2403 element 'temporalDatum': element 'temporalDatum' has no Schemata equivalent; the regenerated root element will be named 'temporal_datum_property'
 SCH2403 complex type 'AbstractCoordinateOperationType': abstract type 'AbstractCoordinateOperationType' imported as union 'AbstractCoordinateOperation' of 4 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'coordinateOperationRef': element 'coordinateOperationRef' has no Schemata equivalent; the regenerated root element will be named 'coordinate_operation_property'
@@ -482,14 +481,15 @@ SCH2403 element 'solidMember': element 'solidMember' has no Schemata equivalent;
 SCH2403 element 'solidArrayProperty': element 'solidArrayProperty' has no Schemata equivalent; the regenerated root element will be named 'solid_array_property'
 SCH2403 complex type 'SolidType': extension of 'AbstractSolidType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'ShellType': extension of 'AbstractSurfaceType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'IdentifiedObjectType': abstract type 'IdentifiedObjectType' imported as union 'IdentifiedObject' of 37 concrete types; the regenerated XSD uses a choice
+SCH2405 complex type 'IdentifiedObjectType': abstract type is not referenced; no union written
+SCH2403 complex type 'IdentifiedObjectType': extension of 'DefinitionType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'AbstractCRSType': abstract type 'AbstractCRSType' imported as union 'AbstractCRS' of 10 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'referenceSystemRef': element 'referenceSystemRef' has no Schemata equivalent; the regenerated root element will be named 'crs_property'
 SCH2403 complex type 'AbstractGMLType': abstract type 'AbstractGMLType' imported as union 'AbstractGML' of 108 concrete types; the regenerated XSD uses a choice
 SCH2403 element 'rangeParameters': element 'rangeParameters' has no Schemata equivalent; the regenerated root element will be named 'association_role'
 SCH2403 element 'dataSourceReference': element 'dataSourceReference' has no Schemata equivalent; the regenerated root element will be named 'reference'
 SCH2403 element 'abstractInlineProperty': element 'abstractInlineProperty' has no Schemata equivalent; the regenerated root element will be named 'inline_property'
-SCH2403 complex type 'AbstractMemberType': abstract type 'AbstractMemberType' imported as its one concrete type 'DictionaryEntry'
+SCH2405 complex type 'AbstractMemberType': abstract type is not referenced; no union written
 SCH2405 complex type 'AbstractMetadataPropertyType': abstract dropped
 SCH2403 complex type 'AbstractSurfaceType': abstract type 'AbstractSurfaceType' imported as union 'AbstractSurface' of 6 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'AbstractSurfaceType': member element name 'PolyhedralSurface' has no Schemata equivalent and is dropped; the regenerated element will be named 'Surface'
@@ -531,8 +531,6 @@ SCH2403 enum value 'IncrementOrder.-x-y': enum value 'IncrementOrder.-x-y' has n
 SCH2403 simple type 'CompassPointEnumeration': simple type 'CompassPointEnumeration' has no Schemata equivalent; the regenerated type will be named 'CompassPointEnumerationType'
 SCH2403 enum value 'Sign.-': enum value 'Sign.-' has no Schemata equivalent; imported as 'minus'
 SCH2403 enum value 'Sign.+': enum value 'Sign.+' has no Schemata equivalent; imported as 'plus'
-SCH2405 element 'superComplex': second root element for 'TopoComplexPropertyType' dropped
-SCH2405 element 'maximalComplex': second root element for 'TopoComplexPropertyType' dropped
 SCH2405 element 'doubleOrNilReasonTupleList': root element of simple type dropped
 SCH2405 element 'MultiPointCoverage': second root element for 'DiscreteCoverageType' dropped
 SCH2405 element 'MultiCurveCoverage': second root element for 'DiscreteCoverageType' dropped
@@ -540,7 +538,6 @@ SCH2405 element 'MultiSurfaceCoverage': second root element for 'DiscreteCoverag
 SCH2405 element 'MultiSolidCoverage': second root element for 'DiscreteCoverageType' dropped
 SCH2405 element 'GridCoverage': second root element for 'DiscreteCoverageType' dropped
 SCH2405 element 'RectifiedGridCoverage': second root element for 'DiscreteCoverageType' dropped
-SCH2405 element 'baseCRS': second root element for 'SingleCRSPropertyType' dropped
 SCH2405 element 'subject': second root element for 'TargetPropertyType' dropped
 SCH2405 element 'Null': root element of simple type dropped
 SCH2405 element 'geodeticDatumRef': second root element for 'GeodeticDatumPropertyType' dropped
@@ -574,33 +571,20 @@ SCH2405 element 'cylindricalCSRef': second root element for 'CylindricalCSProper
 SCH2405 element 'singleCRSRef': second root element for 'SingleCRSPropertyType' dropped
 SCH2405 element 'definedByConversion': second root element for 'GeneralConversionPropertyType' dropped
 SCH2405 element 'includesSingleCRS': second root element for 'SingleCRSPropertyType' dropped
-SCH2405 element 'usesEllipsoidalCS': second root element for 'EllipsoidalCSPropertyType' dropped
-SCH2405 element 'usesCartesianCS': second root element for 'CartesianCSPropertyType' dropped
-SCH2405 element 'usesSphericalCS': second root element for 'SphericalCSPropertyType' dropped
-SCH2405 element 'usesGeodeticDatum': second root element for 'GeodeticDatumPropertyType' dropped
 SCH2405 element 'usesVerticalCS': second root element for 'VerticalCSPropertyType' dropped
 SCH2405 element 'usesVerticalDatum': second root element for 'VerticalDatumPropertyType' dropped
 SCH2405 element 'usesCS': second root element for 'CoordinateSystemPropertyType' dropped
 SCH2405 element 'usesEngineeringDatum': second root element for 'EngineeringDatumPropertyType' dropped
 SCH2405 element 'usesAffineCS': second root element for 'AffineCSPropertyType' dropped
 SCH2405 element 'usesImageDatum': second root element for 'ImageDatumPropertyType' dropped
-SCH2405 element 'usesObliqueCartesianCS': second root element for 'ObliqueCartesianCSPropertyType' dropped
 SCH2405 element 'usesTimeCS': second root element for 'TimeCSPropertyType' dropped
-SCH2405 element 'usesTemporalCS': second root element for 'TemporalCSPropertyType' dropped
 SCH2405 element 'usesTemporalDatum': second root element for 'TemporalDatumPropertyType' dropped
 SCH2405 element 'geographicCRSRef': second root element for 'GeographicCRSPropertyType' dropped
-SCH2405 element 'dmsAngle': second root element for 'DMSAngleType' dropped
 SCH2405 element 'decimalMinutes': root element of simple type dropped
 SCH2405 element 'minutes': root element of simple type dropped
 SCH2405 element 'seconds': root element of simple type dropped
-SCH2405 element 'member': second root element for 'AssociationRoleType' dropped
-SCH2405 element 'coordinates': second root element for 'CoordinatesType' dropped
-SCH2405 element 'LocationString': second root element for 'StringOrRefType' dropped
-SCH2405 element 'LocationKeyWord': second root element for 'CodeType' dropped
 SCH2405 element 'featureProperty': second root element for 'FeaturePropertyType' dropped
 SCH2405 element 'track': second root element for 'HistoryPropertyType' dropped
-SCH2405 element 'definitionRef': second root element for 'ReferenceType' dropped
-SCH2405 element 'MappingRule': second root element for 'StringOrRefType' dropped
 SCH2405 element 'centerOf': second root element for 'PointPropertyType' dropped
 SCH2405 element 'position': second root element for 'PointPropertyType' dropped
 SCH2405 element 'centerLineOf': second root element for 'CurvePropertyType' dropped
@@ -616,18 +600,10 @@ SCH2405 element 'multiSolidDomain': second root element for 'DomainSetType' drop
 SCH2405 element 'gridDomain': second root element for 'DomainSetType' dropped
 SCH2405 element 'rectifiedGridDomain': second root element for 'DomainSetType' dropped
 SCH2405 element 'generalOperationParameter': second root element for 'AbstractGeneralOperationParameterPropertyType' dropped
-SCH2405 element 'status': second root element for 'StringOrRefType' dropped
-SCH2405 element 'statusReference': second root element for 'ReferenceType' dropped
 SCH2405 element 'topoComplexProperty': second root element for 'TopoComplexPropertyType' dropped
 SCH2405 element 'multiPointProperty': second root element for 'MultiPointPropertyType' dropped
 SCH2405 element 'multiCurveProperty': second root element for 'MultiCurvePropertyType' dropped
 SCH2405 element 'multiSurfaceProperty': second root element for 'MultiSurfacePropertyType' dropped
-SCH2405 element 'quantityType': second root element for 'StringOrRefType' dropped
-SCH2405 element 'quantityTypeReference': second root element for 'ReferenceType' dropped
-SCH2405 element 'catalogSymbol': second root element for 'CodeType' dropped
-SCH2405 element 'roughConversionToPreferredUnit': second root element for 'ConversionToPreferredUnitType' dropped
-SCH2405 element 'locationName': second root element for 'CodeType' dropped
-SCH2405 element 'locationReference': second root element for 'ReferenceType' dropped
 SCH2403 element 'Boolean': the regenerated root element will be named 'boolean'
 SCH2403 element 'Boolean': simpleContent extension of 'boolean' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 attribute 'nilReason': union simple type imported as string
@@ -642,90 +618,45 @@ SCH2403 element 'Quantity': simpleContent extension of 'MeasureType' has no Sche
 SCH2405 element 'AbstractValue': root element of simple type dropped
 SCH2405 element 'AbstractScalarValue': root element of simple type dropped
 SCH2405 element 'AbstractScalarValueList': root element of simple type dropped
-SCH2405 element 'valueComponent': second root element for 'ValuePropertyType' dropped
 SCH2405 element 'CountExtent': root element of simple type dropped
-SCH2405 element 'pointMember': second root element for 'PointPropertyType' dropped
-SCH2405 element 'pointMembers': second root element for 'PointArrayPropertyType' dropped
-SCH2405 element 'curveMembers': second root element for 'CurveArrayPropertyType' dropped
-SCH2405 element 'surfaceMembers': second root element for 'SurfaceArrayPropertyType' dropped
-SCH2405 element 'solidMembers': second root element for 'SolidArrayPropertyType' dropped
-SCH2405 element 'axisAbbrev': second root element for 'CodeType' dropped
-SCH2405 element 'axisDirection': second root element for 'CodeWithAuthorityType' dropped
 SCH2405 element 'minimumValue': root element of simple type dropped
 SCH2405 element 'maximumValue': root element of simple type dropped
-SCH2405 element 'rangeMeaning': second root element for 'CodeWithAuthorityType' dropped
-SCH2405 element 'axis': second root element for 'CoordinateSystemAxisPropertyType' dropped
-SCH2405 element 'anchorDefinition': second root element for 'CodeType' dropped
 SCH2405 element 'realizationEpoch': root element of simple type dropped
-SCH2405 element 'primeMeridian': second root element for 'PrimeMeridianPropertyType' dropped
-SCH2405 element 'ellipsoid': second root element for 'EllipsoidPropertyType' dropped
-SCH2405 element 'semiMajorAxis': second root element for 'MeasureType' dropped
 SCH2403 element 'secondDefiningParameter': the regenerated root element will be named 'second_defining_parameter'
 SCH2403 element 'SecondDefiningParameter': element 'secondDefiningParameter' already lowers to model 'SecondDefiningParameter'; imported as 'SecondDefiningParameter2'
 SCH2403 union 'SecondDefiningParameter2': member element name 'inverseFlattening' has no Schemata equivalent and is dropped; the regenerated element will be named 'measure'
 SCH2403 union 'SecondDefiningParameter2': member element name 'semiMinorAxis' has no Schemata equivalent and is dropped; the regenerated element will be named 'length'
 SCH2403 union 'SecondDefiningParameter2': member element name 'isSphere' has no Schemata equivalent and is dropped; the regenerated element will be named 'bool'
-SCH2405 element 'greenwichLongitude': second root element for 'AngleType' dropped
-SCH2405 element 'pixelInCell': second root element for 'CodeWithAuthorityType' dropped
 SCH2405 element 'origin': root element of simple type dropped
-SCH2405 element 'AbstractCoordinateOperation': second root element for 'AbstractCoordinateOperationType' dropped
 SCH2405 element 'operationVersion': root element of simple type dropped
 SCH2403 element 'coordinateOperationAccuracy': the regenerated root element will be named 'coordinate_operation_accuracy'
 SCH2405 element 'AbstractDQ_PositionalAccuracy': abstract dropped
-SCH2405 element 'sourceCRS': second root element for 'CRSPropertyType' dropped
-SCH2405 element 'targetCRS': second root element for 'CRSPropertyType' dropped
-SCH2405 element 'AbstractSingleOperation': second root element for 'AbstractCoordinateOperationType' dropped
-SCH2405 element 'coordOperation': second root element for 'CoordinateOperationPropertyType' dropped
 SCH2405 element 'modifiedCoordinate': root element of simple type dropped
-SCH2405 element 'method': second root element for 'OperationMethodPropertyType' dropped
-SCH2405 element 'parameterValue': second root element for 'AbstractGeneralParameterValuePropertyType' dropped
-SCH2405 element 'value': second root element for 'MeasureType' dropped
 SCH2405 element 'stringValue': root element of simple type dropped
 SCH2405 element 'integerValue': root element of simple type dropped
 SCH2405 element 'booleanValue': root element of simple type dropped
 SCH2405 element 'integerValueList': root element of simple type dropped
 SCH2405 element 'valueFile': root element of simple type dropped
-SCH2405 element 'operationParameter': second root element for 'OperationParameterPropertyType' dropped
-SCH2405 element 'group': second root element for 'OperationParameterGroupPropertyType' dropped
 SCH2403 element 'formulaCitation': the regenerated root element will be named 'formula_citation'
-SCH2405 element 'formula': second root element for 'CodeType' dropped
 SCH2405 element 'sourceDimensions': root element of simple type dropped
 SCH2405 element 'targetDimensions': root element of simple type dropped
-SCH2405 element 'parameter': second root element for 'AbstractGeneralOperationParameterPropertyType' dropped
 SCH2405 element 'minimumOccurs': root element of simple type dropped
 SCH2405 element 'maximumOccurs': root element of simple type dropped
 SCH2405 element 'remarks': root element of simple type dropped
 SCH2405 element 'Dictionary': second root element for 'DictionaryType' dropped
-SCH2405 element 'dictionaryEntry': second root element for 'DictionaryEntryType' dropped
 SCH2405 element 'duration': root element of simple type dropped
-SCH2405 element 'AbstractGeometry': second root element for 'AbstractGeometryType' dropped
-SCH2405 element 'pointProperty': second root element for 'PointPropertyType' dropped
-SCH2405 element 'curveProperty': second root element for 'CurvePropertyType' dropped
-SCH2405 element 'baseCurve': second root element for 'CurvePropertyType' dropped
-SCH2405 element 'baseSurface': second root element for 'SurfacePropertyType' dropped
-SCH2405 element 'patches': second root element for 'SurfacePatchArrayPropertyType' dropped
-SCH2405 element 'curveMember': second root element for 'CurvePropertyType' dropped
 SCH2405 element 'PolyhedralSurface': second root element for 'SurfaceType' dropped
 SCH2405 element 'TriangulatedSurface': second root element for 'SurfaceType' dropped
-SCH2405 element 'solidProperty': second root element for 'SolidPropertyType' dropped
-SCH2405 element 'surfaceMember': second root element for 'SurfacePropertyType' dropped
-SCH2405 element 'AbstractCRS': second root element for 'AbstractCRSType' dropped
 SCH2403 element 'domainOfValidity': the regenerated root element will be named 'domain_of_validity'
 SCH2405 element 'scope': root element of simple type dropped
 SCH2405 element 'abstractAssociationRole': second root element for 'AssociationRoleType' dropped
 SCH2405 element 'abstractStrictAssociationRole': second root element for 'AssociationRoleType' dropped
 SCH2405 element 'abstractReference': second root element for 'ReferenceType' dropped
 SCH2405 element 'reversePropertyName': root element of simple type dropped
-SCH2405 element 'description': second root element for 'StringOrRefType' dropped
-SCH2405 element 'descriptionReference': second root element for 'ReferenceType' dropped
-SCH2405 element 'name': second root element for 'CodeType' dropped
-SCH2405 element 'identifier': second root element for 'CodeWithAuthorityType' dropped
 SCH2405 element 'targetElement': root element of simple type dropped
 SCH2405 element 'associationName': root element of simple type dropped
 SCH2405 element 'defaultCodeSpace': root element of simple type dropped
 SCH2405 element 'gmlProfileSchema': root element of simple type dropped
-SCH2405 element 'surfaceProperty': second root element for 'SurfacePropertyType' dropped
-SCH2405 element 'interior': second root element for 'AbstractRingPropertyType' dropped
 SCH2403 element 'AbstractStyle': substitution group 'AbstractStyle' imported as its one member type 'Style'
 SCH2403 element 'DynamicFeature': substitution group 'DynamicFeature' imported as union 'DynamicFeatureChoice' of 2 member types; the regenerated XSD uses a choice
 SCH2403 element 'AbstractTimeSlice': substitution group 'AbstractTimeSlice' imported as its one member type 'MovingObjectStatus'
@@ -859,10 +790,6 @@ SCH2403 complex type 'animatePrototype': complex type 'animatePrototype' has no 
 SCH2403 complex type 'animateMotionPrototype': complex type 'animateMotionPrototype' has no Schemata equivalent; the regenerated type will be named 'AnimateMotionPrototypeType'
 SCH2403 complex type 'animateColorPrototype': complex type 'animateColorPrototype' has no Schemata equivalent; the regenerated type will be named 'AnimateColorPrototypeType'
 SCH2403 complex type 'setPrototype': complex type 'setPrototype' has no Schemata equivalent; the regenerated type will be named 'SetPrototypeType'
-SCH2405 element 'animate': root element of a type in another namespace dropped
-SCH2405 element 'animateMotion': root element of a type in another namespace dropped
-SCH2405 element 'animateColor': root element of a type in another namespace dropped
-SCH2405 element 'set': root element of a type in another namespace dropped
 SCH2403 complex type 'simple': complex type 'simple' has no Schemata equivalent; the regenerated type will be named 'SimpleType'
 SCH2403 complex type 'extended': complex type 'extended' has no Schemata equivalent; the regenerated type will be named 'ExtendedType'
 SCH2403 complex type 'extended': inline choice has no Schemata equivalent; members imported as optional fields

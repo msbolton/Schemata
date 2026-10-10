@@ -2,8 +2,8 @@ SCH2403 complex type 'ElectricCarType': extension of 'CarType' has no Schemata e
 SCH2403 complex type 'ShapeType': abstract type 'ShapeType' imported as union 'Shape' of 3 concrete types; the regenerated XSD uses a choice
 SCH2403 complex type 'CircleType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'SquareType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'PolygonType': abstract type 'PolygonType' imported as its one concrete type 'Triangle'
-SCH2403 complex type 'TriangleType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the model
+SCH2405 complex type 'PolygonType': abstract type is not referenced; no union written
+SCH2403 complex type 'PolygonType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TriangleType': extension of 'PolygonType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'CarType': extension of 'VehicleType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TruckType': extension of 'VehicleType' has no Schemata equivalent; base fields flattened into the model

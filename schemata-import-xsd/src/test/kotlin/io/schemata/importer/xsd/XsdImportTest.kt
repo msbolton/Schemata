@@ -2510,6 +2510,61 @@ class XsdImportTest {
     }
 
     @Test
+    fun `a property element is not reported as a dropped root`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType"><xs:sequence/></xs:complexType>
+                  <xs:element name="thing" type="tns:ThingType"/>
+                  <xs:element name="property" type="tns:ThingType"/>
+                  <xs:element name="stray" type="tns:ThingType"/>
+                  <xs:complexType name="HolderType">
+                    <xs:sequence><xs:element ref="tns:property"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf("SCH2405 element 'stray': second root element for 'ThingType' dropped"),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a property element of another namespace is not reported`() {
+        val other =
+            doc(
+                """
+                <xs:schema $xs xmlns:o="urn:schemata:o" targetNamespace="urn:schemata:o">
+                  <xs:complexType name="OtherType"><xs:sequence/></xs:complexType>
+                </xs:schema>
+                """,
+                "o.xsd",
+            )
+        val main =
+            doc(
+                """
+                <xs:schema $xs xmlns:o="urn:schemata:o" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:import namespace="urn:schemata:o" schemaLocation="o.xsd"/>
+                  <xs:element name="used" type="o:OtherType"/>
+                  <xs:element name="unused" type="o:OtherType"/>
+                  <xs:complexType name="HolderType">
+                    <xs:sequence><xs:element ref="tns:used"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "s.xsd",
+            )
+        val imported = XsdImport.lower(listOf(other, main), null)
+        assertEquals(
+            listOf("SCH2405 element 'unused': root element of a type in another namespace dropped"),
+            messages(imported),
+        )
+    }
+
+    @Test
     fun `a second global element of one type is dropped`() {
         val imported =
             lower(

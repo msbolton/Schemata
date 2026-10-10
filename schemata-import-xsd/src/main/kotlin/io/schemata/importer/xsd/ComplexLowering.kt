@@ -80,8 +80,15 @@ internal class ComplexLowering(private val context: ImportContext) {
         namespace: String? = context.doc.targetNamespace,
         recordAnnotations: MutableList<UnitAnnotation>? = null,
     ): List<UnitField> {
-        // An abstract type with concrete descendants is not dropped: it is a union of them.
-        if (ct.abstract && ct.name?.let { context.heads.types[QName(namespace, it)] } == null) {
+        // An abstract type with concrete descendants is not dropped: it is a union of them, or,
+        // when nothing names it, a plain record, which was reported where it is declared.
+        if (
+            ct.abstract &&
+                ct.name?.let {
+                    val name = QName(namespace, it)
+                    name in context.heads.types || name in context.heads.unreferenced
+                } != true
+        ) {
             context.diagnostics +=
                 context.lossy(ImportCodes.DROPPED, whereCollision, "abstract dropped", ct.line)
         }

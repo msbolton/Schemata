@@ -120,44 +120,22 @@ union AbstractGeometry =
 /// Zero or more of the gml:name elements can be an unordered set of "identifiers", encoding the "identifier" attribute in the UML model. Each of these gml:name elements can reference elsewhere the object's defining information or be an identifier by which this object can be referenced.
 /// Zero or more other gml:name elements can be an unordered set of "alias" alternative names by which this CRS related object is identified, encoding the "alias" attributes in the UML model. An object may have several aliases, typically used in different contexts. The context for an alias is indicated by the value of its (optional) codeSpace attribute.
 /// Any needed version information shall be included in the codeSpace attribute of a gml:identifier and gml:name elements. In this use, the gml:remarks element in the gml:DefinitionType shall contain comments on or information about this object, including data source information.
-union IdentifiedObject =
-  CoordinateSystemAxis |
-  CompoundCRS |
-  GeodeticDatum |
-  GeodeticCRS |
-  Ellipsoid |
-  EllipsoidalCS |
-  CartesianCS |
-  VerticalCRS |
-  VerticalCS |
-  PrimeMeridian |
-  ConcatenatedOperation |
-  ProjectedCRS |
-  TimeCS |
-  EngineeringDatum |
-  LinearCS |
-  PassThroughOperation |
-  ImageDatum |
-  DerivedCRS |
-  UserDefinedCS |
-  VerticalDatum |
-  SphericalCS |
-  Conversion |
-  EngineeringCRS |
-  TemporalDatum |
-  PolarCS |
-  TemporalCS |
-  CylindricalCS |
-  Transformation |
-  AffineCS |
-  ImageCRS |
-  ObliqueCartesianCS |
-  TemporalCRS |
-  OperationMethod |
-  GeographicCRS |
-  OperationParameter |
-  GeocentricCRS |
-  OperationParameterGroup
+model IdentifiedObject {
+  meta_data_property    MetaDataProperty[] @xsd(name: "metaDataProperty")
+  /// The value of this property is a text description of the object. gml:description uses gml:StringOrRefType as its content model, so it may contain a simple text string content, or carry a reference to an external description. The use of gml:description to reference an external description has been deprecated and replaced by the gml:descriptionReference property.
+  description           StringOrRef?
+  /// The value of this property is a remote text description of the object. The xlink:href attribute of the gml:descriptionReference property references the external description.
+  description_reference Reference?         @xsd(name: "descriptionReference")
+  /// Often, a special identifier is assigned to an object by the maintaining authority with the intention that it is used in references to the object For such cases, the codeSpace shall be provided. That identifier is usually unique either globally or within an application domain. gml:identifier is a pre-defined property for such identifiers.
+  identifier            CodeWithAuthority
+  /// The gml:name property provides a label or identifier for the object, commonly a descriptive name. An object may have several names, typically assigned by different authorities. gml:name uses the gml:CodeType content model.  The authority for a name is indicated by the value of its (optional) codeSpace attribute.  The name may or may not be unique, as determined by the rules of the organization responsible for the codeSpace.  In common usage there will be one name per authority, so a processing application may select the name from its preferred codeSpace.
+  name                  Code[]
+  /// The attribute gml:id supports provision of a handle for the XML element representing a GML Object. Its use is mandatory for all GML objects. It is of XML type ID, so is constrained to be unique in the XML document within which it occurs.
+  id                    string             @xsd(attribute)
+  remarks               string?
+
+  @@xsd(root: false)
+}
 
 /// This is a prototypical definition for a specific measure type defined as a vacuous extension (i.e. aliases) of gml:MeasureType. In this case, the content model supports the description of a length (or distance) quantity, with its units. The unit of measure referenced by uom shall be suitable for a length, such as metres or feet.
 model Length {
@@ -1897,6 +1875,14 @@ model DerivedUnit {
   @@xsd(name: "DerivedUnit")
 }
 
+/// To create a collection of GML features, a property type shall be derived by extension from gml:AbstractFeatureMemberType.
+/// By default, this abstract property type does not imply any ownership of the features in the collection. The owns attribute of gml:OwnershipAttributeGroup may be used on a property element instance to assert ownership of a feature in the collection. A collection shall not own a feature already owned by another object.
+model AbstractFeatureMember {
+  owns bool @xsd(attribute) = false
+
+  @@xsd(root: false)
+}
+
 /// gml:GeodeticDatumPropertyType is a property type for association roles to a geodetic datum, either referencing or containing the definition of that datum.
 model GeodeticDatumProperty {
   /// gml:GeodeticDatum is a geodetic datum defines the precise location and orientation in 3-dimensional space of a defined ellipsoid (or sphere), or of a Cartesian coordinate system centered in this ellipsoid (or sphere).
@@ -2821,6 +2807,15 @@ model File {
   compression      string?
 
   @@xsd(name: "File")
+}
+
+/// To create a collection of GML Objects that are not all features, a property type shall be derived by extension from gml:AbstractMemberType.
+/// This abstract property type is intended to be used only in object types where software shall be able to identify that an instance of such an object type is to be interpreted as a collection of objects.
+/// By default, this abstract property type does not imply any ownership of the objects in the collection. The owns attribute of gml:OwnershipAttributeGroup may be used on a property element instance to assert ownership of an object in the collection. A collection shall not own an object already owned by another object.
+model AbstractMember {
+  owns bool @xsd(attribute) = false
+
+  @@xsd(root: false)
 }
 
 model Arc {
@@ -4290,6 +4285,28 @@ model TemporalCS {
   aggregation_type      Aggregation?                   @xsd(name: "aggregationType") @xsd(attribute)
 
   @@xsd(name: "TemporalCS")
+}
+
+/// The TemporalDatumBaseType partially defines the origin of a temporal coordinate reference system. This type restricts the AbstractDatumType to remove the "anchorDefinition" and "realizationEpoch" elements.
+model TemporalDatumBase {
+  meta_data_property    MetaDataProperty[] @xsd(name: "metaDataProperty")
+  /// The value of this property is a text description of the object. gml:description uses gml:StringOrRefType as its content model, so it may contain a simple text string content, or carry a reference to an external description. The use of gml:description to reference an external description has been deprecated and replaced by the gml:descriptionReference property.
+  description           StringOrRef?
+  /// The value of this property is a remote text description of the object. The xlink:href attribute of the gml:descriptionReference property references the external description.
+  description_reference Reference?         @xsd(name: "descriptionReference")
+  /// Often, a special identifier is assigned to an object by the maintaining authority with the intention that it is used in references to the object For such cases, the codeSpace shall be provided. That identifier is usually unique either globally or within an application domain. gml:identifier is a pre-defined property for such identifiers.
+  identifier            CodeWithAuthority
+  /// The gml:name property provides a label or identifier for the object, commonly a descriptive name. An object may have several names, typically assigned by different authorities. gml:name uses the gml:CodeType content model.  The authority for a name is indicated by the value of its (optional) codeSpace attribute.  The name may or may not be unique, as determined by the rules of the organization responsible for the codeSpace.  In common usage there will be one name per authority, so a processing application may select the name from its preferred codeSpace.
+  name                  Code[]
+  remarks               string?
+  /// The gml:domainOfValidity property implements an association role to an EX_Extent object as encoded in ISO/TS 19139, either referencing or containing the definition of that extent.
+  domain_of_validity    DomainOfValidity?  @xsd(name: "domainOfValidity")
+  /// The gml:scope property provides a description of the usage, or limitations of usage, for which this CRS-related object is valid. If unknown, enter "not known".
+  scope                 string[]           { minItems 1 }
+  /// The attribute gml:id supports provision of a handle for the XML element representing a GML Object. Its use is mandatory for all GML objects. It is of XML type ID, so is constrained to be unique in the XML document within which it occurs.
+  id                    string             @xsd(attribute)
+
+  @@xsd(root: false)
 }
 
 model LineString {
