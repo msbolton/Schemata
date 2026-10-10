@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2404] (lossy): field 'Order.name': max_bytes 64 imported as max 64; Schemata counts characters
+ --> s.proto:6:3
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 1 warning

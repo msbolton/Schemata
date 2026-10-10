@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""Run the Schemata Protobuf importer over an Envoy checkout and check every stage of the result.
+
+usage: check-envoy-import ENVOY_CHECKOUT [--schemata BIN]
+BIN is a command that may carry arguments, e.g. --schemata "java -jar schemata-cli/build/libs/schemata-2.2.0.jar".
+Default: $SCHEMATA, else the native binary in schemata-cli/build/native/nativeCompile, else the newest
+fat jar in schemata-cli/build/libs (build it with ./gradlew :schemata-cli:shadowJar). Needs buf; uses protoc when present.
+
+Stages, all inside a temporary directory that is removed afterwards (the checkout is only read):
+  1. buf export of the checkout's api/ tree, used as the --include directory
+  2. import of api/ with that include; any error fails
+  3. compile of the imported schemas to every target; any error fails, except on sql the two known ones:
+     SCH2106 (a type without a key) and SCH2102 (namespaces that share a last segment)
+  4. protoc over every emitted .proto, when protoc is on PATH
+  5. round trip: import the emitted .proto, compile to proto again, and compare the two trees file by file;
+     SCH2402 (a rename note) is the only tolerated diagnostic on the way back
+Prints one summary and exits 0 only when every stage passes. Local use only, not part of CI.
+"""
+import filecmp
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from collections import Counter
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TARGETS = ["proto", "sql", "xsd", "jsonschema", "openapi"]
+SQL_TOLERATED = {"SCH2106", "SCH2102"}
+ROUND_TRIP_TOLERATED = {"SCH2402"}
+ARG_BUDGET = 100_000
+
+
+def find_binary(explicit):
+    if explicit:
+        return shlex.split(explicit)
+    if os.environ.get("SCHEMATA"):
+        return shlex.split(os.environ["SCHEMATA"])
+    native = ROOT / "schemata-cli/build/native/nativeCompile/schemata"
+    if native.is_file():
+        return [str(native)]
+    jars = sorted(
+        (ROOT / "schemata-cli/build/libs").glob("schemata-[0-9]*.jar"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if jars:
+        return ["java", "-jar", str(jars[-1])]
+    sys.exit("check-envoy-import: no schemata binary or jar found; run ./gradlew :schemata-cli:shadowJar")
+
+
+def run_json(cmd, label):
+    """Run a schemata command with a JSON report on stdout; return (report dict, stderr)."""
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        return json.loads(p.stdout), p.stderr
+    except json.JSONDecodeError:
+        sys.exit(f"check-envoy-import: {label} printed no JSON report (exit {p.returncode})\n{p.stdout[:2000]}{p.stderr[:2000]}")
+
+
+def tally(report):
+    codes = Counter()
+    for d in report["diagnostics"]:
+        codes[(d["code"], d["severity"])] += 1
+    return codes
+
+
+def fmt(codes):
+    if not codes:
+        return "none"
+    return ", ".join(f"{c} {s} x{n}" for (c, s), n in sorted(codes.items()))
+
+
+def errors_of(report, tolerated=()):
+    return [d for d in report["diagnostics"] if d["severity"] == "error" and d["code"] not in tolerated]
+
+
+def where(d):
+    s = d.get("span") or {}
+    return f'{s.get("file")}:{s.get("startLine")}'
+
+
+def main():
+    args = sys.argv[1:]
+    explicit = None
+    if "--schemata" in args:
+        i = args.index("--schemata")
+        if i + 1 >= len(args):
+            sys.exit(__doc__.strip())
+        explicit = args[i + 1]
+        del args[i : i + 2]
+    if len(args) != 1:
+        sys.exit(__doc__.strip())
+    checkout = Path(args[0]).resolve()
+    api = checkout / "api"
+    if not api.is_dir():
+        sys.exit(f"check-envoy-import: {api} is not a directory")
+    if not shutil.which("buf"):
+        sys.exit("check-envoy-import: buf is required on PATH")
+    bin_ = find_binary(explicit)
+
+    failures = []
+    lines = []
+
+    with tempfile.TemporaryDirectory(prefix="check-envoy-import-") as tmp:
+        work = Path(tmp)
+        deps = work / "deps"
+        p = subprocess.run(["buf", "export", ".", "-o", str(deps)], cwd=api, capture_output=True, text=True)
+        if p.returncode != 0:
+            sys.exit(f"check-envoy-import: buf export failed\n{p.stderr}")
+        exported = sum(1 for _ in deps.rglob("*.proto"))
+        inputs = sum(1 for _ in api.rglob("*.proto"))
+
+        # 2. import
+        imported = work / "imported"
+        rep, _ = run_json(
+            bin_ + ["import", "--from", "proto", "--include", str(deps), "--out", str(imported), "--format", "json", str(api)],
+            "import",
+        )
+        import_codes = tally(rep)
+        for d in errors_of(rep):
+            failures.append(f'import: {d["code"]} {where(d)} {d["message"]}')
+        schemata_dir = imported / "import"
+        files = sorted(str(f) for f in schemata_dir.rglob("*.schemata"))
+        if not files:
+            failures.append("import: no .schemata files were written")
+
+        # 3. compile every target
+        compile_results = {}
+        for target in TARGETS:
+            if not files:
+                break
+            out = work / target
+            rep, _ = run_json(
+                bin_ + ["compile", "--target", target, "--out", str(out), "--format", "json", str(schemata_dir)],
+                f"compile {target}",
+            )
+            compile_results[target] = tally(rep)
+            tolerated = SQL_TOLERATED if target == "sql" else ()
+            for d in errors_of(rep, tolerated):
+                failures.append(f'compile {target}: {d["code"]} {where(d)} {d["message"]}')
+
+        # 4. protoc
+        emitted = work / "proto" / "proto"
+        protos = sorted(str(f) for f in emitted.rglob("*.proto")) if emitted.is_dir() else []
+        if not shutil.which("protoc"):
+            protoc_result = "skipped"
+        elif not protos:
+            protoc_result = "FAIL (no emitted .proto files)"
+            failures.append("protoc: no emitted .proto files")
+        else:
+            batches, cur, size = [], [], 0
+            for f in protos:
+                if cur and size + len(f) > ARG_BUDGET:
+                    batches.append(cur)
+                    cur, size = [], 0
+                cur.append(f)
+                size += len(f) + 1
+            batches.append(cur)
+            protoc_result = "ok"
+            for batch in batches:
+                p = subprocess.run(["protoc", "-I", str(emitted), "-o", os.devnull] + batch, capture_output=True, text=True)
+                if p.returncode != 0:
+                    protoc_result = "FAIL"
+                    failures.append(f"protoc: exit {p.returncode}\n{p.stderr[:2000]}")
+                    break
+
+        # 5. round trip
+        rt_result = "skipped"
+        if protos:
+            rt_imp = work / "rt-imported"
+            rep, _ = run_json(
+                bin_ + ["import", "--from", "proto", "--include", str(deps), "--out", str(rt_imp), "--format", "json", str(emitted)],
+                "round-trip import",
+            )
+            rt_codes = tally(rep)
+            bad = [d for d in rep["diagnostics"] if d["severity"] == "error" or d["code"] not in ROUND_TRIP_TOLERATED]
+            for d in bad:
+                failures.append(f'round trip import: {d["code"]} {where(d)} {d["message"]}')
+            rt_files = sorted(str(f) for f in (rt_imp / "import").rglob("*.schemata"))
+            rt_out = work / "rt-proto"
+            rt_tree = rt_out / "proto"
+            if rt_files:
+                rep, _ = run_json(
+                    bin_ + ["compile", "--target", "proto", "--out", str(rt_out), "--format", "json", str(rt_imp / "import")],
+                    "round-trip compile",
+                )
+                for d in errors_of(rep):
+                    failures.append(f'round trip compile: {d["code"]} {where(d)} {d["message"]}')
+            first = {str(f.relative_to(emitted)) for f in emitted.rglob("*.proto")}
+            second = {str(f.relative_to(rt_tree)) for f in rt_tree.rglob("*.proto")} if rt_tree.is_dir() else set()
+            missing = sorted(first - second)
+            extra = sorted(second - first)
+            differing = sorted(r for r in first & second if not filecmp.cmp(emitted / r, rt_tree / r, shallow=False))
+            for r in missing:
+                failures.append(f"round trip: {r} missing from the second pass")
+            for r in extra:
+                failures.append(f"round trip: {r} appeared only in the second pass")
+            for r in differing:
+                failures.append(f"round trip: {r} differs")
+            identical = not (missing or extra or differing or bad)
+            rt_result = (
+                f"{'identical' if identical else 'DIFFERS'} ({len(first)} files; import: {fmt(rt_codes)}; "
+                f"missing {len(missing)}, extra {len(extra)}, differing {len(differing)})"
+            )
+
+    lines.append("check-envoy-import summary")
+    lines.append(f"  checkout:          {checkout}")
+    lines.append(f"  binary:            {' '.join(bin_)}")
+    lines.append(f"  inputs:            {inputs} .proto files under api/")
+    lines.append(f"  exported deps:     {exported} .proto files (buf export)")
+    lines.append(f"  emitted:           {len(files)} .schemata files")
+    lines.append(f"  import diagnostics: {fmt(import_codes)}")
+    for target in TARGETS:
+        if target in compile_results:
+            lines.append(f"  compile {target + ':':<12} {fmt(compile_results[target])}")
+    lines.append(f"  protoc:            {'skipped' if protoc_result == 'skipped' else protoc_result} ({len(protos)} files)"
+                 if protoc_result != "skipped" else "  protoc:            skipped")
+    lines.append(f"  round trip:        {rt_result}")
+    if failures:
+        lines.append(f"  failures ({len(failures)}), first 20:")
+        for f in failures[:20]:
+            lines.append(f"    {f}")
+    lines.append("FAIL" if failures else "PASS")
+    print("\n".join(lines))
+    sys.exit(1 if failures else 0)
+
+
+if __name__ == "__main__":
+    main()

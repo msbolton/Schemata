@@ -101,11 +101,15 @@ internal class ServiceLowering(private val lowering: FileLowering) {
         val scope = lowering.context.symbols.scopeOf(lowering.file)
         val resolved =
             listOf("request" to rpc.request, "response" to rpc.response).map { (role, t) ->
-                fun drop(reason: String): Nothing? {
+                fun drop(
+                    reason: String,
+                    help: String = ImportCodes.helpFor(ImportCodes.DROPPED),
+                ): Nothing? {
                     lowering.report(
                         ImportCodes.DROPPED,
                         "$where: $role $reason; rpc dropped",
                         rpc.pos,
+                        help,
                     )
                     return null
                 }
@@ -119,7 +123,20 @@ internal class ServiceLowering(private val lowering: FileLowering) {
                 if (full.startsWith("google.protobuf.")) {
                     return drop("type '$full' has no Schemata model")
                 }
-                val symbol = lowering.context.symbols.resolve(t.name, scope)
+                val symbol = lowering.context.symbols.resolve(t.name, scope, lowering.file)
+                if (symbol == null) {
+                    lowering.unimported(t.name, scope)?.let { (text, help) ->
+                        val named =
+                            "${service.removePrefix("service '").removeSuffix("'")}.${rpc.name}"
+                        lowering.report(
+                            ImportCodes.UNRESOLVED,
+                            "rpc '$named': type '${t.name}' cannot be resolved; $text",
+                            rpc.pos,
+                            help,
+                        )
+                        return null
+                    }
+                }
                 if (symbol?.message == null) return drop("type '${t.name}' is not a message")
                 t to symbol
             }

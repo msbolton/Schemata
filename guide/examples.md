@@ -797,6 +797,117 @@ Nothing here needed a warning because every type in `Money` is one Schemata has.
 section 19 of the reference lists what each construct becomes. Compiling the result under the
 proto target gives `message Money` back with the same fields, numbers, and comments.
 
+## importing envoy
+
+Envoy's API is a large Protobuf corpus: files under `envoy/` and `contrib/` that import `udpa/`,
+`xds/`, `google/api/`, `google/rpc/` and `validate/` files, which come from its dependencies and not
+from the `api/` tree.
+`schemata import --from proto --include DIR` names a directory to look in for an import the inputs
+do not hold; a file found there is imported only when an input uses one of its types. An import that
+is found nowhere, such as `validate/validate.proto` or `udpa/annotations/status.proto`, is dropped
+with a warning, and the file is imported anyway: those files only declare options.
+
+From `schemata-cli/src/test/resources/import/proto-envoy/envoy/config/core/v3/address.proto`:
+```proto
+// Addresses specify either a logical or physical address and port, which are
+// used to tell Envoy where to bind/listen, connect to upstream and find
+// management servers.
+message Address {
+  option (udpa.annotations.versioning).previous_message_type = "envoy.api.v2.core.Address";
+
+  // [#comment: Keep this list of address types in sync with UpstreamConnectionOptions.FirstAddressFamilyVersion in api/envoy/config/cluster/v3/cluster.proto.]
+  oneof address {
+    option (validate.required) = true;
+
+    SocketAddress socket_address = 1;
+
+    Pipe pipe = 2;
+
+    // Specifies a user-space address handled by :ref:`internal listeners
+    // <envoy_v3_api_field_config.listener.v3.Listener.internal_listener>`.
+    EnvoyInternalAddress envoy_internal_address = 3;
+  }
+}
+
+```
+
+From `schemata-cli/src/test/resources/import/proto-envoy/expected/envoy/config/core/v3.schemata`:
+```schemata
+/// Addresses specify either a logical or physical address and port, which are
+/// used to tell Envoy where to bind/listen, connect to upstream and find
+/// management servers.
+union Address =
+  #1 SocketAddress |
+  #2 Pipe |
+  /// Specifies a user-space address handled by :ref:`internal listeners
+  /// <envoy_v3_api_field_config.listener.v3.Listener.internal_listener>`.
+  #3 EnvoyInternalAddress
+```
+
+The message is exactly one `oneof` of distinct types, so it is a `union`. The `option` lines,
+including `option (validate.required) = true`, say nothing the union does not, and the comment on
+`envoy_internal_address` stays on its member. The `validate.rules` on other fields became options,
+as `address_prefix string { min 1 }` shows in the same file, and the rules that have no Schemata
+equivalent are summed up once per file.
+
+Warnings from `schemata-cli/src/test/resources/import/proto-envoy/expected/import-warnings.txt`:
+```text
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/data/ai/v3/request_info.proto: import 'xds/annotations/v3/status.proto' not found; dropped
+SCH2405 envoy/service/secret/v3/sds.proto: import 'google/api/annotations.proto' not found; dropped
+SCH2402 envoy/service/discovery/v3/discovery.proto: schema name 'envoy.service_value.discovery.v3.discovery' was derived from the file name
+SCH2402 envoy/service/secret/v3/sds.proto: schema name 'envoy.service_value.secret.v3.sds' was derived from the file name
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
+SCH2405 envoy/annotations/deprecation.proto: extend dropped
+SCH2404 field 'Pipe.mode': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 model 'SocketAddress': oneof 'port_specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 enum 'Protocol': values renumbered; 0 is not a Schemata ordinal
+SCH2403 field 'TcpKeepalive.keepalive_probes': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'BindConfig.freebind': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 union 'Address': oneof 'address' is named 'kind' in the regenerated message
+SCH2405 envoy/api/v2/core/backoff.proto: validate rule 'duration.required' dropped on 1 field
+SCH2405 envoy/api/v2/core/backoff.proto: validate rule 'duration.gte' dropped on 1 field
+SCH2405 envoy/api/v2/core/backoff.proto: validate rule 'duration.gt' dropped on 1 field
+SCH2403 enum 'RequestMethod': zero value 'METHOD_UNSPECIFIED' dropped; the regenerated enum names it 'REQUEST_METHOD_UNSPECIFIED'
+SCH2403 enum 'TrafficDirection': zero value 'UNSPECIFIED' dropped; the regenerated enum names it 'TRAFFIC_DIRECTION_UNSPECIFIED'
+SCH2404 field 'BuildVersion.metadata': google.protobuf.Struct imported as string
+SCH2403 model 'Node': oneof 'user_agent_version_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'HeaderValue.key': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2403 model 'DataSource': oneof 'specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 union 'AsyncDataSource': oneof 'specifier' is named 'kind' in the regenerated message
+SCH2403 union 'AsyncDataSource': member element 'local' has no Schemata equivalent; the regenerated oneof names it 'data_source'
+SCH2403 union 'AsyncDataSource': member element 'remote' has no Schemata equivalent; the regenerated oneof names it 'remote_data_source'
+SCH2403 model 'TransportSocket': oneof 'config_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'TransportSocket.typed_config': google.protobuf.Any imported as bytes
+SCH2405 envoy/api/v2/core/base.proto: validate rule 'string.well_known_regex' dropped on 2 fields
+SCH2403 model 'HttpUri': oneof 'http_upstream_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'SocketOption': oneof 'value' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'EnvoyInternalAddress': oneof 'address_name_specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'RuntimeUInt64.default_value': uint64 imported as int64(min = 0); the top bit is lost
+SCH2404 field 'KeyValuePair.value': google.protobuf.Value imported as string
+SCH2405 envoy/config/core/v3/http_uri.proto: validate rule 'duration.lt' dropped on 1 field
+SCH2403 field 'RequestInfo.max_output_tokens': google.protobuf.UInt64Value imported as int64(min = 0)?; the regenerated field is optional, not a wrapper
+SCH2405 enum value 'CompressionLevel.COMPRESSION_LEVEL_1': alias of 'BEST_SPEED' dropped
+SCH2405 enum value 'CompressionLevel.BEST_COMPRESSION': alias of 'COMPRESSION_LEVEL_9' dropped
+SCH2403 union 'CompressorPerRoute': oneof 'override' is named 'kind' in the regenerated message
+SCH2403 union 'CompressorPerRoute': member element 'disabled' has no Schemata equivalent; the regenerated oneof names it 'bool'
+SCH2403 union 'CompressorPerRoute': member element 'overrides' has no Schemata equivalent; the regenerated oneof names it 'compressor_overrides'
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: validate rule 'repeated.unique' dropped on 1 field
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: validate rule 'bool.const' dropped on 1 field
+SCH2403 model 'LuaPerRoute': oneof 'override' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: validate rule 'string.ignore_empty' dropped on 13 fields
+SCH2403 model 'DynamicParameterConstraints': oneof 'type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'SingleConstraint': oneof 'constraint_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'RegexMatcher': oneof 'engine_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'StringMatcher': oneof 'match_pattern' imported as nullable fields; at most one of them is set, which Schemata cannot say
+```
+
+The whole file holds 236 such lines; each shape is quoted once here. Section 19 of the reference
+says what each one means.
+
 ## Keeping the examples current
 
 If you change one of these `.schemata` files, its `expected/` tree and warnings files need to change

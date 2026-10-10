@@ -1,0 +1,236 @@
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/address.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/address.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/api/v2/core/address.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/backoff.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/backoff.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/api/v2/core/backoff.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/base.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/base.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/api/v2/core/base.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/http_uri.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/http_uri.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/api/v2/core/http_uri.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/socket_option.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 envoy/api/v2/core/socket_option.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/api/v2/core/socket_option.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/address.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/address.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/config/core/v3/address.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/backoff.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/backoff.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/config/core/v3/backoff.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/base.proto: import 'udpa/annotations/migrate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/base.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/base.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/config/core/v3/base.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/extension.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/extension.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/grpc_method_list.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/grpc_method_list.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/config/core/v3/grpc_method_list.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_service.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_service.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_uri.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_uri.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/config/core/v3/http_uri.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/config/core/v3/socket_option.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/config/core/v3/socket_option.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/config/core/v3/socket_option.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/data/ai/v3/request_info.proto: import 'xds/annotations/v3/status.proto' not found; dropped
+SCH2405 envoy/data/ai/v3/request_info.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/compression/gzip/compressor/v3/gzip.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/compression/gzip/compressor/v3/gzip.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/config/validators/minimum_clusters/v3/minimum_clusters.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/gzip/v3/gzip.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/gzip/v3/gzip.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/gzip/v3/gzip.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/maxmind/v3/maxmind.proto: import 'xds/annotations/v3/status.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/maxmind/v3/maxmind.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/extensions/geoip_providers/maxmind/v3/maxmind.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/service/discovery/v3/discovery.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/service/discovery/v3/discovery.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/service/discovery/v3/discovery.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/service/secret/v3/sds.proto: import 'google/api/annotations.proto' not found; dropped
+SCH2405 envoy/service/secret/v3/sds.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/service/secret/v3/sds.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/type/ai/v3/llm_protocol.proto: import 'xds/annotations/v3/status.proto' not found; dropped
+SCH2405 envoy/type/ai/v3/llm_protocol.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/matcher/v3/regex.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/matcher/v3/regex.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/type/matcher/v3/regex.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/type/matcher/v3/string.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/matcher/v3/string.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/type/matcher/v3/string.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/type/percent.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/percent.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/type/semantic_version.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/v3/percent.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/v3/percent.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 envoy/type/v3/percent.proto: import 'validate/validate.proto' not found; dropped
+SCH2405 envoy/type/v3/semantic_version.proto: import 'udpa/annotations/status.proto' not found; dropped
+SCH2405 envoy/type/v3/semantic_version.proto: import 'udpa/annotations/versioning.proto' not found; dropped
+SCH2405 include/xds/core/v3/context_params.proto: import 'xds/annotations/v3/status.proto' not found; dropped
+SCH2405 include/xds/core/v3/extension.proto: import 'validate/validate.proto' not found; dropped
+SCH2402 envoy/service/discovery/v3/discovery.proto: schema name 'envoy.service_value.discovery.v3.discovery' was derived from the file name
+SCH2402 envoy/service/secret/v3/sds.proto: schema name 'envoy.service_value.secret.v3.sds' was derived from the file name
+SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
+SCH2405 envoy/annotations/deprecation.proto: extend dropped
+SCH2405 envoy/annotations/deprecation.proto: extend dropped
+SCH2405 envoy/annotations/resource.proto: extend dropped
+SCH2404 field 'Pipe.mode': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 model 'SocketAddress': oneof 'port_specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'SocketAddress.port_value': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 enum 'Protocol': values renumbered; 0 is not a Schemata ordinal
+SCH2403 field 'TcpKeepalive.keepalive_probes': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'TcpKeepalive.keepalive_time': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'TcpKeepalive.keepalive_interval': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'BindConfig.freebind': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 union 'Address': oneof 'address' is named 'kind' in the regenerated message
+SCH2403 field 'CidrRange.prefix_len': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2405 envoy/api/v2/core/backoff.proto: validate rule 'duration.required' dropped on 1 field
+SCH2405 envoy/api/v2/core/backoff.proto: validate rule 'duration.gte' dropped on 1 field
+SCH2405 envoy/api/v2/core/backoff.proto: validate rule 'duration.gt' dropped on 1 field
+SCH2403 enum 'RoutingPriority': values renumbered; 0 is not a Schemata ordinal
+SCH2403 enum 'RequestMethod': zero value 'METHOD_UNSPECIFIED' dropped; the regenerated enum names it 'REQUEST_METHOD_UNSPECIFIED'
+SCH2403 enum 'TrafficDirection': zero value 'UNSPECIFIED' dropped; the regenerated enum names it 'TRAFFIC_DIRECTION_UNSPECIFIED'
+SCH2404 field 'BuildVersion.metadata': google.protobuf.Struct imported as string
+SCH2404 field 'Node.metadata': google.protobuf.Struct imported as string
+SCH2403 model 'Node': oneof 'user_agent_version_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'Metadata.filter_metadata': google.protobuf.Struct imported as string
+SCH2404 field 'RuntimeUInt32.default_value': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 field 'RuntimeFeatureFlag.default_value': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2404 field 'HeaderValue.key': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2404 field 'HeaderValue.value': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2403 field 'HeaderValueOption.append': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 model 'DataSource': oneof 'specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 field 'RetryPolicy.num_retries': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 union 'AsyncDataSource': oneof 'specifier' is named 'kind' in the regenerated message
+SCH2403 union 'AsyncDataSource': member element 'local' has no Schemata equivalent; the regenerated oneof names it 'data_source'
+SCH2403 union 'AsyncDataSource': member element 'remote' has no Schemata equivalent; the regenerated oneof names it 'remote_data_source'
+SCH2403 model 'TransportSocket': oneof 'config_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'TransportSocket.config': google.protobuf.Struct imported as string
+SCH2404 field 'TransportSocket.typed_config': google.protobuf.Any imported as bytes
+SCH2405 envoy/api/v2/core/base.proto: validate rule 'string.well_known_regex' dropped on 2 fields
+SCH2403 model 'HttpUri': oneof 'http_upstream_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2405 envoy/api/v2/core/http_uri.proto: validate rule 'duration.required' dropped on 1 field
+SCH2405 envoy/api/v2/core/http_uri.proto: validate rule 'duration.gte' dropped on 1 field
+SCH2403 model 'SocketOption': oneof 'value' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 enum 'SocketState': values renumbered; 0 is not a Schemata ordinal
+SCH2404 field 'Pipe.mode': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 model 'EnvoyInternalAddress': oneof 'address_name_specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'SocketAddress': oneof 'port_specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'SocketAddress.port_value': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 enum 'Protocol': values renumbered; 0 is not a Schemata ordinal
+SCH2403 field 'TcpKeepalive.keepalive_probes': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'TcpKeepalive.keepalive_time': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'TcpKeepalive.keepalive_interval': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'BindConfig.freebind': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 union 'Address': oneof 'address' is named 'kind' in the regenerated message
+SCH2403 field 'CidrRange.prefix_len': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2405 envoy/config/core/v3/backoff.proto: validate rule 'duration.required' dropped on 1 field
+SCH2405 envoy/config/core/v3/backoff.proto: validate rule 'duration.gte' dropped on 1 field
+SCH2405 envoy/config/core/v3/backoff.proto: validate rule 'duration.gt' dropped on 1 field
+SCH2403 enum 'RoutingPriority': values renumbered; 0 is not a Schemata ordinal
+SCH2403 enum 'RequestMethod': zero value 'METHOD_UNSPECIFIED' dropped; the regenerated enum names it 'REQUEST_METHOD_UNSPECIFIED'
+SCH2403 enum 'TrafficDirection': zero value 'UNSPECIFIED' dropped; the regenerated enum names it 'TRAFFIC_DIRECTION_UNSPECIFIED'
+SCH2404 field 'BuildVersion.metadata': google.protobuf.Struct imported as string
+SCH2404 field 'Node.metadata': google.protobuf.Struct imported as string
+SCH2403 model 'Node': oneof 'user_agent_version_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'Metadata.filter_metadata': google.protobuf.Struct imported as string
+SCH2404 field 'Metadata.typed_filter_metadata': google.protobuf.Any imported as bytes
+SCH2404 field 'RuntimeUInt32.default_value': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'RuntimeUInt64.default_value': uint64 imported as int64(min = 0); the top bit is lost
+SCH2403 field 'RuntimeFeatureFlag.default_value': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2404 field 'KeyValue.key': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2404 field 'KeyValuePair.key': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2404 field 'KeyValuePair.value': google.protobuf.Value imported as string
+SCH2403 enum 'KeyValueAppendAction': values renumbered; 0 is not a Schemata ordinal
+SCH2404 field 'KeyValueMutation.remove': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2404 field 'HeaderValue.key': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2404 field 'HeaderValue.value': max_bytes 16384 imported as max 16384; Schemata counts characters
+SCH2403 field 'HeaderValueOption.append': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 enum 'HeaderAppendAction': values renumbered; 0 is not a Schemata ordinal
+SCH2403 model 'DataSource': oneof 'specifier' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 field 'RetryPolicy.num_retries': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 model 'RetryPriority': oneof 'config_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'RetryPriority.typed_config': google.protobuf.Any imported as bytes
+SCH2403 model 'RetryHostPredicate': oneof 'config_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'RetryHostPredicate.typed_config': google.protobuf.Any imported as bytes
+SCH2403 union 'AsyncDataSource': oneof 'specifier' is named 'kind' in the regenerated message
+SCH2403 union 'AsyncDataSource': member element 'local' has no Schemata equivalent; the regenerated oneof names it 'data_source'
+SCH2403 union 'AsyncDataSource': member element 'remote' has no Schemata equivalent; the regenerated oneof names it 'remote_data_source'
+SCH2403 model 'TransportSocket': oneof 'config_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'TransportSocket.typed_config': google.protobuf.Any imported as bytes
+SCH2405 envoy/config/core/v3/base.proto: validate rule 'string.well_known_regex' dropped on 2 fields
+SCH2404 field 'TypedExtensionConfig.typed_config': google.protobuf.Any imported as bytes
+SCH2403 model 'HttpUri': oneof 'http_upstream_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2405 envoy/config/core/v3/http_uri.proto: validate rule 'duration.required' dropped on 1 field
+SCH2405 envoy/config/core/v3/http_uri.proto: validate rule 'duration.lt' dropped on 1 field
+SCH2405 envoy/config/core/v3/http_uri.proto: validate rule 'duration.gte' dropped on 1 field
+SCH2403 model 'SocketOption': oneof 'value' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 enum 'SocketState': values renumbered; 0 is not a Schemata ordinal
+SCH2403 field 'RequestInfo.stream': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 field 'RequestInfo.max_output_tokens': google.protobuf.UInt64Value imported as int64(min = 0)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'RequestInfo.message_count': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'RequestInfo.tool_count': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'RequestInfo.estimated_input_tokens': google.protobuf.UInt64Value imported as int64(min = 0)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Gzip.memory_level': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Gzip.window_bits': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Gzip.chunk_size': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 enum 'CompressionStrategy': values renumbered; 0 is not a Schemata ordinal
+SCH2405 enum value 'CompressionLevel.COMPRESSION_LEVEL_1': alias of 'BEST_SPEED' dropped
+SCH2405 enum value 'CompressionLevel.BEST_COMPRESSION': alias of 'COMPRESSION_LEVEL_9' dropped
+SCH2403 enum 'CompressionLevel': values renumbered; 0 is not a Schemata ordinal
+SCH2404 field 'MinimumClustersValidator.min_clusters_num': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 field 'Compressor.content_length': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'CommonDirectionConfig.min_content_length': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2404 field 'ResponseDirectionConfig.uncompressible_response_codes': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 field 'ResponseDirectionOverrides.remove_accept_encoding_header': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2403 union 'CompressorPerRoute': oneof 'override' is named 'kind' in the regenerated message
+SCH2403 union 'CompressorPerRoute': member element 'disabled' has no Schemata equivalent; the regenerated oneof names it 'bool'
+SCH2403 union 'CompressorPerRoute': member element 'overrides' has no Schemata equivalent; the regenerated oneof names it 'compressor_overrides'
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: validate rule 'repeated.unique' dropped on 1 field
+SCH2405 envoy/extensions/filters/http/compressor/v3/compressor.proto: validate rule 'bool.const' dropped on 1 field
+SCH2403 field 'Gzip.memory_level': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Gzip.window_bits': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 field 'Gzip.chunk_size': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2403 enum 'CompressionStrategy': values renumbered; 0 is not a Schemata ordinal
+SCH2403 enum 'Enum': values renumbered; 0 is not a Schemata ordinal
+SCH2403 field 'Lua.clear_route_cache': google.protobuf.BoolValue imported as bool?; the regenerated field is optional, not a wrapper
+SCH2404 field 'Lua.filter_context': google.protobuf.Struct imported as string
+SCH2403 model 'LuaPerRoute': oneof 'override' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'LuaPerRoute.filter_context': google.protobuf.Struct imported as string
+SCH2405 envoy/extensions/filters/http/lua/v3/lua.proto: validate rule 'bool.const' dropped on 1 field
+SCH2405 envoy/extensions/geoip_providers/common/v3/common.proto: validate rule 'string.ignore_empty' dropped on 13 fields
+SCH2404 field 'DiscoveryResponse.resources': google.protobuf.Any imported as bytes
+SCH2403 model 'DynamicParameterConstraints': oneof 'type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 model 'SingleConstraint': oneof 'constraint_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'Resource.resource': google.protobuf.Any imported as bytes
+SCH2403 model 'RegexMatcher': oneof 'engine_type' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2403 field 'GoogleRE2.max_program_size': google.protobuf.UInt32Value imported as int64(min = 0, max = 4294967295)?; the regenerated field is optional, not a wrapper
+SCH2405 envoy/type/matcher/v3/regex.proto: validate rule 'string.well_known_regex' dropped on 1 field
+SCH2403 model 'StringMatcher': oneof 'match_pattern' imported as nullable fields; at most one of them is set, which Schemata cannot say
+SCH2404 field 'FractionalPercent.numerator': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 enum 'DenominatorType': values renumbered; 0 is not a Schemata ordinal
+SCH2404 field 'SemanticVersion.major_number': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'SemanticVersion.minor_number': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'SemanticVersion.patch': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'FractionalPercent.numerator': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2403 enum 'DenominatorType': values renumbered; 0 is not a Schemata ordinal
+SCH2404 field 'SemanticVersion.major_number': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'SemanticVersion.minor_number': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'SemanticVersion.patch': uint32 imported as int64(min = 0, max = 4294967295)
+SCH2404 field 'TypedExtensionConfig.typed_config': google.protobuf.Any imported as bytes
+SCH2404 field 'Status.details': google.protobuf.Any imported as bytes

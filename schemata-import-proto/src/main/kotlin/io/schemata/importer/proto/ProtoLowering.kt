@@ -27,18 +27,21 @@ import io.schemata.target.Names
 internal object ProtoLowering {
     /**
      * [namespaces] names each file's namespace, [annotations] what its unit carries above the
-     * `namespace` line, and [imports] the files each one's `import` statements resolved to; all
-     * three are keyed by [ProtoFile.path], since a file's tree is too large to hash and compare on
-     * every lookup.
+     * `namespace` line; both are keyed by [ProtoFile.path], since a file's tree is too large to
+     * hash and compare on every lookup. A unit imports exactly the namespaces its declarations
+     * reference, in the order they are first used: a Schemata file imports what it uses, so a proto
+     * import whose types it never uses, an option-only import and an `import public` produce no
+     * line, which is what makes the Protobuf round trip exact.
      */
     fun lower(
         files: List<ProtoFile>,
         namespaces: Map<String, String>,
         symbols: ProtoSymbols,
         annotations: Map<String, List<UnitAnnotation>> = emptyMap(),
-        imports: Map<String, List<ProtoFile>> = emptyMap(),
+        sourceNames: Map<String, String> = emptyMap(),
+        unresolvedImports: Map<String, List<String>> = emptyMap(),
     ): Imported {
-        val context = Context(namespaces, symbols)
+        val context = Context(namespaces, symbols, sourceNames, unresolvedImports)
         val diagnostics = mutableListOf<Diagnostic>()
         val units =
             files
@@ -52,9 +55,6 @@ internal object ProtoLowering {
                         val lowering = FileLowering(file, namespace, context, diagnostics, topLevel)
                         declarations += lowering.declarations()
                         services += lowering.serviceLowering.services()
-                        imports[file.path].orEmpty().forEach {
-                            unitImports += namespaces.getValue(it.path)
-                        }
                         unitImports += lowering.referenced
                     }
                     unitImports -= namespace
@@ -97,7 +97,14 @@ internal fun doc(doc: String?, trailing: String?): String? {
 internal data class Claim(val path: String, val kind: String, val protoName: String)
 
 /** What every file's lowering reads about the whole input set. */
-internal class Context(val namespaces: Map<String, String>, val symbols: ProtoSymbols) {
+internal class Context(
+    val namespaces: Map<String, String>,
+    val symbols: ProtoSymbols,
+    /** How an import statement names each file, by [ProtoFile.path], where it has a name. */
+    val sourceNames: Map<String, String> = emptyMap(),
+    /** The import paths each file wrote that resolved nowhere, by [ProtoFile.path]. */
+    val unresolvedImports: Map<String, List<String>> = emptyMap(),
+) {
     /** Each symbol's path from its namespace's root in Schemata: each proto name upper-camelled. */
     val paths: Map<String, List<String>> =
         symbols.all.associate { it.fullName to it.path.map(::typeName) }
@@ -107,6 +114,7 @@ internal class Context(val namespaces: Map<String, String>, val symbols: ProtoSy
      */
     val declared: Map<String, Set<List<String>>> =
         symbols.all
+            .filter { it.file.path in namespaces }
             .groupBy({ namespaces.getValue(it.file.path) }, { paths.getValue(it.fullName) })
             .mapValues { it.value.toSet() }
 
@@ -243,10 +251,24 @@ internal class EnumLowering(e: ProtoEnum, file: ProtoFile) {
                 )
         }
         var below = false
-        e.reserved.forEach { r ->
-            r.ranges.forEach { (from, to) ->
-                if (from < 1) below = true
-                if (to >= 1) reserved += UnitReserved.Ordinals(maxOf(from, 1), to)
+        if (notOrdinal != null) {
+            // Reserved numbers refer to the proto numbering; the values now take positional
+            // ordinals, so keeping them could reserve a number a renumbered value lands on.
+            e.reserved
+                .firstOrNull { it.ranges.isNotEmpty() }
+                ?.let { first ->
+                    report(
+                        ImportCodes.APPROXIMATED,
+                        "$where: reserved numbers dropped; the values were renumbered",
+                        first.pos,
+                    )
+                }
+        } else {
+            e.reserved.forEach { r ->
+                r.ranges.forEach { (from, to) ->
+                    if (from < 1) below = true
+                    if (to >= 1) reserved += UnitReserved.Ordinals(maxOf(from, 1), to)
+                }
             }
         }
         if (below) {
@@ -288,8 +310,11 @@ internal class EnumLowering(e: ProtoEnum, file: ProtoFile) {
     private fun regenerated(name: String): String = prefix + name.uppercase()
 
     companion object {
-        /** A zero value that means "not set" under another spelling than the target's. */
-        private val zeroLike = Regex("(.*_)?(UNSPECIFIED|UNKNOWN|UNSET)")
+        /**
+         * A zero value that means "not set" under another spelling than the target's, whatever its
+         * case.
+         */
+        private val zeroLike = Regex("(.*_)?(UNSPECIFIED|UNKNOWN|UNSET)", RegexOption.IGNORE_CASE)
     }
 }
 
@@ -302,9 +327,46 @@ internal class FileLowering(
 ) {
     val messageLowering = MessageLowering(this)
     val serviceLowering = ServiceLowering(this)
+    val validateLowering = ValidateLowering(this)
+
+    /**
+     * Validate rules with no Schemata counterpart, by `kind.key`: where the first field carrying
+     * the rule is, and how many fields carry it. Reported once each when the declarations are done.
+     */
+    val droppedRules = LinkedHashMap<String, Pair<Pos, Int>>()
 
     /** Namespaces other than this one that a reference named. */
     val referenced = LinkedHashSet<String>()
+
+    /** Imports of this file that could not be resolved. */
+    val unresolvedImports: List<String> = context.unresolvedImports[file.path].orEmpty()
+
+    /**
+     * The help for a type that resolves nowhere: when this file has imports that were not found the
+     * type may live in one of them, so the help names them.
+     */
+    fun unresolvedHelp(): String =
+        when (unresolvedImports.size) {
+            0 -> ImportCodes.helpFor(ImportCodes.UNRESOLVED)
+            1 ->
+                "import '${unresolvedImports.single()}' was not found; " +
+                    "add its directory with --include"
+            else ->
+                "imports ${unresolvedImports.joinToString { "'$it'" }} were not found; " +
+                    "add their directory with --include"
+        }
+
+    /**
+     * When [name] resolves to nothing this file can see but does resolve among all the files read:
+     * the message to append to the unresolved text, and its help. Protoc would reject such a file
+     * for want of the import, so the text names the file that declares the type.
+     */
+    fun unimported(name: String, scope: List<String>): Pair<String, String>? {
+        val symbol = context.symbols.resolve(name, scope, null) ?: return null
+        val declared = context.sourceNames[symbol.file.path] ?: symbol.file.path
+        return "'$declared' declares '${symbol.fullName}' but ${file.path} does not import it" to
+            "add import \"$declared\" to ${file.path}"
+    }
 
     internal fun report(
         code: DiagnosticCode,
@@ -330,6 +392,14 @@ internal class FileLowering(
         }
         val out =
             nested(file.messages, file.enums, context.symbols.scopeOf(file), emptyList(), topLevel)
+        droppedRules.forEach { (rule, where) ->
+            val (pos, count) = where
+            report(
+                ImportCodes.DROPPED,
+                "${file.path}: validate rule '$rule' dropped on $count field${if (count == 1) "" else "s"}",
+                pos,
+            )
+        }
         file.dropped.forEach { (what, pos) ->
             report(ImportCodes.DROPPED, "${file.path}: $what dropped", pos)
         }

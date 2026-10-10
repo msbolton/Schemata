@@ -1,0 +1,7 @@
+schema envoy.annotations
+
+model ResourceAnnotation {
+  /// Annotation for xDS services that indicates the fully-qualified Protobuf type for the resource
+  /// type.
+  #1 type string
+}

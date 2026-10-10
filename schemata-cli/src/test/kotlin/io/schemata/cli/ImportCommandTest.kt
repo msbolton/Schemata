@@ -232,4 +232,69 @@ class ImportCommandTest {
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("no .proto files found under"), r.stderr)
     }
+
+    private fun includeTree(referenced: Boolean) {
+        File(dir, "src/shop").mkdirs()
+        File(dir, "inc/google/rpc").mkdirs()
+        File(dir, "inc/validate").mkdirs()
+        val use = if (referenced) "google.rpc.Status status = 1;" else "string id = 1;"
+        File(dir, "src/shop/orders.proto")
+            .writeText(
+                "syntax = \"proto3\";\npackage shop;\nimport \"google/rpc/status.proto\";\n" +
+                    "message Order { $use }\n"
+            )
+        File(dir, "inc/google/rpc/status.proto")
+            .writeText(
+                "syntax = \"proto3\";\npackage google.rpc;\nmessage Status { int32 code = 1; }\n"
+            )
+    }
+
+    @Test
+    fun `--include adds a root that is searched after the inputs`() {
+        includeTree(referenced = true)
+        val out = File(dir, "out")
+        val r =
+            ImportCommand()
+                .test("--from proto --include ${dir.path}/inc --out ${out.path} ${dir.path}/src")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/shop/orders.schemata").isFile, r.stderr)
+        assertTrue(out.resolve("import/google/rpc/status.schemata").isFile, r.stderr)
+
+        includeTree(referenced = false)
+        val again = File(dir, "out2")
+        val r2 =
+            ImportCommand()
+                .test("--from proto --include ${dir.path}/inc --out ${again.path} ${dir.path}/src")
+        assertEquals(0, r2.statusCode, r2.stderr)
+        assertTrue(again.resolve("import/shop/orders.schemata").isFile, r2.stderr)
+        assertFalse(again.resolve("import/google/rpc/status.schemata").exists(), r2.stderr)
+    }
+
+    @Test
+    fun `--include must be a directory`() {
+        includeTree(referenced = true)
+        val r =
+            ImportCommand()
+                .test(
+                    "--from proto --include ${dir.path}/inc/google/rpc/status.proto " +
+                        "--out ${File(dir, "out").path} ${dir.path}/src"
+                )
+        assertEquals(1, r.statusCode, r.stderr)
+        assertFalse(File(dir, "out").exists())
+    }
+
+    @Test
+    fun `--include is refused for xsd and sql`() {
+        write("s.xsd", clean)
+        File(dir, "inc").mkdirs()
+        for (from in listOf("xsd", "sql")) {
+            val r =
+                ImportCommand()
+                    .test(
+                        "--from $from --include ${dir.path}/inc --out ${File(dir, "out").path} ${dir.path}"
+                    )
+            assertEquals(1, r.statusCode, r.stderr)
+            assertTrue(r.stderr.contains("--include applies to --from proto"), r.stderr)
+        }
+    }
 }

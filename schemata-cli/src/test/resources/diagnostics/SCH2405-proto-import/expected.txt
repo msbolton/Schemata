@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2405] (lossy): s.proto: import 'udpa/annotations/status.proto' not found; dropped
+ --> s.proto:5:1
+  = help: add the directory that holds it with --include
+
+0 errors, 1 warning

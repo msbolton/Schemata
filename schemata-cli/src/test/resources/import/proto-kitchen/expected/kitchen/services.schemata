@@ -1,7 +1,6 @@
 schema kitchen.services
 
 import kitchen.maps
-import kitchen.enums
 
 model Request { #1 item kitchen.maps.Item }
 

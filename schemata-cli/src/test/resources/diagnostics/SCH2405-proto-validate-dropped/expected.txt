@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2405] (lossy): s.proto: validate rule 'string.email' dropped on 1 field
+ --> s.proto:6:3
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

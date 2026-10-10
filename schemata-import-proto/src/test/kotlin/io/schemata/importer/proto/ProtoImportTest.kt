@@ -228,6 +228,75 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `a renumbered enum drops its reserved numbers`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Lb {
+                      ROUND_ROBIN = 0;
+                      LEAST_REQUEST = 1;
+                      reserved 4;
+                      reserved "LB_OLD";
+                      MAGLEV = 5;
+                      OTHER = 7;
+                    }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue(!out.contains("reserved #"), out)
+        assertTrue(out.contains("reserved \"old\""), out)
+        assertEquals(
+            listOf(
+                "SCH2403 enum 'Lb': values renumbered; 0 is not a Schemata ordinal",
+                "SCH2403 enum 'Lb': reserved numbers dropped; the values were renumbered",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an enum that keeps its numbers keeps its reserved numbers`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Status {
+                      STATUS_UNSPECIFIED = 0;
+                      STATUS_PENDING = 1;
+                      reserved 5 to 6;
+                      reserved "STATUS_OLD";
+                    }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue(out.contains("reserved #5..#6, \"old\""), out)
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `a mixed-case zero value is dropped like an upper-case one`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    enum Unit { Unspecified = 0; Bytes = 1; Seconds = 2; }
+                    """
+            )
+        val out = text(r, "t.schemata")
+        assertTrue(!out.contains("unspecified"), out)
+        assertEquals(
+            listOf(
+                "SCH2403 enum 'Unit': zero value 'Unspecified' dropped; the regenerated enum names it 'UNIT_UNSPECIFIED'"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `oneofs`() {
         val r =
             importText(
@@ -875,6 +944,58 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `an import used only by options is not written to the schemata file`() {
+        val r =
+            importText(
+                "opts.proto" to
+                    """
+                    syntax = "proto3";
+                    package opts;
+                    message Marker { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "opts.proto";
+                    import public "x.proto";
+                    message M { string id = 1; }
+                    """,
+                "x.proto" to
+                    """
+                    syntax = "proto3";
+                    package x;
+                    message X {}
+                    """,
+            )
+        assertEquals("schema t\n\nmodel M { #1 id string }\n", text(r, "t.schemata"))
+    }
+
+    @Test
+    fun `an import whose types are used is kept`() {
+        val r =
+            importText(
+                "opts.proto" to
+                    """
+                    syntax = "proto3";
+                    package opts;
+                    message Marker { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "opts.proto";
+                    message M { opts.Marker m = 1; }
+                    """,
+            )
+        assertEquals(
+            "schema t\n\nimport opts\n\nmodel M { #1 m opts.Marker }\n",
+            text(r, "t.schemata"),
+        )
+    }
+
+    @Test
     fun `imports name the namespace the imported file lowers to`() {
         val r =
             importText(
@@ -908,7 +1029,6 @@ class ProtoImportTest {
             schema t
 
             import shop.customers
-            import x
 
             model M { #1 c shop.customers.Customer  #2 e string  #3 a bytes }
             """
@@ -917,7 +1037,6 @@ class ProtoImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 t.proto: import public 'x.proto' re-exports nothing in Schemata",
                 "SCH2404 field 'M.e': google.protobuf.Empty imported as string",
                 "SCH2404 field 'M.a': google.protobuf.Any imported as bytes",
             ),
@@ -933,10 +1052,236 @@ class ProtoImportTest {
                     """
             )
         assertEquals(
-            listOf("SCH2401 t.proto: import 'missing.proto' cannot be resolved"),
+            listOf("SCH2405 t.proto: import 'missing.proto' not found; dropped"),
             messages(missing),
         )
-        assertEquals(emptyList(), missing.files)
+        assertEquals(listOf("t.schemata"), missing.files.map { it.path })
+    }
+
+    @Test
+    fun `an unresolved import whose types are never used is a warning and the file is still emitted`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "udpa/annotations/status.proto";
+                    message M { string id = 1; }
+                    """
+            )
+        assertEquals(
+            listOf("SCH2405 t.proto: import 'udpa/annotations/status.proto' not found; dropped"),
+            messages(r),
+        )
+        assertEquals("add the directory that holds it with --include", r.diagnostics.single().help)
+        assertEquals(2, r.diagnostics.single().span?.startLine)
+        assertEquals(listOf("t.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `an unresolved type names the unresolved imports in its hint`() {
+        val one =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "a.proto";
+                    message M { a.A x = 1; }
+                    """
+            )
+        assertEquals(listOf("SCH2405", "SCH2401"), one.diagnostics.map { it.code.id })
+        assertEquals(
+            "import 'a.proto' was not found; add its directory with --include",
+            one.diagnostics.last().help,
+        )
+        val two =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    import "a.proto";
+                    import "b.proto";
+                    message M { a.A x = 1; }
+                    """
+            )
+        assertEquals(
+            "imports 'a.proto', 'b.proto' were not found; add their directory with --include",
+            two.diagnostics.last().help,
+        )
+        val none =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    message M { a.A x = 1; }
+                    """
+            )
+        assertEquals(
+            "add the schema that declares it to the inputs, or fix the reference",
+            none.diagnostics.single().help,
+        )
+    }
+
+    @Test
+    fun `a file found under a root is still emitted when nothing references it`() {
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "/r/a.proto",
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A {}\n",
+                        relative = "a.proto",
+                    )
+                ),
+                null,
+            ) { path ->
+                if (path == "/r/b.proto")
+                    ImportInput(path, "syntax = \"proto3\";\npackage b;\nmessage B {}\n")
+                else null
+            }
+        assertEquals(listOf("a.schemata", "b.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `a file found beside an importer is not emitted when nothing references it`() {
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "/in/a.proto",
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A {}\n",
+                    )
+                ),
+                null,
+            ) { path ->
+                if (path == "/in/b.proto")
+                    ImportInput(path, "syntax = \"proto3\";\npackage b;\nmessage B {}\n")
+                else null
+            }
+        assertEquals(listOf("a.schemata"), r.files.map { it.path })
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `a type from an unimported file is reported with the file that declares it`() {
+        val r =
+            importText(
+                "shop/a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop.a;
+                    message A { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { shop.a.A a = 1; }
+                    """,
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 field 'M.a': type 'shop.a.A' cannot be resolved; " +
+                    "'shop/a.proto' declares 'shop.a.A' but t.proto does not import it"
+            ),
+            messages(r),
+        )
+        assertEquals("add import \"shop/a.proto\" to t.proto", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `import public makes the re-exported types visible to the importing file`() {
+        val r =
+            importText(
+                "a.proto" to
+                    """
+                    syntax = "proto3";
+                    package a;
+                    import public "b.proto";
+                    message A { string id = 1; }
+                    """,
+                "b.proto" to
+                    """
+                    syntax = "proto3";
+                    package b;
+                    message B { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    import "a.proto";
+                    message M { b.B b = 1; a.A a = 2; }
+                    """,
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(
+            """
+            schema t
+
+            import b
+            import a
+
+            model M { #1 b b.B  #2 a a.A }
+            """
+                .trimIndent() + "\n",
+            text(r, "t.schemata"),
+        )
+    }
+
+    @Test
+    fun `import public resolves by the resolved path when files sit under a root`() {
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "api/x.proto",
+                        "syntax = \"proto3\";\npackage x;\nmessage X { string id = 1; }\n",
+                        relative = "x.proto",
+                    ),
+                    ImportInput(
+                        "api/a.proto",
+                        "syntax = \"proto3\";\npackage a;\nimport public \"x.proto\";\n" +
+                            "message A { string id = 1; }\n",
+                        relative = "a.proto",
+                    ),
+                    ImportInput(
+                        "api/t.proto",
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\n" +
+                            "message M { x.X x = 1; }\n",
+                        relative = "t.proto",
+                    ),
+                )
+            )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `an rpc payload from an unimported file is reported with the file that declares it`() {
+        val r =
+            importText(
+                "shop/a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop.a;
+                    message A { string id = 1; }
+                    """,
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { string id = 1; }
+                    service S { rpc Get(shop.a.A) returns (M); }
+                    """,
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 rpc 'S.Get': type 'shop.a.A' cannot be resolved; " +
+                    "'shop/a.proto' declares 'shop.a.A' but t.proto does not import it"
+            ),
+            messages(r),
+        )
+        assertEquals("add import \"shop/a.proto\" to t.proto", r.diagnostics.single().help)
     }
 
     @Test
@@ -1083,6 +1428,7 @@ class ProtoImportTest {
                     """
                     syntax = "proto3";
                     package corp;
+                    import "a.proto";
                     message B { A a = 1; }
                     """,
             )
@@ -1238,6 +1584,343 @@ class ProtoImportTest {
                 "SCH2403 enum 'Aliased': only value 'ALIASED_UNSPECIFIED' kept, as 'unspecified'; the regenerated enum spells it ALIASED_UNSPECIFIED_VALUE beside the synthesized zero value",
             ),
             messages(r),
+        )
+    }
+
+    private fun beside(
+        inputs: List<Pair<String, String>>,
+        located: Map<String, String>,
+    ): ImportResult =
+        ProtoImporter.import(inputs.map { ImportInput(it.first, it.second.trimIndent()) }, null) {
+            path ->
+            located[path]?.let { ImportInput(path, it.trimIndent()) }
+        }
+
+    @Test
+    fun `an unreferenced beside file leaves no diagnostics for its own unresolved imports`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T {}"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"gone.proto\";\nmessage A {}"
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(listOf("t.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `a type declared only in a dropped beside file is named in the hint`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T { b.B x = 1; }"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A {}",
+                    "/in/b.proto" to "syntax = \"proto3\";\npackage b;\nmessage B {}",
+                ),
+            )
+        assertEquals(
+            listOf(
+                "SCH2401 field 'T.x': type 'b.B' cannot be resolved; " +
+                    "'/in/b.proto' declares 'b.B' but /in/t.proto does not import it"
+            ),
+            messages(r),
+        )
+        assertEquals("add import \"/in/b.proto\" to /in/t.proto", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `a beside file referenced only through another beside file is kept`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T { a.A x = 1; }"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A { b.B y = 1; }",
+                    "/in/b.proto" to "syntax = \"proto3\";\npackage b;\nmessage B {}",
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(listOf("t.schemata", "a.schemata", "b.schemata"), r.files.map { it.path })
+    }
+
+    @Test
+    fun `a cycle between beside files terminates`() {
+        val r =
+            beside(
+                listOf(
+                    "/in/t.proto" to
+                        "syntax = \"proto3\";\npackage t;\nimport \"a.proto\";\nmessage T { a.A x = 1; }"
+                ),
+                mapOf(
+                    "/in/a.proto" to
+                        "syntax = \"proto3\";\npackage a;\nimport \"b.proto\";\nmessage A { b.B y = 1; }",
+                    "/in/b.proto" to
+                        "syntax = \"proto3\";\npackage b;\nimport \"a.proto\";\nmessage B { a.A z = 1; }",
+                ),
+            )
+        assertEquals(3, r.files.size)
+    }
+
+    private fun withIncludes(
+        inputs: List<Pair<String, String>>,
+        includes: Map<String, Map<String, String>>,
+    ): ImportResult =
+        ProtoImporter.import(
+            inputs.map { ImportInput(it.first, it.second.trimIndent(), relative = it.first) },
+            null,
+            { path ->
+                includes.entries.firstNotNullOfOrNull { (dir, files) ->
+                    files.entries
+                        .firstOrNull {
+                            val base = dir.trimEnd('/')
+                            (if (base.isEmpty()) it.key else "$base/${it.key}") == path
+                        }
+                        ?.let { ImportInput(path, it.value.trimIndent()) }
+                }
+            },
+            includes.keys.toList(),
+        )
+
+    @Test
+    fun `an import found under an include root is read and takes its namespace from its path there`() {
+        val r =
+            withIncludes(
+                listOf(
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "google/rpc/status.proto";
+                        message T { google.rpc.Status status = 1; }
+                        """
+                ),
+                mapOf(
+                    "/inc" to
+                        mapOf(
+                            "google/rpc/status.proto" to
+                                """
+                                syntax = "proto3";
+                                package google.rpc;
+                                message Status { int32 code = 1; }
+                                """
+                        )
+                ),
+            )
+        assertEquals(emptyList(), messages(r).filter { it.startsWith("SCH2405") })
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+        assertTrue(text(r, "google/rpc/status.schemata").startsWith("schema google.rpc.status"))
+        assertTrue(
+            text(r, "google/rpc/status.schemata").contains("@proto(package: \"google.rpc\")")
+        )
+    }
+
+    @Test
+    fun `an input beats an include root and the first include root beats the second`() {
+        fun dep(name: String) =
+            """
+            syntax = "proto3";
+            package x;
+            message $name {}
+            """
+        val r =
+            withIncludes(
+                listOf(
+                    "x/dep.proto" to dep("Input"),
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "x/dep.proto";
+                        import "x/other.proto";
+                        message T { x.Input a = 1; x.FromA b = 2; }
+                        """,
+                ),
+                mapOf(
+                    "/a" to mapOf("x/dep.proto" to dep("FromA"), "x/other.proto" to dep("FromA")),
+                    "/b" to mapOf("x/dep.proto" to dep("FromB"), "x/other.proto" to dep("FromB")),
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        val all = r.files.joinToString("\n") { it.content }
+        assertTrue(all.contains("Input"), all)
+        assertTrue(all.contains("FromA"), all)
+        assertFalse(all.contains("FromB"), all)
+    }
+
+    @Test
+    fun `an include file is emitted only when an input references it`() {
+        val r =
+            withIncludes(
+                listOf(
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "validate/validate.proto";
+                        import "google/rpc/status.proto";
+                        message T { google.rpc.Status status = 1 [(validate.rules).message.required = true]; }
+                        """
+                ),
+                mapOf(
+                    "/inc" to
+                        mapOf(
+                            "validate/validate.proto" to
+                                """
+                                syntax = "proto2";
+                                package validate;
+                                import "google/protobuf/descriptor.proto";
+                                extend google.protobuf.FieldOptions { optional string rules = 1071; }
+                                """,
+                            "google/rpc/status.proto" to
+                                """
+                                syntax = "proto3";
+                                package google.rpc;
+                                message Status { int32 code = 1; }
+                                """,
+                        )
+                ),
+            )
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+        assertEquals(emptyList(), messages(r).filter { it.startsWith("SCH2402") })
+    }
+
+    private fun statusUser() =
+        listOf(
+            "app/t.proto" to
+                """
+                syntax = "proto3";
+                package app;
+                import "google/rpc/status.proto";
+                message T { google.rpc.Status status = 1; }
+                """
+        )
+
+    private fun statusFile() =
+        mapOf(
+            "google/rpc/status.proto" to
+                """
+                syntax = "proto3";
+                package google.rpc;
+                message Status { int32 code = 1; }
+                """
+        )
+
+    @Test
+    fun `an include root given as the current directory resolves imports by their bare path`() {
+        // The input sits under src, so the roots step looks under src, not at the bare path.
+        val files = statusFile()
+        val r =
+            ProtoImporter.import(
+                statusUser().map {
+                    ImportInput("src/${it.first}", it.second.trimIndent(), relative = it.first)
+                },
+                null,
+                { path -> files[path]?.let { ImportInput(path, it.trimIndent()) } },
+                listOf(""),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata"),
+            r.files.map { it.path }.sorted(),
+        )
+    }
+
+    @Test
+    fun `a trailing slash on an include root resolves the same as none`() {
+        val plain = withIncludes(statusUser(), mapOf("deps" to statusFile()))
+        val slash = withIncludes(statusUser(), mapOf("deps/" to statusFile()))
+        assertEquals(emptyList(), messages(slash))
+        assertEquals(
+            plain.files.map { it.path to it.content },
+            slash.files.map { it.path to it.content },
+        )
+        assertEquals(2, slash.files.size)
+    }
+
+    @Test
+    fun `a file found beside an include file is written only when referenced`() {
+        val r =
+            withIncludes(
+                listOf(
+                    "app/t.proto" to
+                        """
+                        syntax = "proto3";
+                        package app;
+                        import "status.proto";
+                        message T { google.rpc.Status status = 1; }
+                        """
+                ),
+                mapOf(
+                    "/inc" to
+                        mapOf(
+                            "status.proto" to
+                                """
+                                syntax = "proto3";
+                                package google.rpc;
+                                import "unused.proto";
+                                message Status { int32 code = 1; }
+                                """,
+                            "unused.proto" to
+                                """
+                                syntax = "proto3";
+                                package unused;
+                                message Unused {}
+                                """,
+                        )
+                ),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(listOf("app/t.schemata", "status.schemata"), r.files.map { it.path }.sorted())
+    }
+
+    @Test
+    fun `a root file keeps the include files it references`() {
+        val files =
+            mapOf(
+                "/r/lib/u.proto" to
+                    """
+                    syntax = "proto3";
+                    package lib;
+                    import "google/rpc/status.proto";
+                    message U { google.rpc.Status status = 1; }
+                    """,
+                "/inc/google/rpc/status.proto" to statusFile().getValue("google/rpc/status.proto"),
+            )
+        val r =
+            ProtoImporter.import(
+                listOf(
+                    ImportInput(
+                        "/r/app/t.proto",
+                        "syntax = \"proto3\";\npackage app;\nimport \"lib/u.proto\";\nmessage T {}\n",
+                        relative = "app/t.proto",
+                    )
+                ),
+                null,
+                { path -> files[path]?.let { ImportInput(path, it.trimIndent()) } },
+                listOf("/inc"),
+            )
+        assertEquals(emptyList(), messages(r))
+        assertEquals(
+            listOf("app/t.schemata", "google/rpc/status.schemata", "lib/u.schemata"),
+            r.files.map { it.path }.sorted(),
         )
     }
 }
