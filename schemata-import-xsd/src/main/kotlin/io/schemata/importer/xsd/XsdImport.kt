@@ -310,24 +310,22 @@ object XsdImport {
     internal data class Cycles(val groups: Set<QName>, val attributeGroups: Set<QName>)
 
     /**
-     * Every group that reaches itself: through a nested group reference, an element's anonymous
-     * type, or a complex type's derivation base. Expanding one in place would never end.
+     * Every group that reaches itself: through a nested group reference, directly or inside an
+     * element's anonymous type. Expanding one in place would never end. An anonymous type's
+     * extension base is not followed: lowering it inside a type it extends is cut where it recurs
+     * (the inline element then names the base's record), so a group on that path ends too.
      */
     private fun cyclicGroups(docsByNamespace: Map<String?, XsdDoc>): Set<QName> {
         val groups = mutableMapOf<QName, XContent>()
-        val types = mutableMapOf<QName, XContent>()
         docsByNamespace.values.forEach { d ->
             d.groups.forEach { groups[QName(d.targetNamespace, it.name)] = it.content }
-            d.complexTypes.forEach { ct ->
-                ct.name?.let { types[QName(d.targetNamespace, it)] = ct.content }
-            }
         }
-        // A node is a group ("g") or a named complex type ("t"); edges follow content.
-        fun edges(content: XContent): Set<Pair<Char, QName>> {
-            fun particles(ps: List<XParticle>): Set<Pair<Char, QName>> =
+        // The groups [content] references, in it or in the anonymous types of its elements.
+        fun edges(content: XContent): Set<QName> {
+            fun particles(ps: List<XParticle>): Set<QName> =
                 ps.flatMap { p ->
                         when (p) {
-                            is XParticle.GroupRef -> setOf('g' to p.ref)
+                            is XParticle.GroupRef -> setOf(p.ref)
                             is XParticle.Nested -> edges(p.content)
                             is XParticle.Element ->
                                 p.element.inlineComplex?.let { edges(it.content) } ?: emptySet()
@@ -339,20 +337,19 @@ object XsdImport {
                 is XContent.Sequence -> particles(content.particles)
                 is XContent.Choice -> particles(content.particles)
                 is XContent.All -> particles(content.particles)
-                is XContent.Extension -> particles(content.particles) + ('t' to content.base)
+                is XContent.Extension -> particles(content.particles)
                 is XContent.Restriction -> particles(content.particles)
                 XContent.Empty -> emptySet()
             }
         }
         fun reachesItself(start: QName): Boolean {
-            val seen = mutableSetOf<Pair<Char, QName>>()
+            val seen = mutableSetOf<QName>()
             val queue = ArrayDeque(edges(groups.getValue(start)))
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
-                if (node == ('g' to start)) return true
+                if (node == start) return true
                 if (!seen.add(node)) continue
-                val content = (if (node.first == 'g') groups else types)[node.second] ?: continue
-                queue += edges(content)
+                queue += edges(groups[node] ?: continue)
             }
             return false
         }
