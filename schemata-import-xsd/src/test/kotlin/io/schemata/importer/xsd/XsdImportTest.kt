@@ -45,6 +45,47 @@ class XsdImportTest {
         imported.diagnostics.map { "${it.code.id} ${it.message}" }
 
     @Test
+    fun `xml attributes resolve without a file`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attribute ref="xml:lang"/>
+                    <xs:attribute ref="xml:base"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf(
+                UnitField(
+                    "lang",
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    null,
+                    listOf(xsd("attribute")),
+                ),
+                UnitField(
+                    "base",
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    null,
+                    listOf(xsd("attribute")),
+                ),
+            ),
+            record(imported, "Thing").fields.drop(1),
+        )
+    }
+
+    @Test
     fun `attributes become annotated fields after the elements`() {
         val imported =
             lower(

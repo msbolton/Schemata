@@ -1,9 +1,9 @@
+SCH2405 xml/xml.xsd: namespace 'http://www.w3.org/XML/1998/namespace' is built in; skipped
 SCH2402 defaultStyle.xsd: schema name 'default_style' was derived from the file name
 SCH2402 iso19139-stub/gmd.xsd: schema name 'gmd' was derived from the file name
 SCH2402 smil/smil20-language.xsd: schema name 'smil20_language' was derived from the file name
 SCH2402 smil/smil20.xsd: schema name 'smil20' was derived from the file name
 SCH2402 xlink/xlink.xsd: schema name 'xlink' was derived from the file name
-SCH2402 xml/xml.xsd: schema name 'xml' was derived from the file name
 SCH2405 schema: block and final dropped
 SCH2403 element 'defaultStyle': element 'defaultStyle' has no Schemata equivalent; the regenerated root element will be named 'default_style_property'
 SCH2405 attribute 'type': fixed value imported as a default
@@ -1619,16 +1619,12 @@ SCH2403 element 'CI_Citation': element 'CI_Citation' has no Schemata equivalent;
 SCH2403 element 'AbstractDQ_PositionalAccuracy': element 'AbstractDQ_PositionalAccuracy' has no Schemata equivalent; the regenerated root element will be named 'AbstractDQ_PositionalAccuracy_'
 SCH2405 complex type 'AbstractDQ_PositionalAccuracy_Type': abstract dropped
 SCH2403 complex type 'animateType': extension of 'animatePrototype' has no Schemata equivalent; base fields flattened into the model
-SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'animateMotionType': extension of 'animateMotionPrototype' has no Schemata equivalent; base fields flattened into the model
-SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'animateColorType': extension of 'animateColorPrototype' has no Schemata equivalent; base fields flattened into the model
-SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'setType': extension of 'setPrototype' has no Schemata equivalent; base fields flattened into the model
-SCH2403 attribute 'lang': union simple type imported as string
 SCH2403 attribute 'repeatCount': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'animate': substitution group 'animate' imported as its one member type 'Animate'
 SCH2403 element 'animateMotion': substitution group 'animateMotion' imported as its one member type 'AnimateMotion'
@@ -1654,7 +1650,6 @@ SCH2405 attribute 'type': fixed value imported as a default
 SCH2403 complex type 'extended': attribute 'title' and element 'title' both lower to field 'title'; the attribute is imported as 'title_attribute' and the regenerated attribute will be named so
 SCH2403 element 'title': element 'title' has no Schemata equivalent; the regenerated root element will be named 'titleElt'
 SCH2405 attribute 'type': fixed value imported as a default
-SCH2403 attribute 'lang': union simple type imported as string
 SCH2405 attribute 'type': fixed value imported as a default
 SCH2405 element 'title': abstract dropped
 SCH2405 attribute 'type': fixed value imported as a default

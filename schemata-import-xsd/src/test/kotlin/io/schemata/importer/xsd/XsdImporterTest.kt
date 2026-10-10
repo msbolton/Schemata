@@ -415,7 +415,7 @@ class XsdImporterTest {
     }
 
     @Test
-    fun `two unrelated inputs declaring one foreign namespace are an error`() {
+    fun `two unrelated inputs declaring one foreign namespace are kept first and the second is dropped`() {
         val xsd =
             """
             <?xml version="1.0"?>
@@ -429,11 +429,55 @@ class XsdImporterTest {
         assertEquals(
             listOf(
                 "SCH2402 a.xsd: schema name 'a' was derived from the file name",
-                "SCH2401 b.xsd: namespace 'http://example.com/x' is also declared by a.xsd",
+                "SCH2405 b.xsd: namespace 'http://example.com/x' is also declared by a.xsd; dropped",
+            ),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+        assertEquals(listOf("a.schemata"), result.files.map { it.path })
+    }
+
+    private val xmlNamespaceXsd =
+        """
+        <?xml version="1.0"?>
+        <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.w3.org/XML/1998/namespace">
+          <xs:attribute name="lang" type="xs:string"/>
+        </xs:schema>
+        """
+            .trimIndent()
+
+    @Test
+    fun `a document of the xml namespace is skipped with a note`() {
+        val result = XsdImporter.import(listOf(ImportInput("xml.xsd", xmlNamespaceXsd)))
+        assertEquals(
+            listOf(
+                "SCH2405 xml.xsd: namespace 'http://www.w3.org/XML/1998/namespace' is built in; skipped"
             ),
             result.diagnostics.map { "${it.code.id} ${it.message}" },
         )
         assertEquals(emptyList(), result.files)
+    }
+
+    @Test
+    fun `an import of the xml schema namespace is skipped silently`() {
+        val xsd =
+            """
+            <?xml version="1.0"?>
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:s">
+              <xs:import namespace="http://www.w3.org/2001/XMLSchema" schemaLocation="XMLSchema.xsd"/>
+              <xs:import namespace="http://www.w3.org/XML/1998/namespace" schemaLocation="xml.xsd"/>
+              <xs:complexType name="ThingType"><xs:sequence/></xs:complexType>
+            </xs:schema>
+            """
+                .trimIndent()
+        val located = mutableListOf<String>()
+        val result =
+            XsdImporter.import(listOf(ImportInput("s.xsd", xsd))) {
+                located += it
+                null
+            }
+        assertEquals(emptyList(), located)
+        assertEquals(emptyList(), result.diagnostics)
+        assertEquals(listOf("s.schemata"), result.files.map { it.path })
     }
 
     private fun schemaIn(uri: String) =

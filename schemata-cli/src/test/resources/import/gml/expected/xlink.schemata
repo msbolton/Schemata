@@ -20,8 +20,6 @@
 /// </xs:schema>
 schema xlink @xsd(namespace: "http://www.w3.org/1999/xlink") @xsd(element_form: "unqualified")
 
-import xml
-
 @xsd(name: "type")
 enum Type { simple extended title resource locator arc }
 

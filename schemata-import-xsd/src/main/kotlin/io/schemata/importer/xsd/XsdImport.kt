@@ -59,7 +59,8 @@ object XsdImport {
 
         docs.forEachIndexed { index, doc ->
             // Two documents claiming one foreign namespace without including each other would
-            // declare it twice; a urn:schemata: one is caught below, as a namespace name collision.
+            // declare it twice; the first is kept and the second dropped. A urn:schemata: one is
+            // caught below, as a namespace name collision.
             val tn = doc.targetNamespace
             val sameUri =
                 live.firstOrNull {
@@ -67,7 +68,12 @@ object XsdImport {
                 }
             if (sameUri != null) {
                 diagnostics +=
-                    unresolved(doc.path, 1, "namespace '$tn' is also declared by ${sameUri.path}")
+                    dropped(
+                        doc.path,
+                        1,
+                        doc.path,
+                        "namespace '$tn' is also declared by ${sameUri.path}; dropped",
+                    )
                 return@forEachIndexed
             }
             val name =

@@ -225,8 +225,24 @@ object XsdImporter : Importer {
             if (input.path in read) return read[input.path]
             val result = XsdReader.read(input.path, input.content)
             diagnostics += result.diagnostics
-            read[input.path] = result.doc
-            return result.doc
+            // The xml and xml schema namespaces are built in: their attributes and types resolve
+            // without a file, so a document that declares one is not lowered to a schema.
+            val doc =
+                result.doc?.takeUnless { d ->
+                    val ns = d.targetNamespace
+                    (ns == XsdReader.XML || ns == XsdReader.XS).also { builtIn ->
+                        if (builtIn)
+                            diagnostics +=
+                                Diagnostic(
+                                    ImportCodes.DROPPED,
+                                    "${d.path}: namespace '$ns' is built in; skipped",
+                                    Span(d.path, 1, 1, 1, 1),
+                                    ImportCodes.helpFor(ImportCodes.DROPPED),
+                                )
+                    }
+                }
+            read[input.path] = doc
+            return doc
         }
     }
 }

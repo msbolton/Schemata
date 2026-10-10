@@ -978,6 +978,21 @@ internal class ComplexLowering(private val context: ImportContext) {
     /** The top-level attribute [a] refers to, merged with [a]'s own use, default, and docs. */
     private fun resolveAttributeRef(a: XAttribute, whereCollision: String): XAttribute? {
         val qname = a.ref ?: return a
+        // xml:lang, xml:base, xml:space and xml:id are built in: they are string attributes, and
+        // the xml namespace has no file to look them up in.
+        if (qname.namespace == XsdReader.XML)
+            return XAttribute(
+                name = qname.local,
+                ref = null,
+                type = QName(ImportTypes.XS, "string"),
+                inlineSimple = null,
+                use = a.use,
+                default = a.default,
+                fixed = a.fixed,
+                doc = a.doc,
+                line = a.line,
+                path = a.path,
+            )
         val target =
             context.docsByNamespace[qname.namespace]?.attributes?.firstOrNull {
                 it.name == qname.local

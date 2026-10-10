@@ -1,7 +1,6 @@
 schema smil20 @xsd(namespace: "http://www.w3.org/2001/SMIL20/")
 
 import smil20_language
-import xml
 
 model AnimatePrototype {
   attribute_name string        @xsd(name: "attributeName") @xsd(attribute)
