@@ -565,4 +565,84 @@ class XsdContentModelsTest {
             messages(imported).any { "recursive content model; 'A' referenced by name" in it }
         )
     }
+
+    @Test
+    fun `a reference to an element whose record name is numbered names the numbered record`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="PageType"><xs:sequence><xs:element ref="tns:foo_bar"/></xs:sequence></xs:complexType>
+              <xs:element name="page" type="tns:PageType"/>
+              <xs:element name="fooBar"><xs:complexType><xs:sequence><xs:element name="p" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+              <xs:element name="foo_bar"><xs:complexType><xs:sequence><xs:element name="q" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val records = records(imported, "t")
+        assertEquals(setOf("Page", "FooBar", "FooBar2"), records.keys)
+        assertEquals(UnitType.Ref("FooBar2"), records.getValue("Page").fields.single().type)
+        assertEquals(
+            listOf(
+                "SCH2403 element 'foo_bar': element 'fooBar' already lowers to model 'FooBar'; imported as 'FooBar2'"
+            ),
+            messages(imported).filter { "FooBar2" in it },
+        )
+        assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
+    }
+
+    @Test
+    fun `a reference to an element whose name a hoisted member took names the numbered record`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="P1Type"><xs:sequence><xs:element ref="tns:b"/></xs:sequence></xs:complexType>
+              <xs:complexType name="P2Type"><xs:sequence>
+                <xs:element name="u"><xs:complexType><xs:choice>
+                  <xs:element name="b"><xs:complexType><xs:sequence><xs:element name="m" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+                  <xs:element name="d" type="xs:string"/>
+                </xs:choice></xs:complexType></xs:element>
+              </xs:sequence></xs:complexType>
+              <xs:element name="p1" type="tns:P1Type"/>
+              <xs:element name="p2" type="tns:P2Type"/>
+              <xs:element name="b"><xs:complexType><xs:sequence><xs:element name="n" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val records = records(imported, "t")
+        assertEquals(UnitType.Ref("B2"), records.getValue("P1").fields.single().type)
+        assertTrue("B2" in records.keys)
+        assertTrue(messages(imported).any { "already lowers to model 'B'; imported as 'B2'" in it })
+        assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
+    }
+
+    @Test
+    fun `an inline type whose base extends an enclosing type is referenced by name`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="AType"><xs:sequence>
+                <xs:element name="x" minOccurs="0"><xs:complexType><xs:complexContent>
+                  <xs:extension base="tns:BType"/>
+                </xs:complexContent></xs:complexType></xs:element>
+              </xs:sequence></xs:complexType>
+              <xs:complexType name="BType"><xs:complexContent>
+                <xs:extension base="tns:AType"><xs:sequence><xs:element name="y" type="xs:string"/></xs:sequence></xs:extension>
+              </xs:complexContent></xs:complexType>
+              <xs:element name="a" type="tns:AType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val a = records(imported, "t").getValue("A")
+        val x = a.fields.single { it.name == "x" }
+        assertEquals(UnitType.Ref("B"), x.type)
+        assertTrue(x.nullable)
+        assertTrue(
+            imported.diagnostics.none { it.code.id == "SCH2401" },
+            messages(imported).toString(),
+        )
+        assertEquals(
+            1,
+            messages(imported).count { "recursive content model; 'B' referenced by name" in it },
+        )
+    }
 }

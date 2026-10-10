@@ -1367,12 +1367,11 @@ internal class ComplexLowering(private val context: ImportContext) {
      */
     private fun modelRef(target: QName): UnitType.Ref {
         val doc = context.docsByNamespace[target.namespace] ?: context.doc
-        val name =
-            if (doc === context.doc) context.recordNameFor(target.local)
-            // The other namespace's own numbering of a clashing name is not visible from here, so
-            // the plain name is used.
-            else ImportNames.upperCamel(target.local)
-        return context.choiceLowering.headRef(doc, name)
+        // In this namespace the record's name is settled once the elements have claimed theirs.
+        if (doc === context.doc) return context.pendingElementRef(target.local)
+        // The other namespace's own numbering of a clashing name is not visible from here, so
+        // the plain name is used.
+        return context.choiceLowering.headRef(doc, ImportNames.upperCamel(target.local))
     }
 
     /**
@@ -1382,8 +1381,28 @@ internal class ComplexLowering(private val context: ImportContext) {
     private fun recursiveBaseOf(el: XElement, visited: Set<QName>): QName? {
         if (el.type != null) return null
         val extension = el.inlineComplex?.content as? XContent.Extension ?: return null
-        if (extension.simple) return null
-        return extension.base.takeIf { it in visited && it in context.typeNames }
+        if (extension.simple || extension.base !in context.typeNames) return null
+        return extension.base.takeIf { chainReaches(it, visited) }
+    }
+
+    /**
+     * Whether [base], or a type it extends further up, is in [visited]: expanding it would expand
+     * one of those again, even though no chain is cyclic.
+     */
+    private fun chainReaches(base: QName, visited: Set<QName>): Boolean {
+        val seen = mutableSetOf<QName>()
+        var current = base
+        while (seen.add(current)) {
+            if (current in visited) return true
+            val ct =
+                context.docsByNamespace[current.namespace]?.complexTypes?.firstOrNull {
+                    it.name == current.local
+                } ?: return false
+            val extension = ct.content as? XContent.Extension ?: return false
+            if (extension.simple) return false
+            current = extension.base
+        }
+        return false
     }
 
     /**

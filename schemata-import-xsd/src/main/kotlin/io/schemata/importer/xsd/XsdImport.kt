@@ -12,6 +12,7 @@ import io.schemata.importer.UnitType
 import io.schemata.importer.xsd.XsdImport.Claim
 import io.schemata.importer.xsd.XsdImport.ClaimKind
 import io.schemata.importer.xsd.XsdImport.Cycles
+import io.schemata.importer.xsd.XsdImport.ELEMENT_REF_PREFIX
 import io.schemata.importer.xsd.XsdImport.PLACEHOLDER
 import io.schemata.importer.xsd.XsdImport.PendingName
 import io.schemata.importer.xsd.XsdImport.diagnostic
@@ -194,7 +195,7 @@ object XsdImport {
                         ),
                     doc = doc.doc,
                     imports = (imports + context.extraImports).distinct(),
-                    declarations = declarations,
+                    declarations = declarations.map(context::resolveElementRefs),
                     sourcePath = doc.path,
                 )
             }
@@ -255,6 +256,7 @@ object XsdImport {
      * have claimed theirs; the NUL cannot begin any real name.
      */
     internal const val PLACEHOLDER = "\u0000"
+    internal const val ELEMENT_REF_PREFIX = "\u0000element:"
 
     /** [doc]'s effective `elementFormDefault`: `unqualified` when it does not say. */
     internal fun elementForm(doc: XsdDoc): String = doc.elementFormDefault ?: "unqualified"
@@ -713,17 +715,22 @@ object XsdImport {
          */
         private fun elementRecordName(original: String, line: Int): String {
             val base = ImportNames.upperCamel(original)
-            val name = context.recordNameFor(original)
-            if (name != base) {
-                context.diagnostics +=
-                    context.lossy(
-                        ImportCodes.APPROXIMATED,
-                        "element '$original'",
-                        "${context.topLevelNames.getValue(base)} already lowers to model '$base'; " +
-                            "imported as '$name'",
-                        line,
-                    )
+            val owner = context.topLevelNames[base]
+            if (owner == null || !owner.startsWith("element '")) {
+                context.elementRecordNames[original] = base
+                return base
             }
+            var n = 2
+            while (context.complexLowering.numbered(base, n, "") in context.topLevelNames) n++
+            val name = context.complexLowering.numbered(base, n, "")
+            context.elementRecordNames[original] = name
+            context.diagnostics +=
+                context.lossy(
+                    ImportCodes.APPROXIMATED,
+                    "element '$original'",
+                    "$owner already lowers to model '$base'; imported as '$name'",
+                    line,
+                )
             return name
         }
 
@@ -801,25 +808,39 @@ internal class ImportContext(
     /** Namespaces a head union's members live in, which the unit must import. */
     val extraImports = linkedSetOf<String>()
 
-    /** The record name each global element with an anonymous type was given, by element name. */
-    private val elementRecordNames = mutableMapOf<String, String>()
+    /**
+     * The record name each global element with an anonymous type was declared under, by element
+     * name, filled in as the elements claim their names.
+     */
+    val elementRecordNames = mutableMapOf<String, String>()
 
     /**
-     * The name of the record the global element [original] with an anonymous type lowers to: its
-     * UpperCamel name, or, when another element's record already took that, the name numbered
-     * from 2. A named type owning the name is left to [claimTopLevel] to report. A field that
-     * refers to the element may be lowered before the element's own declaration, so the answer is
-     * settled on the first ask and both agree on it.
+     * A reference to the record of the global element [local] before the elements have claimed
+     * their names, which depends on what the lowering before them took: resolved to the declared
+     * name by [resolveElementRefs] once they have.
      */
-    internal fun recordNameFor(original: String): String =
-        elementRecordNames.getOrPut(original) {
-            val base = ImportNames.upperCamel(original)
-            val owner = topLevelNames[base]
-            if (owner == null || !owner.startsWith("element '")) return@getOrPut base
-            var n = 2
-            while (complexLowering.numbered(base, n, "") in topLevelNames) n++
-            complexLowering.numbered(base, n, "")
-        }
+    internal fun pendingElementRef(local: String): UnitType.Ref =
+        UnitType.Ref(ELEMENT_REF_PREFIX + local)
+
+    /** [decl] with each pending element reference in its fields replaced by the declared name. */
+    internal fun resolveElementRefs(decl: UnitDecl): UnitDecl {
+        if (decl !is UnitRecord) return decl
+        fun resolve(type: UnitType): UnitType =
+            when (type) {
+                is UnitType.Ref ->
+                    if (type.name.startsWith(ELEMENT_REF_PREFIX)) {
+                        val local = type.name.removePrefix(ELEMENT_REF_PREFIX)
+                        UnitType.Ref(elementRecordNames[local] ?: ImportNames.upperCamel(local))
+                    } else type
+                is UnitType.ListOf -> type.copy(element = resolve(type.element))
+                is UnitType.MapOf -> type.copy(key = resolve(type.key), value = resolve(type.value))
+                is UnitType.Scalar -> type
+            }
+        return decl.copy(
+            fields = decl.fields.map { it.copy(type = resolve(it.type)) },
+            nested = decl.nested.map(::resolveElementRefs),
+        )
+    }
 
     /** Where a recursive content model was already noted, so it is noted once. */
     val recursionNoted = mutableSetOf<Pair<String, Int>>()
