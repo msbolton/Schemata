@@ -758,6 +758,73 @@ class XsdContentModelsTest {
     }
 
     @Test
+    fun `a group on the recursion path is cut not reported cyclic`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:group name="G"><xs:sequence>
+                <xs:element name="child" minOccurs="0"><xs:complexType><xs:complexContent>
+                  <xs:extension base="tns:BaseType"><xs:sequence><xs:element name="extra" type="xs:string"/></xs:sequence></xs:extension>
+                </xs:complexContent></xs:complexType></xs:element>
+              </xs:sequence></xs:group>
+              <xs:complexType name="BaseType"><xs:sequence>
+                <xs:element name="name" type="xs:string"/>
+                <xs:group ref="tns:G"/>
+              </xs:sequence></xs:complexType>
+              <xs:element name="base" type="tns:BaseType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val base = records(imported, "t").getValue("Base")
+        assertEquals(listOf("name", "child"), base.fields.map { it.name })
+        val child = base.fields.single { it.name == "child" }
+        assertEquals(UnitType.Ref("Base"), child.type)
+        assertTrue(child.nullable)
+        assertEquals(
+            1,
+            messages(imported).count {
+                it.startsWith("SCH2403") &&
+                    "recursive content model; 'Base' referenced by name" in it
+            },
+            messages(imported).toString(),
+        )
+        assertTrue(
+            imported.diagnostics.none { it.code.id == "SCH2401" },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
+    fun `a group chain back to itself through another group is cyclic`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:group name="G"><xs:sequence>
+                <xs:element name="a" type="xs:int"/>
+                <xs:group ref="tns:H"/>
+              </xs:sequence></xs:group>
+              <xs:group name="H"><xs:sequence>
+                <xs:element name="inner" minOccurs="0"><xs:complexType><xs:sequence>
+                  <xs:group ref="tns:G"/>
+                </xs:sequence></xs:complexType></xs:element>
+              </xs:sequence></xs:group>
+              <xs:complexType name="TType"><xs:sequence>
+                <xs:element name="s" type="xs:string"/>
+                <xs:group ref="tns:G"/>
+              </xs:sequence></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        assertTrue(
+            messages(imported).any {
+                it.startsWith("SCH2401") &&
+                    "group 'G' cannot be resolved; the reference chain is cyclic" in it
+            },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
     fun `a cyclic base chain reports the chain and not a recursive content model`() {
         val xml =
             """
