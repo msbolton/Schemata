@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:exc="urn:example:exchange:core" xmlns:nc="http://release.niem.gov/niem/niem-core/5.0/" xmlns:niem-xs="http://release.niem.gov/niem/proxy/niem-xs/5.0/" xmlns:structures="http://release.niem.gov/niem/structures/5.0/" xmlns:ism="urn:us:gov:ic:ism" targetNamespace="urn:example:exchange:core" elementFormDefault="qualified" version="1">
+  <xs:annotation><xs:documentation>Entities exchanged between systems, in the NIEM idiom: an abstract head with substituting elements, an augmentation point, security markings, and references by ID.</xs:documentation></xs:annotation>
+  <xs:import namespace="http://release.niem.gov/niem/structures/5.0/" schemaLocation="../include/niem/xsd/utility/structures.xsd"/>
+  <xs:import namespace="http://release.niem.gov/niem/niem-core/5.0/" schemaLocation="../include/niem/xsd/niem-core.xsd"/>
+  <xs:import namespace="http://release.niem.gov/niem/proxy/niem-xs/5.0/" schemaLocation="../include/niem/xsd/adapters/niem-xs.xsd"/>
+  <xs:import namespace="urn:us:gov:ic:ism" schemaLocation="../include/IC-TDF/Schema/ISM/IC-ISM.xsd"/>
+  <xs:element name="Entity" type="exc:EntityType" abstract="true"><xs:annotation><xs:documentation>A thing on the battlefield.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="AirEntity" type="exc:AirEntityType" substitutionGroup="exc:Entity"><xs:annotation><xs:documentation>An entity in the air.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="GroundEntity" type="exc:GroundEntityType" substitutionGroup="exc:Entity"><xs:annotation><xs:documentation>An entity on the ground.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="EntityName" type="nc:TextType"><xs:annotation><xs:documentation>A name of an entity.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="EntityAugmentationPoint" abstract="true"><xs:annotation><xs:documentation>An augmentation point for EntityType.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="AirEntityAugmentationPoint" abstract="true"><xs:annotation><xs:documentation>An augmentation point for AirEntityType.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="EntityAugmentation" type="exc:EntityAugmentationType" substitutionGroup="exc:EntityAugmentationPoint"><xs:annotation><xs:documentation>Additional information about an entity.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="CallSignText" type="exc:MarkedTextType"><xs:annotation><xs:documentation>A call sign, with its marking.</xs:documentation></xs:annotation></xs:element>
+  <xs:element name="AltitudeMeasure" type="nc:LengthMeasureType"><xs:annotation><xs:documentation>A height above sea level.</xs:documentation></xs:annotation></xs:element>
+  <xs:attribute name="relatedEntityRefs" type="xs:IDREFS"><xs:annotation><xs:documentation>Entities related to this one.</xs:documentation></xs:annotation></xs:attribute>
+  <xs:complexType name="EntityType" abstract="true">
+    <xs:annotation><xs:documentation>A data type for a thing on the battlefield.</xs:documentation></xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:Identification" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element ref="exc:EntityName" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element ref="exc:EntityAugmentationPoint" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute ref="exc:relatedEntityRefs" use="optional"/>
+        <xs:attribute ref="ism:classification" use="optional"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="AirEntityType">
+    <xs:annotation><xs:documentation>A data type for an entity in the air.</xs:documentation></xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="exc:EntityType">
+        <xs:sequence>
+          <xs:element ref="exc:AltitudeMeasure" minOccurs="0"/>
+          <xs:element ref="exc:AirEntityAugmentationPoint" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="GroundEntityType">
+    <xs:annotation><xs:documentation>A data type for an entity on the ground.</xs:documentation></xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="exc:EntityType">
+        <xs:sequence>
+          <xs:element ref="nc:Location" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="EntityAugmentationType">
+    <xs:annotation><xs:documentation>A data type for additional information about an entity.</xs:documentation></xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:AugmentationType">
+        <xs:sequence>
+          <xs:element ref="exc:CallSignText" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="MarkedTextType">
+    <xs:annotation><xs:documentation>A data type for text that carries a security marking.</xs:documentation></xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="niem-xs:string">
+        <xs:attributeGroup ref="ism:ISMResourceAttributeOptionGroup"/>
+        <xs:attribute ref="xml:lang" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+</xs:schema>

@@ -1,0 +1,10 @@
+# import=xsd
+warning[SCH2405] (lossy): complex type 'ObjectType': abstract type is not referenced; no union written
+ --> s.xsd:3:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2403] (lossy): complex type 'ThingType': extension of 'ObjectType' has no Schemata equivalent; base fields flattened into the model
+  --> s.xsd:10:1
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

@@ -1,0 +1,155 @@
+/// Entities exchanged between systems, in the NIEM idiom: an abstract head with substituting elements, an augmentation point, security markings, and references by ID.
+schema ex_core @xsd(namespace: "urn:example:exchange:core")
+
+import structures
+import niem_core
+import niem_xs
+import ic_ism
+
+/// A data type for a thing on the battlefield.
+union Entity = AirEntity | GroundEntity
+
+/// A data type for an entity in the air.
+model AirEntity {
+  /// A document-relative identifier for an XML element.
+  id                        string?                                                    @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                       string?                                                    @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                       string?                                                    @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                  string[]?                                                  @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata     string[]?                                                  @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id               int64?                                                     { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                map<string, string>                                        @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// An identification to represent an identity.
+  identification            niem_core.Identification[]                                 @xsd(name: "Identification")
+  /// A name of an entity.
+  entity_name               niem_core.Text[]                                           @xsd(name: "EntityName")
+  /// An augmentation point for EntityType.
+  entity_augmentation_point EntityAugmentation[]                                       @xsd(name: "EntityAugmentationPoint")
+  /// Entities related to this one.
+  related_entity_refs       string[]?                                                  @xsd(name: "relatedEntityRefs") @xsd(list) @xsd(attribute)
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification            cv_enum_ism_classification_all.CVEnumISMClassificationAll? @xsd(attribute)
+  /// A height above sea level.
+  altitude_measure          niem_core.LengthMeasure?                                   @xsd(name: "AltitudeMeasure")
+
+  @@xsd(name: "AirEntity")
+}
+
+/// A data type for an entity on the ground.
+model GroundEntity {
+  /// A document-relative identifier for an XML element.
+  id                        string?                                                    @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                       string?                                                    @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                       string?                                                    @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                  string[]?                                                  @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata     string[]?                                                  @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id               int64?                                                     { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                map<string, string>                                        @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// An identification to represent an identity.
+  identification            niem_core.Identification[]                                 @xsd(name: "Identification")
+  /// A name of an entity.
+  entity_name               niem_core.Text[]                                           @xsd(name: "EntityName")
+  /// An augmentation point for EntityType.
+  entity_augmentation_point EntityAugmentation[]                                       @xsd(name: "EntityAugmentationPoint")
+  /// Entities related to this one.
+  related_entity_refs       string[]?                                                  @xsd(name: "relatedEntityRefs") @xsd(list) @xsd(attribute)
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification            cv_enum_ism_classification_all.CVEnumISMClassificationAll? @xsd(attribute)
+  /// A geospatial location.
+  location                  niem_core.Location?                                        @xsd(name: "Location")
+
+  @@xsd(name: "GroundEntity")
+}
+
+/// A data type for additional information about an entity.
+model EntityAugmentation {
+  /// A document-relative identifier for an XML element.
+  id             string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref            string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri            string?             @xsd(attribute)
+  attributes     map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A call sign, with its marking.
+  call_sign_text MarkedText[]        @xsd(name: "CallSignText")
+
+  @@xsd(name: "EntityAugmentation")
+}
+
+/// A data type for text that carries a security marking.
+model MarkedText {
+  value                 string
+  /// This attribute is used to
+  /// designate which element has the ISM attributes representing the classification
+  /// for the entire resource. Every document must have at least one element with this
+  /// indicator as true. It should be rare that a document has more than one. Mainly
+  /// this would occur in some sort of aggregation schema. In the aggregation case,
+  /// the first @resourceElement attribute in XML document order is the one used for
+  /// all constraint rules.
+  resource_element      bool?                                                    @xsd(name: "resourceElement") @xsd(attribute)
+  /// The ISM rule sets a document
+  /// complies with
+  /// This attribute is used at
+  /// the resource level. The permissible values for this simple type are defined in
+  /// the ISM Complies With CVE: CVEnumISMCompliesWith.xml
+  complies_with         cv_enum_ism_complies_with.CVEnumISMCompliesWithValues[]? { maxItems 4 } @xsd(name: "compliesWith") @xsd(list) @xsd(attribute)
+  /// The date when ISM metadata
+  /// was added or updated
+  /// This date is used by some
+  /// constraint rules to determine if ISM markings are valid. For example, this date
+  /// is used to check deprecation of some marks.
+  create_date           date?                                                    @xsd(name: "createDate") @xsd(attribute)
+  /// Specific exemptions within
+  /// an ISM rule set that are claimed for a document
+  /// This attribute is used on
+  /// the resource node of a document in conjunction with @compliesWith. The
+  /// permissible values for this simple type are defined in the ISM Exempt From CVE:
+  /// CVEnumISMExemptFrom.xml
+  exempt_from           cv_enum_ism_exempt_from.CVEnumISMExemptFromValues[]?     { maxItems 2 } @xsd(name: "exemptFrom") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that there is no classification
+  /// by compilation across any combination of portions extracted from the document.
+  no_aggregation        bool?                                                    @xsd(name: "noAggregation") @xsd(attribute)
+  lang                  string?                                                  @xsd(attribute)
+  /// A document-relative identifier for an XML element.
+  id                    string?                                                  @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?                                                  @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?                                                  @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?                                                @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?                                                @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?                                                   { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+}

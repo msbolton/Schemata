@@ -1,0 +1,2 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMCATFGIProtected Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMCATFGIProtected.xml CVE it is based on, instead of here.
+schema cv_enum_ismcatfgi_protected @xsd(namespace: "urn:us:gov:ic:cvenum:ismcat:fgiprotected")

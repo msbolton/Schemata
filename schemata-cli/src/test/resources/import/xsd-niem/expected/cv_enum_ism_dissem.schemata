@@ -1,0 +1,37 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMDissem Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMDissem.xml CVE it is based on, instead of here.
+schema cv_enum_ism_dissem @xsd(namespace: "urn:us:gov:ic:cvenum:ism:dissem")
+
+/// (U) All currently valid Dissemination controls from the published register. This CVE is used by @ism:disseminationControls.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMDissem.xml
+enum CVEnumISMDissemValues {
+  /// RISK SENSITIVE
+  @xsd(name: "RS") rs
+  /// FOR OFFICIAL USE ONLY
+  @xsd(name: "FOUO") fouo
+  /// ORIGINATOR CONTROLLED
+  @xsd(name: "OC") oc
+  /// ORIGINATOR CONTROLLED US GOVERNMENT
+  @xsd(name: "OC-USGOV") oc_usgov
+  /// CONTROLLED IMAGERY
+  @xsd(name: "IMC") imc
+  /// NOT RELEASABLE TO FOREIGN NATIONALS
+  @xsd(name: "NF") nf
+  /// CAUTION-PROPRIETARY INFORMATION INVOLVED
+  @xsd(name: "PR") pr
+  /// AUTHORIZED FOR RELEASE TO
+  @xsd(name: "REL") rel
+  /// RELEASABLE BY INFORMATION DISCLOSURE OFFICIAL
+  @xsd(name: "RELIDO") relido
+  /// EYES ONLY
+  @xsd(name: "EYES") eyes
+  /// DEA SENSITIVE
+  @xsd(name: "DSEN") dsen
+  /// FOREIGN INTELLIGENCE SURVEILLANCE ACT
+  @xsd(name: "FISA") fisa
+  /// AUTHORIZED FOR DISPLAY BUT NOT RELEASE TO
+  @xsd(name: "DISPLAYONLY") displayonly
+}

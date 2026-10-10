@@ -90,12 +90,12 @@ class ImportCommandTest {
     }
 
     @Test
-    fun `an unresolved import exits 1`() {
+    fun `an import found nowhere warns and exits 2`() {
         write("s.xsd", unresolvedImport)
         val out = File(dir, "out")
         val r = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
-        assertEquals(1, r.statusCode, r.stderr)
-        assertTrue(r.stderr.contains("error[SCH2401]"), r.stderr)
+        assertEquals(2, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("warning[SCH2405]"), r.stderr)
     }
 
     @Test

@@ -26,7 +26,7 @@ object ImportTypes {
     private val numeric = setOf("int32", "int64", "float32", "float64", "decimal")
     private val lengthBearing = setOf("string", "bytes")
 
-    data class Mapped(val type: UnitType.Scalar, val notes: List<String>)
+    data class Mapped(val type: UnitType, val notes: List<String>)
 
     private fun scalar(builtin: String, vararg refinements: Pair<String, String>) =
         UnitType.Scalar(builtin, refinements.toList())
@@ -62,10 +62,10 @@ object ImportTypes {
             "anySimpleType",
             "anyAtomicType",
             "ENTITY",
-            "ENTITIES",
-            "IDREFS",
-            "NMTOKENS",
         )
+
+    // The three list builtins: whitespace-separated lists of strings, so a list of string.
+    private val listNames = setOf("ENTITIES", "IDREFS", "NMTOKENS")
 
     /** `null` when [local] is not an XSD builtin local name. */
     fun builtin(local: String): Mapped? =
@@ -89,6 +89,11 @@ object ImportTypes {
             local == "time" -> Mapped(scalar("time"), emptyList())
             local == "dateTime" -> Mapped(scalar("instant"), emptyList())
             local == "duration" -> Mapped(scalar("duration"), emptyList())
+            local in listNames ->
+                Mapped(
+                    UnitType.ListOf(scalar("string"), false, emptyList()),
+                    listOf("xs:$local imported as a list of string"),
+                )
             local in otherBuiltins ->
                 Mapped(scalar("string"), listOf("xs:$local imported as string"))
             else -> null

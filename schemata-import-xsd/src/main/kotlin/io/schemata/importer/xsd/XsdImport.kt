@@ -9,9 +9,11 @@ import io.schemata.importer.UnitDecl
 import io.schemata.importer.UnitField
 import io.schemata.importer.UnitRecord
 import io.schemata.importer.UnitType
+import io.schemata.importer.UnitUnion
 import io.schemata.importer.xsd.XsdImport.Claim
 import io.schemata.importer.xsd.XsdImport.ClaimKind
 import io.schemata.importer.xsd.XsdImport.Cycles
+import io.schemata.importer.xsd.XsdImport.ELEMENT_REF_PREFIX
 import io.schemata.importer.xsd.XsdImport.PLACEHOLDER
 import io.schemata.importer.xsd.XsdImport.PendingName
 import io.schemata.importer.xsd.XsdImport.diagnostic
@@ -24,6 +26,8 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import io.schemata.target.Names
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * A type's resolved Schemata name, the `@xsd(name)` annotation it needs (when its name can be
@@ -53,13 +57,15 @@ internal sealed interface TypeNote {
 object XsdImport {
     fun lower(docs: List<XsdDoc>, namespaceOverride: String?): Imported {
         val diagnostics = mutableListOf<Diagnostic>()
+        val inherited: MutableSet<Diagnostic> = Collections.newSetFromMap(IdentityHashMap())
         val names = LinkedHashMap<XsdDoc, String>()
         val claimed = mutableMapOf<String, XsdDoc>()
         val live = mutableListOf<XsdDoc>()
 
         docs.forEachIndexed { index, doc ->
             // Two documents claiming one foreign namespace without including each other would
-            // declare it twice; a urn:schemata: one is caught below, as a namespace name collision.
+            // declare it twice; the first is kept and the second dropped. A urn:schemata: one is
+            // caught below, as a namespace name collision.
             val tn = doc.targetNamespace
             val sameUri =
                 live.firstOrNull {
@@ -67,7 +73,12 @@ object XsdImport {
                 }
             if (sameUri != null) {
                 diagnostics +=
-                    unresolved(doc.path, 1, "namespace '$tn' is also declared by ${sameUri.path}")
+                    dropped(
+                        doc.path,
+                        1,
+                        doc.path,
+                        "namespace '$tn' is also declared by ${sameUri.path}; dropped",
+                    )
                 return@forEachIndexed
             }
             val name =
@@ -107,19 +118,15 @@ object XsdImport {
         }
         val cycles = Cycles(cyclicGroups(docsByNamespace), cyclicAttributeGroups(docsByNamespace))
         val heads = Heads(live)
+        val propertyElements = elementRefs(live)
+        val elementRecords = ElementRecords()
 
         val units =
             live.map { doc ->
                 val imports = mutableListOf<String>()
                 doc.imports.forEach { imp ->
                     val target = docsByNamespace[imp.namespace]
-                    if (target == null) {
-                        val what =
-                            imp.namespace?.let { "import '$it'" } ?: "import with no namespace"
-                        diagnostics += unresolved(doc.path, imp.line, "$what cannot be resolved")
-                    } else if (target !== doc) {
-                        imports += names.getValue(target)
-                    }
+                    if (target != null && target !== doc) imports += names.getValue(target)
                 }
                 doc.dropped.forEach { (construct, line) ->
                     diagnostics += dropped(doc.path, line, "schema", "$construct dropped")
@@ -150,6 +157,10 @@ object XsdImport {
                         cycles,
                         heads,
                         diagnostics,
+                        doc.unresolvedImports,
+                        inherited,
+                        propertyElements,
+                        elementRecords,
                     )
                 context.simpleTypes = SimpleTypes(context)
                 context.choiceLowering = ChoiceLowering(context)
@@ -197,7 +208,30 @@ object XsdImport {
                     sourcePath = doc.path,
                 )
             }
-        return Imported(units, diagnostics)
+        // Every namespace's elements have claimed their record names by now, so a reference to one,
+        // from its own namespace or another, can name the record it was declared under.
+        val resolved =
+            units.map { unit ->
+                unit.copy(declarations = unit.declarations.map(elementRecords::resolve))
+            }
+        // A note on a component many types share (an attribute flattened into every derived
+        // type) is reported once. The note reported while lowering the declaring type wins over
+        // a copy made while flattening it into a derived type, since only it names the right
+        // type; among equals the first wins, and the survivors keep their emission order.
+        val survivors =
+            diagnostics
+                .withIndex()
+                .sortedBy { it.value in inherited }
+                .distinctBy {
+                    Triple(
+                        it.value.code.id,
+                        it.value.span?.let { s -> s.file to s.startLine },
+                        it.value.message.substringAfter(": "),
+                    )
+                }
+                .sortedBy { it.index }
+                .map { it.value }
+        return Imported(resolved, survivors)
     }
 
     /**
@@ -255,6 +289,12 @@ object XsdImport {
      */
     internal const val PLACEHOLDER = "\u0000"
 
+    /**
+     * Begins the placeholder a reference to a global element's record holds until every namespace's
+     * elements have claimed their record names; see [ElementRecords].
+     */
+    internal const val ELEMENT_REF_PREFIX = "\u0000element:"
+
     /** [doc]'s effective `elementFormDefault`: `unqualified` when it does not say. */
     internal fun elementForm(doc: XsdDoc): String = doc.elementFormDefault ?: "unqualified"
 
@@ -275,24 +315,22 @@ object XsdImport {
     internal data class Cycles(val groups: Set<QName>, val attributeGroups: Set<QName>)
 
     /**
-     * Every group that reaches itself: through a nested group reference, an element's anonymous
-     * type, or a complex type's derivation base. Expanding one in place would never end.
+     * Every group that reaches itself: through a nested group reference, directly or inside an
+     * element's anonymous type. Expanding one in place would never end. An anonymous type's
+     * extension base is not followed: lowering it inside a type it extends is cut where it recurs
+     * (the inline element then names the base's record), so a group on that path ends too.
      */
     private fun cyclicGroups(docsByNamespace: Map<String?, XsdDoc>): Set<QName> {
         val groups = mutableMapOf<QName, XContent>()
-        val types = mutableMapOf<QName, XContent>()
         docsByNamespace.values.forEach { d ->
             d.groups.forEach { groups[QName(d.targetNamespace, it.name)] = it.content }
-            d.complexTypes.forEach { ct ->
-                ct.name?.let { types[QName(d.targetNamespace, it)] = ct.content }
-            }
         }
-        // A node is a group ("g") or a named complex type ("t"); edges follow content.
-        fun edges(content: XContent): Set<Pair<Char, QName>> {
-            fun particles(ps: List<XParticle>): Set<Pair<Char, QName>> =
+        // The groups [content] references, in it or in the anonymous types of its elements.
+        fun edges(content: XContent): Set<QName> {
+            fun particles(ps: List<XParticle>): Set<QName> =
                 ps.flatMap { p ->
                         when (p) {
-                            is XParticle.GroupRef -> setOf('g' to p.ref)
+                            is XParticle.GroupRef -> setOf(p.ref)
                             is XParticle.Nested -> edges(p.content)
                             is XParticle.Element ->
                                 p.element.inlineComplex?.let { edges(it.content) } ?: emptySet()
@@ -304,20 +342,19 @@ object XsdImport {
                 is XContent.Sequence -> particles(content.particles)
                 is XContent.Choice -> particles(content.particles)
                 is XContent.All -> particles(content.particles)
-                is XContent.Extension -> particles(content.particles) + ('t' to content.base)
+                is XContent.Extension -> particles(content.particles)
                 is XContent.Restriction -> particles(content.particles)
                 XContent.Empty -> emptySet()
             }
         }
         fun reachesItself(start: QName): Boolean {
-            val seen = mutableSetOf<Pair<Char, QName>>()
+            val seen = mutableSetOf<QName>()
             val queue = ArrayDeque(edges(groups.getValue(start)))
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
-                if (node == ('g' to start)) return true
+                if (node == start) return true
                 if (!seen.add(node)) continue
-                val content = (if (node.first == 'g') groups else types)[node.second] ?: continue
-                queue += edges(content)
+                queue += edges(groups[node] ?: continue)
             }
             return false
         }
@@ -599,6 +636,15 @@ object XsdImport {
             context.heads.types[headQName]?.let { head ->
                 return context.choiceLowering.typeHeadDeclaration(ct, original, info, head)
             }
+            if (headQName in context.heads.unreferenced) {
+                context.diagnostics +=
+                    context.lossy(
+                        ImportCodes.DROPPED,
+                        "complex type '$original'",
+                        "abstract type is not referenced; no union written",
+                        ct.line,
+                    )
+            }
             val siblings = mutableListOf<UnitDecl>()
             val content = ct.content
             if (content is XContent.Choice && context.choiceLowering.isUnionType(ct)) {
@@ -713,10 +759,14 @@ object XsdImport {
         private fun elementRecordName(original: String, line: Int): String {
             val base = ImportNames.upperCamel(original)
             val owner = context.topLevelNames[base]
-            if (owner == null || !owner.startsWith("element '")) return base
+            if (owner == null || !owner.startsWith("element '")) {
+                context.elementRecords.declare(QName(context.doc.targetNamespace, original), base)
+                return base
+            }
             var n = 2
             while (context.complexLowering.numbered(base, n, "") in context.topLevelNames) n++
             val name = context.complexLowering.numbered(base, n, "")
+            context.elementRecords.declare(QName(context.doc.targetNamespace, original), name)
             context.diagnostics +=
                 context.lossy(
                     ImportCodes.APPROXIMATED,
@@ -742,6 +792,7 @@ object XsdImport {
             context.reportIdentityConstraints(el, where)
             val type = el.type
             val simple = "root element of simple type dropped"
+            val property = QName(context.doc.targetNamespace, name) in context.propertyElements
             when {
                 type == null -> {
                     if (el.inlineSimple != null) {
@@ -753,15 +804,17 @@ object XsdImport {
                     context.diagnostics +=
                         context.lossy(ImportCodes.DROPPED, where, simple, el.line)
                 type.namespace != context.doc.targetNamespace ->
-                    context.diagnostics +=
-                        context.lossy(
-                            ImportCodes.DROPPED,
-                            where,
-                            "root element of a type in another namespace dropped",
-                            el.line,
-                        )
+                    if (!property) {
+                        context.diagnostics +=
+                            context.lossy(
+                                ImportCodes.DROPPED,
+                                where,
+                                "root element of a type in another namespace dropped",
+                                el.line,
+                            )
+                    }
                 context.doc.complexTypes.any { it.name == type.local } ->
-                    if (!roots.add(type)) {
+                    if (!roots.add(type) && !property) {
                         context.diagnostics +=
                             context.lossy(
                                 ImportCodes.DROPPED,
@@ -779,6 +832,63 @@ object XsdImport {
 }
 
 /**
+ * The record each global element with an anonymous type is declared under, shared by every
+ * namespace's lowering. The name depends on what the lowering before the elements took (a hoisted
+ * member, another element lowering to the same name), so a reference to such an element, which may
+ * be lowered before the element in its own namespace or in another, holds a placeholder until every
+ * namespace has lowered, and [resolve] then puts the declared name in its place.
+ */
+internal class ElementRecords {
+    private val names = mutableMapOf<QName, String>()
+
+    /** Each placeholder's element and, for one in another namespace, that namespace's name. */
+    private val references = mutableListOf<Pair<QName, String?>>()
+
+    /** Records that the global element [element]'s type is declared as the record [name]. */
+    fun declare(element: QName, name: String) {
+        names[element] = name
+    }
+
+    /**
+     * A placeholder for the record of the global element [element], qualified by [namespace] when
+     * that is not the referring unit's own.
+     */
+    fun reference(element: QName, namespace: String?): UnitType.Ref {
+        references += element to namespace
+        return UnitType.Ref(ELEMENT_REF_PREFIX + (references.size - 1))
+    }
+
+    /** [decl] with each placeholder in it replaced by the name its element's record took. */
+    fun resolve(decl: UnitDecl): UnitDecl =
+        when (decl) {
+            is UnitRecord ->
+                decl.copy(
+                    fields = decl.fields.map { it.copy(type = resolve(it.type)) },
+                    nested = decl.nested.map(::resolve),
+                )
+            is UnitUnion ->
+                decl.copy(members = decl.members.map { it.copy(type = resolve(it.type)) })
+            else -> decl
+        }
+
+    private fun resolve(type: UnitType): UnitType =
+        when (type) {
+            is UnitType.Ref -> {
+                val index = type.name.removePrefix(ELEMENT_REF_PREFIX).toIntOrNull()
+                if (!type.name.startsWith(ELEMENT_REF_PREFIX) || index == null) type
+                else {
+                    val (element, namespace) = references[index]
+                    val name = names[element] ?: ImportNames.upperCamel(element.local)
+                    UnitType.Ref(if (namespace == null) name else "$namespace.$name")
+                }
+            }
+            is UnitType.ListOf -> type.copy(element = resolve(type.element))
+            is UnitType.MapOf -> type.copy(key = resolve(type.key), value = resolve(type.value))
+            is UnitType.Scalar -> type
+        }
+}
+
+/**
  * The state one namespace's lowering shares across the simple-type, choice, and complex-type
  * concerns: the document set, the name claims, the diagnostics list, the current document, and the
  * heads, with the three concerns that call one another through it.
@@ -792,12 +902,37 @@ internal class ImportContext(
     val cycles: Cycles,
     val heads: Heads,
     val diagnostics: MutableList<Diagnostic>,
+    val unresolvedImports: List<String> = emptyList(),
+    /**
+     * The notes reported while a base's fields were flattened into a derived type, as opposed to
+     * while the base itself was lowered: the same note then comes up once per derived type, and
+     * only the base's own copy says where the construct is declared. Shared by every document.
+     */
+    val inherited: MutableSet<Diagnostic> = Collections.newSetFromMap(IdentityHashMap()),
+    /**
+     * The global elements some other element uses by `ref`: properties of content models, not
+     * roots, so that only the first of a type marks a root and the rest are not reported as lost.
+     */
+    val propertyElements: Set<QName> = emptySet(),
+    /** The record names the global elements with anonymous types are declared under. */
+    val elementRecords: ElementRecords,
 ) {
     lateinit var simpleTypes: SimpleTypes
     lateinit var choiceLowering: ChoiceLowering
     lateinit var complexLowering: ComplexLowering
 
-    /** Namespaces a head union's members live in, which the unit must import. */
+    /** The result of [block], with the diagnostics it reported marked as [inherited]. */
+    fun <T> inheriting(block: () -> T): T {
+        val start = diagnostics.size
+        val result = block()
+        if (diagnostics.size > start) inherited += diagnostics.subList(start, diagnostics.size)
+        return result
+    }
+
+    /**
+     * Namespaces a head union's members, or the records of elements referenced from here, live in,
+     * which the unit must import.
+     */
     val extraImports = linkedSetOf<String>()
 
     /**
@@ -1048,8 +1183,21 @@ internal class ImportContext(
             code,
             "$where: $tail",
             Span(sourcePath, l, 1, l, 1),
-            ImportCodes.helpFor(code),
+            missingImportsHelp(code, tail) ?: ImportCodes.helpFor(code),
         )
+    }
+
+    /**
+     * For a reference that cannot be resolved while imports were dropped as not found, the likely
+     * cause: the help names those imports. `null` when [code] and [tail] are some other problem.
+     */
+    private fun missingImportsHelp(code: DiagnosticCode, tail: String): String? {
+        if (code != ImportCodes.UNRESOLVED || unresolvedImports.isEmpty()) return null
+        if (!tail.endsWith("cannot be resolved")) return null
+        val names = unresolvedImports.joinToString(", ") { "'$it'" }
+        return if (unresolvedImports.size == 1)
+            "import $names was not found; add the schema that declares it"
+        else "imports $names were not found; add the schemas that declare them"
     }
 
     /** A facet [Note] at [path] (the simple type's own document, which may differ from [doc]). */

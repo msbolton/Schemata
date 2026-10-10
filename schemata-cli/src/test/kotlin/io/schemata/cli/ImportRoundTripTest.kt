@@ -55,6 +55,18 @@ class ImportRoundTripTest {
      */
     private val protoRename = Regex("SCH2402 .*: renamed to '.*'")
 
+    /** An xsd import names a schema after its file when the Schemata source never declared one. */
+    private val xsdSchemaName = Regex("SCH2402 .*: schema name '.*' was derived from the file name")
+
+    /**
+     * A union or element member's own name is dropped, and the regenerated element is named after
+     * its type.
+     */
+    private val xsdMemberName =
+        Regex(
+            "SCH2403 (union|element) '.*': member element name '.*' has no Schemata equivalent and is dropped; .*"
+        )
+
     @TestFactory
     fun `importing a target's output regenerates it byte for byte`(): List<DynamicTest> =
         formats.flatMap { (format, target, importer) ->
@@ -113,9 +125,54 @@ class ImportRoundTripTest {
      */
     @TestFactory
     fun `imported proto cases regenerate their proto byte for byte`(): List<DynamicTest> =
-        File("src/test/resources/import")
-            .listFiles { f -> f.isDirectory && f.name.startsWith("proto-") }!!
-            .filter { File(it, "expected").isDirectory }
+        importedCases(
+            { it.name.startsWith("proto-") },
+            "proto",
+            ProtoTarget,
+            ProtoImporter,
+            listOf(protoRename),
+            File("src/test/resources/import"),
+        )
+
+    /**
+     * The `.schemata` files of every imported xsd case's `expected/` tree compile to xsd, import
+     * back, and regenerate that xsd byte for byte. The notes an xsd round trip may carry are the
+     * schema name derived from a file name and the dropped name of a union or element member, which
+     * the regenerated xsd names after its type.
+     */
+    @TestFactory
+    fun `imported xsd cases regenerate their xsd byte for byte`(): List<DynamicTest> =
+        importedCases(
+            { case ->
+                val inputs =
+                    case
+                        .walkTopDown()
+                        .filter {
+                            it.isFile &&
+                                it.extension != "txt" &&
+                                !it.relativeTo(case).path.startsWith("expected") &&
+                                !it.relativeTo(case).path.startsWith("include")
+                        }
+                        .toList()
+                inputs.isNotEmpty() && inputs.all { it.extension == "xsd" }
+            },
+            "xsd",
+            XsdTarget,
+            XsdImporter,
+            listOf(xsdSchemaName, xsdMemberName),
+            File("src/test/resources/import"),
+        )
+
+    private fun importedCases(
+        selects: (File) -> Boolean,
+        format: String,
+        target: Target<*>,
+        importer: Importer,
+        allowed: List<Regex>,
+        root: File,
+    ): List<DynamicTest> =
+        root
+            .listFiles { f -> f.isDirectory && File(f, "expected").isDirectory && selects(f) }!!
             .sortedBy { it.name }
             .map { case ->
                 DynamicTest.dynamicTest(case.name) {
@@ -135,17 +192,24 @@ class ImportRoundTripTest {
                     roundTrip(
                         case.name,
                         sources,
-                        "proto",
-                        ProtoTarget,
-                        ProtoImporter,
-                        protoRename,
+                        format,
+                        target,
+                        importer,
+                        allowed,
                         File(expected, "sql-errors.txt"),
                     )
                 }
             }
 
     private fun check(case: File, format: String, target: Target<*>, importer: Importer) =
-        roundTrip(case.name, TestSources.of(case), format, target, importer)
+        roundTrip(
+            case.name,
+            TestSources.of(case),
+            format,
+            target,
+            importer,
+            listOfNotNull(tolerated[format]),
+        )
 
     private fun roundTrip(
         name: String,
@@ -153,7 +217,7 @@ class ImportRoundTripTest {
         format: String,
         target: Target<*>,
         importer: Importer,
-        allowed: Regex? = tolerated[format],
+        allowed: List<Regex>,
         sqlErrorsFile: File? = null,
     ) {
         val original = Pipeline.compile(sources, listOf(target))
@@ -164,7 +228,7 @@ class ImportRoundTripTest {
             emptyList(),
             imported.diagnostics
                 .map { "${it.code.id} ${it.message}" }
-                .filterNot { allowed?.matches(it) == true },
+                .filterNot { line -> allowed.any { it.matches(line) } },
             "import of ${name}",
         )
         val again =

@@ -1,0 +1,21 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMExemptFrom Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMExemptFrom.xml CVE it is based on, instead of here.
+schema cv_enum_ism_exempt_from @xsd(namespace: "urn:us:gov:ic:cvenum:ism:exemptfrom")
+
+/// (U) Current rule set names that documents may comply
+/// with. This CVE is used by @ism:exemptFrom.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMExemptFrom.xml
+enum CVEnumISMExemptFromValues {
+  /// Document claims exemption from ICD-710 rules mandating the
+  /// use of Foreign Disclosure and Release markings that have been encoded in ISM.
+  /// Currently, the requirement for FD&R is only mandatory for Disseminated Analytic
+  /// Product; however, it is strongly encouraged otherwise.
+  @xsd(name: "IC_710_MANDATORY_FDR") ic_710_mandatory_fdr
+  /// Document claims exemption from the rules in DoD5230.24
+  /// requiring DoD Distribution Statements that have been encoded into
+  /// ISM.
+  @xsd(name: "DOD_DISTRO_STATEMENT") dod_distro_statement
+}

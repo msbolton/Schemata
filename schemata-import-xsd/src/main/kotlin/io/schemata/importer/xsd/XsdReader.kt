@@ -21,7 +21,7 @@ data class ReadResult(val doc: XsdDoc?, val diagnostics: List<Diagnostic>)
 /** Reads one `.xsd` into an [XsdDoc]; only the XML Schema vocabulary is kept, with line numbers. */
 object XsdReader {
     const val XS = "http://www.w3.org/2001/XMLSchema"
-    private const val XML = "http://www.w3.org/XML/1998/namespace"
+    const val XML = "http://www.w3.org/XML/1998/namespace"
 
     /**
      * The text of an `.xsd` file's [bytes]: UTF-8, as an XML document is unless it says otherwise,

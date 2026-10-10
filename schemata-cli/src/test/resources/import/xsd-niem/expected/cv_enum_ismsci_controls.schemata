@@ -1,0 +1,35 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMSCIControls Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMSCIControls.xml CVE it is based on, instead of here.
+schema cv_enum_ismsci_controls @xsd(namespace: "urn:us:gov:ic:cvenum:ism:scicontrols")
+
+/// (U) All currently valid SCI controls from the published register. This CVE is used by @ism:SCIcontrols.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMSCIControls.xml
+enum CVEnumISMSCIControlsValues {
+  /// HCS
+  @xsd(name: "HCS") hcs
+  /// HCS-O
+  @xsd(name: "HCS-O") hcs_o
+  /// HCS-P
+  @xsd(name: "HCS-P") hcs_p
+  /// RESERVE
+  @xsd(name: "RSV") rsv
+  /// SPECIAL INTELLIGENCE
+  @xsd(name: "SI") si
+  /// ECRU
+  @xsd(name: "SI-EU") si_eu
+  /// SI-GAMMA
+  @xsd(name: "SI-G") si_g
+  /// NONBOOK
+  @xsd(name: "SI-NK") si_nk
+  /// TALENT KEYHOLE
+  @xsd(name: "TK") tk
+  /// BLUEFISH
+  @xsd(name: "TK-BLFH") tk_blfh
+  /// IDITAROD
+  @xsd(name: "TK-IDIT") tk_idit
+  /// KANDIK
+  @xsd(name: "TK-KAND") tk_kand
+}
