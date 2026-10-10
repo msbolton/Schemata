@@ -10,7 +10,8 @@ include/niem/xsd/ (structures.xsd, adapters/niem-xs.xsd, niem-core.xsd)
   xs:import, so those two files are not part of this case.
 
 include/IC-TDF/Schema/ (ISM/IC-ISM.xsd, ISM/CVEGenerated, ISMCAT/CVEGenerated)
-  IC-TDF 2022, ISM/IC-ISM.xsd and the generated code lists it imports: 12
+  IC-TDF, ISM/IC-ISM.xsd at the version it states itself
+  (version="201609.201707"), and the generated code lists it imports: 12
   under ISM/CVEGenerated and 4 under ISMCAT/CVEGenerated (CVEnumISMCATRelTo,
   CVEnumISMCATOwnerProducer, CVEnumISMCATFGIProtected,
   CVEnumISMCATFGIOpen). The files are unchanged.

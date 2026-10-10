@@ -410,13 +410,13 @@ internal class ComplexLowering(private val context: ImportContext) {
         claimed: MutableMap<String, Claim>,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): List<UnitField> {
         val result = mutableListOf<UnitField>()
         expandParticles(particles, whereCollision).forEach { particle ->
             when (particle) {
                 is XParticle.Element ->
-                    field(particle.element, claimed, whereCollision, nested, siblings, visited)
+                    field(particle.element, claimed, whereCollision, nested, siblings, enclosing)
                         ?.let { result += it }
                 is XParticle.Any ->
                     anyField(particle, claimed, whereCollision)?.let { result += it }
@@ -435,7 +435,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                                         claimed,
                                         nested,
                                         siblings,
-                                        visited,
+                                        enclosing,
                                     )
                             is XContent.Sequence ->
                                 if (particle.minOccurs == 1 && particle.maxOccurs == 1) {
@@ -447,7 +447,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                                             claimed,
                                             nested,
                                             siblings,
-                                            visited,
+                                            enclosing,
                                         )
                                 } else {
                                     groupField(
@@ -457,7 +457,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                                             claimed,
                                             nested,
                                             siblings,
-                                            visited,
+                                            enclosing,
                                         )
                                         ?.let { result += it }
                                 }
@@ -478,7 +478,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                                         claimed,
                                         nested,
                                         siblings,
-                                        visited,
+                                        enclosing,
                                     )
                             }
                             else -> Unit
@@ -503,7 +503,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         claimed: MutableMap<String, Claim>,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): UnitField? {
         val first =
             content.particles.firstNotNullOfOrNull {
@@ -551,7 +551,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 ownClaimed,
                 ownNested,
                 siblings,
-                visited,
+                enclosing,
             )
         nested +=
             UnitRecord(
@@ -823,7 +823,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         claimed: MutableMap<String, Claim>,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): List<UnitField> {
         // A restriction of xs:anyType is exactly its own content.
         if (res.base != QName(ImportTypes.XS, "anyType")) {
@@ -843,7 +843,7 @@ internal class ComplexLowering(private val context: ImportContext) {
             claimed,
             nested,
             siblings,
-            visited,
+            enclosing,
         )
     }
 
@@ -852,10 +852,10 @@ internal class ComplexLowering(private val context: ImportContext) {
         ct: XComplexType,
         name: String,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): UnitRecord {
         val (fields, nested, annotations) =
-            fieldsAndNested(ct, "complex type '$name'", name, siblings, visited)
+            fieldsAndNested(ct, "complex type '$name'", name, siblings, enclosing)
         return UnitRecord(name, fields, nested, ct.doc, annotations)
     }
 
@@ -868,7 +868,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         elementName: String,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): UnitType.Ref {
         val name = ImportNames.upperCamel(elementName)
         val content = ct.content
@@ -882,10 +882,10 @@ internal class ComplexLowering(private val context: ImportContext) {
                     ct.doc,
                     siblings,
                     checkMismatch = true,
-                    visited = visited,
+                    enclosing = enclosing,
                 )
         } else {
-            nested += buildNestedRecord(ct, name, siblings, visited)
+            nested += buildNestedRecord(ct, name, siblings, enclosing)
         }
         return UnitType.Ref(name)
     }
@@ -895,10 +895,10 @@ internal class ComplexLowering(private val context: ImportContext) {
         ct: XComplexType,
         name: String,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName> = emptySet(),
+        enclosing: Set<QName> = emptySet(),
     ): UnitRecord {
         val (fields, nested, annotations) =
-            fieldsAndNested(ct, "complex type '$name'", name, siblings, visited)
+            fieldsAndNested(ct, "complex type '$name'", name, siblings, enclosing)
         return UnitRecord(
             name,
             fields,
@@ -1118,12 +1118,12 @@ internal class ComplexLowering(private val context: ImportContext) {
         whereCollision: String,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): UnitField? {
         val resolved =
             context.at(el0.path) { resolveElementRef(el0, whereCollision) } ?: return null
         return context.at(resolved.path) {
-            fieldOf(el0, resolved, claimed, whereCollision, nested, siblings, visited)
+            fieldOf(el0, resolved, claimed, whereCollision, nested, siblings, enclosing)
         }
     }
 
@@ -1134,7 +1134,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         whereCollision: String,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
-        visited: Set<QName>,
+        enclosing: Set<QName>,
     ): UnitField? {
         val el = context.choiceLowering.withHeadType(resolved)
         val original = el.name ?: return null
@@ -1184,7 +1184,7 @@ internal class ComplexLowering(private val context: ImportContext) {
 
         val globalModel =
             el0.ref?.takeIf { resolved.type == null && resolved.inlineComplex != null }
-        val recursiveBase = if (globalModel == null) recursiveBaseOf(el, visited) else null
+        val recursiveBase = if (globalModel == null) recursiveBaseOf(el, enclosing) else null
 
         val resolved: Resolved? =
             when {
@@ -1213,7 +1213,13 @@ internal class ComplexLowering(private val context: ImportContext) {
                         } == true
                     ) {
                         val ref =
-                            inlineDeclaration(el.inlineComplex, original, nested, siblings, visited)
+                            inlineDeclaration(
+                                el.inlineComplex,
+                                original,
+                                nested,
+                                siblings,
+                                enclosing,
+                            )
                         Resolved(ref, el.minOccurs == 0, null)
                     } else {
                         when (val m = mapWrapper(el, where, nested)) {
@@ -1258,7 +1264,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                                         original,
                                         nested,
                                         siblings,
-                                        visited,
+                                        enclosing,
                                     )
                                 Resolved(ref, el.minOccurs == 0, null)
                             }
@@ -1290,7 +1296,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                                                 original,
                                                 nested,
                                                 siblings,
-                                                visited,
+                                                enclosing,
                                             ),
                                             el.nillable,
                                             listRefinements(el.minOccurs, el.maxOccurs),
@@ -1444,25 +1450,28 @@ internal class ComplexLowering(private val context: ImportContext) {
     }
 
     /**
-     * The base of [el]'s anonymous type when that type extends a type already being expanded
-     * ([visited]): lowering it inline would expand that type again inside itself, for ever.
+     * The base of [el]'s anonymous type when that base, or a type it extends further up, is one of
+     * the [enclosing] types, the named types whose content is being lowered around [el]: lowering
+     * the anonymous type inline would lower that content again inside itself, for ever. `null` when
+     * [el] has a named type, or its anonymous type extends no type on that path.
      */
-    private fun recursiveBaseOf(el: XElement, visited: Set<QName>): QName? {
+    private fun recursiveBaseOf(el: XElement, enclosing: Set<QName>): QName? {
         if (el.type != null) return null
         val extension = el.inlineComplex?.content as? XContent.Extension ?: return null
         if (extension.simple || extension.base !in context.typeNames) return null
-        return extension.base.takeIf { chainReaches(it, visited) }
+        return extension.base.takeIf { chainReaches(it, enclosing) }
     }
 
     /**
-     * Whether [base], or a type it extends further up, is in [visited]: expanding it would expand
-     * one of those again, even though no chain is cyclic.
+     * Whether [base], or a type it extends further up, is in [enclosing]. Only the extension chain
+     * is followed, so a base that merely shares an ancestor with an enclosing type is not reached,
+     * and a cyclic chain, reported where it is lowered, stops at its first repeat.
      */
-    private fun chainReaches(base: QName, visited: Set<QName>): Boolean {
+    private fun chainReaches(base: QName, enclosing: Set<QName>): Boolean {
         val seen = mutableSetOf<QName>()
         var current = base
         while (seen.add(current)) {
-            if (current in visited) return true
+            if (current in enclosing) return true
             val ct =
                 context.docsByNamespace[current.namespace]?.complexTypes?.firstOrNull {
                     it.name == current.local
@@ -1484,8 +1493,12 @@ internal class ComplexLowering(private val context: ImportContext) {
             context.typeNames.getValue(base).finalName,
         )
 
+    /**
+     * Notes the recursion cut at [line]. A base type's content flattened into each derived type
+     * notes it again there; only the note made while lowering the base itself is kept, as for any
+     * note on a component many types share.
+     */
     private fun noteRecursion(base: QName, where: String, line: Int) {
-        if (!context.recursionNoted.add(context.sourcePath to line)) return
         context.diagnostics +=
             context.lossy(
                 ImportCodes.APPROXIMATED,

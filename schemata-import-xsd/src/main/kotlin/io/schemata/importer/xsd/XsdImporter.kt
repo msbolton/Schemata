@@ -42,8 +42,8 @@ object XsdImporter : Importer {
                 .map { it.first }
 
         // Every document the inputs reach: a located document's own imports and includes are
-        // followed
-        // too, each against its own directory, until nothing new appears. A document is read once.
+        // followed too, each against its own directory, until nothing new appears. A document is
+        // read once.
         val known = merged.toMutableList()
         val knownPaths = known.map { it.path }.toMutableSet()
         val pending = ArrayDeque(known)
@@ -62,10 +62,9 @@ object XsdImporter : Importer {
                 pending += withIncludes
             }
         }
-        // Once the closure is complete, an import that named no file, or a file that was not there,
-        // still resolves when some document read declares its namespace; the rest are dropped with
-        // a
-        // warning and the document imports without them.
+        // Once the closure is complete, an import that named no file, or a file that was not
+        // there, still resolves when some document read declares its namespace; the rest are
+        // dropped with a warning and the document imports without them.
         val resolved =
             known.map { doc ->
                 val missing =
@@ -189,18 +188,6 @@ object XsdImporter : Importer {
             attributeGroups = into.attributeGroups + included.attributeGroups,
             dropped = into.dropped + included.dropped,
         )
-
-    /**
-     * Resolves [relative] against [basePath]'s directory and reads it: an already-read input first,
-     * else [locate].
-     */
-    private fun fetch(
-        basePath: String,
-        relative: String?,
-        byPath: Map<String, ImportInput>,
-        locate: (String) -> ImportInput?,
-        reader: Reader,
-    ): XsdDoc? = find(basePath, relative, byPath, locate)?.let { reader.read(it) }
 
     /** The input [relative] names from [basePath]'s directory, or `null` when there is none. */
     private fun find(
