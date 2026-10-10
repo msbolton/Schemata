@@ -1369,11 +1369,11 @@ Every import reports in one family:
 
 | Code | Meaning |
 |---|---|
-| SCH2401 | error: a file cannot be read, a reference, import, or include cannot be resolved, or two constructs lower to one name |
+| SCH2401 | error: a file cannot be read, a reference or include cannot be resolved, or two constructs lower to one name |
 | SCH2402 | warning: a name was derived from a file or directory name or changed on import; a schema name derived rather than taken as written, or an rpc's name lower-snaked into one the target would not write back |
 | SCH2403 | warning: a construct was approximated; it is kept, but the regenerated schema will differ |
 | SCH2404 | warning: a type or facet was widened or dropped |
-| SCH2405 | warning: a construct was dropped |
+| SCH2405 | warning: a construct was dropped, or an import that resolves nowhere |
 
 The diagnostics appendix lists each message and its help. Each subsection below ends with a table
 of the constructs its format can hold, what each becomes, and the code it reports: none when it
@@ -1465,19 +1465,19 @@ becomes an `enum`, and a choice-only complex type a `union`, so `paymentType` be
 The first global element naming a complex type marks that model as a root. Its name regenerates as
 the model name in lower_snake (`Order` gives `order`), or as the `@xsd(name)` override; when the
 element is named otherwise, the override is added if it alone makes the name exact, and otherwise
-the mismatch is reported (SCH2403) with the name it will regenerate as. A global element
-that a content model uses by `ref` is a property declaration, not a root, so the second-root and
+the mismatch is reported (SCH2403) with the name it will regenerate as. A global element that a
+content model uses by `ref` is a property declaration, not a root, so the second-root and
 other-namespace notes below are not reported for it; the first global element of a type still marks
-the root. A global element with its
-own anonymous complex type becomes a top-level model named after it, reported the same way when that
-name will not regenerate (`myThing` will regenerate as `my_thing`); one whose model name a named
-type already owns, such as `gpx` beside `gpxType`, is an error (SCH2401) and dropped, while one
-whose model name another global element's model already took, such as `SecondDefiningParameter`
-after `secondDefiningParameter`, is numbered (`SecondDefiningParameter2`, SCH2403). The xsd target
-writes one global element per model of its own schema, so a second global element of the same type,
-and one of a simple type or of a type in another XML namespace, are dropped (SCH2405). A complex
-type never used as a global element becomes `@xsd(root: false)`. An anonymous complex type becomes a
-model nested under the element that uses it, named after that element.
+the root. A global element with its own anonymous complex type becomes a top-level model named after
+it, reported the same way when that name will not regenerate (`myThing` will regenerate as
+`my_thing`); one whose model name a named type already owns, such as `gpx` beside `gpxType`, is an
+error (SCH2401) and dropped, while one whose model name another global element's model already took,
+such as `SecondDefiningParameter` after `secondDefiningParameter`, is numbered
+(`SecondDefiningParameter2`, SCH2403). The xsd target writes one global element per model of its own
+schema, so a second global element of the same type, and one of a simple type or of a type in
+another XML namespace, are dropped (SCH2405). A complex type never used as a global element becomes
+`@xsd(root: false)`. An anonymous complex type becomes a model nested under the element that uses
+it, named after that element.
 
 An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
 lower_snake with `@xsd(name: "…")` restoring the original, silently; a value that cannot be an XML
@@ -1518,8 +1518,9 @@ A `ref` to a global element that has no `type` and an anonymous complex type low
 by name, to the model that element becomes at the top level; across namespaces the name is
 qualified and the namespace imported. Lowering always terminates. An inline type whose extension
 base chain reaches a type whose content is being lowered is referenced by name instead of being
-lowered again (SCH2403, once per declaration), which is how a content model that contains itself,
-such as the `div` and `Flow` cycle in XHTML, comes out finite.
+lowered again (SCH2403, `recursive content model; '<name>' referenced by name`, once per
+declaration). XHTML's `div` and `Flow` cycle is an example: a `div` holds `Flow`, which holds `div`,
+and the import still comes out finite.
 
 What XSD expresses through derivation, a value that is one of several types, Schemata expresses as
 a union, and the importer makes that union. A polymorphic head is either of two things:
@@ -1843,7 +1844,8 @@ loaded.
 | an extension | the base's fields flattened in | SCH2403 |
 | a complex restriction | its own content and the base's attributes | SCH2403 |
 | simple content | a model with a `value` field | SCH2403 |
-| an abstract type with members | a union of them | SCH2403 |
+| an abstract type with members that an element or field names | a union of them | SCH2403 |
+| an abstract type with members that nothing names | a model, no union | SCH2405 |
 | a substitution group with members | a union of them | SCH2403 |
 | a head with one member | that member's type | SCH2403 |
 | an abstract type with no members | a model | SCH2405 |
