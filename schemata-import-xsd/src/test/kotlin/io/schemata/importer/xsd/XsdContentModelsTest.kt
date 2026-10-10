@@ -157,7 +157,7 @@ class XsdContentModelsTest {
     }
 
     @Test
-    fun `a choice member typed idrefs is a list member`() {
+    fun `a choice member typed idrefs is a string member`() {
         val xml =
             """
             <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:schemata:t" targetNamespace="urn:schemata:t">
