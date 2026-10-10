@@ -35,16 +35,16 @@ internal class ComplexLowering(private val context: ImportContext) {
         whereCollision: String,
         recordName: String,
         siblings: MutableList<UnitDecl>,
-        outerVisited: Set<QName> = emptySet(),
+        enclosing: Set<QName> = emptySet(),
     ): Triple<List<UnitField>, List<UnitDecl>, List<UnitAnnotation>> {
         val nested = mutableListOf<UnitDecl>()
         val claimed = mutableMapOf<String, Claim>()
         val recordAnnotations = mutableListOf<UnitAnnotation>()
         // Seeds the cycle guard with this type's own identity (when it has one), so a direct
-        // self-extension is caught on the first hop, not just a longer cycle back to it. An
-        // inline type is lowered in the middle of its enclosing types' chains, so it starts from
-        // theirs: one extending a type already being expanded is cut where it is found.
-        val visited = outerVisited.toMutableSet()
+        // self-extension is caught on the first hop, not just a longer cycle back to it. The
+        // types enclosing an inline type are kept apart, in [enclosing]: they are not on its
+        // extension chain, and are only what a recursion cut looks for.
+        val visited = mutableSetOf<QName>()
         if (ct.name != null) visited += QName(context.doc.targetNamespace, ct.name)
         val fields =
             allFieldsOf(
@@ -55,6 +55,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 nested,
                 siblings,
                 visited,
+                enclosing,
                 recordAnnotations = recordAnnotations,
             )
         val settled =
@@ -75,6 +76,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
         visited: MutableSet<QName>,
+        enclosing: Set<QName>,
         namespace: String? = context.doc.targetNamespace,
         recordAnnotations: MutableList<UnitAnnotation>? = null,
     ): List<UnitField> {
@@ -83,6 +85,8 @@ internal class ComplexLowering(private val context: ImportContext) {
             context.diagnostics +=
                 context.lossy(ImportCodes.DROPPED, whereCollision, "abstract dropped", ct.line)
         }
+        // The types whose content is being lowered: this one and those it sits inside.
+        val here = enclosing + listOfNotNull(ct.name?.let { QName(namespace, it) })
         val elementFields =
             contentFields(
                 ct,
@@ -93,6 +97,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 nested,
                 siblings,
                 visited,
+                here,
                 recordAnnotations,
             )
         val mixedFields =
@@ -261,6 +266,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
         visited: MutableSet<QName>,
+        enclosing: Set<QName>,
         recordAnnotations: MutableList<UnitAnnotation>?,
     ): List<UnitField> =
         when (content) {
@@ -272,7 +278,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                     claimed,
                     nested,
                     siblings,
-                    visited,
+                    enclosing,
                 )
             is XContent.All -> {
                 if (recordAnnotations != null) {
@@ -304,7 +310,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                     claimed,
                     nested,
                     siblings,
-                    visited,
+                    enclosing,
                 )
             }
             is XContent.Empty -> emptyList()
@@ -331,7 +337,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                         claimed,
                         nested,
                         siblings,
-                        visited,
+                        enclosing,
                     )
                 }
             is XContent.Extension ->
@@ -344,6 +350,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                     nested,
                     siblings,
                     visited,
+                    enclosing,
                 )
             is XContent.Restriction ->
                 if (content.simple) {
@@ -363,7 +370,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                         claimed,
                         nested,
                         siblings,
-                        visited,
+                        enclosing,
                     )
                 }
         }
@@ -584,6 +591,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
         visited: MutableSet<QName>,
+        enclosing: Set<QName>,
     ): List<UnitField> {
         if (ext.simple) {
             return simpleContentFields(
@@ -613,7 +621,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 claimed,
                 nested,
                 siblings,
-                visited,
+                enclosing,
             )
         }
         val anyType = ext.base == QName(ImportTypes.XS, "anyType")
@@ -626,6 +634,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 nested,
                 siblings,
                 visited,
+                enclosing,
             )
         if (!anyType) {
             context.diagnostics +=
@@ -645,7 +654,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 claimed,
                 nested,
                 siblings,
-                visited,
+                enclosing,
             )
         return baseFields + ownFields
     }
@@ -764,6 +773,7 @@ internal class ComplexLowering(private val context: ImportContext) {
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
         visited: MutableSet<QName>,
+        enclosing: Set<QName>,
     ): List<UnitField> {
         // xs:anyType, the root of every derivation, contributes no fields of its own.
         if (baseQName == QName(ImportTypes.XS, "anyType")) return emptyList()
@@ -789,6 +799,7 @@ internal class ComplexLowering(private val context: ImportContext) {
                 nested,
                 siblings,
                 visited,
+                enclosing,
                 baseQName.namespace,
             )
         }

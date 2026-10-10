@@ -645,4 +645,71 @@ class XsdContentModelsTest {
             messages(imported).count { "recursive content model; 'B' referenced by name" in it },
         )
     }
+
+    @Test
+    fun `an inline type extending the base of its enclosing type is expanded`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="ZType"><xs:sequence><xs:element name="z" type="xs:string"/></xs:sequence></xs:complexType>
+              <xs:complexType name="AType"><xs:complexContent><xs:extension base="tns:ZType"><xs:sequence>
+                <xs:element name="x" minOccurs="0"><xs:complexType><xs:complexContent>
+                  <xs:extension base="tns:ZType"><xs:sequence><xs:element name="extra" type="xs:string"/></xs:sequence></xs:extension>
+                </xs:complexContent></xs:complexType></xs:element>
+              </xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+              <xs:element name="a" type="tns:AType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val a = records(imported, "t").getValue("A")
+        val x = a.fields.single { it.name == "x" }
+        assertEquals(UnitType.Ref("X"), x.type)
+        val xRecord = a.nested.filterIsInstance<UnitRecord>().single { it.name == "X" }
+        assertEquals(listOf("z", "extra"), xRecord.fields.map { it.name })
+        assertTrue(messages(imported).none { "recursive" in it }, messages(imported).toString())
+        assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
+    }
+
+    @Test
+    fun `an inline type extending a sibling of its enclosing type is expanded`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="ZType"><xs:sequence><xs:element name="z" type="xs:string"/></xs:sequence></xs:complexType>
+              <xs:complexType name="YType"><xs:complexContent><xs:extension base="tns:ZType"/></xs:complexContent></xs:complexType>
+              <xs:complexType name="AType"><xs:complexContent><xs:extension base="tns:ZType"><xs:sequence>
+                <xs:element name="x" minOccurs="0"><xs:complexType><xs:complexContent>
+                  <xs:extension base="tns:YType"><xs:sequence><xs:element name="extra" type="xs:string"/></xs:sequence></xs:extension>
+                </xs:complexContent></xs:complexType></xs:element>
+              </xs:sequence></xs:extension></xs:complexContent></xs:complexType>
+              <xs:element name="a" type="tns:AType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val a = records(imported, "t").getValue("A")
+        val x = a.fields.single { it.name == "x" }
+        assertEquals(UnitType.Ref("X"), x.type)
+        val xRecord = a.nested.filterIsInstance<UnitRecord>().single { it.name == "X" }
+        assertEquals(listOf("z", "extra"), xRecord.fields.map { it.name })
+        assertTrue(messages(imported).none { "recursive" in it }, messages(imported).toString())
+        assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
+    }
+
+    @Test
+    fun `a cyclic base chain reports the chain and not a recursive content model`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="AType"><xs:complexContent><xs:extension base="tns:BType"/></xs:complexContent></xs:complexType>
+              <xs:complexType name="BType"><xs:complexContent><xs:extension base="tns:AType"/></xs:complexContent></xs:complexType>
+              <xs:element name="a" type="tns:AType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        assertTrue(
+            messages(imported).any { "the base chain is cyclic" in it },
+            messages(imported).toString(),
+        )
+        assertTrue(messages(imported).none { "recursive" in it })
+    }
 }
