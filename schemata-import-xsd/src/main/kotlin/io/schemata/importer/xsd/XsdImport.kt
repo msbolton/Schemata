@@ -288,6 +288,11 @@ object XsdImport {
      * have claimed theirs; the NUL cannot begin any real name.
      */
     internal const val PLACEHOLDER = "\u0000"
+
+    /**
+     * Begins the placeholder a reference to a global element's record holds until every namespace's
+     * elements have claimed their record names; see [ElementRecords].
+     */
     internal const val ELEMENT_REF_PREFIX = "\u0000element:"
 
     /** [doc]'s effective `elementFormDefault`: `unqualified` when it does not say. */
@@ -929,9 +934,6 @@ internal class ImportContext(
      * which the unit must import.
      */
     val extraImports = linkedSetOf<String>()
-
-    /** Where a recursive content model was already noted, so it is noted once. */
-    val recursionNoted = mutableSetOf<Pair<String, Int>>()
 
     /**
      * Fields whose names are synthesised (a wildcard's, mixed text's, an attribute wildcard's), by

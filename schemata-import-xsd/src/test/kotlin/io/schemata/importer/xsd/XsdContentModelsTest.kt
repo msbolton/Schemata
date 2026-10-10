@@ -656,6 +656,38 @@ class XsdContentModelsTest {
     }
 
     @Test
+    fun `the recursion note is reported once`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="DerivedType"><xs:complexContent>
+                <xs:extension base="tns:BaseType"><xs:sequence><xs:element name="d" type="xs:string"/></xs:sequence></xs:extension>
+              </xs:complexContent></xs:complexType>
+              <xs:complexType name="BaseType"><xs:sequence>
+                <xs:element name="x" minOccurs="0"><xs:complexType><xs:complexContent>
+                  <xs:extension base="tns:BaseType"/>
+                </xs:complexContent></xs:complexType></xs:element>
+              </xs:sequence></xs:complexType>
+              <xs:element name="base" type="tns:BaseType"/>
+              <xs:element name="derived" type="tns:DerivedType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val records = records(imported, "t")
+        assertEquals(UnitType.Ref("Base"), records.getValue("Base").fields.single().type)
+        assertEquals(
+            UnitType.Ref("Base"),
+            records.getValue("Derived").fields.single { it.name == "x" }.type,
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'BaseType': recursive content model; 'Base' referenced by name"
+            ),
+            messages(imported).filter { "recursive" in it },
+        )
+    }
+
+    @Test
     fun `a cycle through a hoisted choice union is cut`() {
         val xml =
             """
