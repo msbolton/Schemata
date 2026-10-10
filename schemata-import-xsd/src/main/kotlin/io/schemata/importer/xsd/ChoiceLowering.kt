@@ -118,7 +118,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
      * A reference to the type [name] declared in [targetDoc], qualified (and imported) when that is
      * another namespace.
      */
-    private fun headRef(targetDoc: XsdDoc, name: String): UnitType.Ref {
+    internal fun headRef(targetDoc: XsdDoc, name: String): UnitType.Ref {
         if (targetDoc === context.doc) return UnitType.Ref(name)
         val namespace = context.namespaceNames.getValue(targetDoc)
         context.extraImports += namespace
@@ -324,6 +324,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
         claimed: MutableMap<String, Claim>,
         nested: MutableList<UnitDecl>,
         siblings: MutableList<UnitDecl>,
+        visited: Set<QName>,
     ): List<UnitField> {
         val branches = context.complexLowering.expandParticles(choice.particles, whereCollision)
         val onlyWildcards =
@@ -368,7 +369,15 @@ internal class ChoiceLowering(private val context: ImportContext) {
                     particle.line,
                 )
             val union =
-                unionFromChoice(choice, unionName, "union '$unionName'", null, siblings, false)
+                unionFromChoice(
+                    choice,
+                    unionName,
+                    "union '$unionName'",
+                    null,
+                    siblings,
+                    false,
+                    visited = visited,
+                )
             siblings += union
             val (name, annotations) = claim
             val type: UnitType =
@@ -409,6 +418,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
                             whereCollision,
                             nested,
                             siblings,
+                            visited,
                         )
                     )
                 is XParticle.Any ->
@@ -437,6 +447,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
                         claimed,
                         nested,
                         siblings,
+                        visited,
                     )
                 is XParticle.GroupRef -> emptyList() // only an unresolved ref survives expansion
             }
@@ -513,6 +524,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
         siblings: MutableList<UnitDecl>,
         checkMismatch: Boolean,
         annotations: List<UnitAnnotation> = emptyList(),
+        visited: Set<QName> = emptySet(),
     ): UnitDecl {
         val entries = mutableListOf<ChoiceEntry>()
         fun member(particle: XParticle) {
@@ -528,7 +540,8 @@ internal class ChoiceLowering(private val context: ImportContext) {
                             } else particle.element
                         )
                     val elementName = el.name ?: "member"
-                    val (ownType, stem) = memberTypeAndStem(el, unionWhere, siblings) ?: return
+                    val (ownType, stem) =
+                        memberTypeAndStem(el, unionWhere, siblings, visited) ?: return
                     val type = particle.element.ref?.let(::elementHeadType) ?: ownType
                     entries += Branch(el, elementName, type, stem)
                 }
@@ -550,7 +563,8 @@ internal class ChoiceLowering(private val context: ImportContext) {
                         is XContent.Sequence,
                         is XContent.All -> {
                             val ref =
-                                branchRecord(content, particle, unionWhere, siblings) ?: return
+                                branchRecord(content, particle, unionWhere, siblings, visited)
+                                    ?: return
                             entries += Settled(UnionMember(ref, null))
                         }
                         else -> Unit
@@ -641,6 +655,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
         particle: XParticle.Nested,
         unionWhere: String,
         siblings: MutableList<UnitDecl>,
+        visited: Set<QName>,
     ): UnitType.Ref? {
         val particles =
             when (content) {
@@ -675,7 +690,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 abstract = false,
                 line = particle.line,
             )
-        siblings += context.complexLowering.buildHoistedRecord(ct, name, siblings)
+        siblings += context.complexLowering.buildHoistedRecord(ct, name, siblings, visited)
         return UnitType.Ref(name)
     }
 
@@ -684,6 +699,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
         el: XElement,
         unionWhere: String,
         siblings: MutableList<UnitDecl>,
+        visited: Set<QName>,
     ): Pair<UnitType, String>? {
         if (el.type != null) {
             val qname = el.type
@@ -757,7 +773,12 @@ internal class ChoiceLowering(private val context: ImportContext) {
             val hoistedName = ImportNames.upperCamel(elementName)
             if (!context.claimTopLevel(hoistedName, "element '$elementName'", el.line)) return null
             siblings +=
-                context.complexLowering.buildHoistedRecord(el.inlineComplex, hoistedName, siblings)
+                context.complexLowering.buildHoistedRecord(
+                    el.inlineComplex,
+                    hoistedName,
+                    siblings,
+                    visited,
+                )
             return UnitType.Ref(hoistedName) to ImportNames.lowerSnake(elementName)
         }
         if (el.inlineSimple != null) {

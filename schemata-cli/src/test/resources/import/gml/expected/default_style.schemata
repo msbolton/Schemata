@@ -1137,19 +1137,6 @@ model CompoundCRS {
   component_reference_system SingleCRSProperty[] { minItems 2 } @xsd(name: "componentReferenceSystem")
   aggregation_type           Aggregation?        @xsd(name: "aggregationType") @xsd(attribute)
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "CompoundCRS")
 }
 
@@ -1473,19 +1460,6 @@ model GeodeticDatum {
   /// gml:ellipsoid is an association role to the ellipsoid used by this geodetic datum.
   ellipsoid             EllipsoidProperty
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "GeodeticDatum")
 }
 
@@ -1802,19 +1776,6 @@ model GeodeticCRS {
   spherical_cs          SphericalCSProperty?   @xsd(name: "sphericalCS")
   /// gml:geodeticDatum is an association role to the geodetic datum used by this CRS.
   geodetic_datum        GeodeticDatumProperty  @xsd(name: "geodeticDatum")
-
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
 
   @@xsd(name: "GeodeticCRS")
 }
@@ -2236,12 +2197,6 @@ model Ellipsoid {
   /// The inverseFlattening element contains the inverse flattening value of the ellipsoid. This value is a scale factor (or ratio). It uses gml:LengthType with the restriction that the unit of measure referenced by the uom attribute must be suitable for a scale factor, such as percent, permil, or parts-per-million.
   /// The semiMinorAxis element contains the length of the semi-minor axis of the ellipsoid. When the isSphere element is included, the ellipsoid is degenerate and is actually a sphere. The sphere is completely defined by the semi-major axis, which is the radius of the sphere.
   second_defining_parameter SecondDefiningParameter @xsd(name: "secondDefiningParameter")
-
-  model SecondDefiningParameter {
-    second_defining_parameter SecondDefiningParameter @xsd(name: "SecondDefiningParameter")
-
-    union SecondDefiningParameter = Measure | Length | bool
-  }
 
   @@xsd(name: "Ellipsoid")
 }
@@ -2744,19 +2699,6 @@ model VerticalCRS {
   /// gml:verticalDatum is an association role to the vertical datum used by this CRS.
   vertical_datum        VerticalDatumProperty @xsd(name: "verticalDatum")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "VerticalCRS")
 }
 
@@ -3184,32 +3126,6 @@ model ConcatenatedOperation {
   coord_operation               CoordinateOperationProperty[] { minItems 2 } @xsd(name: "coordOperation")
   aggregation_type              Aggregation?                  @xsd(name: "aggregationType") @xsd(attribute)
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
-  model CoordinateOperationAccuracy {
-    abstract_dq_positional_accuracy gmd.AbstractDQPositionalAccuracy @xsd(name: "AbstractDQ_PositionalAccuracy")
-    type                            xlink.Type                       @xsd(attribute) = simple
-    href                            string?                          @xsd(attribute)
-    role                            string?                          { min 1 } @xsd(attribute)
-    arcrole                         string?                          { min 1 } @xsd(attribute)
-    title                           string?                          @xsd(attribute)
-    show                            xlink.Show?                      @xsd(attribute)
-    actuate                         xlink.Actuate?                   @xsd(attribute)
-    nil_reason                      string?                          @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema                   string?                          @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "ConcatenatedOperation")
 }
 
@@ -3285,19 +3201,6 @@ model ProjectedCRS {
   base_geographic_crs   GeographicCRSProperty?    @xsd(name: "baseGeographicCRS")
   /// gml:cartesianCS is an association role to the Cartesian coordinate system used by this CRS.
   cartesian_cs          CartesianCSProperty       @xsd(name: "cartesianCS")
-
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
 
   @@xsd(name: "ProjectedCRS")
 }
@@ -3523,19 +3426,6 @@ model EngineeringDatum {
   /// gml:realizationEpoch is the time after which this datum definition is valid. See ISO 19111 Table 32 for details.
   realization_epoch     date?              @xsd(name: "realizationEpoch")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "EngineeringDatum")
 }
 
@@ -3589,8 +3479,6 @@ model BooleanProperty {
   actuate       xlink.Actuate? @xsd(attribute)
   nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
   remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-
-  model Boolean { value bool  nil_reason string? @xsd(name: "nilReason") @xsd(attribute) }
 
   @@xsd(root: false)
 }
@@ -3662,12 +3550,6 @@ model CategoryProperty {
   nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
   remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
 
-  model Category {
-    value      string
-    nil_reason string? @xsd(name: "nilReason") @xsd(attribute)
-    code_space string? @xsd(name: "codeSpace") @xsd(attribute)
-  }
-
   @@xsd(root: false)
 }
 
@@ -3727,12 +3609,6 @@ model QuantityProperty {
   actuate       xlink.Actuate? @xsd(attribute)
   nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
   remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-
-  model Quantity {
-    value      float64
-    nil_reason string? @xsd(name: "nilReason") @xsd(attribute)
-    uom        string  @xsd(attribute)
-  }
 
   @@xsd(root: false)
 }
@@ -3799,32 +3675,6 @@ model PassThroughOperation {
   coord_operation               CoordinateOperationProperty   @xsd(name: "coordOperation")
   aggregation_type              Aggregation?                  @xsd(name: "aggregationType") @xsd(attribute)
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
-  model CoordinateOperationAccuracy {
-    abstract_dq_positional_accuracy gmd.AbstractDQPositionalAccuracy @xsd(name: "AbstractDQ_PositionalAccuracy")
-    type                            xlink.Type                       @xsd(attribute) = simple
-    href                            string?                          @xsd(attribute)
-    role                            string?                          { min 1 } @xsd(attribute)
-    arcrole                         string?                          { min 1 } @xsd(attribute)
-    title                           string?                          @xsd(attribute)
-    show                            xlink.Show?                      @xsd(attribute)
-    actuate                         xlink.Actuate?                   @xsd(attribute)
-    nil_reason                      string?                          @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema                   string?                          @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "PassThroughOperation")
 }
 
@@ -3865,19 +3715,6 @@ model ImageDatum {
   /// gml:pixelInCell is a specification of the way an image grid is associated with the image data attributes. The required codeSpace attribute shall reference a source of information specifying the values and meanings of all the allowed string values for this property.
   pixel_in_cell         CodeWithAuthority  @xsd(name: "pixelInCell")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "ImageDatum")
 }
 
@@ -3907,19 +3744,6 @@ model DerivedCRS {
   /// An association role to the coordinate system used by this CRS.
   coordinate_system     CoordinateSystemProperty  @xsd(name: "coordinateSystem")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "DerivedCRS")
 }
 
@@ -3934,8 +3758,6 @@ model CountProperty {
   actuate       xlink.Actuate? @xsd(attribute)
   nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
   remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-
-  model Count { value int32  nil_reason string? @xsd(name: "nilReason") @xsd(attribute) }
 
   @@xsd(root: false)
 }
@@ -4135,19 +3957,6 @@ model VerticalDatum {
   /// gml:realizationEpoch is the time after which this datum definition is valid. See ISO 19111 Table 32 for details.
   realization_epoch     date?              @xsd(name: "realizationEpoch")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "VerticalDatum")
 }
 
@@ -4194,32 +4003,6 @@ model Conversion {
   method                        OperationMethodProperty
   /// gml:parameterValue is a composition association to a parameter value or group of parameter values used by a coordinate operation.
   parameter_value               AbstractGeneralParameterValueProperty[] @xsd(name: "parameterValue")
-
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
-  model CoordinateOperationAccuracy {
-    abstract_dq_positional_accuracy gmd.AbstractDQPositionalAccuracy @xsd(name: "AbstractDQ_PositionalAccuracy")
-    type                            xlink.Type                       @xsd(attribute) = simple
-    href                            string?                          @xsd(attribute)
-    role                            string?                          { min 1 } @xsd(attribute)
-    arcrole                         string?                          { min 1 } @xsd(attribute)
-    title                           string?                          @xsd(attribute)
-    show                            xlink.Show?                      @xsd(attribute)
-    actuate                         xlink.Actuate?                   @xsd(attribute)
-    nil_reason                      string?                          @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema                   string?                          @xsd(name: "remoteSchema") @xsd(attribute)
-  }
 
   @@xsd(name: "Conversion")
 }
@@ -4394,19 +4177,6 @@ model EngineeringCRS {
   /// gml:engineeringDatum is an association role to the engineering datum used by this CRS.
   engineering_datum     EngineeringDatumProperty  @xsd(name: "engineeringDatum")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "EngineeringCRS")
 }
 
@@ -4436,19 +4206,6 @@ model TemporalDatum {
   id                    string             @xsd(attribute)
   /// gml:origin is the date and time origin of this temporal datum.
   origin                instant
-
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
 
   @@xsd(name: "TemporalDatum")
 }
@@ -4648,32 +4405,6 @@ model Transformation {
   method                        OperationMethodProperty
   /// gml:parameterValue is a composition association to a parameter value or group of parameter values used by a coordinate operation.
   parameter_value               AbstractGeneralParameterValueProperty[] @xsd(name: "parameterValue")
-
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
-  model CoordinateOperationAccuracy {
-    abstract_dq_positional_accuracy gmd.AbstractDQPositionalAccuracy @xsd(name: "AbstractDQ_PositionalAccuracy")
-    type                            xlink.Type                       @xsd(attribute) = simple
-    href                            string?                          @xsd(attribute)
-    role                            string?                          { min 1 } @xsd(attribute)
-    arcrole                         string?                          { min 1 } @xsd(attribute)
-    title                           string?                          @xsd(attribute)
-    show                            xlink.Show?                      @xsd(attribute)
-    actuate                         xlink.Actuate?                   @xsd(attribute)
-    nil_reason                      string?                          @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema                   string?                          @xsd(name: "remoteSchema") @xsd(attribute)
-  }
 
   @@xsd(name: "Transformation")
 }
@@ -4930,19 +4661,6 @@ model ImageCRS {
   /// gml:imageDatum is an association role to the image datum used by this CRS.
   image_datum               ImageDatumProperty          @xsd(name: "imageDatum")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "ImageCRS")
 }
 
@@ -5124,19 +4842,6 @@ model TemporalCRS {
   /// gml:temporalDatum is an association role to the temporal datum used by this CRS.
   temporal_datum        TemporalDatumProperty @xsd(name: "temporalDatum")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "TemporalCRS")
 }
 
@@ -5311,19 +5016,6 @@ model OperationMethod {
   /// gml:parameter is an association to an operation parameter or parameter group.
   parameter             AbstractGeneralOperationParameterProperty[]
 
-  model FormulaCitation {
-    ci_citation   gmd.CICitation @xsd(name: "CI_Citation")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "OperationMethod")
 }
 
@@ -5428,19 +5120,6 @@ model GeographicCRS {
   uses_ellipsoidal_cs   EllipsoidalCSProperty @xsd(name: "usesEllipsoidalCS")
   uses_geodetic_datum   GeodeticDatumProperty @xsd(name: "usesGeodeticDatum")
 
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
-
   @@xsd(name: "GeographicCRS")
 }
 
@@ -5539,19 +5218,6 @@ model GeocentricCRS {
   uses_cartesian_cs     CartesianCSProperty?  @xsd(name: "usesCartesianCS")
   uses_spherical_cs     SphericalCSProperty?  @xsd(name: "usesSphericalCS")
   uses_geodetic_datum   GeodeticDatumProperty @xsd(name: "usesGeodeticDatum")
-
-  model DomainOfValidity {
-    ex_extent     gmd.EXExtent   @xsd(name: "EX_Extent")
-    type          xlink.Type     @xsd(attribute) = simple
-    href          string?        @xsd(attribute)
-    role          string?        { min 1 } @xsd(attribute)
-    arcrole       string?        { min 1 } @xsd(attribute)
-    title         string?        @xsd(attribute)
-    show          xlink.Show?    @xsd(attribute)
-    actuate       xlink.Actuate? @xsd(attribute)
-    nil_reason    string?        @xsd(name: "nilReason") @xsd(attribute)
-    remote_schema string?        @xsd(name: "remoteSchema") @xsd(attribute)
-  }
 
   @@xsd(name: "GeocentricCRS")
 }
@@ -6222,9 +5888,7 @@ model Quantity {
 /// The inverseFlattening element contains the inverse flattening value of the ellipsoid. This value is a scale factor (or ratio). It uses gml:LengthType with the restriction that the unit of measure referenced by the uom attribute must be suitable for a scale factor, such as percent, permil, or parts-per-million.
 /// The semiMinorAxis element contains the length of the semi-minor axis of the ellipsoid. When the isSphere element is included, the ellipsoid is degenerate and is actually a sphere. The sphere is completely defined by the semi-major axis, which is the radius of the sphere.
 model SecondDefiningParameter {
-  second_defining_parameter SecondDefiningParameter @xsd(name: "SecondDefiningParameter")
-
-  union SecondDefiningParameter = Measure | Length | bool
+  second_defining_parameter SecondDefiningParameter2 @xsd(name: "SecondDefiningParameter")
 }
 
 union SecondDefiningParameter2 = Measure | Length | bool

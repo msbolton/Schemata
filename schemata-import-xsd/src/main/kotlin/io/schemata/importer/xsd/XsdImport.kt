@@ -713,18 +713,17 @@ object XsdImport {
          */
         private fun elementRecordName(original: String, line: Int): String {
             val base = ImportNames.upperCamel(original)
-            val owner = context.topLevelNames[base]
-            if (owner == null || !owner.startsWith("element '")) return base
-            var n = 2
-            while (context.complexLowering.numbered(base, n, "") in context.topLevelNames) n++
-            val name = context.complexLowering.numbered(base, n, "")
-            context.diagnostics +=
-                context.lossy(
-                    ImportCodes.APPROXIMATED,
-                    "element '$original'",
-                    "$owner already lowers to model '$base'; imported as '$name'",
-                    line,
-                )
+            val name = context.recordNameFor(original)
+            if (name != base) {
+                context.diagnostics +=
+                    context.lossy(
+                        ImportCodes.APPROXIMATED,
+                        "element '$original'",
+                        "${context.topLevelNames.getValue(base)} already lowers to model '$base'; " +
+                            "imported as '$name'",
+                        line,
+                    )
+            }
             return name
         }
 
@@ -801,6 +800,29 @@ internal class ImportContext(
 
     /** Namespaces a head union's members live in, which the unit must import. */
     val extraImports = linkedSetOf<String>()
+
+    /** The record name each global element with an anonymous type was given, by element name. */
+    private val elementRecordNames = mutableMapOf<String, String>()
+
+    /**
+     * The name of the record the global element [original] with an anonymous type lowers to: its
+     * UpperCamel name, or, when another element's record already took that, the name numbered
+     * from 2. A named type owning the name is left to [claimTopLevel] to report. A field that
+     * refers to the element may be lowered before the element's own declaration, so the answer is
+     * settled on the first ask and both agree on it.
+     */
+    internal fun recordNameFor(original: String): String =
+        elementRecordNames.getOrPut(original) {
+            val base = ImportNames.upperCamel(original)
+            val owner = topLevelNames[base]
+            if (owner == null || !owner.startsWith("element '")) return@getOrPut base
+            var n = 2
+            while (complexLowering.numbered(base, n, "") in topLevelNames) n++
+            complexLowering.numbered(base, n, "")
+        }
+
+    /** Where a recursive content model was already noted, so it is noted once. */
+    val recursionNoted = mutableSetOf<Pair<String, Int>>()
 
     /**
      * Fields whose names are synthesised (a wildcard's, mixed text's, an attribute wildcard's), by

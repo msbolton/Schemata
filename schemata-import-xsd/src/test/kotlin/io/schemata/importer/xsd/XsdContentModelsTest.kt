@@ -424,4 +424,145 @@ class XsdContentModelsTest {
                 result.diagnostics.map { "${it.code.id} ${it.message}" }
         )
     }
+
+    private fun records(imported: Imported, namespace: String): Map<String, UnitRecord> =
+        unit(imported, namespace).declarations.filterIsInstance<UnitRecord>().associateBy {
+            it.name
+        }
+
+    private fun listOfRef(name: String): (UnitType) -> Boolean = { t ->
+        t is UnitType.ListOf && t.element == UnitType.Ref(name)
+    }
+
+    @Test
+    fun `a reference to a global element with an anonymous type names its model`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:element name="div"><xs:complexType><xs:sequence>
+                <xs:element ref="tns:div" minOccurs="0" maxOccurs="unbounded"/>
+              </xs:sequence></xs:complexType></xs:element>
+              <xs:complexType name="PageType"><xs:sequence><xs:element ref="tns:div"/></xs:sequence></xs:complexType>
+              <xs:element name="page" type="tns:PageType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val records = records(imported, "t")
+        assertEquals(setOf("Div", "Page"), records.keys)
+        val pageDiv = records.getValue("Page").fields.single()
+        assertEquals("div", pageDiv.name)
+        assertEquals(UnitType.Ref("Div"), pageDiv.type)
+        assertFalse(pageDiv.nullable)
+        val divDiv = records.getValue("Div").fields.single()
+        assertTrue(listOfRef("Div")(divDiv.type))
+        assertTrue(records.getValue("Div").nested.isEmpty())
+        assertEquals(emptyList(), messages(imported).filter { "recursive" in it })
+        assertEquals(
+            emptyList(),
+            imported.diagnostics.filter { "cannot be resolved" in it.message },
+        )
+    }
+
+    @Test
+    fun `a reference to a global element with an anonymous type names its model across namespaces`() {
+        val a =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:a">
+              <xs:element name="div"><xs:complexType><xs:sequence>
+                <xs:element name="text" type="xs:string"/>
+              </xs:sequence></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val b =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:a="urn:schemata:a" targetNamespace="urn:schemata:b">
+              <xs:import namespace="urn:schemata:a" schemaLocation="a.xsd"/>
+              <xs:complexType name="PageType"><xs:sequence>
+                <xs:element ref="a:div" minOccurs="0" maxOccurs="unbounded"/>
+              </xs:sequence></xs:complexType>
+              <xs:element name="page" type="PageType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("a.xsd" to a, "b.xsd" to b))
+        val page = records(imported, "b").getValue("Page")
+        assertTrue(listOfRef("a.Div")(page.fields.single().type))
+        assertTrue("a" in unit(imported, "b").imports)
+        assertEquals(setOf("Div"), records(imported, "a").keys)
+    }
+
+    @Test
+    fun `an xhtml shaped cycle through a group and an extension is finite`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:group name="Flow"><xs:choice>
+                <xs:element ref="tns:div"/>
+              </xs:choice></xs:group>
+              <xs:complexType name="Flow" mixed="true"><xs:sequence>
+                <xs:element name="note" type="xs:string"/>
+                <xs:group ref="tns:Flow" minOccurs="0" maxOccurs="unbounded"/>
+              </xs:sequence></xs:complexType>
+              <xs:element name="div"><xs:complexType><xs:complexContent>
+                <xs:extension base="tns:Flow"/>
+              </xs:complexContent></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val div = records(imported, "t").getValue("Div")
+        val fieldNames = div.fields.map { it.name }
+        assertTrue("note" in fieldNames, fieldNames.toString())
+        val divField = div.fields.single { it.name == "div" }
+        assertTrue(listOfRef("Div")(divField.type), divField.type.toString())
+    }
+
+    @Test
+    fun `an inline type extending an enclosing type is referenced by name`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="AType"><xs:sequence>
+                <xs:element name="x" minOccurs="0"><xs:complexType><xs:complexContent>
+                  <xs:extension base="tns:AType"><xs:sequence><xs:element name="y" type="xs:string"/></xs:sequence></xs:extension>
+                </xs:complexContent></xs:complexType></xs:element>
+              </xs:sequence></xs:complexType>
+              <xs:element name="a" type="tns:AType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val a = records(imported, "t").getValue("A")
+        val x = a.fields.single { it.name == "x" }
+        assertEquals(UnitType.Ref("A"), x.type)
+        assertTrue(x.nullable)
+        assertTrue(a.nested.isEmpty())
+        assertEquals(
+            listOf("SCH2403 complex type 'AType': recursive content model; 'A' referenced by name"),
+            messages(imported).filter { "recursive" in it }.map { it.substringBefore(" (") },
+        )
+    }
+
+    @Test
+    fun `a cycle through a hoisted choice union is cut`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="AType"><xs:sequence>
+                <xs:element name="u" minOccurs="0"><xs:complexType><xs:choice>
+                  <xs:element name="b"><xs:complexType><xs:sequence>
+                    <xs:element name="c" minOccurs="0"><xs:complexType><xs:complexContent>
+                      <xs:extension base="tns:AType"/>
+                    </xs:complexContent></xs:complexType></xs:element>
+                  </xs:sequence></xs:complexType></xs:element>
+                  <xs:element name="d" type="xs:string"/>
+                </xs:choice></xs:complexType></xs:element>
+              </xs:sequence></xs:complexType>
+              <xs:element name="a" type="tns:AType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val b = records(imported, "t").getValue("B")
+        assertEquals(UnitType.Ref("A"), b.fields.single { it.name == "c" }.type)
+        assertTrue(
+            messages(imported).any { "recursive content model; 'A' referenced by name" in it }
+        )
+    }
 }
