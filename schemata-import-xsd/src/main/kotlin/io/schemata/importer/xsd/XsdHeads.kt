@@ -53,8 +53,15 @@ internal class Heads(docs: List<XsdDoc>) {
     /** The document that declares the complex type [name]; the first one that does. */
     fun typeDoc(name: QName): XsdDoc = complexTypesByName.getValue(name).second
 
-    /** Abstract complex types with at least one concrete descendant, by qualified name. */
+    /**
+     * Abstract complex types with at least one concrete descendant that some element names as its
+     * type, by qualified name. A type nothing names is never a field's or an element's type, so a
+     * union of its descendants would be one nothing can use.
+     */
     val types: Map<QName, HeadMembers>
+
+    /** The abstract complex types with concrete descendants that no element names: no union. */
+    val unreferenced: Set<QName>
 
     /**
      * Substitution-group heads with at least one member element, by the head element's qualified
@@ -83,7 +90,8 @@ internal class Heads(docs: List<XsdDoc>) {
                 if (ct.abstract) concrete(d, seen) else listOf(d) + concrete(d, seen)
             }
         }
-        types =
+        val referenced = elementTypes(docs)
+        val withMembers =
             complexTypesByName
                 .filter { it.value.first.abstract }
                 .mapNotNull { (name, pair) ->
@@ -92,6 +100,8 @@ internal class Heads(docs: List<XsdDoc>) {
                     else name to HeadMembers(members, pair.first.line, pair.second)
                 }
                 .toMap()
+        types = withMembers.filterKeys { it in referenced }
+        unreferenced = withMembers.keys - types.keys
 
         // Keyed by qualified name, not by the element: two elements that read alike are still two.
         val substitutes = mutableMapOf<QName, MutableList<Pair<QName, XElement>>>()
@@ -139,6 +149,50 @@ internal class Heads(docs: List<XsdDoc>) {
             val result = LinkedHashMap<K, V>()
             entries.forEach { (k, v) -> result.putIfAbsent(k, v) }
             return result
+        }
+    }
+}
+
+/** Every `type` any element declares, anywhere in [docs]: a derivation's base is not one. */
+internal fun elementTypes(docs: List<XsdDoc>): Set<QName> =
+    allElements(docs).mapNotNullTo(linkedSetOf()) { it.type }
+
+/** Every `ref` any element makes, anywhere in [docs]. */
+internal fun elementRefs(docs: List<XsdDoc>): Set<QName> =
+    allElements(docs).mapNotNullTo(linkedSetOf()) { it.ref }
+
+/** Every element in [docs]: global ones, and those in types and groups, inline types included. */
+private fun allElements(docs: List<XsdDoc>): List<XElement> {
+    val result = mutableListOf<XElement>()
+    docs.forEach { d ->
+        d.elements.forEach { collect(it, result) }
+        d.complexTypes.forEach { collect(it.content, result) }
+        d.groups.forEach { collect(it.content, result) }
+    }
+    return result
+}
+
+private fun collect(el: XElement, into: MutableList<XElement>) {
+    into += el
+    el.inlineComplex?.let { collect(it.content, into) }
+}
+
+private fun collect(content: XContent, into: MutableList<XElement>) {
+    val particles =
+        when (content) {
+            is XContent.Sequence -> content.particles
+            is XContent.Choice -> content.particles
+            is XContent.All -> content.particles
+            is XContent.Extension -> content.particles
+            is XContent.Restriction -> content.particles
+            XContent.Empty -> emptyList()
+        }
+    particles.forEach { p ->
+        when (p) {
+            is XParticle.Element -> collect(p.element, into)
+            is XParticle.Nested -> collect(p.content, into)
+            is XParticle.Any,
+            is XParticle.GroupRef -> Unit
         }
     }
 }

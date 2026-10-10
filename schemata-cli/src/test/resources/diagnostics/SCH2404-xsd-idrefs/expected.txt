@@ -1,0 +1,6 @@
+# import=xsd
+warning[SCH2404] (lossy): attribute 'refs': xs:IDREFS imported as a list of string
+ --> s.xsd:7:1
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 1 warning

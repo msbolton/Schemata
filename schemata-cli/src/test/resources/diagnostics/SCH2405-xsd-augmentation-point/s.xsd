@@ -1,0 +1,10 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:element name="ThingAugmentationPoint" abstract="true"/>
+  <xs:complexType name="ThingType">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element ref="ThingAugmentationPoint" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

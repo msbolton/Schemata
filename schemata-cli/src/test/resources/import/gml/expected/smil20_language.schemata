@@ -14,32 +14,6 @@ model Animate {
   any                    string                     @xsd(any) @xsd(wildcard: "##other")
   id                     string?                    @xsd(attribute)
   class                  string?                    @xsd(attribute)
-  /// lang (as an attribute name)
-  ///
-  /// denotes an attribute whose value
-  /// is a language code for the natural language of the content of
-  /// any element; its value is inherited.  This name is reserved
-  /// by virtue of its definition in the XML specification.
-  ///
-  ///
-  ///
-  /// Notes
-  ///
-  /// Attempting to install the relevant ISO 2- and 3-letter
-  /// codes as the enumerated possible values is probably never
-  /// going to be a realistic possibility.
-  ///
-  ///
-  /// See BCP 47 at
-  /// http://www.rfc-editor.org/rfc/bcp/bcp47.txt
-  /// and the IANA language subtag registry at
-  ///
-  /// http://www.iana.org/assignments/language-subtag-registry
-  /// for further information.
-  ///
-  ///
-  /// The union allows for the 'un-declaration' of xml:lang with
-  /// the empty string.
   lang                   string?                    @xsd(attribute)
   alt                    string?                    @xsd(attribute)
   longdesc               string?                    @xsd(attribute)
@@ -86,32 +60,6 @@ model AnimateMotion {
   any                    string                     @xsd(any) @xsd(wildcard: "##other")
   id                     string?                    @xsd(attribute)
   class                  string?                    @xsd(attribute)
-  /// lang (as an attribute name)
-  ///
-  /// denotes an attribute whose value
-  /// is a language code for the natural language of the content of
-  /// any element; its value is inherited.  This name is reserved
-  /// by virtue of its definition in the XML specification.
-  ///
-  ///
-  ///
-  /// Notes
-  ///
-  /// Attempting to install the relevant ISO 2- and 3-letter
-  /// codes as the enumerated possible values is probably never
-  /// going to be a realistic possibility.
-  ///
-  ///
-  /// See BCP 47 at
-  /// http://www.rfc-editor.org/rfc/bcp/bcp47.txt
-  /// and the IANA language subtag registry at
-  ///
-  /// http://www.iana.org/assignments/language-subtag-registry
-  /// for further information.
-  ///
-  ///
-  /// The union allows for the 'un-declaration' of xml:lang with
-  /// the empty string.
   lang                   string?                    @xsd(attribute)
   alt                    string?                    @xsd(attribute)
   longdesc               string?                    @xsd(attribute)
@@ -157,32 +105,6 @@ model AnimateColor {
   any                    string                     @xsd(any) @xsd(wildcard: "##other")
   id                     string?                    @xsd(attribute)
   class                  string?                    @xsd(attribute)
-  /// lang (as an attribute name)
-  ///
-  /// denotes an attribute whose value
-  /// is a language code for the natural language of the content of
-  /// any element; its value is inherited.  This name is reserved
-  /// by virtue of its definition in the XML specification.
-  ///
-  ///
-  ///
-  /// Notes
-  ///
-  /// Attempting to install the relevant ISO 2- and 3-letter
-  /// codes as the enumerated possible values is probably never
-  /// going to be a realistic possibility.
-  ///
-  ///
-  /// See BCP 47 at
-  /// http://www.rfc-editor.org/rfc/bcp/bcp47.txt
-  /// and the IANA language subtag registry at
-  ///
-  /// http://www.iana.org/assignments/language-subtag-registry
-  /// for further information.
-  ///
-  ///
-  /// The union allows for the 'un-declaration' of xml:lang with
-  /// the empty string.
   lang                   string?                    @xsd(attribute)
   alt                    string?                    @xsd(attribute)
   longdesc               string?                    @xsd(attribute)
@@ -225,32 +147,6 @@ model Set {
   any                    string                     @xsd(any) @xsd(wildcard: "##other")
   id                     string?                    @xsd(attribute)
   class                  string?                    @xsd(attribute)
-  /// lang (as an attribute name)
-  ///
-  /// denotes an attribute whose value
-  /// is a language code for the natural language of the content of
-  /// any element; its value is inherited.  This name is reserved
-  /// by virtue of its definition in the XML specification.
-  ///
-  ///
-  ///
-  /// Notes
-  ///
-  /// Attempting to install the relevant ISO 2- and 3-letter
-  /// codes as the enumerated possible values is probably never
-  /// going to be a realistic possibility.
-  ///
-  ///
-  /// See BCP 47 at
-  /// http://www.rfc-editor.org/rfc/bcp/bcp47.txt
-  /// and the IANA language subtag registry at
-  ///
-  /// http://www.iana.org/assignments/language-subtag-registry
-  /// for further information.
-  ///
-  ///
-  /// The union allows for the 'un-declaration' of xml:lang with
-  /// the empty string.
   lang                   string?                    @xsd(attribute)
   alt                    string?                    @xsd(attribute)
   longdesc               string?                    @xsd(attribute)

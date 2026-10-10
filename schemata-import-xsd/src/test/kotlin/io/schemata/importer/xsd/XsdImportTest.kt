@@ -45,6 +45,103 @@ class XsdImportTest {
         imported.diagnostics.map { "${it.code.id} ${it.message}" }
 
     @Test
+    fun `xml attributes resolve without a file`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attribute ref="xml:lang"/>
+                    <xs:attribute ref="xml:base"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf(
+                UnitField(
+                    "lang",
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    null,
+                    listOf(xsd("attribute")),
+                ),
+                UnitField(
+                    "base",
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    null,
+                    listOf(xsd("attribute")),
+                ),
+            ),
+            record(imported, "Thing").fields.drop(1),
+        )
+    }
+
+    @Test
+    fun `the xml specialAttrs group resolves without a file`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attributeGroup ref="xml:specialAttrs"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf("base", "lang", "space", "id").map {
+                UnitField(
+                    it,
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    null,
+                    listOf(xsd("attribute")),
+                )
+            },
+            record(imported, "Thing").fields.drop(1),
+        )
+    }
+
+    @Test
+    fun `another xml attribute group cannot be resolved`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attributeGroup ref="xml:otherAttrs"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertTrue(
+            messages(imported).any {
+                it.startsWith("SCH2401") && "attribute group 'otherAttrs' cannot be resolved" in it
+            },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
     fun `attributes become annotated fields after the elements`() {
         val imported =
             lower(
@@ -2469,6 +2566,61 @@ class XsdImportTest {
     }
 
     @Test
+    fun `a property element is not reported as a dropped root`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType"><xs:sequence/></xs:complexType>
+                  <xs:element name="thing" type="tns:ThingType"/>
+                  <xs:element name="property" type="tns:ThingType"/>
+                  <xs:element name="stray" type="tns:ThingType"/>
+                  <xs:complexType name="HolderType">
+                    <xs:sequence><xs:element ref="tns:property"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf("SCH2405 element 'stray': second root element for 'ThingType' dropped"),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `a property element of another namespace is not reported`() {
+        val other =
+            doc(
+                """
+                <xs:schema $xs xmlns:o="urn:schemata:o" targetNamespace="urn:schemata:o">
+                  <xs:complexType name="OtherType"><xs:sequence/></xs:complexType>
+                </xs:schema>
+                """,
+                "o.xsd",
+            )
+        val main =
+            doc(
+                """
+                <xs:schema $xs xmlns:o="urn:schemata:o" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:import namespace="urn:schemata:o" schemaLocation="o.xsd"/>
+                  <xs:element name="used" type="o:OtherType"/>
+                  <xs:element name="unused" type="o:OtherType"/>
+                  <xs:complexType name="HolderType">
+                    <xs:sequence><xs:element ref="tns:used"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "s.xsd",
+            )
+        val imported = XsdImport.lower(listOf(other, main), null)
+        assertEquals(
+            listOf("SCH2405 element 'unused': root element of a type in another namespace dropped"),
+            messages(imported),
+        )
+    }
+
+    @Test
     fun `a second global element of one type is dropped`() {
         val imported =
             lower(
@@ -2685,11 +2837,15 @@ class XsdImportTest {
         val imported = XsdImport.lower(listOf(derived, base), null)
         val spans =
             imported.diagnostics
-                .filter { it.message.startsWith("complex type 'DerivedType'") }
+                .filter {
+                    it.message.contains("'BaseType'") || it.message.contains("'DerivedType'")
+                }
                 .associate { it.message to (it.span.file to it.span.startLine) }
+        // The nested sequence is the base's: its own note, not the copy made while flattening
+        // it into the derived type, is the one kept.
         assertEquals(
             mapOf(
-                "complex type 'DerivedType': nested sequence imported as model 'XGroup' in " +
+                "complex type 'BaseType': nested sequence imported as model 'XGroup' in " +
                     "field 'x_group'" to ("a.xsd" to 4),
                 "complex type 'DerivedType': extension of 'BaseType' has no Schemata equivalent; " +
                     "base fields flattened into the model" to ("b.xsd" to 6),
@@ -2764,19 +2920,20 @@ class XsdImportTest {
     }
 
     @Test
-    fun `an import with no namespace names itself when unresolved`() {
-        val imported =
-            lower(
-                """
-                <?xml version="1.0"?>
-                <xs:schema $xs targetNamespace="urn:schemata:s">
-                  <xs:import schemaLocation="x.xsd"/>
-                </xs:schema>
-                """
+    fun `an import with no namespace is dropped by name when not found`() {
+        val result =
+            importAll(
+                "s.xsd" to
+                    """
+                    <?xml version="1.0"?>
+                    <xs:schema $xs targetNamespace="urn:schemata:s">
+                      <xs:import schemaLocation="x.xsd"/>
+                    </xs:schema>
+                    """
             )
         assertEquals(
-            listOf("SCH2401 s.xsd: import with no namespace cannot be resolved"),
-            messages(imported),
+            listOf("SCH2405 s.xsd: import '(no namespace)' not found; dropped"),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
         )
     }
 
@@ -3267,5 +3424,162 @@ class XsdImportTest {
             ),
             record(imported, "Thing").fields.single().type,
         )
+    }
+
+    @Test
+    fun `an unresolved type names the unresolved imports in its help`() {
+        val xml =
+            """
+            <?xml version="1.0"?>
+            <xs:schema $xs xmlns:tns="urn:schemata:s" xmlns:m="urn:x:m" targetNamespace="urn:schemata:s">
+              <xs:complexType name="AType">
+                <xs:sequence>
+                  <xs:element name="x" type="m:Thing"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+        fun help(vararg missing: String) =
+            XsdImport.lower(listOf(doc(xml).copy(unresolvedImports = missing.toList())), null)
+                .diagnostics
+                .single()
+                .help
+        assertEquals(
+            "import 'urn:x:m' was not found; add the schema that declares it",
+            help("urn:x:m"),
+        )
+        assertEquals(
+            "imports 'urn:x:m', 'urn:x:n' were not found; add the schemas that declare them",
+            help("urn:x:m", "urn:x:n"),
+        )
+    }
+
+    @Test
+    fun `an idrefs attribute is a string list with the list key`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="HolderType">
+                    <xs:attribute name="refs" type="xs:IDREFS"/>
+                    <xs:attribute name="one" type="xs:IDREFS" use="required"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val refs = record(imported, "Holder").fields.single { it.name == "refs" }
+        assertEquals(
+            UnitType.ListOf(UnitType.Scalar("string", emptyList()), false, emptyList()),
+            refs.type,
+        )
+        assertEquals(listOf(xsd("list"), xsd("attribute")), refs.annotations)
+        assertTrue(
+            "SCH2404 attribute 'refs': xs:IDREFS imported as a list of string" in messages(imported)
+        )
+    }
+
+    @Test
+    fun `an element typed idrefs is a string list with the list key`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="HolderType">
+                    <xs:sequence><xs:element name="refs" type="xs:IDREFS"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val refs = record(imported, "Holder").fields.single()
+        assertEquals(
+            UnitType.ListOf(UnitType.Scalar("string", emptyList()), false, emptyList()),
+            refs.type,
+        )
+        assertTrue(refs.annotations.contains(xsd("list")))
+    }
+
+    @Test
+    fun `a note on an inherited attribute is reported once`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="BaseType" abstract="true">
+                    <xs:attribute name="refs" type="xs:IDREFS"/>
+                  </xs:complexType>
+                  <xs:complexType name="AType"><xs:complexContent><xs:extension base="tns:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:complexType name="BType"><xs:complexContent><xs:extension base="tns:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:complexType name="CType"><xs:complexContent><xs:extension base="tns:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                </xs:schema>
+                """
+            )
+        val notes = imported.diagnostics.filter { "xs:IDREFS" in it.message }
+        assertEquals(1, notes.size)
+        assertEquals(3, notes.single().span?.startLine)
+    }
+
+    @Test
+    fun `a typeless abstract head with no member is dropped where it is used`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:element name="Augmentation" abstract="true"/>
+                  <xs:element name="Typed" type="xs:string" abstract="true"/>
+                  <xs:complexType name="HolderType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:element ref="tns:Augmentation" minOccurs="0" maxOccurs="unbounded"/>
+                      <xs:element ref="tns:Typed" minOccurs="0"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val fields = record(imported, "Holder").fields
+        assertEquals(listOf("id", "typed"), fields.map { it.name })
+        assertTrue(fields.none { f -> f.annotations.contains(xsd("any_type")) })
+        val msgs = messages(imported)
+        assertEquals(
+            1,
+            msgs.count {
+                it ==
+                    "SCH2405 element 'Augmentation': abstract element 'Augmentation' has no " +
+                        "type and no substituting element; dropped"
+            },
+        )
+        assertEquals(
+            listOf("SCH2405 element 'Typed': abstract dropped"),
+            msgs.filter { "abstract dropped" in it },
+        )
+    }
+
+    @Test
+    fun `the declaring type keeps a note when a derived type lowers first`() {
+        val derived =
+            doc(
+                """
+                <xs:schema $xs xmlns:b="urn:schemata:b" xmlns:a="urn:schemata:a" targetNamespace="urn:schemata:a">
+                  <xs:import namespace="urn:schemata:b" schemaLocation="b.xsd"/>
+                  <xs:complexType name="DerivedType"><xs:complexContent><xs:extension base="b:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                </xs:schema>
+                """,
+                "a.xsd",
+            )
+        val base =
+            doc(
+                """
+                <xs:schema $xs xmlns:b="urn:schemata:b" targetNamespace="urn:schemata:b">
+                  <xs:complexType name="BaseType"><xs:attribute name="refs" type="xs:IDREFS"/></xs:complexType>
+                </xs:schema>
+                """,
+                "b.xsd",
+            )
+        val imported = XsdImport.lower(listOf(derived, base), null)
+        val note = imported.diagnostics.single { "xs:IDREFS" in it.message }
+        assertEquals("attribute 'refs': xs:IDREFS imported as a list of string", note.message)
+        assertEquals("b.xsd", note.span?.file)
+        val extension = imported.diagnostics.single { "extension of 'BaseType'" in it.message }
+        assertTrue(extension.message.startsWith("complex type 'DerivedType'"))
     }
 }

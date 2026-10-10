@@ -23,4 +23,9 @@
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
+  <xs:complexType name="DrawingType">
+    <xs:sequence>
+      <xs:element name="main" type="ShapeType"/>
+    </xs:sequence>
+  </xs:complexType>
 </xs:schema>

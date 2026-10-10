@@ -1,0 +1,145 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISM25X Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISM25X.xml CVE it is based on, instead of here.
+schema cv_enum_ism25_x @xsd(namespace: "urn:us:gov:ic:cvenum:ism:25x")
+
+/// (U) All currently authorized authority block declass date/event exemptions. This CVE is used by @ism:declassException.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISM25X.xml
+enum CVEnumISM25X {
+  /// When using a source document that contains portions of Restricted Data (RD)
+  /// or Formerly Restricted Data (FRD) where the RD/FRD source document(s)
+  /// do not have declassification instructions, the derivatively classified
+  /// document shall not contain a declassification date or event on the
+  /// Declassify On line.  The following shall be annotated on the Declassify On
+  /// line:  "Not Applicable or (N/A) to RD/FRD portions" and
+  /// "See source list for NSI portions" separated by a period.
+  /// The source list must include the declassification instruction
+  /// for each of the source documents classified under E.O. 13526 and
+  /// shall not appear in the classification authority block
+  @xsd(name: "AEA") aea
+  /// Since NATO information is not to be declassified or downgraded without the prior consent
+  /// of NATO, the “Declassify on” line of documents that commingle information classified by
+  /// NATO and U.S. classified NSI, will read “N/A to NATO portions.
+  /// See source list for NSI portions.”
+  /// The NSI source list will appear beneath the classification authority block
+  /// in a manner that clearly identifies it as separate and distinct.
+  @xsd(name: "NATO") nato
+  /// Handles special case of BOTH NATO and AEA as a single exemption.
+  @xsd(name: "NATO-AEA") nato_aea
+  /// Reveal the identity of a confidential
+  /// human source, a human intelligence source,
+  /// a relationship with an intelligence or security
+  /// service of a foreign government or
+  /// international organization, or a non-human
+  /// intelligence source; or impair the
+  /// effectiveness of an intelligence method
+  /// currently in use, available for use, or under
+  /// development.
+  v25_x1
+  /// "25X1, EO 12951" (prescribed by the DNI for use on information described in E.O. 12951,
+  /// Release of Imagery Acquired by Space-Based National Intelligence Reconnaissance Systems)
+  v25_x1_eo_12951
+  /// Reveal information that would assist
+  /// in the development, production, or use of
+  /// weapons of mass destruction.
+  v25_x2
+  /// Reveal information that would
+  /// impair U.S. cryptologic systems or activities.
+  v25_x3
+  /// Reveal information that would
+  /// impair the application of state-of-the-art
+  /// technology within a U.S. weapon system.
+  v25_x4
+  /// Reveal formally named or numbered
+  /// U.S. military war plans that remain in effect,
+  /// or reveal operational or tactical elements of
+  /// prior plans that are contained in such active
+  /// plans;
+  v25_x5
+  /// Reveal information, including foreign
+  /// government information, that would cause
+  /// serious harm to relations between the United
+  /// States and a foreign government, or to
+  /// ongoing diplomatic activities of the United
+  /// States
+  v25_x6
+  /// Reveal information that would
+  /// impair the current ability of United States
+  /// Government officials to protect the President,
+  /// Vice President, and other protectees for
+  /// whom protection services, in the interest of
+  /// the national security, are authorized.
+  v25_x7
+  /// Reveal information that would
+  /// seriously impair current national security
+  /// emergency preparedness plans or reveal
+  /// current vulnerabilities of systems,
+  /// installations, or infrastructures relating to the
+  /// national security.
+  v25_x8
+  /// Violate a statute, treaty, or
+  /// international agreement that does not permit
+  /// the automatic or unilateral declassification of
+  /// information at 25 years.
+  v25_x9
+  /// The ISCAP has authorized use of this code in the FBI’s
+  /// classification guidance (which results in a 75-year classification
+  /// period) for any agency sourcing/reusing the information.
+  v50_x1
+  /// When the information clearly and
+  /// demonstrably could be expected to
+  /// reveal the identity of a confidential
+  /// human source or a human intelligence
+  /// source.
+  v50_x1_hum
+  /// Reveal information that would assist
+  /// in the development, production, or use of
+  /// weapons of mass destruction.
+  v50_x2
+  /// When the information clearly and
+  /// demonstrably could reveal key design
+  /// concepts of weapons of mass
+  /// destruction.
+  v50_x2_wmd
+  /// Reveal information that would
+  /// impair U.S. cryptologic systems or activities.
+  v50_x3
+  /// Reveal information that would
+  /// impair the application of state-of-the-art
+  /// technology within a U.S. weapon system.
+  v50_x4
+  /// Reveal formally named or numbered
+  /// U.S. military war plans that remain in effect,
+  /// or reveal operational or tactical elements of
+  /// prior plans that are contained in such active
+  /// plans;
+  v50_x5
+  /// Reveal information, including foreign
+  /// government information, that would cause
+  /// serious harm to relations between the United
+  /// States and a foreign government, or to
+  /// ongoing diplomatic activities of the United
+  /// States
+  v50_x6
+  /// Reveal information that would
+  /// impair the current ability of United States
+  /// Government officials to protect the President,
+  /// Vice President, and other protectees for
+  /// whom protection services, in the interest of
+  /// the national security, are authorized.
+  v50_x7
+  /// Reveal information that would
+  /// seriously impair current national security
+  /// emergency preparedness plans or reveal
+  /// current vulnerabilities of systems,
+  /// installations, or infrastructures relating to the
+  /// national security.
+  v50_x8
+  /// Violate a statute, treaty, or
+  /// international agreement that does not permit
+  /// the automatic or unilateral declassification of
+  /// information at 25 years.
+  v50_x9
+}

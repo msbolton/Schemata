@@ -1,0 +1,25 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMPocType Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMPocType.xml CVE it is based on, instead of here.
+schema cv_enum_ism_poc_type @xsd(namespace: "urn:us:gov:ic:cvenum:ism:pocType")
+
+/// (U) All currently authorized types for ISM-related points-of-contact. This CVE is used by @ism:pocType.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMPocType.xml
+enum CVEnumISMPocTypeValues {
+  /// Point-of-contact for an ICD-710 notice.
+  @xsd(name: "ICD-710") icd_710
+  /// DoD Distribution statement B from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-B") do_d_dist_b
+  /// DoD Distribution statement C from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-C") do_d_dist_c
+  /// DoD Distribution statement D from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-D") do_d_dist_d
+  /// DoD Distribution statement E from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-E") do_d_dist_e
+  /// DoD Distribution statement F from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-F") do_d_dist_f
+  /// DoD Distribution statement X from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-X") do_d_dist_x
+}

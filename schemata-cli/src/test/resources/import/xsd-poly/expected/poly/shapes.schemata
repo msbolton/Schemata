@@ -20,6 +20,14 @@ model Square {
   @@xsd(root: false)
 }
 
+model Polygon {
+  label    string?
+  id       string  @xsd(attribute)
+  vertices int32
+
+  @@xsd(root: false)
+}
+
 model Triangle {
   label    string?
   id       string  @xsd(attribute)

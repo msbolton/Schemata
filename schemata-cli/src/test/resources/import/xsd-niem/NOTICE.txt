@@ -1,0 +1,29 @@
+Sources of the files in this test case
+
+include/niem/xsd/ (structures.xsd, adapters/niem-xs.xsd, niem-core.xsd)
+  The NIEM 5.0 release, directory niem/xsd. A work of the United States
+  Government. The files are unchanged.
+  niem-core.xsd imports external/xml.xsd; that file is deliberately absent
+  because the importer builds in the XML namespace.
+  niem-core.xsd and structures.xsd name appinfo.xsd and
+  conformanceTargets.xsd only in xsi:schemaLocation attributes, never in an
+  xs:import, so those two files are not part of this case.
+
+include/IC-TDF/Schema/ (ISM/IC-ISM.xsd, ISM/CVEGenerated, ISMCAT/CVEGenerated)
+  IC-TDF, ISM/IC-ISM.xsd at the version it states itself
+  (version="201609.201707"), and the generated code lists it imports: 12
+  under ISM/CVEGenerated and 4 under ISMCAT/CVEGenerated (CVEnumISMCATRelTo,
+  CVEnumISMCATOwnerProducer, CVEnumISMCATFGIProtected,
+  CVEnumISMCATFGIOpen). The files are unchanged.
+  The IC-TDF schemas carry the notice quoted in ISM/IC-ISM.xsd: "This
+  document has been approved for Public Release and is available for use
+  without restriction." The generated code lists are marked (U) and belong
+  to that set.
+  The .rnc and .rng siblings of the code lists are not copied: the importer
+  reads .xsd only.
+
+exchange/ex-core.xsd, exchange/ex-msg.xsd
+  Written for this case, in the idiom of a NIEM based exchange: an abstract
+  head with substituting elements, an augmentation point, security markings,
+  and references by ID. They are the inputs; everything under include/ is
+  only reached through their imports.

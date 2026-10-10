@@ -1,0 +1,21 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMClassificationAll Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMClassificationAll.xml CVE it is based on, instead of here.
+schema cv_enum_ism_classification_all @xsd(namespace: "urn:us:gov:ic:cvenum:ism:classification:all")
+
+/// (U) All currently valid classification marks. This CVE is used by @ism:classification.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMClassificationAll.xml
+enum CVEnumISMClassificationAll {
+  /// RESTRICTED
+  @xsd(name: "R") r
+  /// CONFIDENTIAL
+  @xsd(name: "C") c
+  /// SECRET
+  @xsd(name: "S") s
+  /// TOP SECRET
+  @xsd(name: "TS") ts
+  /// UNCLASSIFIED
+  @xsd(name: "U") u
+}

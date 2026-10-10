@@ -41,18 +41,54 @@ object XsdImporter : Importer {
                 }
                 .map { it.first }
 
+        // Every document the inputs reach: a located document's own imports and includes are
+        // followed too, each against its own directory, until nothing new appears. A document is
+        // read once.
         val known = merged.toMutableList()
-        merged.forEach { doc ->
+        val knownPaths = known.map { it.path }.toMutableSet()
+        val pending = ArrayDeque(known)
+        while (pending.isNotEmpty()) {
+            val doc = pending.removeFirst()
             doc.imports.forEach { imp ->
                 val ns = imp.namespace
-                if (ns != null && known.none { it.targetNamespace == ns }) {
-                    val located = fetch(doc.path, imp.schemaLocation, byPath, locate, reader)
-                    if (located != null) known += located
-                }
+                if (ns == XsdReader.XML || ns == XsdReader.XS) return@forEach
+                if (known.any { it.targetNamespace == ns && ns != null }) return@forEach
+                val input = find(doc.path, imp.schemaLocation, byPath, locate) ?: return@forEach
+                if (input.path in knownPaths) return@forEach
+                val located = reader.read(input) ?: return@forEach
+                val (withIncludes, visited) = mergeIncludes(located, byPath, locate, reader)
+                knownPaths += visited
+                known += withIncludes
+                pending += withIncludes
             }
         }
-
-        val lowered = XsdImport.lower(known, namespace)
+        // Once the closure is complete, an import that named no file, or a file that was not
+        // there, still resolves when some document read declares its namespace; the rest are
+        // dropped with a warning and the document imports without them.
+        val resolved =
+            known.map { doc ->
+                val missing =
+                    doc.imports.filter { imp ->
+                        val ns = imp.namespace
+                        ns != XsdReader.XML &&
+                            ns != XsdReader.XS &&
+                            known.none { it.targetNamespace == ns }
+                    }
+                missing.forEach { imp ->
+                    diagnostics +=
+                        Diagnostic(
+                            ImportCodes.DROPPED,
+                            "${doc.path}: import '${imp.namespace ?: "(no namespace)"}' not found; dropped",
+                            Span(doc.path, imp.line, 1, imp.line, 1),
+                            "add the schema that declares it to the inputs",
+                        )
+                }
+                doc.copy(
+                    imports = doc.imports - missing.toSet(),
+                    unresolvedImports = missing.map { it.namespace ?: "(no namespace)" },
+                )
+            }
+        val lowered = XsdImport.lower(resolved, namespace)
         diagnostics += lowered.diagnostics
 
         return importResult(lowered.units, diagnostics)
@@ -153,18 +189,6 @@ object XsdImporter : Importer {
             dropped = into.dropped + included.dropped,
         )
 
-    /**
-     * Resolves [relative] against [basePath]'s directory and reads it: an already-read input first,
-     * else [locate].
-     */
-    private fun fetch(
-        basePath: String,
-        relative: String?,
-        byPath: Map<String, ImportInput>,
-        locate: (String) -> ImportInput?,
-        reader: Reader,
-    ): XsdDoc? = find(basePath, relative, byPath, locate)?.let { reader.read(it) }
-
     /** The input [relative] names from [basePath]'s directory, or `null` when there is none. */
     private fun find(
         basePath: String,
@@ -188,8 +212,24 @@ object XsdImporter : Importer {
             if (input.path in read) return read[input.path]
             val result = XsdReader.read(input.path, input.content)
             diagnostics += result.diagnostics
-            read[input.path] = result.doc
-            return result.doc
+            // The xml and xml schema namespaces are built in: their attributes and types resolve
+            // without a file, so a document that declares one is not lowered to a schema.
+            val doc =
+                result.doc?.takeUnless { d ->
+                    val ns = d.targetNamespace
+                    (ns == XsdReader.XML || ns == XsdReader.XS).also { builtIn ->
+                        if (builtIn)
+                            diagnostics +=
+                                Diagnostic(
+                                    ImportCodes.DROPPED,
+                                    "${d.path}: namespace '$ns' is built in; skipped",
+                                    Span(d.path, 1, 1, 1, 1),
+                                    ImportCodes.helpFor(ImportCodes.DROPPED),
+                                )
+                    }
+                }
+            read[input.path] = doc
+            return doc
         }
     }
 }

@@ -1,0 +1,10 @@
+# import=xsd
+warning[SCH2405] (lossy): s.xsd: import 'urn:x:missing' not found; dropped
+ --> s.xsd:3:1
+  = help: add the schema that declares it to the inputs
+
+error[SCH2401]: element 'thing': type 'Thing' cannot be resolved
+ --> s.xsd:6:1
+  = help: import 'urn:x:missing' was not found; add the schema that declares it
+
+1 error, 1 warning

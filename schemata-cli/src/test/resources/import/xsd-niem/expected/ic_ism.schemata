@@ -1,0 +1,1760 @@
+/// Intelligence Community
+/// Technical Specification XML Data Encoding Specification for Information Security
+/// Marking Metadata (ISM.XML)
+///
+/// Notices
+/// Distribution Notice:
+/// This document has been approved for Public Release and is available for use without restriction.
+///
+/// Description
+/// W3C XML Schema for the XML Data
+/// Encoding Specification Intelligence Community Metadata Standard for Information
+/// Security Marking (ISM.XML).
+///
+/// Introduction
+/// This XML Schema file is one
+/// component of the XML Data Encoding Specification (DES). Please see the document
+/// titled
+/// XML Data Encoding
+/// Specification for Information Security Marking Metadata
+/// for a complete description of the encoding as well as a list of all
+/// components.
+/// This schema and its components,
+/// as well as other parts of the DES may be overridden for localized implementations.
+/// Therefore, permission to use, copy, modify, and distribute this XML Schema and the
+/// other parts of the DES for any purpose is hereby granted in perpetuity.
+/// Please reference the preceding
+/// two paragraphs in all copies or variations. The developers make no representation
+/// about the suitability of the schema or DES for any purpose. It is provided “as is”
+/// without expressed or implied warranty.
+/// If you modify this XML Schema in
+/// any way, label your schema as a variant of ISM.XML.
+/// Please direct all questions, bug
+/// reports, and suggestions for changes to the points of contact identified in the
+/// document referenced above.
+///
+/// Implementation Notes
+///
+/// The IC ISM schema is not a
+/// standalone construct; it should be imported into a parent XML schema.
+/// Refer to the
+/// XML Data Encoding
+/// Specification for Information Security Marking Metadata
+/// Data Encoding Specification (ISM.XML DES) for an explanation of the
+/// relationships of the IC ISM attributes and the associated controlled
+/// vocabularies. The Intelligence Community Markings System Register and Manual
+/// provide additional business rules (that may be classified) not provided in this
+/// schema or the associated documentation.
+/// The IC ISM attributes are
+/// intended to support all Intelligence Community Markings System Register and
+/// Manual markings. However, the attribute values are NOT intended to be verbatim
+/// pieces of portion marks and banners. Instead, the values should be interpreted
+/// by XSLT stylesheets or other formatting specifications to produce the required
+/// portion marks and banners.
+/// The controlled vocabularies
+/// containing the required values for populating the attributes are described in
+/// the ISM.XML DES.
+/// Attribute group
+/// "SecurityAttributesGroup" should be referenced in the attribute definition list
+/// of any element that REQUIRES security metadata.
+/// Attribute group
+/// "SecurityAttributesOptionGroup" may be referenced in the attribute definition
+/// list of any element for which security metadata may be appropriate but is not
+/// required (such as, an individual cell of a table).
+/// Elements declared in this
+/// specification are conveniences to developers of Schema. Their use is not
+/// required but was determined to be helpful for many Schemas that would otherwise
+/// have to declare these simple elements. Schema developers are free to implement
+/// their own versions of these elements.
+/// This file provides an
+/// XML-based schema for specification of metadata for classification and controls
+/// markings. The goal of the IC ISM XML Schema is to provide a common set of XML
+/// attributes for implementing security-based metadata throughout the IC. The IC
+/// ISM XML Schema provides markup for the tokens that are used to format the
+/// Intelligence Community Markings System Register and Manual markings.
+/// The IC ISM XML Schema may
+/// be incorporated into organizational XML-based schemas by (a) declaring the IC
+/// ISM namespace and (b) inserting an "import" statement:
+/// <xsd:schema xmlns="...my namespace name..." targetNamespace="...my
+/// namespace name..." xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+/// xmlns:ism="urn:us:gov:ic:ism"> ... <xsd:import
+/// namespace="urn:us:gov:ic:ism schemaLocation="IC-ISM.xsd" />
+///
+/// Creators
+/// Office of the Director of
+/// National Intelligence Intelligence Community Chief Information Officer
+schema ic_ism @xsd(namespace: "urn:us:gov:ic:ism") @xsd(attribute_form: "qualified")
+
+import cv_enum_ism25_x
+import cv_enum_ism_atomic_energy_markings
+import cv_enum_ism_classification_all
+import cv_enum_ism_dissem
+import cv_enum_ismcatfgi_open
+import cv_enum_ismcatfgi_protected
+import cv_enum_ism_non_ic
+import cv_enum_ism_non_us_controls
+import cv_enum_ism_notice
+import cv_enum_ismcat_owner_producer
+import cv_enum_ism_poc_type
+import cv_enum_ismcat_rel_to
+import cv_enum_ismsar
+import cv_enum_ismsci_controls
+import cv_enum_ism_exempt_from
+import cv_enum_ism_complies_with
+
+model LongStringWithSecurity {
+  value                      string
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll   @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]                                                    { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+/// Base type for Notices. Does
+/// not include any attributes.
+model NoticeBase {
+  /// The actual text of a
+  /// notice.
+  notice_text NoticeText[] { minItems 1 } @xsd(name: "NoticeText")
+
+  @@xsd(root: false)
+}
+
+/// A single Notice that may
+/// consist of 1 or more NoticeText
+model Notice {
+  /// The actual text of a
+  /// notice.
+  notice_text                NoticeText[]                                                { minItems 1 } @xsd(name: "NoticeText")
+  /// An indicator that the
+  /// containing element contains a security-related notice. This attribute is used to
+  /// categorize which of the required notices is specified in the element. These
+  /// categories include those described in the Intelligence Community Markings System
+  /// Register and Manual, as well as additional well-defined and formally recognized
+  /// security notice types described in other directives, such as US-Person and DoD
+  /// Distribution. The element could contain any structure that the implementing
+  /// schema defines, and rendering details are relegated to the implementing schema.
+  /// The permissible values for this attribute are defined in the ISM Notice CVE:
+  /// CVEnumISMNotice.xml
+  notice_type                cv_enum_ism_notice.CVEnumISMNoticeValues[]?                 { maxItems 22 } @xsd(name: "noticeType") @xsd(list) @xsd(attribute)
+  /// A reason associated with a
+  /// notice (for example, the DoD Distribution reason)
+  notice_reason              string?                                                     { max 2048 } @xsd(name: "noticeReason") @xsd(attribute)
+  /// A date associated with a
+  /// notice (for example, the DoD Distribution notice date)
+  notice_date                date?                                                       @xsd(name: "noticeDate") @xsd(attribute)
+  /// A notice that is of a
+  /// category that is not described in the Intelligence Community Markings System
+  /// Register and Manual and/or is not sufficiently defined to be represented in the
+  /// Controlled Value Enumeration CVEnumISMNotice.xml. This attribute can be used by
+  /// specifications that import ISM to represent a wider variety of security-related
+  /// notices.
+  unregistered_notice_type   string?                                                     { max 2048 } @xsd(name: "unregisteredNoticeType") @xsd(attribute)
+  /// An indicator that an element
+  /// contains a security-related notice for information NOT contained in
+  /// document
+  /// This flag allows for a
+  /// notice to exist in a document without the data that would normally require the
+  /// notice. For example, a document could contain a FISA notice without FISA data
+  /// present. Source citations are a common use case for this attribute.
+  external_notice            bool?                                                       @xsd(name: "externalNotice") @xsd(attribute)
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll?  @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]?                                                   { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+
+  @@xsd(name: "Notice")
+}
+
+/// A single Notice that may
+/// consist of 1 or more NoticeText for use when the notice refers to something
+/// external.
+model NoticeExternal {
+  /// The actual text of a
+  /// notice.
+  notice_text                NoticeText[]                                                { minItems 1 } @xsd(name: "NoticeText")
+  /// An indicator that the
+  /// containing element contains a security-related notice. This attribute is used to
+  /// categorize which of the required notices is specified in the element. These
+  /// categories include those described in the Intelligence Community Markings System
+  /// Register and Manual, as well as additional well-defined and formally recognized
+  /// security notice types described in other directives, such as US-Person and DoD
+  /// Distribution. The element could contain any structure that the implementing
+  /// schema defines, and rendering details are relegated to the implementing schema.
+  /// The permissible values for this attribute are defined in the ISM Notice CVE:
+  /// CVEnumISMNotice.xml
+  notice_type                cv_enum_ism_notice.CVEnumISMNoticeValues[]?                 { maxItems 22 } @xsd(name: "noticeType") @xsd(list) @xsd(attribute)
+  /// A reason associated with a
+  /// notice (for example, the DoD Distribution reason)
+  notice_reason              string?                                                     { max 2048 } @xsd(name: "noticeReason") @xsd(attribute)
+  /// A date associated with a
+  /// notice (for example, the DoD Distribution notice date)
+  notice_date                date?                                                       @xsd(name: "noticeDate") @xsd(attribute)
+  /// A notice that is of a
+  /// category that is not described in the Intelligence Community Markings System
+  /// Register and Manual and/or is not sufficiently defined to be represented in the
+  /// Controlled Value Enumeration CVEnumISMNotice.xml. This attribute can be used by
+  /// specifications that import ISM to represent a wider variety of security-related
+  /// notices.
+  unregistered_notice_type   string?                                                     { max 2048 } @xsd(name: "unregisteredNoticeType") @xsd(attribute)
+  /// An indicator that an element
+  /// contains a security-related notice for information NOT contained in
+  /// document
+  /// This flag allows for a
+  /// notice to exist in a document without the data that would normally require the
+  /// notice. For example, a document could contain a FISA notice without FISA data
+  /// present. Source citations are a common use case for this attribute.
+  external_notice            bool                                                        @xsd(name: "externalNotice") @xsd(attribute) = true
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll?  @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]?                                                   { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+
+  @@xsd(name: "NoticeExternal")
+}
+
+/// A list of Notices
+model NoticeList {
+  /// A single Notice that may
+  /// consist of 1 or more NoticeText
+  notice                     Notice[]                                                    { minItems 1 } @xsd(name: "Notice")
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll   @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]                                                    { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+
+  @@xsd(name: "NoticeList")
+}
+
+/// A list of Notices
+model NoticeExternalList {
+  /// A single Notice that may
+  /// consist of 1 or more NoticeText for use when the notice refers to something
+  /// external.
+  notice_external            NoticeExternal[]                                            { minItems 1 } @xsd(name: "NoticeExternal")
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll   @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]                                                    { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+
+  @@xsd(name: "NoticeExternalList")
+}
+
+model ShortStringWithSecurity {
+  value                      string
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll   @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]                                                    { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+/// The actual text of a
+/// notice.
+model NoticeText {
+  value                      string
+  /// Indicates that the element
+  /// specifies a point-of-contact (POC) and the methods with which to contact that
+  /// individual. As certain POCs are required for different reasons (ICD-710
+  /// compliance, DoD Distribution statements, etc), the values for this attribute
+  /// specify the reason(s) why the POC is provided.
+  poc_type                   cv_enum_ism_poc_type.CVEnumISMPocTypeValues[]?              { maxItems 7 } @xsd(name: "pocType") @xsd(list) @xsd(attribute)
+  /// The highest level of
+  /// classification applicable to the containing document or portion
+  /// The Classification element
+  /// is always used in conjunction with the Owner Producer element. Taken together,
+  /// the two elements specify the classification category (TS, S, C, R, or U) and the
+  /// type of classification (US, non-US, or Joint). This attribute is used to render
+  /// portion marks and security banners.
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Classification All CVE:
+  /// CVEnumISMClassificationAll.xml
+  classification             cv_enum_ism_classification_all.CVEnumISMClassificationAll   @xsd(attribute)
+  /// The set of national
+  /// governments and/or international organizations that have purview over the
+  /// containing classification marking
+  /// This element is always used
+  /// in conjunction with the Classification element. Taken together, the two elements
+  /// specify the classification category (TS, S, C, R, or U) and the type of
+  /// classification (US, non-US, or Joint). The permissable values for this attribute
+  /// are defined in the ISMCAT Owner Producer CVE:
+  /// CVEnumISMCATOwnerProducer.xml.
+  owner_producer             string[]                                                    { maxItems 1000 } @xsd(name: "ownerProducer") @xsd(list) @xsd(attribute)
+  /// When true, an indicator that
+  /// entities in the @ism:ownerProducer attribute are JOINT owners of the
+  /// data
+  joint                      bool?                                                       @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying
+  /// sensitive compartmented information control system(s). It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMSCIControls.xml
+  sc_icontrols               cv_enum_ismsci_controls.CVEnumISMSCIControlsValues[]?       { maxItems 12 } @xsd(name: "SCIcontrols") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// defense or intelligence programs for which special access is required. It is
+  /// manifested in portion marks and security banners. PERMISSIBLE VALUES The
+  /// permissible values for this attribute are defined in the Controlled Value
+  /// Enumeration: CVEnumISMSAR.xml
+  sar_identifier             string[]?                                                   { maxItems 0 } @xsd(name: "SARIdentifier") @xsd(list) @xsd(attribute)
+  /// Applicable atomic energy
+  /// information markings for a document or portion
+  /// This attribute is used at
+  /// both resource and portion levels. The permissible values for this simple type
+  /// are defined in the ISM Atomic Energy Markings CVE:
+  /// CVEnumISMAtomicEnergyMarkings.xml.
+  atomic_energy_markings     string[]?                                                   { maxItems 1000 } @xsd(name: "atomicEnergyMarkings") @xsd(list) @xsd(attribute)
+  /// Applicable dissemination
+  /// control markings for a document or portion
+  /// This attribute is rendered
+  /// in portion marks and banners. The permissible values for this attribute are
+  /// defined in the ISM Dissemination CVE: CVEnumISMDissem.xml
+  dissemination_controls     cv_enum_ism_dissem.CVEnumISMDissemValues[]?                 { maxItems 13 } @xsd(name: "disseminationControls") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations associated with a “Display Only To”
+  /// marking
+  /// The “Display Only To”
+  /// marking indicates that a document is authorized for foreign viewing by
+  /// appropriate affiliates of approved countries and/or international organizations
+  /// without providing the foreign recipient with a copy for retention in any medium
+  /// (physical or electronic).
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM Rel To CVE: CVEnumISMRelTo.xml.
+  display_only_to            string[]?                                                   { maxItems 1000 } @xsd(name: "displayOnlyTo") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information is not concealed (also used for
+  /// cases when the source is unknown)
+  /// FGI markings protect
+  /// foreign-owned or foreign-produced information and are applied based on sharing
+  /// agreements or arrangements with the source country or organization.
+  /// This attribute is used at
+  /// both the resource and the portion levels. The permissible values for this
+  /// attribute are defined in the ISM FGI Open CVE: CVEnumISMFGIOpen.xml. Note: the
+  /// value “UNKNOWN” is allowed in cases where the source of the information is not
+  /// known.
+  fg_isource_open            string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceOpen") @xsd(list) @xsd(attribute)
+  /// The set of countries and/or
+  /// international organizations whose information is derivatively sourced in a
+  /// document when the source of the information must be concealed
+  /// This attribute has specific
+  /// rules concerning its usage:
+  /// PROTECTED SPACES — Within
+  /// protected internal organizational spaces, this attribute may be used to maintain
+  /// a formal record of the foreign country or countries and/or registered
+  /// international organization(s) that are the non-disclosable owner(s) and/or
+  /// producer(s) of information which is categorized as foreign government
+  /// information according to Security Markings Program guidelines. If the data
+  /// element is employed in this manner, then additional measures must be taken prior
+  /// to dissemination of the resource to shared spaces so that any indications of the
+  /// non-disclosable owner(s) and/or producer(s) of information within the resource
+  /// are eliminated. In all cases, the corresponding portion marking or banner
+  /// marking should be compliant with Security Markings Program guidelines for FGI
+  /// when the source must be concealed. In other words, even if the data element is
+  /// being employed within protected internal organizational spaces to maintain a
+  /// formal record of the non-disclosable owner(s) and/or producer(s) within an XML
+  /// resource, if the resource is rendered for display within the protected internal
+  /// organizational spaces in any format by a stylesheet or as a result of any other
+  /// transformation process, then the non-disclosable owner(s) and/or producer(s)
+  /// should not be included in the corresponding portion marking or banner
+  /// marking.
+  /// SHARED SPACES — Within
+  /// shared spaces, the data element serves only to indicate the presence of FGI; in
+  /// this case, this element’s value will always be “FGI”. The data element may also
+  /// be employed in this manner within protected internal organizational
+  /// spaces.
+  /// Permissible values for this
+  /// attribute are defined in the ISM FGI Protected CVE: CVEnumISMFGIProtected.xml.
+  /// Note: the value “FGI” is permitted in the case outlined for “shared
+  /// spaces”.
+  fg_isource_protected       string[]?                                                   { maxItems 1000 } @xsd(name: "FGIsourceProtected") @xsd(list) @xsd(attribute)
+  /// This attribute is used at
+  /// both the resource and the portion levels. One or more indicators identifying the
+  /// country or countries and/or international organization(s) to which classified
+  /// information may be released based on the determination of an originator in
+  /// accordance with established foreign disclosure procedures. This element is used
+  /// in conjunction with the Dissemination Controls element. It is manifested in
+  /// portion marks and security banners. PERMISSIBLE VALUES The permissible values
+  /// for this attribute are defined in the Controlled Value Enumeration:
+  /// CVEnumISMRelTo.xml
+  releasable_to              string[]?                                                   { maxItems 1000 } @xsd(name: "releasableTo") @xsd(list) @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-intelligence components
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-IC CVE: CVEnumISMNonIC.xml
+  non_i_cmarkings            cv_enum_ism_non_ic.CVEnumISMNonICValues[]?                  { maxItems 9 } @xsd(name: "nonICmarkings") @xsd(list) @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier and position title, of the original classification authority
+  /// for a document
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  classified_by              string?                                                     { max 1024 } @xsd(name: "classifiedBy") @xsd(attribute)
+  /// The reason that the
+  /// classification of the document is more restrictive than the simple roll-up of
+  /// the marked portions of the document
+  /// This attribute is an
+  /// indicator that there is not accidental over-classification of the document.
+  /// Users must exercise special care beyond that indicated by the portion marks when
+  /// using this information.
+  compilation_reason         string?                                                     { max 1024 } @xsd(name: "compilationReason") @xsd(attribute)
+  /// The identity, by name or
+  /// personal identifier, of the derivative classification authority
+  /// This attribute corresponds
+  /// to the “Classified By” line of a resource’s classification authority block, and
+  /// it is used primarily at the resource level.
+  derivatively_classified_by string?                                                     { max 1024 } @xsd(name: "derivativelyClassifiedBy") @xsd(attribute)
+  /// One or more reason
+  /// indicators or explanatory text describing the basis for an original
+  /// classification decision
+  /// This attribute corresponds
+  /// to the “Reason” line of a document’s classification authority block, and it is
+  /// only used, and only allowed, when classification is the result of an original
+  /// classification decision. It is used primarily at the resource level.
+  classification_reason      string?                                                     { max 4096 } @xsd(name: "classificationReason") @xsd(attribute)
+  /// One or more indicators of an
+  /// expansion or limitation on the distribution of a document or portion originating
+  /// from non-US components (foreign government or international
+  /// organization).
+  /// This attribute is used at
+  /// both the resource and the portion levels, and it is rendered in portion marks
+  /// and security banners. The permissible values for this attribute are defined in
+  /// the ISM Non-US Controls CVE: CVEnumISMNonUSControls.xml
+  non_us_controls            cv_enum_ism_non_us_controls.CVEnumISMNonUSControlsValues[]? { maxItems 3 } @xsd(name: "nonUSControls") @xsd(list) @xsd(attribute)
+  /// A citation of the
+  /// authoritative source or sources of the classification markings used in a
+  /// derivative classification decision for a classified document
+  /// This attribute corresponds
+  /// to the “Derived From” line of a document’s classification authority block, and
+  /// it is used primarily at the resource level.
+  /// ISOO Guidance: The source of
+  /// derivative classification. (1) The derivative classifier shall concisely
+  /// identify the source document or the classification guide on the ‘‘Derived From’’
+  /// line, including the agency and, where available, the office of origin, and the
+  /// date of the source or guide. An example might appear as: Derived From: Memo,
+  /// ‘‘Funding Problems,’’ October 20, 2008, Office of Administration, Department of
+  /// Good Works or Derived From: CG No. 1, Department of Good Works, dated October
+  /// 20, 2008 (i) When a document is classified derivatively on the basis of more
+  /// than one source document or classification guide, the ‘‘Derived From’’ line
+  /// shall appear as: Derived From: Multiple Sources (ii) The derivative classifier
+  /// shall include a listing of the source materials on, or attached to, each
+  /// derivatively classified document.
+  derived_from               string?                                                     { max 1024 } @xsd(name: "derivedFrom") @xsd(attribute)
+  /// The specific date when the
+  /// resource is subject to automatic declassification procedures if not properly
+  /// exempted from automatic declassification
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_date               date?                                                       @xsd(name: "declassDate") @xsd(attribute)
+  /// A description of an event
+  /// upon which the information shall be subject to automatic declassification
+  /// procedures if not properly exempted from automatic declassification A
+  /// description of an event upon which the information shall be automatically
+  /// declassified if not properly exempted from automatic declassification.
+  /// This attribute corresponds
+  /// to the “Declassify On” line of a resource’s classification authority block. It
+  /// is used primarily at the resource level.
+  declass_event              string?                                                     { max 1024 } @xsd(name: "declassEvent") @xsd(attribute)
+  /// The exemption from automatic
+  /// declassification that is claimed for a document
+  /// This element is used in
+  /// conjunction with the Declassification Date or Declassification Event, and it
+  /// corresponds to the “Declassify On” line of a resource’s classification authority
+  /// block. It is used primarily at the resource level. The permissible values for
+  /// this attribute are defined in the ISM N25X CVE: CVEnumISMN25X.xml.
+  /// ISOO Guidance:
+  /// @declassException should be a SINGLE value giving the longest
+  /// protection.
+  declass_exception          cv_enum_ism25_x.CVEnumISM25X?                               @xsd(name: "declassException") @xsd(attribute)
+  /// When true, indicates the ISM
+  /// markings specified are estimated (e.g. system high).
+  has_approximate_markings   bool?                                                       @xsd(name: "hasApproximateMarkings") @xsd(attribute)
+}

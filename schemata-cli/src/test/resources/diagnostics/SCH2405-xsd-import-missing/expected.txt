@@ -1,0 +1,6 @@
+# import=xsd
+warning[SCH2405] (lossy): s.xsd: import 'urn:x:missing' not found; dropped
+ --> s.xsd:3:1
+  = help: add the schema that declares it to the inputs
+
+0 errors, 1 warning

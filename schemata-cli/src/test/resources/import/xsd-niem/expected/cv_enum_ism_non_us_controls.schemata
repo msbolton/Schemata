@@ -1,0 +1,17 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMNonUSControls Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMNonUSControls.xml CVE it is based on, instead of here.
+schema cv_enum_ism_non_us_controls @xsd(namespace: "urn:us:gov:ic:cvenum:ism:nonuscontrols")
+
+/// (U) NonUS Control markings supported by ISM. This CVE is used by @ism:nonUSControls.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMNonUSControls.xml
+enum CVEnumISMNonUSControlsValues {
+  /// NATO Atomal mark
+  @xsd(name: "ATOMAL") atomal
+  /// NATO Bohemia mark
+  @xsd(name: "BOHEMIA") bohemia
+  /// NATO Balk mark
+  @xsd(name: "BALK") balk
+}
