@@ -86,6 +86,62 @@ class XsdImportTest {
     }
 
     @Test
+    fun `the xml specialAttrs group resolves without a file`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attributeGroup ref="xml:specialAttrs"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf("base", "lang", "space", "id").map {
+                UnitField(
+                    it,
+                    UnitType.Scalar("string", emptyList()),
+                    true,
+                    null,
+                    null,
+                    listOf(xsd("attribute")),
+                )
+            },
+            record(imported, "Thing").fields.drop(1),
+        )
+    }
+
+    @Test
+    fun `another xml attribute group cannot be resolved`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="ThingType">
+                    <xs:sequence>
+                      <xs:element name="name" type="xs:string"/>
+                    </xs:sequence>
+                    <xs:attributeGroup ref="xml:otherAttrs"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertTrue(
+            messages(imported).any {
+                it.startsWith("SCH2401") && "attribute group 'otherAttrs' cannot be resolved" in it
+            },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
     fun `attributes become annotated fields after the elements`() {
         val imported =
             lower(

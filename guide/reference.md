@@ -1404,8 +1404,9 @@ The XML namespace (`http://www.w3.org/XML/1998/namespace`) and the XML Schema na
 and never read from a file. An import of either is skipped silently, and a document whose
 `targetNamespace` is one of them is skipped (SCH2405, `namespace '<namespace>' is built in;
 skipped`). `xml:lang`, `xml:base`, `xml:space`, and `xml:id` lower to `string?` attributes with no
-note. A second document that declares a namespace an earlier one declared is dropped (SCH2405,
-`namespace '<namespace>' is also declared by <first>; dropped`); the first is kept.
+note, and the attribute group `xml:specialAttrs` is built in too, lowering to those four. A second
+document that declares a namespace an earlier one declared is dropped (SCH2405, `namespace
+'<namespace>' is also declared by <first>; dropped`); the first is kept.
 
 An XML Schema's `targetNamespace` names the output's schema. `urn:schemata:<name>` becomes
 `schema <name>`, matching what the xsd target itself writes for a Schemata schema. Any other URI
