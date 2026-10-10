@@ -1,0 +1,43 @@
+/// A message carrying entities.
+schema ex_msg @xsd(namespace: "urn:example:exchange:message")
+
+import ex_core
+import structures
+import ic_ism
+
+/// A data type for a report of entities.
+model SituationMessage {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// An identifier of a message.
+  message_id            string              @xsd(name: "MessageID")
+  /// A thing on the battlefield.
+  entity                ex_core.Entity[]    @xsd(name: "Entity")
+  /// A name of an entity.
+  entity_name           niem_core.Text[]    @xsd(name: "EntityName")
+  /// The version number of the
+  /// DES.
+  /// If there are multiple
+  /// @ism:DESVersion attributes specified in an instance document, the first one in
+  /// document order is the one that will apply to the entire document.
+  des_version           string?             { max 256 } @xsd(name: "DESVersion") @xsd(attribute)
+  /// The version number of the
+  /// ISMCAT CES used in the document
+  /// If there are multiple
+  /// @ISMCATCESVersion attributes specified in an instance document, the first one in
+  /// document order is the one that will apply to the entire document.
+  ismcatces_version     string?             { max 256 } @xsd(name: "ISMCATCESVersion") @xsd(attribute)
+
+  @@xsd(name: "SituationMessage")
+}

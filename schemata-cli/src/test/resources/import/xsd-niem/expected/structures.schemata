@@ -1,0 +1,66 @@
+/// The structures namespace provides base types and other components for definition of NIEM-conformant XML schemas.
+schema structures @xsd(namespace: "http://release.niem.gov/niem/structures/5.0/") @xsd(element_form: "unqualified")
+
+/// A data type for a thing with its own lifespan that has some existence.
+model Object {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+
+  @@xsd(root: false)
+}
+
+/// A data type for a relationship between two or more objects, including any properties of that relationship.
+model Association {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+
+  @@xsd(root: false)
+}
+
+/// A data type for data about data.
+model Metadata {
+  /// A document-relative identifier for an XML element.
+  id         string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref        string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri        string?             @xsd(attribute)
+  attributes map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+
+  @@xsd(root: false)
+}
+
+/// A data type for a set of properties to be applied to a base type.
+model Augmentation {
+  /// A document-relative identifier for an XML element.
+  id         string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref        string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri        string?             @xsd(attribute)
+  attributes map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+
+  @@xsd(root: false)
+}

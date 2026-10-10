@@ -1,0 +1,499 @@
+/// NIEM Core.
+schema niem_core @xsd(namespace: "http://release.niem.gov/niem/niem-core/5.0/") @xsd(element_form: "unqualified")
+
+import niem_xs
+import structures
+
+/// A data type for the measurement of an angle.
+model AngularMeasure {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A value that specifies a degree of an angular measure.
+  angular_degree_value  niem_xs.Decimal     @xsd(name: "AngularDegreeValue")
+
+  @@xsd(root: false)
+}
+
+/// A data type for a location identified by geographic boundaries.
+model Area {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A data concept for a location identified by geographic boundaries.
+  area_region_abstract  AreaRegionAbstract? @xsd(name: "AreaRegionAbstract")
+}
+
+/// A data type for a circular area identified by a center coordinate and a radius.
+model CircularRegion {
+  /// A document-relative identifier for an XML element.
+  id                                    string?                        @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                                   string?                        @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                                   string?                        @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                              string[]?                      @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata                 string[]?                      @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id                           int64?                         { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                            map<string, string>            @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A geographic coordinate located at the center of a circular region.
+  circular_region_center_coordinate     Location2DGeospatialCoordinate @xsd(name: "CircularRegionCenterCoordinate")
+  /// A distance from the center point to the circumference or boundary of a circular region.
+  circular_region_radius_length_measure LengthMeasure                  @xsd(name: "CircularRegionRadiusLengthMeasure")
+}
+
+/// A data type for a calendar date.
+model Date {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A data concept for a representation of a date.
+  date_representation   ZuluDateTime?       @xsd(name: "DateRepresentation")
+}
+
+/// A data type for an angle measured in degrees between -180 and 180.
+model Degree180PlusMinus {
+  value                 decimal(38, 9)
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A magnitude of a one-sigma deviation of a normal (Gaussian) distribution followed by the true value of the quantity.
+  sigma_error_value     decimal(38, 9)?     @xsd(name: "sigmaErrorValue") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+/// A data type for a value between 0 (inclusive) and 360 (exclusive).
+model Degree360 {
+  value                 decimal(38, 9)
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A magnitude of a one-sigma deviation of a normal (Gaussian) distribution followed by the true value of the quantity.
+  sigma_error_value     decimal(38, 9)?     @xsd(name: "sigmaErrorValue") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+/// A data type for an angle measured in degrees between -90 and 90.
+model Degree90PlusMinus {
+  value                 decimal(38, 9)
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A magnitude of a one-sigma deviation of a normal (Gaussian) distribution followed by the true value of the quantity.
+  sigma_error_value     decimal(38, 9)?     @xsd(name: "sigmaErrorValue") @xsd(attribute)
+
+  @@xsd(root: false)
+}
+
+/// A data type for a representation of an identity.
+model Identification {
+  /// A document-relative identifier for an XML element.
+  id                                       string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                                      string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                                      string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                                 string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata                    string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id                              int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                               map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// An identifier.
+  identification_id                        niem_xs.String[]    { minItems 1 } @xsd(name: "IdentificationID")
+  /// A description of a kind of identification.
+  identification_category_description_text Text[]              @xsd(name: "IdentificationCategoryDescriptionText")
+
+  @@xsd(name: "Identification")
+}
+
+/// A data type for a measurement of the angular distance between a point on the Earth and the Equator.
+model LatitudeCoordinate {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A value that specifies the degree of a latitude. The value comes from a restricted range between -90 (inclusive) and +90 (inclusive).
+  latitude_degree_value LatitudeDegree      @xsd(name: "LatitudeDegreeValue")
+}
+
+/// A data type for a degree of latitude.
+model LatitudeDegree {
+  value                 decimal(38, 9)
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+}
+
+/// A data type for a measure of a distance or extent.
+model LengthMeasure {
+  /// A document-relative identifier for an XML element.
+  id                     string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                    string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                    string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata               string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata  string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id            int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes             map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A data concept for a measurement value.
+  measure_value_abstract niem_xs.Double?     @xsd(name: "MeasureValueAbstract")
+}
+
+/// A data type for a location identified by latitude and longitude.
+model Location2DGeospatialCoordinate {
+  /// A document-relative identifier for an XML element.
+  id                              string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                             string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                             string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                        string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata           string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id                     int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                      map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A measurement of the angular distance between a point on the Earth and the Equator.
+  geographic_coordinate_latitude  LatitudeCoordinate  @xsd(name: "GeographicCoordinateLatitude")
+  /// A measurement of the angular distance between a point on the Earth and the Prime Meridian.
+  geographic_coordinate_longitude LongitudeCoordinate @xsd(name: "GeographicCoordinateLongitude")
+}
+
+/// A data type for a location identified by latitude, longitude, and height.
+model Location3DGeospatialCoordinate {
+  /// A document-relative identifier for an XML element.
+  id                              string?                @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                             string?                @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                             string?                @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                        string[]?              @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata           string[]?              @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id                     int64?                 { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                      map<string, string>    @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A measurement of the angular distance between a point on the Earth and the Equator.
+  geographic_coordinate_latitude  LatitudeCoordinate     @xsd(name: "GeographicCoordinateLatitude")
+  /// A measurement of the angular distance between a point on the Earth and the Prime Meridian.
+  geographic_coordinate_longitude LongitudeCoordinate    @xsd(name: "GeographicCoordinateLongitude")
+  /// A data concept for a measure of the height of a location.
+  location_height_abstract        LocationHeightMeasure? @xsd(name: "LocationHeightAbstract")
+
+  @@xsd(name: "Location3DGeospatialCoordinate")
+}
+
+/// A data type for a measurement of the height of a location relative to a reference point.
+model LocationHeightMeasure {
+  /// A document-relative identifier for an XML element.
+  id                     string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                    string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                    string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata               string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata  string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id            int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes             map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A data concept for a measurement value.
+  measure_value_abstract niem_xs.Double?     @xsd(name: "MeasureValueAbstract")
+}
+
+/// A data type for geospatial location.
+model Location {
+  /// A document-relative identifier for an XML element.
+  id                                      string?                         @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                                     string?                         @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                                     string?                         @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata                                string[]?                       @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata                   string[]?                       @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id                             int64?                          { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes                              map<string, string>             @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A location identified by geographic boundaries.
+  location_area                           Area?                           @xsd(name: "LocationArea")
+  /// A data concept for a geospatial location.
+  location_geospatial_coordinate_abstract Location3DGeospatialCoordinate? @xsd(name: "LocationGeospatialCoordinateAbstract")
+
+  @@xsd(name: "Location")
+}
+
+/// A data type for a measurement of the angular distance between a point on the Earth and the Prime Meridian.
+model LongitudeCoordinate {
+  /// A document-relative identifier for an XML element.
+  id                     string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                    string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                    string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata               string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata  string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id            int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes             map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A value that specifies the degree of a longitude. The value comes from a restricted range between -180 (inclusive) and +180 (inclusive).
+  longitude_degree_value LongitudeDegree     @xsd(name: "LongitudeDegreeValue")
+}
+
+/// A data type for a degree of longitude.
+model LongitudeDegree {
+  value                 decimal(38, 9)
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+}
+
+/// A data type for a measurement.
+model Measure {
+  /// A document-relative identifier for an XML element.
+  id                     string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                    string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                    string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata               string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata  string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id            int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes             map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A data concept for a measurement value.
+  measure_value_abstract niem_xs.Double?     @xsd(name: "MeasureValueAbstract")
+
+  @@xsd(root: false)
+}
+
+/// A data type for information that further qualifies primary data; data about data.
+model Metadata {
+  /// A document-relative identifier for an XML element.
+  id         string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref        string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri        string?             @xsd(attribute)
+  attributes map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+
+  @@xsd(root: false)
+}
+
+/// A data type for a polygon area identified by a set of coordinates.
+model PolygonRegion {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A location of a vertex of a polygon region.
+  polygon_node_location Location[]          { minItems 1 } @xsd(name: "PolygonNodeLocation")
+}
+
+/// A data type for a state of something or someone.
+model Status {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A comment regarding a status.
+  status_comment_text   Text?               @xsd(name: "StatusCommentText")
+}
+
+/// A data type for a clearly defined action or activity specifically assigned to an individual or organization that must be done as it is imposed by an appropriate authority.
+model Task {
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+  /// A description of the task in detail.
+  task_description_text niem_xs.String?     @xsd(name: "TaskDescriptionText")
+  /// A date for the actual end of a task.
+  task_end_date         niem_core.Date?     @xsd(name: "TaskEndDate")
+  /// A date for the start of a task.
+  task_start_date       niem_core.Date?     @xsd(name: "TaskStartDate")
+  /// A status of the task.
+  task_status           Status?             @xsd(name: "TaskStatus")
+
+  @@xsd(name: "Task")
+}
+
+/// A data type for a character string.
+model Text {
+  value                 string
+  /// True if only partial information was available to the information source at the time when the data was captured in the system; false otherwise.
+  partial_indicator     bool?     @xsd(name: "partialIndicator") @xsd(attribute)
+  /// True if the length of a string is greater than the length of the field within which the string was stored in the exporting system; false otherwise.
+  truncation_indicator  bool?     @xsd(name: "truncationIndicator") @xsd(attribute)
+  lang                  string?   @xsd(attribute)
+  /// A document-relative identifier for an XML element.
+  id                    string?   @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?   @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?   @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]? @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]? @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?    { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+}
+
+/// A data type for a dateTime constrained to always be Zulu time, time at the Zero Meridian.
+model ZuluDateTime {
+  value                 instant
+  /// A document-relative identifier for an XML element.
+  id                    string?             @xsd(attribute)
+  /// A document-relative reference to an XML element.
+  ref                   string?             @xsd(attribute)
+  /// An internationalized resource identifier or uniform resource identifier for a node or object.
+  uri                   string?             @xsd(attribute)
+  /// A list of metadata objects that apply to a node or object represented by an XML element.
+  metadata              string[]?           @xsd(list) @xsd(attribute)
+  /// A list of metadata objects that apply to a relationship or property occurrence represented by an XML element.
+  relationship_metadata string[]?           @xsd(name: "relationshipMetadata") @xsd(list) @xsd(attribute)
+  /// An identifier that establishes the relative order of a property occurrence among sibling properties of a node or object.
+  sequence_id           int64?              { min 1 } @xsd(name: "sequenceID") @xsd(attribute)
+  attributes            map<string, string> @xsd(any_attribute) @xsd(wildcard: "urn:us:gov:ic:ism urn:us:gov:ic:ntk")
+
+  @@xsd(name: "ZuluDateTime")
+}
+
+/// A data concept for a location identified by geographic boundaries.
+union AreaRegionAbstract = CircularRegion | PolygonRegion

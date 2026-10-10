@@ -1,0 +1,2 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMCATOwnerProducer Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMCATOwnerProducer.xml CVE it is based on, instead of here.
+schema cv_enum_ismcat_owner_producer @xsd(namespace: "urn:us:gov:ic:cvenum:ismcat:ownerproducer")

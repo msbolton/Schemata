@@ -1,0 +1,55 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMNotice Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMNotice.xml CVE it is based on, instead of here.
+schema cv_enum_ism_notice @xsd(namespace: "urn:us:gov:ic:cvenum:ism:notice")
+
+/// (U) All currently authorized Notice values. This CVE is used by @ism:noticeType.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMNotice.xml
+enum CVEnumISMNoticeValues {
+  /// FISA Warning statement
+  @xsd(name: "FISA") fisa
+  /// IMCON Warning statement
+  @xsd(name: "IMC") imc
+  /// Controled Nuclear Weapon Design Information Warning statement
+  @xsd(name: "CNWDI") cnwdi
+  /// RD Warning statement
+  @xsd(name: "RD") rd
+  /// FRD Warning statement
+  @xsd(name: "FRD") frd
+  /// LIMDIS caveat
+  @xsd(name: "DS") ds
+  /// LES Notice
+  @xsd(name: "LES") les
+  /// LES-NF Notice
+  @xsd(name: "LES-NF") les_nf
+  /// DSEN Notice
+  @xsd(name: "DSEN") dsen
+  /// DoD Distribution statement A from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-A") do_d_dist_a
+  /// DoD Distribution statement B from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-B") do_d_dist_b
+  /// DoD Distribution statement C from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-C") do_d_dist_c
+  /// DoD Distribution statement D from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-D") do_d_dist_d
+  /// DoD Distribution statement E from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-E") do_d_dist_e
+  /// DoD Distribution statement F from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-F") do_d_dist_f
+  /// DoD Distribution statement X from DoD Directive 5230.24
+  @xsd(name: "DoD-Dist-X") do_d_dist_x
+  /// US Person info Notice
+  @xsd(name: "US-Person") us_person
+  /// Indicates that an instance document must abide by rules pertaining to ORIGINATOR CONTROLLED data issued prior to Executive Order 13526.
+  @xsd(name: "pre13526ORCON") pre13526_orcon
+  /// Indicates that the contents of this notice specify the contact information for a required point-of-contact.
+  @xsd(name: "POC") poc
+  /// COMSEC Notice
+  @xsd(name: "COMSEC") comsec
+  /// Indicates that this is the notice for Sensitive Security Information
+  @xsd(name: "SSI") ssi
+  /// Risk Sensitive Notice
+  @xsd(name: "RSEN") rsen
+}
