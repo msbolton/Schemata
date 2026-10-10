@@ -553,6 +553,59 @@ class XsdContentModelsTest {
     }
 
     @Test
+    fun `a choice member that refs an anonymous typed element names its model`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="BlockType"><xs:choice>
+                <xs:element ref="tns:div"/>
+                <xs:element name="p" type="xs:string"/>
+              </xs:choice></xs:complexType>
+              <xs:element name="div"><xs:complexType><xs:sequence>
+                <xs:element name="text" type="xs:string"/>
+              </xs:sequence></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val t = unit(imported, "t")
+        val block = t.declarations.filterIsInstance<UnitUnion>().single { it.name == "Block" }
+        assertEquals(listOf(UnitType.Ref("Div"), string), block.members.map { it.type })
+        assertEquals(setOf("Div"), records(imported, "t").keys)
+        assertTrue(messages(imported).none { "Div2" in it }, messages(imported).toString())
+        assertTrue(
+            imported.diagnostics.none { it.code.id == "SCH2401" },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
+    fun `a self referencing anonymous choice element terminates`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:element name="node"><xs:complexType><xs:choice>
+                <xs:element ref="tns:node"/>
+                <xs:element name="leaf" type="xs:string"/>
+              </xs:choice></xs:complexType></xs:element>
+              <xs:complexType name="TreeType"><xs:choice>
+                <xs:element ref="tns:node"/>
+                <xs:element name="size" type="xs:int"/>
+              </xs:choice></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val unions =
+            unit(imported, "t").declarations.filterIsInstance<UnitUnion>().associateBy { it.name }
+        assertEquals(setOf("Node", "Tree"), unions.keys)
+        assertEquals(UnitType.Ref("Node"), unions.getValue("Tree").members[0].type)
+        assertEquals(UnitType.Ref("Node"), unions.getValue("Node").members[0].type)
+        assertTrue(
+            imported.diagnostics.none { it.code.id == "SCH2401" },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
     fun `an xhtml shaped cycle through a group and an extension is finite`() {
         val xml =
             """

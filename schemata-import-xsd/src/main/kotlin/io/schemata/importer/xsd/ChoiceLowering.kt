@@ -11,6 +11,7 @@ import io.schemata.importer.UnitType
 import io.schemata.importer.UnitUnion
 import io.schemata.importer.xsd.XsdImport.Claim
 import io.schemata.importer.xsd.XsdImport.ClaimKind
+import io.schemata.importer.xsd.XsdImport.PLACEHOLDER
 import io.schemata.importer.xsd.XsdImport.dropped
 import io.schemata.importer.xsd.XsdImport.listRefinements
 import io.schemata.target.Names
@@ -530,20 +531,23 @@ internal class ChoiceLowering(private val context: ImportContext) {
         fun member(particle: XParticle) {
             when (particle) {
                 is XParticle.Element -> {
-                    val el =
-                        withHeadType(
-                            if (particle.element.ref != null) {
-                                context.complexLowering.resolveElementRef(
-                                    particle.element,
-                                    unionWhere,
-                                ) ?: return
-                            } else particle.element
-                        )
+                    val ref = particle.element.ref
+                    val resolved =
+                        if (ref != null) {
+                            context.complexLowering.resolveElementRef(particle.element, unionWhere)
+                                ?: return
+                        } else particle.element
+                    val el = withHeadType(resolved)
                     val elementName = el.name ?: "member"
+                    val headType = ref?.let(::elementHeadType)
+                    // A reference to a global element with an anonymous type names the record
+                    // that element is declared as, rather than hoisting a second copy of it.
                     val (ownType, stem) =
-                        memberTypeAndStem(el, unionWhere, siblings, visited) ?: return
-                    val type = particle.element.ref?.let(::elementHeadType) ?: ownType
-                    entries += Branch(el, elementName, type, stem)
+                        if (ref != null && resolved.type == null && resolved.inlineComplex != null)
+                            context.complexLowering.modelRef(ref) to
+                                ImportNames.lowerSnake(elementName)
+                        else memberTypeAndStem(el, unionWhere, siblings, visited) ?: return
+                    entries += Branch(el, elementName, headType ?: ownType, stem)
                 }
                 is XParticle.Any ->
                     context.diagnostics +=
@@ -622,7 +626,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
         val other = if (branch === group[0]) group[1] else branch
         val typeName =
             when (val t = branch.type) {
-                is UnitType.Ref -> t.name
+                is UnitType.Ref -> if (t.name.startsWith(PLACEHOLDER)) branch.stem else t.name
                 is UnitType.Scalar -> t.builtin
                 else -> branch.stem
             }
