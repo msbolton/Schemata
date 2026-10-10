@@ -1409,11 +1409,11 @@ internal class ComplexLowering(private val context: ImportContext) {
      */
     private fun modelRef(target: QName): UnitType.Ref {
         val doc = context.docsByNamespace[target.namespace] ?: context.doc
-        // In this namespace the record's name is settled once the elements have claimed theirs.
-        if (doc === context.doc) return context.pendingElementRef(target.local)
-        // The other namespace's own numbering of a clashing name is not visible from here, so
-        // the plain name is used.
-        return context.choiceLowering.headRef(doc, ImportNames.upperCamel(target.local))
+        val namespace =
+            if (doc === context.doc) null
+            else context.namespaceNames.getValue(doc).also { context.extraImports += it }
+        // The record's name is settled once its namespace's elements have claimed theirs.
+        return context.elementRecords.reference(QName(doc.targetNamespace, target.local), namespace)
     }
 
     /**

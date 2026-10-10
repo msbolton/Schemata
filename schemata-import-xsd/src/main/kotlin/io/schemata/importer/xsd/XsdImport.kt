@@ -9,6 +9,7 @@ import io.schemata.importer.UnitDecl
 import io.schemata.importer.UnitField
 import io.schemata.importer.UnitRecord
 import io.schemata.importer.UnitType
+import io.schemata.importer.UnitUnion
 import io.schemata.importer.xsd.XsdImport.Claim
 import io.schemata.importer.xsd.XsdImport.ClaimKind
 import io.schemata.importer.xsd.XsdImport.Cycles
@@ -118,6 +119,7 @@ object XsdImport {
         val cycles = Cycles(cyclicGroups(docsByNamespace), cyclicAttributeGroups(docsByNamespace))
         val heads = Heads(live)
         val propertyElements = elementRefs(live)
+        val elementRecords = ElementRecords()
 
         val units =
             live.map { doc ->
@@ -158,6 +160,7 @@ object XsdImport {
                         doc.unresolvedImports,
                         inherited,
                         propertyElements,
+                        elementRecords,
                     )
                 context.simpleTypes = SimpleTypes(context)
                 context.choiceLowering = ChoiceLowering(context)
@@ -201,9 +204,15 @@ object XsdImport {
                         ),
                     doc = doc.doc,
                     imports = (imports + context.extraImports).distinct(),
-                    declarations = declarations.map(context::resolveElementRefs),
+                    declarations = declarations,
                     sourcePath = doc.path,
                 )
+            }
+        // Every namespace's elements have claimed their record names by now, so a reference to one,
+        // from its own namespace or another, can name the record it was declared under.
+        val resolved =
+            units.map { unit ->
+                unit.copy(declarations = unit.declarations.map(elementRecords::resolve))
             }
         // A note on a component many types share (an attribute flattened into every derived
         // type) is reported once. The note reported while lowering the declaring type wins over
@@ -222,7 +231,7 @@ object XsdImport {
                 }
                 .sortedBy { it.index }
                 .map { it.value }
-        return Imported(units, survivors)
+        return Imported(resolved, survivors)
     }
 
     /**
@@ -749,13 +758,13 @@ object XsdImport {
             val base = ImportNames.upperCamel(original)
             val owner = context.topLevelNames[base]
             if (owner == null || !owner.startsWith("element '")) {
-                context.elementRecordNames[original] = base
+                context.elementRecords.declare(QName(context.doc.targetNamespace, original), base)
                 return base
             }
             var n = 2
             while (context.complexLowering.numbered(base, n, "") in context.topLevelNames) n++
             val name = context.complexLowering.numbered(base, n, "")
-            context.elementRecordNames[original] = name
+            context.elementRecords.declare(QName(context.doc.targetNamespace, original), name)
             context.diagnostics +=
                 context.lossy(
                     ImportCodes.APPROXIMATED,
@@ -821,6 +830,63 @@ object XsdImport {
 }
 
 /**
+ * The record each global element with an anonymous type is declared under, shared by every
+ * namespace's lowering. The name depends on what the lowering before the elements took (a hoisted
+ * member, another element lowering to the same name), so a reference to such an element, which may
+ * be lowered before the element in its own namespace or in another, holds a placeholder until every
+ * namespace has lowered, and [resolve] then puts the declared name in its place.
+ */
+internal class ElementRecords {
+    private val names = mutableMapOf<QName, String>()
+
+    /** Each placeholder's element and, for one in another namespace, that namespace's name. */
+    private val references = mutableListOf<Pair<QName, String?>>()
+
+    /** Records that the global element [element]'s type is declared as the record [name]. */
+    fun declare(element: QName, name: String) {
+        names[element] = name
+    }
+
+    /**
+     * A placeholder for the record of the global element [element], qualified by [namespace] when
+     * that is not the referring unit's own.
+     */
+    fun reference(element: QName, namespace: String?): UnitType.Ref {
+        references += element to namespace
+        return UnitType.Ref(ELEMENT_REF_PREFIX + (references.size - 1))
+    }
+
+    /** [decl] with each placeholder in it replaced by the name its element's record took. */
+    fun resolve(decl: UnitDecl): UnitDecl =
+        when (decl) {
+            is UnitRecord ->
+                decl.copy(
+                    fields = decl.fields.map { it.copy(type = resolve(it.type)) },
+                    nested = decl.nested.map(::resolve),
+                )
+            is UnitUnion ->
+                decl.copy(members = decl.members.map { it.copy(type = resolve(it.type)) })
+            else -> decl
+        }
+
+    private fun resolve(type: UnitType): UnitType =
+        when (type) {
+            is UnitType.Ref -> {
+                val index = type.name.removePrefix(ELEMENT_REF_PREFIX).toIntOrNull()
+                if (!type.name.startsWith(ELEMENT_REF_PREFIX) || index == null) type
+                else {
+                    val (element, namespace) = references[index]
+                    val name = names[element] ?: ImportNames.upperCamel(element.local)
+                    UnitType.Ref(if (namespace == null) name else "$namespace.$name")
+                }
+            }
+            is UnitType.ListOf -> type.copy(element = resolve(type.element))
+            is UnitType.MapOf -> type.copy(key = resolve(type.key), value = resolve(type.value))
+            is UnitType.Scalar -> type
+        }
+}
+
+/**
  * The state one namespace's lowering shares across the simple-type, choice, and complex-type
  * concerns: the document set, the name claims, the diagnostics list, the current document, and the
  * heads, with the three concerns that call one another through it.
@@ -846,6 +912,8 @@ internal class ImportContext(
      * roots, so that only the first of a type marks a root and the rest are not reported as lost.
      */
     val propertyElements: Set<QName> = emptySet(),
+    /** The record names the global elements with anonymous types are declared under. */
+    val elementRecords: ElementRecords,
 ) {
     lateinit var simpleTypes: SimpleTypes
     lateinit var choiceLowering: ChoiceLowering
@@ -859,42 +927,11 @@ internal class ImportContext(
         return result
     }
 
-    /** Namespaces a head union's members live in, which the unit must import. */
+    /**
+     * Namespaces a head union's members, or the records of elements referenced from here, live in,
+     * which the unit must import.
+     */
     val extraImports = linkedSetOf<String>()
-
-    /**
-     * The record name each global element with an anonymous type was declared under, by element
-     * name, filled in as the elements claim their names.
-     */
-    val elementRecordNames = mutableMapOf<String, String>()
-
-    /**
-     * A reference to the record of the global element [local] before the elements have claimed
-     * their names, which depends on what the lowering before them took: resolved to the declared
-     * name by [resolveElementRefs] once they have.
-     */
-    internal fun pendingElementRef(local: String): UnitType.Ref =
-        UnitType.Ref(ELEMENT_REF_PREFIX + local)
-
-    /** [decl] with each pending element reference in its fields replaced by the declared name. */
-    internal fun resolveElementRefs(decl: UnitDecl): UnitDecl {
-        if (decl !is UnitRecord) return decl
-        fun resolve(type: UnitType): UnitType =
-            when (type) {
-                is UnitType.Ref ->
-                    if (type.name.startsWith(ELEMENT_REF_PREFIX)) {
-                        val local = type.name.removePrefix(ELEMENT_REF_PREFIX)
-                        UnitType.Ref(elementRecordNames[local] ?: ImportNames.upperCamel(local))
-                    } else type
-                is UnitType.ListOf -> type.copy(element = resolve(type.element))
-                is UnitType.MapOf -> type.copy(key = resolve(type.key), value = resolve(type.value))
-                is UnitType.Scalar -> type
-            }
-        return decl.copy(
-            fields = decl.fields.map { it.copy(type = resolve(it.type)) },
-            nested = decl.nested.map(::resolveElementRefs),
-        )
-    }
 
     /** Where a recursive content model was already noted, so it is noted once. */
     val recursionNoted = mutableSetOf<Pair<String, Int>>()
