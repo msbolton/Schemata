@@ -3338,4 +3338,104 @@ class XsdImportTest {
             help("urn:x:m", "urn:x:n"),
         )
     }
+
+    @Test
+    fun `an idrefs attribute is a string list with the list key`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="HolderType">
+                    <xs:attribute name="refs" type="xs:IDREFS"/>
+                    <xs:attribute name="one" type="xs:IDREFS" use="required"/>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val refs = record(imported, "Holder").fields.single { it.name == "refs" }
+        assertEquals(
+            UnitType.ListOf(UnitType.Scalar("string", emptyList()), false, emptyList()),
+            refs.type,
+        )
+        assertEquals(listOf(xsd("list"), xsd("attribute")), refs.annotations)
+        assertTrue(
+            "SCH2404 attribute 'refs': xs:IDREFS imported as a list of string" in messages(imported)
+        )
+    }
+
+    @Test
+    fun `an element typed idrefs is a string list with the list key`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="HolderType">
+                    <xs:sequence><xs:element name="refs" type="xs:IDREFS"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val refs = record(imported, "Holder").fields.single()
+        assertEquals(
+            UnitType.ListOf(UnitType.Scalar("string", emptyList()), false, emptyList()),
+            refs.type,
+        )
+        assertTrue(refs.annotations.contains(xsd("list")))
+    }
+
+    @Test
+    fun `a note on an inherited attribute is reported once`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:complexType name="BaseType" abstract="true">
+                    <xs:attribute name="refs" type="xs:IDREFS"/>
+                  </xs:complexType>
+                  <xs:complexType name="AType"><xs:complexContent><xs:extension base="tns:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:complexType name="BType"><xs:complexContent><xs:extension base="tns:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                  <xs:complexType name="CType"><xs:complexContent><xs:extension base="tns:BaseType"><xs:sequence/></xs:extension></xs:complexContent></xs:complexType>
+                </xs:schema>
+                """
+            )
+        val notes = imported.diagnostics.filter { "xs:IDREFS" in it.message }
+        assertEquals(1, notes.size)
+        assertEquals(3, notes.single().span?.startLine)
+    }
+
+    @Test
+    fun `a typeless abstract head with no member is dropped where it is used`() {
+        val imported =
+            lower(
+                """
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:element name="Augmentation" abstract="true"/>
+                  <xs:element name="Typed" type="xs:string" abstract="true"/>
+                  <xs:complexType name="HolderType">
+                    <xs:sequence>
+                      <xs:element name="id" type="xs:string"/>
+                      <xs:element ref="tns:Augmentation" minOccurs="0" maxOccurs="unbounded"/>
+                      <xs:element ref="tns:Typed" minOccurs="0"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        val fields = record(imported, "Holder").fields
+        assertEquals(listOf("id", "typed"), fields.map { it.name })
+        assertTrue(fields.none { f -> f.annotations.contains(xsd("any_type")) })
+        val msgs = messages(imported)
+        assertEquals(
+            1,
+            msgs.count {
+                it ==
+                    "SCH2405 element 'Augmentation': abstract element 'Augmentation' has no " +
+                        "type and no substituting element; dropped"
+            },
+        )
+        assertEquals(
+            listOf("SCH2405 element 'Typed': abstract dropped"),
+            msgs.filter { "abstract dropped" in it },
+        )
+    }
 }

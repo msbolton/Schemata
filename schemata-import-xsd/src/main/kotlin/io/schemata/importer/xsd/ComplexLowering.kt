@@ -1111,7 +1111,27 @@ internal class ComplexLowering(private val context: ImportContext) {
         // An abstract head of a substitution group is not dropped: it is a union of its
         // members.
         val elementQName = el0.ref ?: QName(context.doc.targetNamespace, original)
-        if (el.abstract && context.heads.elements[elementQName]?.members.isNullOrEmpty()) {
+        val memberless = context.heads.elements[elementQName]?.members.isNullOrEmpty()
+        // A typeless abstract element nothing substitutes for is an augmentation point: it
+        // has no content to carry, so the reference to it is dropped.
+        if (
+            el.abstract &&
+                el.type == null &&
+                el.inlineComplex == null &&
+                el.inlineSimple == null &&
+                memberless
+        ) {
+            context.diagnostics +=
+                context.lossy(
+                    ImportCodes.DROPPED,
+                    where,
+                    "abstract element '$original' has no type and no substituting element; " +
+                        "dropped",
+                    el.line,
+                )
+            return null
+        }
+        if (el.abstract && memberless) {
             context.diagnostics +=
                 context.lossy(ImportCodes.DROPPED, where, "abstract dropped", el.line)
         }
@@ -1445,7 +1465,9 @@ internal class ComplexLowering(private val context: ImportContext) {
     private fun isListValued(el: XElement): Boolean {
         if (el.inlineSimple != null) return true
         val type = el.type ?: return false
-        if (type.namespace == ImportTypes.XS) return false
+        if (type.namespace == ImportTypes.XS) {
+            return ImportTypes.builtin(type.local)?.type is UnitType.ListOf
+        }
         return context.docsByNamespace[type.namespace]?.simpleTypes?.any {
             it.name == type.local
         } == true

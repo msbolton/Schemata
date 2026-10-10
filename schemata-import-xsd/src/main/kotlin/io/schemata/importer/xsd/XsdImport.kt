@@ -199,7 +199,18 @@ object XsdImport {
                     sourcePath = doc.path,
                 )
             }
-        return Imported(units, diagnostics)
+        // A note on a component many types share (an attribute flattened into every derived
+        // type) is reported once, at its declaration, which comes first.
+        return Imported(
+            units,
+            diagnostics.distinctBy {
+                Triple(
+                    it.code.id,
+                    it.span?.let { s -> s.file to s.startLine },
+                    it.message.substringAfter(": "),
+                )
+            },
+        )
     }
 
     /**

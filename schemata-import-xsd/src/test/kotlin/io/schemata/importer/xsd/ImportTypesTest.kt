@@ -255,4 +255,13 @@ class ImportTypesTest {
             decNotes,
         )
     }
+
+    @Test
+    fun `idrefs nmtokens and entities are lists of string`() {
+        for (name in listOf("IDREFS", "NMTOKENS", "ENTITIES")) {
+            val mapped = ImportTypes.builtin(name)!!
+            assertEquals(UnitType.ListOf(s("string"), false, emptyList()), mapped.type)
+            assertEquals(listOf("xs:$name imported as a list of string"), mapped.notes)
+        }
+    }
 }

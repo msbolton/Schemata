@@ -297,4 +297,50 @@ class XsdPolymorphismTest {
                 "'Shape'" in messages
         )
     }
+
+    private fun typelessHead(members: String): Imported =
+        lower(
+            docs(
+                "t.xsd" to
+                    """
+                    <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+                      <xs:complexType name="QType"><xs:sequence><xs:element name="q" type="xs:int"/></xs:sequence></xs:complexType>
+                      <xs:complexType name="RType"><xs:sequence><xs:element name="r" type="xs:int"/></xs:sequence></xs:complexType>
+                      <xs:element name="P" abstract="true"/>
+                      $members
+                      <xs:complexType name="UseType"><xs:sequence><xs:element ref="tns:P"/></xs:sequence></xs:complexType>
+                    </xs:schema>
+                    """
+            )
+        )
+
+    @Test
+    fun `a typeless abstract head with one member takes its type`() {
+        val imported =
+            typelessHead("""<xs:element name="Q" type="tns:QType" substitutionGroup="tns:P"/>""")
+        val use =
+            unit(imported, "t").declarations.filterIsInstance<UnitRecord>().single {
+                it.name == "Use"
+            }
+        assertEquals(UnitType.Ref("Q"), use.fields.single().type)
+        assertEquals("p", use.fields.single().name)
+        assertTrue(
+            "SCH2403 element 'P': substitution group 'P' imported as its one member type 'Q'" in
+                messages(imported)
+        )
+        assertFalse(messages(imported).any { "dropped" in it })
+    }
+
+    @Test
+    fun `a typeless abstract head with two members is their union`() {
+        val imported =
+            typelessHead(
+                """<xs:element name="Q" type="tns:QType" substitutionGroup="tns:P"/>
+                   <xs:element name="R" type="tns:RType" substitutionGroup="tns:P"/>"""
+            )
+        val t = unit(imported, "t")
+        val union = t.declarations.filterIsInstance<UnitUnion>().single { it.name == "P" }
+        assertEquals(listOf("Q", "R"), union.members.map { (it.type as UnitType.Ref).name })
+        assertFalse(messages(imported).any { "dropped" in it })
+    }
 }

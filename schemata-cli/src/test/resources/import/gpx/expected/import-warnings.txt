@@ -13,14 +13,5 @@ SCH2403 attribute 'lon': decimal without totalDigits and fractionDigits imported
 SCH2404 attribute 'lon': facet maxExclusive dropped
 SCH2404 element 'year': xs:gYear imported as string
 SCH2403 element 'ele': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 attribute 'lat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 attribute 'lon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2404 attribute 'lon': facet maxExclusive dropped
-SCH2403 attribute 'minlat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 attribute 'minlon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2404 attribute 'minlon': facet maxExclusive dropped
-SCH2403 attribute 'maxlat': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2403 attribute 'maxlon': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
-SCH2404 attribute 'maxlon': facet maxExclusive dropped
 SCH2403 enum value 'Fix.2d': enum value 'Fix.2d' has no Schemata equivalent; imported as 'v2d'
 SCH2403 enum value 'Fix.3d': enum value 'Fix.3d' has no Schemata equivalent; imported as 'v3d'

@@ -6,7 +6,6 @@ SCH2403 complex type 'SquareType': extension of 'ShapeType' has no Schemata equi
 SCH2403 complex type 'PolygonType': abstract type 'PolygonType' imported as its one concrete type 'Triangle'
 SCH2403 complex type 'TriangleType': extension of 'ShapeType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TriangleType': extension of 'PolygonType' has no Schemata equivalent; base fields flattened into the model
-SCH2403 complex type 'CarType': extension of 'VehicleType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'TruckType': extension of 'VehicleType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'payload': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'DogType': extension of 'AnimalType' has no Schemata equivalent; base fields flattened into the model
