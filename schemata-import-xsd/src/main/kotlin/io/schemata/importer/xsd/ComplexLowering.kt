@@ -1434,7 +1434,7 @@ internal class ComplexLowering(private val context: ImportContext) {
      * instead of declaring the type again, which would never end for an element that contains
      * itself. Qualified, and imported, when it is in another namespace.
      */
-    private fun modelRef(target: QName): UnitType.Ref {
+    internal fun modelRef(target: QName): UnitType.Ref {
         val doc = context.docsByNamespace[target.namespace] ?: context.doc
         val namespace =
             if (doc === context.doc) null
