@@ -157,6 +157,33 @@ class XsdContentModelsTest {
     }
 
     @Test
+    fun `a choice member typed idrefs is a list member`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="TargetType"><xs:choice>
+                <xs:element name="refs" type="xs:IDREFS"/>
+                <xs:element name="n" type="xs:int"/>
+              </xs:choice></xs:complexType>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val target = unit(imported, "t").declarations.filterIsInstance<UnitUnion>().single()
+        assertEquals(
+            listOf(string, UnitType.Scalar("int32", emptyList())),
+            target.members.map { it.type },
+        )
+        assertTrue(
+            imported.diagnostics.none { it.code.id == "SCH2401" },
+            messages(imported).toString(),
+        )
+        assertTrue(
+            messages(imported).any { "list simple type imported as string" in it },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
     fun `two inline choices in nested sequences get distinct names`() {
         val xml =
             """

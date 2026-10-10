@@ -705,10 +705,8 @@ internal class ChoiceLowering(private val context: ImportContext) {
             val qname = el.type
             if (qname.namespace == ImportTypes.XS) {
                 // A builtin member is typed as a field of it would be, a bare decimal taking
-                // the default precision and scale.
-                val type =
-                    context.simpleTypes.resolveTypeRef(qname, unionWhere, el.line)
-                        as? UnitType.Scalar
+                // the default precision and scale; a list builtin, like any list, is a string.
+                val type = context.simpleTypes.resolveTypeRef(qname, unionWhere, el.line)
                 if (type == null) {
                     context.diagnostics +=
                         context.lossy(
@@ -719,7 +717,7 @@ internal class ChoiceLowering(private val context: ImportContext) {
                         )
                     return null
                 }
-                return type to type.builtin
+                return simpleMember(type, unionWhere, el.line)
             }
             val targetDoc = context.docsByNamespace[qname.namespace]
             if (targetDoc == null) {
