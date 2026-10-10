@@ -1,0 +1,615 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://release.niem.gov/niem/niem-core/5.0/" version="1" xml:lang="en-US" xsi:schemaLocation="http://release.niem.gov/niem/appinfo/5.0/ utility/appinfo.xsd http://release.niem.gov/niem/conformanceTargets/3.0/ utility/conformanceTargets.xsd" ct:conformanceTargets="http://reference.niem.gov/niem/specification/naming-and-design-rules/5.0/#ReferenceSchemaDocument" xmlns:nc="http://release.niem.gov/niem/niem-core/5.0/" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:structures="http://release.niem.gov/niem/structures/5.0/" xmlns:ct="http://release.niem.gov/niem/conformanceTargets/3.0/" xmlns:appinfo="http://release.niem.gov/niem/appinfo/5.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xml="http://www.w3.org/XML/1998/namespace" xmlns:niem-xs="http://release.niem.gov/niem/proxy/niem-xs/5.0/">
+  <xs:annotation>
+    <xs:documentation>NIEM Core.</xs:documentation>
+    <xs:appinfo>
+      <appinfo:LocalTerm term="2D" literal="Two-dimensional"/>
+      <appinfo:LocalTerm term="3D" literal="Three-dimensional"/>
+      <appinfo:LocalTerm term="Alpha2" definition="Two-letter"/>
+      <appinfo:LocalTerm term="Alpha3" definition="Three-letter"/>
+      <appinfo:LocalTerm term="CMV" literal="Commercial Motor Vehicle"/>
+      <appinfo:LocalTerm term="DEA" literal="Drug Enforcement Administration"/>
+      <appinfo:LocalTerm term="ESN" literal="electronic serial number"/>
+      <appinfo:LocalTerm term="FATCA" literal="Foreign Account Tax Compliance Act"/>
+      <appinfo:LocalTerm term="FIPS" literal="Federal Information Processing Standards"/>
+      <appinfo:LocalTerm term="GENC" literal="Geopolitical Entities, Names, and Codes"/>
+      <appinfo:LocalTerm term="GSM" literal="Global System for Mobile communication"/>
+      <appinfo:LocalTerm term="IMEI" literal="International Mobile Equipment Identity"/>
+      <appinfo:LocalTerm term="IPv4" literal="Internet Protocol version 4"/>
+      <appinfo:LocalTerm term="IPv6" literal="Internet Protocol version 6"/>
+      <appinfo:LocalTerm term="ISO" literal="International Organization for Standardization"/>
+      <appinfo:LocalTerm term="ISO3166" definition="ISO 3166 is a standard published by the International Organization for Standardization (ISO) that defines codes for the names of countries, dependent territories, special areas of geographical interest, and their principal subdivisions (e.g., provinces or states). The official name of the standard is Codes for the representation of names of countries and their subdivisions."/>
+      <appinfo:LocalTerm term="ISSN" literal="International Standard Serial Number"/>
+      <appinfo:LocalTerm term="MAC" literal="media access control address"/>
+      <appinfo:LocalTerm term="MIME" literal="Multipurpose Internet Mail Extensions"/>
+      <appinfo:LocalTerm term="MSRP" literal="Manufacturer's suggested retail price"/>
+      <appinfo:LocalTerm term="NANP" literal="North American Numbering Plan"/>
+      <appinfo:LocalTerm term="Postdirectional" definition="A word following a street name that indicates the directional taken by the thoroughfare from an arbitrary starting point or line, or the sector where it is located."/>
+      <appinfo:LocalTerm term="Predirectional" definition="A word preceding a street name that indicates the directional taken by the thoroughfare from an arbitrary starting point or line, or the sector where it is located."/>
+      <appinfo:LocalTerm term="RFID" literal="Radio-frequency identification"/>
+      <appinfo:LocalTerm term="RH" definition="Rhesus (Rh) factor is an inherited protein found on the surface of red blood cells."/>
+      <appinfo:LocalTerm term="SSN" literal="Social Security Number"/>
+      <appinfo:LocalTerm term="TCP" literal="Transmission Control Protocol"/>
+      <appinfo:LocalTerm term="UMTS" literal="Universal Mobile Telecommunications Service"/>
+      <appinfo:LocalTerm term="UTC" literal="Coordinated Universal Time"/>
+      <appinfo:LocalTerm term="UTM" literal="Universal Transverse Mercator"/>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:import namespace="http://release.niem.gov/niem/proxy/niem-xs/5.0/" schemaLocation="adapters/niem-xs.xsd"/>
+  <xs:import namespace="http://release.niem.gov/niem/structures/5.0/" schemaLocation="utility/structures.xsd"/>
+  <xs:import namespace="http://www.w3.org/XML/1998/namespace" schemaLocation="external/xml.xsd"/>
+  <xs:complexType name="AngularMeasureType">
+    <xs:annotation>
+      <xs:documentation>A data type for the measurement of an angle.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:AngularDegreeValue" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="AreaType">
+    <xs:annotation>
+      <xs:documentation>A data type for a location identified by geographic boundaries.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:AreaRegionAbstract" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="CircularRegionType">
+    <xs:annotation>
+      <xs:documentation>A data type for a circular area identified by a center coordinate and a radius.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:CircularRegionCenterCoordinate" minOccurs="1" maxOccurs="1"/>
+          <xs:element ref="nc:CircularRegionRadiusLengthMeasure" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="DateType">
+    <xs:annotation>
+      <xs:documentation>A data type for a calendar date.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:DateRepresentation" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:simpleType name="Degree180PlusMinusSimpleType">
+    <xs:annotation>
+      <xs:documentation>A data type for an angle measured in degrees between -180 and 180.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:decimal">
+      <xs:minExclusive value="-180">
+        <xs:annotation>
+          <xs:documentation>greater than -180</xs:documentation>
+        </xs:annotation>
+      </xs:minExclusive>
+      <xs:maxInclusive value="180">
+        <xs:annotation>
+          <xs:documentation>less than or equal to 180</xs:documentation>
+        </xs:annotation>
+      </xs:maxInclusive>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="Degree180PlusMinusType">
+    <xs:annotation>
+      <xs:documentation>A data type for an angle measured in degrees between -180 and 180.</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="nc:Degree180PlusMinusSimpleType">
+        <xs:attributeGroup ref="structures:SimpleObjectAttributeGroup"/>
+        <xs:attribute ref="nc:sigmaErrorValue" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="Degree360SimpleType">
+    <xs:annotation>
+      <xs:documentation>A data type for a value between 0 (inclusive) and 360 (exclusive).</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0">
+        <xs:annotation>
+          <xs:documentation>The minimum value for a degree.</xs:documentation>
+        </xs:annotation>
+      </xs:minInclusive>
+      <xs:maxExclusive value="360">
+        <xs:annotation>
+          <xs:documentation>The maximum value for a degree.</xs:documentation>
+        </xs:annotation>
+      </xs:maxExclusive>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="Degree360Type">
+    <xs:annotation>
+      <xs:documentation>A data type for a value between 0 (inclusive) and 360 (exclusive).</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="nc:Degree360SimpleType">
+        <xs:attributeGroup ref="structures:SimpleObjectAttributeGroup"/>
+        <xs:attribute ref="nc:sigmaErrorValue" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="Degree90PlusMinusSimpleType">
+    <xs:annotation>
+      <xs:documentation>A data type for an angle measured in degrees between -90 and 90.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="-90">
+        <xs:annotation>
+          <xs:documentation>greater than or equal to -90</xs:documentation>
+        </xs:annotation>
+      </xs:minInclusive>
+      <xs:maxInclusive value="90">
+        <xs:annotation>
+          <xs:documentation>less than or equal to 90</xs:documentation>
+        </xs:annotation>
+      </xs:maxInclusive>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="Degree90PlusMinusType">
+    <xs:annotation>
+      <xs:documentation>A data type for an angle measured in degrees between -90 and 90.</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="nc:Degree90PlusMinusSimpleType">
+        <xs:attributeGroup ref="structures:SimpleObjectAttributeGroup"/>
+        <xs:attribute ref="nc:sigmaErrorValue" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="IdentificationType">
+    <xs:annotation>
+      <xs:documentation>A data type for a representation of an identity.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:IdentificationID" minOccurs="1" maxOccurs="unbounded"/>
+          <xs:element ref="nc:IdentificationCategoryAbstract" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element ref="nc:IdentificationCategoryDescriptionText" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LatitudeCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A data type for a measurement of the angular distance between a point on the Earth and the Equator.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:LatitudeDegreeValue" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:simpleType name="LatitudeDegreeSimpleType">
+    <xs:annotation>
+      <xs:documentation>A data type for a degree of latitude.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="-90">
+        <xs:annotation>
+          <xs:documentation>The minimum value for a latitude degree.</xs:documentation>
+        </xs:annotation>
+      </xs:minInclusive>
+      <xs:maxInclusive value="90">
+        <xs:annotation>
+          <xs:documentation>The maximum value for a latitude degree.</xs:documentation>
+        </xs:annotation>
+      </xs:maxInclusive>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="LatitudeDegreeType">
+    <xs:annotation>
+      <xs:documentation>A data type for a degree of latitude.</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="nc:LatitudeDegreeSimpleType">
+        <xs:attributeGroup ref="structures:SimpleObjectAttributeGroup"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="LengthMeasureType">
+    <xs:annotation>
+      <xs:documentation>A data type for a measure of a distance or extent.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="nc:MeasureType"/>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="Location2DGeospatialCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A data type for a location identified by latitude and longitude.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:GeographicCoordinateLatitude" minOccurs="1" maxOccurs="1"/>
+          <xs:element ref="nc:GeographicCoordinateLongitude" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="Location3DGeospatialCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A data type for a location identified by latitude, longitude, and height.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="nc:Location2DGeospatialCoordinateType">
+        <xs:sequence>
+          <xs:element ref="nc:LocationHeightAbstract" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LocationHeightMeasureType">
+    <xs:annotation>
+      <xs:documentation>A data type for a measurement of the height of a location relative to a reference point.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="nc:LengthMeasureType"/>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LocationType">
+    <xs:annotation>
+      <xs:documentation>A data type for geospatial location.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:LocationArea" minOccurs="0" maxOccurs="1"/>
+          <xs:element ref="nc:LocationGeospatialCoordinateAbstract" minOccurs="0" maxOccurs="1"/>
+          <xs:element ref="nc:LocationAugmentationPoint" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LongitudeCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A data type for a measurement of the angular distance between a point on the Earth and the Prime Meridian.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:LongitudeDegreeValue" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:simpleType name="LongitudeDegreeSimpleType">
+    <xs:annotation>
+      <xs:documentation>A data type for a degree of longitude.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="-180">
+        <xs:annotation>
+          <xs:documentation>The minimum value for a longitude degree.</xs:documentation>
+        </xs:annotation>
+      </xs:minInclusive>
+      <xs:maxInclusive value="180">
+        <xs:annotation>
+          <xs:documentation>The maximum value for a longitude degree.</xs:documentation>
+        </xs:annotation>
+      </xs:maxInclusive>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="LongitudeDegreeType">
+    <xs:annotation>
+      <xs:documentation>A data type for a degree of longitude.</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="nc:LongitudeDegreeSimpleType">
+        <xs:attributeGroup ref="structures:SimpleObjectAttributeGroup"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="MeasureType">
+    <xs:annotation>
+      <xs:documentation>A data type for a measurement.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:MeasureValueAbstract" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="MetadataType">
+    <xs:annotation>
+      <xs:documentation>A data type for information that further qualifies primary data; data about data.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:MetadataType"/>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="PolygonRegionType">
+    <xs:annotation>
+      <xs:documentation>A data type for a polygon area identified by a set of coordinates.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:PolygonNodeLocation" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="StatusType">
+    <xs:annotation>
+      <xs:documentation>A data type for a state of something or someone.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:StatusAbstract" minOccurs="1" maxOccurs="1"/>
+          <xs:element ref="nc:StatusCommentText" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="TaskType">
+    <xs:annotation>
+      <xs:documentation>A data type for a clearly defined action or activity specifically assigned to an individual or organization that must be done as it is imposed by an appropriate authority.</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="structures:ObjectType">
+        <xs:sequence>
+          <xs:element ref="nc:TaskDescriptionText" minOccurs="0" maxOccurs="1"/>
+          <xs:element ref="nc:TaskEndDate" minOccurs="0" maxOccurs="1"/>
+          <xs:element ref="nc:TaskStartDate" minOccurs="0" maxOccurs="1"/>
+          <xs:element ref="nc:TaskStatus" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="TextType">
+    <xs:annotation>
+      <xs:documentation>A data type for a character string.</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="niem-xs:string">
+        <xs:attribute ref="nc:partialIndicator" use="optional"/>
+        <xs:attribute ref="nc:truncationIndicator" use="optional"/>
+        <xs:attribute ref="xml:lang" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="ZuluDateTimeSimpleType">
+    <xs:annotation>
+      <xs:documentation>A data type for a dateTime constrained to always be Zulu time, time at the Zero Meridian.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:dateTime">
+      <xs:pattern value=".*Z">
+        <xs:annotation>
+          <xs:documentation>Restricted to UTC time zone</xs:documentation>
+        </xs:annotation>
+      </xs:pattern>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ZuluDateTimeType">
+    <xs:annotation>
+      <xs:documentation>A data type for a dateTime constrained to always be Zulu time, time at the Zero Meridian.</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="nc:ZuluDateTimeSimpleType">
+        <xs:attributeGroup ref="structures:SimpleObjectAttributeGroup"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:attribute name="partialIndicator" type="xs:boolean">
+    <xs:annotation>
+      <xs:documentation>True if only partial information was available to the information source at the time when the data was captured in the system; false otherwise.</xs:documentation>
+    </xs:annotation>
+  </xs:attribute>
+  <xs:attribute name="sigmaErrorValue" type="xs:decimal">
+    <xs:annotation>
+      <xs:documentation>A magnitude of a one-sigma deviation of a normal (Gaussian) distribution followed by the true value of the quantity.</xs:documentation>
+    </xs:annotation>
+  </xs:attribute>
+  <xs:attribute name="truncationIndicator" type="xs:boolean">
+    <xs:annotation>
+      <xs:documentation>True if the length of a string is greater than the length of the field within which the string was stored in the exporting system; false otherwise.</xs:documentation>
+    </xs:annotation>
+  </xs:attribute>
+  <xs:element name="AngularDegreeValue" type="niem-xs:decimal">
+    <xs:annotation>
+      <xs:documentation>A value that specifies a degree of an angular measure.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="AreaCircularRegion" type="nc:CircularRegionType" substitutionGroup="nc:AreaRegionAbstract">
+    <xs:annotation>
+      <xs:documentation>A circular area identified by a center coordinate and a radius.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="AreaPolygonRegion" type="nc:PolygonRegionType" substitutionGroup="nc:AreaRegionAbstract">
+    <xs:annotation>
+      <xs:documentation>A polygon area identified by a set of coordinates.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="AreaRegionAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a location identified by geographic boundaries.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="CircularRegionCenterCoordinate" type="nc:Location2DGeospatialCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A geographic coordinate located at the center of a circular region.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="CircularRegionRadiusLengthMeasure" type="nc:LengthMeasureType">
+    <xs:annotation>
+      <xs:documentation>A distance from the center point to the circumference or boundary of a circular region.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="DateRepresentation" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a representation of a date.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="GeographicCoordinateLatitude" type="nc:LatitudeCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A measurement of the angular distance between a point on the Earth and the Equator.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="GeographicCoordinateLongitude" type="nc:LongitudeCoordinateType">
+    <xs:annotation>
+      <xs:documentation>A measurement of the angular distance between a point on the Earth and the Prime Meridian.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="Identification" type="nc:IdentificationType">
+    <xs:annotation>
+      <xs:documentation>An identification to represent an identity.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="IdentificationCategoryAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a kind of identification.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="IdentificationCategoryDescriptionText" type="nc:TextType">
+    <xs:annotation>
+      <xs:documentation>A description of a kind of identification.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="IdentificationID" type="niem-xs:string">
+    <xs:annotation>
+      <xs:documentation>An identifier.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LatitudeDegreeValue" type="nc:LatitudeDegreeType">
+    <xs:annotation>
+      <xs:documentation>A value that specifies the degree of a latitude. The value comes from a restricted range between -90 (inclusive) and +90 (inclusive).</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="Location" type="nc:LocationType">
+    <xs:annotation>
+      <xs:documentation>A geospatial location.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="Location3DGeospatialCoordinate" type="nc:Location3DGeospatialCoordinateType" substitutionGroup="nc:LocationGeospatialCoordinateAbstract">
+    <xs:annotation>
+      <xs:documentation>A location identified by latitude, longitude, and height.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LocationAltitude" type="nc:LocationHeightMeasureType" substitutionGroup="nc:LocationHeightAbstract">
+    <xs:annotation>
+      <xs:documentation>A measurement of the height or position of a location above a certain reference.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LocationArea" type="nc:AreaType">
+    <xs:annotation>
+      <xs:documentation>A location identified by geographic boundaries.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LocationAugmentationPoint" abstract="true">
+    <xs:annotation>
+      <xs:documentation>An augmentation point for LocationType.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LocationGeospatialCoordinateAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a geospatial location.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LocationHeightAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a measure of the height of a location.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LocationHeightVerticalDatumAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a vertical datum system used to designate the reference point for a height measurement.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="LongitudeDegreeValue" type="nc:LongitudeDegreeType">
+    <xs:annotation>
+      <xs:documentation>A value that specifies the degree of a longitude. The value comes from a restricted range between -180 (inclusive) and +180 (inclusive).</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="MeasureDoubleValue" type="niem-xs:double" substitutionGroup="nc:MeasurePointAbstract">
+    <xs:annotation>
+      <xs:documentation>A double measurement value.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="MeasurePointAbstract" substitutionGroup="nc:MeasureValueAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a measurement value.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="MeasureUnitAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a unit of measure of a measurement value.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="MeasureUnitText" type="nc:TextType" substitutionGroup="nc:MeasureUnitAbstract">
+    <xs:annotation>
+      <xs:documentation>A unit that qualifies the measurement value.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="MeasureValueAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a measurement value.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="PolygonNodeLocation" type="nc:LocationType">
+    <xs:annotation>
+      <xs:documentation>A location of a vertex of a polygon region.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="StatusAbstract" abstract="true">
+    <xs:annotation>
+      <xs:documentation>A data concept for a status or condition of something or someone.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="StatusCommentText" type="nc:TextType">
+    <xs:annotation>
+      <xs:documentation>A comment regarding a status.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="Task" type="nc:TaskType">
+    <xs:annotation>
+      <xs:documentation>A clearly defined action or activity specifically assigned to an individual or organization that must be done as it is imposed by an appropriate authority.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="TaskDescriptionText" type="niem-xs:string">
+    <xs:annotation>
+      <xs:documentation>A description of the task in detail.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="TaskEndDate" type="nc:DateType">
+    <xs:annotation>
+      <xs:documentation>A date for the actual end of a task.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="TaskStartDate" type="nc:DateType">
+    <xs:annotation>
+      <xs:documentation>A date for the start of a task.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="TaskStatus" type="nc:StatusType">
+    <xs:annotation>
+      <xs:documentation>A status of the task.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="ZuluDateTime" type="nc:ZuluDateTimeType" substitutionGroup="nc:DateRepresentation">
+    <xs:annotation>
+      <xs:documentation>A date and time with no offset from Coordinated Universal Time (UTC).</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+</xs:schema>

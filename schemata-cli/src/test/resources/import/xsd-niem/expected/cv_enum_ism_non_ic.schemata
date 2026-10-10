@@ -1,0 +1,29 @@
+/// The W3C XML Schema fragment encoding types for CVEnumISMNonIC Version 2.1 controlled vocabulary enumerations. This file is generated, so edits should be made to the CVEnumISMNonIC.xml CVE it is based on, instead of here.
+schema cv_enum_ism_non_ic @xsd(namespace: "urn:us:gov:ic:cvenum:ism:nonic")
+
+/// (U) All currently valid Non-IC markings from the published register. This CVE is used by @ism:nonICmarkings.
+/// PERMISSIBLE VALUES
+///
+/// The permissible values for this simple type are defined in the Controlled Value Enumeration:
+///
+/// CVEnumISMNonIC.xml
+enum CVEnumISMNonICValues {
+  /// LIMITED DISTRIBUTION
+  @xsd(name: "DS") ds
+  /// EXCLUSIVE DISTRIBUTION
+  @xsd(name: "XD") xd
+  /// NO DISTRIBUTION
+  @xsd(name: "ND") nd
+  /// SENSITIVE BUT UNCLASSIFIED
+  @xsd(name: "SBU") sbu
+  /// SENSITIVE BUT UNCLASSIFIED NOFORN
+  @xsd(name: "SBU-NF") sbu_nf
+  /// LAW ENFORCEMENT SENSITIVE
+  @xsd(name: "LES") les
+  /// LAW ENFORCEMENT SENSITIVE NOFORN
+  @xsd(name: "LES-NF") les_nf
+  /// SENSITIVE SECURITY INFORMATION
+  @xsd(name: "SSI") ssi
+  /// NAVAL NUCLEAR PROPULSION INFORMATION
+  @xsd(name: "NNPI") nnpi
+}
