@@ -113,13 +113,7 @@ object XsdImport {
                 val imports = mutableListOf<String>()
                 doc.imports.forEach { imp ->
                     val target = docsByNamespace[imp.namespace]
-                    if (target == null) {
-                        val what =
-                            imp.namespace?.let { "import '$it'" } ?: "import with no namespace"
-                        diagnostics += unresolved(doc.path, imp.line, "$what cannot be resolved")
-                    } else if (target !== doc) {
-                        imports += names.getValue(target)
-                    }
+                    if (target != null && target !== doc) imports += names.getValue(target)
                 }
                 doc.dropped.forEach { (construct, line) ->
                     diagnostics += dropped(doc.path, line, "schema", "$construct dropped")
@@ -150,6 +144,7 @@ object XsdImport {
                         cycles,
                         heads,
                         diagnostics,
+                        doc.unresolvedImports,
                     )
                 context.simpleTypes = SimpleTypes(context)
                 context.choiceLowering = ChoiceLowering(context)
@@ -792,6 +787,7 @@ internal class ImportContext(
     val cycles: Cycles,
     val heads: Heads,
     val diagnostics: MutableList<Diagnostic>,
+    val unresolvedImports: List<String> = emptyList(),
 ) {
     lateinit var simpleTypes: SimpleTypes
     lateinit var choiceLowering: ChoiceLowering
@@ -1048,8 +1044,21 @@ internal class ImportContext(
             code,
             "$where: $tail",
             Span(sourcePath, l, 1, l, 1),
-            ImportCodes.helpFor(code),
+            missingImportsHelp(code, tail) ?: ImportCodes.helpFor(code),
         )
+    }
+
+    /**
+     * For a reference that cannot be resolved while imports were dropped as not found, the likely
+     * cause: the help names those imports. `null` when [code] and [tail] are some other problem.
+     */
+    private fun missingImportsHelp(code: DiagnosticCode, tail: String): String? {
+        if (code != ImportCodes.UNRESOLVED || unresolvedImports.isEmpty()) return null
+        if (!tail.endsWith("cannot be resolved")) return null
+        val names = unresolvedImports.joinToString(", ") { "'$it'" }
+        return if (unresolvedImports.size == 1)
+            "import $names was not found; add the schema that declares it"
+        else "imports $names were not found; add the schemas that declare them"
     }
 
     /** A facet [Note] at [path] (the simple type's own document, which may differ from [doc]). */

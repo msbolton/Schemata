@@ -1,0 +1,9 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:schemata:s" xmlns:m="urn:x:missing" targetNamespace="urn:schemata:s">
+  <xs:import namespace="urn:x:missing" schemaLocation="missing.xsd"/>
+  <xs:complexType name="HolderType">
+    <xs:sequence>
+      <xs:element name="thing" type="m:Thing"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

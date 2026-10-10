@@ -383,7 +383,7 @@ class XsdImporterTest {
         val result = XsdImporter.import(listOf(ImportInput("t.xsd", choiceOfMissing)))
         assertEquals(
             listOf(
-                "SCH2401 t.xsd: import 'urn:schemata:cac' cannot be resolved",
+                "SCH2405 t.xsd: import 'urn:schemata:cac' not found; dropped",
                 "SCH2401 union 'Party': element 'Person' cannot be resolved",
                 "SCH2401 union 'Party': element 'Organization' cannot be resolved",
                 "SCH2401 union 'Holder': element 'Person' cannot be resolved",
@@ -650,5 +650,149 @@ class XsdImporterTest {
         val widened = result.diagnostics.single { it.code == ImportCodes.WIDENED }
         assertEquals("parts.xsd", widened.span.file)
         assertEquals(3, widened.span.startLine)
+    }
+
+    private fun xsdSchema(ns: String, body: String, header: String = ""): String =
+        """<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:n="$ns" targetNamespace="$ns">$header$body</xs:schema>"""
+
+    private fun thing(name: String, type: String) =
+        """<xs:complexType name="$name"><xs:sequence><xs:element name="x" type="$type"/></xs:sequence></xs:complexType>"""
+
+    private fun served(vararg files: Pair<String, String>): (String) -> ImportInput? = { path ->
+        files.toMap()[path]?.let { ImportInput(path, it) }
+    }
+
+    @Test
+    fun `an import of a located document is followed`() {
+        val a =
+            xsdSchema(
+                    "urn:schemata:a",
+                    thing("AType", "b:BType"),
+                    """<xs:import namespace="urn:schemata:b" schemaLocation="b.xsd"/>""",
+                )
+                .replace("xmlns:n=", "xmlns:b=\"urn:schemata:b\" xmlns:n=")
+        val b =
+            xsdSchema(
+                    "urn:schemata:b",
+                    thing("BType", "c:CType"),
+                    """<xs:import namespace="urn:schemata:c" schemaLocation="c.xsd"/>""",
+                )
+                .replace("xmlns:n=", "xmlns:c=\"urn:schemata:c\" xmlns:n=")
+        val c = xsdSchema("urn:schemata:c", thing("CType", "xs:string"))
+        val result =
+            XsdImporter.import(
+                listOf(ImportInput("a.xsd", a)),
+                locate = served("b.xsd" to b, "c.xsd" to c),
+            )
+        assertEquals(
+            emptyList(),
+            result.diagnostics.filter { it.code != ImportCodes.RENAMED }.map { it.message },
+        )
+        assertTrue(result.files.single { it.path == "a.schemata" }.content.contains("import b"))
+        val bFile = result.files.single { it.path == "b.schemata" }.content
+        assertTrue(bFile.contains("import c"), bFile)
+        assertTrue(bFile.contains("x c.C"), bFile)
+    }
+
+    @Test
+    fun `an include of a located document is merged into it`() {
+        val a =
+            xsdSchema(
+                    "urn:schemata:a",
+                    thing("AType", "b:B2Type"),
+                    """<xs:import namespace="urn:schemata:b" schemaLocation="b.xsd"/>""",
+                )
+                .replace("xmlns:n=", "xmlns:b=\"urn:schemata:b\" xmlns:n=")
+        val b =
+            xsdSchema(
+                "urn:schemata:b",
+                thing("BType", "xs:string"),
+                """<xs:include schemaLocation="b2.xsd"/>""",
+            )
+        val b2 = xsdSchema("urn:schemata:b", thing("B2Type", "xs:string"))
+        val result =
+            XsdImporter.import(
+                listOf(ImportInput("a.xsd", a)),
+                locate = served("b.xsd" to b, "b2.xsd" to b2),
+            )
+        assertEquals(
+            emptyList(),
+            result.diagnostics.filter { it.code != ImportCodes.RENAMED }.map { it.message },
+        )
+        assertTrue(result.files.single { it.path == "b.schemata" }.content.contains("B2"))
+    }
+
+    @Test
+    fun `a located document is read once however many documents import it`() {
+        fun importer(ns: String) =
+            xsdSchema(
+                ns,
+                thing("TType", "xs:string"),
+                """<xs:import namespace="urn:schemata:c" schemaLocation="c.xsd"/>""",
+            )
+        val c = xsdSchema("urn:schemata:c", thing("CType", "xs:string"))
+        val result =
+            XsdImporter.import(
+                listOf(
+                    ImportInput("a.xsd", importer("urn:schemata:a")),
+                    ImportInput("b.xsd", importer("urn:schemata:b")),
+                ),
+                locate = served("c.xsd" to c),
+            )
+        assertEquals(1, result.files.count { it.path == "c.schemata" })
+        assertEquals(
+            emptyList(),
+            result.diagnostics.filter { it.code != ImportCodes.RENAMED }.map { it.message },
+        )
+    }
+
+    @Test
+    fun `an import without a location resolves by namespace among the documents read`() {
+        val a =
+            xsdSchema(
+                    "urn:schemata:a",
+                    thing("AType", "c:CType"),
+                    """<xs:import namespace="urn:schemata:c"/>""",
+                )
+                .replace("xmlns:n=", "xmlns:c=\"urn:schemata:c\" xmlns:n=")
+        val c = xsdSchema("urn:schemata:c", thing("CType", "xs:string"))
+        val result = XsdImporter.import(listOf(ImportInput("a.xsd", a), ImportInput("c.xsd", c)))
+        assertEquals(
+            emptyList(),
+            result.diagnostics.filter { it.code != ImportCodes.RENAMED }.map { it.message },
+        )
+        assertTrue(result.files.single { it.path == "a.schemata" }.content.contains("import c"))
+    }
+
+    @Test
+    fun `an import found nowhere is a warning and the document still imports`() {
+        val s =
+            xsdSchema(
+                "urn:schemata:s",
+                thing("SType", "xs:string"),
+                """<xs:import namespace="urn:x:missing" schemaLocation="missing.xsd"/>""",
+            )
+        val result = XsdImporter.import(listOf(ImportInput("s.xsd", s)))
+        val dropped = result.diagnostics.single { it.code == ImportCodes.DROPPED }
+        assertEquals("s.xsd: import 'urn:x:missing' not found; dropped", dropped.message)
+        assertEquals("add the schema that declares it to the inputs", dropped.help)
+        assertTrue(result.diagnostics.none { it.severity == Severity.ERROR })
+        assertTrue(result.files.any { it.path == "s.schemata" })
+    }
+
+    @Test
+    fun `an include found nowhere stays an error`() {
+        val s =
+            xsdSchema(
+                "urn:schemata:s",
+                thing("SType", "xs:string"),
+                """<xs:include schemaLocation="x.xsd"/>""",
+            )
+        val result = XsdImporter.import(listOf(ImportInput("s.xsd", s)))
+        assertEquals(
+            listOf("SCH2401 s.xsd: include 'x.xsd' cannot be resolved"),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+        assertTrue(result.diagnostics.all { it.severity == Severity.ERROR })
     }
 }

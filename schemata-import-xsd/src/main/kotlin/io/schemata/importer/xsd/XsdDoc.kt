@@ -29,6 +29,9 @@ data class XsdDoc(
     val attributeFormDefault: String? = null,
     val blockDefault: String? = null,
     val finalDefault: String? = null,
+    // the namespaces of imports no document read declares (or "(no namespace)"), kept so an
+    // unresolved type can say which imports were missing
+    val unresolvedImports: List<String> = emptyList(),
 )
 
 data class XImport(val namespace: String?, val schemaLocation: String?, val line: Int)

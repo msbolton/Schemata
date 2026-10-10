@@ -2764,19 +2764,20 @@ class XsdImportTest {
     }
 
     @Test
-    fun `an import with no namespace names itself when unresolved`() {
-        val imported =
-            lower(
-                """
-                <?xml version="1.0"?>
-                <xs:schema $xs targetNamespace="urn:schemata:s">
-                  <xs:import schemaLocation="x.xsd"/>
-                </xs:schema>
-                """
+    fun `an import with no namespace is dropped by name when not found`() {
+        val result =
+            importAll(
+                "s.xsd" to
+                    """
+                    <?xml version="1.0"?>
+                    <xs:schema $xs targetNamespace="urn:schemata:s">
+                      <xs:import schemaLocation="x.xsd"/>
+                    </xs:schema>
+                    """
             )
         assertEquals(
-            listOf("SCH2401 s.xsd: import with no namespace cannot be resolved"),
-            messages(imported),
+            listOf("SCH2405 s.xsd: import '(no namespace)' not found; dropped"),
+            result.diagnostics.map { "${it.code.id} ${it.message}" },
         )
     }
 
@@ -3266,6 +3267,34 @@ class XsdImportTest {
                 emptyList(),
             ),
             record(imported, "Thing").fields.single().type,
+        )
+    }
+
+    @Test
+    fun `an unresolved type names the unresolved imports in its help`() {
+        val xml =
+            """
+            <?xml version="1.0"?>
+            <xs:schema $xs xmlns:tns="urn:schemata:s" xmlns:m="urn:x:m" targetNamespace="urn:schemata:s">
+              <xs:complexType name="AType">
+                <xs:sequence>
+                  <xs:element name="x" type="m:Thing"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:schema>
+            """
+        fun help(vararg missing: String) =
+            XsdImport.lower(listOf(doc(xml).copy(unresolvedImports = missing.toList())), null)
+                .diagnostics
+                .single()
+                .help
+        assertEquals(
+            "import 'urn:x:m' was not found; add the schema that declares it",
+            help("urn:x:m"),
+        )
+        assertEquals(
+            "imports 'urn:x:m', 'urn:x:n' were not found; add the schemas that declare them",
+            help("urn:x:m", "urn:x:n"),
         )
     }
 }
