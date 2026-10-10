@@ -2,6 +2,7 @@ package io.schemata.importer.xsd
 
 import io.schemata.importer.ImportInput
 import io.schemata.importer.Imported
+import io.schemata.importer.SchemataEmitter
 import io.schemata.importer.SchemataUnit
 import io.schemata.importer.UnitAnnotation
 import io.schemata.importer.UnitEnum
@@ -488,6 +489,40 @@ class XsdContentModelsTest {
         assertTrue(listOfRef("a.Div")(page.fields.single().type))
         assertTrue("a" in unit(imported, "b").imports)
         assertEquals(setOf("Div"), records(imported, "a").keys)
+    }
+
+    @Test
+    fun `a reference across namespaces to a numbered element record names the numbered record`() {
+        val a =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:schemata:a">
+              <xs:element name="fooBar"><xs:complexType><xs:sequence>
+                <xs:element name="x" type="xs:int"/>
+              </xs:sequence></xs:complexType></xs:element>
+              <xs:element name="FooBar"><xs:complexType><xs:sequence>
+                <xs:element name="y" type="xs:string"/>
+              </xs:sequence></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val b =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:a="urn:schemata:a" targetNamespace="urn:schemata:b">
+              <xs:import namespace="urn:schemata:a" schemaLocation="a.xsd"/>
+              <xs:complexType name="PageType"><xs:sequence>
+                <xs:element ref="a:FooBar"/>
+              </xs:sequence></xs:complexType>
+              <xs:element name="page" type="PageType"/>
+            </xs:schema>
+            """
+        // b lowers first, before a's elements have claimed their record names.
+        val imported = lower(docs("b.xsd" to b, "a.xsd" to a))
+        val page = SchemataEmitter.emit(unit(imported, "b"))
+        assertTrue("foo_bar a.FooBar2" in page, page)
+        assertTrue("a" in unit(imported, "b").imports)
+        val own = SchemataEmitter.emit(unit(imported, "a")).replace(Regex("\\s+"), " ")
+        assertTrue("FooBar { x int32 }" in own, own)
+        assertTrue("FooBar2 { y string }" in own, own)
+        assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
     }
 
     @Test
