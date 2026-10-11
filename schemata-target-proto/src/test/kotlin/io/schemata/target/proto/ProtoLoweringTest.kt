@@ -2052,6 +2052,51 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a note on a field of a renamed type names the new name`() {
+        val file = lower(NIEM, UC2).file("niem_core.proto")
+        assertEquals(listOf("Uc2SystemTaskTask?"), message(file, "Task").fields.single().notes)
+        assertEquals(listOf("Task?"), message(file, "Uc2SystemTaskTask").fields.single().notes)
+    }
+
+    @Test
+    fun `a note names a declaration by its proto name`() {
+        val file =
+            lower(
+                    "schema t\n" +
+                        "\n" +
+                        "@proto(name: \"Wire\")\n" +
+                        "model R { #1 x int32 }\n" +
+                        "\n" +
+                        "model S { #1 r R?  #2 rs R[] { minItems 1 } }\n"
+                )
+                .file("t.proto")
+        assertEquals(
+            listOf(listOf("Wire?"), listOf("Wire[] { minItems 1 }")),
+            message(file, "S").fields.map { it.notes },
+        )
+    }
+
+    @Test
+    fun `a renamed key record is reported as its model's key`() {
+        val pair = "model Pair { #1 x int32 { id }  #2 y int32 { id } }\n"
+        val lowered =
+            lower(
+                "schema cyc.alpha\n\nimport cyc.beta as beta\n\n$pair\nmodel A { #1 p Pair  #2 b beta.B? }\n",
+                "schema cyc.beta\n\nimport cyc.alpha as alpha\n\n$pair\nmodel B { #1 p Pair  #2 a alpha.A? }\n",
+            )
+        assertEquals(
+            "cyc.beta.schemata:5 SCH2001 the key of model 'cyc.beta.Pair': proto name 'PairKey' " +
+                "is also used by the key of model 'cyc.alpha.Pair'; written as 'CycBetaPairKey'",
+            lowered.located().last(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on one of the models to choose the name",
+            lowered.diagnostics.last().help,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
     fun `the renamed file compiles under protoc`() {
         val lowered =
             lower(

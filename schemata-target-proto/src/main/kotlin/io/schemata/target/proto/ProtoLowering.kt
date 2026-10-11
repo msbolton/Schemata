@@ -31,6 +31,7 @@ import io.schemata.target.OverrideNames
 import io.schemata.target.ProtoPackages
 import io.schemata.target.ProtoUnit
 import io.schemata.target.deprecated
+import io.schemata.target.isKeyRecord
 import io.schemata.target.named
 import io.schemata.target.referencesByKey
 import io.schemata.target.string
@@ -89,7 +90,7 @@ object ProtoLowering {
                         help = "set `@proto(package: \"…\")` on one schema",
                     )
             }
-        val renames = groupRenames(packages, names, diagnostics)
+        val renames = groupRenames(schema, packages, names, diagnostics)
         val files =
             packages.units.map {
                 FileLowering(schema, names, renames, packages, it, diagnostics).lower()
@@ -143,22 +144,28 @@ object ProtoLowering {
      * within one member are the author's own collision, and two colliding declared names have no
      * name to fall back to, so both are left for the name-collision check, as is a prefixed name
      * that is itself taken.
+     *
+     * A key record is named for its model, `<Model>Key`, and takes the model's `@proto(name)` with
+     * the suffix, so the author renames it through the model: a message about one names the model
+     * whose key it is, and its help points at the models.
      */
     private fun groupRenames(
+        schema: Schema,
         packages: ProtoPackages,
         names: OverrideNames,
         diagnostics: MutableList<Diagnostic>,
     ): Map<QualifiedName, String> {
         val renames = mutableMapOf<QualifiedName, String>()
+        fun claim(member: Namespace, decl: TypeDecl) =
+            Claim(member, schema.holder(decl), schema.isKeyRecord(decl))
         for (unit in packages.units.filter { it.merged }) {
-            // Each claimed name, with the schema that claimed it and how a message names it.
-            val claimed = mutableMapOf<String, Pair<Namespace, String>>()
+            val claimed = mutableMapOf<String, Claim>()
             val plain = mutableListOf<Pair<Namespace, TypeDecl>>()
             for (member in unit.members) {
                 for (decl in member.declarations) {
                     val declared = names.nameOverride(decl)
                     if (declared == null) plain += member to decl
-                    else claimed.putIfAbsent(declared, member to holder(decl))
+                    else claimed.putIfAbsent(declared, claim(member, decl))
                 }
                 for (service in member.services) {
                     // A service whose override is invalid keeps its own name; the file reports it.
@@ -166,33 +173,51 @@ object ProtoLowering {
                         service.annotations.string("proto", "name")?.takeIf {
                             ProtoNames.isIdentifier(it)
                         } ?: service.name
-                    claimed.putIfAbsent(name, member to "service '${service.qualifiedName}'")
+                    claimed.putIfAbsent(
+                        name,
+                        Claim(member, "service '${service.qualifiedName}'", key = false),
+                    )
                 }
             }
             val taken = (claimed.keys + plain.map { (_, decl) -> decl.name }).toMutableSet()
             for ((member, decl) in plain) {
-                val (owner, user) =
-                    claimed.putIfAbsent(decl.name, member to holder(decl)) ?: continue
-                if (owner === member) continue
+                val own = claim(member, decl)
+                val user = claimed.putIfAbsent(decl.name, own) ?: continue
+                if (user.member === member) continue
                 val prefix = member.name.split('.').joinToString("") { Names.upperCamel(it) }
                 val renamed = prefix + decl.name
                 if (!taken.add(renamed)) continue
                 renames[decl.qualifiedName] = renamed
+                val those = if (own.key || user.key) "one of the models" else "one of them"
                 diagnostics +=
                     Diagnostic(
                         ProtoCodes.LOSSY,
-                        "${holder(decl)}: proto name '${decl.name}' is also used by $user; " +
+                        "${own.holder}: proto name '${decl.name}' is also used by ${user.holder}; " +
                             "written as '$renamed'",
                         decl.nameSpan,
-                        help = "set `@proto(name: \"…\")` on one of them to choose the name",
+                        help = "set `@proto(name: \"…\")` on $those to choose the name",
                     )
             }
         }
         return renames
     }
 
-    /** How a message names [decl] for a reader of the merged file: by its qualified name. */
-    private fun holder(decl: TypeDecl): String = "${decl.kindWord} '${decl.qualifiedName}'"
+    /**
+     * A name claimed in a merged unit's package scope: the [member] that claimed it, how a message
+     * names the claimant, and whether it is a [key] record.
+     */
+    private class Claim(val member: Namespace, val holder: String, val key: Boolean)
+
+    /**
+     * How a message names [decl] for a reader of the merged file: by its qualified name, and a key
+     * record, which the author never wrote, as the key of its model.
+     */
+    private fun Schema.holder(decl: TypeDecl): String {
+        if (!isKeyRecord(decl)) return "${decl.kindWord} '${decl.qualifiedName}'"
+        val qn = decl.qualifiedName
+        val model = QualifiedName(qn.namespace, qn.path.dropLast(1) + decl.name.removeSuffix("Key"))
+        return "the key of model '$model'"
+    }
 
     private class Mapped(val type: ProtoType, val label: Label, val lossy: Boolean)
 
@@ -216,6 +241,14 @@ object ProtoLowering {
          */
         private fun emitted(decl: TypeDecl): String =
             names.nameOverride(decl) ?: renames[decl.qualifiedName] ?: decl.name
+
+        /**
+         * The note that keeps what proto lost of [type]. A reference in it is spelled by its
+         * emitted name, the name the field's proto type ends with, so that a reader of the file can
+         * tell the note belongs to the type.
+         */
+        private fun note(type: Type, nullable: Boolean = false): String =
+            ProtoTypes.text(type, nullable) { emitted(schema.lookup(it)) }
 
         fun lower(): ProtoFile {
             unit.members.forEach { declaredPackage(it) }
@@ -393,7 +426,7 @@ object ProtoLowering {
             fieldNumber(where, field.ordinal, field.span)
             val mapped = map(field.type, field.nullable, where, field.span, here)
             val notes = mutableListOf<String>()
-            if (mapped.lossy) notes += ProtoTypes.text(field.type, field.nullable)
+            if (mapped.lossy) notes += note(field.type, field.nullable)
             field.default?.let {
                 val text =
                     (it as? EnumRef)?.let { ref ->
@@ -483,8 +516,7 @@ object ProtoLowering {
                     val where = "member '${union.name}.$memberName'"
                     fieldNumber(where, member.ordinal, member.span)
                     val mapped = map(member.type, nullable = false, where, member.span, here)
-                    val notes =
-                        if (mapped.lossy) listOf(ProtoTypes.text(member.type)) else emptyList()
+                    val notes = if (mapped.lossy) listOf(note(member.type)) else emptyList()
                     ProtoField(
                         member.ordinal,
                         memberName,

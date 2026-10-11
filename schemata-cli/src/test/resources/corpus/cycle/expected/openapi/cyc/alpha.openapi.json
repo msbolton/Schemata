@@ -79,13 +79,19 @@
             }
           },
           "note": {
-            "$ref": "#/components/schemas/cyc.beta.Note"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/cyc.beta.Note"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "name",
-          "orders",
-          "note"
+          "orders"
         ],
         "additionalProperties": false
       },
