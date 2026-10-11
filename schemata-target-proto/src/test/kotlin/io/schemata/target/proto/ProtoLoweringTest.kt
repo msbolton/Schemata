@@ -104,6 +104,11 @@ model Book {
 }
 """
 
+/** [ALPHA] and [BETA] form a reference cycle: each schema's model refers to the other's. */
+private const val ALPHA = "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b B? }\n"
+
+private const val BETA = "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n"
+
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
 
@@ -1092,7 +1097,11 @@ class ProtoLoweringTest {
     }
 
     /** Analyses [sources], each in a file named for its namespace, and lowers the schema. */
-    private fun lower(vararg sources: String): Lowered<ProtoModel> {
+    private fun lower(vararg sources: String): Lowered<ProtoModel> =
+        ProtoLowering.lower(analysed(*sources))
+
+    /** Analyses [sources], each in a file named for its namespace, expecting no diagnostics. */
+    private fun analysed(vararg sources: String): Schema {
         val files =
             sources.map { text ->
                 val ns = Regex("""schema\s+([\w.]+)""").find(text)!!.groupValues[1]
@@ -1106,11 +1115,18 @@ class ProtoLoweringTest {
                 ),
             )
         assertEquals(emptyList(), analysis.diagnostics.map { "${it.code.id} ${it.message}" })
-        return ProtoLowering.lower(analysis.schema!!)
+        return analysis.schema!!
     }
 
     private fun Lowered<ProtoModel>.codes(): List<String> =
         diagnostics.map { "${it.code.id} ${it.message}" }
+
+    /** Each diagnostic as `<file>:<line> <code> <message>`, so the blamed schema shows. */
+    private fun Lowered<ProtoModel>.located(): List<String> =
+        diagnostics.map { "${it.span.file}:${it.span.startLine} ${it.code.id} ${it.message}" }
+
+    private fun Lowered<ProtoModel>.protocErrors(): String? =
+        Protoc.compile(ProtoRenderer.render(model).associate { it.path to it.content })
 
     private fun Lowered<ProtoModel>.file(path: String): ProtoFile =
         model.files.single { it.path == path }
@@ -1611,5 +1627,211 @@ class ProtoLoweringTest {
             ),
             book.fields.filter { it.number in 2..3 }.map { listOf(it.number, it.name, it.type) },
         )
+    }
+
+    @Test
+    fun `schemas in a reference cycle are written as one file under their common package`() {
+        val lowered = lower(ALPHA, BETA)
+        val file = lowered.model.files.single()
+        assertEquals("cyc.proto" to "cyc", file.path to file.packageName)
+        assertEquals(emptyList(), file.imports)
+        assertEquals(listOf("A", "B"), file.declarations.map { it.name })
+        assertEquals(ProtoType.Named("B"), message(file, "A").fields.single().type)
+        assertEquals(ProtoType.Named("A"), message(file, "B").fields.single().type)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a cycle reports the merge once at its first member`() {
+        val lowered = lower(ALPHA, BETA)
+        assertEquals(
+            listOf(
+                "cyc.alpha.schemata:1 SCH2001 schemas cyc.alpha and cyc.beta reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'"
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            "set `@proto(package: \"…\")` to one value on each of them to choose the package",
+            lowered.diagnostics.single().help,
+        )
+    }
+
+    @Test
+    fun `three schemas in a cycle are listed with commas`() {
+        val lowered =
+            lower(
+                "schema cyc.a\n\nimport cyc.b\n\nmodel A { #1 b B? }\n",
+                "schema cyc.b\n\nimport cyc.c\n\nmodel B { #1 c C? }\n",
+                "schema cyc.c\n\nimport cyc.a\n\nmodel C { #1 a A? }\n",
+            )
+        assertEquals(
+            listOf(
+                "SCH2001 schemas cyc.a, cyc.b and cyc.c reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'"
+            ),
+            lowered.codes(),
+        )
+        assertEquals(listOf("cyc.proto"), lowered.model.files.map { it.path })
+    }
+
+    @Test
+    fun `a schema outside the cycle imports the merged file and spells its package`() {
+        val lowered = lower(ALPHA, BETA, "schema other\n\nimport cyc.beta\n\nmodel O { #1 b B }\n")
+        val other = lowered.file("other.proto")
+        assertEquals(listOf("cyc.proto"), other.imports)
+        assertEquals(ProtoType.Named(".cyc.B"), message(other, "O").fields.single().type)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `services of every member follow all declarations`() {
+        val lowered =
+            lower(
+                ALPHA + "\nservice Alphas {\n  #1 get(A): B\n}\n",
+                BETA + "\nservice Betas {\n  #1 get(B): A\n}\n",
+            )
+        val file = lowered.file("cyc.proto")
+        assertEquals(listOf("A", "B"), file.declarations.map { it.name })
+        assertEquals(listOf("Alphas", "Betas"), file.services.map { it.name })
+        val get = file.services.first().rpcs.single()
+        assertEquals("Get" to "A", get.name to get.request.reference)
+        assertEquals("B", get.response.reference)
+        val text = ProtoRenderer.render(lowered.model).single().content
+        assertTrue(text.contains("rpc Get(A) returns (B)"), text)
+        assertTrue(text.indexOf("message B") < text.indexOf("service Alphas"), text)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a nested declaration that shadows a member's type forces the absolute spelling`() {
+        val lowered =
+            lower(
+                "schema cyc.alpha\n" +
+                    "\n" +
+                    "import cyc.beta as beta\n" +
+                    "\n" +
+                    "model A {\n" +
+                    "  #1 b     beta.B?\n" +
+                    "  #2 inner B\n" +
+                    "\n" +
+                    "  model B { #1 x int32 }\n" +
+                    "}\n",
+                BETA,
+            )
+        val a = message(lowered.file("cyc.proto"), "A")
+        assertEquals(
+            listOf(ProtoType.Named(".cyc.B"), ProtoType.Named("B")),
+            a.fields.map { it.type },
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a composite key from another member of the cycle is spelled relatively`() {
+        val lowered =
+            lower(
+                "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 pair Pair }\n",
+                "schema cyc.beta\n" +
+                    "\n" +
+                    "import cyc.alpha\n" +
+                    "\n" +
+                    "model Pair { #1 a int32 { id }  #2 b int32 { id }  #3 owner A? }\n",
+            )
+        val file = lowered.file("cyc.proto")
+        assertEquals(listOf("A", "Pair", "PairKey"), file.declarations.map { it.name })
+        assertEquals(ProtoType.Named("PairKey"), message(file, "A").fields.single().type)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `one declared package names the merged file without a warning`() {
+        val lowered =
+            lower(
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"shop.v1\")"),
+                BETA,
+            )
+        val file = lowered.model.files.single()
+        assertEquals("shop/v1.proto" to "shop.v1", file.path to file.packageName)
+        assertEquals(emptyList(), lowered.codes())
+    }
+
+    @Test
+    fun `members declaring one package are not a package collision`() {
+        val lowered =
+            lower(
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"shop.v1\")"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"shop.v1\")"),
+            )
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(listOf("shop/v1.proto"), lowered.model.files.map { it.path })
+    }
+
+    @Test
+    fun `conflicting declared packages in a cycle are an error`() {
+        val schema =
+            analysed(
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"p.one\")"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"p.two\")"),
+            )
+        val lowered = ProtoLowering.lower(schema)
+        assertEquals(
+            listOf(
+                "cyc.beta.schemata:1 SCH2007 schemas cyc.alpha and cyc.beta reference each other " +
+                    "but declare packages 'p.one' and 'p.two'"
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            "give every schema in the cycle the same `@proto(package: \"…\")`",
+            lowered.diagnostics.single().help,
+        )
+        assertEquals(emptyList(), ProtoTarget.compile(schema).files)
+    }
+
+    @Test
+    fun `a cycle's package colliding with another schema's package is an error`() {
+        val lowered =
+            lower(ALPHA, BETA, "schema x @proto(package: \"cyc\")\n\nmodel X { #1 y int32 }\n")
+        assertEquals(
+            listOf(
+                "cyc.alpha.schemata:1 SCH2001 schemas cyc.alpha and cyc.beta reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'",
+                "x.schemata:1 SCH2004 schemas cyc.alpha and x both lower to package 'cyc'",
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `files follow the name of their first schema`() {
+        val lowered =
+            lower(
+                "schema a\n\nimport n\n\nmodel A { #1 n N? }\n",
+                "schema m\n\nmodel M { #1 x int32 }\n",
+                "schema n\n\nimport a\n\nmodel N { #1 a A? }\n",
+                "schema z\n\nmodel Z { #1 x int32 }\n",
+            )
+        assertEquals(listOf("a.proto", "m.proto", "z.proto"), lowered.model.files.map { it.path })
+        assertEquals(listOf("A", "N"), lowered.file("a.proto").declarations.map { it.name })
+    }
+
+    @Test
+    fun `a cycle broken by a single key writes one file per schema`() {
+        val lowered =
+            lower(
+                "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 id uuid { id }  #2 b B? }\n",
+                "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 id uuid { id }  #2 a A? }\n",
+            )
+        assertEquals(
+            listOf("cyc/alpha.proto", "cyc/beta.proto"),
+            lowered.model.files.map { it.path },
+        )
+        assertEquals(
+            listOf(emptyList<String>(), emptyList()),
+            lowered.model.files.map { it.imports },
+        )
+        assertEquals(emptyList(), lowered.codes().filter { "reference each other" in it })
+        assertNull(lowered.protocErrors())
     }
 }
