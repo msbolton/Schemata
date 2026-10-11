@@ -16,7 +16,7 @@ message Note {
 message Customer {
   string name = 1;
   repeated Order orders = 2;
-  CycBetaNote note = 3;
+  CycBetaNote note = 3;  // schemata: CycBetaNote?
 }
 
 // A note about a customer.
