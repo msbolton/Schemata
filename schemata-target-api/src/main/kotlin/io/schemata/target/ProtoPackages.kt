@@ -43,19 +43,44 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
         /** [schema] must already be key-rewritten, so single-key references tie nothing. */
         fun of(schema: Schema): ProtoPackages {
             val byName = schema.namespaces.associateBy { it.name }
-            val components = stronglyConnected(schema.namespaceReferences())
+            val components =
+                stronglyConnected(schema.namespaceReferences()).map { names ->
+                    names.map { byName.getValue(it) }
+                }
+            // The package each unit would take if nothing outside it stood in the way: a declared
+            // one, a singleton's name, or a cycle's common prefix.
+            val candidates = components.map { candidate(it) }
             val units =
-                components.map { names ->
-                    val members = names.map { byName.getValue(it) }
-                    val outside = schema.namespaces.map { it.name }.toSet() - names.toSet()
-                    unitFor(members, outside)
+                components.mapIndexed { i, members ->
+                    val inside = members.map { it.name }.toSet()
+                    val outsideNames = schema.namespaces.map { it.name }.toSet() - inside
+                    val outsidePackages =
+                        candidates.filterIndexed { j, _ -> j != i }.toSet() +
+                            schema.namespaces.filter { it.name !in inside }.mapNotNull(::declared)
+                    unitFor(members, outsideNames, outsideNames + outsidePackages)
                 }
             return ProtoPackages(units)
         }
 
         private fun pathOf(name: String) = name.replace('.', '/') + ".proto"
 
-        private fun unitFor(members: List<Namespace>, outside: Set<String>): ProtoUnit {
+        /** [members]' declared package, else a singleton's name or a cycle's common prefix. */
+        private fun candidate(members: List<Namespace>): String =
+            members.firstNotNullOfOrNull { declared(it) }
+                ?: if (members.size == 1) members.single().name
+                else commonPrefix(members.map { it.name })
+
+        /**
+         * The unit of [members]. A cycle that declares no package takes its members' common prefix,
+         * unless that is empty or one of [avoided], the names and packages of the schemas and
+         * cycles outside it: the compiler chose it, so it must not collide with a package or path
+         * that is already someone else's. It then takes its first member's name.
+         */
+        private fun unitFor(
+            members: List<Namespace>,
+            outside: Set<String>,
+            avoided: Set<String>,
+        ): ProtoUnit {
             val first = members.first()
             if (members.size == 1) {
                 return ProtoUnit(members, declared(first) ?: first.name, pathOf(first.name))
@@ -76,10 +101,8 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
                     conflict = differing?.let { declaredBy.first() to it },
                 )
             }
-            // A prefix equal to an outside schema's name is that schema's own package and path;
-            // taking it would put two files at one path.
             val prefix = commonPrefix(members.map { it.name })
-            val packageName = if (prefix.isEmpty() || prefix in outside) first.name else prefix
+            val packageName = if (prefix.isEmpty() || prefix in avoided) first.name else prefix
             return ProtoUnit(members, packageName, pathFor(packageName), derived = true)
         }
 
