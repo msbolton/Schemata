@@ -1,0 +1,6 @@
+schema corpus.options @proto(package: "corpus.options.v1", java_package: "com.example.corpus.options", java_outer_classname: "OptionsProto", java_multiple_files: true, csharp_namespace: "Example.Corpus.Options", go_package: "example.com/corpus/options;optionspb", objc_class_prefix: "ECO", php_namespace: "Example\\Corpus\\Options", php_class_prefix: "Eco", php_metadata_namespace: "Example\\Corpus\\Metadata", ruby_package: "Example::Corpus::Options", swift_prefix: "ECO")
+
+/// An order placed by a customer.
+model Order { #1 id string  #2 status Status }
+
+enum Status { #1 placed #2 shipped }

@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH2007] (proto): schemas cyc.alpha and cyc.beta reference each other but declare java_package 'com.example.alpha' and 'com.example.beta'
+ --> beta.schemata:1:1
+  = help: give every schema in the cycle the same `@proto(java_package: "…")`
+
+1 error, 0 warnings

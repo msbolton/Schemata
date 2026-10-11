@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH2007] (proto): schema 's': @proto(java_package: "com.example-orders") is not a valid Java package
+ --> s.schemata:1:1
+  = help: use dotted identifiers, for example `com.example.orders`
+
+1 error, 0 warnings

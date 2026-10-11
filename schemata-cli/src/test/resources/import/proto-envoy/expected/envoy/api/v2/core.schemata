@@ -1,4 +1,4 @@
-schema envoy.api.v2.core
+schema envoy.api.v2.core @proto(java_package: "io.envoyproxy.envoy.api.v2.core") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/api/v2/core")
 
 import envoy.type
 
