@@ -1,4 +1,4 @@
-schema envoy.type.ai.v3.llm_protocol @proto(package: "envoy.type.ai.v3")
+schema envoy.type.ai.v3.llm_protocol @proto(package: "envoy.type.ai.v3") @proto(java_package: "io.envoyproxy.envoy.type.ai.v3") @proto(java_outer_classname: "LlmProtocolProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/type/ai/v3;aiv3")
 
 /// Identifies the AI API contract spoken on the wire.
 ///

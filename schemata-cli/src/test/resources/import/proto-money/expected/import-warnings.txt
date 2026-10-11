@@ -1,0 +1,2 @@
+SCH2405 google/type/money.proto: option java_outer_classname 'MoneyProto' differs from 'DateProto' in google/type/date.proto; dropped
+SCH2405 google/type/money.proto: option go_package 'google.golang.org/genproto/googleapis/type/money;money' differs from 'google.golang.org/genproto/googleapis/type/date;date' in google/type/date.proto; dropped

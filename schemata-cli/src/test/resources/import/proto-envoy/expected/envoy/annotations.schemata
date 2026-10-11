@@ -1,4 +1,4 @@
-schema envoy.annotations
+schema envoy.annotations @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/annotations")
 
 model ResourceAnnotation {
   /// Annotation for xDS services that indicates the fully-qualified Protobuf type for the resource

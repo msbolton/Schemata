@@ -28,10 +28,12 @@ internal object ProtoLowering {
     /**
      * [namespaces] names each file's namespace, [annotations] what its unit carries above the
      * `namespace` line; both are keyed by [ProtoFile.path], since a file's tree is too large to
-     * hash and compare on every lookup. A unit imports exactly the namespaces its declarations
-     * reference, in the order they are first used: a Schemata file imports what it uses, so a proto
-     * import whose types it never uses, an option-only import and an `import public` produce no
-     * line, which is what makes the Protobuf round trip exact.
+     * hash and compare on every lookup. The annotations belong to the namespace, not to one file:
+     * only the entry of the namespace's first file is read, so it must hold what all its files
+     * agree on. A unit imports exactly the namespaces its declarations reference, in the order they
+     * are first used: a Schemata file imports what it uses, so a proto import whose types it never
+     * uses, an option-only import and an `import public` produce no line, which is what makes the
+     * Protobuf round trip exact.
      */
     fun lower(
         files: List<ProtoFile>,

@@ -860,6 +860,21 @@ SCH2405 envoy/data/ai/v3/request_info.proto: import 'xds/annotations/v3/status.p
 SCH2405 envoy/service/secret/v3/sds.proto: import 'google/api/annotations.proto' not found; dropped
 SCH2402 envoy/service/discovery/v3/discovery.proto: schema name 'envoy.service_value.discovery.v3.discovery' was derived from the file name
 SCH2402 envoy/service/secret/v3/sds.proto: schema name 'envoy.service_value.secret.v3.sds' was derived from the file name
+SCH2405 envoy/api/v2/core/backoff.proto: option java_outer_classname 'BackoffProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/api/v2/core/base.proto: option java_outer_classname 'BaseProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/api/v2/core/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/api/v2/core/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/config/core/v3/backoff.proto: option java_outer_classname 'BackoffProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/base.proto: option java_outer_classname 'BaseProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/grpc_method_list.proto: option java_outer_classname 'GrpcMethodListProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/http_service.proto: option java_outer_classname 'HttpServiceProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/type/matcher/v3/string.proto: option java_outer_classname 'StringProto' differs from 'RegexProto' in envoy/type/matcher/v3/regex.proto; dropped
+SCH2405 envoy/type/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/percent.proto; dropped
+SCH2405 envoy/type/v3/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/v3/percent.proto; dropped
+SCH2405 include/xds/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'ContextParamsProto' in include/xds/core/v3/context_params.proto; dropped
 SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
 SCH2405 envoy/annotations/deprecation.proto: extend dropped
 SCH2404 field 'Pipe.mode': uint32 imported as int64(min = 0, max = 4294967295)
@@ -905,7 +920,7 @@ SCH2403 model 'RegexMatcher': oneof 'engine_type' imported as nullable fields; a
 SCH2403 model 'StringMatcher': oneof 'match_pattern' imported as nullable fields; at most one of them is set, which Schemata cannot say
 ```
 
-The whole file holds 236 such lines; each shape is quoted once here. Section 19 of the reference
+The whole file holds 251 such lines; each shape is quoted once here. Section 19 of the reference
 says what each one means.
 
 ## importing niem

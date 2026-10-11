@@ -1,4 +1,4 @@
-schema envoy.extensions.geoip_providers.common.v3.common @proto(package: "envoy.extensions.geoip_providers.common.v3")
+schema envoy.extensions.geoip_providers.common.v3.common @proto(package: "envoy.extensions.geoip_providers.common.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.geoip_providers.common.v3") @proto(java_outer_classname: "CommonProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/geoip_providers/common/v3;commonv3")
 
 model CommonGeoipProviderConfig {
   /// Configuration for geolocation headers to add to HTTP requests.
