@@ -1,0 +1,3 @@
+schema s @proto(java_package: "com.example.s", java_multiple_files: true)
+
+model Customer { #1 id uuid { id } }

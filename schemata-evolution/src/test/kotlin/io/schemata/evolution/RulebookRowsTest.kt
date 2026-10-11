@@ -93,6 +93,20 @@ class RulebookRowsTest {
     }
 
     @Test
+    fun `a language option changed is a proto note and compatible elsewhere`() {
+        fun option(value: String) =
+            namespace(
+                "s",
+                listOf(record("s", "R", field(1, "a"))),
+                ann("proto", "java_package", AnnotationValue.Str(value)),
+            )
+        assertEquals(
+            row("note", "compatible", "compatible", "compatible"),
+            row(option("com.example.s"), option("com.example.shop")),
+        )
+    }
+
+    @Test
     fun `a widened type with a tightened bound breaks off proto and is a proto note`() {
         val old = record("s", "R", field(1, "n", Scalar(Builtin.INT32, max(100))))
         val new = record("s", "R", field(1, "n", Scalar(Builtin.INT64, max(10))))

@@ -8,6 +8,7 @@ import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.service
+import io.schemata.target.ProtoFileOptions
 
 /**
  * What each kind of [Change] means for a Protobuf consumer reading data under the old schema, and
@@ -278,8 +279,23 @@ object ProtoRules : Rulebook {
                     "avoid changing @proto(package) once published",
                 )
             change.key == "name" -> nameAnnotationChanged(change, ctx)
-            else -> Verdict.Compatible
+            else ->
+                ProtoFileOptions.key(change.key)?.let { fileOptionChanged(change, it) }
+                    ?: Verdict.Compatible
         }
+
+    /**
+     * A language file option added, changed, or removed. The wire format does not change, so this
+     * is a note and not breaking; but protoc moves the generated code for that language (its
+     * package, namespace, or class names), and clients compiled against the old location must
+     * change.
+     */
+    private fun fileOptionChanged(change: AnnotationChanged, key: ProtoFileOptions.Key): Verdict =
+        Verdict.Note(
+            "${change.path}: the ${key.name} option changed moves the generated " +
+                "${key.language} code; clients compiled against it must change",
+            "avoid changing @proto(${key.name}) once published",
+        )
 
     /**
      * A `@proto(name)` override added, changed, or removed, judged by the emitted name of the OLD

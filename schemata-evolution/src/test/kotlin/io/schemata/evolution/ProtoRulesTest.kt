@@ -5,11 +5,13 @@ import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.ListOf
+import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
+import io.schemata.target.ProtoFileOptions
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -270,6 +272,53 @@ class ProtoRulesTest {
                     Annotations(mapOf("proto" to mapOf("package" to AnnotationValue.Str("other")))),
             )
         assertIs<Verdict.Breaking>(verdict(ProtoRules, ns(old), ns(new)))
+    }
+
+    private fun withOptions(vararg options: Pair<String, AnnotationValue>): Namespace =
+        namespace(
+            "s",
+            listOf(record("s", "R", field(1, "a"))),
+            Annotations(mapOf("proto" to mapOf(*options))),
+        )
+
+    private fun optionNote(key: String, language: String) =
+        Verdict.Note(
+            "s: the $key option changed moves the generated $language code; clients compiled " +
+                "against it must change",
+            "avoid changing @proto($key) once published",
+        )
+
+    @Test
+    fun `a java_package change notes that generated Java code moves`() {
+        val old = withOptions("java_package" to AnnotationValue.Str("com.example.s"))
+        val new = withOptions("java_package" to AnnotationValue.Str("com.example.shop"))
+        assertEquals(optionNote("java_package", "Java"), verdict(ProtoRules, old, new))
+    }
+
+    @Test
+    fun `every language option added is noted with its language`() {
+        ProtoFileOptions.keys.forEach { key ->
+            val value = if (key.bool) AnnotationValue.Bool(true) else AnnotationValue.Str("x")
+            val new = withOptions(key.name to value)
+            assertEquals(
+                optionNote(key.name, key.language),
+                verdict(ProtoRules, withOptions(), new),
+                key.name,
+            )
+        }
+    }
+
+    @Test
+    fun `a language option removed is noted`() {
+        val old = withOptions("go_package" to AnnotationValue.Str("example.com/s"))
+        assertEquals(optionNote("go_package", "Go"), verdict(ProtoRules, old, withOptions()))
+    }
+
+    @Test
+    fun `java_multiple_files flipped is noted`() {
+        val old = withOptions("java_multiple_files" to AnnotationValue.Bool(true))
+        val new = withOptions("java_multiple_files" to AnnotationValue.Bool(false))
+        assertEquals(optionNote("java_multiple_files", "Java"), verdict(ProtoRules, old, new))
     }
 
     @Test
