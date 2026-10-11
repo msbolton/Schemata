@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH2007] (proto): schemas cyc.alpha and cyc.beta reference each other but declare packages 'p' and 'q'
+ --> beta.schemata:1:1
+  = help: give every schema in the cycle the same `@proto(package: "…")`
+
+1 error, 0 warnings

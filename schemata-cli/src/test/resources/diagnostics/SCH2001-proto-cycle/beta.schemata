@@ -1,0 +1,5 @@
+schema cyc.beta
+
+import cyc.alpha
+
+model B { #1 a A[] }

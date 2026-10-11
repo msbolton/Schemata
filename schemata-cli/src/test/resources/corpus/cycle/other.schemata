@@ -1,0 +1,5 @@
+schema other
+
+import cyc.beta as beta
+
+model Audit { #1 customer beta.Customer  #2 note beta.Note }

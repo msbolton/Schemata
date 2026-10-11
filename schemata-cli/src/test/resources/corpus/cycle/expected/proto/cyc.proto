@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package cyc;
+
+// An order that points at its customer.
+message Order {
+  int64 id = 1;
+  Customer customer = 2;
+  Note note = 3;
+}
+
+message Note {
+  string text = 1;
+}
+
+message Customer {
+  string name = 1;
+  repeated Order orders = 2;
+  CycBetaNote note = 3;
+}
+
+// A note about a customer.
+message CycBetaNote {
+  string text = 1;
+  Status status = 2;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OPEN = 1;
+  STATUS_CLOSED = 2;
+}
+
+service Orders {
+  rpc Get(Order) returns (Customer);
+}
