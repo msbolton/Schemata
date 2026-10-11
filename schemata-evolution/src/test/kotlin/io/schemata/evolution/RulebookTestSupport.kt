@@ -163,6 +163,19 @@ fun analysed(source: String): Schema {
     return checkNotNull(result.schema)
 }
 
+/** [sources] parsed and analysed together, each in a file named `<index>.schemata`. */
+fun analysedAll(vararg sources: String): Schema {
+    val parsed = sources.mapIndexed { i, text -> Parser.parse(text, "$i.schemata") }
+    val result =
+        Analyzer.analyze(
+            parsed.map { checkNotNull(it.file) { it.diagnostics.toString() } },
+            AnalysisOptions(annotations = snippetAnnotations),
+        )
+    val diagnostics = parsed.flatMap { it.diagnostics } + result.diagnostics
+    check(diagnostics.isEmpty()) { diagnostics.joinToString("\n") { it.message } }
+    return checkNotNull(result.schema)
+}
+
 private const val SERVICE_BASE =
     "schema t\n" +
         "\n" +

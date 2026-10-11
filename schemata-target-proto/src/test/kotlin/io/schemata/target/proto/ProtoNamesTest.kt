@@ -1,20 +1,11 @@
 package io.schemata.target.proto
 
-import io.schemata.core.ir.AnnotationValue
-import io.schemata.core.ir.Annotations
-import io.schemata.core.ir.Namespace
-import io.schemata.lang.Span
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ProtoNamesTest {
-    private val at = Span("t.schemata", 1, 1, 1, 1)
-
-    private fun proto(vararg pairs: Pair<String, String>) =
-        Annotations(mapOf("proto" to pairs.associate { (k, v) -> k to AnnotationValue.Str(v) }))
-
     @Test
     fun `snake and upper snake follow camel boundaries`() {
         assertEquals("bank_transfer", ProtoNames.snakeCase("BankTransfer"))
@@ -26,16 +17,6 @@ class ProtoNamesTest {
         assertEquals("io_error", ProtoNames.snakeCase("IOError"))
         assertEquals("kind2", ProtoNames.snakeCase("Kind2"))
         assertEquals("HTTP_STATUS", ProtoNames.upperSnake("HTTPStatus"))
-    }
-
-    @Test
-    fun `packages honour the proto package override`() {
-        val ns = Namespace("shop.orders", emptyList(), at)
-        assertEquals("shop.orders", ProtoNames.packageOf(ns))
-        assertEquals(
-            "corp.v1",
-            ProtoNames.packageOf(ns.copy(annotations = proto("package" to "corp.v1"))),
-        )
     }
 
     @Test

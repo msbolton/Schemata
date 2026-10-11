@@ -36,7 +36,8 @@ text says, is your responsibility and not the compiler's.
 
 **Schemas map by default.** A schema is a Protobuf package, a Postgres schema, an XML namespace,
 and a JSON Schema id unless an attribute says otherwise. A schema that declares a service is also
-one OpenAPI document.
+one OpenAPI document. Schemas that reference each other in a cycle share one Protobuf package and
+file, since Protobuf cannot import files in a cycle.
 
 **Services are a layer on top.** A service names operations whose requests and responses are the
 models and unions the data language already declares, each the whole document even when its model

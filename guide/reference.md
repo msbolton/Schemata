@@ -15,9 +15,11 @@ lower_snake. Several files may declare the same schema; the compilation unit is 
 files given on the command line, with any directories walked recursively. Output paths follow the
 schema name, so `schema shop.orders` writes `shop/orders.proto`, `shop/orders.sql`,
 `shop/orders.xsd`, and `shop/orders.schema.json`, and `shop/orders.openapi.json` when it declares a
-service. A doc comment may precede the `schema` line, and the schema's attributes follow its name
-on the same line (section 15); `examples/shop/orders.schemata` shows both. A UTF-8 byte-order mark
-at the start of a file is skipped; `fmt` never writes one.
+service. Protobuf is the exception: schemas whose types reference each other in a cycle share one
+`.proto` file, named for their package (section 15). A doc comment may precede the `schema` line,
+and the schema's attributes follow its name on the same line (section 15);
+`examples/shop/orders.schemata` shows both. A UTF-8 byte-order mark at the start of a file is
+skipped; `fmt` never writes one.
 
 A file in the 1.x syntax, one whose first keyword is `namespace`, is reported as a single error,
 SCH0008, and nothing else; run `schemata upgrade` on it (section 23).
@@ -662,6 +664,31 @@ service, or an operation; `@relation(…)` on a reference or a back-reference (s
 `@proto(package: "…")` renames a schema's Protobuf package. `@proto(name: "…")` renames a single
 declaration, field, enum value, service, or operation; section 16 shows it on the last two.
 
+Protobuf cannot import files in a cycle, so schemas that reference each other in a cycle are
+written as one `.proto` file. A reference is a stored field's type, a union member, or an rpc's
+request or response, whether directly or through other schemas; a back-reference ties nothing, and
+neither does a reference that carries a single key, which becomes a key field. The file's package
+is the one the schemas declare with `@proto(package)`. When none declares one, it is the leading
+dotted segments their names share, so `cyc.alpha` and `cyc.beta` give package `cyc` and file
+`cyc.proto`; when they share none, or the shared segments are the name or the package of another
+schema or cycle, it is the alphabetically first schema's name. Either way, when no schema declares
+a package the merge is reported as SCH2001, and its help says to set `@proto(package)` to one
+value on each schema to choose the package. Schemas of one cycle that declare different packages
+are an error (SCH2007) and nothing is written.
+
+A top-level name that two schemas of the cycle declare is kept by one of them. A name set by
+`@proto(name)` and the name of a service are never changed, so a plain name loses to them wherever
+they are declared; otherwise the alphabetically first schema keeps it. Each plain name that loses
+is prefixed with its schema's UpperCamel name, reported as SCH2001: `Task` declared by `niem_core`
+and by `uc2_system_task` stays `Task` in the first and becomes `Uc2SystemTaskTask` in the second.
+Set `@proto(name)` on one of the declarations to choose its name. A reference from a
+schema outside the cycle is written `.cyc.Customer` with `import "cyc.proto"`.
+
+A schema that joins or leaves a cycle without `@proto(package)` changes its package, and a schema
+that joins a cycle and sorts earlier can take a name from a declaration already published, which
+is then renamed: its generated classes and its `Any` type URL change. `diff` reports neither yet,
+so when they matter pin the package with `@proto(package)` and the names with `@proto(name)`.
+
 `@sql(schema: "…")` renames a schema's Postgres schema. `@@sql(table: "…")` and
 `@sql(column: "…")` rename a model's table or a field's column. An empty
 `@sql(schema | table | column)` is an error (SCH2114); the derived name is used. The primary key,
@@ -1027,16 +1054,16 @@ the messages and enums, so a service and a message or enum of one proto name are
 `ListOrders`, or by the operation's `@proto(name)`; two rpcs of one name in a service are an error
 too (SCH2004). An override that is not a valid Protobuf identifier is SCH2007.
 
-A request or a response is written the way a field of that type would be: the message's name as
-it stands in the file, `Order` or `Order.Line`, or `.shop.catalog.Money` with an `import` of its
-file when it comes from another schema. protoc looks an rpc's types up from inside the service,
-where the service's rpc names are names too, so a message that is named like one of them, or whose
-path begins with one, is written from the package instead: `order(Order.Line)` becomes
+A request or a response is written the way a field of that type would be: the message's name as it
+stands in the file, `Order` or `Order.Line`, or `.shop.catalog.Money` with an `import` of its file
+when it comes from another schema; a type from another schema of the same cycle shares the file and
+is written by its name with no import. protoc looks an rpc's types up from inside the service, where
+the service's rpc names are names too, so a message that is named like one of them, or whose path
+begins with one, is written from the package instead: `order(Order.Line)` becomes
 `rpc Order(.shop.orders.Order.Line)`, and a message `Order` under an rpc `Order` becomes
-`.shop.orders.Order`. A union is the message the union lowers to, and an
-alias the type it stands for. `stream` carries over as it is. An operation without a request or a
-response takes `.google.protobuf.Empty` in its place, and the file imports
-`google/protobuf/empty.proto`.
+`.shop.orders.Order`. A union is the message the union lowers to, and an alias the type it stands
+for. `stream` carries over as it is. An operation without a request or a response takes
+`.google.protobuf.Empty` in its place, and the file imports `google/protobuf/empty.proto`.
 
 The `Orders` service at the start of this section becomes, at the end of `shop/orders.proto`:
 
@@ -2568,6 +2595,9 @@ depends on the format. A reference to a keyed model reaches the Protobuf, XSD, a
 outputs as its key, so importing one of those gives back a scalar field such as `customer_id`,
 which compiles to the same output again but is no longer a reference; only SQL brings references
 back as references.
+
+A Protobuf file that merges a reference cycle imports back as one schema named for its package,
+and compiling that gives the same file byte for byte.
 
 XSD: names, docs, nullability, defaults, refinements, and the `@xsd` keys come back, and importing
 the xsd target's own output reports nothing. Ordinals, `reserved`, `@deprecated`, and the other

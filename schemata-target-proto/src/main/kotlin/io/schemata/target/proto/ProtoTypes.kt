@@ -4,6 +4,7 @@ import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.IntValue
+import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RealValue
 import io.schemata.core.ir.StringValue
 import io.schemata.core.ir.Type
@@ -13,8 +14,15 @@ import io.schemata.target.TypeText
 
 /** Text for lossy notes and the scalar keyword table. */
 object ProtoTypes {
-    /** The type as a user would write it: `string? { max 254 }`, `Line[] { minItems 1 }`. */
-    fun text(type: Type, nullable: Boolean = false): String = TypeText.of(type, nullable)
+    /**
+     * The type as a user would write it: `string? { max 254 }`, `Line[] { minItems 1 }`, a
+     * reference spelled by [name].
+     */
+    fun text(
+        type: Type,
+        nullable: Boolean = false,
+        name: (QualifiedName) -> String = { it.simpleName },
+    ): String = TypeText.of(type, nullable, name)
 
     fun text(value: Value): String =
         when (value) {

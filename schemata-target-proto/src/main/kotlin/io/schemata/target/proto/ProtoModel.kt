@@ -2,7 +2,10 @@ package io.schemata.target.proto
 
 import io.schemata.target.TargetModel
 
-/** Every `.proto` file the compilation produces, one per namespace, in namespace order. */
+/**
+ * Every `.proto` file the compilation produces: one per schema, or one per reference cycle, in
+ * order of first member.
+ */
 data class ProtoModel(val files: List<ProtoFile>) : TargetModel
 
 /**

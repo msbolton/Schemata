@@ -1,0 +1,10 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): schemas niem_core and uc2_system_task reference each other; Protobuf cannot import files in a cycle, so they are written as one file under package 'niem_core'
+ --> niem_core.schemata:1:1
+  = help: set `@proto(package: "…")` to one value on each of them to choose the package
+
+warning[SCH2001] (lossy) (proto): model 'uc2_system_task.Task': proto name 'Task' is also used by model 'niem_core.Task'; written as 'Uc2SystemTaskTask'
+ --> uc2_system_task.schemata:5:7
+  = help: set `@proto(name: "…")` on one of them to choose the name
+
+0 errors, 2 warnings

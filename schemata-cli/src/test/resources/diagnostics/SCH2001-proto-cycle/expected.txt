@@ -1,0 +1,6 @@
+# targets=proto
+warning[SCH2001] (lossy) (proto): schemas cyc.alpha and cyc.beta reference each other; Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'
+ --> alpha.schemata:1:1
+  = help: set `@proto(package: "…")` to one value on each of them to choose the package
+
+0 errors, 1 warning
