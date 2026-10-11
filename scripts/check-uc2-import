@@ -4,7 +4,7 @@
 usage: check-uc2-import IEPD_DIR [--schemata BIN]
 BIN is a command that may carry arguments, e.g. --schemata "java -jar schemata-cli/build/libs/schemata-2.2.0-dev.jar".
 Default: $SCHEMATA, else the native binary in schemata-cli/build/native/nativeCompile, else the newest
-fat jar in schemata-cli/build/libs (build it with ./gradlew :schemata-cli:shadowJar). Needs xmllint.
+fat jar in schemata-cli/build/libs (build it with ./gradlew :schemata-cli:shadowJar). Needs xmllint; uses protoc when present.
 
 Stages, all inside a temporary directory that is removed afterwards (the IEPD is only read):
   1. import of IEPD_DIR/core-xsd/extension/uc2-sos-all.xsd, which pulls in its imports to closure; any error fails
@@ -12,10 +12,11 @@ Stages, all inside a temporary directory that is removed afterwards (the IEPD is
      SCH2106 (a type without a key) and SCH2102 (namespaces that share a last segment)
   3. xmllint --schema over every emitted .xsd against a one-element instance: exit 0 or 3 means the schema
      loaded, exit 5 (the schema failed to compile) or anything else fails
-  4. round trip: import the emitted .xsd tree, compile to xsd again, and compare the two trees file by file;
+  4. protoc over every emitted .proto, when protoc is on PATH
+  5. round trip: import the emitted .xsd tree, compile to xsd again, and compare the two trees file by file;
      SCH2402 (a schema name derived from the file name) and SCH2403 (a dropped member element name)
      are the only tolerated diagnostics on the way back
-  5. import of the whole IEPD_DIR/core-xsd directory: only a JSON report is required (exit 0, 1 or 2);
+  6. import of the whole IEPD_DIR/core-xsd directory: only a JSON report is required (exit 0, 1 or 2);
      a crash or a missing report fails, and the diagnostics are tallied
 Prints one summary and exits 0 only when every stage passes. Local use only, not part of CI.
 """
@@ -38,6 +39,7 @@ ROUND_TRIP_TOLERATED = [
     re.compile(r"SCH2402 .*: schema name '.*' was derived from the file name"),
     re.compile(r"SCH2403 (union|element) '.*': member element name '.*' has no Schemata equivalent and is dropped; .*"),
 ]
+ARG_BUDGET = 100_000
 
 
 def find_binary(explicit):
@@ -171,7 +173,32 @@ def main():
                     failures.append(f"xmllint: exit {p.returncode} on {f.relative_to(emitted)}\n{head}")
             lint_result = f"ok ({len(xsds)} files)" if not bad else f"FAIL ({bad} of {len(xsds)} files)"
 
-        # 4. round trip
+        # 4. protoc
+        emitted_proto = work / "proto" / "proto"
+        protos = sorted(str(f) for f in emitted_proto.rglob("*.proto")) if emitted_proto.is_dir() else []
+        if not shutil.which("protoc"):
+            protoc_result = "skipped"
+        elif not protos:
+            protoc_result = "FAIL (no emitted .proto files)"
+            failures.append("protoc: no emitted .proto files")
+        else:
+            batches, cur, size = [], [], 0
+            for f in protos:
+                if cur and size + len(f) > ARG_BUDGET:
+                    batches.append(cur)
+                    cur, size = [], 0
+                cur.append(f)
+                size += len(f) + 1
+            batches.append(cur)
+            protoc_result = "ok"
+            for batch in batches:
+                p = subprocess.run(["protoc", "-I", str(emitted_proto), "-o", os.devnull] + batch, capture_output=True, text=True)
+                if p.returncode != 0:
+                    protoc_result = "FAIL"
+                    failures.append(f"protoc: exit {p.returncode}\n{p.stderr[:2000]}")
+                    break
+
+        # 5. round trip
         rt_result = "skipped"
         if xsds:
             rt_imp = work / "rt-imported"
@@ -212,7 +239,7 @@ def main():
                 f"missing {len(missing)}, extra {len(extra)}, differing {len(differing)})"
             )
 
-        # 5. whole tree
+        # 6. whole tree
         p = subprocess.run(
             bin_ + ["import", "--from", "xsd", "--out", str(work / "tree"), "--format", "json", str(tree_dir)],
             capture_output=True, text=True,
@@ -240,6 +267,8 @@ def main():
         if target in compile_results:
             lines.append(f"  compile {target + ':':<12} {fmt(compile_results[target])}")
     lines.append(f"  xmllint:           {lint_result}")
+    lines.append(f"  protoc:            {protoc_result} ({len(protos)} files)"
+                 if protoc_result != "skipped" else "  protoc:            skipped")
     lines.append(f"  round trip:        {rt_result}")
     lines.append(f"  whole tree:        {tree_result}")
     lines.append(f"  whole tree codes:  {fmt(tree_codes)}")
