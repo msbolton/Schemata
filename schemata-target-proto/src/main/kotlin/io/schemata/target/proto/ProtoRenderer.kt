@@ -16,6 +16,10 @@ object ProtoRenderer {
             appendLine()
             file.imports.forEach { appendLine("import \"$it\";") }
         }
+        if (file.options.isNotEmpty()) {
+            appendLine()
+            file.options.forEach { (name, literal) -> appendLine("option $name = $literal;") }
+        }
         file.declarations.forEach {
             appendLine()
             append(block(it, indent = ""))

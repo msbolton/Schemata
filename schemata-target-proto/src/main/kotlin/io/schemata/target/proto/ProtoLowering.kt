@@ -1,5 +1,6 @@
 package io.schemata.target.proto
 
+import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumRef
 import io.schemata.core.ir.EnumType
@@ -28,6 +29,7 @@ import io.schemata.lang.Span
 import io.schemata.target.Lowered
 import io.schemata.target.Names
 import io.schemata.target.OverrideNames
+import io.schemata.target.ProtoFileOptions
 import io.schemata.target.ProtoPackages
 import io.schemata.target.ProtoUnit
 import io.schemata.target.deprecated
@@ -59,6 +61,40 @@ object ProtoLowering {
 
     /** Field numbers proto keeps for its own implementation. */
     private val IMPLEMENTATION_NUMBERS = 19000..19999
+
+    /** Both PHP namespace options refuse a value the same way. */
+    private val PHP_NAMESPACE =
+        "is not a valid PHP namespace" to
+            "use identifiers separated by backslashes, for example `\"Example\\\\Orders\"`"
+
+    /** Per string file option, why a value of the wrong shape is refused and what to write. */
+    private val OPTION_PROBLEMS: Map<String, Pair<String, String>> =
+        mapOf(
+            "java_package" to
+                ("is not a valid Java package" to
+                    "use dotted identifiers, for example `com.example.orders`"),
+            "csharp_namespace" to
+                ("is not a valid C# namespace" to
+                    "use dotted identifiers, for example `Example.Orders`"),
+            "php_namespace" to PHP_NAMESPACE,
+            "php_metadata_namespace" to PHP_NAMESPACE,
+            "ruby_package" to
+                ("is not a valid Ruby module" to
+                    "use identifiers separated by `::`, for example `Example::Orders`"),
+            "java_outer_classname" to
+                ("is not a valid Java class name" to
+                    "use a single identifier, for example `OrdersProto`"),
+            "objc_class_prefix" to
+                ("is not a valid Objective-C class prefix" to
+                    "use a single identifier, for example `EXO`"),
+            "php_class_prefix" to
+                ("is not a valid PHP class prefix" to "use a single identifier, for example `Exo`"),
+            "swift_prefix" to
+                ("is not a valid Swift prefix" to "use a single identifier, for example `EXO`"),
+            "go_package" to
+                ("is empty or holds a control character" to
+                    "give the Go import path, for example `example.com/orders;orderspb`"),
+        )
 
     fun lower(written: Schema): Lowered<ProtoModel> {
         // A reference to a keyed model carries the model's key, as a foreign key does.
@@ -130,6 +166,38 @@ object ProtoLowering {
                 )
         }
     }
+
+    /**
+     * Reports a file option two members of a merged unit declare differently: they share one file,
+     * which holds one value per option, so that is an error at the later member.
+     */
+    private fun optionConflict(
+        conflict: ProtoFileOptions.Conflict,
+        diagnostics: MutableList<Diagnostic>,
+    ) {
+        val (key, first, firstValue, second, secondValue) = conflict
+        val placeholder = if (ProtoFileOptions.key(key)?.bool == true) "…" else "\"…\""
+        diagnostics +=
+            Diagnostic(
+                ProtoCodes.INVALID_OVERRIDE,
+                "schemas ${first.name} and ${second.name} reference each other but declare $key " +
+                    "'${optionText(firstValue)}' and '${optionText(secondValue)}'",
+                second.span,
+                help = "give every schema in the cycle the same `@proto($key: $placeholder)`",
+            )
+    }
+
+    /** A file option's value as its text: a string as written, a boolean as `true` or `false`. */
+    private fun optionText(value: AnnotationValue): String =
+        when (value) {
+            is AnnotationValue.Str -> value.value
+            is AnnotationValue.Bool -> value.value.toString()
+            else -> error("a file option is a string or a boolean, not $value")
+        }
+
+    /** A file option's value as a proto literal: a string quoted and escaped, a boolean bare. */
+    private fun optionLiteral(value: AnnotationValue): String =
+        if (value is AnnotationValue.Str) SchemataText.string(value.value) else optionText(value)
 
     /**
      * The new names of top-level declarations that would collide in a merged unit's one package
@@ -252,6 +320,10 @@ object ProtoLowering {
 
         fun lower(): ProtoFile {
             unit.members.forEach { declaredPackage(it) }
+            unit.members.forEach { declaredOptions(it) }
+            // Members share one file, so each option takes one value across the unit.
+            val resolved = ProtoFileOptions.of(unit)
+            resolved.conflicts.forEach { optionConflict(it, diagnostics) }
             val typeDecls = unit.members.flatMap { it.declarations }
             val serviceDecls = unit.members.flatMap { it.services }
             // Services share the package scope with messages and enums.
@@ -270,6 +342,7 @@ object ProtoLowering {
                 imports = imports.toList(),
                 declarations = declarations,
                 services = services,
+                options = resolved.values.map { (key, value) -> key to optionLiteral(value) },
             )
         }
 
@@ -282,6 +355,25 @@ object ProtoLowering {
                         help = "use dotted lower-case identifiers, for example `shop.orders.v1`",
                     )
                 }
+            }
+        }
+
+        /**
+         * Each string option [namespace] declares must have its key's shape, or the generator of
+         * its language would refuse it or write code that does not compile. A boolean always fits.
+         */
+        private fun declaredOptions(namespace: Namespace) {
+            val declared = ProtoFileOptions.declared(namespace)
+            for (key in ProtoFileOptions.keys) {
+                val value = declared[key.name] as? AnnotationValue.Str ?: continue
+                if (ProtoNames.fitsOption(key.shape, value.value)) continue
+                val (tail, help) = OPTION_PROBLEMS.getValue(key.name)
+                invalidOverride(
+                    "schema '${namespace.name}': " +
+                        "@proto(${key.name}: \"${OverrideNames.escaped(value.value)}\") $tail",
+                    namespace.span,
+                    help = help,
+                )
             }
         }
 

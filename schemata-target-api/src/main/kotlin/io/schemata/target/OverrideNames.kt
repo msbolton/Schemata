@@ -68,21 +68,26 @@ class OverrideNames(
         return null
     }
 
-    /** [value] with its control characters written as escapes, so a message stays on one line. */
-    private fun escaped(value: String): String = buildString {
-        value.forEach {
-            when {
-                it == '\t' -> append("\\t")
-                it == '\n' -> append("\\n")
-                it == '\r' -> append("\\r")
-                it < ' ' -> append("\\u").append(it.code.toString(16).uppercase().padStart(4, '0'))
-                else -> append(it)
-            }
-        }
-    }
-
     private fun <K> MutableMap<K, String?>.memo(key: K, compute: () -> String?): String? {
         if (key !in this) this[key] = compute()
         return getValue(key)
+    }
+
+    companion object {
+        /**
+         * [value] with its control characters written as escapes, so a message stays on one line.
+         */
+        fun escaped(value: String): String = buildString {
+            value.forEach {
+                when {
+                    it == '\t' -> append("\\t")
+                    it == '\n' -> append("\\n")
+                    it == '\r' -> append("\\r")
+                    it < ' ' ->
+                        append("\\u").append(it.code.toString(16).uppercase().padStart(4, '0'))
+                    else -> append(it)
+                }
+            }
+        }
     }
 }
