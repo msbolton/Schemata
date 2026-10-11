@@ -10,6 +10,17 @@ Keys each target accepts, the elements they apply to, and the codes each target 
 |---|---|---|---|
 | `package` | schema | string |  |
 | `name` | model, enum, union, field, enum value, service, operation | string |  |
+| `java_package` | schema | string |  |
+| `java_outer_classname` | schema | string |  |
+| `java_multiple_files` | schema | bool |  |
+| `csharp_namespace` | schema | string |  |
+| `go_package` | schema | string |  |
+| `objc_class_prefix` | schema | string |  |
+| `php_namespace` | schema | string |  |
+| `php_class_prefix` | schema | string |  |
+| `php_metadata_namespace` | schema | string |  |
+| `ruby_package` | schema | string |  |
+| `swift_prefix` | schema | string |  |
 
 Codes:
 

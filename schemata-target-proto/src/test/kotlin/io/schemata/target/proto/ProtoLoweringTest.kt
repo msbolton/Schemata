@@ -33,6 +33,7 @@ import io.schemata.lang.Category
 import io.schemata.lang.Parser
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.ProtoFileOptions
 import io.schemata.testkit.Protoc
 import java.math.BigDecimal
 import kotlin.test.Test
@@ -1600,13 +1601,13 @@ class ProtoLoweringTest {
                         Element.SERVICE,
                         Element.OPERATION,
                     ),
-            ),
+            ) + ProtoFileOptions.keys.map { it.name to setOf(Element.NAMESPACE) },
             ProtoTarget.annotationSpecs.map { it.key to it.elements },
         )
-        assertTrue(
-            ProtoTarget.annotationSpecs.all {
-                it.target == "proto" && it.valueKind == ValueKind.STRING
-            }
+        assertTrue(ProtoTarget.annotationSpecs.all { it.target == "proto" })
+        assertEquals(
+            listOf("java_multiple_files"),
+            ProtoTarget.annotationSpecs.filter { it.valueKind == ValueKind.BOOL }.map { it.key },
         )
     }
 

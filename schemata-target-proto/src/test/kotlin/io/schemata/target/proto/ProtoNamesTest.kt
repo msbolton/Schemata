@@ -1,5 +1,6 @@
 package io.schemata.target.proto
 
+import io.schemata.target.ProtoFileOptions
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -42,5 +43,22 @@ class ProtoNamesTest {
         assertFalse(ProtoNames.isIdentifier("1x"))
         assertTrue(ProtoNames.isPackage("shop.orders.v1"))
         assertFalse(ProtoNames.isPackage("shop..orders"))
+    }
+
+    @Test
+    fun `option values are checked by their shape`() {
+        fun fits(shape: ProtoFileOptions.Shape, value: String) = ProtoNames.fitsOption(shape, value)
+        assertTrue(fits(ProtoFileOptions.Shape.DOTTED, "com.example.orders"))
+        assertTrue(fits(ProtoFileOptions.Shape.BACKSLASHED, "Example\\Orders"))
+        assertTrue(fits(ProtoFileOptions.Shape.DOUBLE_COLON, "Example::Orders"))
+        assertTrue(fits(ProtoFileOptions.Shape.IDENTIFIER, "OrdersProto"))
+        assertTrue(fits(ProtoFileOptions.Shape.NON_EMPTY, "example.com/orders;orders"))
+        assertTrue(fits(ProtoFileOptions.Shape.BOOL, "anything"))
+        assertFalse(fits(ProtoFileOptions.Shape.DOTTED, "com..x"))
+        assertFalse(fits(ProtoFileOptions.Shape.BACKSLASHED, "Example/Orders"))
+        assertFalse(fits(ProtoFileOptions.Shape.DOUBLE_COLON, "Example:Orders"))
+        assertFalse(fits(ProtoFileOptions.Shape.IDENTIFIER, "Orders Proto"))
+        assertFalse(fits(ProtoFileOptions.Shape.NON_EMPTY, ""))
+        assertFalse(fits(ProtoFileOptions.Shape.NON_EMPTY, "example.com/\u0001orders"))
     }
 }
