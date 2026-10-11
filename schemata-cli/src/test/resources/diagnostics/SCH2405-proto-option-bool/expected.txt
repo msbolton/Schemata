@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2405] (lossy): s.proto: option java_multiple_files 'maybe' is not a boolean; dropped
+ --> s.proto:1:1
+  = help: write the option as `true` or `false`
+
+0 errors, 1 warning

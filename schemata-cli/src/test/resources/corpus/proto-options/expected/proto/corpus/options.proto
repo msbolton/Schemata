@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package corpus.options.v1;
+
+option java_package = "com.example.corpus.options";
+option java_outer_classname = "OptionsProto";
+option java_multiple_files = true;
+option csharp_namespace = "Example.Corpus.Options";
+option go_package = "example.com/corpus/options;optionspb";
+option objc_class_prefix = "ECO";
+option php_namespace = "Example\\Corpus\\Options";
+option php_class_prefix = "Eco";
+option php_metadata_namespace = "Example\\Corpus\\Metadata";
+option ruby_package = "Example::Corpus::Options";
+option swift_prefix = "ECO";
+
+// An order placed by a customer.
+message Order {
+  string id = 1;
+  Status status = 2;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PLACED = 1;
+  STATUS_SHIPPED = 2;
+}
