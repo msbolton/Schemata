@@ -1798,15 +1798,29 @@ class ProtoLoweringTest {
     @Test
     fun `a cycle's package colliding with another schema's package is an error`() {
         val lowered =
+            lower(
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"cyc\")"),
+                BETA,
+                "schema x @proto(package: \"cyc\")\n\nmodel X { #1 y int32 }\n",
+            )
+        assertEquals(
+            listOf("x.schemata:1 SCH2004 schemas cyc.alpha and x both lower to package 'cyc'"),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `a derived package avoids another schema's declared package`() {
+        val lowered =
             lower(ALPHA, BETA, "schema x @proto(package: \"cyc\")\n\nmodel X { #1 y int32 }\n")
         assertEquals(
             listOf(
                 "cyc.alpha.schemata:1 SCH2001 schemas cyc.alpha and cyc.beta reference each other; " +
-                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'",
-                "x.schemata:1 SCH2004 schemas cyc.alpha and x both lower to package 'cyc'",
+                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc.alpha'"
             ),
             lowered.located(),
         )
+        assertNull(lowered.protocErrors())
     }
 
     @Test

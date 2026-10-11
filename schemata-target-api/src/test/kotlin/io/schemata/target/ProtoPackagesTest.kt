@@ -132,6 +132,33 @@ class ProtoPackagesTest {
     }
 
     @Test
+    fun `a common prefix that is another schema's declared package is not used`() {
+        val unit =
+            packages(
+                    ns("other", pkg = "cyc"),
+                    ns("cyc.alpha", listOf("cyc.beta")),
+                    ns("cyc.beta", listOf("cyc.alpha")),
+                )
+                .unitOf("cyc.beta")
+        assertEquals("cyc.alpha", unit.packageName)
+        assertEquals("cyc/alpha.proto", unit.path)
+        assertTrue(unit.derived)
+    }
+
+    @Test
+    fun `two cycles with one common prefix each take their first member's name`() {
+        val packages =
+            packages(
+                ns("shop.a", listOf("shop.b")),
+                ns("shop.b", listOf("shop.a")),
+                ns("shop.c", listOf("shop.d")),
+                ns("shop.d", listOf("shop.c")),
+            )
+        assertEquals("shop.a", packages.packageOf("shop.b"))
+        assertEquals("shop.c", packages.packageOf("shop.d"))
+    }
+
+    @Test
     fun `one declared package names the cycle's file`() {
         val one = packages(ns("a", listOf("b"), pkg = "p.v1"), ns("b", listOf("a"))).unitOf("b")
         assertEquals("p.v1", one.packageName)
