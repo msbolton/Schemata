@@ -9,7 +9,8 @@ import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.service
-import io.schemata.target.string
+import io.schemata.target.ProtoPackages
+import io.schemata.target.referencesByKey
 
 /**
  * What each kind of [Change] means for a Protobuf consumer reading data under the old schema, and
@@ -396,16 +397,8 @@ object ProtoRules : Rulebook {
 
     /** `/<package>.<Service>`, the part of a method path every rpc of [service] shares. */
     private fun servicePath(schema: Schema, service: Service, ctx: ChangeContext): String =
-        "/${packageOf(schema, service.qualifiedName.namespace)}." +
+        // A method path carries the package of the proto file the service is written to; schemas in
+        // a reference cycle share one file, so the target's own assignment decides it.
+        "/${ProtoPackages.of(schema.referencesByKey()).packageOf(service.qualifiedName.namespace)}." +
             ctx.emittedName(target, ServiceOwner(service))
-
-    /**
-     * The namespace's `@proto(package)`, else its own name; keep in step with
-     * `ProtoNames.packageOf`, which this module cannot depend on.
-     */
-    private fun packageOf(schema: Schema, namespace: String): String =
-        schema.namespaces
-            .firstOrNull { it.name == namespace }
-            ?.annotations
-            ?.string("proto", "package") ?: namespace
 }
