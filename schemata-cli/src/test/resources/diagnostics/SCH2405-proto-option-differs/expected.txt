@@ -1,0 +1,6 @@
+# import=proto
+warning[SCH2405] (lossy): b.proto: option java_package 'com.example.b' differs from 'com.example.a' in a.proto; dropped
+ --> b.proto:1:1
+  = help: set `@proto(java_package: …)` on the imported schema to choose the value
+
+0 errors, 1 warning
