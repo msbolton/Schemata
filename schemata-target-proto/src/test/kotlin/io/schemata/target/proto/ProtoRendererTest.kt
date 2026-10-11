@@ -345,6 +345,69 @@ class ProtoRendererTest {
         assertNull(Protoc.compile(outs.associate { it.path to it.content }))
     }
 
+    /** [customer] importing [user] and declaring options a Java and a Go consumer would set. */
+    private val optioned =
+        customer.copy(
+            imports = listOf("shop/orders.proto"),
+            options =
+                listOf(
+                    "java_package" to "\"com.example.customers\"",
+                    "java_multiple_files" to "true",
+                    "go_package" to "\"example.com/shop/customers\"",
+                ),
+        )
+
+    @Test
+    fun `file options print after the imports one per line`() {
+        assertEquals(
+            """
+            syntax = "proto3";
+
+            package shop.customers;
+
+            import "shop/orders.proto";
+
+            option java_package = "com.example.customers";
+            option java_multiple_files = true;
+            option go_package = "example.com/shop/customers";
+
+            message Customer {
+              string name = 1;
+            }
+
+            """
+                .trimIndent(),
+            ProtoRenderer.render(ProtoModel(listOf(optioned))).single().content,
+        )
+    }
+
+    @Test
+    fun `file options print after the package line without imports`() {
+        val file = customer.copy(options = listOf("csharp_namespace" to "\"Example.Customers\""))
+        assertEquals(
+            """
+            syntax = "proto3";
+
+            package shop.customers;
+
+            option csharp_namespace = "Example.Customers";
+
+            message Customer {
+              string name = 1;
+            }
+
+            """
+                .trimIndent(),
+            ProtoRenderer.render(ProtoModel(listOf(file))).single().content,
+        )
+    }
+
+    @Test
+    fun `rendered file options compile under protoc`() {
+        val outs = ProtoRenderer.render(ProtoModel(listOf(optioned, user)))
+        assertNull(Protoc.compile(outs.associate { it.path to it.content }))
+    }
+
     @Test
     fun `target is named proto`() {
         assertEquals("proto", ProtoTarget.name)
