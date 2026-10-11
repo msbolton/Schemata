@@ -1,6 +1,7 @@
 package io.schemata.target.proto
 
 import io.schemata.target.Names
+import io.schemata.target.ProtoFileOptions
 
 /** The proto target's naming rules: enum-value prefixes and what proto can spell. */
 object ProtoNames {
@@ -42,3 +43,22 @@ object ProtoNames {
     /** A package is dot-separated identifiers. */
     fun isPackage(s: String): Boolean = s.split('.').all { isIdentifier(it) }
 }
+
+/**
+ * Whether [value] has the [shape] a file option needs. Segments of a PHP or Ruby name are
+ * identifiers because the languages reject anything else; a Go path is only kept free of control
+ * characters, since its text is the import path and protoc does not parse it.
+ */
+fun ProtoNames.fitsOption(shape: ProtoFileOptions.Shape, value: String): Boolean =
+    when (shape) {
+        ProtoFileOptions.Shape.DOTTED -> isPackage(value)
+        ProtoFileOptions.Shape.BACKSLASHED -> value.split('\\').all { isIdentifier(it) }
+        ProtoFileOptions.Shape.DOUBLE_COLON -> value.split("::").all { isIdentifier(it) }
+        ProtoFileOptions.Shape.IDENTIFIER -> isIdentifier(value)
+        ProtoFileOptions.Shape.DOTTED_OR_EMPTY -> value.isEmpty() || isPackage(value)
+        ProtoFileOptions.Shape.BACKSLASHED_OR_EMPTY ->
+            value.isEmpty() || value.split('\\').all { isIdentifier(it) }
+        ProtoFileOptions.Shape.IDENTIFIER_OR_EMPTY -> value.isEmpty() || isIdentifier(value)
+        ProtoFileOptions.Shape.NON_EMPTY -> value.isNotEmpty() && value.none { it < ' ' }
+        ProtoFileOptions.Shape.BOOL -> true
+    }

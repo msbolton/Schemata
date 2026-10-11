@@ -10,7 +10,9 @@ data class ProtoModel(val files: List<ProtoFile>) : TargetModel
 
 /**
  * One `.proto` file, legal by construction: names are final, references are spelled as proto reads
- * them, imports are sorted and unique. The renderer prints this without making decisions.
+ * them, imports are sorted and unique. The renderer prints this without making decisions. [options]
+ * are the file options in the order they print, each a name and its value already written as a
+ * proto literal.
  */
 data class ProtoFile(
     val path: String,
@@ -18,6 +20,7 @@ data class ProtoFile(
     val imports: List<String>,
     val declarations: List<ProtoDecl>,
     val services: List<ProtoService> = emptyList(),
+    val options: List<Pair<String, String>> = emptyList(),
 )
 
 /** [notes] prints as a `// schemata: …` comment line after the last rpc. */

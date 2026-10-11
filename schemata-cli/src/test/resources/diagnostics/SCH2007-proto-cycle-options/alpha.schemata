@@ -1,0 +1,5 @@
+schema cyc.alpha @proto(package: "cyc", java_package: "com.example.alpha")
+
+import cyc.beta
+
+model A { #1 b B }

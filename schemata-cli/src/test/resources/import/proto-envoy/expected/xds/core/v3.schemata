@@ -1,4 +1,4 @@
-schema xds.core.v3
+schema xds.core.v3 @proto(java_package: "com.github.xds.core.v3") @proto(java_multiple_files: true) @proto(go_package: "github.com/cncf/xds/go/xds/core/v3")
 
 /// Additional parameters that can be used to select resource variants. These include any
 /// global context parameters, per-resource type client feature capabilities and per-resource

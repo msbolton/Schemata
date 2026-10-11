@@ -1,4 +1,4 @@
-schema google.rpc.status @proto(package: "google.rpc")
+schema google.rpc.status @proto(package: "google.rpc") @proto(java_package: "com.google.rpc") @proto(java_outer_classname: "StatusProto") @proto(java_multiple_files: true) @proto(go_package: "google.golang.org/genproto/googleapis/rpc/status;status") @proto(objc_class_prefix: "RPC")
 
 /// The `Status` type defines a logical error model that is suitable for
 /// different programming environments, including REST APIs and RPC APIs. It is

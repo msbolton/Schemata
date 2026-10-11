@@ -1,4 +1,4 @@
-schema envoy.extensions.config.validators.minimum_clusters.v3.minimum_clusters @proto(package: "envoy.extensions.config.validators.minimum_clusters.v3")
+schema envoy.extensions.config.validators.minimum_clusters.v3.minimum_clusters @proto(package: "envoy.extensions.config.validators.minimum_clusters.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.config.validators.minimum_clusters.v3") @proto(java_outer_classname: "MinimumClustersProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/config/validators/minimum_clusters/v3;minimum_clustersv3")
 
 /// Validates a CDS config, and ensures that the number of clusters is above the
 /// set threshold.

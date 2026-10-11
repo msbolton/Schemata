@@ -236,10 +236,6 @@ object ProtoImporter : Importer {
                     Pos(1, 1),
                 )
             }
-            if (f.pkg != null && f.pkg != name) {
-                annotations[f.path] =
-                    listOf(UnitAnnotation("proto", "package", SchemataText.string(f.pkg)))
-            }
             namespaces[f.path] = name
         }
         all.groupBy { namespaces.getValue(it.path) }
@@ -258,6 +254,21 @@ object ProtoImporter : Importer {
                             ImportCodes.RENAME_HELP,
                         )
                     }
+                // The files of a group become one schema, so its attributes are worked out once,
+                // over all of them, and kept under the first file's path, which is where the
+                // lowering looks for the unit's attributes.
+                val pkg =
+                    first.pkg
+                        ?.takeIf { it != name }
+                        ?.let {
+                            listOf(UnitAnnotation("proto", "package", SchemataText.string(it)))
+                        }
+                        .orEmpty()
+                annotations[first.path] =
+                    pkg +
+                        FileOptions.annotations(group) { f, message, help ->
+                            report(f, ImportCodes.DROPPED, message, Pos(1, 1), help)
+                        }
             }
 
         val lowered =

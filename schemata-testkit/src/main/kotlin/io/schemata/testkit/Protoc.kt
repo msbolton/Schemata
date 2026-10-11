@@ -22,6 +22,27 @@ object Protoc {
 
     /** @return null when protoc accepts every file; otherwise protoc's combined output. */
     fun compile(files: Map<String, String>): String? {
+        val descriptors = Files.createTempDirectory("schemata-protoc-out").toFile()
+        try {
+            return run(files, "--descriptor_set_out=${File(descriptors, "out.desc").absolutePath}")
+        } finally {
+            descriptors.deleteRecursively()
+        }
+    }
+
+    /**
+     * Runs protoc's built-in generator for [language] (`java`, `csharp`, …) over [files], writing
+     * the generated code under [out].
+     *
+     * @return null when protoc accepts every file; otherwise protoc's combined output.
+     */
+    fun generate(files: Map<String, String>, language: String, out: File): String? {
+        out.mkdirs()
+        return run(files, "--${language}_out=${out.absolutePath}")
+    }
+
+    /** Runs protoc over [files] with the well-known types on the proto path and [outputArg]. */
+    private fun run(files: Map<String, String>, outputArg: String): String? {
         val dir = Files.createTempDirectory("schemata-protoc").toFile()
         val include = Files.createTempDirectory("schemata-protoc-include").toFile()
         try {
@@ -33,13 +54,12 @@ object Protoc {
                     } ?: error("testkit resource protoc-include/$path is missing")
                 write(include, path, text)
             }
-            val descriptor = File(dir, "out.desc")
             val command =
                 listOf(
                     binary,
                     "--proto_path=${dir.absolutePath}",
                     "--proto_path=${include.absolutePath}",
-                    "--descriptor_set_out=${descriptor.absolutePath}",
+                    outputArg,
                 ) + files.keys
             val process = ProcessBuilder(command).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().readText()

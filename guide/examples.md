@@ -783,19 +783,33 @@ model Money {
 ```
 
 The field numbers are the ordinals and the comments are the docs. The `option` lines steer code
-generation in other languages and say nothing about the data, so they are ignored without a
-warning, and the license header, separated from the message by a blank line, is not a doc. The
-corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it: importing the
-directory holding `google/` instead finds two files under one root that declare
-`package google.type`, which `protoc` reads as one package, so they import as one schema,
-`google.type`, in one file. Had `money.proto` been the only file there, it would have taken its path
-under that directory, `google.type.money`, and kept its package as
-`@proto(package: "google.type")`.
+generation in other languages and say nothing about the data, but the language ones are kept as
+`@proto` keys on the schema line, all five of `money.proto`'s here, and compile back to the same
+`option` lines, in Schemata's fixed key order, which may differ from the source's. The license
+header, separated from the message by a blank line, is not a doc. The corpus golden quoted here also
+holds `Date`, from `google/type/date.proto` beside it: importing the directory holding `google/`
+instead finds two files under one root that declare `package google.type`, which `protoc` reads as
+one package, so they import as one schema, `google.type`, in one file. Had `money.proto` been the
+only file there, it would have taken its path under that directory, `google.type.money`, and kept
+its package as `@proto(package: "google.type")`.
 
-Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
-`google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and
-section 19 of the reference lists what each construct becomes. Compiling the result under the
-proto target gives `message Money` back with the same fields, numbers, and comments.
+The two files must agree on a language option for the schema to keep it. The golden's schema line
+holds the keys both files give the same value:
+
+From `schemata-cli/src/test/resources/import/proto-money/expected/google/type.schemata`:
+```schemata
+schema google.type @proto(java_package: "com.google.type") @proto(java_multiple_files: true) @proto(objc_class_prefix: "GTP")
+```
+
+`java_outer_classname` and `go_package` differ between `date.proto` and `money.proto`, so both are
+dropped, and `money.proto` gets an SCH2405 for each, naming `date.proto` as the first file of the
+package that declares the key. Choose the value with `@proto` on the imported schema.
+
+Apart from the two dropped options, nothing here needed a warning because every type in `Money` is
+one Schemata has. A `uint32`, a `google.protobuf.StringValue`, or a `oneof` mixed with other fields
+would each be reported, and section 19 of the reference lists what each construct becomes.
+Compiling the result under the proto target gives `message Money` back with the same fields,
+numbers, and comments.
 
 ## importing envoy
 
@@ -860,6 +874,21 @@ SCH2405 envoy/data/ai/v3/request_info.proto: import 'xds/annotations/v3/status.p
 SCH2405 envoy/service/secret/v3/sds.proto: import 'google/api/annotations.proto' not found; dropped
 SCH2402 envoy/service/discovery/v3/discovery.proto: schema name 'envoy.service_value.discovery.v3.discovery' was derived from the file name
 SCH2402 envoy/service/secret/v3/sds.proto: schema name 'envoy.service_value.secret.v3.sds' was derived from the file name
+SCH2405 envoy/api/v2/core/backoff.proto: option java_outer_classname 'BackoffProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/api/v2/core/base.proto: option java_outer_classname 'BaseProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/api/v2/core/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/api/v2/core/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/api/v2/core/address.proto; dropped
+SCH2405 envoy/config/core/v3/backoff.proto: option java_outer_classname 'BackoffProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/base.proto: option java_outer_classname 'BaseProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/grpc_method_list.proto: option java_outer_classname 'GrpcMethodListProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/http_service.proto: option java_outer_classname 'HttpServiceProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/config/core/v3/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
+SCH2405 envoy/type/matcher/v3/string.proto: option java_outer_classname 'StringProto' differs from 'RegexProto' in envoy/type/matcher/v3/regex.proto; dropped
+SCH2405 envoy/type/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/percent.proto; dropped
+SCH2405 envoy/type/v3/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/v3/percent.proto; dropped
+SCH2405 include/xds/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'ContextParamsProto' in include/xds/core/v3/context_params.proto; dropped
 SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
 SCH2405 envoy/annotations/deprecation.proto: extend dropped
 SCH2404 field 'Pipe.mode': uint32 imported as int64(min = 0, max = 4294967295)
@@ -905,7 +934,7 @@ SCH2403 model 'RegexMatcher': oneof 'engine_type' imported as nullable fields; a
 SCH2403 model 'StringMatcher': oneof 'match_pattern' imported as nullable fields; at most one of them is set, which Schemata cannot say
 ```
 
-The whole file holds 236 such lines; each shape is quoted once here. Section 19 of the reference
+The whole file holds 251 such lines; each shape is quoted once here. Section 19 of the reference
 says what each one means.
 
 ## importing niem

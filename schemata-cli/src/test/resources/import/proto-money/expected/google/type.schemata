@@ -1,4 +1,4 @@
-schema google.type
+schema google.type @proto(java_package: "com.google.type") @proto(java_multiple_files: true) @proto(objc_class_prefix: "GTP")
 
 /// Represents a whole or partial calendar date, such as a birthday. The time of
 /// day and time zone are either specified elsewhere or are insignificant. The

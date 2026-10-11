@@ -1,4 +1,4 @@
-schema envoy.type
+schema envoy.type @proto(java_package: "io.envoyproxy.envoy.type") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/type")
 
 /// Identifies a percentage, in the range [0.0, 100.0].
 model Percent { #1 value float64 { min 0.0, max 100.0 } }

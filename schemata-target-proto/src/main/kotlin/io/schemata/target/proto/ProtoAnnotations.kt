@@ -4,6 +4,7 @@ import io.schemata.core.annotations.AnnotationSpec
 import io.schemata.core.annotations.Element
 import io.schemata.core.annotations.Role
 import io.schemata.core.annotations.ValueKind
+import io.schemata.target.ProtoFileOptions
 
 /** The `@proto` keys. Declared here; consumed when the emitter lowers them (SCH-23). */
 object ProtoAnnotations {
@@ -31,5 +32,14 @@ object ProtoAnnotations {
                 ValueKind.STRING,
                 Role.NAME,
             ),
-        )
+        ) +
+            ProtoFileOptions.keys.map { key ->
+                AnnotationSpec(
+                    "proto",
+                    key.name,
+                    setOf(Element.NAMESPACE),
+                    if (key.bool) ValueKind.BOOL else ValueKind.STRING,
+                    if (key.bool) Role.REPRESENTATION else Role.NAME,
+                )
+            }
 }

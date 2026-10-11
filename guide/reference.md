@@ -664,6 +664,20 @@ service, or an operation; `@relation(…)` on a reference or a back-reference (s
 `@proto(package: "…")` renames a schema's Protobuf package. `@proto(name: "…")` renames a single
 declaration, field, enum value, service, or operation; section 16 shows it on the last two.
 
+The language file options of Protobuf are `@proto` keys of the schema line: `java_package`,
+`java_outer_classname`, `java_multiple_files` (a boolean), `csharp_namespace`, `go_package`,
+`objc_class_prefix`, `php_namespace`, `php_class_prefix`, `php_metadata_namespace`, `ruby_package`,
+and `swift_prefix`. To put the Java classes of a schema under `com.example.shop.orders`, write
+`@proto(package: "shop.orders.v1", java_package: "com.example.shop.orders", java_multiple_files:
+true, csharp_namespace: "Example.Shop.Orders")`. The file gets an `option` line for each key a
+schema declares, after the imports and in the order above, and none for a key left out. A value has
+the shape its language needs, and any other is an error (SCH2007): dotted identifiers for
+`java_package` and `csharp_namespace`, backslash-separated identifiers for the two PHP namespaces,
+`::`-separated identifiers for `ruby_package`, a single identifier for a class name or a prefix,
+and a non-empty path for `go_package`. `csharp_namespace`, the two PHP namespaces, and the three
+prefixes also accept an empty value, which protoc reads as the global namespace or no prefix.
+`java_multiple_files` is `true` or `false`.
+
 Protobuf cannot import files in a cycle, so schemas that reference each other in a cycle are
 written as one `.proto` file. A reference is a stored field's type, a union member, or an rpc's
 request or response, whether directly or through other schemas; a back-reference ties nothing, and
@@ -674,7 +688,9 @@ dotted segments their names share, so `cyc.alpha` and `cyc.beta` give package `c
 schema or cycle, it is the alphabetically first schema's name. Either way, when no schema declares
 a package the merge is reported as SCH2001, and its help says to set `@proto(package)` to one
 value on each schema to choose the package. Schemas of one cycle that declare different packages
-are an error (SCH2007) and nothing is written.
+are an error (SCH2007) and nothing is written. Each language option takes the one value the
+schemas of the cycle declare, and a schema that declares none adds nothing; different values are an
+error (SCH2007) and nothing is written.
 
 A top-level name that two schemas of the cycle declare is kept by one of them. A name set by
 `@proto(name)` and the name of a service are never changed, so a plain name loses to them wherever
@@ -1907,8 +1923,11 @@ that way is read, but it is written only when an input uses one of its types; a 
 directory argument is always written. An import of protoc's own files under `google/protobuf/`,
 `timestamp.proto` and `descriptor.proto` alike, needs no file at all, since their types are known by
 name. Files under one root that declare one package are one package to `protoc`, so they import as
-one schema, the package's, with each segment lower-snaked if need be (SCH2402). Two files whose
-schema names coincide but whose packages differ are an error (SCH2401).
+one schema, the package's, with each segment lower-snaked if need be (SCH2402). A language file
+option that every file declaring it gives one value becomes a `@proto` key of that schema; a key
+that the files give differing values is dropped, and each file whose value differs from the first
+file of the package that declares the key gets SCH2405. Two files whose schema names coincide but
+whose packages differ are an error (SCH2401).
 
 A name resolves as it does in `protoc`: against the file itself, the files it imports directly, and
 the files those re-export with `import public`. A type declared in a file that the importing file
@@ -1977,10 +1996,13 @@ since Schemata ordinals start at 1; so are the reserved numbers of an enum whose
 renumbered, because the numbers it reserved no longer mean anything (SCH2403). A zero value named
 `Unspecified`, `Unknown`, or `Unset` is dropped in any case, as the upper-case spelling is.
 
-Options steer how code is generated and how fields are encoded, not what the data is, so they are
-ignored silently: file options such as `java_package` and `go_package`, message and enum options,
-`packed`, editions `features`, and custom options in parentheses, except `(validate.rules)`, read
-as described under Validate rules below. One is read: `deprecated`, on a
+Options steer how code is generated and how fields are encoded, not what the data is, so most are
+ignored silently: file options such as `optimize_for` and `cc_enable_arenas`, message and enum
+options, `packed`, editions `features`, and custom options in parentheses, except
+`(validate.rules)`, read as described under Validate rules below. The language file options
+(`java_package`, `go_package` and the rest listed with `@proto` above) are read as `@proto` keys on
+the schema line, after `@proto(package)` and in that order; `java_multiple_files` with a value that
+is not `true` or `false` is dropped (SCH2405). Another is read: `deprecated`, on a
 message, enum, field, or value, becomes `@deprecated`. `json_name` is dropped (SCH2405), since
 Schemata derives every JSON name itself.
 
@@ -2067,7 +2089,7 @@ message Card {
 `schemata import --from proto protos` writes `out/import/shop/orders.schemata`:
 
 ```
-schema shop.orders
+schema shop.orders @proto(java_package: "com.example.shop")
 
 enum Status { #1 pending #2 paid }
 
@@ -2205,6 +2227,7 @@ the field wins over a rule.
 | `syntax = "proto2"` or `"proto3"` | read | |
 | `edition = "…"` | read as proto3 | SCH2403 |
 | `package` | the schema name, or `@proto(package)` beside a path's | SCH2402 when derived |
+| a language file option (`java_package`, `go_package`, …) | a `@proto` key of the schema, dropped with SCH2405 when the files of the package disagree | SCH2405 when dropped |
 | `import` | an `import` of the schema the file lowers to, when a declaration uses it | SCH2401 when a type is unresolved |
 | an `import` of a file found under `--include` | the file, written only when an input references one of its types | |
 | an `import` that is found nowhere | dropped; the file is still imported | SCH2405 |
@@ -2603,13 +2626,13 @@ XSD: names, docs, nullability, defaults, refinements, and the `@xsd` keys come b
 the xsd target's own output reports nothing. Ordinals, `reserved`, `@deprecated`, and the other
 targets' attributes do not, since an XML Schema holds none of them.
 
-Protobuf: names, ordinals, docs, `@deprecated`, and `reserved` come back from the proto itself, and
-every refinement, default, and type Protobuf cannot say rides on the `// schemata:` note the target
-writes, in 2.0 spelling (`string { max 5 }`, `Line[] { minItems 1 }`), so importing the proto
-target's own output reports nothing but the rpc names described below. Nullability of a
-message-typed field rides on the note too: a field of a nullable model, union, `instant`, or
-`duration` is written with `// schemata: T?`. A `.proto` written by a compiler before 1.1, which did
-not write that note, imports such a field as required.
+Protobuf: names, ordinals, docs, `@deprecated`, `reserved`, and the language file options come back
+from the proto itself, and every refinement, default, and type Protobuf cannot say rides on the
+`// schemata:` note the target writes, in 2.0 spelling (`string { max 5 }`,
+`Line[] { minItems 1 }`), so importing the proto target's own output reports nothing but the rpc
+names described below. Nullability of a message-typed field rides on the note too: a field of a
+nullable model, union, `instant`, or `duration` is written with `// schemata: T?`. A `.proto`
+written by a compiler before 1.1, which did not write that note, imports such a field as required.
 
 A service comes back with its operations, their payloads and streams, docs, and `@deprecated` from
 the proto, and their bindings, ordinals, and `reserved` from the notes. Names come back as the
@@ -2717,6 +2740,7 @@ override, so a pinned rename is a doc-level change only.
 | `{ embed }` added or removed on a reference to a model without a key | compatible | compatible | compatible | compatible |
 | `@sql(type)` changed | compatible | breaking | compatible | compatible |
 | `@proto(package)` / `@xsd(namespace)` / `@jsonschema(id)` changed | breaking / compatible / compatible | compatible | compatible / breaking / compatible | compatible / compatible / breaking |
+| A language `@proto` option (`java_package`, `go_package`, …) added, removed, or changed | note (the generated code moves, the wire does not) | compatible | compatible | compatible |
 | `@xsd(attribute)` added or removed on a field | compatible | compatible | breaking (an element becomes an attribute or back) | compatible |
 | `@@xsd(root: false)` added to a model that had a root element | compatible | compatible | breaking (old root documents no longer validate) | compatible |
 | `@@xsd(root: false)` removed | compatible | compatible | compatible | compatible |

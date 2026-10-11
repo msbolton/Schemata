@@ -1,4 +1,4 @@
-schema envoy.config.core.v3
+schema envoy.config.core.v3 @proto(java_package: "io.envoyproxy.envoy.config.core.v3") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/config/core/v3;corev3")
 
 import envoy.type.v3
 import xds.core.v3

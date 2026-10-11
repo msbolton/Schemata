@@ -31,10 +31,14 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Value
 import io.schemata.lang.Category
 import io.schemata.lang.Parser
+import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
+import io.schemata.target.ProtoFileOptions
 import io.schemata.testkit.Protoc
+import java.io.File
 import java.math.BigDecimal
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -1600,13 +1604,13 @@ class ProtoLoweringTest {
                         Element.SERVICE,
                         Element.OPERATION,
                     ),
-            ),
+            ) + ProtoFileOptions.keys.map { it.name to setOf(Element.NAMESPACE) },
             ProtoTarget.annotationSpecs.map { it.key to it.elements },
         )
-        assertTrue(
-            ProtoTarget.annotationSpecs.all {
-                it.target == "proto" && it.valueKind == ValueKind.STRING
-            }
+        assertTrue(ProtoTarget.annotationSpecs.all { it.target == "proto" })
+        assertEquals(
+            listOf("java_multiple_files"),
+            ProtoTarget.annotationSpecs.filter { it.valueKind == ValueKind.BOOL }.map { it.key },
         )
     }
 
@@ -1851,7 +1855,7 @@ class ProtoLoweringTest {
             listOf(emptyList<String>(), emptyList()),
             lowered.model.files.map { it.imports },
         )
-        assertEquals(emptyList(), lowered.codes().filter { "reference each other" in it })
+        assertEquals(emptyList(), lowered.codes().filter { "but declare" in it })
         assertNull(lowered.protocErrors())
     }
 
@@ -2130,5 +2134,276 @@ class ProtoLoweringTest {
                 .map { it.substringAfter("written as '").removeSuffix("'") },
         )
         assertNull(lowered.protocErrors())
+    }
+
+    /** A schema `shop.orders` with two models, its schema line carrying [attributes]. */
+    private fun orders(attributes: String) =
+        "schema shop.orders $attributes\n\nmodel Status { #1 open bool }\n\nmodel Order { #1 status Status }\n"
+
+    @Test
+    fun `language options are written as file options in a fixed order`() {
+        val lowered =
+            lower(
+                orders(
+                    "@proto(go_package: \"example.com/orders\") " +
+                        "@proto(java_package: \"com.example.orders\") " +
+                        "@proto(java_multiple_files: true)"
+                )
+            )
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(
+            listOf(
+                "java_package" to "\"com.example.orders\"",
+                "java_multiple_files" to "true",
+                "go_package" to "\"example.com/orders\"",
+            ),
+            lowered.model.files.single().options,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a schema without language options writes none`() {
+        val lowered = lower(orders(""))
+        assertEquals(emptyList(), lowered.model.files.single().options)
+    }
+
+    @Test
+    fun `an invalid language option is reported at its schema`() {
+        val dotted = "use dotted identifiers, for example"
+        val single = "use a single identifier, for example"
+        val php =
+            "is not a valid PHP namespace" to
+                "use identifiers separated by backslashes, for example `\"Example\\\\Orders\"`"
+        val rows =
+            listOf(
+                Triple(
+                    "java_package",
+                    "com.example-orders",
+                    "is not a valid Java package" to "$dotted `com.example.orders`",
+                ),
+                Triple(
+                    "java_outer_classname",
+                    "Orders.Proto",
+                    "is not a valid Java class name" to "$single `OrdersProto`",
+                ),
+                Triple(
+                    "csharp_namespace",
+                    "Example..Orders",
+                    "is not a valid C# namespace" to "$dotted `Example.Orders`",
+                ),
+                Triple(
+                    "go_package",
+                    "",
+                    "is empty or holds a control character" to
+                        "give the Go import path, for example `example.com/orders;orderspb`",
+                ),
+                Triple(
+                    "objc_class_prefix",
+                    "EX O",
+                    "is not a valid Objective-C class prefix" to "$single `EXO`",
+                ),
+                Triple("php_namespace", "Example/Orders", php),
+                Triple(
+                    "php_class_prefix",
+                    "Exo-",
+                    "is not a valid PHP class prefix" to "$single `Exo`",
+                ),
+                Triple("php_metadata_namespace", "Example.Orders", php),
+                Triple(
+                    "ruby_package",
+                    "Example:Orders",
+                    "is not a valid Ruby module" to
+                        "use identifiers separated by `::`, for example `Example::Orders`",
+                ),
+                Triple("swift_prefix", "1EXO", "is not a valid Swift prefix" to "$single `EXO`"),
+            )
+        assertEquals(
+            ProtoFileOptions.keys.filter { !it.bool }.map { it.name },
+            rows.map { it.first },
+        )
+        for ((key, value, expected) in rows) {
+            val (tail, help) = expected
+            val lowered = lower(orders("@proto($key: ${SchemataText.string(value)})"))
+            assertEquals(
+                listOf(
+                    "shop.orders.schemata:1 SCH2007 schema 'shop.orders': @proto($key: \"$value\") $tail"
+                ),
+                lowered.located(),
+            )
+            assertEquals(help, lowered.diagnostics.single().help)
+        }
+    }
+
+    @Test
+    fun `a control character in an option value is escaped in the message`() {
+        val lowered = lower(orders("@proto(go_package: \"example.com/\\torders\\n\")"))
+        assertEquals(
+            listOf(
+                "SCH2007 schema 'shop.orders': @proto(go_package: \"example.com/\\torders\\n\") " +
+                    "is empty or holds a control character"
+            ),
+            lowered.codes(),
+        )
+    }
+
+    @Test
+    fun `an empty namespace or prefix option is written as an empty string`() {
+        val lowered = lower(orders("@proto(csharp_namespace: \"\") @proto(swift_prefix: \"\")"))
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(
+            listOf("csharp_namespace" to "\"\"", "swift_prefix" to "\"\""),
+            lowered.model.files.single().options,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a conflict value with a control character is escaped in the message`() {
+        val lowered =
+            lower(
+                ALPHA.replace(
+                    "schema cyc.alpha",
+                    "schema cyc.alpha @proto(go_package: \"example.com/a\\nb\")",
+                ),
+                BETA.replace(
+                    "schema cyc.beta",
+                    "schema cyc.beta @proto(go_package: \"example.com/c\")",
+                ),
+            )
+        assertEquals(
+            listOf(
+                "SCH2007 schemas cyc.alpha and cyc.beta reference each other but declare " +
+                    "go_package 'example.com/a\\nb' and 'example.com/c'"
+            ),
+            lowered.codes().filter { "but declare" in it },
+        )
+    }
+
+    @Test
+    fun `one cycle member declaring java_package gives the merged file its value`() {
+        val lowered =
+            lower(
+                ALPHA.replace(
+                    "schema cyc.alpha",
+                    "schema cyc.alpha @proto(package: \"cyc\") @proto(java_package: \"com.example.cyc\")",
+                ),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"cyc\")"),
+            )
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(
+            listOf("java_package" to "\"com.example.cyc\""),
+            lowered.model.files.single().options,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `cycle members declaring the same option do not conflict`() {
+        val option = "@proto(package: \"cyc\") @proto(csharp_namespace: \"Example.Cyc\")"
+        val lowered =
+            lower(
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha $option"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta $option"),
+            )
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(
+            listOf("csharp_namespace" to "\"Example.Cyc\""),
+            lowered.model.files.single().options,
+        )
+    }
+
+    @Test
+    fun `cycle members declaring different java_package values are an error at the later member`() {
+        val schema =
+            analysed(
+                ALPHA.replace(
+                    "schema cyc.alpha",
+                    "schema cyc.alpha @proto(java_package: \"com.example.one\")",
+                ),
+                BETA.replace(
+                    "schema cyc.beta",
+                    "schema cyc.beta @proto(java_package: \"com.example.two\")",
+                ),
+            )
+        val lowered = ProtoLowering.lower(schema)
+        val conflict =
+            "cyc.beta.schemata:1 SCH2007 schemas cyc.alpha and cyc.beta reference each other " +
+                "but declare java_package 'com.example.one' and 'com.example.two'"
+        assertEquals(listOf(conflict), lowered.located().filter { "SCH2007" in it })
+        assertEquals(
+            "give every schema in the cycle the same `@proto(java_package: \"…\")`",
+            lowered.diagnostics.single { "SCH2007" in it.code.id }.help,
+        )
+        assertEquals(emptyList(), ProtoTarget.compile(schema).files)
+    }
+
+    @Test
+    fun `a cycle conflict on java_multiple_files names both values`() {
+        val lowered =
+            lower(
+                ALPHA.replace(
+                    "schema cyc.alpha",
+                    "schema cyc.alpha @proto(java_multiple_files: true)",
+                ),
+                BETA.replace(
+                    "schema cyc.beta",
+                    "schema cyc.beta @proto(java_multiple_files: false)",
+                ),
+            )
+        val conflict = lowered.diagnostics.single { it.code.id == "SCH2007" }
+        assertEquals(
+            "schemas cyc.alpha and cyc.beta reference each other " +
+                "but declare java_multiple_files 'true' and 'false'",
+            conflict.message,
+        )
+        assertEquals(
+            "give every schema in the cycle the same `@proto(java_multiple_files: …)`",
+            conflict.help,
+        )
+    }
+
+    /** Renders [lowered] and runs protoc's [language] generator over it into a fresh directory. */
+    private fun generated(lowered: Lowered<ProtoModel>, language: String, check: (File) -> Unit) {
+        val out = Files.createTempDirectory("schemata-generated").toFile()
+        try {
+            val files = ProtoRenderer.render(lowered.model).associate { it.path to it.content }
+            assertNull(Protoc.generate(files, language, out))
+            check(out)
+        } finally {
+            out.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `java_multiple_files writes each message to its own class under the java_package directory`() {
+        val lowered =
+            lower(
+                orders(
+                    "@proto(java_package: \"com.example.orders\") @proto(java_multiple_files: true)"
+                )
+            )
+        assertEquals(emptyList(), lowered.codes())
+        generated(lowered, "java") { out ->
+            assertTrue(
+                File(out, "com/example/orders/Order.java").isFile,
+                out.walk().toList().toString(),
+            )
+            assertTrue(
+                File(out, "com/example/orders/Status.java").isFile,
+                out.walk().toList().toString(),
+            )
+        }
+    }
+
+    @Test
+    fun `csharp_namespace names the namespace of the generated C# file`() {
+        val lowered = lower(orders("@proto(csharp_namespace: \"Example.Orders\")"))
+        assertEquals(emptyList(), lowered.codes())
+        generated(lowered, "csharp") { out ->
+            val cs = File(out, "Orders.cs")
+            assertTrue(cs.isFile, out.walk().toList().toString())
+            assertTrue("namespace Example.Orders" in cs.readText(), cs.readText())
+        }
     }
 }

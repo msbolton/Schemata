@@ -1,4 +1,4 @@
-schema envoy.data.ai.v3.request_info @proto(package: "envoy.data.ai.v3")
+schema envoy.data.ai.v3.request_info @proto(package: "envoy.data.ai.v3") @proto(java_package: "io.envoyproxy.envoy.data.ai.v3") @proto(java_outer_classname: "RequestInfoProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/data/ai/v3;aiv3")
 
 import envoy.type.ai.v3.llm_protocol
 
