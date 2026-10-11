@@ -528,6 +528,35 @@ class ProtoRulesTest {
         assertEquals(Verdict.Compatible, verdicts["reserved.changed"])
     }
 
+    private val cycleAlpha = "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b B? }\n"
+
+    private val cycleBeta = "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n"
+
+    @Test
+    fun `a service in a reference cycle is called under the cycle's package`() {
+        val old = analysedAll(cycleAlpha + "\nservice S { #1 get(A): B }", cycleBeta)
+        val new = analysedAll(cycleAlpha, cycleBeta)
+        assertEquals(
+            Verdict.Breaking(
+                "cyc.alpha.S: the service was removed breaks clients that call /cyc.S/…",
+                "deprecate its operations and keep the service until no client calls it",
+            ),
+            only(old, new),
+        )
+    }
+
+    @Test
+    fun `a cycle's declared package names its rpc paths`() {
+        val pinned =
+            cycleAlpha.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"shop.v1\")")
+        val old = analysedAll(pinned + "\nservice S { #1 get(A): B }", cycleBeta)
+        val new = analysedAll(pinned, cycleBeta)
+        assertEquals(
+            "cyc.alpha.S: the service was removed breaks clients that call /shop.v1.S/…",
+            assertIs<Verdict.Breaking>(only(old, new)).message,
+        )
+    }
+
     @Test
     fun `a service deprecation lifted is a note and a doc change is compatible`() {
         val old = analysed(serviceBase + "@deprecated\nservice S { #1 get(A): B }")
