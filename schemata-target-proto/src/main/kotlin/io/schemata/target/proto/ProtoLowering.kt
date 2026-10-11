@@ -33,10 +33,8 @@ import io.schemata.target.ProtoUnit
 import io.schemata.target.deprecated
 import io.schemata.target.named
 import io.schemata.target.referencesByKey
+import io.schemata.target.string
 import io.schemata.target.unionMemberStem
-
-/** [decl]'s emitted name: its valid `@proto(name)` override, else its own name. */
-private fun OverrideNames.of(decl: TypeDecl): String = nameOverride(decl) ?: decl.name
 
 /**
  * Lowers every IR shape to a [ProtoModel]. Each decision that loses information is reported once as
@@ -91,8 +89,11 @@ object ProtoLowering {
                         help = "set `@proto(package: \"…\")` on one schema",
                     )
             }
+        val renames = groupRenames(packages, names, diagnostics)
         val files =
-            packages.units.map { FileLowering(schema, names, packages, it, diagnostics).lower() }
+            packages.units.map {
+                FileLowering(schema, names, renames, packages, it, diagnostics).lower()
+            }
         return Lowered(ProtoModel(files), diagnostics)
     }
 
@@ -129,6 +130,70 @@ object ProtoLowering {
         }
     }
 
+    /**
+     * The new names of top-level declarations that would collide in a merged unit's one package
+     * scope, keyed by qualified name. The map is global because a schema outside the unit spells
+     * the declaration by its emitted name too, so every file must see the rename before any file
+     * lowers. A declared `@proto(name)` and a service name are chosen by the author and never
+     * renamed: they claim their names first. Then members are walked in name order, and a plain
+     * name that is already claimed, or used by an earlier member, is prefixed with its schema's
+     * name in upper camel case (`uc2_system_task` + `Task` → `Uc2SystemTaskTask`). The earlier
+     * member keeps the plain name because schema names are the one order every build agrees on, so
+     * which declaration is renamed never depends on file paths or source order. Names repeated
+     * within one member are the author's own collision, and two colliding declared names have no
+     * name to fall back to, so both are left for the name-collision check, as is a prefixed name
+     * that is itself taken.
+     */
+    private fun groupRenames(
+        packages: ProtoPackages,
+        names: OverrideNames,
+        diagnostics: MutableList<Diagnostic>,
+    ): Map<QualifiedName, String> {
+        val renames = mutableMapOf<QualifiedName, String>()
+        for (unit in packages.units.filter { it.merged }) {
+            // Each claimed name, with the schema that claimed it and how a message names it.
+            val claimed = mutableMapOf<String, Pair<Namespace, String>>()
+            val plain = mutableListOf<Pair<Namespace, TypeDecl>>()
+            for (member in unit.members) {
+                for (decl in member.declarations) {
+                    val declared = names.nameOverride(decl)
+                    if (declared == null) plain += member to decl
+                    else claimed.putIfAbsent(declared, member to holder(decl))
+                }
+                for (service in member.services) {
+                    // A service whose override is invalid keeps its own name; the file reports it.
+                    val name =
+                        service.annotations.string("proto", "name")?.takeIf {
+                            ProtoNames.isIdentifier(it)
+                        } ?: service.name
+                    claimed.putIfAbsent(name, member to "service '${service.qualifiedName}'")
+                }
+            }
+            val taken = (claimed.keys + plain.map { (_, decl) -> decl.name }).toMutableSet()
+            for ((member, decl) in plain) {
+                val (owner, user) =
+                    claimed.putIfAbsent(decl.name, member to holder(decl)) ?: continue
+                if (owner === member) continue
+                val prefix = member.name.split('.').joinToString("") { Names.upperCamel(it) }
+                val renamed = prefix + decl.name
+                if (!taken.add(renamed)) continue
+                renames[decl.qualifiedName] = renamed
+                diagnostics +=
+                    Diagnostic(
+                        ProtoCodes.LOSSY,
+                        "${holder(decl)}: proto name '${decl.name}' is also used by $user; " +
+                            "written as '$renamed'",
+                        decl.nameSpan,
+                        help = "set `@proto(name: \"…\")` on one of them to choose the name",
+                    )
+            }
+        }
+        return renames
+    }
+
+    /** How a message names [decl] for a reader of the merged file: by its qualified name. */
+    private fun holder(decl: TypeDecl): String = "${decl.kindWord} '${decl.qualifiedName}'"
+
     private class Mapped(val type: ProtoType, val label: Label, val lossy: Boolean)
 
     /**
@@ -138,11 +203,19 @@ object ProtoLowering {
     private class FileLowering(
         private val schema: Schema,
         private val names: OverrideNames,
+        private val renames: Map<QualifiedName, String>,
         private val packages: ProtoPackages,
         private val unit: ProtoUnit,
         private val diagnostics: MutableList<Diagnostic>,
     ) {
         private val imports = sortedSetOf<String>()
+
+        /**
+         * [decl]'s emitted name: its valid `@proto(name)` override, else the name it was given to
+         * avoid a collision in its cycle's file, else its own name.
+         */
+        private fun emitted(decl: TypeDecl): String =
+            names.nameOverride(decl) ?: renames[decl.qualifiedName] ?: decl.name
 
         fun lower(): ProtoFile {
             unit.members.forEach { declaredPackage(it) }
@@ -278,7 +351,7 @@ object ProtoLowering {
         private fun record(record: RecordType): ProtoMessage {
             val here = record.qualifiedName
             val where = "model '${record.name}'"
-            val name = names.of(record)
+            val name = emitted(record)
             // A back-reference is virtual: the forward reference on the other message carries it.
             val stored = record.storedFields
             val fieldNames =
@@ -326,7 +399,7 @@ object ProtoLowering {
                     (it as? EnumRef)?.let { ref ->
                         val enum = schema.lookup(ref.enum) as EnumType
                         valueName(
-                            names.of(enum),
+                            emitted(enum),
                             enum,
                             enum.values.first { v -> v.name == ref.value },
                         )
@@ -351,7 +424,7 @@ object ProtoLowering {
         }
 
         private fun enum(enum: EnumType): ProtoEnum {
-            val name = names.of(enum)
+            val name = emitted(enum)
             enum.values.forEach { names.enumValueName(enum, it) }
             reservedNumbers(
                 "enum '${enum.name}'",
@@ -396,7 +469,7 @@ object ProtoLowering {
 
         private fun union(union: UnionType): ProtoMessage {
             val here = union.qualifiedName
-            val name = names.of(union)
+            val name = emitted(union)
             scope(
                 listOf(Symbol("kind", "the oneof", union.nameSpan)) +
                     union.members.map { member ->
@@ -433,7 +506,9 @@ object ProtoLowering {
         }
 
         private fun memberName(type: Type): String =
-            unionMemberStem(type, schema) { names.nameOverride(it) }
+            unionMemberStem(type, schema) {
+                names.nameOverride(it) ?: renames[it.qualifiedName]?.let(Names::snakeCase)
+            }
 
         /** Maps a field's or member's type; [nullable] is the field's own `?`. */
         private fun map(
@@ -624,7 +699,7 @@ object ProtoLowering {
          * that name would capture the reference, and it takes the absolute form instead.
          */
         private fun reference(target: QualifiedName, here: QualifiedName): ProtoType.Named {
-            val path = schema.declarationPath(target).map { names.of(it) }
+            val path = schema.declarationPath(target).map { emitted(it) }
             val home = packages.unitOf(target.namespace)
             if (home !== unit) {
                 imports += home.path
@@ -642,7 +717,7 @@ object ProtoLowering {
                     val enclosing = here.path.take(depth)
                     val scope = schema.lookup(QualifiedName(here.namespace, enclosing))
                     // A nested name that is the target's own enclosing declaration leads to it.
-                    scope.nested.any { names.of(it) == relative.first() } &&
+                    scope.nested.any { emitted(it) == relative.first() } &&
                         QualifiedName(here.namespace, enclosing + target.path[keep]) !=
                             QualifiedName(target.namespace, target.path.take(keep + 1))
                 }
@@ -783,9 +858,9 @@ object ProtoLowering {
          * scope: proto scopes enum values at the scope that holds the enum, not inside it.
          */
         private fun symbols(decl: TypeDecl): List<Symbol> {
-            val own = Symbol(names.of(decl), "${decl.kindWord} '${decl.name}'", decl.nameSpan)
+            val own = Symbol(emitted(decl), "${decl.kindWord} '${decl.name}'", decl.nameSpan)
             if (decl !is EnumType) return listOf(own)
-            val name = names.of(decl)
+            val name = emitted(decl)
             return listOf(
                 own,
                 Symbol(ProtoNames.zeroValue(name), "the synthesized zero value", decl.nameSpan),
