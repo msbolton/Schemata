@@ -1,4 +1,4 @@
-schema envoy.extensions.geoip_providers.maxmind.v3.maxmind @proto(package: "envoy.extensions.geoip_providers.maxmind.v3")
+schema envoy.extensions.geoip_providers.maxmind.v3.maxmind @proto(package: "envoy.extensions.geoip_providers.maxmind.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.geoip_providers.maxmind.v3") @proto(java_outer_classname: "MaxmindProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/geoip_providers/maxmind/v3;maxmindv3")
 
 import envoy.extensions.geoip_providers.common.v3.common
 

@@ -1,4 +1,4 @@
-schema envoy.extensions.filters.http.compressor.v3.compressor @proto(package: "envoy.extensions.filters.http.compressor.v3")
+schema envoy.extensions.filters.http.compressor.v3.compressor @proto(package: "envoy.extensions.filters.http.compressor.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.filters.http.compressor.v3") @proto(java_outer_classname: "CompressorProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/compressor/v3;compressorv3")
 
 import envoy.config.core.v3
 import envoy.type.matcher.v3

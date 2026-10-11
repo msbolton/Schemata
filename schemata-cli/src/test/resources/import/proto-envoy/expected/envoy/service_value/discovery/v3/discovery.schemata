@@ -1,4 +1,4 @@
-schema envoy.service_value.discovery.v3.discovery @proto(package: "envoy.service.discovery.v3")
+schema envoy.service_value.discovery.v3.discovery @proto(package: "envoy.service.discovery.v3") @proto(java_package: "io.envoyproxy.envoy.service.discovery.v3") @proto(java_outer_classname: "DiscoveryProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3;discoveryv3")
 
 import google.rpc.status
 import envoy.config.core.v3

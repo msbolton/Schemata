@@ -391,7 +391,7 @@ class ProtoImportTest {
             )
         assertEquals(
             """
-            schema t
+            schema t @proto(java_package: "com.example") @proto(go_package: "example.com/t")
 
             /// A message.
             /// Second line.
@@ -1386,6 +1386,152 @@ class ProtoImportTest {
             """
                 .trimIndent() + "\n",
             text(r, "corpus/orders.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `language file options become proto keys on the schema line in a fixed order`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    option swift_prefix = "EXT";
+                    option ruby_package = "Example::T";
+                    option optimize_for = SPEED;
+                    option php_metadata_namespace = "GPBMetadata\\Example";
+                    option php_class_prefix = "EXT";
+                    option php_namespace = "Example\\T";
+                    option objc_class_prefix = "EXT";
+                    option go_package = "example.com/t";
+                    option cc_enable_arenas = true;
+                    option csharp_namespace = "Example.T";
+                    option java_multiple_files = true;
+                    option java_outer_classname = "TProto";
+                    option java_package = "com.example.t";
+                    message M {}
+                    """
+            )
+        assertEquals(
+            "schema t @proto(java_package: \"com.example.t\") " +
+                "@proto(java_outer_classname: \"TProto\") @proto(java_multiple_files: true) " +
+                "@proto(csharp_namespace: \"Example.T\") @proto(go_package: \"example.com/t\") " +
+                "@proto(objc_class_prefix: \"EXT\") @proto(php_namespace: \"Example\\\\T\") " +
+                "@proto(php_class_prefix: \"EXT\") " +
+                "@proto(php_metadata_namespace: \"GPBMetadata\\\\Example\") " +
+                "@proto(ruby_package: \"Example::T\") @proto(swift_prefix: \"EXT\")",
+            text(r, "t.schemata").lines().first(),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `the package attribute precedes the language options`() {
+        val r =
+            importText(
+                "corpus/orders.proto" to
+                    """
+                    syntax = "proto3";
+                    option go_package = "example.com/orders";
+                    option java_package = "com.example.orders";
+                    package corp.orders.v1;
+                    message Order {}
+                    """
+            )
+        assertEquals(
+            "schema corpus.orders @proto(package: \"corp.orders.v1\") " +
+                "@proto(java_package: \"com.example.orders\") " +
+                "@proto(go_package: \"example.com/orders\")",
+            text(r, "corpus/orders.schemata").lines().first(),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `java_multiple_files that is not a boolean is dropped`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    option java_package = "com.example";
+                    option java_multiple_files = yes;
+                    message M {}
+                    """
+            )
+        assertEquals(
+            "schema t @proto(java_package: \"com.example\")",
+            text(r, "t.schemata").lines().first(),
+        )
+        assertEquals(
+            listOf("SCH2405 t.proto: option java_multiple_files 'yes' is not a boolean; dropped"),
+            messages(r),
+        )
+        assertEquals("write the option as `true` or `false`", r.diagnostics.single().help)
+    }
+
+    @Test
+    fun `files of one package that disagree on an option drop it and report the later file`() {
+        val r =
+            importText(
+                "a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option java_package = "com.example.shop";
+                    message A {}
+                    """,
+                "b.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option java_package = "com.example.other";
+                    option go_package = "example.com/shop";
+                    message B {}
+                    """,
+            )
+        assertEquals(
+            "schema shop @proto(go_package: \"example.com/shop\")",
+            text(r, "shop.schemata").lines().first(),
+        )
+        assertEquals(
+            listOf(
+                "SCH2405 b.proto: option java_package 'com.example.other' differs from " +
+                    "'com.example.shop' in a.proto; dropped"
+            ),
+            messages(r),
+        )
+        assertEquals(
+            "set `@proto(java_package: …)` on the imported schema to choose the value",
+            r.diagnostics.single().help,
+        )
+    }
+
+    @Test
+    fun `files of one package that agree on an option report nothing`() {
+        val r =
+            importText(
+                "a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option java_package = "com.example.shop";
+                    option java_multiple_files = true;
+                    message A {}
+                    """,
+                "b.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option java_package = "com.example.shop";
+                    option java_multiple_files = true;
+                    message B {}
+                    """,
+            )
+        assertEquals(
+            "schema shop @proto(java_package: \"com.example.shop\") @proto(java_multiple_files: true)",
+            text(r, "shop.schemata").lines().first(),
         )
         assertEquals(emptyList(), messages(r))
     }
