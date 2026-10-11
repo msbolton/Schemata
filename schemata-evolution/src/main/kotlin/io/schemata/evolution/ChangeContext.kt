@@ -21,9 +21,11 @@ import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.service
 import io.schemata.core.ir.services
 import io.schemata.target.Names
+import io.schemata.target.ProtoPackages
 import io.schemata.target.bool
 import io.schemata.target.deprecated
 import io.schemata.target.flag
+import io.schemata.target.referencesByKey
 import io.schemata.target.string
 
 /**
@@ -174,6 +176,17 @@ class ChangeContext(val old: Schema, val new: Schema) {
     private fun operationId(service: Service, operation: Operation): String =
         operation.annotations.string("openapi", "name")?.takeIf { OPENAPI_NAME.matches(it) }
             ?: "${tagName(service)}_${operation.name}"
+
+    /**
+     * The Protobuf file units of [side]'s schema, which decide the package of every service's
+     * method path. Computed once per side: a diff judges each removed rpc on its own, and the
+     * assignment walks the whole schema.
+     */
+    internal fun protoPackages(side: Side): ProtoPackages =
+        if (side == Side.OLD) oldProtoPackages else newProtoPackages
+
+    private val oldProtoPackages by lazy { ProtoPackages.of(old.referencesByKey()) }
+    private val newProtoPackages by lazy { ProtoPackages.of(new.referencesByKey()) }
 
     /**
      * Whether [decl] is one an OpenAPI document on [side] carries: reachable from some service's

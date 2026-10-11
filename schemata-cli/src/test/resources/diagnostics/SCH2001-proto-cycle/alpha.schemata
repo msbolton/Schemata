@@ -1,0 +1,5 @@
+schema cyc.alpha
+
+import cyc.beta
+
+model A { #1 b B }

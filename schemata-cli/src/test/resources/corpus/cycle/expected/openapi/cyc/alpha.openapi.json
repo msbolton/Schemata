@@ -1,0 +1,136 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "cyc.alpha",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "Orders"
+    }
+  ],
+  "paths": {
+    "/Orders/get": {
+      "post": {
+        "operationId": "Orders_get",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/cyc.alpha.Order"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cyc.beta.Customer"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "cyc.alpha.Order": {
+        "description": "An order that points at its customer.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "customer": {
+            "$ref": "#/components/schemas/cyc.beta.Customer"
+          },
+          "note": {
+            "$ref": "#/components/schemas/cyc.alpha.Note"
+          }
+        },
+        "required": [
+          "id",
+          "customer",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "cyc.beta.Customer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/cyc.alpha.Order"
+            }
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/cyc.beta.Note"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "orders"
+        ],
+        "additionalProperties": false
+      },
+      "cyc.beta.Note": {
+        "description": "A note about a customer.",
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/cyc.beta.Status"
+          }
+        },
+        "required": [
+          "text",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "cyc.beta.Status": {
+        "type": "string",
+        "enum": [
+          "open",
+          "closed"
+        ]
+      },
+      "cyc.alpha.Note": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

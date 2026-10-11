@@ -3,6 +3,7 @@ package io.schemata.target
 import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.ListOf
 import io.schemata.core.ir.MapOf
+import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
@@ -16,15 +17,25 @@ object TypeText {
      * 254 }`, `Line[] { minItems 1 }`, `map<string, int32>`. A list's element options share the
      * list's block after its own; a list of lists keeps the outer `list<…>`, since a type takes one
      * `[]`, and so does a list of maps with a size bound of their own, which would otherwise share
-     * the list's block with the list's; a map's key and value carry their own.
+     * the list's block with the list's; a map's key and value carry their own. A reference is
+     * spelled by [name], the declaration's own simple name unless the caller emits it under
+     * another, as a target's lossy note must for its reader to match the note to the type.
      */
-    fun of(type: Type, nullable: Boolean = false): String {
-        val (core, options) = slot(type, nullable)
+    fun of(
+        type: Type,
+        nullable: Boolean = false,
+        name: (QualifiedName) -> String = { it.simpleName },
+    ): String {
+        val (core, options) = slot(type, nullable, name)
         return core + block(options)
     }
 
     /** [type] as written, `?` included when [nullable], and the options of its slot. */
-    private fun slot(type: Type, nullable: Boolean): Pair<String, List<String>> {
+    private fun slot(
+        type: Type,
+        nullable: Boolean,
+        name: (QualifiedName) -> String,
+    ): Pair<String, List<String>> {
         val (core, options) =
             when (type) {
                 is Scalar -> {
@@ -43,16 +54,16 @@ object TypeText {
                     val own = bounds(type.refinements, "minItems", "maxItems")
                     val element = type.element
                     if (element is ListOf || (element is MapOf && element.refinements.hasBounds)) {
-                        "list<${of(type.element, type.nullableElement)}>" to own
+                        "list<${of(type.element, type.nullableElement, name)}>" to own
                     } else {
-                        val (text, elementOptions) = slot(element, type.nullableElement)
+                        val (text, elementOptions) = slot(element, type.nullableElement, name)
                         "$text[]" to own + elementOptions
                     }
                 }
                 is MapOf ->
-                    "map<${of(type.key)}, ${of(type.value, type.nullableValue)}>" to
+                    "map<${of(type.key)}, ${of(type.value, type.nullableValue, name)}>" to
                         bounds(type.refinements, "minItems", "maxItems")
-                is Ref -> type.target.simpleName to emptyList()
+                is Ref -> name(type.target) to emptyList()
             }
         return (if (nullable) "$core?" else core) to options
     }
