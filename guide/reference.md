@@ -670,21 +670,24 @@ request or response, whether directly or through other schemas; a back-reference
 neither does a reference that carries a single key, which becomes a key field. The file's package
 is the one the schemas declare with `@proto(package)`. When none declares one, it is the leading
 dotted segments their names share, so `cyc.alpha` and `cyc.beta` give package `cyc` and file
-`cyc.proto`; when they share none, or the shared segments name another schema, it is the
-alphabetically first schema's name. Either way, when no schema declares a package the merge is
-reported as SCH2001, and its help says to set `@proto(package)` to one value on each schema to
-choose the package. Schemas of one cycle that declare different packages are an error (SCH2007)
-and nothing is written.
+`cyc.proto`; when they share none, or the shared segments are the name or the package of another
+schema or cycle, it is the alphabetically first schema's name. Either way, when no schema declares
+a package the merge is reported as SCH2001, and its help says to set `@proto(package)` to one
+value on each schema to choose the package. Schemas of one cycle that declare different packages
+are an error (SCH2007) and nothing is written.
 
-A top-level name that two schemas of the cycle declare keeps its name in the alphabetically first
-schema and is prefixed with the later schema's UpperCamel name in each later one, reported as
-SCH2001: `Task` declared by `niem_core` and by `uc2_system_task` stays `Task` in the first and
-becomes `Uc2SystemTaskTask` in the second. A name set by `@proto(name)` and the name of a service
-are never changed; set `@proto(name)` on one of the declarations to choose its name. A reference
-from a schema outside the cycle is written `.cyc.Customer` with `import "cyc.proto"`.
+A top-level name that two schemas of the cycle declare is kept by one of them. A name set by
+`@proto(name)` and the name of a service are never changed, so a plain name loses to them wherever
+they are declared; otherwise the alphabetically first schema keeps it. Each plain name that loses
+is prefixed with its schema's UpperCamel name, reported as SCH2001: `Task` declared by `niem_core`
+and by `uc2_system_task` stays `Task` in the first and becomes `Uc2SystemTaskTask` in the second.
+Set `@proto(name)` on one of the declarations to choose its name. A reference from a
+schema outside the cycle is written `.cyc.Customer` with `import "cyc.proto"`.
 
-A schema that joins or leaves a cycle without `@proto(package)` changes its package. `diff` does
-not yet report that, so pin the package with `@proto(package)` when it matters.
+A schema that joins or leaves a cycle without `@proto(package)` changes its package, and a schema
+that joins a cycle and sorts earlier can take a name from a declaration already published, which
+is then renamed: its generated classes and its `Any` type URL change. `diff` reports neither yet,
+so when they matter pin the package with `@proto(package)` and the names with `@proto(name)`.
 
 `@sql(schema: "…")` renames a schema's Postgres schema. `@@sql(table: "…")` and
 `@sql(column: "…")` rename a model's table or a field's column. An empty
