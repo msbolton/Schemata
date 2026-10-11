@@ -1924,8 +1924,8 @@ name. Files under one root that declare one package are one package to `protoc`,
 one schema, the package's, with each segment lower-snaked if need be (SCH2402). A language file
 option that every file declaring it gives one value becomes a `@proto` key of that schema; a key
 that the files give differing values is dropped, and each file whose value differs from the first
-file's gets SCH2405. Two files whose
-schema names coincide but whose packages differ are an error (SCH2401).
+file of the package that declares the key gets SCH2405. Two files whose schema names coincide but
+whose packages differ are an error (SCH2401).
 
 A name resolves as it does in `protoc`: against the file itself, the files it imports directly, and
 the files those re-export with `import public`. A type declared in a file that the importing file
@@ -2628,10 +2628,9 @@ Protobuf: names, ordinals, docs, `@deprecated`, `reserved`, and the language fil
 from the proto itself, and every refinement, default, and type Protobuf cannot say rides on the
 `// schemata:` note the target writes, in 2.0 spelling (`string { max 5 }`,
 `Line[] { minItems 1 }`), so importing the proto target's own output reports nothing but the rpc
-names described below. Nullability of a
-message-typed field rides on the note too: a field of a nullable model, union, `instant`, or
-`duration` is written with `// schemata: T?`. A `.proto` written by a compiler before 1.1, which did
-not write that note, imports such a field as required.
+names described below. Nullability of a message-typed field rides on the note too: a field of a
+nullable model, union, `instant`, or `duration` is written with `// schemata: T?`. A `.proto`
+written by a compiler before 1.1, which did not write that note, imports such a field as required.
 
 A service comes back with its operations, their payloads and streams, docs, and `@deprecated` from
 the proto, and their bindings, ordinals, and `reserved` from the notes. Names come back as the
