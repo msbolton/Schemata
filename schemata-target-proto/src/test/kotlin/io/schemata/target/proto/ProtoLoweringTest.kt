@@ -1855,7 +1855,7 @@ class ProtoLoweringTest {
             listOf(emptyList<String>(), emptyList()),
             lowered.model.files.map { it.imports },
         )
-        assertEquals(emptyList(), lowered.codes().filter { "reference each other" in it })
+        assertEquals(emptyList(), lowered.codes().filter { "but declare" in it })
         assertNull(lowered.protocErrors())
     }
 
@@ -2244,6 +2244,39 @@ class ProtoLoweringTest {
                     "is empty or holds a control character"
             ),
             lowered.codes(),
+        )
+    }
+
+    @Test
+    fun `an empty namespace or prefix option is written as an empty string`() {
+        val lowered = lower(orders("@proto(csharp_namespace: \"\") @proto(swift_prefix: \"\")"))
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(
+            listOf("csharp_namespace" to "\"\"", "swift_prefix" to "\"\""),
+            lowered.model.files.single().options,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a conflict value with a control character is escaped in the message`() {
+        val lowered =
+            lower(
+                ALPHA.replace(
+                    "schema cyc.alpha",
+                    "schema cyc.alpha @proto(go_package: \"example.com/a\\nb\")",
+                ),
+                BETA.replace(
+                    "schema cyc.beta",
+                    "schema cyc.beta @proto(go_package: \"example.com/c\")",
+                ),
+            )
+        assertEquals(
+            listOf(
+                "SCH2007 schemas cyc.alpha and cyc.beta reference each other but declare " +
+                    "go_package 'example.com/a\\nb' and 'example.com/c'"
+            ),
+            lowered.codes().filter { "but declare" in it },
         )
     }
 

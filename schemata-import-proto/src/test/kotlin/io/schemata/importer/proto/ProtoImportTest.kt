@@ -1509,6 +1509,52 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `an empty namespace option imports as an empty value without a warning`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    option csharp_namespace = "";
+                    message M {}
+                    """
+            )
+        assertEquals(
+            "schema t @proto(csharp_namespace: \"\")",
+            text(r, "t.schemata").lines().first(),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `a differing option value with a control character is escaped in the warning`() {
+        val r =
+            importText(
+                "a.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option go_package = "example.com/a";
+                    message A {}
+                    """,
+                "b.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option go_package = "example.com/b\\nc";
+                    message B {}
+                    """,
+            )
+        assertEquals(
+            listOf(
+                "SCH2405 b.proto: option go_package 'example.com/b\\nc' differs from " +
+                    "'example.com/a' in a.proto; dropped"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `files of one package that agree on an option report nothing`() {
         val r =
             importText(

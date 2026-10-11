@@ -54,6 +54,29 @@ class ProtoNamesTest {
         assertTrue(fits(ProtoFileOptions.Shape.IDENTIFIER, "OrdersProto"))
         assertTrue(fits(ProtoFileOptions.Shape.NON_EMPTY, "example.com/orders;orders"))
         assertTrue(fits(ProtoFileOptions.Shape.BOOL, "anything"))
+        assertTrue(fits(ProtoFileOptions.Shape.DOTTED_OR_EMPTY, ""))
+        assertTrue(fits(ProtoFileOptions.Shape.DOTTED_OR_EMPTY, "Example.Orders"))
+        assertTrue(fits(ProtoFileOptions.Shape.BACKSLASHED_OR_EMPTY, ""))
+        assertTrue(fits(ProtoFileOptions.Shape.BACKSLASHED_OR_EMPTY, "Example\\Orders"))
+        assertTrue(fits(ProtoFileOptions.Shape.IDENTIFIER_OR_EMPTY, ""))
+        assertTrue(fits(ProtoFileOptions.Shape.IDENTIFIER_OR_EMPTY, "EXO"))
+        assertFalse(fits(ProtoFileOptions.Shape.DOTTED_OR_EMPTY, "com..x"))
+        assertFalse(fits(ProtoFileOptions.Shape.BACKSLASHED_OR_EMPTY, "Example/Orders"))
+        assertFalse(fits(ProtoFileOptions.Shape.IDENTIFIER_OR_EMPTY, "Orders Proto"))
+        for (key in listOf("java_package", "java_outer_classname", "ruby_package", "go_package")) {
+            assertFalse(fits(ProtoFileOptions.key(key)!!.shape, ""), key)
+        }
+        for (key in
+            listOf(
+                "csharp_namespace",
+                "php_namespace",
+                "php_metadata_namespace",
+                "objc_class_prefix",
+                "php_class_prefix",
+                "swift_prefix",
+            )) {
+            assertTrue(fits(ProtoFileOptions.key(key)!!.shape, ""), key)
+        }
         assertFalse(fits(ProtoFileOptions.Shape.DOTTED, "com..x"))
         assertFalse(fits(ProtoFileOptions.Shape.BACKSLASHED, "Example/Orders"))
         assertFalse(fits(ProtoFileOptions.Shape.DOUBLE_COLON, "Example:Orders"))

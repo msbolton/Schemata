@@ -667,14 +667,16 @@ declaration, field, enum value, service, or operation; section 16 shows it on th
 The language file options of Protobuf are `@proto` keys of the schema line: `java_package`,
 `java_outer_classname`, `java_multiple_files` (a boolean), `csharp_namespace`, `go_package`,
 `objc_class_prefix`, `php_namespace`, `php_class_prefix`, `php_metadata_namespace`, `ruby_package`,
-and `swift_prefix`. To put the Java classes of a schema under `com.example.orders`, write
+and `swift_prefix`. To put the Java classes of a schema under `com.example.shop.orders`, write
 `@proto(package: "shop.orders.v1", java_package: "com.example.shop.orders", java_multiple_files:
 true, csharp_namespace: "Example.Shop.Orders")`. The file gets an `option` line for each key a
 schema declares, after the imports and in the order above, and none for a key left out. A value has
 the shape its language needs, and any other is an error (SCH2007): dotted identifiers for
 `java_package` and `csharp_namespace`, backslash-separated identifiers for the two PHP namespaces,
 `::`-separated identifiers for `ruby_package`, a single identifier for a class name or a prefix,
-and a non-empty path for `go_package`. `java_multiple_files` is `true` or `false`.
+and a non-empty path for `go_package`. `csharp_namespace`, the two PHP namespaces, and the three
+prefixes also accept an empty value, which protoc reads as the global namespace or no prefix.
+`java_multiple_files` is `true` or `false`.
 
 Protobuf cannot import files in a cycle, so schemas that reference each other in a cycle are
 written as one `.proto` file. A reference is a stored field's type, a union member, or an rpc's
