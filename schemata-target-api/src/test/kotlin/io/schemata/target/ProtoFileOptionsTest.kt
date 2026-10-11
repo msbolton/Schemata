@@ -58,7 +58,7 @@ class ProtoFileOptionsTest {
             ProtoFileOptions.keys.map { it.language },
         )
         assertEquals(
-            ProtoFileOptions.Shape.BACKSLASHED,
+            ProtoFileOptions.Shape.BACKSLASHED_OR_EMPTY,
             ProtoFileOptions.key("php_namespace")?.shape,
         )
         assertEquals(

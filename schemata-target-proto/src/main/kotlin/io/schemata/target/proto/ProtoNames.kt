@@ -55,6 +55,10 @@ fun ProtoNames.fitsOption(shape: ProtoFileOptions.Shape, value: String): Boolean
         ProtoFileOptions.Shape.BACKSLASHED -> value.split('\\').all { isIdentifier(it) }
         ProtoFileOptions.Shape.DOUBLE_COLON -> value.split("::").all { isIdentifier(it) }
         ProtoFileOptions.Shape.IDENTIFIER -> isIdentifier(value)
+        ProtoFileOptions.Shape.DOTTED_OR_EMPTY -> value.isEmpty() || isPackage(value)
+        ProtoFileOptions.Shape.BACKSLASHED_OR_EMPTY ->
+            value.isEmpty() || value.split('\\').all { isIdentifier(it) }
+        ProtoFileOptions.Shape.IDENTIFIER_OR_EMPTY -> value.isEmpty() || isIdentifier(value)
         ProtoFileOptions.Shape.NON_EMPTY -> value.isNotEmpty() && value.none { it < ' ' }
         ProtoFileOptions.Shape.BOOL -> true
     }

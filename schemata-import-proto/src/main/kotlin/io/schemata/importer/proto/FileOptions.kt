@@ -2,6 +2,7 @@ package io.schemata.importer.proto
 
 import io.schemata.importer.UnitAnnotation
 import io.schemata.lang.SchemataText
+import io.schemata.target.OverrideNames
 import io.schemata.target.ProtoFileOptions
 
 /**
@@ -31,7 +32,7 @@ internal object FileOptions {
                         key.bool && option.value != "true" && option.value != "false" -> {
                             report(
                                 file,
-                                "${file.path}: option ${key.name} '${option.value}' is not a " +
+                                "${file.path}: option ${key.name} '${OverrideNames.escaped(option.value)}' is not a " +
                                     "boolean; dropped",
                                 "write the option as `true` or `false`",
                             )
@@ -45,7 +46,8 @@ internal object FileOptions {
             differing.forEach { (file, other) ->
                 report(
                     file,
-                    "${file.path}: option ${key.name} '$other' differs from '$value' in " +
+                    "${file.path}: option ${key.name} '${OverrideNames.escaped(other)}' differs from " +
+                        "'${OverrideNames.escaped(value)}' in " +
                         "${first.path}; dropped",
                     "set `@proto(${key.name}: …)` on the imported schema to choose the value",
                 )

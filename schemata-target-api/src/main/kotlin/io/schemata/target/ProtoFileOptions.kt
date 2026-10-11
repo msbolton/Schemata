@@ -13,13 +13,17 @@ object ProtoFileOptions {
      * What a key's value must look like. [DOTTED] is a dotted package, [BACKSLASHED] backslash-
      * separated identifiers (a PHP namespace), [DOUBLE_COLON] `::`-separated identifiers (a Ruby
      * module path), [IDENTIFIER] one identifier, [NON_EMPTY] any text without control characters (a
-     * Go import path), and [BOOL] a true or false literal.
+     * Go import path), and [BOOL] a true or false literal. The `_OR_EMPTY` shapes also take the
+     * empty string, which protoc reads as the global namespace or no prefix.
      */
     enum class Shape {
         DOTTED,
         BACKSLASHED,
         DOUBLE_COLON,
         IDENTIFIER,
+        DOTTED_OR_EMPTY,
+        BACKSLASHED_OR_EMPTY,
+        IDENTIFIER_OR_EMPTY,
         NON_EMPTY,
         BOOL,
     }
@@ -35,14 +39,14 @@ object ProtoFileOptions {
             Key("java_package", "Java", Shape.DOTTED),
             Key("java_outer_classname", "Java", Shape.IDENTIFIER),
             Key("java_multiple_files", "Java", Shape.BOOL),
-            Key("csharp_namespace", "C#", Shape.DOTTED),
+            Key("csharp_namespace", "C#", Shape.DOTTED_OR_EMPTY),
             Key("go_package", "Go", Shape.NON_EMPTY),
-            Key("objc_class_prefix", "Objective-C", Shape.IDENTIFIER),
-            Key("php_namespace", "PHP", Shape.BACKSLASHED),
-            Key("php_class_prefix", "PHP", Shape.IDENTIFIER),
-            Key("php_metadata_namespace", "PHP", Shape.BACKSLASHED),
+            Key("objc_class_prefix", "Objective-C", Shape.IDENTIFIER_OR_EMPTY),
+            Key("php_namespace", "PHP", Shape.BACKSLASHED_OR_EMPTY),
+            Key("php_class_prefix", "PHP", Shape.IDENTIFIER_OR_EMPTY),
+            Key("php_metadata_namespace", "PHP", Shape.BACKSLASHED_OR_EMPTY),
             Key("ruby_package", "Ruby", Shape.DOUBLE_COLON),
-            Key("swift_prefix", "Swift", Shape.IDENTIFIER),
+            Key("swift_prefix", "Swift", Shape.IDENTIFIER_OR_EMPTY),
         )
 
     private val byName: Map<String, Key> = keys.associateBy { it.name }

@@ -181,7 +181,8 @@ object ProtoLowering {
             Diagnostic(
                 ProtoCodes.INVALID_OVERRIDE,
                 "schemas ${first.name} and ${second.name} reference each other but declare $key " +
-                    "'${optionText(firstValue)}' and '${optionText(secondValue)}'",
+                    "'${OverrideNames.escaped(optionText(firstValue))}' and " +
+                    "'${OverrideNames.escaped(optionText(secondValue))}'",
                 second.span,
                 help = "give every schema in the cycle the same `@proto($key: $placeholder)`",
             )
