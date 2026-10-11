@@ -671,16 +671,17 @@ neither does a reference that carries a single key, which becomes a key field. T
 is the one the schemas declare with `@proto(package)`. When none declares one, it is the leading
 dotted segments their names share, so `cyc.alpha` and `cyc.beta` give package `cyc` and file
 `cyc.proto`; when they share none, or the shared segments name another schema, it is the
-alphabetically first schema's name, reported as SCH2001. Schemas of one cycle that declare
-different packages are an error (SCH2007) and nothing is written. Set `@proto(package)` to the
-same value on each schema to choose the package.
+alphabetically first schema's name. Either way, when no schema declares a package the merge is
+reported as SCH2001, and its help says to set `@proto(package)` to one value on each schema to
+choose the package. Schemas of one cycle that declare different packages are an error (SCH2007)
+and nothing is written.
 
 A top-level name that two schemas of the cycle declare keeps its name in the alphabetically first
-schema and is prefixed with the later schema's UpperCamel name in the next, reported as SCH2001:
-`Task` declared by `niem_core` and by `uc2_system_task` stays `Task` in the first and becomes
-`Uc2SystemTaskTask` in the second. A name set by `@proto(name)` and the name of a service are never
-changed; set `@proto(name)` on one of the declarations to choose its name. A reference from a
-schema outside the cycle is written `.cyc.Customer` with `import "cyc.proto"`.
+schema and is prefixed with the later schema's UpperCamel name in each later one, reported as
+SCH2001: `Task` declared by `niem_core` and by `uc2_system_task` stays `Task` in the first and
+becomes `Uc2SystemTaskTask` in the second. A name set by `@proto(name)` and the name of a service
+are never changed; set `@proto(name)` on one of the declarations to choose its name. A reference
+from a schema outside the cycle is written `.cyc.Customer` with `import "cyc.proto"`.
 
 A schema that joins or leaves a cycle without `@proto(package)` changes its package. `diff` does
 not yet report that, so pin the package with `@proto(package)` when it matters.
