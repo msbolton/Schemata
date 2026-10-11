@@ -14,6 +14,7 @@ import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class ProtoRulesTest {
@@ -555,6 +556,16 @@ class ProtoRulesTest {
             "cyc.alpha.S: the service was removed breaks clients that call /shop.v1.S/…",
             assertIs<Verdict.Breaking>(only(old, new)).message,
         )
+    }
+
+    @Test
+    fun `each side's package assignment is computed once`() {
+        val alone = analysedAll("schema cyc.beta\n\nmodel B { #1 x int32 }\n")
+        val ctx = ChangeContext(analysedAll(cycleAlpha, cycleBeta), alone)
+        assertSame(ctx.protoPackages(Side.OLD), ctx.protoPackages(Side.OLD))
+        assertSame(ctx.protoPackages(Side.NEW), ctx.protoPackages(Side.NEW))
+        assertEquals("cyc", ctx.protoPackages(Side.OLD).packageOf("cyc.beta"))
+        assertEquals("cyc.beta", ctx.protoPackages(Side.NEW).packageOf("cyc.beta"))
     }
 
     @Test

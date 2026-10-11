@@ -4,13 +4,10 @@ import io.schemata.core.ir.Builtin
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
-import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.service
-import io.schemata.target.ProtoPackages
-import io.schemata.target.referencesByKey
 
 /**
  * What each kind of [Change] means for a Protobuf consumer reading data under the old schema, and
@@ -69,7 +66,7 @@ object ProtoRules : Rulebook {
             is ServiceRemoved ->
                 Verdict.Breaking(
                     "${change.path}: the service was removed breaks clients that call " +
-                        "${servicePath(ctx.old, change.service, ctx)}/…",
+                        "${servicePath(Side.OLD, change.service, ctx)}/…",
                     "deprecate its operations and keep the service until no client calls it",
                 )
             is OperationAdded -> Verdict.Compatible
@@ -103,7 +100,7 @@ object ProtoRules : Rulebook {
             service != null ->
                 Verdict.Breaking(
                     "${change.path}: the schema was removed breaks clients that call " +
-                        "${servicePath(ctx.old, service, ctx)}/…",
+                        "${servicePath(Side.OLD, service, ctx)}/…",
                     "keep the schema's services until no client calls them",
                 )
             ctx.declarationsOf(Side.OLD, change.path).isEmpty() -> Verdict.Compatible
@@ -309,16 +306,16 @@ object ProtoRules : Rulebook {
                     "keep @proto(name) stable once published",
                 )
             is ServiceOwner -> {
-                val from = servicePath(ctx.old, (change.oldOwner as ServiceOwner).service, ctx)
-                val to = servicePath(ctx.new, change.newOwner.service, ctx)
+                val from = servicePath(Side.OLD, (change.oldOwner as ServiceOwner).service, ctx)
+                val to = servicePath(Side.NEW, change.newOwner.service, ctx)
                 Verdict.Breaking(
                     "${change.path}: the service's rpc paths change from $from/* to $to/*",
                     "pin the service name with @proto(name: \"$fromName\")",
                 )
             }
             is OperationOwner -> {
-                val from = rpcPath(ctx.old, change.oldOwner as OperationOwner, ctx)
-                val to = rpcPath(ctx.new, change.newOwner, ctx)
+                val from = rpcPath(Side.OLD, change.oldOwner as OperationOwner, ctx)
+                val to = rpcPath(Side.NEW, change.newOwner, ctx)
                 Verdict.Breaking(
                     "${change.path}: the rpc path changes from $from to $to",
                     "pin the rpc name with @proto(name: \"$fromName\")",
@@ -339,8 +336,8 @@ object ProtoRules : Rulebook {
         val fromName = ctx.emittedName(target, OperationOwner(oldService, change.from))
         val toName = ctx.emittedName(target, OperationOwner(change.service, change.to))
         if (fromName == toName) return Verdict.Compatible
-        val from = rpcPath(ctx.old, OperationOwner(oldService, change.from), ctx)
-        val to = rpcPath(ctx.new, OperationOwner(change.service, change.to), ctx)
+        val from = rpcPath(Side.OLD, OperationOwner(oldService, change.from), ctx)
+        val to = rpcPath(Side.NEW, OperationOwner(change.service, change.to), ctx)
         return Verdict.Breaking(
             "${change.path}: the operation was renamed, so its rpc path changes from $from to $to",
             "pin the rpc name with @proto(name: \"$fromName\")",
@@ -358,7 +355,7 @@ object ProtoRules : Rulebook {
         val help = "deprecate the operation and keep it until no client calls it"
         return Verdict.Breaking(
             "${change.path}: the rpc was removed breaks clients that call " +
-                rpcPath(ctx.old, OperationOwner(change.service, op), ctx),
+                rpcPath(Side.OLD, OperationOwner(change.service, op), ctx),
             if (nameReserved) help
             else "$help; reserve \"${op.name}\" so its rpc name is not reused",
         )
@@ -391,14 +388,14 @@ object ProtoRules : Rulebook {
             )
     }
 
-    /** `/<package>.<Service>/<Rpc>`, the gRPC method path of [owner] as it stands in [schema]. */
-    private fun rpcPath(schema: Schema, owner: OperationOwner, ctx: ChangeContext): String =
-        "${servicePath(schema, owner.service, ctx)}/${ctx.emittedName(target, owner)}"
+    /** `/<package>.<Service>/<Rpc>`, the gRPC method path of [owner] as it stands on [side]. */
+    private fun rpcPath(side: Side, owner: OperationOwner, ctx: ChangeContext): String =
+        "${servicePath(side, owner.service, ctx)}/${ctx.emittedName(target, owner)}"
 
     /** `/<package>.<Service>`, the part of a method path every rpc of [service] shares. */
-    private fun servicePath(schema: Schema, service: Service, ctx: ChangeContext): String =
+    private fun servicePath(side: Side, service: Service, ctx: ChangeContext): String =
         // A method path carries the package of the proto file the service is written to; schemas in
         // a reference cycle share one file, so the target's own assignment decides it.
-        "/${ProtoPackages.of(schema.referencesByKey()).packageOf(service.qualifiedName.namespace)}." +
+        "/${ctx.protoPackages(side).packageOf(service.qualifiedName.namespace)}." +
             ctx.emittedName(target, ServiceOwner(service))
 }
