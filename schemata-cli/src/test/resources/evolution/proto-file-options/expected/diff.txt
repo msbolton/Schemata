@@ -1,0 +1,34 @@
+s
+  @proto(java_package) changed    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  @proto(java_multiple_files) changed    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  @proto(go_package) added    proto: note, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+3 changes
+proto: 0 breaking, 3 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+warning[SCH2502] (lossy): proto: s: the go_package option changed moves the generated Go code; clients compiled against it must change
+ --> new/s.schemata:1:1
+  |
+1 | schema s @proto(java_package: "com.example.shop", java_multiple_files: false, go_package: "example.com/s")
+  | ^^^^^^^^
+  = help: avoid changing @proto(go_package) once published
+
+warning[SCH2502] (lossy): proto: s: the java_multiple_files option changed moves the generated Java code; clients compiled against it must change
+ --> new/s.schemata:1:1
+  |
+1 | schema s @proto(java_package: "com.example.shop", java_multiple_files: false, go_package: "example.com/s")
+  | ^^^^^^^^
+  = help: avoid changing @proto(java_multiple_files) once published
+
+warning[SCH2502] (lossy): proto: s: the java_package option changed moves the generated Java code; clients compiled against it must change
+ --> new/s.schemata:1:1
+  |
+1 | schema s @proto(java_package: "com.example.shop", java_multiple_files: false, go_package: "example.com/s")
+  | ^^^^^^^^
+  = help: avoid changing @proto(java_package) once published
+
+0 errors, 3 warnings
