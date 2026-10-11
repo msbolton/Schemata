@@ -109,6 +109,12 @@ private const val ALPHA = "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b
 
 private const val BETA = "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n"
 
+private const val NIEM =
+    "schema niem_core\n\nimport vnd_work_orders as vnd\n\nmodel Task { #1 sub vnd.Task? }\n"
+
+private const val VND =
+    "schema vnd_work_orders\n\nimport niem_core as niem\n\nmodel Task { #1 parent niem.Task? }\n"
+
 class ProtoLoweringTest {
     private fun at(line: Int) = Span("orders.schemata", line, 3, line, 20)
 
@@ -1832,6 +1838,238 @@ class ProtoLoweringTest {
             lowered.model.files.map { it.imports },
         )
         assertEquals(emptyList(), lowered.codes().filter { "reference each other" in it })
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a name two members of a cycle declare is prefixed in the later member`() {
+        val lowered = lower(NIEM, VND)
+        val file = lowered.file("niem_core.proto")
+        assertEquals(listOf("Task", "VndWorkOrdersTask"), file.declarations.map { it.name })
+        assertEquals(
+            "vnd_work_orders.schemata:5 SCH2001 model 'vnd_work_orders.Task': proto name 'Task' " +
+                "is also used by model 'niem_core.Task'; written as 'VndWorkOrdersTask'",
+            lowered.located().last(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on one of them to choose the name",
+            lowered.diagnostics.last().help,
+        )
+        assertEquals(emptyList(), lowered.codes().filter { it.startsWith("SCH2004") })
+    }
+
+    @Test
+    fun `references from any file spell the renamed declaration`() {
+        val lowered =
+            lower(
+                NIEM,
+                VND,
+                "schema other\n\nimport vnd_work_orders as vnd\n\nmodel O { #1 t vnd.Task }\n",
+            )
+        val merged = lowered.file("niem_core.proto")
+        assertEquals(
+            ProtoType.Named("VndWorkOrdersTask"),
+            message(merged, "Task").fields.single().type,
+        )
+        assertEquals(
+            ProtoType.Named("Task"),
+            message(merged, "VndWorkOrdersTask").fields.single().type,
+        )
+        val other = lowered.file("other.proto")
+        assertEquals(listOf("niem_core.proto"), other.imports)
+        assertEquals(
+            ProtoType.Named(".niem_core.VndWorkOrdersTask"),
+            message(other, "O").fields.single().type,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a renamed enum prefixes its values with its new name`() {
+        val lowered =
+            lower(
+                "schema niem_core\n" +
+                    "\n" +
+                    "import vnd_work_orders as vnd\n" +
+                    "\n" +
+                    "enum Status { #1 open }\n" +
+                    "\n" +
+                    "model Task { #1 status vnd.Status }\n",
+                "schema vnd_work_orders\n" +
+                    "\n" +
+                    "import niem_core as niem\n" +
+                    "\n" +
+                    "enum Status { #1 open }\n" +
+                    "\n" +
+                    "model Job { #1 task niem.Task? }\n",
+            )
+        val file = lowered.file("niem_core.proto")
+        val renamed = file.declarations.first { it.name == "VndWorkOrdersStatus" } as ProtoEnum
+        assertEquals(
+            listOf("VND_WORK_ORDERS_STATUS_UNSPECIFIED", "VND_WORK_ORDERS_STATUS_OPEN"),
+            renamed.values.map { it.name },
+        )
+        assertEquals(
+            ProtoType.Named("VndWorkOrdersStatus"),
+            message(file, "Task").fields.single().type,
+        )
+        assertEquals(emptyList(), lowered.codes().filter { it.startsWith("SCH2004") })
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a union member named for a renamed model takes the new stem`() {
+        val lowered =
+            lower(
+                "schema niem_core\n" +
+                    "\n" +
+                    "import vnd_work_orders as vnd\n" +
+                    "\n" +
+                    "model Task { #1 x int32 }\n" +
+                    "\n" +
+                    "union Work = Task | vnd.Task\n",
+                "schema vnd_work_orders\n" +
+                    "\n" +
+                    "import niem_core as niem\n" +
+                    "\n" +
+                    "model Task { #1 work niem.Work? }\n",
+            )
+        val work = message(lowered.file("niem_core.proto"), "Work")
+        assertEquals(
+            listOf(
+                "task" to ProtoType.Named("Task"),
+                "vnd_work_orders_task" to ProtoType.Named("VndWorkOrdersTask"),
+            ),
+            work.oneofs.single().fields.map { it.name to it.type },
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a declared proto name is never renamed`() {
+        val overridden =
+            lower(
+                "schema cyc.alpha\n\nimport cyc.beta\n\nmodel Task { #1 j Job? }\n",
+                "schema cyc.beta\n" +
+                    "\n" +
+                    "import cyc.alpha as alpha\n" +
+                    "\n" +
+                    "@proto(name: \"Task\")\n" +
+                    "model Job { #1 t alpha.Task? }\n",
+            )
+        assertEquals(
+            listOf("CycAlphaTask", "Task"),
+            overridden.file("cyc.proto").declarations.map { it.name },
+        )
+        assertEquals(
+            "cyc.alpha.schemata:5 SCH2001 model 'cyc.alpha.Task': proto name 'Task' " +
+                "is also used by model 'cyc.beta.Job'; written as 'CycAlphaTask'",
+            overridden.located().last(),
+        )
+        assertNull(overridden.protocErrors())
+        val service =
+            lower(
+                "schema cyc.alpha\n\nimport cyc.beta\n\nmodel Task { #1 b B? }\n",
+                BETA.replace("import cyc.alpha", "import cyc.alpha as alpha")
+                    .replace("A?", "alpha.Task?") + "\nservice Task {\n  #1 get(B): B\n}\n",
+            )
+        val file = service.file("cyc.proto")
+        assertEquals(listOf("CycAlphaTask", "B"), file.declarations.map { it.name })
+        assertEquals(listOf("Task"), file.services.map { it.name })
+        assertEquals(
+            "cyc.alpha.schemata:5 SCH2001 model 'cyc.alpha.Task': proto name 'Task' " +
+                "is also used by service 'cyc.beta.Task'; written as 'CycAlphaTask'",
+            service.located().last(),
+        )
+        assertNull(service.protocErrors())
+    }
+
+    @Test
+    fun `two declared proto names that collide are still a name collision`() {
+        val lowered =
+            lower(
+                "schema cyc.alpha\n\nimport cyc.beta\n\n@proto(name: \"Same\")\nmodel A { #1 b B? }\n",
+                "schema cyc.beta\n\nimport cyc.alpha\n\n@proto(name: \"Same\")\nmodel B { #1 a A? }\n",
+            )
+        assertEquals(
+            listOf(
+                "cyc.beta.schemata:6 SCH2004 proto name 'Same' is already used by model 'A' (cyc.alpha.schemata:6)"
+            ),
+            lowered.located().filter { "reference each other" !in it },
+        )
+    }
+
+    @Test
+    fun `a collision within one member is not renamed`() {
+        val lowered =
+            lower(
+                "schema cyc.alpha\n" +
+                    "\n" +
+                    "import cyc.beta\n" +
+                    "\n" +
+                    "model A { #1 b B? }\n" +
+                    "\n" +
+                    "@proto(name: \"A\")\n" +
+                    "model Twin { #1 x int32 }\n",
+                BETA,
+            )
+        assertEquals(
+            listOf("SCH2004 proto name 'A' is already used by model 'A' (cyc.alpha.schemata:5)"),
+            lowered.codes().filter { "reference each other" !in it },
+        )
+    }
+
+    @Test
+    fun `a rename that would collide again stays a name collision`() {
+        val lowered =
+            lower(
+                NIEM.replace(
+                    "vnd.Task? }",
+                    "vnd.Task? }\n\nmodel VndWorkOrdersTask { #1 x int32 }",
+                ),
+                VND,
+            )
+        assertEquals(
+            listOf(
+                "vnd_work_orders.schemata:5 SCH2004 proto name 'Task' is already used by model 'Task' (niem_core.schemata:5)"
+            ),
+            lowered.located().filter { "reference each other" !in it },
+        )
+    }
+
+    @Test
+    fun `the renamed file compiles under protoc`() {
+        val lowered =
+            lower(
+                "schema niem_core\n" +
+                    "\n" +
+                    "import vnd_work_orders as vnd\n" +
+                    "\n" +
+                    "enum Status { #1 open }\n" +
+                    "\n" +
+                    "model Task { #1 sub vnd.Task?  #2 status vnd.Status  #3 work Work }\n" +
+                    "\n" +
+                    "union Work = Task | vnd.Task\n" +
+                    "\n" +
+                    "service Tasks {\n  #1 get(vnd.Task): Task\n}\n",
+                "schema vnd_work_orders\n" +
+                    "\n" +
+                    "import niem_core as niem\n" +
+                    "\n" +
+                    "enum Status { #1 open  #2 closed }\n" +
+                    "\n" +
+                    "model Task { #1 parent niem.Task?  #2 status Status }\n" +
+                    "\n" +
+                    "service Jobs {\n  #1 get(niem.Task): Task\n}\n",
+                "schema other\n\nimport vnd_work_orders as vnd\n\nmodel O { #1 t vnd.Task  #2 s vnd.Status }\n",
+            )
+        assertEquals(
+            listOf("VndWorkOrdersStatus", "VndWorkOrdersTask"),
+            lowered
+                .codes()
+                .filter { "; written as '" in it }
+                .map { it.substringAfter("written as '").removeSuffix("'") },
+        )
         assertNull(lowered.protocErrors())
     }
 }
