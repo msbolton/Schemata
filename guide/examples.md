@@ -783,19 +783,23 @@ model Money {
 ```
 
 The field numbers are the ordinals and the comments are the docs. The `option` lines steer code
-generation in other languages and say nothing about the data, so they are ignored without a
-warning, and the license header, separated from the message by a blank line, is not a doc. The
-corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it: importing the
-directory holding `google/` instead finds two files under one root that declare
+generation in other languages and say nothing about the data, but the language ones are kept as
+`@proto` keys on the schema line, and compile back to the same `option` lines. The golden holds the
+keys both files agree on, `java_package`, `java_multiple_files` and `objc_class_prefix`, and drops
+`java_outer_classname` and `go_package`, which `date.proto` and `money.proto` spell differently,
+with SCH2405 for `money.proto`. The license header, separated from the message by a blank line, is
+not a doc. The corpus golden quoted here also holds `Date`, from `google/type/date.proto` beside it:
+importing the directory holding `google/` instead finds two files under one root that declare
 `package google.type`, which `protoc` reads as one package, so they import as one schema,
 `google.type`, in one file. Had `money.proto` been the only file there, it would have taken its path
 under that directory, `google.type.money`, and kept its package as
 `@proto(package: "google.type")`.
 
-Nothing here needed a warning because every type in `Money` is one Schemata has. A `uint32`, a
-`google.protobuf.StringValue`, or a `oneof` mixed with other fields would each be reported, and
-section 19 of the reference lists what each construct becomes. Compiling the result under the
-proto target gives `message Money` back with the same fields, numbers, and comments.
+Apart from those two options, nothing here needed a warning because every type in `Money` is one
+Schemata has. A `uint32`, a `google.protobuf.StringValue`, or a `oneof` mixed with other fields
+would each be reported, and section 19 of the reference lists what each construct becomes.
+Compiling the result under the proto target gives `message Money` back with the same fields,
+numbers, and comments.
 
 ## importing envoy
 
