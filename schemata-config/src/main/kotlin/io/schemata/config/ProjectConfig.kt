@@ -66,14 +66,25 @@ data class ProjectConfig(
         get() = sources?.paths?.value?.map { directory.resolve(it).normalize() } ?: emptyList()
 
     private val excludeMatchers: List<PathMatcher> by lazy {
-        val fileSystem = FileSystems.getDefault()
-        sources?.exclude?.value?.map { fileSystem.getPathMatcher("glob:$it") } ?: emptyList()
+        sources?.exclude?.value?.mapNotNull { globMatcher(it) } ?: emptyList()
     }
 
-    /** A matcher for every [SourcesSettings.exclude] glob, relative to [directory]. */
+    /**
+     * A matcher for every [SourcesSettings.exclude] glob, relative to [directory]. [ConfigLoader]
+     * rejects an invalid glob; one that reaches here anyway matches nothing rather than throwing.
+     */
     fun excluded(file: Path): Boolean {
         if (excludeMatchers.isEmpty()) return false
         val relative = directory.relativize(file.toAbsolutePath().normalize())
         return excludeMatchers.any { it.matches(relative) }
     }
 }
+
+/** A `glob:` matcher on the default file system, or null when [glob] is not valid glob syntax. */
+internal fun globMatcher(glob: String): PathMatcher? =
+    try {
+        FileSystems.getDefault().getPathMatcher("glob:$glob")
+    } catch (e: IllegalArgumentException) {
+        // PatternSyntaxException is an IllegalArgumentException.
+        null
+    }
