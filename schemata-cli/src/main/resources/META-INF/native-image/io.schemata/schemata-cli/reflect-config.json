@@ -3,6 +3,7 @@
   {"name": "io.schemata.lsp.server.ConvertKt$WhenMappings", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "io.schemata.lsp.server.SchemataServer", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "io.schemata.lsp.server.SchemataServer$Companion", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
+  {"name": "io.schemata.lsp.server.SchemataServer$readProjectFile$2", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "io.schemata.lsp.server.Uris", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "org.eclipse.lsp4j.AbstractTextDocumentRegistrationAndWorkDoneProgressOptions", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "org.eclipse.lsp4j.AbstractWorkDoneProgressOptions", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
