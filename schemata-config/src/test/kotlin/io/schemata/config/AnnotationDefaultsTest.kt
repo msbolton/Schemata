@@ -213,10 +213,13 @@ class AnnotationDefaultsTest {
                 """
                 [proto]
                 go_package = "example.com/{package}"
+                java_package = "com.example.{schema}"
                 package = "{schema_}.v1"
                 """
                     .trimIndent(),
                 ORDERS,
+                ALPHA,
+                BETA,
             )
         assertEquals(
             AnnotationValue.Str("shop_orders.v1"),
@@ -225,6 +228,34 @@ class AnnotationDefaultsTest {
         assertEquals(
             AnnotationValue.Str("example.com/shop_orders.v1"),
             schema.value("shop.orders", "proto", "go_package"),
+        )
+        for (member in listOf("cyc.alpha", "cyc.beta")) {
+            assertEquals(
+                AnnotationValue.Str("example.com/cyc_alpha.v1"),
+                schema.value(member, "proto", "go_package"),
+            )
+            assertEquals(
+                AnnotationValue.Str("com.example.cyc.alpha"),
+                schema.value(member, "proto", "java_package"),
+            )
+        }
+    }
+
+    @Test
+    fun `a package template over a cycle gives every member one package`() {
+        val schema = applied("[proto]\npackage = \"{schema_}.v1\"\n", ALPHA, BETA)
+        for (member in listOf("cyc.alpha", "cyc.beta")) {
+            assertEquals(
+                AnnotationValue.Str("cyc_alpha.v1"),
+                schema.value(member, "proto", "package"),
+            )
+        }
+        assertEquals(
+            emptyList(),
+            ProtoTarget.lower(schema)
+                .diagnostics
+                .filter { it.code.id == "SCH2007" }
+                .map { "${it.code.id} ${it.message}" },
         )
     }
 

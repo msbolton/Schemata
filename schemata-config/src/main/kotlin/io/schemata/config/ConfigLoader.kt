@@ -259,13 +259,16 @@ private class Validator(
         val exclude = table.setting<List<String>>("exclude")
         exclude
             ?.value
-            ?.filter { globMatcher(it) == null }
+            // In a glob `\` escapes the next character on every platform, so a Windows-style
+            // `schemas\drafts\**` would match no nested path and exclude nothing without a word.
+            ?.filter { '\\' in it || globMatcher(it) == null }
             ?.forEach { glob ->
                 report(
                     ConfigCodes.BAD_VALUE,
                     exclude.line,
                     "sources.exclude holds an invalid glob '$glob'",
-                    "globs use the syntax of java.nio.file.PathMatcher, for example \"schemas/drafts/**\"",
+                    "globs use / as the separator and the syntax of java.nio.file.PathMatcher, " +
+                        "for example \"schemas/drafts/**\"",
                 )
             }
         return SourcesSettings(paths, exclude)
