@@ -63,7 +63,7 @@ class ImportCommandTest {
     fun `writes a schemata file per namespace and exits 0`() {
         write("s.xsd", clean)
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
+        val r = ImportCommand().test("--no-config --from xsd --out ${out.path} ${dir.path}")
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/s.schemata").isFile)
         assertTrue(r.stderr.contains("wrote 1 file to ${out.path}/import"), r.stderr)
@@ -73,7 +73,7 @@ class ImportCommandTest {
     fun `a lossy warning exits 2 and still writes`() {
         write("s.xsd", withDropped)
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
+        val r = ImportCommand().test("--no-config --from xsd --out ${out.path} ${dir.path}")
         assertEquals(2, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("warning[SCH2405]"), r.stderr)
         assertTrue(out.resolve("import/s.schemata").isFile)
@@ -83,7 +83,8 @@ class ImportCommandTest {
     fun `--strict promotes the warning to an error and writes nothing`() {
         write("s.xsd", withDropped)
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from xsd --strict --out ${out.path} ${dir.path}")
+        val r =
+            ImportCommand().test("--no-config --from xsd --strict --out ${out.path} ${dir.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("[promoted]"), r.stderr)
         assertFalse(out.exists(), r.stderr)
@@ -93,7 +94,7 @@ class ImportCommandTest {
     fun `an import found nowhere warns and exits 2`() {
         write("s.xsd", unresolvedImport)
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
+        val r = ImportCommand().test("--no-config --from xsd --out ${out.path} ${dir.path}")
         assertEquals(2, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("warning[SCH2405]"), r.stderr)
     }
@@ -102,11 +103,14 @@ class ImportCommandTest {
     fun `--namespace renames a single input file and drops the derived-name note`() {
         write("s.xsd", tracksNamespace)
         val out = File(dir, "out")
-        val withoutFlag = ImportCommand().test("--from xsd --out ${out.path} ${dir.path}")
+        val withoutFlag =
+            ImportCommand().test("--no-config --from xsd --out ${out.path} ${dir.path}")
         assertEquals(2, withoutFlag.statusCode, withoutFlag.stderr)
         assertTrue(withoutFlag.stderr.contains("warning[SCH2402]"), withoutFlag.stderr)
 
-        val r = ImportCommand().test("--from xsd --namespace tracks --out ${out.path} ${dir.path}")
+        val r =
+            ImportCommand()
+                .test("--no-config --from xsd --namespace tracks --out ${out.path} ${dir.path}")
         assertEquals(0, r.statusCode, r.stderr)
         assertFalse(r.stderr.contains("SCH2402"), r.stderr)
         val written = out.resolve("import/tracks.schemata")
@@ -118,7 +122,7 @@ class ImportCommandTest {
     fun `--namespace with two files is a usage error`() {
         write("a.xsd", clean)
         write("b.xsd", clean.replace("ThingType", "OtherType"))
-        val r = ImportCommand().test("--from xsd --namespace tracks ${dir.path}")
+        val r = ImportCommand().test("--no-config --from xsd --namespace tracks ${dir.path}")
         assertEquals(1, r.statusCode)
         assertTrue(r.stderr.contains("--namespace applies to a single input file"), r.stderr)
     }
@@ -127,7 +131,9 @@ class ImportCommandTest {
     fun `--format json prints the written path`() {
         write("s.xsd", clean)
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from xsd --format json --out ${out.path} ${dir.path}")
+        val r =
+            ImportCommand()
+                .test("--no-config --from xsd --format json --out ${out.path} ${dir.path}")
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(r.stdout.contains("\"path\":\"${out.path}/import/s.schemata\""), r.stdout)
     }
@@ -138,7 +144,8 @@ class ImportCommandTest {
         listOf("Tracks", "tracks-1", "a..b", "1tracks", "shop.import").forEach { bad ->
             val out = File(dir, "out")
             val r =
-                ImportCommand().test("--from xsd --namespace $bad --out ${out.path} ${dir.path}")
+                ImportCommand()
+                    .test("--no-config --from xsd --namespace $bad --out ${out.path} ${dir.path}")
             assertEquals(1, r.statusCode, bad)
             assertTrue(
                 r.stderr.contains("--namespace must be dotted lower-snake segments"),
@@ -149,7 +156,9 @@ class ImportCommandTest {
         val okOut = File(dir, "ok")
         val ok =
             ImportCommand()
-                .test("--from xsd --namespace shop.tracks_1 --out ${okOut.path} ${dir.path}")
+                .test(
+                    "--no-config --from xsd --namespace shop.tracks_1 --out ${okOut.path} ${dir.path}"
+                )
         assertEquals(0, ok.statusCode, ok.stderr)
         assertTrue(okOut.resolve("import/shop/tracks_1.schemata").isFile, ok.stderr)
     }
@@ -172,7 +181,7 @@ class ImportCommandTest {
                 .trimIndent(),
         )
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from proto --out ${out.path} ${dir.path}/src")
+        val r = ImportCommand().test("--no-config --from proto --out ${out.path} ${dir.path}/src")
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/shop/customers.schemata").isFile, r.stderr)
         val orders = out.resolve("import/shop/orders.schemata").readText()
@@ -185,7 +194,7 @@ class ImportCommandTest {
         val money =
             write("money.proto", "syntax = \"proto3\";\npackage google.type;\nmessage Money {}\n")
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from proto --out ${out.path} ${money.path}")
+        val r = ImportCommand().test("--no-config --from proto --out ${out.path} ${money.path}")
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/google/type.schemata").isFile, r.stderr)
     }
@@ -209,7 +218,7 @@ class ImportCommandTest {
                 .trimIndent(),
         )
         val out = File(dir, "out")
-        val r = ImportCommand().test("--from sql --out ${out.path} ${dir.path}/src")
+        val r = ImportCommand().test("--no-config --from sql --out ${out.path} ${dir.path}/src")
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/shop/customers.schemata").isFile, r.stderr)
         val orders = out.resolve("import/shop/orders.schemata").readText()
@@ -220,7 +229,9 @@ class ImportCommandTest {
     @Test
     fun `--from sql on a directory with no sql files is a usage error`() {
         write("s.xsd", clean)
-        val r = ImportCommand().test("--from sql --out ${File(dir, "out").path} ${dir.path}")
+        val r =
+            ImportCommand()
+                .test("--no-config --from sql --out ${File(dir, "out").path} ${dir.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("no .sql files found under"), r.stderr)
     }
@@ -228,7 +239,9 @@ class ImportCommandTest {
     @Test
     fun `--from proto on a directory with no proto files is a usage error`() {
         write("s.xsd", clean)
-        val r = ImportCommand().test("--from proto --out ${File(dir, "out").path} ${dir.path}")
+        val r =
+            ImportCommand()
+                .test("--no-config --from proto --out ${File(dir, "out").path} ${dir.path}")
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("no .proto files found under"), r.stderr)
     }
@@ -255,7 +268,9 @@ class ImportCommandTest {
         val out = File(dir, "out")
         val r =
             ImportCommand()
-                .test("--from proto --include ${dir.path}/inc --out ${out.path} ${dir.path}/src")
+                .test(
+                    "--no-config --from proto --include ${dir.path}/inc --out ${out.path} ${dir.path}/src"
+                )
         assertEquals(0, r.statusCode, r.stderr)
         assertTrue(out.resolve("import/shop/orders.schemata").isFile, r.stderr)
         assertTrue(out.resolve("import/google/rpc/status.schemata").isFile, r.stderr)
@@ -264,7 +279,9 @@ class ImportCommandTest {
         val again = File(dir, "out2")
         val r2 =
             ImportCommand()
-                .test("--from proto --include ${dir.path}/inc --out ${again.path} ${dir.path}/src")
+                .test(
+                    "--no-config --from proto --include ${dir.path}/inc --out ${again.path} ${dir.path}/src"
+                )
         assertEquals(0, r2.statusCode, r2.stderr)
         assertTrue(again.resolve("import/shop/orders.schemata").isFile, r2.stderr)
         assertFalse(again.resolve("import/google/rpc/status.schemata").exists(), r2.stderr)
@@ -276,7 +293,7 @@ class ImportCommandTest {
         val r =
             ImportCommand()
                 .test(
-                    "--from proto --include ${dir.path}/inc/google/rpc/status.proto " +
+                    "--no-config --from proto --include ${dir.path}/inc/google/rpc/status.proto " +
                         "--out ${File(dir, "out").path} ${dir.path}/src"
                 )
         assertEquals(1, r.statusCode, r.stderr)
@@ -291,10 +308,65 @@ class ImportCommandTest {
             val r =
                 ImportCommand()
                     .test(
-                        "--from $from --include ${dir.path}/inc --out ${File(dir, "out").path} ${dir.path}"
+                        "--no-config --from $from --include ${dir.path}/inc --out ${File(dir, "out").path} ${dir.path}"
                     )
             assertEquals(1, r.statusCode, r.stderr)
             assertTrue(r.stderr.contains("--include applies to --from proto"), r.stderr)
         }
+    }
+
+    @Test
+    fun `from and namespace come from the file when the flags are absent`() {
+        val xsd = write("s.xsd", tracksNamespace)
+        val toml =
+            File(dir, "config")
+                .apply { mkdirs() }
+                .resolve("schemata.toml")
+                .apply { writeText("[import]\nfrom = \"xsd\"\nnamespace = \"tracks\"\n") }
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--config ${toml.path} --out ${out.path} ${xsd.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertFalse(r.stderr.contains("SCH2402"), r.stderr)
+        assertTrue(out.resolve("import/tracks.schemata").readText().contains("schema tracks"))
+        // A flag still beats the file.
+        val flagged =
+            ImportCommand()
+                .test("--config ${toml.path} --namespace other --out ${out.path} ${xsd.path}")
+        assertEquals(0, flagged.statusCode, flagged.stderr)
+        assertTrue(out.resolve("import/other.schemata").isFile, flagged.stderr)
+    }
+
+    @Test
+    fun `--from is required when the file names no from`() {
+        val xsd = write("s.xsd", clean)
+        val r = ImportCommand().test("--no-config ${xsd.path}")
+        assertEquals(1, r.statusCode)
+        assertTrue(
+            r.stderr.contains("--from is required when no [import].from is configured"),
+            r.stderr,
+        )
+    }
+
+    @Test
+    fun `a configured namespace is ignored for several inputs`() {
+        val inputs = File(dir, "xsd").apply { mkdirs() }
+        File(inputs, "s.xsd").writeText(clean)
+        File(inputs, "t.xsd").writeText(clean.replace("urn:schemata:s", "urn:schemata:t"))
+        val toml =
+            File(dir, "config")
+                .apply { mkdirs() }
+                .resolve("schemata.toml")
+                .apply { writeText("[import]\nfrom = \"xsd\"\nnamespace = \"tracks\"\n") }
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--config ${toml.path} --out ${out.path} ${inputs.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/s.schemata").isFile, r.stderr)
+        assertTrue(out.resolve("import/t.schemata").isFile, r.stderr)
+        assertFalse(out.resolve("import/tracks.schemata").exists(), r.stderr)
+        // The flag on the same run is still refused.
+        val flagged =
+            ImportCommand().test("--config ${toml.path} --namespace tracks ${inputs.path}")
+        assertEquals(1, flagged.statusCode)
+        assertTrue(flagged.stderr.contains("--namespace applies to a single input file"))
     }
 }

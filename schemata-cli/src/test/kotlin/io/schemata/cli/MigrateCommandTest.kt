@@ -33,7 +33,9 @@ class MigrateCommandTest {
         File(dir, "old").apply { mkdirs() }.resolve("s.schemata").writeText(oldText)
         File(dir, "new").apply { mkdirs() }.resolve("s.schemata").writeText(newText)
         val out = File(dir, "out")
-        val args = listOf("--out", out.path) + flags + listOf("$dir/old", "$dir/new")
+        // A run that names no configuration file must not pick up a stray one above the tests.
+        val config = if ("--config" in flags) emptyList() else listOf("--no-config")
+        val args = config + listOf("--out", out.path) + flags + listOf("$dir/old", "$dir/new")
         val r = MigrateCommand().test(args.joinToString(" "))
         return Run(r.statusCode, r.stdout, r.stderr, out)
     }
@@ -219,5 +221,26 @@ class MigrateCommandTest {
         assertTrue(json.contains("\"code\":\"SCH2106\""), json)
         val errors = json.lines().single { it.trimStart().startsWith("\"errors\"") }
         assertEquals(1, Regex("\"code\":").findAll(errors).count(), errors)
+    }
+
+    @Test
+    fun `allow_destructive from the file writes the step`() {
+        val toml =
+            File(dir, "schemata.toml").apply { writeText("[migrate]\nallow_destructive = true\n") }
+        val new = old.replace("  #3 note string?\n", "")
+        val run = migrate(old, new, "--config", toml.path)
+        assertEquals(2, run.exitCode, run.stderr)
+        assertTrue(run.stderr.contains("warning[SCH2701]"), run.stderr)
+        assertTrue(run.file("migrate/s.sql").contains("DROP COLUMN \"note\""))
+    }
+
+    @Test
+    fun `strict from the file promotes a may-fail step`() {
+        val toml = File(dir, "schemata.toml").apply { writeText("[compile]\nstrict = true\n") }
+        val new = old.replace("#3 note string?", "#3 note string")
+        val run = migrate(old, new, "--config", toml.path)
+        assertEquals(1, run.exitCode, run.stderr)
+        assertTrue(run.stderr.contains("[promoted]"), run.stderr)
+        assertNull(run.fileOrNull("migrate/s.sql"))
     }
 }

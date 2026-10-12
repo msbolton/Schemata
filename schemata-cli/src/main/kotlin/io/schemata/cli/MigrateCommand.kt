@@ -12,7 +12,6 @@ import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.MigrateRenderer
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Skipped
-import io.schemata.cli.report.Sources
 import io.schemata.cli.report.Written
 import io.schemata.core.ir.Schema
 import io.schemata.evolution.Comparison
@@ -37,7 +36,7 @@ class MigrateCommand : CliktCommand(name = "migrate") {
             .path(canBeFile = false)
             .default(Path("out"))
 
-    private val allowDestructive by
+    private val allowDestructiveFlag by
         option(
                 "--allow-destructive",
                 help = "Write steps that lose data, reporting each as a warning",
@@ -46,37 +45,45 @@ class MigrateCommand : CliktCommand(name = "migrate") {
 
     private val reporting by ReportingOptions()
 
+    private val configuration by ConfigOptions()
+
     private val old by argument("OLD").path(mustExist = true)
 
     private val new by argument("NEW").path(mustExist = true)
 
     override fun run() {
+        val config = configuration.resolve(this, reporting)
+        val style = reporting.resolve(config)
+        val strict = compileStrict(reporting.strict, config)
+        // Like --strict, the file can turn this on but never off.
+        val allowDestructive =
+            allowDestructiveFlag || config?.migrate?.allowDestructive?.value == true
         val oldSources = loadSources(listOf(old))
         val newSources = loadSources(listOf(new))
-        val oldAnalyzed = analyzeSide(oldSources)
-        val newAnalyzed = analyzeSide(newSources)
-        val sources = Sources.of(newSources + oldSources)
+        val oldAnalyzed = analyzeSide(oldSources, config)
+        val newAnalyzed = analyzeSide(newSources, config)
+        val sources = reportSources(newSources + oldSources, config)
         val failures = cannotDiff(oldAnalyzed, newAnalyzed)
         if (failures.isNotEmpty()) {
-            val report = Report.of(failures, emptyList(), emptyList(), strict = reporting.strict)
-            if (reporting.format == Format.JSON) {
+            val report = Report.of(failures, emptyList(), emptyList(), strict = strict)
+            if (style.format == Format.JSON) {
                 echo(
                     MigrateRenderer.json(Migrated.EMPTY, report, emptyList(), failures),
                     trailingNewline = false,
                 )
                 throw ProgramResult(report.exitCode)
             }
-            emit(this, report, sources, reporting, out.toString())
+            emit(this, report, sources, style, out.toString())
             return
         }
         val migrated = migrate(oldAnalyzed.schema!!, newAnalyzed.schema!!, allowDestructive)
         val files =
             if (migrated.lowered) MigrationRenderer.files(migrated.migration, allowDestructive)
             else emptyList()
-        val report = migrateReport(migrated, files, reporting.strict)
+        val report = migrateReport(migrated, files, strict)
         val writes = report.written.isNotEmpty()
         if (writes) files.forEach { (path, content) -> writeOutput(out.resolve(path), content) }
-        when (reporting.format) {
+        when (style.format) {
             Format.JSON -> {
                 echo(
                     MigrateRenderer.json(migrated, report, if (writes) files else emptyList()),
@@ -86,7 +93,7 @@ class MigrateCommand : CliktCommand(name = "migrate") {
             }
             Format.HUMAN -> {
                 if (migrated.lowered) echo(MigrateRenderer.steps(migrated.migration), err = true)
-                emit(this, report, sources, reporting, out.toString())
+                emit(this, report, sources, style, out.toString())
             }
         }
     }

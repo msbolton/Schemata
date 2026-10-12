@@ -26,6 +26,7 @@ fun main(args: Array<String>) =
             FmtCommand(),
             UpgradeCommand(),
             TargetsCommand(),
+            ConfigCommand(),
             ImportCommand(),
             DiffCommand(),
             MigrateCommand(),

@@ -9,7 +9,6 @@ import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.groups.provideDelegate
-import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.choice
@@ -19,6 +18,7 @@ import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.JsonRenderer
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
+import io.schemata.config.ProjectConfig
 import io.schemata.target.Target
 import io.schemata.target.proto.ProtoLayout
 import io.schemata.target.proto.ProtoTarget
@@ -42,20 +42,24 @@ class CompileCommand : CliktCommand(name = "compile") {
 
     private val protoLayout by protoLayoutOption()
 
-    private val out by
-        option("--out", help = "Output directory (default: out)")
-            .path(canBeFile = false)
-            .default(Path("out"))
+    private val outFlag by
+        option("--out", help = "Output directory (default: out)").path(canBeFile = false)
 
     private val reporting by ReportingOptions()
 
-    private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
+    private val configuration by ConfigOptions()
+
+    private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
     override fun run() {
-        val targets = withProtoLayout(selectTargets(targetNames), protoLayout)
-        val sources = loadSources(inputs)
-        val result = Pipeline.compile(sources, targets, strict = reporting.strict)
-        val report = Report.of(result, strict = reporting.strict, checkOnly = false)
+        val config = configuration.resolve(this, reporting)
+        val style = reporting.resolve(config)
+        val strict = compileStrict(reporting.strict, config)
+        val targets = compileTargets(targetNames, protoLayout, config)
+        val out = outDirectory(outFlag, config)
+        val sources = loadSources(inputPaths(inputs, config), config)
+        val result = Pipeline.compile(sources, targets, strict, config)
+        val report = Report.of(result, strict = strict, checkOnly = false)
         val written = report.written.map { it.target }.toSet()
         result.targets
             .filter { it.name in written }
@@ -70,7 +74,7 @@ class CompileCommand : CliktCommand(name = "compile") {
                     }
                 }
             }
-        emit(this, report, Sources.of(sources), reporting, out.toString())
+        emit(this, report, reportSources(sources, config), style, out.toString())
     }
 }
 
@@ -110,11 +114,28 @@ internal fun CliktCommand.withProtoLayout(
     return targets.map { if (it.name == ProtoTarget.name) ProtoTarget(chosen) else it }
 }
 
-internal fun CliktCommand.loadSources(inputs: List<Path>): List<SourceInput> {
-    val sources = SourceSet.load(inputs)
-    if (sources.isEmpty())
-        throw usageError("no .schemata files found under: ${inputs.joinToString(", ")}")
-    return sources
+/**
+ * The files [load] finds under [inputs] (the `.schemata` files by default), less those [config]'s
+ * `[sources].exclude` matches. Finding none is a usage error, and so is an exclude that removes
+ * every file found, which names the configuration file instead.
+ */
+internal fun CliktCommand.loadSources(
+    inputs: List<Path>,
+    config: ProjectConfig? = null,
+    extension: String = "schemata",
+    load: (List<Path>) -> List<SourceInput> = SourceSet::load,
+): List<SourceInput> {
+    val found = load(inputs)
+    if (found.isEmpty())
+        throw usageError("no .$extension files found under: ${inputs.joinToString(", ")}")
+    if (config == null) return found
+    val kept = withoutExcluded(found, config)
+    if (kept.isEmpty())
+        throw usageError(
+            "every file under ${inputs.joinToString(", ")} is excluded by [sources].exclude " +
+                "in ${displayPath(config.path)}"
+        )
+    return kept
 }
 
 /**

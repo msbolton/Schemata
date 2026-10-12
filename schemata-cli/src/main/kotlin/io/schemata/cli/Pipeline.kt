@@ -1,5 +1,7 @@
 package io.schemata.cli
 
+import io.schemata.config.AnnotationDefaults
+import io.schemata.config.ProjectConfig
 import io.schemata.core.AnalysisOptions
 import io.schemata.core.Analyzer
 import io.schemata.core.annotations.AnnotationRegistry
@@ -135,8 +137,9 @@ object Pipeline {
         sources: List<SourceInput>,
         selected: List<Target<*>>,
         strict: Boolean = false,
+        config: ProjectConfig? = null,
     ): PipelineResult =
-        run(sources, selected, strict) { target, schema ->
+        run(sources, selected, strict, config) { target, schema ->
             val out = target.compile(schema)
             TargetResult(target.name, out.files, out.diagnostics)
         }
@@ -146,8 +149,9 @@ object Pipeline {
         sources: List<SourceInput>,
         selected: List<Target<*>>,
         strict: Boolean = false,
+        config: ProjectConfig? = null,
     ): PipelineResult =
-        run(sources, selected, strict) { target, schema ->
+        run(sources, selected, strict, config) { target, schema ->
             TargetResult(target.name, emptyList(), target.lower(schema).diagnostics)
         }
 
@@ -155,10 +159,14 @@ object Pipeline {
         sources: List<SourceInput>,
         selected: List<Target<*>>,
         strict: Boolean,
+        config: ProjectConfig?,
         perTarget: (Target<*>, Schema) -> TargetResult,
     ): PipelineResult {
         val analyzed = analyze(sources, strict)
         val schema = analyzed.schema ?: return PipelineResult(analyzed.diagnostics, emptyList())
-        return PipelineResult(analyzed.diagnostics, selected.map { perTarget(it, schema) })
+        // The configuration's target tables become schema-line annotations every target then
+        // reads as if the schema had written them.
+        val configured = config?.let { AnnotationDefaults.apply(schema, it, annotations) } ?: schema
+        return PipelineResult(analyzed.diagnostics, selected.map { perTarget(it, configured) })
     }
 }

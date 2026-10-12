@@ -70,7 +70,7 @@ class FatJarTest {
             jar != null && jar.isFile,
             "shadow jar not built; run ./gradlew :schemata-cli:shadowJar",
         )
-        val (code, out, err) = run("check", "--format", "json", corpus.path)
+        val (code, out, err) = run("check", "--no-config", "--format", "json", corpus.path)
         assertEquals(2, code, err)
         assertEquals("", err)
         assertTrue(out.startsWith("{\n  \"diagnostics\": ["), out)

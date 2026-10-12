@@ -205,6 +205,30 @@ shop/customers/customer.proto
 `order.proto` imports `google/protobuf/timestamp.proto`, `payment.proto` and `status.proto`, and
 `payment.proto` imports the files of its three members.
 
+The layout and the Java options can live in a `schemata.toml` beside the two schema files instead;
+[section 24 of the reference](reference.md#24-project-configuration) describes the file:
+
+```toml
+[compile]
+proto_layout = "type"
+
+[proto]
+java_package = "com.example.{schema}"
+java_multiple_files = true
+```
+
+The file is found from the working directory upward, so compile from the directory that holds it,
+with no flags:
+
+```text
+cd examples/shop
+java -jar schemata-<version>.jar compile .
+```
+
+`out/proto` then holds the same seven files, each with `option java_package =
+"com.example.shop.orders";` (or `com.example.shop.customers`), `option java_multiple_files =
+true;`, and a Java wrapper class named for its file, `OrderProto` for `order.proto`.
+
 Warnings from `examples/shop/expected/proto-warnings.txt`:
 ```text
 SCH2001 field 'Customer.id': uuid has no Protobuf representation; lowered to string

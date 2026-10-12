@@ -215,7 +215,7 @@ class WorkedExampleTest {
         src.resolve("orders.schemata").writeText(orders)
         src.resolve("customers.schemata").writeText(customers)
 
-        val result = CheckCommand().test("--format json $src")
+        val result = CheckCommand().test("--no-config --format json $src")
         assertEquals(2, result.statusCode, result.stdout)
         assertEquals("", result.stderr)
         val codes =
@@ -234,7 +234,7 @@ class WorkedExampleTest {
         assertTrue(result.stdout.contains("\"promoted\":false"), result.stdout)
         assertFalse(result.stdout.contains("\"severity\":\"error\""), result.stdout)
 
-        val strict = CheckCommand().test("--format json --strict $src")
+        val strict = CheckCommand().test("--no-config --format json --strict $src")
         assertEquals(1, strict.statusCode, strict.stdout)
         assertTrue(strict.stdout.contains("\"promoted\":true"), strict.stdout)
         assertFalse(strict.stdout.contains("\"severity\":\"warning\""), strict.stdout)

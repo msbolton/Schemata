@@ -9,7 +9,6 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Report
-import io.schemata.cli.report.Sources
 
 class CheckCommand : CliktCommand(name = "check") {
     override fun help(context: Context) =
@@ -27,13 +26,18 @@ class CheckCommand : CliktCommand(name = "check") {
 
     private val reporting by ReportingOptions()
 
-    private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
+    private val configuration by ConfigOptions()
+
+    private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
     override fun run() {
-        val targets = withProtoLayout(selectTargets(targetNames), protoLayout)
-        val sources = loadSources(inputs)
-        val result = Pipeline.check(sources, targets, strict = reporting.strict)
-        val report = Report.of(result, strict = reporting.strict, checkOnly = true)
-        emit(this, report, Sources.of(sources), reporting, out = "")
+        val config = configuration.resolve(this, reporting)
+        val style = reporting.resolve(config)
+        val strict = compileStrict(reporting.strict, config)
+        val targets = compileTargets(targetNames, protoLayout, config)
+        val sources = loadSources(inputPaths(inputs, config), config)
+        val result = Pipeline.check(sources, targets, strict, config)
+        val report = Report.of(result, strict = strict, checkOnly = true)
+        emit(this, report, reportSources(sources, config), style, out = "")
     }
 }

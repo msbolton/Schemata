@@ -7,6 +7,9 @@ class Sources(private val lines: Map<String, List<String>>) {
     /** The 1-based [number]th line of [file], or null when the file or line is unknown. */
     fun line(file: String, number: Int): String? = lines[file]?.getOrNull(number - 1)
 
+    /** A copy that also holds [text] as the file [path], such as the configuration file. */
+    fun plus(path: String, text: String): Sources = Sources(lines + (path to text.lines()))
+
     companion object {
         val EMPTY = Sources(emptyMap())
 

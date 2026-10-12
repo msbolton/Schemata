@@ -13,9 +13,10 @@ import kotlin.test.fail
 /**
  * The native image reaches the protocol types only through reflection (Gson reads and writes their
  * fields; lsp4j finds the request methods by annotation), so every class of the protocol jars and
- * of the server package is listed for it. The list is derived from the jars on the classpath and
- * compared with the checked-in file; run with SCHEMATA_GOLDEN_UPDATE=1 to rewrite the file after an
- * lsp4j upgrade or a new server class.
+ * of the server package is listed for it. The configuration loader loads tomlj's generated lexer
+ * and parser by name, so those two are listed as well. The list is derived from the jars on the
+ * classpath and compared with the checked-in file; run with SCHEMATA_GOLDEN_UPDATE=1 to rewrite the
+ * file after an lsp4j upgrade or a new server class.
  */
 class NativeMetadataTest {
     private val file =
@@ -52,7 +53,8 @@ class NativeMetadataTest {
                         org.eclipse.lsp4j.jsonrpc.Launcher::class.java,
                         "org.eclipse.lsp4j.jsonrpc.",
                     ) +
-                    classesBeside(SchemataServer::class.java, "io.schemata.lsp.server."))
+                    classesBeside(SchemataServer::class.java, "io.schemata.lsp.server.") +
+                    listOf("org.tomlj.internal.TomlLexer", "org.tomlj.internal.TomlParser"))
                 .distinct()
                 .sorted()
         return classes.joinToString(",\n", "[\n", "\n]\n") {

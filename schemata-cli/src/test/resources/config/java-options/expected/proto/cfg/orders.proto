@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package cfg.orders;
+
+import "cfg/customers.proto";
+
+option java_package = "com.example.cfg.orders";
+option java_multiple_files = true;
+option csharp_namespace = "Example.Cfg.Orders";
+
+// An order a customer placed.
+message Order {
+  string id = 1;
+  .cfg.customers.Customer customer = 2;
+  Status status = 3;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PLACED = 1;
+  STATUS_SHIPPED = 2;
+}

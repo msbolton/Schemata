@@ -1,6 +1,7 @@
 package io.schemata.cli.diagnostics
 
 import io.schemata.cli.Pipeline
+import io.schemata.config.ConfigCodes
 import io.schemata.core.CoreCodes
 import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
@@ -21,7 +22,8 @@ class DiagnosticCoverageTest {
                 Pipeline.targets.flatMap { it.codes } +
                 ImportCodes.all +
                 EvolutionCodes.all +
-                MigrateCodes.all)
+                MigrateCodes.all +
+                ConfigCodes.all)
             .map { it.id }
             .toSet()
 

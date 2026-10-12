@@ -1,0 +1,6 @@
+# config targets=proto
+error[SCH2901]: schemata.toml:1: unexpected end of line, expected ]
+ --> schemata.toml:1:1
+  = help: fix the TOML syntax
+
+1 error, 0 warnings

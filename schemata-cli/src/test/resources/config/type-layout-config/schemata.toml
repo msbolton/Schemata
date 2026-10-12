@@ -1,0 +1,6 @@
+[compile]
+targets = ["proto"]
+proto_layout = "type"
+
+[proto]
+java_multiple_files = true

@@ -1,0 +1,12 @@
+[sql]
+schema = "{schema_}"
+
+[xsd]
+namespace = "urn:example:{schema}"
+
+[jsonschema]
+id = "https://example.com/{schema}.json"
+
+[openapi]
+version = "1.0.0"
+server = "https://api.example.com/{schema_}"

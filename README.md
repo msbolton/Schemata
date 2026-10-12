@@ -135,14 +135,15 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
 ## Commands
 
-    schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] PATHS...
-    schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] PATHS...
-    schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata import  [--from xsd|proto|sql] [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata targets [--format human|json]
-    schemata fmt     [--check] [--format human|json] [--color auto|always|never] PATHS...
-    schemata upgrade [--check] [--format human|json] [--color auto|always|never] PATHS...
-    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
-    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata config  [--config FILE|--no-config] [--format human|json] [--color auto|always|never] [PATHS...]
+    schemata fmt     [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata upgrade [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
+    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
     schemata lsp
 
 `compile` writes `--out/<target>/<file>` for every target whose own lowering reported no error, even
@@ -157,7 +158,10 @@ schema versions against each target's compatibility rulebook, so a breaking chan
 it ships. `migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version
 to the next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp`
 runs the language server an editor starts; the guide's Editor support section covers the VS Code and
-Zed extensions and what the server does.
+Zed extensions and what the server does. A `schemata.toml` at the project root supplies defaults for
+the commands' options and the schema files to read when a command is given no paths; `config` prints
+what it resolved, and the reference's
+[Project configuration](guide/reference.md#24-project-configuration) section describes the file.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.
@@ -221,6 +225,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-import-sql` | Postgres DDL reader and importer |
 | `schemata-evolution` | the differ and the per-target compatibility rulebooks |
 | `schemata-migrate` | the migration planner and renderer over the relational model's provenance |
+| `schemata-config` | `schemata.toml`: discovery, reading and checking the file, the `SCH29` codes, the attributes it adds |
 | `schemata-lsp` | the language server: workspace model, reference index, lsp4j protocol layer |
 | `schemata-cli` | command surface |
 | `schemata-testkit` | test-only helpers (golden files, protoc, the JDK's XSD validator, a JSON Schema validator, an OpenAPI 3.1 validator) |
