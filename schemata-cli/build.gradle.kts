@@ -32,6 +32,7 @@ dependencies {
     testImplementation(project(":schemata-testkit"))
     testImplementation(libs.testcontainersPostgres)
     testImplementation(libs.postgresJdbc)
+    testImplementation(libs.jsonSchemaValidator)
 }
 
 application {

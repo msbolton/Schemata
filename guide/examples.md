@@ -570,14 +570,7 @@ From `examples/services/expected/openapi/shop/orders.openapi.json`:
             "style": "form",
             "explode": true,
             "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/shop.orders.Status"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/components/schemas/shop.orders.Status"
             }
           },
           {

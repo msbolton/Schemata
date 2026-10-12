@@ -15,8 +15,9 @@ import io.schemata.lang.ast.UnionDecl
  * `list<T?>` is `T?[]`, `list<T>?` is `T[]?`, and the element's options join the slot's own block
  * after the list's. `list<…>` stays where `T[]` cannot say it: a list of lists (a type takes one
  * `[]`), a list of maps with a size bound of their own (the map's `minItems` would share the block
- * with the list's), an element option the slot's block already has, and a list written with
- * parenthesised refinements, which analysis reports.
+ * with the list's), an element option the slot's block already has, an element option that belongs
+ * to a field, which analysis reports inside a type argument but would accept, with another meaning,
+ * on the list, and a list written with parenthesised refinements, which analysis reports.
  */
 internal object CanonicalLists {
     fun file(f: SourceFile): SourceFile = f.copy(declarations = f.declarations.map(::declaration))
@@ -65,6 +66,7 @@ internal object CanonicalLists {
                 element.inlineEnum != null ||
                 element.inlineShape != null ||
                 elementOptions.any { it.name in SIZES } ||
+                elementOptions.any { it.name in FIELD_FLAGS } ||
                 elementOptions.any { e -> options.any { it.name == e.name } }
         if (keep) return written to options
         val list =
@@ -78,4 +80,11 @@ internal object CanonicalLists {
     }
 
     private val SIZES = setOf("minItems", "maxItems")
+
+    /**
+     * The options that belong to a field and never to a type. They mirror the field flags the
+     * resolver rejects inside a type argument; this module sits below the one that defines them, so
+     * the names are repeated here.
+     */
+    private val FIELD_FLAGS = setOf("id", "unique", "index", "embed")
 }

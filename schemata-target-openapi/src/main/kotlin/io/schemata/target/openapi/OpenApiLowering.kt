@@ -386,7 +386,9 @@ private class NamespaceLowering(
 
     /**
      * [field] as a parameter named by its Schemata name; its doc and deprecation go on the
-     * parameter, its type, refinements, nullability, and default stay in the schema.
+     * parameter, its type, refinements, and default stay in the schema. A nullable field is an
+     * optional parameter with the plain schema, since a query string has no null; a path parameter
+     * is never nullable, analysis refuses one.
      */
     private fun parameter(plan: Plan, field: Field, location: String): Parameter {
         if (field.annotations.string("jsonschema", "name") != null) {
@@ -404,7 +406,11 @@ private class NamespaceLowering(
             name = field.name,
             location = location,
             required = !query || (!field.nullable && field.default == null),
-            schema = withCommon(schema, schema.common.copy(description = null, deprecated = false)),
+            schema =
+                withCommon(
+                    schema,
+                    schema.common.copy(description = null, deprecated = false, nullable = false),
+                ),
             description = field.doc,
             deprecated = field.annotations.deprecated,
             style = query,

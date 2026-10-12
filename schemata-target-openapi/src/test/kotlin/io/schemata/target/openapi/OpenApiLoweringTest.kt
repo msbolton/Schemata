@@ -190,7 +190,7 @@ class OpenApiLoweringTest {
         assertEquals(listOf(false, false), list.parameters.map { it.required })
         assertEquals(listOf(true, true), list.parameters.map { it.style })
         assertEquals(
-            RefSchema("#/components/schemas/shop.orders.Status", Common(nullable = true)),
+            RefSchema("#/components/schemas/shop.orders.Status", Common()),
             list.parameters[0].schema,
         )
         assertEquals(
@@ -268,6 +268,65 @@ class OpenApiLoweringTest {
         assertEquals(listOf("name", "note"), body.properties.map { it.name })
         assertEquals(listOf(true, false), body.properties.map { it.required })
         assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a nullable query parameter takes the plain schema while the body keeps null`() {
+        val l =
+            lower(
+                "schema t\n" +
+                    "\n" +
+                    "model Find { #1 id uuid  #2 note string?  #3 tags string[]? }\n" +
+                    "\n" +
+                    "model R { #1 ok bool }\n" +
+                    "\n" +
+                    "service S {\n" +
+                    "  #1 find(Find): R  get \"/items/{id}\"\n" +
+                    "  #2 edit(Find): R  put \"/items/{id}\"\n" +
+                    "}"
+            )
+        val path = l.model.documents.single().paths.single()
+
+        val find = path.operations.single { it.verb == Verb.GET }
+        assertEquals(
+            listOf(
+                Parameter("id", "path", true, uuid, null, false, style = false),
+                Parameter(
+                    "note",
+                    "query",
+                    false,
+                    ScalarSchema("string"),
+                    null,
+                    false,
+                    style = true,
+                ),
+                Parameter(
+                    "tags",
+                    "query",
+                    false,
+                    ArraySchema(ScalarSchema("string")),
+                    null,
+                    false,
+                    style = true,
+                ),
+            ),
+            find.parameters,
+        )
+
+        val edit = path.operations.single { it.verb == Verb.PUT }
+        assertEquals(listOf("id"), edit.parameters.map { it.name })
+        val body = edit.requestBody!!.schema as ObjectSchema
+        assertEquals(listOf("note", "tags"), body.properties.map { it.name })
+        assertEquals(listOf(false, false), body.properties.map { it.required })
+        assertEquals(
+            ScalarSchema("string", common = Common(nullable = true)),
+            body.properties[0].schema,
+        )
+        assertEquals(
+            ArraySchema(ScalarSchema("string"), common = Common(nullable = true)),
+            body.properties[1].schema,
+        )
         assertEquals(emptyList(), messages(l))
     }
 
