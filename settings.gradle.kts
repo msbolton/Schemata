@@ -19,6 +19,7 @@ plugins {
 include(":schemata-lang")
 include(":schemata-core")
 include(":schemata-target-api")
+include(":schemata-config")
 include(":schemata-target-proto")
 include(":schemata-target-sql")
 include(":schemata-target-xsd")
