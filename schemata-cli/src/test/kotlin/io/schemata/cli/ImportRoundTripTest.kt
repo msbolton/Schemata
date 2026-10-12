@@ -50,13 +50,6 @@ class ImportRoundTripTest {
         mapOf("sql" to Regex("SCH2403 .*: '.*' is stored as json; its fields are not in the DDL"))
 
     /**
-     * The one diagnostic a faithful proto round trip can produce: the note that a name which does
-     * not invert (an rpc `GetURL` lowered to `get_url` with `@proto(name: "GetURL")`) was renamed.
-     * Only the imported proto cases tolerate it; every other diagnostic fails the case.
-     */
-    private val protoRename = Regex("SCH2402 .*: renamed to '.*'")
-
-    /**
      * A type-layout file holds no schema declaration the importer could read a name from, so the
      * imported schema is named after its package or file and says so.
      */
@@ -115,7 +108,7 @@ class ImportRoundTripTest {
                         "proto",
                         ProtoTarget(ProtoLayout.TYPE),
                         ProtoImporter,
-                        listOf(protoRename, protoDerivedName),
+                        listOf(protoDerivedName),
                     )
                 }
             }
@@ -156,6 +149,33 @@ class ImportRoundTripTest {
         )
     }
 
+    @Test
+    fun `rpc ordinals out of order round trip through proto`() {
+        val source =
+            """
+            schema shop
+
+            model R { #1 x int32 }
+
+            service S {
+              #1 a(R): R
+              #5 b(R): R
+              #3 c(R): R
+              #4 d(R): R
+              reserved #2
+            }
+            """
+                .trimIndent()
+        roundTrip(
+            "rpc ordinals",
+            listOf(SourceInput("shop.schemata", source)),
+            "proto",
+            ProtoTarget,
+            ProtoImporter,
+            emptyList(),
+        )
+    }
+
     /**
      * The `.schemata` files of every imported proto case's `expected/` tree compile to proto,
      * import back, and regenerate that proto byte for byte. A Schemata file imports what its
@@ -170,7 +190,7 @@ class ImportRoundTripTest {
             "proto",
             ProtoTarget,
             ProtoImporter,
-            listOf(protoRename),
+            emptyList(),
             File("src/test/resources/import"),
         )
 

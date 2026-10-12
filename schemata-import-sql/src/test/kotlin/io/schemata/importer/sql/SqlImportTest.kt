@@ -267,6 +267,68 @@ class SqlImportTest {
     }
 
     @Test
+    fun `an enum element in a list note is honoured`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.t (
+                      id uuid PRIMARY KEY,
+                      history text[] NOT NULL,  -- schemata: Status[]
+                      status text NOT NULL CHECK (status IN ('pending', 'paid'))
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                schema t
+
+                model T {
+                  id      uuid     { id }
+                  history Status[]
+                  status  Status
+
+                  enum Status { pending paid }
+                }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `an unknown element in a list note still falls back`() {
+        val r =
+            importText(
+                "t.sql" to
+                    """
+                    CREATE TABLE t.t (
+                      id uuid PRIMARY KEY,
+                      history text[] NOT NULL  -- schemata: Status[]
+                    );
+                    """
+            )
+        assertEquals(
+            schemata(
+                """
+                schema t
+
+                model T { id uuid { id }  history string[] }
+                """
+            ),
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 column 'T.history': note 'Status[]' does not fit a text[] column; ignored"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `a typed column with a note`() {
         val r =
             importText(

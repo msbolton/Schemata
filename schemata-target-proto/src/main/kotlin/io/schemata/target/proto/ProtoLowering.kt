@@ -590,8 +590,9 @@ object ProtoLowering {
 
         /**
          * A service's rpcs, named in a scope of their own. What proto cannot spell rides in
-         * schemata notes: an ordinal that is not the rpc's 1-based position, the HTTP binding as
-         * the formatter prints it, and the service's `reserved` statement.
+         * schemata notes: an ordinal unless it is both the rpc's 1-based position and one past the
+         * ordinal before it, so an importer that reads a missing ordinal either way gets it back;
+         * the HTTP binding as the formatter prints it; and the service's `reserved` statement.
          */
         private fun service(service: Service, name: String): ProtoService {
             val rpcNames =
@@ -611,7 +612,10 @@ object ProtoLowering {
             val rpcs =
                 service.operations.mapIndexed { index, op ->
                     val notes = mutableListOf<String>()
-                    if (op.ordinal != index + 1) notes += "#${op.ordinal}"
+                    val previous = if (index == 0) 0 else service.operations[index - 1].ordinal
+                    if (op.ordinal != index + 1 || op.ordinal != previous + 1) {
+                        notes += "#${op.ordinal}"
+                    }
                     op.binding?.let { notes += "${it.verb.lower} ${SchemataText.string(it.path)}" }
                     ProtoRpc(
                         name = rpcNames.getValue(op),

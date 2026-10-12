@@ -1146,7 +1146,7 @@ refinements, so `import --from proto` can read it back (section 19):
 | a doc comment | a `//` comment above the service or the rpc |
 | `@deprecated` | `option deprecated = true;` inside the service, or in a body the rpc then takes |
 | a binding | a note after the rpc: `// schemata: get "/orders/{id}"` |
-| an ordinal | a note after the rpc, `// schemata: #5`, only when it is not the rpc's position in the service, counting from 1 |
+| an ordinal | a note after the rpc, `// schemata: #5`, unless the ordinal is both the rpc's position in the service, counting from 1, and one more than the ordinal before it |
 | `reserved` | a note line after the last rpc: `// schemata: reserved #6, "archive"` |
 | `@openapi` keys | nothing |
 
@@ -1460,7 +1460,7 @@ Every import reports in one family:
 | Code | Meaning |
 |---|---|
 | SCH2401 | error: a file cannot be read, a reference or include cannot be resolved, or two constructs lower to one name |
-| SCH2402 | warning: a name was derived from a file or directory name or changed on import; a schema name derived rather than taken as written, or an rpc's name lower-snaked into one the target would not write back |
+| SCH2402 | warning: a name was derived from a file or directory name or changed on import; a schema name derived rather than taken as written |
 | SCH2403 | warning: a construct was approximated; it is kept, but the regenerated schema will differ |
 | SCH2404 | warning: a type or facet was widened or dropped |
 | SCH2405 | warning: a construct was dropped, or an import that resolves nowhere |
@@ -1503,7 +1503,10 @@ An XML Schema's `targetNamespace` names the output's schema. `urn:schemata:<name
 becomes `schema <file stem>`, with `@xsd(namespace: "<uri>")` on the `schema` line to keep the real
 one and a note, SCH2402, naming the schema name it derived; pass `--namespace` to choose the name
 yourself and silence the note. An XML Schema with no `targetNamespace` uses the file stem alone,
-without the attribute; the note still appears, and `--namespace` silences it.
+without the attribute; the note still appears, and `--namespace` silences it. A set of documents
+joined by `xs:include` is one schema, named as the root of its include graph would be, the input
+no other input includes: `defaultStyle.xsd` includes `gml.xsd`, so the GML set is
+`default_style`. Name that root as the only input and pass `--namespace` to choose another name.
 
 #### Types and facets
 
@@ -1706,7 +1709,8 @@ reads to write the same construct back:
 - An `xs:any` becomes a field named `any` (`any_2`, `any_3` for a model's later wildcards) with
   `@xsd(any)`: `string`, `string?` with `minOccurs="0"`, or `string[]` when it repeats.
 - An `xs:anyAttribute` becomes `attributes map<string, string>` with `@xsd(any_attribute)`.
-- `mixed="true"` adds `text string?` with `@xsd(mixed)`, placed after the element fields.
+- `mixed="true"` adds `text string?` with `@xsd(mixed)`, placed after the element fields, with no
+  note, since the xsd target writes `mixed="true"` back from it.
 - An element of type `xs:anyType`, or one declared with no type at all, becomes a `string` field
   with `@xsd(any_type)`.
 
@@ -1760,7 +1764,10 @@ optional presence. An element with both a `type` and an inline type keeps the `t
 An `xs:all` that is a type's content becomes a model with `@xsd(all)`, which the xsd target
 writes back as `xs:all`; each element is required or, with `minOccurs="0"`, `?`, since `xs:all`
 holds an element at most once. One reached through an extension's base is read as a sequence
-(SCH2403), and one inside a group inside a sequence is flattened into the model (SCH2403).
+(SCH2403), and one inside a group inside a sequence is flattened into the model (SCH2403). An
+element inside `xs:all` with `maxOccurs` above one, which only XSD 1.1 allows, imports as a list
+(SCH2403). Unique particle attribution is checked by neither the importer nor the xsd target: a
+content model that breaks it imports as written, and a validator such as `xmllint` reports it.
 
 A `sequence` nested inside another that occurs exactly once adds nothing, and its elements are
 flattened in place, silently. One that is optional or repeats becomes a model nested in the type,
@@ -2177,8 +2184,9 @@ leading comment becomes a doc comment and `option deprecated = true` becomes `@d
 service and on the rpc alike. A service and a message or enum that lower to one name are an error
 (SCH2401). An rpc's name is lower-snaked: `GetOrder` becomes `get_order`. The target writes an
 operation's name back in UpperCamel, so when that does not give the rpc's name again, as `GetURL`
-gives `get_url` and then `GetUrl`, the operation keeps `@proto(name: "GetURL")` and the rename is
-reported (SCH2402). Two rpcs of a service that lower to one name are an error (SCH2401).
+gives `get_url` and then `GetUrl`, the operation keeps `@proto(name: "GetURL")`, which writes the
+exact name back, so nothing is reported. Two rpcs of a service that lower to one name are an
+error (SCH2401).
 
 A request or a response that names a message becomes a reference to the model or union it
 imports as, `stream` kept. `google.protobuf.Empty` is no payload: an empty `()` for the request, no
@@ -2189,10 +2197,13 @@ imports as, `stream` kept. `google.protobuf.Empty` is no payload: an empty `()` 
 The notes the target writes on a service are read back. The note after an rpc gives its ordinal
 and binding, `// schemata: #5; delete "/items/{name}"`, either part alone or both; a note line
 inside the service, `// schemata: reserved #6, "archive"`, gives its `reserved`, and any other
-`// schemata:` line there stays a doc comment. An operation with no ordinal in its note takes its
-position among the rpcs kept, counting from 1. A note that does not read is ignored and the
-operation kept (SCH2403). An ordinal that an earlier operation of the service already holds, or
-that the service reserves, gives way to the next free one above it (SCH2403).
+`// schemata:` line there stays a doc comment. An operation with no ordinal in its note takes the
+one after the ordinal of the operation before it, the first taking 1. A note that does not read
+is ignored and the operation kept (SCH2403). An ordinal that an earlier operation of the service
+already holds, or that the service reserves, gives way to the next free one above it, reported
+with what holds it (SCH2403): `ordinal #2 is already used by rpc 'A'`, or `ordinal #2 is
+reserved`. The operations after it follow on from the ordinal it took, so one collision is
+reported once.
 
 From `schemata-cli/src/test/resources/import/proto-kitchen/kitchen/services.proto`:
 
@@ -2205,7 +2216,7 @@ service Orders {
   rpc Forget (kitchen.maps.Item) returns (google.protobuf.Empty) {  // schemata: #5; delete "/items/{name}"
     option deprecated = true;
   }
-  rpc Submit (Request) returns (kitchen.maps.Item);
+  rpc Submit (Request) returns (kitchen.maps.Item);  // schemata: #4
   rpc GetURL (Request) returns (Request);  // schemata: #7
   // schemata: reserved #6, "archive"
 }
@@ -2226,8 +2237,8 @@ service Orders {
 }
 ```
 
-and the service gives one report, `service 'Orders': rpc 'GetURL': renamed to 'get_url'` (SCH2402).
-`submit` has no note, so it takes its position, `#4`.
+and the service gives no report: `submit` takes the `#4` its note gives, and `get_url` keeps its
+proto name in `@proto(name: "GetURL")`, which writes it back exactly.
 
 #### Validate rules
 
@@ -2428,7 +2439,11 @@ model Order {
 
 An enum is nested in its model and named after its column, with a value that is not lower_snake
 lower-snaked and reported (SCH2403), since the regenerated check will list it that way. A note
-naming a type on an `IN`-checked column names the enum.
+naming a type on an `IN`-checked column names the enum. The sql target writes a list of an enum as
+a `text[]` column with no check on its elements, so it imports as `string[]`; a note on that
+column, `-- schemata: Status[]`, gives the field `Status[]` when `Status` is an enum this import
+nests in the same model or one around it, as another column's `IN` check makes one. A note on an
+array column that names any other type is ignored (SCH2403).
 
 #### Structures
 
@@ -2584,7 +2599,9 @@ model Order {
 Embedded models. Two or more columns under one prefix `<f>_` with an all-or-none check,
 `(a IS NULL AND b IS NULL) OR (a IS NOT NULL AND b IS NOT NULL)`, are a nullable field `f` of a
 model nested in the table's, its fields the columns without the prefix, required when the check
-names them.
+names them. The sql target writes that check, `ck_<table>_<field>_present`, only for a nullable
+embedded model with two or more required fields, so any other embedded model leaves nothing to
+group its columns by, and they import as plain fields of the table's model.
 
 ```sql
 CREATE TABLE shop.site (
@@ -2683,17 +2700,17 @@ targets' attributes do not, since an XML Schema holds none of them.
 Protobuf: names, ordinals, docs, `@deprecated`, `reserved`, and the language file options come back
 from the proto itself, and every refinement, default, and type Protobuf cannot say rides on the
 `// schemata:` note the target writes, in 2.0 spelling (`string { max 5 }`,
-`Line[] { minItems 1 }`), so importing the proto target's own output reports nothing but the rpc
-names described below. Nullability of a message-typed field rides on the note too: a field of a
-nullable model, union, `instant`, or `duration` is written with `// schemata: T?`. A `.proto`
-written by a compiler before 1.1, which did not write that note, imports such a field as required.
+`Line[] { minItems 1 }`), so importing the proto target's own output reports nothing.
+Nullability of a message-typed field rides on the note too: a field of a nullable model, union,
+`instant`, or `duration` is written with `// schemata: T?`. A `.proto` written by a compiler
+before 1.1, which did not write that note, imports such a field as required.
 
 A service comes back with its operations, their payloads and streams, docs, and `@deprecated` from
 the proto, and their bindings, ordinals, and `reserved` from the notes. Names come back as the
 proto spells them, so an operation the target named by `@proto(name)` imports under its rpc's
 name, lower-snaked; an override such as `@proto(name: "GetURL")`, which no lower_snake name gives
-in UpperCamel, comes back as `@proto(name)` and is reported (SCH2402). `@openapi` keys do not come
-back, since a `.proto` holds none.
+in UpperCamel, comes back as `@proto(name)`, silently, since the override writes the name back
+exactly. `@openapi` keys do not come back, since a `.proto` holds none.
 
 SQL: tables, keys, unique constraints and indexes (composite ones as `@@unique` and `@@index`),
 references and their `ON DELETE` actions, child tables, unions, embedded models, enums, refinements,
