@@ -39,15 +39,21 @@ object AnnotationDefaults {
         registry: AnnotationRegistry,
     ): List<Synthesized> {
         if (config.defaults.isEmpty()) return emptyList()
-        // `{package}` names the package of the file a schema is written to, which a configured
-        // `[proto] package` may itself decide. So every package is settled first, from each
-        // schema's own name, and the files are worked out on the schema holding those packages.
+        // Every schema of a reference cycle shares one `.proto` file, so each must get the same
+        // value: the one the file's first schema expands to. Which schemas share a file follows
+        // from the references alone, so the files are known before any package is. `package` is
+        // settled first, which is why it may not use `{package}`; the other keys then take
+        // `{package}` from the file's package as settled.
+        val files by lazy { ProtoPackages.of(schema.referencesByKey()) }
         val packages =
             schema.namespaces
                 .mapNotNull { ns ->
                     val setting = effective(config, PROTO, ns.name)[PACKAGE]
                     if (setting == null || declares(ns, PROTO, PACKAGE)) null
-                    else synthesize(ns.name, PROTO, PACKAGE, setting, registry, ns.name, null)
+                    else {
+                        val first = files.unitOf(ns.name).members.first().name
+                        synthesize(ns.name, PROTO, PACKAGE, setting, registry, first, null)
+                    }
                 }
                 .associateBy { it.namespace }
         val units by lazy {
@@ -60,8 +66,6 @@ object AnnotationDefaults {
                         declares(ns, target, key) -> null
                         target == PROTO && key == PACKAGE -> packages[ns.name]
                         target == PROTO -> {
-                            // Every schema of a reference cycle shares one file, so each must get
-                            // the same value: the one the file's first schema expands to.
                             val unit = units.unitOf(ns.name)
                             val first = unit.members.first().name
                             synthesize(

@@ -9,6 +9,7 @@ import io.schemata.target.openapi.OpenApiAnnotations
 import io.schemata.target.proto.ProtoAnnotations
 import io.schemata.target.sql.SqlAnnotations
 import io.schemata.target.xsd.XsdAnnotations
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -41,6 +42,10 @@ class ConfigLoaderTest {
     private val placeholdersHelp =
         "placeholders are {schema}, {Schema} and {schema_}; [proto] keys other than package " +
             "also take {package} and {Package}"
+
+    private val globHelp =
+        "globs use / as the separator and the syntax of java.nio.file.PathMatcher, " +
+            "for example \"schemas/drafts/**\""
 
     private fun load(text: String): LoadedConfig {
         val file = root.resolve(ConfigLoader.FILE_NAME)
@@ -423,10 +428,21 @@ class ConfigLoaderTest {
 
         assertDiagnostic(
             "SCH2903 schemata.toml:3: sources.exclude holds an invalid glob 'schemas/[drafts'",
-            "globs use the syntax of java.nio.file.PathMatcher, for example \"schemas/drafts/**\"",
+            globHelp,
             failure(
                 "[sources]\npaths = [\"schemas\"]\nexclude = [\"schemas/*.bak\", \"schemas/[drafts\"]\n"
             ),
+        )
+    }
+
+    @Test
+    fun `a backslash in an exclude glob is SCH2903`() {
+        Files.createDirectories(root.resolve("schemas"))
+
+        assertDiagnostic(
+            "SCH2903 schemata.toml:3: sources.exclude holds an invalid glob 'schemas\\drafts\\**'",
+            globHelp,
+            failure("[sources]\npaths = [\"schemas\"]\nexclude = ['schemas\\drafts\\**']\n"),
         )
     }
 
@@ -446,6 +462,28 @@ class ConfigLoaderTest {
 
         assertFalse(config.excluded(root.resolve("a.schemata")))
         assertTrue(config.excluded(root.resolve("a.bak")))
+    }
+
+    @Test
+    fun `a file the directory cannot relativize is not excluded`() {
+        val config =
+            ProjectConfig(
+                root.resolve(ConfigLoader.FILE_NAME),
+                "",
+                CompileSettings(),
+                ImportSettings(),
+                MigrateSettings(),
+                ReportSettings(),
+                SourcesSettings(Setting(emptyList(), 1), Setting(listOf("**"), 1)),
+                emptyMap(),
+            )
+        // A path on another file system stands in for one on another Windows drive: neither has a
+        // path relative to the directory.
+        val zip = root.resolve("other.zip")
+        FileSystems.newFileSystem(zip, mapOf("create" to "true")).use { other ->
+            assertFalse(config.excluded(other.getPath("/a.schemata")))
+        }
+        assertTrue(config.excluded(root.resolve("a.schemata")))
     }
 
     @Test

@@ -59,7 +59,7 @@ data class ProjectConfig(
 ) {
     /** Paths in the file are relative to the directory that holds it. */
     val directory: Path
-        get() = path.parent
+        get() = path.toAbsolutePath().parent
 
     /** [sources] paths resolved against [directory], in order. */
     val sourcePaths: List<Path>
@@ -75,7 +75,14 @@ data class ProjectConfig(
      */
     fun excluded(file: Path): Boolean {
         if (excludeMatchers.isEmpty()) return false
-        val relative = directory.relativize(file.toAbsolutePath().normalize())
+        val relative =
+            try {
+                directory.relativize(file.toAbsolutePath().normalize())
+            } catch (e: IllegalArgumentException) {
+                // A file on another Windows drive, or on another file system, has no path relative
+                // to the directory, so it lies outside it and no exclude can name it.
+                return false
+            }
         return excludeMatchers.any { it.matches(relative) }
     }
 }
