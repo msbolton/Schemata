@@ -437,12 +437,17 @@ class CompileCommandTest {
 
     @Test
     fun `compile with no paths uses sources from the file`() {
-        val root = project("[compile]\ntargets = [\"proto\"]\n\n[sources]\npaths = [\"schemas\"]\n")
-        val out = root.resolve("out")
-        val result = CompileCommand().test("--config ${root.resolve("schemata.toml")} --out $out")
-        assertEquals(0, result.statusCode, result.stderr)
-        assertTrue(Files.exists(out.resolve("proto/shop.proto")), result.stderr)
-        assertFalse(Files.exists(out.resolve("sql")), result.stderr)
+        // A uuid field is lossy in proto, so the run prints a warning that names the source file.
+        val root =
+            project(
+                "[compile]\ntargets = [\"proto\"]\n\n[sources]\npaths = [\"schemas\"]\n",
+                "schema shop\n\nmodel R { #1 x uuid }\n",
+            )
+        val run = SchemataProcess.run(root, "compile", "--out", "out")
+        assertEquals(2, run.statusCode, run.stderr)
+        assertTrue(Files.exists(root.resolve("out/proto/shop.proto")), run.stderr)
+        assertFalse(Files.exists(root.resolve("out/sql")), run.stderr)
+        assertTrue(run.stderr.contains(" schemas/shop.schemata:"), run.stderr)
     }
 
     @Test
