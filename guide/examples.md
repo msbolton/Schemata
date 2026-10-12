@@ -788,14 +788,16 @@ model Money {
 
 The field numbers are the ordinals and the comments are the docs. The `option` lines steer code
 generation in other languages and say nothing about the data, but the language ones are kept as
-`@proto` keys on the schema line, all five of `money.proto`'s here, and compile back to the same
-`option` lines, in Schemata's fixed key order, which may differ from the source's. The license
-header, separated from the message by a blank line, is not a doc. The corpus golden quoted here also
-holds `Date`, from `google/type/date.proto` beside it: importing the directory holding `google/`
-instead finds two files under one root that declare `package google.type`, which `protoc` reads as
-one package, so they import as one schema, `google.type`, in one file. Had `money.proto` been the
-only file there, it would have taken its path under that directory, `google.type.money`, and kept
-its package as `@proto(package: "google.type")`.
+`@proto` keys on the schema line, four of `money.proto`'s five here, and compile back to the same
+`option` lines, in Schemata's fixed key order, which may differ from the source's. The fifth,
+`java_outer_classname = "MoneyProto"`, is the file's stem plus `Proto` in a file named for its
+message, the name `--proto-layout type` writes in every file itself, so it reads as nothing. The
+license header, separated from the message by a blank line, is not a doc. The corpus golden quoted
+here also holds `Date`, from `google/type/date.proto` beside it: importing the directory holding
+`google/` instead finds two files under one root that declare `package google.type`, which `protoc`
+reads as one package, so they import as one schema, `google.type`, in one file. Had `money.proto`
+been the only file there, it would have taken its path under that directory, `google.type.money`,
+and kept its package as `@proto(package: "google.type")`.
 
 The two files must agree on a language option for the schema to keep it. The golden's schema line
 holds the keys both files give the same value:
@@ -805,11 +807,12 @@ From `schemata-cli/src/test/resources/import/proto-money/expected/google/type.sc
 schema google.type @proto(java_package: "com.google.type") @proto(java_multiple_files: true) @proto(objc_class_prefix: "GTP")
 ```
 
-`java_outer_classname` and `go_package` differ between `date.proto` and `money.proto`, so both are
-dropped, and `money.proto` gets an SCH2405 for each, naming `date.proto` as the first file of the
-package that declares the key. Choose the value with `@proto` on the imported schema.
+`go_package` differs between `date.proto` and `money.proto`, so it is dropped, and `money.proto`
+gets an SCH2405 naming `date.proto` as the first file of the package that declares the key. Choose
+the value with `@proto` on the imported schema. Each file's `java_outer_classname`, `DateProto` and
+`MoneyProto`, is its own wrapper name, so it reads as nothing without a warning.
 
-Apart from the two dropped options, nothing here needed a warning because every type in `Money` is
+Apart from the dropped option, nothing here needed a warning because every type in `Money` is
 one Schemata has. A `uint32`, a `google.protobuf.StringValue`, or a `oneof` mixed with other fields
 would each be reported, and section 19 of the reference lists what each construct becomes.
 Compiling the result under the proto target gives `message Money` back with the same fields,
@@ -890,8 +893,6 @@ SCH2405 envoy/config/core/v3/http_service.proto: option java_outer_classname 'Ht
 SCH2405 envoy/config/core/v3/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
 SCH2405 envoy/config/core/v3/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
 SCH2405 envoy/type/matcher/v3/string.proto: option java_outer_classname 'StringProto' differs from 'RegexProto' in envoy/type/matcher/v3/regex.proto; dropped
-SCH2405 envoy/type/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/percent.proto; dropped
-SCH2405 envoy/type/v3/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/v3/percent.proto; dropped
 SCH2405 include/xds/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'ContextParamsProto' in include/xds/core/v3/context_params.proto; dropped
 SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
 SCH2405 envoy/annotations/deprecation.proto: extend dropped

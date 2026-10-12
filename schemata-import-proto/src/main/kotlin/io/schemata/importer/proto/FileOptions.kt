@@ -2,6 +2,7 @@ package io.schemata.importer.proto
 
 import io.schemata.importer.UnitAnnotation
 import io.schemata.lang.SchemataText
+import io.schemata.target.Names
 import io.schemata.target.OverrideNames
 import io.schemata.target.ProtoFileOptions
 
@@ -17,7 +18,9 @@ internal object FileOptions {
      * `.proto` file, which can hold only one value per option: when the files disagree, keeping any
      * one value would silently move the generated code of the others, so the key is dropped and
      * [report] names each file whose value differs from the first declaring file's, with the
-     * message and its help. A file that declares a key twice is read by its first declaration.
+     * message and its help. A file that declares a key twice is read by its first declaration. When
+     * every declaring file's `java_outer_classname` is its own wrapper name (see [isOwnWrapper]),
+     * the key is the Protobuf target's choice and reads as nothing, silently.
      */
     fun annotations(
         files: List<ProtoFile>,
@@ -41,6 +44,12 @@ internal object FileOptions {
                         else -> file to option.value
                     }
                 }
+            if (
+                key.name == "java_outer_classname" &&
+                    declared.all { (file, value) -> isOwnWrapper(file, value) }
+            ) {
+                return@mapNotNull null
+            }
             val (first, value) = declared.firstOrNull() ?: return@mapNotNull null
             val differing = declared.filter { (_, other) -> other != value }
             differing.forEach { (file, other) ->
@@ -58,4 +67,25 @@ internal object FileOptions {
                 else -> UnitAnnotation("proto", key.name, SchemataText.string(value))
             }
         }
+
+    /**
+     * Whether [value] is the wrapper class name the Protobuf target writes in every file of its
+     * type layout under `java_multiple_files: true`: the file's stem in upper camel case plus
+     * `Proto` (`order.proto` → `OrderProto`), in a file named for one of its own top-level types or
+     * services, as every file of that layout is. A file named for no type of its own, such as a
+     * schema's `options.proto` holding `Order`, chose its value itself and keeps it, so its schema
+     * compiles back to the same file.
+     */
+    private fun isOwnWrapper(file: ProtoFile, value: String): Boolean {
+        val stem = file.path.substringAfterLast('/').removeSuffix(".proto")
+        val multipleFiles = file.options.firstOrNull { it.name == "java_multiple_files" }
+        if (value != Names.upperCamel(stem) + "Proto" || multipleFiles?.value != "true") {
+            return false
+        }
+        val names =
+            file.messages.map { it.name } +
+                file.enums.map { it.name } +
+                file.services.map { it.name }
+        return names.any { Names.snakeCase(it) == stem }
+    }
 }

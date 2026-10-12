@@ -2660,7 +2660,14 @@ class ProtoLoweringTest {
                 )
             )
         assertEquals(2, lowered.model.files.size)
-        assertEquals(1, lowered.model.files.map { it.options }.distinct().size)
+        // Only the wrapper class name, which follows the unit's options, differs per file.
+        assertEquals(
+            1,
+            lowered.model.files
+                .map { file -> file.options.filter { it.first != "java_outer_classname" } }
+                .distinct()
+                .size,
+        )
         assertEquals(emptyList(), lowered.codes())
         generated(lowered, "java") { out ->
             assertTrue(
@@ -2738,5 +2745,212 @@ class ProtoLoweringTest {
             listOf("a/thing.proto", "b/alpha.proto", "b/zed.proto"),
             lowered.model.files.map { it.path },
         )
+    }
+
+    @Test
+    fun `java_multiple_files writes a wrapper class name per file under the type layout`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model Order { #1 status HTTPStatus }\n\nmodel HTTPStatus { #1 code int32 }\n"
+                ),
+                "schema shop.web @proto(java_package: \"com.example.web\") " +
+                    "@proto(java_multiple_files: true)\n\nmodel HTTPStatus { #1 code int32 }\n",
+            )
+        assertEquals(emptyList(), lowered.codes())
+        // A unit without java_multiple_files names no wrapper.
+        assertEquals(emptyList(), lowered.file("shop/orders/order.proto").options)
+        assertEquals(
+            listOf(
+                "java_package" to "\"com.example.web\"",
+                "java_multiple_files" to "true",
+                "java_outer_classname" to "\"HttpStatusProto\"",
+            ),
+            lowered.file("shop/web/http_status.proto").options,
+        )
+        assertNull(lowered.protocErrors())
+        generated(lowered, "java") { out ->
+            // Listed by name: a case-insensitive file system would answer either spelling.
+            val written = File(out, "com/example/web").list().orEmpty().toSet()
+            assertTrue("HTTPStatus.java" in written, written.toString())
+            assertTrue("HttpStatusProto.java" in written, written.toString())
+        }
+    }
+
+    @Test
+    fun `every file of a unit with java_multiple_files names its own wrapper class`() {
+        val source =
+            "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                "model Order { #1 seat Seat }\n\n" +
+                "model Seat { #1 row int32 { id }  #2 number int32 { id } }\n\n" +
+                "service Orders { #1 get(Order): Order }\n"
+        val lowered = lowerTypes(source)
+        assertEquals(
+            listOf(
+                "shop/orders/order.proto" to "\"OrderProto\"",
+                "shop/orders/orders.proto" to "\"OrdersProto\"",
+                "shop/orders/seat.proto" to "\"SeatProto\"",
+                "shop/orders/seat_key.proto" to "\"SeatKeyProto\"",
+            ),
+            lowered.model.files.map { it.path to it.options.last().second },
+        )
+        assertTrue(
+            lowered.model.files.all {
+                it.options == listOf("java_multiple_files" to "true", it.options.last()) &&
+                    it.options.last().first == "java_outer_classname"
+            }
+        )
+        assertNull(lowered.protocErrors())
+        // The schema layout is untouched.
+        assertEquals(
+            listOf("java_multiple_files" to "true"),
+            lower(source).model.files.single().options,
+        )
+    }
+
+    @Test
+    fun `a declaration named like a wrapper class is an error`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model OrderProto { #1 x bool }\n\n" +
+                    "model Order { #1 y bool }\n\n" +
+                    "service OrdersProto { #1 get(Order): Order }\n\n" +
+                    "service Orders { #1 put(Order): Order }\n"
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:3 SCH2004 model 'OrderProto' and the Java class of order.proto " +
+                    "both lower to 'OrderProto'",
+                "shop.orders.schemata:7 SCH2004 service 'OrdersProto' and the Java class of " +
+                    "orders.proto both lower to 'OrdersProto'",
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            listOf("set `@proto(name: \"…\")` on it"),
+            lowered.diagnostics.map { it.help }.distinct(),
+        )
+        val caseOnly =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model ORDERPROTO { #1 x bool }\n\nmodel Order { #1 y bool }\n"
+            )
+        assertEquals(
+            listOf(
+                "SCH2004 model 'ORDERPROTO' and the Java class of order.proto both lower to 'OrderProto'"
+            ),
+            caseOnly.codes(),
+        )
+    }
+
+    @Test
+    fun `without java_multiple_files no wrapper class name is written`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.orders @proto(java_package: \"com.example.orders\")\n\n" +
+                    "model OrderProto { #1 x bool }\n\nmodel Order { #1 y bool }\n"
+            )
+        assertEquals(emptyList(), lowered.codes())
+        assertTrue(
+            lowered.model.files.all {
+                it.options == listOf("java_package" to "\"com.example.orders\"")
+            }
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a renamed declaration colliding by name is reported once`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model Order { #1 a bool }\n\n" +
+                        "model Label {\n  #1 b bool\n\n  @@proto(name: \"Order\")\n}\n"
+                )
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2004 proto name 'Order' is already used by model 'Order' " +
+                    "(shop.orders.schemata:3)"
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `a key record in a file collision is named by its model`() {
+        val seat = "model Seat { #1 row int32 { id }  #2 number int32 { id } }\n\n"
+        val order = "model Order { #1 seat Seat }\n\n"
+        val keyFirst = lowerTypes(shop(order + seat + "model SEATKey { #1 x bool }\n"))
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:7 SCH2004 the key of model 'Seat' and model 'SEATKey' " +
+                    "both lower to file 'shop/orders/seat_key.proto'"
+            ),
+            keyFirst.located(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on model 'SEATKey'",
+            keyFirst.diagnostics.single().help,
+        )
+        // Reported at the key record, the help points at its model, the one an author renames.
+        val keyLater = lowerTypes(shop("model SEATKey { #1 x bool }\n\n" + order + seat))
+        assertEquals(
+            listOf(
+                "SCH2004 model 'SEATKey' and the key of model 'Seat' " +
+                    "both lower to file 'shop/orders/seat_key.proto'"
+            ),
+            keyLater.codes(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on model 'Seat'",
+            keyLater.diagnostics.single().help,
+        )
+    }
+
+    @Test
+    fun `an invalid service name is reported before declaration overrides`() {
+        val lowered =
+            lower(
+                shop(
+                    "model Order {\n  #1 a bool\n\n  @@proto(name: \"1x\")\n}\n\n" +
+                        "@proto(name: \"2y\") service Orders { #1 get(Order): Order }\n"
+                )
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:9 SCH2007 service 'Orders': @proto(name: \"2y\") " +
+                    "is not a valid identifier",
+                "shop.orders.schemata:3 SCH2007 model 'Order': @proto(name: \"1x\") " +
+                    "is not a valid identifier",
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `a nested type in another unit imports that unit's type file`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.catalog\n\n" +
+                    "model Money {\n  #1 currency Currency\n\n  model Currency { #1 code string }\n}\n",
+                "schema shop.orders\n\nimport shop.catalog as catalog\n\n" +
+                    "model Order { #1 currency catalog.Money.Currency }\n",
+            )
+        val order = lowered.file("shop/orders/order.proto")
+        assertEquals(listOf("shop/catalog/money.proto"), order.imports)
+        assertEquals(
+            ProtoType.Named(".shop.catalog.Money.Currency"),
+            message(order, "Order").fields.single().type,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `an empty schema writes no file under the type layout`() {
+        val lowered = lowerTypes("schema shop.orders\n")
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(emptyList(), lowered.model.files)
     }
 }
