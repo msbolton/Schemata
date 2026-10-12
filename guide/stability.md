@@ -89,6 +89,10 @@ values of `diff` and `migrate` included, and so does the document `config` print
 (a change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata`
 files `import` writes, and the wording of messages and of the human report.
 
+**The configuration file.** Every table and key of `schemata.toml`, and every placeholder, keeps
+its name and its meaning for the whole of 2.x, so a file that loads keeps loading and gives the
+same defaults; a minor may add tables and keys.
+
 **Upgrading.** `schemata upgrade` keeps converting every schema a 1.x compiler accepted, except
 those it reports, for the whole of 2.x. Section 23 of the reference lists them: a positional
 refinement on anything but a decimal (`string(3)`), a refinement given as a bare name or written

@@ -3309,10 +3309,12 @@ In Zed the same options are `binary.path` and the `roots` and `strict` entries o
 **Project file.** When the editor sends no `roots`, the server takes them from the `[sources]` of
 the nearest `schemata.toml` at or above the first workspace folder: each path is a root, and the
 files on disk that `exclude` matches join no set. When the editor sends no `strict`, the server
-takes `[compile] strict`. A setting the editor sends wins over the file, an empty `roots` list
-included. The file is read once, when the editor starts the server, so restart the server after
-changing it. A file with errors is ignored with one line in the editor's log; `schemata check`
-reports the errors themselves (section 24).
+takes `[compile] strict`. Roots the editor sends win over the file's, but an empty `roots` list
+counts as none, since editors such as VS Code send one when the user has set no roots. `strict`
+works as `--strict` does: the editor or the file can turn it on, and the editor's `false` does not
+turn the file's off. The file is read once, when the editor starts the server, so restart the
+server after changing it. A file with errors is ignored with one line in the editor's log;
+`schemata check` reports the errors themselves (section 24).
 
 ## 23. Upgrading from 1.x
 
@@ -3528,10 +3530,12 @@ prints the settings alone. Paths on the command line replace `paths`.
 
 `exclude` leaves out every file it matches, whether found under `paths` or under paths on the
 command line; an exclude that leaves out every file found is a usage error. A glob is matched
-against the file's path relative to the directory holding `schemata.toml`, in the syntax of Java's
-`PathMatcher`: `*` matches within one directory name, `**` across directories, `?` one character,
-`{a,b}` either alternative, and `[abc]` one character of a set. `"schemas/drafts/**"` leaves out
-everything under `schemas/drafts`.
+against the file's path relative to the directory holding `schemata.toml`, with `/` between
+directories on every platform, Windows included, in the syntax of Java's `PathMatcher`: `*` matches
+within one directory name, `**` across directories, `?` one character, `{a,b}` either alternative,
+and `[abc]` one character of a set. `"schemas/drafts/**"` leaves out everything under
+`schemas/drafts`. A glob that holds `\` is SCH2903: in a glob it escapes the next character, so
+`"schemas\drafts\**"` would leave out nothing under `schemas/drafts`.
 
 `diff` and `migrate` read neither key: they compare the two trees their command line names, every
 file of each. The rest of the file applies to both sides alike: the one `schemata.toml` found from
@@ -3574,10 +3578,11 @@ A string value may name the schema it is for. For `schema shop.orders`:
 | `{Package}` | that package, each segment UpperCamel | `csharp_namespace = "{Package}"` | `Shop.Orders.V1` |
 | `{{` and `}}` | a literal `{` and `}` | `server = "https://{{region}}.example.com"` in `[openapi]` | `https://{region}.example.com` |
 
-The two `{package}` rows assume `[proto] package = "{schema}.v1"`. `{package}` and `{Package}` are
-accepted only by the `[proto]` keys other than `package`, since the package is what they read. Any
-other name in braces, or a `{` that is never closed, is SCH2904. A key with fixed choices, such as
-`element_form`, takes its value as written.
+The two `{package}` rows assume `[proto] package = "{schema}.v1"`. `{Schema}` and `{Package}` make
+each dotted segment UpperCamel and drop the underscores within it, so `uc2_sos_all` gives
+`Uc2SosAll`. `{package}` and `{Package}` are accepted only by the `[proto]` keys other than
+`package`, since the package is what they read. Any other name in braces, or a `{` that is never
+closed, is SCH2904. A key with fixed choices, such as `element_form`, takes its value as written.
 
 ### Per-schema tables
 
@@ -3610,32 +3615,25 @@ on, and `include`, whose directories come after those of `--include`.
 
 ### How the attributes are made
 
-`[proto] package` is settled first, for each schema from its own name. That fixes the Protobuf file
-each schema is written to: its own, or one shared with the other schemas of a reference cycle
-(section 15). The other `[proto]` keys are then expanded once per file: every schema of a cycle
-gets the value the cycle's first schema by name expands to, and `{package}` is the file's package.
-So the schemas of a cycle never disagree over an option the file sets, and
-`java_package = "com.example.{package}"` gives the `cyc.alpha` and `cyc.beta` cycle one
-`com.example.cyc` for `cyc.proto`. The keys of the other targets are expanded for each schema.
-
-`package` itself is the exception: a template such as `"{schema}.v1"` expands from each schema's
-own name, so the schemas of a cycle get different packages, which is the SCH2007 error of section
-15. Under a package template, give every schema of a cycle the same package in its own table:
+The schemas of a reference cycle are written to one Protobuf file (section 15), so the `[proto]`
+keys are expanded once per file: every schema of a cycle gets the value the cycle's first schema by
+name expands to. `package` is settled first, which is why it cannot use `{package}`; the other
+`[proto]` keys then read `{package}` as the file's package. With this file:
 
 ```toml
 [proto]
-package = "{schema}.v1"
+package = "{schema_}.v1"
 java_package = "com.example.{package}"
-
-[proto.schemas."cyc.alpha"]
-package = "cyc.v1"
-
-[proto.schemas."cyc.beta"]
-package = "cyc.v1"
 ```
 
-The cycle is then written as `cyc/v1.proto`, with `package cyc.v1;` and
-`option java_package = "com.example.cyc.v1";`.
+the `cyc.alpha` and `cyc.beta` cycle is written as `cyc_alpha/v1.proto`, with the package
+`cyc_alpha.v1` and `option java_package = "com.example.cyc_alpha.v1";` for both schemas. The keys
+of the other targets are expanded for each schema.
+
+A per-schema table for one schema of a cycle gives that schema its own value, just as an attribute
+on its `schema` line would. When that value differs from what the other schemas of the cycle get,
+they disagree, which is the SCH2007 error of section 15. Give every schema of the cycle the same
+value in its own table, or set the key in none of them.
 
 ### Where a rejected value is reported
 
