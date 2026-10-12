@@ -7,6 +7,8 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.Span
 import java.io.IOException
+import java.io.OutputStream
+import java.io.PrintStream
 import java.nio.charset.CharacterCodingException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -51,6 +53,7 @@ object ConfigLoader {
             } catch (e: IOException) {
                 return LoadedConfig(null, listOf(unreadable(displayPath, reason(absolute, e))))
             }
+        TomljClasses.load()
         val parsed = Toml.parse(text)
         val lines = text.lines()
         if (parsed.hasErrors()) {
@@ -109,6 +112,35 @@ object ConfigLoader {
             help,
         )
     }
+}
+
+/**
+ * tomlj was generated with ANTLR 4.11.1 and the ANTLR runtime here is 4.13.2. The parser works, but
+ * the first time tomlj's lexer and parser classes load, ANTLR checks the versions and prints four
+ * warning lines to stderr, and the CLI's and the language server's stderr must stay clean. So both
+ * classes are loaded once, before the first parse, with stderr pointed at a discarding stream.
+ */
+private object TomljClasses {
+    private val generated = listOf("org.tomlj.internal.TomlLexer", "org.tomlj.internal.TomlParser")
+
+    // A synchronized lazy: one thread swaps stderr while the others wait for it to finish.
+    private val loaded: Unit by lazy {
+        val original = System.err
+        System.setErr(PrintStream(OutputStream.nullOutputStream()))
+        try {
+            for (name in generated) {
+                try {
+                    Class.forName(name, true, Toml::class.java.classLoader)
+                } catch (e: ClassNotFoundException) {
+                    // A tomlj that names its classes differently still parses; it is only noisier.
+                }
+            }
+        } finally {
+            System.setErr(original)
+        }
+    }
+
+    fun load() = loaded
 }
 
 /** The value a key takes: the wording of SCH2903 and the example its help shows. */
@@ -224,7 +256,19 @@ private class Validator(
                 )
             }
         }
-        return SourcesSettings(paths, table.setting("exclude"))
+        val exclude = table.setting<List<String>>("exclude")
+        exclude
+            ?.value
+            ?.filter { globMatcher(it) == null }
+            ?.forEach { glob ->
+                report(
+                    ConfigCodes.BAD_VALUE,
+                    exclude.line,
+                    "sources.exclude holds an invalid glob '$glob'",
+                    "globs use the syntax of java.nio.file.PathMatcher, for example \"schemas/drafts/**\"",
+                )
+            }
+        return SourcesSettings(paths, exclude)
     }
 
     /** A target table: its schema-line keys, and `schemas` holding one table per schema. */

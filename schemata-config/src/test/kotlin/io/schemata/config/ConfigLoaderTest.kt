@@ -9,6 +9,8 @@ import io.schemata.target.openapi.OpenApiAnnotations
 import io.schemata.target.proto.ProtoAnnotations
 import io.schemata.target.sql.SqlAnnotations
 import io.schemata.target.xsd.XsdAnnotations
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -406,6 +408,53 @@ class ConfigLoaderTest {
             "create it or remove it from [sources].paths",
             failure("[sources]\npaths = [\"schemas\", \"missing\"]\n"),
         )
+    }
+
+    @Test
+    fun `an invalid exclude glob is SCH2903`() {
+        Files.createDirectories(root.resolve("schemas"))
+
+        assertDiagnostic(
+            "SCH2903 schemata.toml:3: sources.exclude holds an invalid glob 'schemas/[drafts'",
+            "globs use the syntax of java.nio.file.PathMatcher, for example \"schemas/drafts/**\"",
+            failure(
+                "[sources]\npaths = [\"schemas\"]\nexclude = [\"schemas/*.bak\", \"schemas/[drafts\"]\n"
+            ),
+        )
+    }
+
+    @Test
+    fun `an invalid glob in a config built by hand excludes nothing`() {
+        val config =
+            ProjectConfig(
+                root.resolve(ConfigLoader.FILE_NAME),
+                "",
+                CompileSettings(),
+                ImportSettings(),
+                MigrateSettings(),
+                ReportSettings(),
+                SourcesSettings(Setting(emptyList(), 1), Setting(listOf("[", "*.bak"), 1)),
+                emptyMap(),
+            )
+
+        assertFalse(config.excluded(root.resolve("a.schemata")))
+        assertTrue(config.excluded(root.resolve("a.bak")))
+    }
+
+    @Test
+    fun `the first parse writes nothing to stderr`() {
+        val captured = ByteArrayOutputStream()
+        val original = System.err
+        System.setErr(PrintStream(captured, true))
+        val result =
+            try {
+                load("[compile]\nstrict = true\n")
+            } finally {
+                System.setErr(original)
+            }
+
+        assertNotNull(result.config)
+        assertEquals("", captured.toString())
     }
 
     @Test
