@@ -220,4 +220,15 @@ class MigrateCommandTest {
         val errors = json.lines().single { it.trimStart().startsWith("\"errors\"") }
         assertEquals(1, Regex("\"code\":").findAll(errors).count(), errors)
     }
+
+    @Test
+    fun `allow_destructive from the file writes the step`() {
+        val toml =
+            File(dir, "schemata.toml").apply { writeText("[migrate]\nallow_destructive = true\n") }
+        val new = old.replace("  #3 note string?\n", "")
+        val run = migrate(old, new, "--config", toml.path)
+        assertEquals(2, run.exitCode, run.stderr)
+        assertTrue(run.stderr.contains("warning[SCH2701]"), run.stderr)
+        assertTrue(run.file("migrate/s.sql").contains("DROP COLUMN \"note\""))
+    }
 }

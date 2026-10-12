@@ -10,7 +10,8 @@ import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.DiffRenderer
 import io.schemata.cli.report.Report
-import io.schemata.cli.report.Sources
+import io.schemata.config.AnnotationDefaults
+import io.schemata.config.ProjectConfig
 import io.schemata.core.ir.Schema
 import io.schemata.evolution.Comparison
 import io.schemata.evolution.Evolution
@@ -29,53 +30,57 @@ class DiffCommand : CliktCommand(name = "diff") {
 
     private val reporting by ReportingOptions()
 
+    private val configuration by ConfigOptions()
+
     private val old by argument("OLD").path(mustExist = true)
 
     private val new by argument("NEW").path(mustExist = true)
 
     override fun run() {
+        val config = configuration.resolve(this, reporting)
+        val style = reporting.resolve(config)
+        val strict = reporting.strict
         val rulebooks =
             targetNames
                 ?.map { it.trim() }
                 ?.distinct()
                 ?.map { Rulebooks.named(it) ?: throw usageError("unknown target '$it'") }
                 ?: Rulebooks.all
-        val oldSide = load(old)
-        val newSide = load(new)
+        val oldSide = load(old, config)
+        val newSide = load(new, config)
         val failures = cannotDiff(oldSide.analyzed, newSide.analyzed)
-        val sources = Sources.of(newSide.sources + oldSide.sources)
+        val sources = reportSources(newSide.sources + oldSide.sources, config)
         if (failures.isNotEmpty()) {
-            val report = Report.of(failures, emptyList(), emptyList(), strict = reporting.strict)
-            if (reporting.format == Format.JSON) {
+            val report = Report.of(failures, emptyList(), emptyList(), strict = strict)
+            if (style.format == Format.JSON) {
                 val empty = Comparison(emptyList(), emptyList())
                 echo(DiffRenderer.json(empty, report, rulebooks, failures), trailingNewline = false)
                 throw ProgramResult(report.exitCode)
             }
-            emit(this, report, sources, reporting, out = "")
+            emit(this, report, sources, style, out = "")
             return
         }
         val oldSchema = oldSide.analyzed.schema!!
         val newSchema = newSide.analyzed.schema!!
         val comparison = Evolution.compare(oldSchema, newSchema, rulebooks)
-        val report =
-            Report.of(comparison.diagnostics, emptyList(), emptyList(), strict = reporting.strict)
-        when (reporting.format) {
+        val report = Report.of(comparison.diagnostics, emptyList(), emptyList(), strict = strict)
+        when (style.format) {
             Format.JSON ->
                 echo(DiffRenderer.json(comparison, report, rulebooks), trailingNewline = false)
             Format.HUMAN -> {
                 val implicitOrdinals =
                     oldSide.analyzed.implicitOrdinals + newSide.analyzed.implicitOrdinals
                 echo(DiffRenderer.changes(comparison, rulebooks, implicitOrdinals), err = true)
-                emit(this, report, sources, reporting, out = "")
+                emit(this, report, sources, style, out = "")
             }
         }
-        if (reporting.format == Format.JSON && report.exitCode != 0)
+        if (style.format == Format.JSON && report.exitCode != 0)
             throw ProgramResult(report.exitCode)
     }
 
-    private fun load(path: Path): Loaded {
+    private fun load(path: Path, config: ProjectConfig?): Loaded {
         val sources = loadSources(listOf(path))
-        return Loaded(sources, analyzeSide(sources))
+        return Loaded(sources, analyzeSide(sources, config))
     }
 }
 
@@ -83,10 +88,16 @@ private data class Loaded(val sources: List<SourceInput>, val analyzed: Analyzed
 
 /**
  * One side as `diff` analyses it: never with strict ordinals, since `--strict` on `diff` only
- * promotes notes to breaks and an implicit ordinal is reported in the trailer instead.
+ * promotes notes to breaks and an implicit ordinal is reported in the trailer instead. [config]'s
+ * target tables join the schema as `compile` would apply them, and one file serves both sides, so a
+ * default the file gives both is no change.
  */
-internal fun analyzeSide(sources: List<SourceInput>): Analyzed =
-    Pipeline.analyze(sources, strict = false)
+internal fun analyzeSide(sources: List<SourceInput>, config: ProjectConfig? = null): Analyzed {
+    val analyzed = Pipeline.analyze(sources, strict = false)
+    val schema = analyzed.schema
+    if (config == null || schema == null) return analyzed
+    return analyzed.copy(schema = AnnotationDefaults.apply(schema, config, Pipeline.annotations))
+}
 
 /**
  * Why [old] and [new] cannot be compared, as [EvolutionCodes.CANNOT_DIFF] diagnostics: one per side

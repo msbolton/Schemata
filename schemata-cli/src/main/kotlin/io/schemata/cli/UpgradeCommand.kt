@@ -27,16 +27,18 @@ class UpgradeCommand : CliktCommand(name = "upgrade") {
             )
             .flag()
     private val reporting by FormatOptions()
-    private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
+    private val configuration by ConfigOptions()
+    private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
     /**
      * Every file's schema name is read first, so a rename onto a schema another file declares is
      * reported rather than merging the two.
      */
     override fun run() {
-        val schemas =
-            loadSources(inputs).mapNotNull { Upgrader.schemaName(it.content, it.path) }.toSet()
-        rewriteInPlace(inputs, check, reporting, "upgraded") { content, path ->
+        val config = configuration.resolve(this, reporting)
+        val sources = loadSources(inputPaths(inputs, config), config)
+        val schemas = sources.mapNotNull { Upgrader.schemaName(it.content, it.path) }.toSet()
+        rewriteInPlace(sources, check, reporting.resolve(config), "upgraded") { content, path ->
             Upgrader.upgrade(content, path, schemas)
         }
     }

@@ -541,5 +541,7 @@
   {"name": "org.eclipse.lsp4j.util.DocumentSymbols$BreadthFirstIterator", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "org.eclipse.lsp4j.util.DocumentSymbols$DocumentSymbolIterator", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
   {"name": "org.eclipse.lsp4j.util.Positions", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
-  {"name": "org.eclipse.lsp4j.util.Ranges", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true}
+  {"name": "org.eclipse.lsp4j.util.Ranges", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
+  {"name": "org.tomlj.internal.TomlLexer", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true},
+  {"name": "org.tomlj.internal.TomlParser", "allDeclaredConstructors": true, "allDeclaredMethods": true, "allDeclaredFields": true, "allPublicMethods": true}
 ]

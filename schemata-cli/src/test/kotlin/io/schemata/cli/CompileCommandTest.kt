@@ -320,4 +320,288 @@ class CompileCommandTest {
         assertTrue(result.stderr.contains("proto: not written (2 errors)"), result.stderr)
         assertFalse(Files.exists(out.resolve("proto")))
     }
+
+    private val shop = "schema shop\n\nmodel R { #1 x bool }\n"
+
+    /** A project directory holding `schemata.toml` with [toml] and `schemas/shop.schemata`. */
+    private fun project(toml: String, schema: String = shop): java.nio.file.Path {
+        val root = Files.createTempDirectory(tmp, "project")
+        root.resolve("schemata.toml").writeText(toml)
+        root.resolve("schemas").createDirectories().resolve("shop.schemata").writeText(schema)
+        return root
+    }
+
+    private val javaPackage = "[proto]\njava_package = \"com.example.{schema}\"\n"
+
+    @Test
+    fun `a schemata toml in the working directory supplies proto defaults`() {
+        val root = project(javaPackage)
+        val run =
+            SchemataProcess.run(root, "compile", "--target", "proto", "--out", "out", "schemas")
+        assertEquals(0, run.statusCode, run.stderr)
+        assertTrue(
+            root
+                .resolve("out/proto/shop.proto")
+                .readText()
+                .contains("option java_package = \"com.example.shop\";"),
+            run.stderr,
+        )
+    }
+
+    @Test
+    fun `the nearest file above the working directory is found`() {
+        val root = project("[sources]\npaths = [\"schemas\"]\n\n$javaPackage")
+        val nested = root.resolve("schemas/nested").createDirectories()
+        assertEquals(
+            root.resolve("schemata.toml"),
+            io.schemata.config.ConfigLoader.discover(nested),
+        )
+        val out = root.resolve("out")
+        val run = SchemataProcess.run(nested, "compile", "--target", "proto", "--out", "$out")
+        assertEquals(0, run.statusCode, run.stderr)
+        assertTrue(
+            out.resolve("proto/shop.proto")
+                .readText()
+                .contains("option java_package = \"com.example.shop\";"),
+            run.stderr,
+        )
+    }
+
+    @Test
+    fun `--no-config ignores a file in the working directory`() {
+        val root = project(javaPackage)
+        val run =
+            SchemataProcess.run(
+                root,
+                "compile",
+                "--no-config",
+                "--target",
+                "proto",
+                "--out",
+                "out",
+                "schemas",
+            )
+        assertEquals(0, run.statusCode, run.stderr)
+        val (src, out) = tempSources("shop.schemata" to shop)
+        val plain = CompileCommand().test("--target proto --out $out $src")
+        assertEquals(plain.statusCode, run.statusCode)
+        assertEquals(
+            out.resolve("proto/shop.proto").readText(),
+            root.resolve("out/proto/shop.proto").readText(),
+        )
+        assertEquals("no diagnostics\nwrote 1 file to out/proto\n", run.stderr)
+    }
+
+    @Test
+    fun `--config and --no-config together are a usage error`() {
+        val root = project(javaPackage)
+        val result =
+            CompileCommand()
+                .test(
+                    "--config ${root.resolve("schemata.toml")} --no-config ${root.resolve("schemas")}"
+                )
+        assertEquals(1, result.statusCode)
+        assertTrue(
+            result.stderr.contains("--config and --no-config are mutually exclusive"),
+            result.stderr,
+        )
+    }
+
+    @Test
+    fun `--config names a missing file as SCH2901`() {
+        val (src, out) = tempSources("shop.schemata" to shop)
+        val missing = tmp.resolve("nope.toml")
+        val result = CompileCommand().test("--config $missing --out $out $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.contains(
+                "error[SCH2901]: $missing: cannot read the configuration file: no such file"
+            ),
+            result.stderr,
+        )
+        assertTrue(
+            result.stderr.contains(
+                "help: create the file, name another with --config, or pass --no-config"
+            ),
+            result.stderr,
+        )
+        assertFalse(Files.exists(out))
+    }
+
+    @Test
+    fun `compile with no paths uses sources from the file`() {
+        val root = project("[compile]\ntargets = [\"proto\"]\n\n[sources]\npaths = [\"schemas\"]\n")
+        val out = root.resolve("out")
+        val result = CompileCommand().test("--config ${root.resolve("schemata.toml")} --out $out")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertTrue(Files.exists(out.resolve("proto/shop.proto")), result.stderr)
+        assertFalse(Files.exists(out.resolve("sql")), result.stderr)
+    }
+
+    @Test
+    fun `no paths and no sources is a usage error`() {
+        val root = project("[compile]\ntargets = [\"proto\"]\n")
+        val toml = root.resolve("schemata.toml")
+        val withFile = CompileCommand().test("--config $toml")
+        assertEquals(1, withFile.statusCode)
+        assertTrue(
+            withFile.stderr.contains("no paths given and no [sources] in $toml"),
+            withFile.stderr,
+        )
+        val without = CompileCommand().test("--no-config")
+        assertEquals(1, without.statusCode)
+        assertTrue(
+            without.stderr.contains("no paths given and no [sources] in any schemata.toml"),
+            without.stderr,
+        )
+    }
+
+    @Test
+    fun `a missing sources path is SCH2905`() {
+        val root = project("[sources]\npaths = [\"missing\"]\n")
+        val toml = root.resolve("schemata.toml")
+        val result = CompileCommand().test("--config $toml --out ${root.resolve("out")}")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.contains("error[SCH2905]: $toml:2: sources path 'missing' names nothing"),
+            result.stderr,
+        )
+        // The file's own line is quoted under the diagnostic.
+        assertTrue(result.stderr.contains("2 | paths = [\"missing\"]"), result.stderr)
+        assertTrue(result.stderr.contains("1 error, 0 warnings"), result.stderr)
+        assertFalse(Files.exists(root.resolve("out")))
+    }
+
+    @Test
+    fun `a file with errors is reported as json under --format json`() {
+        val root = project("[compile]\nstrict = \"yes\"\n")
+        val toml = root.resolve("schemata.toml")
+        val result =
+            CompileCommand().test("--config $toml --format json ${root.resolve("schemas")}")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertEquals("", result.stderr)
+        assertTrue(result.stdout.contains("\"code\":\"SCH2903\""), result.stdout)
+        assertTrue(result.stdout.contains("\"exitCode\": 1"), result.stdout)
+    }
+
+    @Test
+    fun `an exclude that leaves nothing is a usage error naming the file`() {
+        val root = project("[sources]\npaths = [\"schemas\"]\nexclude = [\"schemas/**\"]\n")
+        val toml = root.resolve("schemata.toml")
+        val result = CompileCommand().test("--config $toml --out ${root.resolve("out")}")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.contains(
+                "every file under ${root.resolve("schemas")} is excluded by [sources].exclude in $toml"
+            ),
+            result.stderr,
+        )
+    }
+
+    @Test
+    fun `an exclude drops the files it matches`() {
+        val root =
+            project(
+                "[compile]\ntargets = [\"proto\"]\n\n[sources]\npaths = [\"schemas\"]\nexclude = [\"schemas/drafts/**\"]\n"
+            )
+        root
+            .resolve("schemas/drafts")
+            .createDirectories()
+            .resolve("draft.schemata")
+            .writeText("schema draft\n\nmodel R { #1 x bool }\n")
+        val out = root.resolve("out")
+        val result = CompileCommand().test("--config ${root.resolve("schemata.toml")} --out $out")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertTrue(Files.exists(out.resolve("proto/shop.proto")), result.stderr)
+        assertFalse(Files.exists(out.resolve("proto/draft.proto")), result.stderr)
+    }
+
+    @Test
+    fun `a flag beats the file`() {
+        val root =
+            project(
+                "[compile]\ntargets = [\"proto\"]\nproto_layout = \"type\"\nout = \"x\"\n\n" +
+                    "[sources]\npaths = [\"schemas\"]\n"
+            )
+        val y = root.resolve("y")
+        val result =
+            CompileCommand()
+                .test("--config ${root.resolve("schemata.toml")} --proto-layout schema --out $y")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertTrue(Files.exists(y.resolve("proto/shop.proto")), result.stderr)
+        assertFalse(Files.exists(y.resolve("proto/shop/r.proto")), result.stderr)
+        assertFalse(Files.exists(root.resolve("x")), result.stderr)
+    }
+
+    @Test
+    fun `the file beats the built-in default`() {
+        val root =
+            project(
+                "[compile]\ntargets = [\"sql\"]\nout = \"gen\"\n\n[sources]\npaths = [\"schemas\"]\n",
+                "schema shop\n\nmodel R { #1 id int64 { id }  #2 x bool }\n",
+            )
+        val result = CompileCommand().test("--config ${root.resolve("schemata.toml")}")
+        assertEquals(0, result.statusCode, result.stderr)
+        // A relative out in the file is relative to the file's directory.
+        val gen = root.resolve("gen")
+        assertTrue(Files.exists(gen.resolve("sql/shop.sql")), result.stderr)
+        assertFalse(Files.exists(gen.resolve("proto")), result.stderr)
+        assertTrue(result.stderr.contains("wrote 1 file to $gen/sql"), result.stderr)
+    }
+
+    @Test
+    fun `a proto layout from the file is ignored when proto is not selected`() {
+        val root =
+            project(
+                "[compile]\nproto_layout = \"type\"\n",
+                "schema shop\n\nmodel R { #1 id int64 { id }  #2 x bool }\n",
+            )
+        val out = root.resolve("out")
+        val result =
+            CompileCommand()
+                .test(
+                    "--config ${root.resolve("schemata.toml")} --target sql --out $out ${root.resolve("schemas")}"
+                )
+        assertEquals(0, result.statusCode, result.stderr)
+        assertTrue(Files.exists(out.resolve("sql/shop.sql")), result.stderr)
+    }
+
+    @Test
+    fun `strict from the file promotes warnings`() {
+        val root =
+            project("[compile]\nstrict = true\n", "schema shop\n\nmodel R { #1 id uuid { id } }\n")
+        val out = root.resolve("out")
+        val result =
+            CompileCommand()
+                .test(
+                    "--config ${root.resolve("schemata.toml")} --target proto --out $out ${root.resolve("schemas")}"
+                )
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.contains("error[SCH2001] (lossy) (proto) [promoted]"),
+            result.stderr,
+        )
+        assertFalse(Files.exists(out.resolve("proto")))
+    }
+
+    @Test
+    fun `the report format and colour come from the file`() {
+        val root = project("[report]\nformat = \"json\"\n")
+        val out = root.resolve("out")
+        val result =
+            CompileCommand()
+                .test(
+                    "--config ${root.resolve("schemata.toml")} --target proto --out $out ${root.resolve("schemas")}"
+                )
+        assertEquals(0, result.statusCode, result.stderr)
+        assertEquals("", result.stderr)
+        assertTrue(result.stdout.startsWith("{\n  \"diagnostics\": []"), result.stdout)
+        val human =
+            CompileCommand()
+                .test(
+                    "--config ${root.resolve("schemata.toml")} --format human --target proto --out $out ${root.resolve("schemas")}"
+                )
+        assertEquals("", human.stdout)
+        assertTrue(human.stderr.contains("no diagnostics"), human.stderr)
+    }
 }

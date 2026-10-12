@@ -297,4 +297,36 @@ class ImportCommandTest {
             assertTrue(r.stderr.contains("--include applies to --from proto"), r.stderr)
         }
     }
+
+    @Test
+    fun `from and namespace come from the file when the flags are absent`() {
+        val xsd = write("s.xsd", tracksNamespace)
+        val toml =
+            File(dir, "config")
+                .apply { mkdirs() }
+                .resolve("schemata.toml")
+                .apply { writeText("[import]\nfrom = \"xsd\"\nnamespace = \"tracks\"\n") }
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--config ${toml.path} --out ${out.path} ${xsd.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertFalse(r.stderr.contains("SCH2402"), r.stderr)
+        assertTrue(out.resolve("import/tracks.schemata").readText().contains("schema tracks"))
+        // A flag still beats the file.
+        val flagged =
+            ImportCommand()
+                .test("--config ${toml.path} --namespace other --out ${out.path} ${xsd.path}")
+        assertEquals(0, flagged.statusCode, flagged.stderr)
+        assertTrue(out.resolve("import/other.schemata").isFile, flagged.stderr)
+    }
+
+    @Test
+    fun `--from is required when the file names no from`() {
+        val xsd = write("s.xsd", clean)
+        val r = ImportCommand().test("--no-config ${xsd.path}")
+        assertEquals(1, r.statusCode)
+        assertTrue(
+            r.stderr.contains("--from is required when no [import].from is configured"),
+            r.stderr,
+        )
+    }
 }
