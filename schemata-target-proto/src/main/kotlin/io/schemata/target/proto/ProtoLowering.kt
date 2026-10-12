@@ -355,7 +355,7 @@ object ProtoLowering {
                 }
             for (file in files) file.declarations.forEach { fileOf[it.qualifiedName] = file.path }
             if (layout == ProtoLayout.TYPE) {
-                files.filter { it.shared }.forEach { sharedFile(it) }
+                files.forEach { sharedFile(it) }
                 fileCollisions()
             }
         }
@@ -400,16 +400,19 @@ object ProtoLowering {
 
         /**
          * Reports why declarations share [file]: protoc rejects files that import each other, so
-         * declarations that reference each other cannot be files of their own. The note sits at the
-         * member that names the file, which is listed first and is the one an `@proto(name)`
-         * renames the file through; the others follow in file order.
+         * declarations that reference each other cannot be files of their own. A key record sits
+         * beside its model by rule, not because of a cycle, so it is neither counted nor named, and
+         * a model alone with its key records is not reported. The note sits at the member that
+         * names the file, which is listed first and is the one an `@proto(name)` renames the file
+         * through; the others follow in file order. A key record never names the file: its name is
+         * its model's with a suffix, so the model's sorts first.
          */
         private fun sharedFile(file: TypeFile) {
+            val written = file.declarations.filterNot { schema.isKeyRecord(it) }
+            if (written.size < 2) return
             val naming = naming(file)
             val listed =
-                (listOf(naming) + (file.declarations - naming)).map {
-                    "${it.kindWord} '${emitted(it)}'"
-                }
+                (listOf(naming) + (written - naming)).map { "${it.kindWord} '${emitted(it)}'" }
             lossy(
                 "${listed.dropLast(1).joinToString(", ")} and ${listed.last()} reference each other; " +
                     "Protobuf cannot import files in a cycle, so they share ${file.path}",
