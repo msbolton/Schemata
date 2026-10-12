@@ -41,7 +41,10 @@ internal fun CliktCommand.compileTargets(
     return withProtoLayout(targets, layout ?: configured)
 }
 
-/** `--strict`, or `[compile] strict = true`: the file can turn strict on but never off. */
+/**
+ * `--strict`, or `[compile] strict = true`, for every command that has the flag: the file can turn
+ * strict on but never off.
+ */
 internal fun compileStrict(flag: Boolean, config: ProjectConfig?): Boolean =
     flag || config?.compile?.strict?.value == true
 

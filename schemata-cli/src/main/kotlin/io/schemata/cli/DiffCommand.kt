@@ -39,7 +39,7 @@ class DiffCommand : CliktCommand(name = "diff") {
     override fun run() {
         val config = configuration.resolve(this, reporting)
         val style = reporting.resolve(config)
-        val strict = reporting.strict
+        val strict = compileStrict(reporting.strict, config)
         val rulebooks =
             targetNames
                 ?.map { it.trim() }
