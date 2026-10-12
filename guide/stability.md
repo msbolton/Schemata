@@ -84,9 +84,10 @@ which the notes name.
 
 **The command line.** Every command, flag, and exit code stays. The JSON report shapes of
 `check`, `compile`, `fmt`, `upgrade`, `diff`, `migrate`, `import`, and `targets` stay, the `kind`
-values of `diff` and `migrate` included; a minor may add fields. Not promised: `fmt`'s layout (a
-change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata` files
-`import` writes, and the wording of messages and of the human report.
+values of `diff` and `migrate` included, and so does the document `config` prints, with its `file`,
+`settings`, `sources`, and `synthesized` keys; a minor may add fields. Not promised: `fmt`'s layout
+(a change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata`
+files `import` writes, and the wording of messages and of the human report.
 
 **Upgrading.** `schemata upgrade` keeps converting every schema a 1.x compiler accepted, except
 those it reports, for the whole of 2.x. Section 23 of the reference lists them: a positional

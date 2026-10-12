@@ -137,7 +137,7 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
     schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
-    schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata import  [--from xsd|proto|sql] [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata targets [--format human|json]
     schemata config  [--config FILE|--no-config] [--format human|json] [--color auto|always|never] [PATHS...]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]

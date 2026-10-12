@@ -206,7 +206,7 @@ shop/customers/customer.proto
 `payment.proto` imports the files of its three members.
 
 The layout and the Java options can live in a `schemata.toml` beside the two schema files instead;
-section 24 of the reference describes the file:
+[section 24 of the reference](reference.md#24-project-configuration) describes the file:
 
 ```toml
 [compile]
