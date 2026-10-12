@@ -180,8 +180,8 @@ message Payment {
 ```
 
 Compiled with `--proto-layout type`, the same example writes `shop/orders/order.proto`,
-`shop/orders/payment.proto`, and one file for each other type, importing one another. With
-`java_multiple_files` set, that gives one Java class per file as well.
+`shop/orders/payment.proto`, and one file for each other type, with `order.proto` importing the
+files of `Payment`, `Status`, and `Customer` from `shop/customers/`.
 
 Postgres flattens the same union to a discriminator column and a `CHECK` for each arm that has
 fields; `Cash` has no fields, so it gets none.
