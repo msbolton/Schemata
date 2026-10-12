@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package cfg.layout.v1;
+
+import "cfg/layout/v1/status.proto";
+
+option java_outer_classname = "CustomerProto";
+option java_multiple_files = true;
+
+// A customer and the last order they placed.
+message Customer {
+  string id = 1;
+  Order last = 2;  // schemata: Order?
+}
+
+// An order and the customer who placed it.
+message Order {
+  string id = 1;
+  Customer customer = 2;
+  Status status = 3;
+}

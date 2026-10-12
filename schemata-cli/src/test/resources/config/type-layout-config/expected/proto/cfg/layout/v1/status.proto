@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package cfg.layout.v1;
+
+option java_outer_classname = "StatusProto";
+option java_multiple_files = true;
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PLACED = 1;
+  STATUS_SHIPPED = 2;
+}

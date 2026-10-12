@@ -1,0 +1,4 @@
+schema cfg.customers
+
+/// A customer, as an order carries it.
+model Customer { #1 name string  #2 email string }

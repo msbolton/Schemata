@@ -1,0 +1,10 @@
+schema cyc.beta
+
+import cyc.alpha as alpha
+
+model Customer { #1 name string  #2 orders alpha.Order[]  #3 note Note? }
+
+/// A note about a customer.
+model Note { #1 text string  #2 status Status }
+
+enum Status { #1 open #2 closed }
