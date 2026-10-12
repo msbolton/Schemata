@@ -1,0 +1,8 @@
+schema cfg.orders
+
+import cfg.customers
+
+/// An order a customer placed.
+model Order { #1 id string { id }  #2 customer Customer  #3 status Status }
+
+enum Status { #1 placed #2 shipped }

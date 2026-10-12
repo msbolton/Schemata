@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package cfg.catalog;
+
+message ProductId {
+  int64 id = 1;
+}
+
+message Product {
+  int64 id = 1;
+  string name = 2;  // schemata: string { max 100 }
+}
+
+// Read the catalog.
+service Products {
+  // Fetch one product.
+  rpc Get(ProductId) returns (Product);  // schemata: get "/products/{id}"
+}

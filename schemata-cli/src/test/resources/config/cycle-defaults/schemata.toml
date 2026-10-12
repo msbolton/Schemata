@@ -1,0 +1,5 @@
+[compile]
+targets = ["proto"]
+
+[proto]
+java_package = "com.example.{package}"

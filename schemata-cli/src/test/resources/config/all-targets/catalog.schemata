@@ -1,0 +1,12 @@
+/// A catalog of products.
+schema cfg.catalog
+
+model ProductId { #1 id int64 { id } }
+
+model Product { #1 id int64 { id }  #2 name string { max 100 } }
+
+/// Read the catalog.
+service Products {
+  /// Fetch one product.
+  #1 get(ProductId): Product  get "/products/{id}"
+}

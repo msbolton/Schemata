@@ -1,0 +1,77 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "cfg.catalog",
+    "version": "1.0.0",
+    "description": "A catalog of products."
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com/cfg_catalog"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Products",
+      "description": "Read the catalog."
+    }
+  ],
+  "paths": {
+    "/products/{id}": {
+      "get": {
+        "operationId": "Products_get",
+        "tags": [
+          "Products"
+        ],
+        "summary": "Fetch one product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cfg.catalog.Product"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "cfg.catalog.Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

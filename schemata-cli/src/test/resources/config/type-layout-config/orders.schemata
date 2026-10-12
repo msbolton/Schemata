@@ -1,0 +1,9 @@
+schema cfg.layout @proto(package: "cfg.layout.v1")
+
+/// A customer and the last order they placed.
+model Customer { #1 id string  #2 last Order? }
+
+/// An order and the customer who placed it.
+model Order { #1 id string  #2 customer Customer  #3 status Status }
+
+enum Status { #1 placed #2 shipped }
