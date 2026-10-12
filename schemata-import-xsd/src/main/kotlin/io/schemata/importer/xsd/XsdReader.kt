@@ -390,6 +390,7 @@ object XsdReader {
                                 max,
                                 c.attr("namespace"),
                                 c.attr("processContents"),
+                                documentation(c),
                             )
                         }
                         "group" -> groupRef(c)
@@ -518,6 +519,7 @@ object XsdReader {
                                 c.line,
                                 c.attr("namespace"),
                                 c.attr("processContents"),
+                                documentation(c),
                             )
                         else -> null
                     }

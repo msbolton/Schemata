@@ -85,6 +85,9 @@ object XsdLowering {
                 XsdCodes.INVALID_OVERRIDE,
                 diagnostics,
                 { if (XsdNames.isNCName(it)) null else "is not a valid XML name" },
+                // An enum value's override is written as an xs:enumeration value, which is text,
+                // not a name: anything but an empty one is accepted.
+                valueProblem = { if (it.isEmpty()) "is not a valid XML name" else null },
             ) {
                 "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore"
             }

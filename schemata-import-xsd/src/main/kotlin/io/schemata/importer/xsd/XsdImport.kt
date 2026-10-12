@@ -224,6 +224,9 @@ object XsdImport {
                     imports = unit.imports.filter { it in named },
                 )
             }
+        // A member note naming an element's record waited for that record's final name; settle it
+        // before notes are told apart, so the settled text is what is compared.
+        elementRecords.settleNotes(diagnostics, inherited)
         // A note on a component many types share (an attribute flattened into every derived
         // type) is reported once. The note reported while lowering the declaring type wins over
         // a copy made while flattening it into a derived type, since only it names the right
@@ -500,9 +503,11 @@ object XsdImport {
     /**
      * [original]'s fixed Schemata identifier, the `@xsd(name)` override that regenerates [original]
      * exactly (`full-name` → `full_name` with `@xsd(name: "full-name")`), and, when [original] is
-     * not even a valid XML name (a bare enumeration value may start with a digit, as `2d` does), no
-     * override at all: the xsd target rejects one that isn't a valid name, so offering it would
-     * only trade one way of failing to round trip for another. A valid identifier is kept as-is.
+     * not even a valid XML name (an element or attribute name never is, but a bare enumeration
+     * value may be, as `2d` is; enumeration values take their overrides in
+     * SimpleTypes.enumValueNames), no override at all: the xsd target rejects one that isn't a
+     * valid name, so offering it would only trade one way of failing to round trip for another. A
+     * valid identifier is kept as-is.
      */
     internal fun fieldNameFor(original: String): FieldName {
         if (ImportNames.isLowerSnake(original)) return FieldName(original, null, unfixable = false)
@@ -931,6 +936,38 @@ internal class ElementRecords {
 
     /** Each placeholder's element and, for one in another namespace, that namespace's name. */
     private val references = mutableListOf<Pair<QName, String?>>()
+
+    /**
+     * Member notes held until the record their member names is known: the placeholder, and the
+     * note's message given the element name the XSD target regenerates for that record.
+     */
+    private val held = IdentityHashMap<Diagnostic, Pair<UnitType.Ref, (String) -> String?>>()
+
+    /**
+     * Holds [note], already reported, until [settleNotes]: [message] then gets the element name the
+     * XSD target writes for the record [placeholder] stands for, and gives the note's message, or
+     * null when there is then nothing to note.
+     */
+    fun deferNote(note: Diagnostic, placeholder: UnitType.Ref, message: (String) -> String?) {
+        held[note] = placeholder to message
+    }
+
+    /**
+     * [diagnostics] with each held note settled in its place, or taken out when it notes nothing; a
+     * settled note stays [inherited] when it was.
+     */
+    fun settleNotes(diagnostics: MutableList<Diagnostic>, inherited: MutableSet<Diagnostic>) {
+        val settled =
+            diagnostics.mapNotNull { d ->
+                val (placeholder, message) = held[d] ?: return@mapNotNull d
+                val record = (resolve(placeholder) as UnitType.Ref).name.substringAfterLast('.')
+                message(Names.snakeCase(record))?.let { text ->
+                    d.copy(message = text).also { if (d in inherited) inherited += it }
+                }
+            }
+        diagnostics.clear()
+        diagnostics += settled
+    }
 
     /** Records that the global element [element]'s type is declared as the record [name]. */
     fun declare(element: QName, name: String) {

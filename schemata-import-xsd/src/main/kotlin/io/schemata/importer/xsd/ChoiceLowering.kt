@@ -687,13 +687,30 @@ internal class ChoiceLowering(private val context: ImportContext) {
                         val ref = sharedBranchRecord(e, group, unionWhere, siblings)
                         ref to Names.snakeCase(ref.name)
                     }
-                if (checkMismatch && e.name != stem) {
+                val placeholder =
+                    (type as? UnitType.Ref)?.takeIf { it.name.startsWith(ELEMENT_REF_PREFIX) }
+                if (checkMismatch && placeholder != null) {
+                    // The record an element reference names may be numbered once every
+                    // namespace's elements have claimed theirs, so the note waits for the name the
+                    // XSD target gives that record's element, and goes when it is this one's.
+                    val note =
+                        context.lossy(
+                            ImportCodes.APPROXIMATED,
+                            unionWhere,
+                            memberNameTail(e.name, stem),
+                            e.el.line,
+                        )
+                    context.diagnostics += note
+                    context.elementRecords.deferNote(note, placeholder) { regenerated ->
+                        if (regenerated == e.name) null
+                        else "$unionWhere: ${memberNameTail(e.name, regenerated)}"
+                    }
+                } else if (checkMismatch && e.name != stem) {
                     context.diagnostics +=
                         context.lossy(
                             ImportCodes.APPROXIMATED,
                             unionWhere,
-                            "member element name '${e.name}' has no Schemata equivalent and is dropped; the " +
-                                "regenerated element will be named '$stem'",
+                            memberNameTail(e.name, stem),
                             e.el.line,
                         )
                 }
@@ -808,8 +825,21 @@ internal class ChoiceLowering(private val context: ImportContext) {
         if (el.type != null) {
             val qname = el.type
             if (qname.namespace == ImportTypes.XS) {
-                // A builtin member is typed as a field of it would be, a bare decimal taking
-                // the default precision and scale; a list builtin, like any list, is a string.
+                // A list builtin (xs:IDREFS, xs:ENTITIES, xs:NMTOKENS) is a whitespace-separated
+                // list, which a member cannot be: the member is a string, noted as that alone,
+                // never as the list of string a field of it would be.
+                if (ImportTypes.builtin(qname.local)?.type is UnitType.ListOf) {
+                    context.diagnostics +=
+                        context.lossy(
+                            ImportCodes.DROPPED,
+                            unionWhere,
+                            "member typed xs:${qname.local} imported as string",
+                            el.line,
+                        )
+                    return UnitType.Scalar("string", emptyList()) to "string"
+                }
+                // Any other builtin member is typed as a field of it would be, a bare decimal
+                // taking the default precision and scale.
                 val type = context.simpleTypes.resolveTypeRef(qname, unionWhere, el.line)
                 if (type == null) {
                     context.diagnostics +=
@@ -933,6 +963,11 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 UnitType.Scalar("string", emptyList()) to "string"
             }
         }
+
+    /** A member element's name that the XSD target writes as [regenerated] instead. */
+    private fun memberNameTail(name: String, regenerated: String): String =
+        "member element name '$name' has no Schemata equivalent and is dropped; the regenerated " +
+            "element will be named '$regenerated'"
 
     /**
      * [original]'s regenerated element or union-member name, exactly as the XSD target writes it.

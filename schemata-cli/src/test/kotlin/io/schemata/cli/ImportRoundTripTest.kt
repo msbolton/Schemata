@@ -75,6 +75,16 @@ class ImportRoundTripTest {
             "SCH2403 (union|element) '.*': member element name '.*' has no Schemata equivalent and is dropped; .*"
         )
 
+    /**
+     * An enumeration value that is not an XML name (`2d`, `+x-y`) is renamed on import, and keeps
+     * an `@xsd(name)` override that writes it back as it was; the xsd it regenerates is imported
+     * again with the same note.
+     */
+    private val xsdEnumValueName =
+        Regex(
+            "SCH2403 enum value '.*': enum value '.*' has no Schemata equivalent; imported as '.*'"
+        )
+
     @TestFactory
     fun `importing a target's output regenerates it byte for byte`(): List<DynamicTest> =
         formats.flatMap { (format, target, importer) ->
@@ -189,7 +199,7 @@ class ImportRoundTripTest {
             "xsd",
             XsdTarget,
             XsdImporter,
-            listOf(xsdSchemaName, xsdMemberName),
+            listOf(xsdSchemaName, xsdMemberName, xsdEnumValueName),
             File("src/test/resources/import"),
         )
 
