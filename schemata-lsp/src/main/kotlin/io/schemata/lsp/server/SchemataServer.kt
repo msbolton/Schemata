@@ -108,6 +108,13 @@ class SchemataServer(
     private var roots: List<String> = emptyList()
     private var strict = false
     private var exclude: (Path) -> Boolean = { false }
+
+    /** The `[sources]` roots of `schemata.toml`, or null when it has none. */
+    private var fileRoots: List<String>? = null
+    private var fileExclude: (Path) -> Boolean = { false }
+
+    /** The `[compile] strict` of `schemata.toml`; false without one. */
+    private var fileStrict = false
     @Volatile private var shutdownRequested = false
 
     override fun connect(client: LanguageClient) {
@@ -174,18 +181,24 @@ class SchemataServer(
     /**
      * `{"roots": ["model"], "strict": true}`; a key that is missing or of the wrong type keeps its
      * current value. A relative root resolves against the workspace folder, and is ignored when
-     * there is none. At initialize each setting is settled on its own: `roots`, and the excludes
-     * with them, come from the options when given and else from the `[sources]` of `schemata.toml`;
-     * `strict` comes from the options when given and else from its `[compile] strict`. The file is
-     * never consulted for a setting the options gave. Roots given here later replace the file's
-     * roots and excludes alike.
+     * there is none. Each setting is settled on its own. Non-empty `roots` replace the roots and
+     * excludes of the `[sources]` in `schemata.toml`; an empty list brings back the file's, or no
+     * roots when it has none or was not read. Strictness is on when the options or the file turn it
+     * on, and the options never turn the file's off, as `--strict` never does on the command line.
+     * Editors such as the VS Code extension always send their defaults, an empty `roots` and a
+     * false `strict`, so neither value can mean that the user chose it over the file.
      */
     private fun configure(options: JsonObject?) {
-        rootsIn(options)?.let {
-            roots = it
-            exclude = { false }
+        rootsIn(options)?.let { given ->
+            if (given.isEmpty()) {
+                roots = fileRoots ?: emptyList()
+                exclude = fileExclude
+            } else {
+                roots = given
+                exclude = { false }
+            }
         }
-        strictIn(options)?.let { strict = it }
+        strictIn(options)?.let { strict = it || fileStrict }
         val base = folder
         val paths =
             roots.mapNotNull { root ->
@@ -196,16 +209,16 @@ class SchemataServer(
     }
 
     /**
-     * Fills in from the nearest `schemata.toml` at or above the workspace folder each setting
-     * [options] leave out: the roots and excludes of `[sources]`, the strictness of `[compile]`. So
-     * the editor reports what `schemata check` does (SCH-102). When the options give both, the file
-     * is not even looked for. A file with errors is the CLI's to report: the server notes it in the
-     * client's log and carries on as if there were no file.
+     * Reads the nearest `schemata.toml` at or above the workspace folder for the settings [options]
+     * leave to it: the roots and excludes of `[sources]`, the strictness of `[compile]`. So the
+     * editor reports what `schemata check` does (SCH-102). Empty `roots` and `strict: false` leave
+     * a setting to the file just as a missing key does, see [configure]; when the options give
+     * non-empty roots and `strict: true`, the file is not even looked for. A file with errors is
+     * the CLI's to report: the server notes it in the client's log and carries on as if there were
+     * no file.
      */
     private fun readProjectFile(options: JsonObject?) {
-        val rootsGiven = rootsIn(options) != null
-        val strictGiven = strictIn(options) != null
-        if (rootsGiven && strictGiven) return
+        if (rootsIn(options).orEmpty().isNotEmpty() && strictIn(options) == true) return
         val base = folder?.toAbsolutePath()?.normalize() ?: return
         val file = ConfigLoader.discover(base) ?: return
         val shown = base.relativize(file).toString()
@@ -221,11 +234,14 @@ class SchemataServer(
             )
             return
         }
-        if (!rootsGiven && config.sources != null) {
-            roots = config.sourcePaths.map(Path::toString)
-            exclude = config::excluded
+        if (config.sources != null) {
+            fileRoots = config.sourcePaths.map(Path::toString)
+            fileExclude = config::excluded
+            roots = fileRoots.orEmpty()
+            exclude = fileExclude
         }
-        if (!strictGiven) config.compile.strict?.let { strict = it.value }
+        fileStrict = config.compile.strict?.value == true
+        strict = fileStrict
     }
 
     private fun rootsIn(options: JsonObject?): List<String>? =
