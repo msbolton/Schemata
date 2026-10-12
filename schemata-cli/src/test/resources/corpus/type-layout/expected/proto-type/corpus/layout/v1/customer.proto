@@ -7,8 +7,8 @@ import "corpus/layout/v1/status.proto";
 import "corpus/layout/v1/tag.proto";
 
 option java_package = "com.example.corpus.layout";
-option java_multiple_files = true;
 option java_outer_classname = "CustomerProto";
+option java_multiple_files = true;
 
 // A customer and the last order they placed.
 message Customer {

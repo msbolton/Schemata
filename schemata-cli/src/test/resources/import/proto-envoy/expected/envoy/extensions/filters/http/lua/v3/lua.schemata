@@ -1,4 +1,4 @@
-schema envoy.extensions.filters.http.lua.v3.lua @proto(package: "envoy.extensions.filters.http.lua.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.filters.http.lua.v3") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/lua/v3;luav3")
+schema envoy.extensions.filters.http.lua.v3.lua @proto(package: "envoy.extensions.filters.http.lua.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.filters.http.lua.v3") @proto(java_outer_classname: "LuaProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/lua/v3;luav3")
 
 import envoy.config.core.v3
 

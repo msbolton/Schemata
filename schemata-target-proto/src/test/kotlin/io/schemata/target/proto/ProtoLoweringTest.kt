@@ -2660,7 +2660,7 @@ class ProtoLoweringTest {
                 )
             )
         assertEquals(2, lowered.model.files.size)
-        // Only the wrapper class name, which follows the unit's options, differs per file.
+        // Only the wrapper class name differs per file.
         assertEquals(
             1,
             lowered.model.files
@@ -2698,6 +2698,30 @@ class ProtoLoweringTest {
         )
         assertEquals(emptyList(), ProtoTarget(ProtoLayout.TYPE).compile(analysed(source)).files)
         assertEquals(emptyList(), lower(source).codes())
+    }
+
+    @Test
+    fun `a one-file unit keeps a declared java_outer_classname under the type layout`() {
+        val declared =
+            lowerTypes(
+                "schema shop.orders @proto(java_outer_classname: \"X\") " +
+                    "@proto(java_multiple_files: true)\n\nmodel Order { #1 n int32 }\n"
+            )
+        assertEquals(emptyList(), declared.codes())
+        assertEquals(
+            listOf("java_outer_classname" to "\"X\"", "java_multiple_files" to "true"),
+            declared.model.files.single().options,
+        )
+        assertNull(declared.protocErrors())
+        val absent =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model Order { #1 n int32 }\n"
+            )
+        assertEquals(
+            listOf("java_outer_classname" to "\"OrderProto\"", "java_multiple_files" to "true"),
+            absent.model.files.single().options,
+        )
     }
 
     @Test
@@ -2763,8 +2787,8 @@ class ProtoLoweringTest {
         assertEquals(
             listOf(
                 "java_package" to "\"com.example.web\"",
-                "java_multiple_files" to "true",
                 "java_outer_classname" to "\"HttpStatusProto\"",
+                "java_multiple_files" to "true",
             ),
             lowered.file("shop/web/http_status.proto").options,
         )
@@ -2792,13 +2816,13 @@ class ProtoLoweringTest {
                 "shop/orders/seat.proto" to "\"SeatProto\"",
                 "shop/orders/seat_key.proto" to "\"SeatKeyProto\"",
             ),
-            lowered.model.files.map { it.path to it.options.last().second },
+            lowered.model.files.map { it.path to it.options.first().second },
         )
-        assertTrue(
-            lowered.model.files.all {
-                it.options == listOf("java_multiple_files" to "true", it.options.last()) &&
-                    it.options.last().first == "java_outer_classname"
-            }
+        // In key order: the wrapper name stands where a declared one would, before
+        // java_multiple_files.
+        assertEquals(
+            listOf(listOf("java_outer_classname", "java_multiple_files")),
+            lowered.model.files.map { file -> file.options.map { it.first } }.distinct(),
         )
         assertNull(lowered.protocErrors())
         // The schema layout is untouched.

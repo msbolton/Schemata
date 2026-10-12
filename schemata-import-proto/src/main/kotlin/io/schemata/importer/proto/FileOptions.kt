@@ -19,8 +19,9 @@ internal object FileOptions {
      * one value would silently move the generated code of the others, so the key is dropped and
      * [report] names each file whose value differs from the first declaring file's, with the
      * message and its help. A file that declares a key twice is read by its first declaration. When
-     * every declaring file's `java_outer_classname` is its own wrapper name (see [isOwnWrapper]),
-     * the key is the Protobuf target's choice and reads as nothing, silently.
+     * two or more files declare `java_outer_classname` and each gives its own wrapper name (see
+     * [isOwnWrapper]), the names are the Protobuf target's choice and read as nothing, silently. A
+     * lone file's name is kept: a unit of one file keeps its declared name under either layout.
      */
     fun annotations(
         files: List<ProtoFile>,
@@ -46,6 +47,7 @@ internal object FileOptions {
                 }
             if (
                 key.name == "java_outer_classname" &&
+                    declared.size > 1 &&
                     declared.all { (file, value) -> isOwnWrapper(file, value) }
             ) {
                 return@mapNotNull null
@@ -73,8 +75,7 @@ internal object FileOptions {
      * type layout under `java_multiple_files: true`: the file's stem in upper camel case plus
      * `Proto` (`order.proto` → `OrderProto`), in a file named for one of its own top-level types or
      * services, as every file of that layout is. A file named for no type of its own, such as a
-     * schema's `options.proto` holding `Order`, chose its value itself and keeps it, so its schema
-     * compiles back to the same file.
+     * schema's `options.proto` holding `Order`, chose its value itself.
      */
     private fun isOwnWrapper(file: ProtoFile, value: String): Boolean {
         val stem = file.path.substringAfterLast('/').removeSuffix(".proto")
