@@ -693,13 +693,18 @@ object XsdImport {
                     )
             }
             val siblings = mutableListOf<UnitDecl>()
-            val content = ct.content
-            if (content is XContent.Choice && context.choiceLowering.isUnionType(ct)) {
+            val unionChoice =
+                (ct.content as? XContent.Choice)?.takeIf { context.choiceLowering.isUnionType(ct) }
+            // A choice with a member of this very type would be a union listing itself, which
+            // no schema may hold: it is a model with a field per member instead.
+            val selfNaming =
+                unionChoice?.takeIf { context.choiceLowering.namesItself(it, headQName, null) }
+            if (unionChoice != null && selfNaming == null) {
                 val unionWhere = "union '${info.finalName}'"
                 context.choiceLowering.unionExtras(ct, unionWhere)
                 val union =
                     context.choiceLowering.unionFromChoice(
-                        content,
+                        unionChoice,
                         info.finalName,
                         unionWhere,
                         ct.doc,
@@ -742,12 +747,22 @@ object XsdImport {
                     null
                 }
             val (fields, nested, recordAnnotations) =
-                context.complexLowering.fieldsAndNested(
-                    ct,
-                    "complex type '$original'",
-                    info.finalName,
-                    siblings,
-                )
+                selfNaming?.let {
+                    context.choiceLowering.selfNamingFields(
+                        ct,
+                        it,
+                        info.finalName,
+                        "complex type '$original'",
+                        ct.line,
+                        siblings,
+                    )
+                }
+                    ?: context.complexLowering.fieldsAndNested(
+                        ct,
+                        "complex type '$original'",
+                        info.finalName,
+                        siblings,
+                    )
             val annotations = listOfNotNull(typeOverride, rootAnnotation) + recordAnnotations
             return listOf(UnitRecord(info.finalName, fields, nested, ct.doc, annotations)) +
                 siblings
@@ -767,13 +782,24 @@ object XsdImport {
             val name = elementRecordName(original, el.line)
             if (!context.claimTopLevel(name, "element '$original'", el.line)) return emptyList()
             val siblings = mutableListOf<UnitDecl>()
-            val content = ct.content
-            if (content is XContent.Choice && context.choiceLowering.isUnionType(ct)) {
+            val unionChoice =
+                (ct.content as? XContent.Choice)?.takeIf { context.choiceLowering.isUnionType(ct) }
+            // A choice with a member that refs this very element would be a union listing
+            // itself, which no schema may hold: it is a model with a field per member instead.
+            val selfNaming =
+                unionChoice?.takeIf {
+                    context.choiceLowering.namesItself(
+                        it,
+                        null,
+                        QName(context.doc.targetNamespace, original),
+                    )
+                }
+            if (unionChoice != null && selfNaming == null) {
                 val unionWhere = "union '$name'"
                 context.choiceLowering.unionExtras(ct, unionWhere)
                 val union =
                     context.choiceLowering.unionFromChoice(
-                        content,
+                        unionChoice,
                         name,
                         unionWhere,
                         ct.doc ?: el.doc,
@@ -793,7 +819,22 @@ object XsdImport {
                     )
             }
             val (fields, nested, annotations) =
-                context.complexLowering.fieldsAndNested(ct, "element '$original'", name, siblings)
+                selfNaming?.let {
+                    context.choiceLowering.selfNamingFields(
+                        ct,
+                        it,
+                        name,
+                        "element '$original'",
+                        el.line,
+                        siblings,
+                    )
+                }
+                    ?: context.complexLowering.fieldsAndNested(
+                        ct,
+                        "element '$original'",
+                        name,
+                        siblings,
+                    )
             return listOf(UnitRecord(name, fields, nested, ct.doc ?: el.doc, annotations)) +
                 siblings
         }

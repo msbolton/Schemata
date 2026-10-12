@@ -399,10 +399,34 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 "inline choice has no Schemata equivalent; members imported as optional fields",
                 particle.line,
             )
-        // Each branch, a wildcard among them, is an optional field; a repeated choice repeats
-        // every branch, so a branch's occurrence is multiplied by the choice's and a branch
-        // that may repeat is a list.
-        return branches.flatMap {
+        return optionalBranchFields(
+            recordName,
+            branches,
+            particle,
+            whereCollision,
+            claimed,
+            nested,
+            siblings,
+            enclosing,
+        )
+    }
+
+    /**
+     * Each of a choice's [branches], a wildcard among them, as an optional field of the record: a
+     * repeated choice repeats every branch, so a branch's occurrence is multiplied by [particle]'s
+     * and a branch that may repeat is a list.
+     */
+    private fun optionalBranchFields(
+        recordName: String,
+        branches: List<XParticle>,
+        particle: XParticle.Nested,
+        whereCollision: String,
+        claimed: MutableMap<String, Claim>,
+        nested: MutableList<UnitDecl>,
+        siblings: MutableList<UnitDecl>,
+        enclosing: Set<QName>,
+    ): List<UnitField> =
+        branches.flatMap {
             when (it) {
                 is XParticle.Element ->
                     listOfNotNull(
@@ -453,7 +477,6 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 is XParticle.GroupRef -> emptyList() // only an unresolved ref survives expansion
             }
         }
-    }
 
     /**
      * Whether [ct], whose content is a bare choice, lowers to a union: only when the choice occurs
@@ -472,6 +495,81 @@ internal class ChoiceLowering(private val context: ImportContext) {
             context
                 .quietly { context.complexLowering.expandParticles(choice.particles, "") }
                 .any { it !is XParticle.Any }
+    }
+
+    /**
+     * Whether a member of [choice] names the declaration [choice] would be a union for: an element
+     * typed [type] (the named complex type being declared), or a reference to the global element
+     * [element] (the one whose anonymous type holds [choice]) or to one typed [type]. A union may
+     * not list itself, so such a choice is a model instead, see [selfNamingFields]. A choice nested
+     * in [choice] offers its branches as members too, as [unionFromChoice] takes them; two choices
+     * naming each other are still two unions.
+     */
+    internal fun namesItself(choice: XContent.Choice, type: QName?, element: QName?): Boolean =
+        // Only the answer is wanted: whatever expanding the branches reports is reported where
+        // they are lowered.
+        context.quietly {
+            fun names(particles: List<XParticle>): Boolean =
+                context.complexLowering.expandParticles(particles, "").any { p ->
+                    when (p) {
+                        is XParticle.Element -> {
+                            val el = p.element
+                            val ref = el.ref
+                            if (ref != null) {
+                                ref == element ||
+                                    (type != null &&
+                                        context.complexLowering.resolveElementRef(el, "")?.type ==
+                                            type)
+                            } else type != null && el.type == type
+                        }
+                        is XParticle.Nested ->
+                            (p.content as? XContent.Choice)?.let { names(it.particles) } == true
+                        else -> false
+                    }
+                }
+            names(choice.particles)
+        }
+
+    /**
+     * The fields of the model [ct] lowers to under [recordName] when its bare choice names itself
+     * (see [namesItself]): one optional field per branch, a list for a branch that may repeat, as
+     * an inline choice's fallback gives, and one note at [line], the declaration. The triple is
+     * [ComplexLowering.fieldsAndNested]'s: fields, nested declarations, record annotations.
+     */
+    internal fun selfNamingFields(
+        ct: XComplexType,
+        choice: XContent.Choice,
+        recordName: String,
+        where: String,
+        line: Int,
+        siblings: MutableList<UnitDecl>,
+    ): Triple<List<UnitField>, List<UnitDecl>, List<UnitAnnotation>> {
+        unionExtras(ct, where)
+        context.diagnostics +=
+            context.lossy(
+                ImportCodes.APPROXIMATED,
+                where,
+                "choice names itself; members imported as optional fields",
+                line,
+            )
+        val claimed = mutableMapOf<String, Claim>()
+        val nested = mutableListOf<UnitDecl>()
+        val enclosing = setOfNotNull(ct.name?.let { QName(context.doc.targetNamespace, it) })
+        val particle = XParticle.Nested(choice, choice.minOccurs, choice.maxOccurs, ct.line)
+        val fields =
+            optionalBranchFields(
+                recordName,
+                context.complexLowering.expandParticles(choice.particles, where),
+                particle,
+                where,
+                claimed,
+                nested,
+                siblings,
+                enclosing,
+            )
+        val settled =
+            context.renameAttributesBesideElements(context.settleNames(fields, claimed), claimed)
+        return Triple(settled, nested, emptyList())
     }
 
     /**

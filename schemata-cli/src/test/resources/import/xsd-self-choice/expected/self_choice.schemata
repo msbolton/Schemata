@@ -1,0 +1,9 @@
+schema self_choice
+
+model Tree { branch Tree[]  value int32? }
+
+model Node { node Node?  leaf string? }
+
+union Ping = Pong | string
+
+union Pong = Ping | bool

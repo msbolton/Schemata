@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:self_choice"
+    targetNamespace="urn:schemata:self_choice" elementFormDefault="qualified">
+  <!-- A global element whose anonymous choice refs the element itself. -->
+  <xs:element name="node">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element ref="tns:node"/>
+        <xs:element name="leaf" type="xs:string"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+  <!-- A named type whose choice has a member of the type itself. -->
+  <xs:complexType name="TreeType">
+    <xs:choice>
+      <xs:element name="branch" type="tns:TreeType" maxOccurs="unbounded"/>
+      <xs:element name="value" type="xs:int"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="tree" type="tns:TreeType"/>
+  <!-- Two choices naming each other: still two unions. -->
+  <xs:element name="ping">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element ref="tns:pong"/>
+        <xs:element name="stop" type="xs:string"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="pong">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element ref="tns:ping"/>
+        <xs:element name="halt" type="xs:boolean"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

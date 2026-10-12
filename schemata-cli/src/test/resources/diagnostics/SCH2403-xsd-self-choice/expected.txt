@@ -1,0 +1,6 @@
+# import=xsd
+warning[SCH2403] (lossy): element 'node': choice names itself; members imported as optional fields
+ --> s.xsd:3:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

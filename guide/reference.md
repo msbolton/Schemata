@@ -1921,6 +1921,7 @@ loaded.
 | `xs:all` as a type's content | an `@xsd(all)` model | |
 | `xs:all` through an extension base, or in a group in a sequence | a sequence, flattened | SCH2403 |
 | a choice as a type's whole content | a union | SCH2403 when a branch name differs |
+| a choice with a member that names the type or element it declares | a model with one optional field per branch, a list for a repeated one | SCH2403 |
 | a sequence or `xs:all` branch of a choice | a top-level `<First>Group` model the union lists | SCH2403 |
 | two branches of one type | a model per branch holding `value` | SCH2403 |
 | an inline choice in a sequence | a `<Model>Choice` union, or one optional field per branch | SCH2403 |
