@@ -429,4 +429,119 @@ class RelationRulesTest {
         assertEquals(1, verdicts.getValue("proto").count { it is Verdict.Note })
         assertTrue(verdicts.getValue("xsd").any { it is Verdict.Breaking })
     }
+
+    @Test
+    fun `embed flipped on a union member with a keyless target is no change`() {
+        val address = "model Address { #1 street string }\n"
+        val old = analysed(customerKey + address + "union Party = #1 Customer | #2 Address\n")
+        val new =
+            analysed(customerKey + address + "union Party = #1 Customer | #2 Address { embed }\n")
+        assertTrue(Differ.diff(old, new).isEmpty())
+        assertTrue(Differ.diff(new, old).isEmpty())
+    }
+
+    @Test
+    fun `embed flipped on a union member with a keyed target is a member type change on every target`() {
+        val order = "model Order { #1 id uuid { id } }\n"
+        val byKey = analysed(customerKey + order + "union Party = #1 Customer | #2 Order\n")
+        val embedded =
+            analysed(customerKey + order + "union Party = #1 Customer | #2 Order { embed }\n")
+        listOf(byKey to embedded, embedded to byKey).forEach { (old, new) ->
+            val change = assertIs<UnionMemberTypeChanged>(Differ.diff(old, new).single())
+            assertEquals("s.Party.#2", change.path)
+            val verdicts = judged(old, new)
+            listOf("proto", "sql", "xsd", "jsonschema").forEach { target ->
+                assertIs<Verdict.Breaking>(verdicts.getValue(target).single(), target)
+            }
+            assertEquals(listOf<Verdict>(Verdict.Compatible), verdicts.getValue("openapi"))
+        }
+    }
+
+    @Test
+    fun `a table strategy on a keyed reference equals none`() {
+        val old = analysed(customerKey + "model Order { #1 id uuid { id }  #2 c Customer }\n")
+        val new =
+            analysed(
+                customerKey +
+                    "model Order { #1 id uuid { id }  #2 c Customer @sql(strategy: table) }\n"
+            )
+        assertTrue(Differ.diff(old, new).isEmpty())
+        assertTrue(Differ.diff(new, old).isEmpty())
+    }
+
+    @Test
+    fun `a table strategy on a keyed model list equals none`() {
+        val old = analysed(customerKey + "model Order { #1 id uuid { id }  #2 cs Customer[] }\n")
+        val new =
+            analysed(
+                customerKey +
+                    "model Order { #1 id uuid { id }  #2 cs Customer[] @sql(strategy: table) }\n"
+            )
+        assertTrue(Differ.diff(old, new).isEmpty())
+        assertTrue(Differ.diff(new, old).isEmpty())
+    }
+
+    @Test
+    fun `a table strategy on a keyless model list equals none`() {
+        val line = "model Line { #1 sku string }\n"
+        val old = analysed(customerKey + line + "model Order { #1 id uuid { id }  #2 ls Line[] }\n")
+        val new =
+            analysed(
+                customerKey +
+                    line +
+                    "model Order { #1 id uuid { id }  #2 ls Line[] @sql(strategy: table) }\n"
+            )
+        assertTrue(Differ.diff(old, new).isEmpty())
+    }
+
+    @Test
+    fun `a table strategy on a scalar list is still a change`() {
+        val old = analysed(customerKey + "model Order { #1 id uuid { id }  #2 tags string[] }\n")
+        val new =
+            analysed(
+                customerKey +
+                    "model Order { #1 id uuid { id }  #2 tags string[] @sql(strategy: table) }\n"
+            )
+        val change = assertIs<AnnotationChanged>(Differ.diff(old, new).single())
+        assertEquals("sql" to "strategy", change.target to change.key)
+        assertEquals(null to AnnotationValue.Name("table"), change.from to change.to)
+        val verdicts = judged(old, new)
+        assertIs<Verdict.Breaking>(verdicts.getValue("sql").single())
+        verdicts
+            .filterKeys { it != "sql" }
+            .forEach { (target, list) ->
+                assertEquals(listOf<Verdict>(Verdict.Compatible), list, target)
+            }
+    }
+
+    @Test
+    fun `a table strategy on a keyless reference is still a change`() {
+        // The target refuses this shape (SCH2110); the differ must still report it, not crash.
+        val line = "model Line { #1 sku string }\n"
+        val old = analysed(customerKey + line + "model Order { #1 id uuid { id }  #2 l Line }\n")
+        val new =
+            analysed(
+                customerKey +
+                    line +
+                    "model Order { #1 id uuid { id }  #2 l Line @sql(strategy: table) }\n"
+            )
+        val change = assertIs<AnnotationChanged>(Differ.diff(old, new).single())
+        assertEquals("sql" to "strategy", change.target to change.key)
+        assertEquals(null to AnnotationValue.Name("table"), change.from to change.to)
+        assertIs<Verdict.Breaking>(judged(old, new).getValue("sql").single())
+    }
+
+    @Test
+    fun `a table strategy on a map is still a change`() {
+        val old =
+            analysed(customerKey + "model Order { #1 id uuid { id }  #2 m map<string, string> }\n")
+        val new =
+            analysed(
+                customerKey +
+                    "model Order { #1 id uuid { id }  #2 m map<string, string> @sql(strategy: table) }\n"
+            )
+        val change = assertIs<AnnotationChanged>(Differ.diff(old, new).single())
+        assertEquals(null to AnnotationValue.Name("table"), change.from to change.to)
+        assertIs<Verdict.Breaking>(SqlRules.classify(change, ChangeContext(old, new)))
+    }
 }

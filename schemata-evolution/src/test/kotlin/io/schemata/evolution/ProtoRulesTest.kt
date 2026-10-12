@@ -673,4 +673,32 @@ class ProtoRulesTest {
             judged(old, new).single { it.first.kind == "deprecation.changed" }.second,
         )
     }
+
+    @Test
+    fun `an operation that moves ordinal is compatible`() {
+        val old = analysed(serviceBase + "service S { #1 get(A): B  #2 put(A): B }")
+        val new = analysed(serviceBase + "service S { #1 get(A): B  #7 put(A): B }")
+        assertEquals(
+            listOf<Pair<String, Verdict>>("operation.moved" to Verdict.Compatible),
+            judged(old, new).map { it.first.kind to it.second },
+        )
+    }
+
+    @Test
+    fun `an operation that moves ordinal and changes its request is judged on the request`() {
+        val old = analysed(serviceBase + "service S { #1 get(A): B  #2 put(A): B }")
+        val new = analysed(serviceBase + "service S { #1 get(A): B  #7 put(B): B }")
+        assertEquals(
+            listOf(
+                "operation.moved" to Verdict.Compatible,
+                "operation.requestChanged" to
+                    Verdict.Breaking(
+                        "t.S.put: the request changed from A to B breaks clients that send the " +
+                            "old message",
+                        "add a new operation instead of changing this one's request",
+                    ),
+            ),
+            judged(old, new).map { it.first.kind to it.second },
+        )
+    }
 }

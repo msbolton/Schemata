@@ -2746,7 +2746,10 @@ on OLD and NEW, so they are no change (section 24).
   the declared name did not move.
 - A field that turns from stored into a back-reference, or back, under the same ordinal, name,
   and type is removed or added: a back-reference stores nothing.
-- A service matches by qualified name and an operation by ordinal within its service, the same way.
+- A service matches by qualified name and an operation by ordinal within its service, the same way;
+  then the operations left unmatched on both sides match by name, so an operation renumbered under
+  its own name is moved, not removed and added, since neither an rpc's method path nor an
+  `operationId` carries the ordinal. Fields, enum values, and union members never match by name.
   On openapi, a service's emitted name is its tag and an operation's is its `operationId`, each
   after `@openapi(name)`; on proto, they are the service's and the rpc's names, each after
   `@proto(name)`.
@@ -2779,7 +2782,8 @@ override, so a pinned rename is a doc-level change only.
 | Enum value removed | breaking unless reserved, then note | breaking | breaking | breaking |
 | Enum value renamed, emitted name changes | compatible | breaking | breaking | breaking |
 | Union member added | compatible | compatible | compatible | compatible |
-| Union member removed or type changed | breaking | breaking | breaking | breaking |
+| Union member removed or type changed, including `{ embed }` added or removed on a member whose model has a key (the member becomes the model or its key) | breaking | breaking | breaking | breaking |
+| `{ embed }` added or removed on a union member whose model has no key | compatible | compatible | compatible | compatible |
 | Declaration removed | note | breaking when it had a table | breaking when it had a root element, else note | breaking (every def is addressable) |
 | Declaration added | compatible | compatible | compatible | compatible |
 | Declaration kind changed | breaking | breaking | breaking | breaking |
@@ -2790,6 +2794,7 @@ override, so a pinned rename is a doc-level change only.
 | A key field renamed while other models reference its model | note (their reference fields are named after it; the JSON mapping changes) | the field's own verdict | breaking | breaking |
 | A key field's type changed while other models reference its model | the field's own verdict, raised to a note when it is compatible (the references' emitted key fields change with it) | the field's own verdict | as Protobuf | as Protobuf |
 | `@sql(strategy)` changed | compatible | breaking | compatible | compatible |
+| `@sql(strategy: table)` added or removed on a reference to a keyed model or on a list of models, which take a table without it | compatible | compatible | compatible | compatible |
 | `{ unique }` or `@@unique` added | compatible | breaking (existing duplicate rows) | compatible | compatible |
 | `{ unique }` or `@@unique` removed, `{ index }` or `@@index` added or removed | compatible | compatible | compatible | compatible |
 | Back-reference added or removed | compatible | compatible | compatible | compatible |
@@ -2837,6 +2842,7 @@ two rulebooks' own rows:
 | Service removed | breaking | breaking |
 | Operation removed | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its rpc name | breaking; unless its name is `reserved` in NEW, the help suggests reserving it, so a later operation cannot take over its default `operationId` |
 | Operation renamed | breaking when its rpc name changes; compatible when `@proto(name)` keeps it | breaking when its `operationId` changes, or, without a binding, its derived URL; compatible when `@openapi(name)` keeps the `operationId` and a binding keeps the URL |
+| Operation moved to another ordinal under the same name | compatible: the method path carries no ordinal; its request and response are compared as for any operation | compatible: neither the `operationId` nor the URL carries the ordinal; its request and response are compared as for any operation |
 | Request or response changed, `stream` included | breaking | breaking |
 | Binding added, removed, or changed | compatible | breaking when the URL moves; binding an operation to its derived URL, or unbinding one that was bound to it, is compatible |
 | `@proto(name)` changed on a service or an operation | breaking when the service or rpc name it emits changes | compatible |
@@ -2872,13 +2878,14 @@ enum, a union), `field.added`, `field.removed`, `field.renamed`, `field.typeChan
 `field.nullabilityChanged`, `field.defaultChanged`, `field.refinementChanged`, `enumValue.added`,
 `enumValue.removed`, `enumValue.renamed`, `unionMember.added`, `unionMember.removed`,
 `unionMember.typeChanged`, `reserved.changed`, `service.added`, `service.removed`,
-`operation.added`, `operation.removed`, `operation.renamed`, `operation.requestChanged`,
-`operation.responseChanged`, `operation.bindingChanged`, `annotation.changed` (an option or an
-attribute), `deprecation.changed`, and `doc.changed`; 2.0 renamed 1.x's `namespace.*` and
-`declaration.*` kinds. `old` and `new` are the values as Schemata source, so a string reads `"eu"`
-with its quotes and a type `string { max 100 }`. When the sides cannot be compared (`SCH2503`), the
-JSON report keeps that shape — `changes` empty, every `summary` count zero, `exitCode` 1 — and adds
-an `errors` array, one `{code, message, help, file, line}` per reason.
+`operation.added`, `operation.removed`, `operation.renamed`, `operation.moved`,
+`operation.requestChanged`, `operation.responseChanged`, `operation.bindingChanged`,
+`annotation.changed` (an option or an attribute), `deprecation.changed`, and `doc.changed`; 2.0
+renamed 1.x's `namespace.*` and `declaration.*` kinds. `old` and `new` are the values as Schemata
+source, so a string reads `"eu"` with its quotes and a type `string { max 100 }`. When the sides
+cannot be compared (`SCH2503`), the JSON report keeps that shape — `changes` empty, every `summary`
+count zero, `exitCode` 1 — and adds an `errors` array, one `{code, message, help, file, line}` per
+reason.
 
 ### Worked example
 

@@ -1,0 +1,17 @@
+s.sql
+  create table "order_tags"    clean
+  add constraint "order_tags"."fk_order_tags_order"    clean
+  drop column "order"."tags"    destructive
+
+3 steps in 1 file
+1 destructive, 0 may fail
+
+warning[SCH2701] (lossy): s.Order.tags: DROP COLUMN "tags" loses every value the column holds
+  --> old/s.schemata:12:6
+   |
+12 |   #5 tags     string[]
+   |      ^^^^
+   = help: move the data into "order_tags" between this statement and the one that creates it, then
+           rerun with --allow-destructive
+
+0 errors, 1 warning

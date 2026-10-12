@@ -4,6 +4,7 @@ import io.schemata.core.ir.Schema
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class OpenApiRulesTest {
     /** Every change between [old] and [new], each with its `openapi` verdict. */
@@ -403,5 +404,47 @@ class OpenApiRulesTest {
                 "post /Orders/fetch",
             message,
         )
+    }
+
+    @Test
+    fun `an operation that moves ordinal is compatible`() {
+        val old = analysed(base + "service S { #1 get(A): B  #2 put(A): B }")
+        val new = analysed(base + "service S { #1 get(A): B  #5 put(A): B }")
+        val (change, verdict) = judged(old, new).single()
+        val moved = assertIs<OperationMoved>(change)
+        assertEquals("t.S.put", moved.path)
+        assertEquals(2 to 5, moved.from.ordinal to moved.to.ordinal)
+        assertEquals(Verdict.Compatible, verdict)
+        val ctx = ChangeContext(old, new)
+        Rulebooks.all.forEach { rulebook ->
+            assertEquals(Verdict.Compatible, rulebook.classify(moved, ctx), rulebook.target)
+        }
+    }
+
+    @Test
+    fun `an operation that moves ordinal and changes its request is judged on the request`() {
+        val old = analysed(base + "service S { #1 get(A): B  #2 put(A): B }")
+        val new = analysed(base + "service S { #1 get(A): B  #3 put(B): B }")
+        assertEquals(
+            listOf(
+                "operation.moved" to Verdict.Compatible,
+                "operation.requestChanged" to
+                    Verdict.Breaking(
+                        "t.S.put: the request changed from A to B breaks clients that send the " +
+                            "old one",
+                        "add a new operation instead of changing this one's request",
+                    ),
+            ),
+            judged(old, new).map { it.first.kind to it.second },
+        )
+    }
+
+    @Test
+    fun `a renamed operation at a new ordinal is removed and added`() {
+        val old = analysed(base + "service S { #1 get(A): B  #2 put(A): B }")
+        val new = analysed(base + "service S { #1 get(A): B  #5 post(A): B }")
+        val kinds = judged(old, new).map { it.first.kind }
+        assertEquals(setOf("operation.removed", "operation.added"), kinds.toSet())
+        assertTrue("operation.moved" !in kinds)
     }
 }

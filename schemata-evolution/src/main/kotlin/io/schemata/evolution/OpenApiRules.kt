@@ -38,6 +38,8 @@ object OpenApiRules : Rulebook {
             is OperationAdded -> Verdict.Compatible
             is OperationRemoved -> operationRemoved(change, ctx)
             is OperationRenamed -> operationRenamed(change, ctx)
+            // the operationId and a derived URL are built from the name, never the ordinal
+            is OperationMoved -> Verdict.Compatible
             is OperationRequestChanged ->
                 Verdict.Breaking(
                     "${change.path}: the request changed from ${payloadText(change.from)} to " +

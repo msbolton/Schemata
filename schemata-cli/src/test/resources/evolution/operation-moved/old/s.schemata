@@ -1,0 +1,11 @@
+schema s
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id }  #2 total decimal(19, 4) }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+  #2 place(Order): Order  post "/orders"
+  #3 cancel(OrderId): Order  delete "/orders/{id}"
+}
