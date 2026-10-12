@@ -189,6 +189,22 @@ From `examples/shop/expected/sql/shop/orders.sql`:
   CONSTRAINT "ck_order_payment_bank_transfer" CHECK (("payment_kind" <> 'bank_transfer') OR ("payment_bank_transfer_iban" IS NOT NULL)),
 ```
 
+Compiled with `--proto-layout type`, the same example writes one file per top-level type, each
+under its package's directory:
+
+```text
+shop/orders/order.proto
+shop/orders/payment.proto
+shop/orders/card.proto
+shop/orders/bank_transfer.proto
+shop/orders/cash.proto
+shop/orders/status.proto
+shop/customers/customer.proto
+```
+
+`order.proto` imports `google/protobuf/timestamp.proto`, `payment.proto` and `status.proto`, and
+`payment.proto` imports the files of its three members.
+
 Warnings from `examples/shop/expected/proto-warnings.txt`:
 ```text
 SCH2001 field 'Customer.id': uuid has no Protobuf representation; lowered to string
@@ -801,11 +817,14 @@ From `schemata-cli/src/test/resources/import/proto-money/expected/google/type.sc
 schema google.type @proto(java_package: "com.google.type") @proto(java_multiple_files: true) @proto(objc_class_prefix: "GTP")
 ```
 
-`java_outer_classname` and `go_package` differ between `date.proto` and `money.proto`, so both are
-dropped, and `money.proto` gets an SCH2405 for each, naming `date.proto` as the first file of the
-package that declares the key. Choose the value with `@proto` on the imported schema.
+`go_package` differs between `date.proto` and `money.proto`, so it is dropped, and `money.proto`
+gets an SCH2405 naming `date.proto` as the first file of the package that declares the key. Choose
+the value with `@proto` on the imported schema. `java_outer_classname` is `DateProto` in
+`date.proto` and `MoneyProto` in `money.proto`: each file's stem plus `Proto`, in a file named for
+its message, which is the name `--proto-layout type` writes in every file of a package of several
+files. So it reads as nothing, without a warning.
 
-Apart from the two dropped options, nothing here needed a warning because every type in `Money` is
+Apart from the dropped option, nothing here needed a warning because every type in `Money` is
 one Schemata has. A `uint32`, a `google.protobuf.StringValue`, or a `oneof` mixed with other fields
 would each be reported, and section 19 of the reference lists what each construct becomes.
 Compiling the result under the proto target gives `message Money` back with the same fields,
@@ -886,8 +905,6 @@ SCH2405 envoy/config/core/v3/http_service.proto: option java_outer_classname 'Ht
 SCH2405 envoy/config/core/v3/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
 SCH2405 envoy/config/core/v3/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
 SCH2405 envoy/type/matcher/v3/string.proto: option java_outer_classname 'StringProto' differs from 'RegexProto' in envoy/type/matcher/v3/regex.proto; dropped
-SCH2405 envoy/type/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/percent.proto; dropped
-SCH2405 envoy/type/v3/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/v3/percent.proto; dropped
 SCH2405 include/xds/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'ContextParamsProto' in include/xds/core/v3/context_params.proto; dropped
 SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
 SCH2405 envoy/annotations/deprecation.proto: extend dropped

@@ -2406,4 +2406,575 @@ class ProtoLoweringTest {
             assertTrue("namespace Example.Orders" in cs.readText(), cs.readText())
         }
     }
+
+    private fun lowerTypes(vararg sources: String) =
+        ProtoLowering.lower(analysed(*sources), ProtoLayout.TYPE)
+
+    /** The `shop.orders` schema holding [body]. */
+    private fun shop(body: String) = "schema shop.orders\n\n$body"
+
+    @Test
+    fun `the schema layout is the default and unchanged`() {
+        for (sources in listOf(arrayOf(ALPHA, BETA), arrayOf(SERVICE, CATALOG))) {
+            val schema = analysed(*sources)
+            val default = ProtoLowering.lower(schema)
+            val explicit = ProtoLowering.lower(schema, ProtoLayout.SCHEMA)
+            assertEquals(default.model, explicit.model)
+            assertEquals(default.codes(), explicit.codes())
+            assertEquals(
+                ProtoTarget.compile(schema).files,
+                ProtoTarget(ProtoLayout.SCHEMA).compile(schema).files,
+            )
+        }
+    }
+
+    @Test
+    fun `the type layout writes one file per top-level declaration under the package directory`() {
+        val source =
+            shop("model Order { #1 id uuid  #2 status Status }\n\nenum Status { #1 placed }\n")
+        val lowered = lowerTypes(source)
+        assertEquals(
+            listOf("shop/orders/order.proto", "shop/orders/status.proto"),
+            lowered.model.files.map { it.path },
+        )
+        assertEquals(listOf("shop.orders"), lowered.model.files.map { it.packageName }.distinct())
+        val order = lowered.file("shop/orders/order.proto")
+        assertEquals(listOf("shop/orders/status.proto"), order.imports)
+        assertEquals(ProtoType.Named("Status"), message(order, "Order").fields[1].type)
+        assertEquals(emptyList(), lowered.file("shop/orders/status.proto").imports)
+        // The layout adds nothing to what the schema layout reports about these declarations.
+        assertEquals(lower(source).codes(), lowered.codes())
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a declared package names the directory`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.orders @proto(package: \"shop.orders.v1\")\n\nmodel Order { #1 n int32 }\n"
+            )
+        assertEquals(listOf("shop/orders/v1/order.proto"), lowered.model.files.map { it.path })
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a file is named by the emitted name`() {
+        assertEquals(
+            listOf("shop/orders/http_status.proto"),
+            lowerTypes(shop("model HTTPStatus { #1 n int32 }\n")).model.files.map { it.path },
+        )
+        assertEquals(
+            listOf("shop/orders/purchase_order.proto"),
+            lowerTypes(
+                    shop("model Order {\n  #1 n int32\n\n  @@proto(name: \"PurchaseOrder\")\n}\n")
+                )
+                .model
+                .files
+                .map { it.path },
+        )
+    }
+
+    @Test
+    fun `nested declarations stay in their parent's file`() {
+        val lowered =
+            lowerTypes(shop("model Order {\n  #1 line Line\n\n  model Line { #1 n int32 }\n}\n"))
+        val file = lowered.model.files.single()
+        assertEquals("shop/orders/order.proto", file.path)
+        assertEquals(listOf("Line"), message(file, "Order").nested.map { it.name })
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `declarations that reference each other share a file named after the first`() {
+        val lowered =
+            lowerTypes(
+                shop("model Order { #1 customer Customer? }\n\nmodel Customer { #1 last Order? }\n")
+            )
+        val file = lowered.model.files.single()
+        assertEquals("shop/orders/customer.proto", file.path)
+        assertEquals(listOf("Order", "Customer"), file.declarations.map { it.name })
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2001 model 'Customer' and model 'Order' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share shop/orders/customer.proto"
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on 'Customer' to name the file",
+            lowered.diagnostics.single().help,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `three declarations in a cycle are listed with commas`() {
+        val lowered =
+            lowerTypes(shop("model A { #1 b B? }\n\nmodel B { #1 c C? }\n\nmodel C { #1 a A? }\n"))
+        assertEquals(
+            listOf(
+                "SCH2001 model 'A', model 'B' and model 'C' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share shop/orders/a.proto"
+            ),
+            lowered.codes(),
+        )
+    }
+
+    @Test
+    fun `a cycle through a third declaration shares one file`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model A { #1 b B? }\n\nmodel B { #1 c C? }\n\nmodel C { #1 a A? }\n\n" +
+                        "model D { #1 a A }\n"
+                )
+            )
+        assertEquals(
+            listOf("shop/orders/a.proto", "shop/orders/d.proto"),
+            lowered.model.files.map { it.path },
+        )
+        assertEquals(listOf("shop/orders/a.proto"), lowered.file("shop/orders/d.proto").imports)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a key record is its own file and reports nothing`() {
+        val source =
+            shop(
+                "model A { #1 pair Pair }\n\nmodel Pair { #1 a int32 { id }  #2 b int32 { id } }\n"
+            )
+        val lowered = lowerTypes(source)
+        assertEquals(
+            listOf("shop/orders/a.proto", "shop/orders/pair.proto", "shop/orders/pair_key.proto"),
+            lowered.model.files.map { it.path },
+        )
+        val a = lowered.file("shop/orders/a.proto")
+        assertEquals(listOf("shop/orders/pair_key.proto"), a.imports)
+        assertEquals(ProtoType.Named("PairKey"), message(a, "A").fields.single().type)
+        assertEquals(
+            listOf("Pair"),
+            lowered.file("shop/orders/pair.proto").declarations.map { it.name },
+        )
+        // The layout adds no shared-file note: the schema layout's notes are all there is.
+        assertEquals(lower(source).codes(), lowered.codes())
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a service is its own file importing its payloads`() {
+        val lowered = lowerTypes(SERVICE, CATALOG)
+        val service = lowered.file("shop/orders/orders.proto")
+        assertEquals(emptyList(), service.declarations)
+        assertEquals(listOf("Orders"), service.services.map { it.name })
+        assertEquals(
+            listOf(
+                "google/protobuf/empty.proto",
+                "shop/orders/chunk.proto",
+                "shop/orders/order.proto",
+                "shop/orders/order_id.proto",
+            ),
+            service.imports,
+        )
+        assertEquals(
+            listOf("shop/orders/orders.proto"),
+            lowered.model.files
+                .filter { "google/protobuf/empty.proto" in it.imports }
+                .map { it.path },
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a reference to another unit imports that type's file`() {
+        val lowered = lowerTypes(SERVICE, CATALOG)
+        val order = lowered.file("shop/orders/order.proto")
+        assertEquals(listOf("shop/catalog/money.proto"), order.imports)
+        assertEquals(ProtoType.Named(".shop.catalog.Money"), message(order, "Order").fields[1].type)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `well-known imports go to the file that uses them`() {
+        val lowered =
+            lowerTypes(shop("model Stamp { #1 at instant }\n\nmodel Plain { #1 n int32 }\n"))
+        assertEquals(
+            listOf("shop/orders/stamp.proto"),
+            lowered.model.files
+                .filter { "google/protobuf/timestamp.proto" in it.imports }
+                .map { it.path },
+        )
+        assertEquals(emptyList(), lowered.file("shop/orders/plain.proto").imports)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a unit of schemas in a cycle is split under its merged package directory`() {
+        val lowered = lowerTypes(ALPHA, BETA)
+        val file = lowered.model.files.single()
+        assertEquals("cyc/a.proto", file.path)
+        assertEquals(listOf("A", "B"), file.declarations.map { it.name })
+        assertEquals(
+            listOf(
+                "cyc.alpha.schemata:1 SCH2001 schemas cyc.alpha and cyc.beta reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'",
+                "cyc.alpha.schemata:5 SCH2001 model 'A' and model 'B' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share cyc/a.proto",
+            ),
+            lowered.located(),
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `the shadowing rule holds across files`() {
+        val lowered =
+            lowerTypes(
+                "schema corpus.shadow\n" +
+                    "\n" +
+                    "model Card { #1 top bool }\n" +
+                    "\n" +
+                    "model Order {\n" +
+                    "  #1 outer corpus.shadow.Card\n" +
+                    "  #2 inner Card\n" +
+                    "\n" +
+                    "  model Card { #1 nested bool }\n" +
+                    "\n" +
+                    "  model Line { #1 again corpus.shadow.Card  #2 near Card }\n" +
+                    "}\n"
+            )
+        val order = lowered.file("corpus/shadow/order.proto")
+        assertEquals(listOf("corpus/shadow/card.proto"), order.imports)
+        assertEquals(
+            listOf(ProtoType.Named(".corpus.shadow.Card"), ProtoType.Named("Card")),
+            message(order, "Order").fields.map { it.type },
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `the same options print in every file`() {
+        val lowered =
+            lowerTypes(
+                orders(
+                    "@proto(java_package: \"com.example.orders\") @proto(java_multiple_files: true)"
+                )
+            )
+        assertEquals(2, lowered.model.files.size)
+        // Only the wrapper class name differs per file.
+        assertEquals(
+            1,
+            lowered.model.files
+                .map { file -> file.options.filter { it.first != "java_outer_classname" } }
+                .distinct()
+                .size,
+        )
+        assertEquals(emptyList(), lowered.codes())
+        generated(lowered, "java") { out ->
+            assertTrue(
+                File(out, "com/example/orders/Order.java").isFile,
+                out.walk().toList().toString(),
+            )
+            assertTrue(
+                File(out, "com/example/orders/Status.java").isFile,
+                out.walk().toList().toString(),
+            )
+        }
+    }
+
+    @Test
+    fun `java_outer_classname is an error under the type layout`() {
+        val source = orders("@proto(java_outer_classname: \"OrdersProto\")")
+        val lowered = lowerTypes(source)
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:1 SCH2007 schema 'shop.orders': " +
+                    "@proto(java_outer_classname: \"OrdersProto\") names one Java class for every file of the type layout"
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            "drop the key or compile with --proto-layout schema",
+            lowered.diagnostics.single().help,
+        )
+        assertEquals(emptyList(), ProtoTarget(ProtoLayout.TYPE).compile(analysed(source)).files)
+        assertEquals(emptyList(), lower(source).codes())
+    }
+
+    @Test
+    fun `a one-file unit keeps a declared java_outer_classname under the type layout`() {
+        val declared =
+            lowerTypes(
+                "schema shop.orders @proto(java_outer_classname: \"X\") " +
+                    "@proto(java_multiple_files: true)\n\nmodel Order { #1 n int32 }\n"
+            )
+        assertEquals(emptyList(), declared.codes())
+        assertEquals(
+            listOf("java_outer_classname" to "\"X\"", "java_multiple_files" to "true"),
+            declared.model.files.single().options,
+        )
+        assertNull(declared.protocErrors())
+        val absent =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model Order { #1 n int32 }\n"
+            )
+        assertEquals(
+            listOf("java_outer_classname" to "\"OrderProto\"", "java_multiple_files" to "true"),
+            absent.model.files.single().options,
+        )
+    }
+
+    @Test
+    fun `two declarations with one file name are an error at the later`() {
+        val lowered =
+            lowerTypes(shop("model HTTPServer { #1 a bool }\n\nmodel HttpServer { #1 b bool }\n"))
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2004 model 'HTTPServer' and model 'HttpServer' " +
+                    "both lower to file 'shop/orders/http_server.proto'"
+            ),
+            lowered.located(),
+        )
+        assertEquals("set `@proto(name: \"…\")` on one of them", lowered.diagnostics.single().help)
+    }
+
+    @Test
+    fun `a type and a service with one file name are an error at the later`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model OrderService { #1 a bool }\n\n" +
+                        "@proto(name: \"Order_Service\") service Orders {\n" +
+                        "  #1 get(OrderService): OrderService\n" +
+                        "}\n"
+                )
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2004 model 'OrderService' and service 'Order_Service' " +
+                    "both lower to file 'shop/orders/order_service.proto'"
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `files are ordered by path within a unit and units keep their order`() {
+        val lowered =
+            lowerTypes(
+                "schema b\n\nmodel Zed { #1 n int32 }\n\nmodel Alpha { #1 n int32 }\n",
+                "schema a\n\nmodel Thing { #1 n int32 }\n",
+            )
+        assertEquals(
+            listOf("a/thing.proto", "b/alpha.proto", "b/zed.proto"),
+            lowered.model.files.map { it.path },
+        )
+    }
+
+    @Test
+    fun `java_multiple_files writes a wrapper class name per file under the type layout`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model Order { #1 status HTTPStatus }\n\nmodel HTTPStatus { #1 code int32 }\n"
+                ),
+                "schema shop.web @proto(java_package: \"com.example.web\") " +
+                    "@proto(java_multiple_files: true)\n\nmodel HTTPStatus { #1 code int32 }\n",
+            )
+        assertEquals(emptyList(), lowered.codes())
+        // A unit without java_multiple_files names no wrapper.
+        assertEquals(emptyList(), lowered.file("shop/orders/order.proto").options)
+        assertEquals(
+            listOf(
+                "java_package" to "\"com.example.web\"",
+                "java_outer_classname" to "\"HttpStatusProto\"",
+                "java_multiple_files" to "true",
+            ),
+            lowered.file("shop/web/http_status.proto").options,
+        )
+        assertNull(lowered.protocErrors())
+        generated(lowered, "java") { out ->
+            // Listed by name: a case-insensitive file system would answer either spelling.
+            val written = File(out, "com/example/web").list().orEmpty().toSet()
+            assertTrue("HTTPStatus.java" in written, written.toString())
+            assertTrue("HttpStatusProto.java" in written, written.toString())
+        }
+    }
+
+    @Test
+    fun `every file of a unit with java_multiple_files names its own wrapper class`() {
+        val source =
+            "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                "model Order { #1 seat Seat }\n\n" +
+                "model Seat { #1 row int32 { id }  #2 number int32 { id } }\n\n" +
+                "service Orders { #1 get(Order): Order }\n"
+        val lowered = lowerTypes(source)
+        assertEquals(
+            listOf(
+                "shop/orders/order.proto" to "\"OrderProto\"",
+                "shop/orders/orders.proto" to "\"OrdersProto\"",
+                "shop/orders/seat.proto" to "\"SeatProto\"",
+                "shop/orders/seat_key.proto" to "\"SeatKeyProto\"",
+            ),
+            lowered.model.files.map { it.path to it.options.first().second },
+        )
+        // In key order: the wrapper name stands where a declared one would, before
+        // java_multiple_files.
+        assertEquals(
+            listOf(listOf("java_outer_classname", "java_multiple_files")),
+            lowered.model.files.map { file -> file.options.map { it.first } }.distinct(),
+        )
+        assertNull(lowered.protocErrors())
+        // The schema layout is untouched.
+        assertEquals(
+            listOf("java_multiple_files" to "true"),
+            lower(source).model.files.single().options,
+        )
+    }
+
+    @Test
+    fun `a declaration named like a wrapper class is an error`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model OrderProto { #1 x bool }\n\n" +
+                    "model Order { #1 y bool }\n\n" +
+                    "service OrdersProto { #1 get(Order): Order }\n\n" +
+                    "service Orders { #1 put(Order): Order }\n"
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:3 SCH2004 model 'OrderProto' and the Java class of order.proto " +
+                    "both lower to 'OrderProto'",
+                "shop.orders.schemata:7 SCH2004 service 'OrdersProto' and the Java class of " +
+                    "orders.proto both lower to 'OrdersProto'",
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            listOf("set `@proto(name: \"…\")` on it"),
+            lowered.diagnostics.map { it.help }.distinct(),
+        )
+        val caseOnly =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model ORDERPROTO { #1 x bool }\n\nmodel Order { #1 y bool }\n"
+            )
+        assertEquals(
+            listOf(
+                "SCH2004 model 'ORDERPROTO' and the Java class of order.proto both lower to 'OrderProto'"
+            ),
+            caseOnly.codes(),
+        )
+    }
+
+    @Test
+    fun `without java_multiple_files no wrapper class name is written`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.orders @proto(java_package: \"com.example.orders\")\n\n" +
+                    "model OrderProto { #1 x bool }\n\nmodel Order { #1 y bool }\n"
+            )
+        assertEquals(emptyList(), lowered.codes())
+        assertTrue(
+            lowered.model.files.all {
+                it.options == listOf("java_package" to "\"com.example.orders\"")
+            }
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a renamed declaration colliding by name is reported once`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model Order { #1 a bool }\n\n" +
+                        "model Label {\n  #1 b bool\n\n  @@proto(name: \"Order\")\n}\n"
+                )
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2004 proto name 'Order' is already used by model 'Order' " +
+                    "(shop.orders.schemata:3)"
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `a key record in a file collision is named by its model`() {
+        val seat = "model Seat { #1 row int32 { id }  #2 number int32 { id } }\n\n"
+        val order = "model Order { #1 seat Seat }\n\n"
+        val keyFirst = lowerTypes(shop(order + seat + "model SEATKey { #1 x bool }\n"))
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:7 SCH2004 the key of model 'Seat' and model 'SEATKey' " +
+                    "both lower to file 'shop/orders/seat_key.proto'"
+            ),
+            keyFirst.located(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on model 'SEATKey'",
+            keyFirst.diagnostics.single().help,
+        )
+        // Reported at the key record, the help points at its model, the one an author renames.
+        val keyLater = lowerTypes(shop("model SEATKey { #1 x bool }\n\n" + order + seat))
+        assertEquals(
+            listOf(
+                "SCH2004 model 'SEATKey' and the key of model 'Seat' " +
+                    "both lower to file 'shop/orders/seat_key.proto'"
+            ),
+            keyLater.codes(),
+        )
+        assertEquals(
+            "set `@proto(name: \"…\")` on model 'Seat'",
+            keyLater.diagnostics.single().help,
+        )
+    }
+
+    @Test
+    fun `an invalid service name is reported before declaration overrides`() {
+        val lowered =
+            lower(
+                shop(
+                    "model Order {\n  #1 a bool\n\n  @@proto(name: \"1x\")\n}\n\n" +
+                        "@proto(name: \"2y\") service Orders { #1 get(Order): Order }\n"
+                )
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:9 SCH2007 service 'Orders': @proto(name: \"2y\") " +
+                    "is not a valid identifier",
+                "shop.orders.schemata:3 SCH2007 model 'Order': @proto(name: \"1x\") " +
+                    "is not a valid identifier",
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `a nested type in another unit imports that unit's type file`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.catalog\n\n" +
+                    "model Money {\n  #1 currency Currency\n\n  model Currency { #1 code string }\n}\n",
+                "schema shop.orders\n\nimport shop.catalog as catalog\n\n" +
+                    "model Order { #1 currency catalog.Money.Currency }\n",
+            )
+        val order = lowered.file("shop/orders/order.proto")
+        assertEquals(listOf("shop/catalog/money.proto"), order.imports)
+        assertEquals(
+            ProtoType.Named(".shop.catalog.Money.Currency"),
+            message(order, "Order").fields.single().type,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `an empty schema writes no file under the type layout`() {
+        val lowered = lowerTypes("schema shop.orders\n")
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(emptyList(), lowered.model.files)
+    }
 }

@@ -70,4 +70,24 @@ class CheckCommandTest {
         assertTrue(result.stdout.contains("\"written\": []"), result.stdout)
         assertTrue(result.stdout.contains("\"skipped\": []"), result.stdout)
     }
+
+    private val mutual =
+        """
+        schema shop.orders
+
+        model Order { #1 id int64 { id }  #2 customer Customer { embed } }
+
+        model Customer { #1 id int64 { id }  #2 orders Order[] { embed } }
+        """
+            .trimIndent()
+
+    @Test
+    fun `--proto-layout type reports the shared-file note`() {
+        val src = source(mutual)
+        val result = CheckCommand().test("--target proto --proto-layout type $src")
+        assertTrue(result.stderr.contains("SCH2001"), result.stderr)
+        assertTrue(result.stderr.contains("share shop/orders/"), result.stderr)
+        val plain = CheckCommand().test("--target proto $src")
+        assertFalse(plain.stderr.contains("SCH2001"), plain.stderr)
+    }
 }

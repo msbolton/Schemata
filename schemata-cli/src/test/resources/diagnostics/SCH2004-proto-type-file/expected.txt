@@ -1,0 +1,6 @@
+# targets=proto proto-layout=type
+error[SCH2004] (proto): model 'HTTPServer' and model 'HttpServer' both lower to file 's/http_server.proto'
+ --> s.schemata:4:7
+  = help: set `@proto(name: "…")` on one of them
+
+1 error, 0 warnings

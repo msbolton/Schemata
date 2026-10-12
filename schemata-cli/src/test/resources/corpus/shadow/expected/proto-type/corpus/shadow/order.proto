@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package corpus.shadow;
+
+import "corpus/shadow/card.proto";
+
+message Order {
+  .corpus.shadow.Card outer = 1;
+  Card inner = 2;
+
+  message Card {
+    bool nested = 1;
+  }
+
+  message Line {
+    .corpus.shadow.Card again = 1;
+    Card near = 2;
+  }
+}

@@ -1,0 +1,6 @@
+# targets=proto proto-layout=type
+error[SCH2004] (proto): model 'OrderProto' and the Java class of order.proto both lower to 'OrderProto'
+ --> s.schemata:3:7
+  = help: set `@proto(name: "…")` on it
+
+1 error, 0 warnings

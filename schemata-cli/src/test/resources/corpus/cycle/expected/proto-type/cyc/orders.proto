@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package cyc;
+
+import "cyc/customer.proto";
+
+service Orders {
+  rpc Get(Order) returns (Customer);
+}

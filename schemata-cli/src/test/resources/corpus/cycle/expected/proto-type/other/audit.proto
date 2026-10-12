@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package other;
+
+import "cyc/customer.proto";
+import "cyc/cyc_beta_note.proto";
+
+message Audit {
+  .cyc.Customer customer = 1;
+  .cyc.CycBetaNote note = 2;
+}

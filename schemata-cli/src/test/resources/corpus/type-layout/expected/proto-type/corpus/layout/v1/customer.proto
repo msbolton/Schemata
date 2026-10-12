@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package corpus.layout.v1;
+
+import "corpus/layout/v1/seat_key.proto";
+import "corpus/layout/v1/status.proto";
+import "corpus/layout/v1/tag.proto";
+
+option java_package = "com.example.corpus.layout";
+option java_outer_classname = "CustomerProto";
+option java_multiple_files = true;
+
+// A customer and the last order they placed.
+message Customer {
+  string id = 1;
+  Order last = 2;  // schemata: Order?
+}
+
+// An order and the customer who placed it.
+message Order {
+  string id = 1;
+  Customer customer = 2;
+  Status status = 3;
+  Tag label = 4;
+  SeatKey seat = 5;
+}

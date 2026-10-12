@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package corpus.layout.v1;
+
+option java_package = "com.example.corpus.layout";
+option java_outer_classname = "StatusProto";
+option java_multiple_files = true;
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_PLACED = 1;
+  STATUS_SHIPPED = 2;
+}

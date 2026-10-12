@@ -1,0 +1,6 @@
+# targets=proto proto-layout=type
+error[SCH2007] (proto): schema 's': @proto(java_outer_classname: "SProto") names one Java class for every file of the type layout
+ --> s.schemata:1:1
+  = help: drop the key or compile with --proto-layout schema
+
+1 error, 0 warnings

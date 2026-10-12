@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package corpus.keys;
+
+message Plan {
+  string tenant_id = 1;  // schemata: uuid
+  string code = 2;  // schemata: string { max 32 }
+  string name = 3;
+}

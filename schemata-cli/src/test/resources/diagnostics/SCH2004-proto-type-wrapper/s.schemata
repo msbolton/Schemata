@@ -1,0 +1,4 @@
+schema s @proto(java_multiple_files: true)
+
+model OrderProto { #1 x bool }
+model Order { #1 y bool }

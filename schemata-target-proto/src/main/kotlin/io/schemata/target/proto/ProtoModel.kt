@@ -3,8 +3,8 @@ package io.schemata.target.proto
 import io.schemata.target.TargetModel
 
 /**
- * Every `.proto` file the compilation produces: one per schema, or one per reference cycle, in
- * order of first member.
+ * Every `.proto` file the compilation produces: one per schema, per reference cycle, or under the
+ * type layout per type. Units are in order of first member, and a unit's files in path order.
  */
 data class ProtoModel(val files: List<ProtoFile>) : TargetModel
 

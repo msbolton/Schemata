@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package corpus.layout.v1;
+
+option java_package = "com.example.corpus.layout";
+option java_outer_classname = "SeatProto";
+option java_multiple_files = true;
+
+// A seat an order reserves.
+message Seat {
+  int32 row = 1;
+  int32 number = 2;
+}

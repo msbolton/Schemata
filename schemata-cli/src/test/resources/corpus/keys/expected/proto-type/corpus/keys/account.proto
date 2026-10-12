@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package corpus.keys;
+
+import "google/protobuf/timestamp.proto";
+
+message Account {
+  string id = 1;  // schemata: uuid
+  string email = 2;  // schemata: string { max 254 }
+  .google.protobuf.Timestamp created = 3;
+}
