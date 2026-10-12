@@ -82,6 +82,7 @@ class ChangeContext(val old: Schema, val new: Schema) {
             is ServiceRemoved -> change.service.annotations.deprecated
             is OperationRemoved -> change.operation.annotations.deprecated
             is OperationRenamed -> change.from.annotations.deprecated
+            is OperationMoved -> change.from.annotations.deprecated
             is OperationRequestChanged -> oldOperationDeprecated(change.service, change.operation)
             is OperationResponseChanged -> oldOperationDeprecated(change.service, change.operation)
             is OperationBindingChanged -> oldOperationDeprecated(change.service, change.operation)
@@ -92,12 +93,17 @@ class ChangeContext(val old: Schema, val new: Schema) {
     internal fun oldService(service: Service): Service =
         old.service(service.qualifiedName) ?: service
 
-    private fun oldOperationDeprecated(service: Service, operation: Operation): Boolean =
-        oldService(service)
-            .operations
-            ?.firstOrNull { it.ordinal == operation.ordinal }
-            ?.annotations
-            ?.deprecated == true
+    /**
+     * Whether [operation] was deprecated on OLD's side: found by ordinal, or, for an operation that
+     * moved, by name, as [Differ] pairs them.
+     */
+    private fun oldOperationDeprecated(service: Service, operation: Operation): Boolean {
+        val operations = oldService(service).operations
+        val old =
+            operations.firstOrNull { it.ordinal == operation.ordinal }
+                ?: operations.firstOrNull { it.name == operation.name }
+        return old?.annotations?.deprecated == true
+    }
 
     /** The name [target] emits for [field]: its override on that side, else its declared name. */
     fun emittedFieldName(target: String, field: Field): String =

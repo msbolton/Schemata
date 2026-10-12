@@ -249,6 +249,22 @@ data class OperationRenamed(
 }
 
 /**
+ * An operation that kept its name but moved to another ordinal within its service: neither an rpc's
+ * method path nor an operationId carries the ordinal. [service] is NEW's; [from] is the operation
+ * on OLD's side, [to] on NEW's. Its request, response, binding, and annotations are compared as for
+ * any matched operation, each as its own change.
+ */
+data class OperationMoved(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val from: Operation,
+    val to: Operation,
+) : Change {
+    override val kind = "operation.moved"
+}
+
+/**
  * The request's type or streaming changed, or a request was added or taken away; [service] and
  * [operation] are NEW's.
  */

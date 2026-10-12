@@ -27,8 +27,9 @@ import io.schemata.lang.Span
  * by qualified name, members by ordinal. Changes are listed in NEW's namespace and declaration
  * order, then OLD-only removals; members within a declaration follow NEW's source order, then the
  * members only OLD has. A namespace's services follow its declarations and are matched the same
- * way: services by qualified name, operations by ordinal, each operation's own changes in NEW's
- * order, then removed operations, then the service's reservations, annotations, and doc.
+ * way: services by qualified name, operations by ordinal and then, for the ones left over on both
+ * sides, by name, each operation's own changes in NEW's order, then removed operations, then the
+ * service's reservations, annotations, and doc.
  */
 object Differ {
     fun diff(old: Schema, new: Schema): List<Change> {
@@ -92,7 +93,7 @@ object Differ {
         when (new) {
             is RecordType -> fields(oldSchema, newSchema, new, old as RecordType, out)
             is EnumType -> values(new, old as EnumType, out)
-            is UnionType -> members(new, old as UnionType, out)
+            is UnionType -> members(oldSchema, newSchema, new, old as UnionType, out)
         }
         reserved(old, new, out)
         annotations(
@@ -151,7 +152,8 @@ object Differ {
         val p = memberPath(record, new.name)
         if (old.name != new.name) out += FieldRenamed(p, new.nameSpan, record, old, new)
         when {
-            typeChanged(old.type, new.type) || embedFlipped(oldSchema, newSchema, old, new) ->
+            typeChanged(old.type, new.type) ||
+                embedFlipped(oldSchema, newSchema, old.type, new.type) ->
                 out += FieldTypeChanged(p, new.span, record, old, new)
             refinementsChanged(old.type, new.type) ->
                 out +=
@@ -182,18 +184,13 @@ object Differ {
     /**
      * A reference flipped between `{ embed }` and by key changes the shape of every output that
      * writes the referenced model, but only when that model has a key to write: an unkeyed model is
-     * always written inline.
+     * always written inline. [old] and [new] are a field's or a union member's two types.
      */
-    private fun embedFlipped(
-        oldSchema: Schema,
-        newSchema: Schema,
-        old: Field,
-        new: Field,
-    ): Boolean {
-        val before = relationOf(old.type)
-        val after = relationOf(new.type)
+    private fun embedFlipped(oldSchema: Schema, newSchema: Schema, old: Type, new: Type): Boolean {
+        val before = relationOf(old)
+        val after = relationOf(new)
         if (before == null || after == null || before.embed == after.embed) return false
-        val target = referenced(new.type) ?: return false
+        val target = referenced(new) ?: return false
         return keyed(oldSchema, target) || keyed(newSchema, target)
     }
 
@@ -236,8 +233,19 @@ object Differ {
             }
     }
 
-    /** Members have no name, so they path by ordinal: `s.Payment.#2`. */
-    private fun members(new: UnionType, old: UnionType, out: MutableList<Change>) {
+    /**
+     * Members have no name, so they path by ordinal: `s.Payment.#2`. A member's type is compared as
+     * a field's is: without its relation, with `{ embed }` added or removed counting only when the
+     * member's model has a key. Its bounds stay part of its type, since a member has no refinement
+     * change of its own.
+     */
+    private fun members(
+        oldSchema: Schema,
+        newSchema: Schema,
+        new: UnionType,
+        old: UnionType,
+        out: MutableList<Change>,
+    ) {
         val oldMembers = old.members.associateBy { it.ordinal }
         val newMembers = new.members.associateBy { it.ordinal }
         new.members.forEach { nm ->
@@ -246,7 +254,10 @@ object Differ {
             if (om == null) {
                 out += UnionMemberAdded(p, nm.span, new, nm)
             } else {
-                if (om.type != nm.type) out += UnionMemberTypeChanged(p, nm.span, new, om, nm)
+                val retyped =
+                    withoutRelations(om.type) != withoutRelations(nm.type) ||
+                        embedFlipped(oldSchema, newSchema, om.type, nm.type)
+                if (retyped) out += UnionMemberTypeChanged(p, nm.span, new, om, nm)
                 if (om.doc != nm.doc) out += DocChanged(p, nm.span, UnionMemberOwner(new, nm))
             }
         }
@@ -283,16 +294,35 @@ object Differ {
             .forEach { out += ServiceRemoved(path(it), it.nameSpan, it) }
     }
 
+    /**
+     * Operations match by ordinal, then the ones left unmatched on both sides by name: a client
+     * reaches an operation by its rpc path or operationId, which carry the name, so an operation
+     * renumbered under its own name is moved and compared like any matched one, not removed and
+     * added. A name matched by ordinal elsewhere never pairs again.
+     */
     private fun service(old: Service, new: Service, out: MutableList<Change>) {
         val oldOps = old.operations.associateBy { it.ordinal }
         val newOrdinals = new.operations.map { it.ordinal }.toSet()
+        val unmatchedNew =
+            new.operations.filter { it.ordinal !in oldOps.keys }.map { it.name }.toSet()
+        val movedFrom =
+            old.operations
+                .filter { it.ordinal !in newOrdinals && it.name in unmatchedNew }
+                .associateBy { it.name }
         new.operations.forEach { nop ->
             val oop = oldOps[nop.ordinal]
-            if (oop == null) out += OperationAdded(operationPath(new, nop), nop.nameSpan, new, nop)
-            else operation(old, new, oop, nop, out)
+            val from = if (oop == null) movedFrom[nop.name] else null
+            when {
+                oop != null -> operation(old, new, oop, nop, out)
+                from != null -> {
+                    out += OperationMoved(operationPath(new, nop), nop.nameSpan, new, from, nop)
+                    operation(old, new, from, nop, out)
+                }
+                else -> out += OperationAdded(operationPath(new, nop), nop.nameSpan, new, nop)
+            }
         }
         old.operations
-            .filter { it.ordinal !in newOrdinals }
+            .filter { it.ordinal !in newOrdinals && it.name !in movedFrom.keys }
             .forEach { oop ->
                 out += OperationRemoved(operationPath(old, oop), oop.nameSpan, old, oop)
             }
@@ -364,9 +394,11 @@ object Differ {
      * it does not read. `{ embed }` is a fact only on a reference to a model that has a key in
      * [schema]: a keyless model is copied either way, so the option changes no table. A reference's
      * `@relation(onDelete: …)` other than the default `restrict` is compared as
-     * `@relation(onDelete)`.
+     * `@relation(onDelete)`. An `@sql(strategy: table)` that names the shape's own default is left
+     * out ([withoutDefaultStrategy]).
      */
     private fun withKeyFacts(schema: Schema, field: Field): Annotations {
+        val annotations = withoutDefaultStrategy(schema, field)
         val relation = relationOf(field.type)
         val target = referenced(field.type)
         val copiesKeyed = relation?.embed == true && target != null && keyed(schema, target)
@@ -374,14 +406,40 @@ object Differ {
             if (field.key) put("key", AnnotationValue.Flag)
             if (field.unique) put("unique", AnnotationValue.Flag)
             if (field.index) put("index", AnnotationValue.Flag)
-            if (copiesKeyed && "strategy" !in field.annotations["sql"])
+            if (copiesKeyed && "strategy" !in annotations["sql"])
                 put("strategy", AnnotationValue.Name("embed"))
         }
-        val withFacts = withSql(field.annotations, facts)
+        val withFacts = withSql(annotations, facts)
         val onDelete = relation?.onDelete?.takeIf { it != OnDelete.RESTRICT } ?: return withFacts
         return Annotations(
             withFacts.entries +
                 ("relation" to mapOf("onDelete" to AnnotationValue.Name(onDelete.name.lowercase())))
+        )
+    }
+
+    /**
+     * [field]'s annotations without an `@sql(strategy: table)` that names the lowering its shape
+     * takes anyway: a reference to a model keyed in [schema] is a foreign key, and a list of models
+     * a child table, with or without it. On a scalar or enum list, a map, a keyless or `{ embed }`
+     * reference, or a union, `table` changes the lowering or is refused, so it stays and is
+     * compared. `json` is never a default.
+     */
+    private fun withoutDefaultStrategy(schema: Schema, field: Field): Annotations {
+        val sql = field.annotations["sql"]
+        if (sql["strategy"] != AnnotationValue.Name("table")) return field.annotations
+        val tableAnyway =
+            when (val type = field.type) {
+                is Ref -> !type.relation.embed && keyed(schema, type.target)
+                is ListOf ->
+                    (type.element as? Ref)?.let { schema.lookupOrNull(it.target) is RecordType } ==
+                        true
+                else -> false
+            }
+        if (!tableAnyway) return field.annotations
+        val rest = sql - "strategy"
+        return Annotations(
+            if (rest.isEmpty()) field.annotations.entries - "sql"
+            else field.annotations.entries + ("sql" to rest)
         )
     }
 

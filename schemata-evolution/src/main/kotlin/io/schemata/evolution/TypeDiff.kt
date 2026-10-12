@@ -30,6 +30,20 @@ internal fun typeCore(type: Type): Type =
 internal fun typeChanged(old: Type, new: Type): Boolean = typeCore(old) != typeCore(new)
 
 /**
+ * [type] with every reference's relation dropped and everything else kept, bounds included: what a
+ * union member is compared by, since a member has no refinement change of its own and `{ embed }`
+ * is judged apart from the type.
+ */
+internal fun withoutRelations(type: Type): Type =
+    when (type) {
+        is Scalar -> type
+        is ListOf -> type.copy(element = withoutRelations(type.element))
+        is MapOf ->
+            type.copy(key = withoutRelations(type.key), value = withoutRelations(type.value))
+        is Ref -> Ref(type.target)
+    }
+
+/**
  * Each pair of refinements [old] and [new] hold at the same position: the type itself, then a
  * list's element, then a map's key and value, recursively. A position whose shapes differ (a list
  * against a scalar) ends the walk there, since it is a type change rather than a refinement change.

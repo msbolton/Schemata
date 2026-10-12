@@ -66,6 +66,7 @@ object SqlRules : Rulebook {
             is OperationAdded,
             is OperationRemoved,
             is OperationRenamed,
+            is OperationMoved,
             is OperationRequestChanged,
             is OperationResponseChanged,
             is OperationBindingChanged -> Verdict.Compatible
