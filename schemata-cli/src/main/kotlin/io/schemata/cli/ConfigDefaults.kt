@@ -14,11 +14,15 @@ import kotlin.io.path.Path
  * wins, then the file's, then the built-in default.
  */
 
-/** The paths a command reads: the ones it was given, else the configuration's `[sources]`. */
+/**
+ * The paths a command reads: the ones it was given, else the configuration's `[sources]`. Those are
+ * absolute, so each is turned into the path output shows for it; diagnostics and written files then
+ * name a file under the working directory as they would had its directory been typed.
+ */
 internal fun CliktCommand.inputPaths(inputs: List<Path>, config: ProjectConfig?): List<Path> {
     if (inputs.isNotEmpty()) return inputs
     val configured = config?.sourcePaths.orEmpty()
-    if (configured.isNotEmpty()) return configured
+    if (configured.isNotEmpty()) return configured.map { Path(displayPath(it)) }
     val where = config?.let { displayPath(it.path) } ?: "any ${ConfigLoader.FILE_NAME}"
     throw usageError("no paths given and no [sources] in $where")
 }

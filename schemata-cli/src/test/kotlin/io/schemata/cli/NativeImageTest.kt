@@ -5,6 +5,7 @@ import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.fail
 import org.junit.jupiter.api.Assumptions.assumeTrue
 
@@ -123,6 +124,38 @@ class NativeImageTest {
                 "proto,sql,xsd",
                 File(examples, name).path,
             )
+        }
+    }
+
+    @Test
+    fun `compile with a configuration file matches the jar`() {
+        ready()
+        val dir = Files.createTempDirectory("schemata-config").toFile()
+        try {
+            val toml = File(dir, "schemata.toml")
+            toml.writeText("[proto]\njava_package = \"com.example.{schema}\"\n")
+            val args =
+                listOf(
+                    "compile",
+                    "--config",
+                    toml.path,
+                    "--format",
+                    "json",
+                    "--out",
+                    "out",
+                    "--target",
+                    "proto",
+                    File(examples, "shop").path,
+                )
+            assertSame(*args.toTypedArray())
+            // The parity holds only if the binary read the file: its default reaches the output.
+            val written = run(listOf(binary!!.path), args).files
+            assertTrue(
+                written.values.any { "option java_package = \"com.example.shop." in it },
+                written.keys.toString(),
+            )
+        } finally {
+            dir.deleteRecursively()
         }
     }
 
