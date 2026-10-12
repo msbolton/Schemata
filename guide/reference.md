@@ -1396,7 +1396,7 @@ past the last character.
 
 ## 19. Importing
 
-    schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--include DIR]... [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata import [--from xsd|proto|sql] [--out DIR] [--namespace NAME] [--include DIR]... [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
 
 `import` reads a schema that already exists, as XML Schema, Protobuf, or Postgres DDL, and writes
 the `.schemata` source, in the 2.0 syntax, that describes the same data, reporting everything it
@@ -2695,7 +2695,7 @@ schema from another format.
 
 ## 20. Evolving a schema
 
-    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
 
 `diff OLD NEW` compares two versions of a schema set — each a file or a directory, loaded the same
 way `compile` loads one — and judges every change against each target's compatibility rulebook:
@@ -2709,6 +2709,10 @@ goes to stderr, the same as `check`. When a side does not parse or analyze clean
 `SCH2503` for that side instead of comparing anything; it does the same when the two sides share no
 schema at all, since that is two unrelated schema sets rather than two versions of one. A side in
 the 1.x syntax is one of those: upgrade both sides before comparing them.
+
+`diff`, like `migrate`, applies one `schemata.toml` to both sides: the file found from the working
+directory or named by `--config`, not one beside either tree. The attributes it adds are the same
+on OLD and NEW, so they are no change (section 24).
 
 ### Identity
 
@@ -3024,7 +3028,7 @@ no diagnostics
 
 ## 21. Migrating a database
 
-    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
 
 `migrate OLD NEW` writes the Postgres DDL that carries a database created from OLD's `compile`
 output to one identical to NEW's. Both sides load as `diff` loads them, and the same `SCH2503`
@@ -3312,7 +3316,7 @@ reports the errors themselves (section 24).
 
 ## 23. Upgrading from 1.x
 
-    schemata upgrade [--check] [--format human|json] [--color auto|always|never] PATHS...
+    schemata upgrade [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
 
 2.0 changed the syntax, not the data model: a 1.x schema means in 2.0 what it meant in 1.x, with
 one exception, below. `schemata upgrade` rewrites 1.x files in place, mechanically, and reports
@@ -3496,10 +3500,10 @@ file's, and the file's over the built-in default.
 | `color` | `"auto"`, `"always"`, or `"never"` | `--color` of every command that reads the file |
 
 `strict` and `allow_destructive` can turn their flag on but never off: `strict = true` in the file
-makes every `check` strict, and no option undoes it for one run. `include` adds to the command
-line rather than giving way to it: an import looks in the `--include` directories first, then in
-the file's. `import` and `migrate` keep `out` as the default of their own `--out`; `[compile] out`
-is for `compile`.
+makes every `check` strict, and no flag turns it off for one run, short of `--no-config`. `include`
+adds to the command line rather than giving way to it: an import looks in the `--include`
+directories first, then in the file's. `import` and `migrate` keep `out` as the default of their own
+`--out`; `[compile] out` is for `compile`.
 
 The file holds defaults, not demands, so a setting that does not fit a run is left out of it
 rather than refused. `proto_layout` applies only when `proto` is among the run's targets:
@@ -3517,9 +3521,10 @@ file; the options themselves keep their usage errors.
 | `exclude` | an array of globs, relative to the file |
 
 Each path must exist (SCH2905), and a directory is walked as one given on the command line is.
-`compile`, `check`, `fmt`, `upgrade`, and `config` read `paths` when they are given none, and
-`import` looks under them for files of its `--from` format. Without paths and without `[sources]`,
-they are a usage error. Paths on the command line replace `paths`.
+`compile`, `check`, `fmt`, and `upgrade` read `paths` when they are given none, and `import` looks
+under them for files of its `--from` format; without paths and without `[sources]`, these are a
+usage error. `config` given no paths analyses the files `[sources]` names, and without `[sources]`
+prints the settings alone. Paths on the command line replace `paths`.
 
 `exclude` leaves out every file it matches, whether found under `paths` or under paths on the
 command line; an exclude that leaves out every file found is a usage error. A glob is matched
@@ -3529,7 +3534,10 @@ against the file's path relative to the directory holding `schemata.toml`, in th
 everything under `schemas/drafts`.
 
 `diff` and `migrate` read neither key: they compare the two trees their command line names, every
-file of each.
+file of each. The rest of the file applies to both sides alike: the one `schemata.toml` found from
+the working directory (or named by `--config`), not one beside either tree. Its target tables add
+the same attributes to OLD and to NEW, so a default the file gives both sides is no change, and
+`[compile] strict` and `[report]` apply as they do to `check`.
 
 ### Target tables
 
