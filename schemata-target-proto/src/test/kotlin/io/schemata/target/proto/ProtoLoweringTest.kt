@@ -1207,6 +1207,24 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `an rpc carries its ordinal unless both readings give it`() {
+        fun notes(vararg ordinals: Int): List<List<String>> {
+            val ops = ordinals.withIndex().joinToString("") { (i, n) -> "  #$n op${i + 1}(R): R\n" }
+            return lower("schema t\n\nmodel R { #1 x int32 }\n\nservice S {\n$ops}")
+                .file("t.proto")
+                .services
+                .single()
+                .rpcs
+                .map { it.notes }
+        }
+        assertEquals(
+            listOf(emptyList(), listOf("#5"), listOf("#3"), emptyList()),
+            notes(1, 5, 3, 4),
+        )
+        assertEquals(listOf(emptyList(), listOf("#3"), listOf("#4")), notes(1, 3, 4))
+    }
+
+    @Test
     fun `reserved ranges spell as the formatter prints them`() {
         val s =
             lower(
