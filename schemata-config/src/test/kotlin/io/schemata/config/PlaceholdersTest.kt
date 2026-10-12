@@ -2,6 +2,7 @@ package io.schemata.config
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class PlaceholdersTest {
@@ -36,10 +37,16 @@ class PlaceholdersTest {
     }
 
     @Test
+    fun `expand rejects an unclosed placeholder`() {
+        assertFailsWith<IllegalArgumentException> { Placeholders.expand("com.{schema", "shop") }
+    }
+
+    @Test
     fun `check names the first unknown or unaccepted placeholder`() {
         assertEquals("foo", Placeholders.check("a.{schema}.{foo}.{bar}", allowPackage = true))
         assertEquals("package", Placeholders.check("{package}", allowPackage = false))
         assertEquals("Package", Placeholders.check("{schema}.{Package}", allowPackage = false))
+        assertEquals("{schema", Placeholders.check("a.{schema", allowPackage = false))
         assertNull(Placeholders.check("{schema}.{Schema}.{schema_}", allowPackage = false))
         assertNull(Placeholders.check("{package}.{Package}", allowPackage = true))
         assertNull(Placeholders.check("com.example", allowPackage = false))

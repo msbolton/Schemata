@@ -396,7 +396,11 @@ private class Validator(
         val message =
             if (name == "package" || name == "Package") {
                 "$key holds '{$name}', which only [proto] keys other than package accept"
-            } else "$key holds the unknown placeholder '{$name}'"
+            } else {
+                // An unclosed placeholder comes back with its opening brace and no closing one.
+                val shown = if (name.startsWith("{")) name else "{$name}"
+                "$key holds the unknown placeholder '$shown'"
+            }
         report(
             ConfigCodes.BAD_PLACEHOLDER,
             line,
