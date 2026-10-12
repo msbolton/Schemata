@@ -1,0 +1,3 @@
+schema s @proto(java_outer_classname: "SProto")
+
+model R { #1 x bool }

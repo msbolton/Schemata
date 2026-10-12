@@ -1,0 +1,23 @@
+schema corpus.layout @proto(package: "corpus.layout.v1") @proto(java_package: "com.example.corpus.layout") @proto(java_multiple_files: true)
+
+/// A customer and the last order they placed.
+model Customer { #1 id string  #2 last Order? }
+
+/// An order and the customer who placed it.
+model Order { #1 id string  #2 customer Customer  #3 status Status  #4 label Label  #5 seat Seat }
+
+/// A seat an order reserves.
+model Seat { #1 row int32 { id }  #2 number int32 { id } }
+
+enum Status { #1 placed #2 shipped }
+
+model Label {
+  #1 text string
+
+  @@proto(name: "Tag")
+}
+
+service Orders {
+  #1 get(Order): Order
+  #2 cancel(Order)
+}
