@@ -6,7 +6,6 @@ import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Scalar
-import io.schemata.core.ir.Schema
 import io.schemata.core.ir.Service
 import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
@@ -14,7 +13,6 @@ import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.storedFields
 import io.schemata.target.ProtoUnit
-import io.schemata.target.isKeyRecord
 import io.schemata.target.stronglyConnected
 
 /**
@@ -51,14 +49,15 @@ internal object ProtoTypeFiles {
      * declarations in one strongly connected component of the unit's reference graph share a file:
      * stored fields and union members at any nesting depth count, a target is taken to its
      * top-level declaration, and references outside the unit tie nothing, since units never
-     * reference each other in a cycle. A key record is tied both ways to its model, so it always
-     * sits beside the model it is named for. Each shared file is named by the member whose
-     * [typeFileName] sorts first, so the name does not depend on source order. Nothing references a
-     * service, so each is a file of its own, named by [serviceFileName]. Files are sorted by path.
+     * reference each other in a cycle. A key record holds no references and nothing names it except
+     * through the key rewrite, so it is a file of its own like any declaration that references
+     * nothing; read back by the importer it is an ordinary model, so compiling the import again
+     * gives the same files. Each shared file is named by the member whose [typeFileName] sorts
+     * first, so the name does not depend on source order. Nothing references a service, so each is
+     * a file of its own, named by [serviceFileName]. Files are sorted by path.
      */
     fun split(
         unit: ProtoUnit,
-        schema: Schema,
         typeFileName: (TypeDecl) -> String,
         serviceFileName: (Service) -> String,
     ): List<TypeFile> {
@@ -89,15 +88,6 @@ internal object ProtoTypeFiles {
                     is RecordType -> inner.storedFields.forEach { visit(i, it.type) }
                     is UnionType -> inner.members.forEach { visit(i, it.type) }
                     else -> Unit
-                }
-            }
-            if (schema.isKeyRecord(decl)) {
-                val qn = decl.qualifiedName
-                val model =
-                    QualifiedName(qn.namespace, qn.path.dropLast(1) + decl.name.removeSuffix("Key"))
-                index[model]?.let {
-                    graph.getValue(i) += it
-                    graph.getValue(it) += i
                 }
             }
         }
