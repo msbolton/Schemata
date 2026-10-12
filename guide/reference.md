@@ -705,6 +705,35 @@ that joins a cycle and sorts earlier can take a name from a declaration already 
 is then renamed: its generated classes and its `Any` type URL change. `diff` reports neither yet,
 so when they matter pin the package with `@proto(package)` and the names with `@proto(name)`.
 
+The type layout, `--proto-layout type`, writes each unit, a schema or a cycle of schemas that
+already share one file, as a directory named by its package path, so `shop.orders` gives
+`shop/orders/`, with one `.proto` file for each top-level type and each service. A file is named
+by the snake case of the emitted name, so `Order` is `order.proto`, `HTTPStatus` is
+`http_status.proto`, and `@proto(name)` on a declaration names its file too. A nested declaration
+stays inside its parent's message. Declarations that reference each other, directly or through
+others of the unit, share one file, because Protobuf cannot import files in a cycle; it takes the
+first sorting name and is reported once as SCH2001, as in `model 'Customer' and model 'Order'
+reference each other; Protobuf cannot import files in a cycle, so they share
+shop/orders/customer.proto`. Its help says to set `@proto(name)` on the member that should name
+the file. A key record, such as the `SeatKey` synthesized for a composite key, is always its own
+file, `seat_key.proto`: after an import it is an ordinary model, and the round trip stays byte for
+byte. Every file of a unit carries the package and the same option lines, and imports the files of
+the types it references, in its package or another. protoc names each file's Java wrapper class
+after the file, so with `java_multiple_files` the wrapper of `http_status.proto`, `HttpStatus`, and
+the message `HTTPStatus` would be two Java files whose names differ only by case, and on a
+case-insensitive file system one would overwrite the other. A unit that declares
+`java_multiple_files: true` therefore writes `option java_outer_classname = "<Stem>Proto";` in
+every file, in its key-order place after `java_package`, the stem being the file name in
+UpperCamel: `order.proto` gets `OrderProto`. A top-level declaration or service whose name equals
+such a class name, ignoring case, is an error (SCH2004), as in `model 'OrderProto' and the Java
+class of order.proto both lower to 'OrderProto'`; set `@proto(name)` on it. A declared
+`java_outer_classname` is refused (SCH2007) for a unit written as two or more files, because it
+would name one Java class for every file; a unit written as one file keeps it, as the schema
+layout does. Two declarations, or a
+declaration and a service, whose file names coincide are an error (SCH2004), as in `model
+'HTTPServer' and model 'HttpServer' both lower to file 'shop/orders/http_server.proto'`; set
+`@proto(name)` on one of them.
+
 `@sql(schema: "…")` renames a schema's Postgres schema. `@@sql(table: "…")` and
 `@sql(column: "…")` rename a model's table or a field's column. An empty
 `@sql(schema | table | column)` is an error (SCH2114); the derived name is used. The primary key,
@@ -1269,7 +1298,9 @@ default `proto`, `sql`, `xsd`, `jsonschema`, and `openapi`), reporting diagnosti
 and treating every warning as an error under `--strict`, which also reports any field, enum value,
 union member, or operation left with an implicit ordinal. The openapi target writes nothing for a
 schema without a service. A path may be a file or a directory, walked recursively for
-`.schemata` files.
+`.schemata` files. `--proto-layout schema|type` chooses the Protobuf file layout: `schema`, the
+default, writes one file per schema or reference cycle, and `type` writes one file per type under
+the package directory. It is a usage error when `--target` leaves `proto` out.
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
 would, for every target, without writing anything.
@@ -1926,7 +1957,12 @@ name. Files under one root that declare one package are one package to `protoc`,
 one schema, the package's, with each segment lower-snaked if need be (SCH2402). A language file
 option that every file declaring it gives one value becomes a `@proto` key of that schema; a key
 that the files give differing values is dropped, and each file whose value differs from the first
-file of the package that declares the key gets SCH2405. Two files whose schema names coincide but
+file of the package that declares the key gets SCH2405. When two or more files of the package
+declare `java_outer_classname` and each gives its own stem in UpperCamel plus `Proto`, in a file
+with `java_multiple_files = true` that is named for one of its own types or services
+(`order.proto` holding `Order`, with `OrderProto`), the names are the ones the type layout writes
+itself, so the key reads as nothing, without a warning. A package of one file keeps its name. Two
+files whose schema names coincide but
 whose packages differ are an error (SCH2401).
 
 A name resolves as it does in `protoc`: against the file itself, the files it imports directly, and

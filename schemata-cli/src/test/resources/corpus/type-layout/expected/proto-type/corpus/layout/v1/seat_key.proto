@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package corpus.layout.v1;
+
+option java_package = "com.example.corpus.layout";
+option java_outer_classname = "SeatKeyProto";
+option java_multiple_files = true;
+
+message SeatKey {
+  int32 row = 1;
+  int32 number = 2;
+}

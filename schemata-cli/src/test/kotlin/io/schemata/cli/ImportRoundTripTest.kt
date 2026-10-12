@@ -8,6 +8,7 @@ import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
 import io.schemata.target.Target
 import io.schemata.target.jsonschema.JsonSchemaTarget
+import io.schemata.target.proto.ProtoLayout
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlCodes
 import io.schemata.target.sql.SqlTarget
@@ -55,6 +56,13 @@ class ImportRoundTripTest {
      */
     private val protoRename = Regex("SCH2402 .*: renamed to '.*'")
 
+    /**
+     * A type-layout file holds no schema declaration the importer could read a name from, so the
+     * imported schema is named after its package or file and says so.
+     */
+    private val protoDerivedName =
+        Regex("SCH2402 .*: schema name '.*' was derived from (the package '.*'|the file name)")
+
     /** An xsd import names a schema after its file when the Schemata source never declared one. */
     private val xsdSchemaName = Regex("SCH2402 .*: schema name '.*' was derived from the file name")
 
@@ -79,6 +87,28 @@ class ImportRoundTripTest {
                     }
                 }
         }
+
+    /**
+     * A corpus case with an `expected/proto-type` tree compiles under the per-type layout, imports
+     * back and regenerates that layout byte for byte.
+     */
+    @TestFactory
+    fun `type-layout corpus cases regenerate their proto byte for byte`(): List<DynamicTest> =
+        corpus
+            .listFiles { f -> File(f, "expected/proto-type").isDirectory }!!
+            .sortedBy { it.name }
+            .map { case ->
+                DynamicTest.dynamicTest(case.name) {
+                    roundTrip(
+                        case.name,
+                        TestSources.of(case),
+                        "proto",
+                        ProtoTarget(ProtoLayout.TYPE),
+                        ProtoImporter,
+                        listOf(protoRename, protoDerivedName),
+                    )
+                }
+            }
 
     @Test
     fun `all records and list fields round trip`() {

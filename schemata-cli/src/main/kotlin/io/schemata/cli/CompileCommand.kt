@@ -12,6 +12,7 @@ import com.github.ajalt.clikt.parameters.groups.provideDelegate
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
+import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.path
 import com.github.ajalt.mordant.rendering.AnsiLevel
 import io.schemata.cli.report.HumanRenderer
@@ -19,6 +20,8 @@ import io.schemata.cli.report.JsonRenderer
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
 import io.schemata.target.Target
+import io.schemata.target.proto.ProtoLayout
+import io.schemata.target.proto.ProtoTarget
 import java.io.IOException
 import java.nio.file.Path
 import kotlin.io.path.Path
@@ -37,6 +40,8 @@ class CompileCommand : CliktCommand(name = "compile") {
             )
             .split(",")
 
+    private val protoLayout by protoLayoutOption()
+
     private val out by
         option("--out", help = "Output directory (default: out)")
             .path(canBeFile = false)
@@ -47,7 +52,7 @@ class CompileCommand : CliktCommand(name = "compile") {
     private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
 
     override fun run() {
-        val targets = selectTargets(targetNames)
+        val targets = withProtoLayout(selectTargets(targetNames), protoLayout)
         val sources = loadSources(inputs)
         val result = Pipeline.compile(sources, targets, strict = reporting.strict)
         val report = Report.of(result, strict = reporting.strict, checkOnly = false)
@@ -80,6 +85,30 @@ internal fun CliktCommand.selectTargets(names: List<String>?): List<Target<*>> =
                 "unknown target '$name'; available: ${Pipeline.targets.joinToString(", ") { it.name }}"
             )
     } ?: Pipeline.targets
+
+/** The `--proto-layout` option shared by compile and check; absent keeps the schema layout. */
+internal fun CliktCommand.protoLayoutOption() =
+    option(
+            "--proto-layout",
+            help =
+                "Protobuf file layout: schema (one file per schema or reference cycle, the default) " +
+                    "or type (one file per type under the package directory)",
+        )
+        .choice(*ProtoLayout.flags.toTypedArray())
+
+/**
+ * [targets] with the proto entry configured for [layout]; null keeps the default. A layout given
+ * without the proto target would do nothing, so it is a usage error.
+ */
+internal fun CliktCommand.withProtoLayout(
+    targets: List<Target<*>>,
+    layout: String?,
+): List<Target<*>> {
+    val chosen = layout?.let { ProtoLayout.of(it) } ?: return targets
+    if (targets.none { it.name == ProtoTarget.name })
+        throw usageError("--proto-layout needs the proto target; add proto to --target")
+    return targets.map { if (it.name == ProtoTarget.name) ProtoTarget(chosen) else it }
+}
 
 internal fun CliktCommand.loadSources(inputs: List<Path>): List<SourceInput> {
     val sources = SourceSet.load(inputs)

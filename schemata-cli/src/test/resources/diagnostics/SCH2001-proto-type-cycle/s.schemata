@@ -1,0 +1,4 @@
+schema s
+
+model Customer { #1 last Order? }
+model Order { #1 customer Customer }

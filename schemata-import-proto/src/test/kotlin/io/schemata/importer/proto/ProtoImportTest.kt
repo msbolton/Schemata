@@ -1583,6 +1583,69 @@ class ProtoImportTest {
     }
 
     @Test
+    fun `a one-file package keeps its own wrapper class name`() {
+        val r =
+            importText(
+                "shop/order.proto" to
+                    """
+                    syntax = "proto3";
+                    package shop;
+                    option java_multiple_files = true;
+                    option java_outer_classname = "OrderProto";
+                    message Order {}
+                    """
+            )
+        assertEquals(
+            "schema shop.order @proto(package: \"shop\") @proto(java_outer_classname: \"OrderProto\") " +
+                "@proto(java_multiple_files: true)",
+            text(r, "shop/order.schemata").lines().first(),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `files of one package that each name their own wrapper class import it as nothing`() {
+        fun file(stem: String, outer: String, message: String) =
+            "shop/$stem.proto" to
+                """
+                syntax = "proto3";
+                package shop;
+                option java_multiple_files = true;
+                option java_outer_classname = "$outer";
+                message $message {}
+                """
+        val own =
+            importText(
+                file("http_status", "HttpStatusProto", "HTTPStatus"),
+                file("order", "OrderProto", "Order"),
+            )
+        assertEquals(
+            "schema shop @proto(java_multiple_files: true)",
+            text(own, "shop.schemata").lines().first(),
+        )
+        assertEquals(emptyList(), messages(own))
+        // A file naming another class leaves the package with differing values, as before.
+        val mixed = importText(file("order", "OrderProto", "Order"), file("seat", "Custom", "Seat"))
+        assertEquals(
+            listOf(
+                "SCH2405 shop/seat.proto: option java_outer_classname 'Custom' differs from " +
+                    "'OrderProto' in shop/order.proto; dropped"
+            ),
+            messages(mixed),
+        )
+        // So does the stem's name in a file named for no type of its own.
+        val unnamed =
+            importText(file("order", "OrderProto", "Order"), file("seat", "SeatProto", "Row"))
+        assertEquals(
+            listOf(
+                "SCH2405 shop/seat.proto: option java_outer_classname 'SeatProto' differs from " +
+                    "'OrderProto' in shop/order.proto; dropped"
+            ),
+            messages(unnamed),
+        )
+    }
+
+    @Test
     fun `a lone file takes its package or its stem`() {
         val money =
             ProtoImporter.import(

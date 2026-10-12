@@ -1,0 +1,4 @@
+schema s @proto(java_outer_classname: "SProto")
+
+model R { #1 x bool }
+model T { #1 y bool }
