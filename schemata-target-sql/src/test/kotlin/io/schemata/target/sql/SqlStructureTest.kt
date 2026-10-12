@@ -1406,6 +1406,76 @@ class SqlStructureTest {
         assertEquals(emptyList(), table(lowered, "r").uniques)
     }
 
+    private fun rendered(lowered: io.schemata.target.Lowered<RelationalModel>) =
+        SqlRenderer.render(lowered.model).single().content
+
+    @Test
+    fun `unique on an embedded list of keyed records warns and constrains nothing`() {
+        val tag = record("a", "Tag", field(1, "id", Scalar(Builtin.UUID), key = true))
+        fun r(unique: Boolean) =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(
+                    2,
+                    "tags",
+                    ListOf(Ref(qn("a", "Tag"), Relation(embed = true)), false),
+                    unique = unique,
+                ),
+            )
+        val lowered = lower(namespace("a", tag, r(true)))
+        val plain = lower(namespace("a", tag, r(false)))
+        assertEquals(
+            listOf(
+                "12 SCH2105 field 'R.tags': { unique } is not enforced; embedded rows carry no key"
+            ),
+            messages(lowered),
+        )
+        assertEquals(
+            listOf<String?>("remove the option, or drop the embed"),
+            lowered.diagnostics.map { it.help },
+        )
+        assertEquals(emptyList(), table(lowered, "r_tags").uniques)
+        assertEquals(rendered(plain), rendered(lowered))
+    }
+
+    @Test
+    fun `unique on a json list warns and constrains nothing`() {
+        val tag = record("a", "Tag", field(1, "id", Scalar(Builtin.UUID), key = true))
+        fun r(unique: Boolean) =
+            record(
+                "a",
+                "R",
+                field(1, "id", Scalar(Builtin.UUID), key = true),
+                field(
+                    2,
+                    "tags",
+                    ListOf(Ref(qn("a", "Tag")), false),
+                    annotations = sql("strategy" to AnnotationValue.Name("json")),
+                    unique = unique,
+                ),
+            )
+        val lowered = lower(namespace("a", tag, r(true)))
+        val plain = lower(namespace("a", tag, r(false)))
+        assertEquals(
+            listOf(
+                "12 SCH2105 field 'R.tags': list contents are not typed by Postgres; lowered to jsonb",
+                "12 SCH2105 field 'R.tags': { unique } is not enforced; the list is lowered to jsonb",
+            ),
+            messages(lowered),
+        )
+        assertEquals(
+            listOf<String?>(
+                "use `@sql(strategy: table)` to lower the entries to a child table",
+                "remove the option, or drop the json strategy",
+            ),
+            lowered.diagnostics.map { it.help },
+        )
+        assertEquals(emptyList(), table(lowered, "r").uniques)
+        assertEquals(rendered(plain), rendered(lowered))
+    }
+
     @Test
     fun `embed on a reference to a keyless record embeds as the default does`() {
         val money = record("a", "Money", field(1, "cents", Scalar(Builtin.INT64)))
