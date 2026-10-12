@@ -182,7 +182,7 @@ internal class ComplexLowering(private val context: ImportContext) {
             UnitType.MapOf(string, string, false, emptyList()),
             false,
             null,
-            null,
+            use.doc,
             XsdWildcards.anyAttribute(use),
         )
     }
@@ -216,7 +216,7 @@ internal class ComplexLowering(private val context: ImportContext) {
             else string,
             !repeated && particle.minOccurs == 0,
             null,
-            null,
+            particle.doc,
             XsdWildcards.any(particle),
         )
     }
@@ -761,12 +761,20 @@ internal class ComplexLowering(private val context: ImportContext) {
                 .flatMap { level -> level.map { it.name }.distinct().map { it to level } }
                 .distinctBy { it.first }
                 .flatMap { (name, level) -> level.filter { it.name == name } }
+        // A note belongs to the type that writes what it is about: a facet of a type further up
+        // the chain, and a decimal reached through one or through a named simple type, were noted
+        // where those types are declared. Only this type's own facets are noted here, and the
+        // default precision and scale only when this type names xs:decimal itself or writes a
+        // digits facet of its own.
+        val ownDigits = facets.any { it.name == "totalDigits" || it.name == "fractionDigits" }
         return context.simpleTypes.restrict(
             root,
             combined,
             line,
             context.sourcePath,
             whereCollision,
+            noted = { f -> facets.any { it === f } },
+            noteDefaultScale = (next == base && next.namespace == ImportTypes.XS) || ownDigits,
         )
     }
 

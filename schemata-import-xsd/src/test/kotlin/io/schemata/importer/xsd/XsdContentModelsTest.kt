@@ -177,9 +177,9 @@ class XsdContentModelsTest {
             imported.diagnostics.none { it.code.id == "SCH2401" },
             messages(imported).toString(),
         )
-        assertTrue(
-            messages(imported).any { "list simple type imported as string" in it },
-            messages(imported).toString(),
+        assertEquals(
+            listOf("SCH2405 union 'Target': member typed xs:IDREFS imported as string"),
+            messages(imported).filter { "IDREFS" in it || "list" in it },
         )
     }
 
@@ -820,6 +820,7 @@ class XsdContentModelsTest {
             """
             <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
               <xs:complexType name="PageType"><xs:sequence><xs:element ref="tns:foo_bar"/></xs:sequence></xs:complexType>
+              <xs:complexType name="PickType"><xs:choice><xs:element ref="tns:foo_bar"/><xs:element name="s" type="xs:string"/></xs:choice></xs:complexType>
               <xs:element name="page" type="tns:PageType"/>
               <xs:element name="fooBar"><xs:complexType><xs:sequence><xs:element name="p" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
               <xs:element name="foo_bar"><xs:complexType><xs:sequence><xs:element name="q" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
@@ -834,6 +835,17 @@ class XsdContentModelsTest {
                 "SCH2403 element 'foo_bar': element 'fooBar' already lowers to model 'FooBar'; imported as 'FooBar2'"
             ),
             messages(imported).filter { "FooBar2" in it },
+        )
+        val pick =
+            unit(imported, "t").declarations.filterIsInstance<UnitUnion>().single {
+                it.name == "Pick"
+            }
+        assertEquals(listOf(UnitType.Ref("FooBar2"), string), pick.members.map { it.type })
+        assertTrue(
+            "SCH2403 union 'Pick': member element name 'foo_bar' has no Schemata equivalent and " +
+                "is dropped; the regenerated element will be named 'foo_bar2'" in
+                messages(imported),
+            messages(imported).toString(),
         )
         assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
     }

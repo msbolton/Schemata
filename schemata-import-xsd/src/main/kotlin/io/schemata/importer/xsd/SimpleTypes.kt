@@ -11,6 +11,7 @@ import io.schemata.importer.xsd.XsdImport.FieldName
 import io.schemata.importer.xsd.XsdImport.enumFacets
 import io.schemata.importer.xsd.XsdImport.fieldNameFor
 import io.schemata.importer.xsd.XsdImport.spellSigns
+import io.schemata.lang.SchemataText
 
 /** Resolves simple types: restrictions with their facets, lists, unions, and enumerations. */
 internal class SimpleTypes(private val context: ImportContext) {
@@ -49,10 +50,10 @@ internal class SimpleTypes(private val context: ImportContext) {
         val values =
             enumValueNames(st).map { (f, field) ->
                 val valueWhere = "enum value '$name.${f.value}'"
-                // A value's @xsd(name) override, when the xsd target would accept it, always
-                // regenerates the original xsd text exactly, so this is never reported; a value
-                // that is not even a valid XML name gets no override (one would only be
-                // rejected), and that is reported instead.
+                // A value's @xsd(name) override always regenerates the original xsd text exactly,
+                // so needing one is never reported for a value that is an XML name; one that is
+                // not (`2d`, `+x-y`) is renamed past the XML naming rules, and that is reported,
+                // although its override still restores it.
                 if (field.unfixable) {
                     context.diagnostics +=
                         context.lossy(
@@ -76,6 +77,13 @@ internal class SimpleTypes(private val context: ImportContext) {
     private fun enumValueNames(st: XSimpleType): List<Pair<XFacet, FieldName>> {
         val taken = mutableSetOf<String>()
         return context.enumFacets(st).orEmpty().map { f ->
+            // The xsd target writes a value's override as the enumeration value itself, which may
+            // be any text, so every renamed value but an empty one takes an override back to its
+            // text; one that is not an XML name is still reported as renamed.
+            val override =
+                f.value
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { UnitAnnotation("xsd", "name", SchemataText.string(it)) }
             val own = fieldNameFor(f.value)
             val spelled = spellSigns(f.value)
             val base = if (spelled == f.value) own else own.copy(name = fieldNameFor(spelled).name)
@@ -84,10 +92,12 @@ internal class SimpleTypes(private val context: ImportContext) {
             while (name in taken) name = "${base.name}_${n++}"
             taken += name
             f to
-                if (name == base.name) base
-                else if (XsdNames.isValidOverride(f.value))
-                    FieldName(name, UnitAnnotation("xsd", "name", "\"${f.value}\""), false)
-                else FieldName(name, null, unfixable = true)
+                when {
+                    name != base.name ->
+                        FieldName(name, override, unfixable = !XsdNames.isValidOverride(f.value))
+                    base.annotation == null && base.unfixable -> base.copy(annotation = override)
+                    else -> base
+                }
         }
     }
 
@@ -325,7 +335,9 @@ internal class SimpleTypes(private val context: ImportContext) {
     /**
      * [base] narrowed by [facets]: a scalar's as [ImportTypes.facets] reads them; a list's length
      * facets bound the list, and any other facet on a list or an enum is dropped. Notes point into
-     * [path], the declaring document.
+     * [path], the declaring document, and are reported for the facets [noted] accepts, and for a
+     * decimal left without digits only when [noteDefaultScale]: what a type further up a derivation
+     * wrote was noted where that type is declared.
      */
     internal fun restrict(
         base: UnitType,
@@ -333,9 +345,11 @@ internal class SimpleTypes(private val context: ImportContext) {
         line: Int,
         path: String,
         where: String,
+        noted: (XFacet) -> Boolean = { true },
+        noteDefaultScale: Boolean = true,
     ): UnitType {
         if (base is UnitType.Scalar) {
-            val (refined, notes) = ImportTypes.facets(base, facets, line)
+            val (refined, notes) = ImportTypes.facets(base, facets, line, noteDefaultScale, noted)
             notes.forEach { context.diagnostics += context.noteDiagnostic(path, where, it) }
             return refined
         }
@@ -356,8 +370,10 @@ internal class SimpleTypes(private val context: ImportContext) {
                     else -> null
                 }
             if (note != null) {
-                context.diagnostics +=
-                    context.noteDiagnostic(path, where, Note(ImportCodes.WIDENED, note, f.line))
+                if (noted(f)) {
+                    context.diagnostics +=
+                        context.noteDiagnostic(path, where, Note(ImportCodes.WIDENED, note, f.line))
+                }
             } else {
                 keys.forEach { bounds[it] = count!!.toBigInteger().toString() }
             }

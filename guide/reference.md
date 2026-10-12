@@ -758,7 +758,9 @@ default, and on a keyed model it is an error (SCH2110); the other targets are th
 
 `@xsd(namespace: "…")` sets a schema's target XML namespace; without it, the schema lowers to
 `urn:schemata:<schema name>`. `@xsd(name: "…")` renames a model, an enum, a union, a field, or an
-enum value. `@xsd(attribute)` on a field lowers it to an XML attribute instead of a child element;
+enum value; the name must be a valid XML name (SCH2205), except an enum value's, which becomes the
+`xs:enumeration` value and may be any text but empty, such as `@xsd(name: "2d")`.
+`@xsd(attribute)` on a field lowers it to an XML attribute instead of a child element;
 only a scalar or enum field can be one (SCH2204 otherwise). `@@xsd(root: false)` on a model keeps
 it from getting the global element every model gets by default, for a model meant to appear only
 nested inside another. The remaining `@xsd` keys write XML Schema constructs Schemata has no type
@@ -1565,8 +1567,9 @@ another XML namespace, are dropped (SCH2405). A complex type never used as a glo
 it, named after that element.
 
 An element, attribute, or enum value name that is not a valid Schemata identifier lowers to
-lower_snake with `@xsd(name: "…")` restoring the original, silently; a value that cannot be an XML
-name at all, such as `2d`, is prefixed (`v2d`) and reported (SCH2403). A name that is a Schemata
+lower_snake with `@xsd(name: "…")` restoring the original, silently; an enumeration value that
+cannot be an XML name at all, such as `2d`, is prefixed (`v2d`), keeps `@xsd(name: "2d")` so it
+still regenerates exactly, and is reported (SCH2403). A name that is a Schemata
 keyword, such as `true`, `stream`, or `import`, or the reserved name `null`, takes a `_value` suffix
 the same way: an enumeration value `true` becomes `true_value` with `@xsd(name: "true")`, and a
 default naming it follows. A model named after an element whose name starts with a digit is prefixed
@@ -1585,8 +1588,8 @@ over only when Schemata can write it as a literal: a number as a plain decimal (
 `1e5` becomes `100000`), a boolean's `1` and `0` as `true` and `false`, a string quoted, and an enum
 value by its imported name. One with no Schemata literal, such as `INF`, a `dateTime`, a value of a
 complex type, or a value its enum does not have, is dropped (SCH2403). `xs:documentation` becomes a
-`///` doc comment, each line without the indentation the schema gave it; `xs:appinfo` is dropped
-silently.
+`///` doc comment, on a wildcard's field too, each line without the indentation the schema gave
+it; `xs:appinfo` is dropped silently.
 
 #### Derivation and polymorphism
 
