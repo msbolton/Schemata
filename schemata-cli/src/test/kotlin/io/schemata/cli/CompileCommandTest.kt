@@ -205,6 +205,34 @@ class CompileCommandTest {
     }
 
     @Test
+    fun `--proto-layout type writes one proto file per type under the package directory`() {
+        val (src, out) = tempSources("orders.schemata" to orders, "customers.schemata" to customers)
+        val result = CompileCommand().test("--target proto --proto-layout type --out $out $src")
+        assertTrue(result.statusCode == 0 || result.statusCode == 2, result.stderr)
+        assertTrue(Files.exists(out.resolve("proto/shop/orders/user.proto")), result.stderr)
+        assertFalse(Files.exists(out.resolve("proto/shop/orders.proto")), result.stderr)
+    }
+
+    @Test
+    fun `--proto-layout without the proto target is a usage error`() {
+        val (src, _) = tempSources("a.schemata" to "schema a")
+        val result = CompileCommand().test("--target sql --proto-layout type $src")
+        assertEquals(1, result.statusCode)
+        assertTrue(
+            result.stderr.contains("--proto-layout needs the proto target; add proto to --target"),
+            result.stderr,
+        )
+    }
+
+    @Test
+    fun `--proto-layout rejects an unknown layout`() {
+        val (src, _) = tempSources("a.schemata" to "schema a")
+        val result = CompileCommand().test("--proto-layout flat $src")
+        assertTrue(result.statusCode != 0)
+        assertTrue(result.stderr.contains("schema, type"), result.stderr)
+    }
+
+    @Test
     fun `rejects a directory with no schemata files`() {
         val dir = Files.createTempDirectory(tmp, "schemata-empty")
         val result = CompileCommand().test("--target proto $dir")

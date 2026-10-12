@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package corp.orders.v1;
+
+import "corp/orders/v1/order.proto";
+import "corpus/people/person.proto";
+
+message Audit {
+  Order.Line line = 1;
+  .corpus.people.Person who = 2;
+  .corpus.people.Person again = 3;
+  Order.Kind kind = 4;
+}

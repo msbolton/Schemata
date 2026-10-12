@@ -23,12 +23,14 @@ class CheckCommand : CliktCommand(name = "check") {
             )
             .split(",")
 
+    private val protoLayout by protoLayoutOption()
+
     private val reporting by ReportingOptions()
 
     private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
 
     override fun run() {
-        val targets = selectTargets(targetNames)
+        val targets = withProtoLayout(selectTargets(targetNames), protoLayout)
         val sources = loadSources(inputs)
         val result = Pipeline.check(sources, targets, strict = reporting.strict)
         val report = Report.of(result, strict = reporting.strict, checkOnly = true)

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package cyc;
+
+import "cyc/status.proto";
+
+// A note about a customer.
+message CycBetaNote {
+  string text = 1;
+  Status status = 2;
+}

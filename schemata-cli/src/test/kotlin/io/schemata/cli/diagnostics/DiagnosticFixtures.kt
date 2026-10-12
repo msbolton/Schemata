@@ -22,6 +22,8 @@ import io.schemata.lang.Diagnostic
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.upgrade.Upgrader
 import io.schemata.target.Target
+import io.schemata.target.proto.ProtoLayout
+import io.schemata.target.proto.ProtoTarget
 import java.io.File
 
 /**
@@ -63,11 +65,19 @@ class Fixture(val dir: File) {
 
     private val targetNames: List<String>? = option("targets=")?.split(',')
 
+    private val protoLayout: ProtoLayout =
+        if (option("proto-layout=") == "type") ProtoLayout.TYPE else ProtoLayout.SCHEMA
+
     val targets: List<Target<*>> =
         if (isDiff || isMigrate) emptyList()
         else
-            targetNames?.map { Pipeline.targetNamed(it) ?: error("$name: unknown target '$it'") }
-                ?: Pipeline.targets
+            (targetNames?.map { Pipeline.targetNamed(it) ?: error("$name: unknown target '$it'") }
+                    ?: Pipeline.targets)
+                .map {
+                    if (it.name == "proto" && protoLayout == ProtoLayout.TYPE)
+                        ProtoTarget(ProtoLayout.TYPE)
+                    else it
+                }
 
     val rulebooks: List<Rulebook> =
         if (!isDiff || isMigrate) emptyList()
@@ -250,7 +260,7 @@ class Fixture(val dir: File) {
         private val HEADER =
             Regex(
                 "^#(?: (?:strict|upgrade|lone|allow-destructive|diff=old,new|migrate=old,new" +
-                    "|import=(?:xsd|proto|sql)|targets=[a-z,]+))+$"
+                    "|import=(?:xsd|proto|sql)|targets=[a-z,]+|proto-layout=type))+$"
             )
 
         /**
