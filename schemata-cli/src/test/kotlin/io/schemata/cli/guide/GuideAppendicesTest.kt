@@ -2,6 +2,7 @@ package io.schemata.cli.guide
 
 import io.schemata.cli.Pipeline
 import io.schemata.cli.diagnostics.Fixture
+import io.schemata.config.ConfigCodes
 import io.schemata.core.CoreCodes
 import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
@@ -98,6 +99,7 @@ class GuideAppendicesTest {
             ),
             Module("Migration (SCH27xx)", "SCH27", MigrateCodes.all, emptyList()),
             Module("Language server (SCH28xx)", "SCH28", LspCodes.all, emptyList()),
+            Module("Configuration (SCH29xx)", "SCH29", ConfigCodes.all, emptyList()),
         )
 
     private fun diagnostics(): String = buildString {

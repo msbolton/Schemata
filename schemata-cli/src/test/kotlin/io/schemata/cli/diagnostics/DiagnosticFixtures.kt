@@ -10,6 +10,8 @@ import io.schemata.cli.report.HumanRenderer
 import io.schemata.cli.report.Palette
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
+import io.schemata.config.ConfigLoader
+import io.schemata.config.LoadedConfig
 import io.schemata.evolution.Evolution
 import io.schemata.evolution.Rulebook
 import io.schemata.evolution.Rulebooks
@@ -49,6 +51,12 @@ class Fixture(val dir: File) {
         options.firstOrNull { it.startsWith(prefix) }?.removePrefix(prefix)
 
     val strict: Boolean = "strict" in options
+
+    /**
+     * True for a `# config` fixture: the `schemata.toml` beside its sources is loaded and applied
+     * as the CLI applies a discovered file.
+     */
+    val isConfig: Boolean = "config" in options
 
     /** True for a `# migrate=old,new` fixture: planned through `schemata migrate`. */
     val isMigrate: Boolean = option("migrate=") != null
@@ -117,6 +125,29 @@ class Fixture(val dir: File) {
     val newSources: List<SourceInput> =
         if (isDiff || isMigrate) schemataFiles(File(dir, "new"), "new") else emptyList()
 
+    /**
+     * The fixture's `schemata.toml` as the CLI loads it, named as a file in the working directory
+     * is; null unless [isConfig].
+     */
+    private val loaded: LoadedConfig? by lazy {
+        if (!isConfig) null
+        else
+            ConfigLoader.load(
+                File(dir, ConfigLoader.FILE_NAME).toPath(),
+                Pipeline.annotations,
+                Pipeline.targets.map { it.name },
+                displayPath = ConfigLoader.FILE_NAME,
+            )
+    }
+
+    /** [sources], and the configuration file's text when there is one, for excerpts. */
+    private val reportSources: Sources
+        get() {
+            val config = File(dir, ConfigLoader.FILE_NAME)
+            return if (isConfig) Sources.of(sources).plus(ConfigLoader.FILE_NAME, config.readText())
+            else Sources.of(sources)
+        }
+
     val expected: String
         get() = expectedFile.readText().let { if (header != null) it.substringAfter('\n') else it }
 
@@ -156,13 +187,7 @@ class Fixture(val dir: File) {
                 }
                 else -> {
                     val report = Report.of(checked, strict, checkOnly = true)
-                    HumanRenderer.render(
-                        report,
-                        Sources.of(sources),
-                        Palette.NONE,
-                        out = "",
-                        width = 400,
-                    )
+                    HumanRenderer.render(report, reportSources, Palette.NONE, out = "", width = 400)
                 }
             }
         return full.lines().filter { keep(it) }.joinToString("\n").trimEnd() + "\n"
@@ -185,7 +210,22 @@ class Fixture(val dir: File) {
      * codes, its helps) reads the same run, so each case is compiled once. The same goes for the
      * other kinds of run below.
      */
-    private val checked: PipelineResult by lazy { Pipeline.check(sources, targets, strict) }
+    private val checked: PipelineResult by lazy { check() }
+
+    /**
+     * A `# config` fixture whose file does not load reports only the file's diagnostics, as the CLI
+     * stops there; one that loads is checked with it, its `[compile] strict` turning strict on.
+     */
+    private fun check(): PipelineResult {
+        val loaded = loaded ?: return Pipeline.check(sources, targets, strict)
+        val config = loaded.config ?: return PipelineResult(loaded.diagnostics, emptyList())
+        return Pipeline.check(
+            sources,
+            targets,
+            strict || config.compile.strict?.value == true,
+            config,
+        )
+    }
 
     /**
      * The diagnostics `schemata diff` reports for the two sides: [cannotDiff]'s when either side
@@ -259,7 +299,7 @@ class Fixture(val dir: File) {
          */
         private val HEADER =
             Regex(
-                "^#(?: (?:strict|upgrade|lone|allow-destructive|diff=old,new|migrate=old,new" +
+                "^#(?: (?:strict|config|upgrade|lone|allow-destructive|diff=old,new|migrate=old,new" +
                     "|import=(?:xsd|proto|sql)|targets=[a-z,]+|proto-layout=type))+$"
             )
 

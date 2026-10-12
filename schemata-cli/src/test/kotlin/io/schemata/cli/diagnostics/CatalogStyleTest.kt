@@ -10,7 +10,7 @@ class CatalogStyleTest {
         Fixture.all().flatMap { f ->
             val diagnostics =
                 when {
-                    f.isUpgrade -> f.diagnostics()
+                    f.isUpgrade || f.isConfig -> f.diagnostics()
                     f.foreign.isNotEmpty() -> f.importDiagnostics()
                     else -> Pipeline.check(f.sources, f.targets, f.strict).diagnostics
                 }

@@ -177,4 +177,28 @@ class DiffCommandTest {
         val r = DiffCommand().test("${old.path} ${new.path}")
         assertTrue(r.stderr.startsWith("shop.orders\n  @sql(schema) added"), r.stderr)
     }
+
+    @Test
+    fun `both sides get the file's defaults`() {
+        val toml =
+            File(dir, "schemata.toml").apply {
+                writeText("[proto]\njava_package = \"com.example.{schema}\"\n")
+            }
+        val body = "\n\nmodel R { #1 x int32 }\n"
+        val old = side("old", "schema s @proto(java_package: \"com.example.s\")$body")
+        val new = side("new", "schema s$body")
+        // The file gives NEW the package OLD wrote by hand, so nothing changed.
+        val r = DiffCommand().test("--config ${toml.path} ${old.path} ${new.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("no changes"), r.stderr)
+        val plain = DiffCommand().test("--no-config ${old.path} ${new.path}")
+        assertEquals(2, plain.statusCode, plain.stderr)
+        assertTrue(plain.stderr.contains("warning[SCH2502]"), plain.stderr)
+        // A schema line's own value still beats the file's on either side.
+        val moved = side("moved", "schema s @proto(java_package: \"com.other.s\")$body")
+        val changed = DiffCommand().test("--config ${toml.path} ${old.path} ${moved.path}")
+        assertEquals(2, changed.statusCode, changed.stderr)
+        assertTrue(changed.stderr.contains("warning[SCH2502]"), changed.stderr)
+        assertTrue(changed.stderr.contains("java_package option changed"), changed.stderr)
+    }
 }

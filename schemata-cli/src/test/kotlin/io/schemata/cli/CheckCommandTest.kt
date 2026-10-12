@@ -90,4 +90,27 @@ class CheckCommandTest {
         val plain = CheckCommand().test("--target proto $src")
         assertFalse(plain.stderr.contains("SCH2001"), plain.stderr)
     }
+
+    @Test
+    fun `check reads the same file`() {
+        val src = source("schema s\n\nmodel R { #1 x bool }\n")
+        val toml = src.parent.resolve("schemata.toml")
+        toml.writeText("[proto]\njava_package = \"com.example-{schema}\"\n")
+        val result = CheckCommand().test("--config $toml --target proto $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.contains(
+                "error[SCH2007] (proto): schema 's': @proto(java_package: \"com.example-s\") " +
+                    "is not a valid Java package"
+            ),
+            result.stderr,
+        )
+        // The value came from the file, but the target reports it where the schema is declared.
+        assertTrue(
+            result.stderr.contains(" --> ${src.resolve("customers.schemata")}:1:1"),
+            result.stderr,
+        )
+        val plain = CheckCommand().test("--no-config --target proto $src")
+        assertEquals(0, plain.statusCode, plain.stderr)
+    }
 }

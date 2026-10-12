@@ -129,4 +129,23 @@ class FmtCommandTest {
         val f = write("a.schemata", "schema t\n\nmodel R { #1 a bool }\n")
         assertEquals(1, FmtCommand().test(listOf("--strict", f.path)).statusCode)
     }
+
+    @Test
+    fun `fmt with no paths rewrites the files sources names and skips excluded ones`() {
+        val messy = "schema t\nmodel R {\n#1 a bool\n}\n"
+        val kept = File(dir, "schemas").apply { mkdirs() }.resolve("a.schemata")
+        kept.writeText(messy)
+        val skipped = File(dir, "schemas/drafts").apply { mkdirs() }.resolve("b.schemata")
+        skipped.writeText(messy)
+        val toml =
+            write(
+                "schemata.toml",
+                "[sources]\npaths = [\"schemas\"]\nexclude = [\"schemas/drafts/**\"]\n",
+            )
+        val r = FmtCommand().test(listOf("--config", toml.path))
+        assertEquals(0, r.statusCode, r.stderr)
+        assertEquals("formatted ${kept.path}\n", r.stdout)
+        assertEquals("schema t\n\nmodel R { #1 a bool }\n", kept.readText())
+        assertEquals(messy, skipped.readText())
+    }
 }

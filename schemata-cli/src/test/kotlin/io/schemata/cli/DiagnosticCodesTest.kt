@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import io.schemata.config.ConfigCodes
 import io.schemata.core.CoreCodes
 import io.schemata.evolution.EvolutionCodes
 import io.schemata.importer.ImportCodes
@@ -19,7 +20,8 @@ class DiagnosticCodesTest {
             ImportCodes.all +
             EvolutionCodes.all +
             MigrateCodes.all +
-            LspCodes.all
+            LspCodes.all +
+            ConfigCodes.all
 
     @Test
     fun `every code id is unique across modules`() {
@@ -45,6 +47,7 @@ class DiagnosticCodesTest {
         assertTrue(Pipeline.targetNamed("openapi")!!.codes.all { it.id.startsWith("SCH26") })
         assertTrue(MigrateCodes.all.all { it.id.startsWith("SCH27") })
         assertTrue(LspCodes.all.all { it.id.startsWith("SCH28") })
+        assertTrue(ConfigCodes.all.all { it.id.startsWith("SCH29") })
     }
 
     @Test
