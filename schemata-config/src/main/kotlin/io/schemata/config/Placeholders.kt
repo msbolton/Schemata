@@ -14,7 +14,9 @@ object Placeholders {
 
     /**
      * The placeholder names a string may hold: `schema`, `Schema`, `schema_`, and with
-     * [allowPackage] `package`, `Package`. Returns the first offending placeholder name, or null.
+     * [allowPackage] `package`, `Package`. Returns the first offending placeholder name, or null. A
+     * `{` that is never closed is offending whatever follows it; it is returned with its opening
+     * brace (`{schema`), which no closed placeholder's name can start with.
      */
     fun check(template: String, allowPackage: Boolean): String? {
         val allowed = if (allowPackage) SCHEMA_NAMES + PACKAGE_NAMES else SCHEMA_NAMES
@@ -39,7 +41,10 @@ object Placeholders {
                 "package" -> requirePackage(protoPackage, template)
                 "Package" -> upperCamelDotted(requirePackage(protoPackage, template))
                 else ->
-                    throw IllegalArgumentException("unknown placeholder '{$name}' in '$template'")
+                    throw IllegalArgumentException(
+                        if (name.startsWith("{")) "unclosed placeholder '$name' in '$template'"
+                        else "unknown placeholder '{$name}' in '$template'"
+                    )
             }
         }
 
@@ -52,8 +57,8 @@ object Placeholders {
 
     /**
      * Copies [template] with every placeholder replaced by [fill] of its name. A `{` without a
-     * closing `}` takes the rest of the text as the name, so [check] reports it rather than letting
-     * it through as literal text; a lone `}` stays as written.
+     * closing `}` is passed to [fill] as the rest of the text including that brace, which is never
+     * an accepted name, so [check] reports it and [expand] rejects it; a lone `}` stays as written.
      */
     private fun render(template: String, fill: (String) -> String): String {
         val out = StringBuilder()
@@ -69,10 +74,14 @@ object Placeholders {
                     i += 2
                 }
                 template[i] == '{' -> {
-                    val close =
-                        template.indexOf('}', i + 1).let { if (it < 0) template.length else it }
-                    out.append(fill(template.substring(i + 1, close)))
-                    i = close + 1
+                    val close = template.indexOf('}', i + 1)
+                    if (close < 0) {
+                        out.append(fill(template.substring(i)))
+                        i = template.length
+                    } else {
+                        out.append(fill(template.substring(i + 1, close)))
+                        i = close + 1
+                    }
                 }
                 else -> {
                     out.append(template[i])

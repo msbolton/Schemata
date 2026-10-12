@@ -9,8 +9,6 @@ import io.schemata.target.openapi.OpenApiAnnotations
 import io.schemata.target.proto.ProtoAnnotations
 import io.schemata.target.sql.SqlAnnotations
 import io.schemata.target.xsd.XsdAnnotations
-import java.io.ByteArrayOutputStream
-import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -371,6 +369,15 @@ class ConfigLoaderTest {
     }
 
     @Test
+    fun `an unclosed placeholder is SCH2904`() {
+        assertDiagnostic(
+            "SCH2904 schemata.toml:2: proto.java_package holds the unknown placeholder '{schema'",
+            placeholdersHelp,
+            failure("[proto]\njava_package = \"com.{schema\"\n"),
+        )
+    }
+
+    @Test
     fun `an unknown placeholder is SCH2904`() {
         assertDiagnostic(
             "SCH2904 schemata.toml:2: proto.java_package holds the unknown placeholder '{scheme}'",
@@ -443,18 +450,23 @@ class ConfigLoaderTest {
 
     @Test
     fun `the first parse writes nothing to stderr`() {
-        val captured = ByteArrayOutputStream()
-        val original = System.err
-        System.setErr(PrintStream(captured, true))
-        val result =
-            try {
-                load("[compile]\nstrict = true\n")
-            } finally {
-                System.setErr(original)
-            }
+        // Other tests in this JVM have already loaded tomlj, so the first parse only happens in a
+        // fresh one.
+        val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+        val process =
+            ProcessBuilder(
+                    java,
+                    "-cp",
+                    System.getProperty("java.class.path"),
+                    FirstParseMain::class.java.name,
+                    root.toString(),
+                )
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start()
+        val stderr = process.errorStream.bufferedReader().readText()
 
-        assertNotNull(result.config)
-        assertEquals("", captured.toString())
+        assertEquals(0, process.waitFor())
+        assertEquals("", stderr)
     }
 
     @Test
