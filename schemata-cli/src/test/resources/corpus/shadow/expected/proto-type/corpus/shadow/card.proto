@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package corpus.shadow;
+
+message Card {
+  bool top = 1;
+}

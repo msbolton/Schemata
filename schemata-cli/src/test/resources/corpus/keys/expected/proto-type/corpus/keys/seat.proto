@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package corpus.keys;
+
+message Seat {
+  string id = 1;  // schemata: uuid
+  string account_id = 2;  // schemata: uuid
+  int32 number = 3;
+  optional string holder_id = 4;  // schemata: uuid?
+  string row = 5;  // schemata: string { max 4 }
+}

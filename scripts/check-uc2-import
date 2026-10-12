@@ -13,6 +13,7 @@ Stages, all inside a temporary directory that is removed afterwards (the IEPD is
   3. xmllint --schema over every emitted .xsd against a one-element instance: exit 0 or 3 means the schema
      loaded, exit 5 (the schema failed to compile) or anything else fails
   4. protoc over every emitted .proto, when protoc is on PATH
+  4b. compile to proto again with --proto-layout type (any error fails), then protoc over every file it emitted
   5. round trip: import the emitted .xsd tree, compile to xsd again, and compare the two trees file by file;
      SCH2402 (a schema name derived from the file name) and SCH2403 (a dropped member element name)
      are the only tolerated diagnostics on the way back
@@ -174,14 +175,14 @@ def main():
             lint_result = f"ok ({len(xsds)} files)" if not bad else f"FAIL ({bad} of {len(xsds)} files)"
 
         # 4. protoc
-        emitted_proto = work / "proto" / "proto"
-        protos = sorted(str(f) for f in emitted_proto.rglob("*.proto")) if emitted_proto.is_dir() else []
-        if not shutil.which("protoc"):
-            protoc_result = "skipped"
-        elif not protos:
-            protoc_result = "FAIL (no emitted .proto files)"
-            failures.append("protoc: no emitted .proto files")
-        else:
+        def run_protoc(label, emitted_proto):
+            """protoc over every .proto under emitted_proto, batched to stay inside the argument limit."""
+            protos = sorted(str(f) for f in emitted_proto.rglob("*.proto")) if emitted_proto.is_dir() else []
+            if not shutil.which("protoc"):
+                return "skipped", protos
+            if not protos:
+                failures.append(f"{label}: no emitted .proto files")
+                return "FAIL (no emitted .proto files)", protos
             batches, cur, size = [], [], 0
             for f in protos:
                 if cur and size + len(f) > ARG_BUDGET:
@@ -190,13 +191,29 @@ def main():
                 cur.append(f)
                 size += len(f) + 1
             batches.append(cur)
-            protoc_result = "ok"
             for batch in batches:
                 p = subprocess.run(["protoc", "-I", str(emitted_proto), "-o", os.devnull] + batch, capture_output=True, text=True)
                 if p.returncode != 0:
-                    protoc_result = "FAIL"
-                    failures.append(f"protoc: exit {p.returncode}\n{p.stderr[:2000]}")
-                    break
+                    failures.append(f"{label}: exit {p.returncode}\n{p.stderr[:2000]}")
+                    return "FAIL", protos
+            return "ok", protos
+
+        protoc_result, protos = run_protoc("protoc", work / "proto" / "proto")
+
+        # 4b. the per-type Protobuf layout: one file per type under its package directory. A missing
+        # file here is a failure of its own, since the layout must write something for any schema.
+        type_proto = work / "proto-type"
+        type_protos = []
+        protoc_type_result = "skipped"
+        if files:
+            rep = run_json(
+                bin_ + ["compile", "--target", "proto", "--proto-layout", "type", "--out", str(type_proto),
+                        "--format", "json", str(schemata_dir)],
+                "compile proto (type layout)",
+            )
+            for d in errors_of(rep):
+                failures.append(f'compile proto (type layout): {d["code"]} {where(d)} {d["message"]}')
+            protoc_type_result, type_protos = run_protoc("protoc (type)", type_proto / "proto")
 
         # 5. round trip
         rt_result = "skipped"
@@ -269,6 +286,8 @@ def main():
     lines.append(f"  xmllint:           {lint_result}")
     lines.append(f"  protoc:            {protoc_result} ({len(protos)} files)"
                  if protoc_result != "skipped" else "  protoc:            skipped")
+    lines.append(f"  protoc (type):     {protoc_type_result} ({len(type_protos)} files)"
+                 if protoc_type_result != "skipped" else "  protoc (type):     skipped")
     lines.append(f"  round trip:        {rt_result}")
     lines.append(f"  whole tree:        {tree_result}")
     lines.append(f"  whole tree codes:  {fmt(tree_codes)}")
