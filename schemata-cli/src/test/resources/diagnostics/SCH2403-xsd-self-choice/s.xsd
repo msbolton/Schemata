@@ -1,0 +1,11 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+  <xs:element name="node">
+    <xs:complexType>
+      <xs:choice>
+        <xs:element ref="tns:node"/>
+        <xs:element name="leaf" type="xs:string"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

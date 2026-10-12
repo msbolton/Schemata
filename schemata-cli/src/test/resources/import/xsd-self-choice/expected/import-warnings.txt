@@ -1,0 +1,4 @@
+SCH2403 complex type 'TreeType': choice names itself; members imported as optional fields
+SCH2403 element 'node': choice names itself; members imported as optional fields
+SCH2403 union 'Ping': member element name 'stop' has no Schemata equivalent and is dropped; the regenerated element will be named 'string'
+SCH2403 union 'Pong': member element name 'halt' has no Schemata equivalent and is dropped; the regenerated element will be named 'bool'
