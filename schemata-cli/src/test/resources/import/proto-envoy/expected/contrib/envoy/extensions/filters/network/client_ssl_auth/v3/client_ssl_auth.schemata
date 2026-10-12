@@ -1,4 +1,4 @@
-schema contrib.envoy.extensions.filters.network.client_ssl_auth.v3.client_ssl_auth @proto(package: "envoy.extensions.filters.network.client_ssl_auth.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.filters.network.client_ssl_auth.v3") @proto(java_outer_classname: "ClientSslAuthProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/network/client_ssl_auth/v3;client_ssl_authv3")
+schema contrib.envoy.extensions.filters.network.client_ssl_auth.v3.client_ssl_auth @proto(package: "envoy.extensions.filters.network.client_ssl_auth.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.filters.network.client_ssl_auth.v3") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/contrib/envoy/extensions/filters/network/client_ssl_auth/v3;client_ssl_authv3")
 
 import envoy.config.core.v3
 

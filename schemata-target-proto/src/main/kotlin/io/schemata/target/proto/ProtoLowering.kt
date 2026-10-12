@@ -286,11 +286,14 @@ object ProtoLowering {
      * How a message names [decl] for a reader of the merged file: by its qualified name, and a key
      * record, which the author never wrote, as the key of its model.
      */
-    private fun Schema.holder(decl: TypeDecl): String {
-        if (!isKeyRecord(decl)) return "${decl.kindWord} '${decl.qualifiedName}'"
+    private fun Schema.holder(decl: TypeDecl): String =
+        if (!isKeyRecord(decl)) "${decl.kindWord} '${decl.qualifiedName}'"
+        else "the key of model '${keyModel(decl)}'"
+
+    /** The model whose key the key record [decl] holds: `SeatKey` → `Seat`, beside it. */
+    private fun keyModel(decl: TypeDecl): QualifiedName {
         val qn = decl.qualifiedName
-        val model = QualifiedName(qn.namespace, qn.path.dropLast(1) + decl.name.removeSuffix("Key"))
-        return "the key of model '$model'"
+        return QualifiedName(qn.namespace, qn.path.dropLast(1) + decl.name.removeSuffix("Key"))
     }
 
     private class Mapped(val type: ProtoType, val label: Label, val lossy: Boolean)
@@ -321,9 +324,20 @@ object ProtoLowering {
 
         // Computed once: an invalid service override is reported each time it is read. Lazy so
         // that under the schema layout an invalid one is reported with the unit's scope check,
-        // after its package and options.
+        // after its package and options and before the declarations' invalid overrides.
         private val serviceNames by lazy { serviceDecls.associateWith { serviceName(it) } }
         private var files: List<TypeFile> = emptyList()
+
+        /**
+         * protoc names a file's Java wrapper class after the file, and with `java_multiple_files` a
+         * message whose name differs from it only by case would be written to the same Java file
+         * name, which a case-insensitive file system holds once. So under the type layout a unit
+         * that declares `java_multiple_files: true` names every file's wrapper itself.
+         */
+        private val namesWrappers =
+            layout == ProtoLayout.TYPE &&
+                ProtoFileOptions.of(unit).values["java_multiple_files"] ==
+                    AnnotationValue.Bool(true)
 
         /**
          * [decl]'s emitted name: its valid `@proto(name)` override, else the name it was given to
@@ -356,6 +370,7 @@ object ProtoLowering {
             if (layout == ProtoLayout.TYPE) {
                 files.filter { it.shared }.forEach { sharedFile(it) }
                 fileCollisions()
+                if (namesWrappers) wrapperCollisions()
             }
         }
 
@@ -367,13 +382,12 @@ object ProtoLowering {
             val resolved = ProtoFileOptions.of(unit)
             resolved.conflicts.forEach { optionConflict(it, diagnostics) }
             // Every file of the unit is one package scope, and services share it with messages
-            // and enums.
-            scope(
-                typeDecls.flatMap { symbols(it) } +
-                    serviceDecls.map {
-                        Symbol(serviceNames.getValue(it), "service '${it.name}'", it.nameSpan)
-                    }
-            )
+            // and enums. An invalid service override is reported before the declarations' own.
+            val serviceSymbols =
+                serviceDecls.map {
+                    Symbol(serviceNames.getValue(it), "service '${it.name}'", it.nameSpan)
+                }
+            scope(typeDecls.flatMap { symbols(it) } + serviceSymbols)
             val options = resolved.values.map { (key, value) -> key to optionLiteral(value) }
             return files.map { file ->
                 imports.clear()
@@ -386,10 +400,19 @@ object ProtoLowering {
                     imports = imports.toList(),
                     declarations = declarations,
                     services = services,
-                    options = options,
+                    options =
+                        if (namesWrappers) {
+                            options + ("java_outer_classname" to SchemataText.string(wrapper(file)))
+                        } else {
+                            options
+                        },
                 )
             }
         }
+
+        /** `http_status.proto` → `HttpStatusProto`: the file's stem in upper camel case. */
+        private fun wrapper(file: TypeFile): String =
+            Names.upperCamel(file.path.substringAfterLast('/').removeSuffix(".proto")) + "Proto"
 
         /** The name of the file [decl] would have of its own under the type layout. */
         private fun fileName(decl: TypeDecl): String = Names.snakeCase(emitted(decl))
@@ -418,32 +441,81 @@ object ProtoLowering {
         }
 
         /**
+         * What names one file in a collision message: its [text], the [name] it is emitted as, the
+         * [span] a report sits at, and for a key record the emitted name of the [model] whose key
+         * it is, since the author renames a key record only through its model.
+         */
+        private class FileHolder(
+            val text: String,
+            val name: String,
+            val span: Span,
+            val model: String?,
+        )
+
+        private fun holder(file: TypeFile): FileHolder {
+            val service = file.services.firstOrNull()
+            if (service != null) {
+                val name = serviceNames.getValue(service)
+                return FileHolder("service '$name'", name, service.nameSpan, null)
+            }
+            val naming = naming(file)
+            val name = emitted(naming)
+            if (!schema.isKeyRecord(naming)) {
+                return FileHolder("${naming.kindWord} '$name'", name, naming.nameSpan, null)
+            }
+            val model = emitted(schema.lookup(keyModel(naming)))
+            return FileHolder("the key of model '$model'", name, naming.nameSpan, model)
+        }
+
+        /**
          * Reports every file whose path an earlier file of the unit already has: one would
          * overwrite the other. Files are sorted by path, and declarations come before services, so
          * the report sits at the later one. Each file is named by its emitted name, which is the
-         * name the message gives.
+         * name the message gives. Two files emitted under one name are already a repeat in the
+         * package scope, which the scope check reports, so they are not reported again here.
          */
         private fun fileCollisions() {
-            fun holder(file: TypeFile): Pair<String, Span> {
-                val service = file.services.firstOrNull()
-                if (service != null) {
-                    return "service '${serviceNames.getValue(service)}'" to service.nameSpan
-                }
-                val naming = naming(file)
-                return "${naming.kindWord} '${emitted(naming)}'" to naming.nameSpan
-            }
             for (same in files.groupBy { it.path }.values.filter { it.size > 1 }) {
-                val (first, _) = holder(same.first())
-                for (file in same.drop(1)) {
-                    val (later, span) = holder(file)
+                val holders = same.map { holder(it) }
+                val first = holders.first()
+                for ((i, later) in holders.withIndex().drop(1)) {
+                    if (holders.take(i).any { it.name == later.name }) continue
+                    val help =
+                        when {
+                            later.model != null -> "on model '${later.model}'"
+                            first.model != null -> "on ${later.text}"
+                            else -> "on one of them"
+                        }
                     diagnostics +=
                         Diagnostic(
                             ProtoCodes.NAME_COLLISION,
-                            "$first and $later both lower to file '${file.path}'",
-                            span,
-                            help = "set `@proto(name: \"…\")` on one of them",
+                            "${first.text} and ${later.text} both lower to file '${same[i].path}'",
+                            later.span,
+                            help = "set `@proto(name: \"…\")` $help",
                         )
                 }
+            }
+        }
+
+        /**
+         * Reports every top-level declaration or service whose emitted name is, ignoring case, the
+         * wrapper class name of a file of the unit: both would become one Java file.
+         */
+        private fun wrapperCollisions() {
+            val wrappers = files.associateBy { wrapper(it).lowercase() }
+            val named =
+                typeDecls.map { Triple(it.kindWord, emitted(it), it.nameSpan) } +
+                    serviceDecls.map { Triple("service", serviceNames.getValue(it), it.nameSpan) }
+            for ((kind, name, span) in named) {
+                val file = wrappers[name.lowercase()] ?: continue
+                diagnostics +=
+                    Diagnostic(
+                        ProtoCodes.NAME_COLLISION,
+                        "$kind '$name' and the Java class of ${file.path.substringAfterLast('/')} " +
+                            "both lower to '${wrapper(file)}'",
+                        span,
+                        help = "set `@proto(name: \"…\")` on it",
+                    )
             }
         }
 

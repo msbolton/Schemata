@@ -97,8 +97,6 @@ SCH2405 envoy/config/core/v3/http_service.proto: option java_outer_classname 'Ht
 SCH2405 envoy/config/core/v3/http_uri.proto: option java_outer_classname 'HttpUriProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
 SCH2405 envoy/config/core/v3/socket_option.proto: option java_outer_classname 'SocketOptionProto' differs from 'AddressProto' in envoy/config/core/v3/address.proto; dropped
 SCH2405 envoy/type/matcher/v3/string.proto: option java_outer_classname 'StringProto' differs from 'RegexProto' in envoy/type/matcher/v3/regex.proto; dropped
-SCH2405 envoy/type/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/percent.proto; dropped
-SCH2405 envoy/type/v3/semantic_version.proto: option java_outer_classname 'SemanticVersionProto' differs from 'PercentProto' in envoy/type/v3/percent.proto; dropped
 SCH2405 include/xds/core/v3/extension.proto: option java_outer_classname 'ExtensionProto' differs from 'ContextParamsProto' in include/xds/core/v3/context_params.proto; dropped
 SCH2405 contrib/envoy/extensions/filters/network/client_ssl_auth/v3/client_ssl_auth.proto: validate rule 'string.well_known_regex' dropped on 1 field
 SCH2405 envoy/annotations/deprecation.proto: extend dropped

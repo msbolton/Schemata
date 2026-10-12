@@ -4,6 +4,7 @@ package corpus.layout.v1;
 
 option java_package = "com.example.corpus.layout";
 option java_multiple_files = true;
+option java_outer_classname = "SeatProto";
 
 // A seat an order reserves.
 message Seat {

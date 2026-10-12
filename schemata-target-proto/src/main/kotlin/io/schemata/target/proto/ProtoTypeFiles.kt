@@ -49,12 +49,13 @@ internal object ProtoTypeFiles {
      * declarations in one strongly connected component of the unit's reference graph share a file:
      * stored fields and union members at any nesting depth count, a target is taken to its
      * top-level declaration, and references outside the unit tie nothing, since units never
-     * reference each other in a cycle. A key record holds no references and nothing names it except
-     * through the key rewrite, so it is a file of its own like any declaration that references
-     * nothing; read back by the importer it is an ordinary model, so compiling the import again
-     * gives the same files. Each shared file is named by the member whose [typeFileName] sorts
-     * first, so the name does not depend on source order. Nothing references a service, so each is
-     * a file of its own, named by [serviceFileName]. Files are sorted by path.
+     * reference each other in a cycle. A key record references at most the enums of its key fields,
+     * which reference nothing, and nothing names it except through the key rewrite, so it is never
+     * in a cycle and is a file of its own; read back by the importer it is an ordinary model, so
+     * compiling the import again gives the same files. Each shared file is named by the member
+     * whose [typeFileName] sorts first, so the name does not depend on source order. Nothing
+     * references a service, so each is a file of its own, named by [serviceFileName]. Files are
+     * sorted by path.
      */
     fun split(
         unit: ProtoUnit,
