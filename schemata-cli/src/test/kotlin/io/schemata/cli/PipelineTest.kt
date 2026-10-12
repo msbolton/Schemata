@@ -1,11 +1,17 @@
 package io.schemata.cli
 
+import io.schemata.config.ConfigLoader
+import io.schemata.config.ProjectConfig
 import io.schemata.lang.Category
 import io.schemata.target.proto.ProtoTarget
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.io.TempDir
 
 class PipelineTest {
     private val orders =
@@ -152,5 +158,59 @@ class PipelineTest {
         val result = Pipeline.compile(listOf(orders, customers), Pipeline.targets)
         assertEquals(emptyList(), result.core)
         assertEquals(3, result.targets.sumOf { it.diagnostics.size })
+    }
+
+    @TempDir lateinit var root: Path
+
+    private fun config(text: String): ProjectConfig {
+        val file = root.resolve(ConfigLoader.FILE_NAME)
+        Files.writeString(file, text)
+        val loaded = ConfigLoader.load(file, Pipeline.annotations, Pipeline.targets.map { it.name })
+        assertEquals(emptyList(), loaded.diagnostics.map { it.message })
+        return assertNotNull(loaded.config)
+    }
+
+    private fun PipelineResult.text(target: String, path: String): String =
+        files.single { it.target == target && it.file.path == path }.file.content
+
+    @Test
+    fun `compile applies a configuration before targets`() {
+        val result =
+            Pipeline.compile(
+                listOf(orders, customers),
+                listOf(ProtoTarget),
+                config = config("[proto]\njava_package = \"com.example.{schema}\"\n"),
+            )
+        assertFalse(result.hasErrors)
+        assertTrue(
+            "option java_package = \"com.example.shop.orders\";" in
+                result.text("proto", "shop/orders.proto")
+        )
+        assertTrue(
+            "option java_package = \"com.example.shop.customers\";" in
+                result.text("proto", "shop/customers.proto")
+        )
+    }
+
+    @Test
+    fun `compile without a configuration is unchanged`() {
+        val sources = listOf(orders, customers)
+        val schema = assertNotNull(Pipeline.analyze(sources).schema)
+        val direct =
+            Pipeline.targets.flatMap { target ->
+                target.compile(schema).files.map { TargetFile(target.name, it) }
+            }
+        val plain = Pipeline.compile(sources, Pipeline.targets)
+        assertEquals(direct, plain.files)
+        assertEquals(
+            plain.files,
+            Pipeline.compile(
+                    sources,
+                    Pipeline.targets,
+                    config = config("[compile]\nstrict = false\n"),
+                )
+                .files,
+        )
+        assertFalse("option java_package" in plain.text("proto", "shop/orders.proto"))
     }
 }

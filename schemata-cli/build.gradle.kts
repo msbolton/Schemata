@@ -21,6 +21,7 @@ dependencies {
     implementation(project(":schemata-target-jsonschema"))
     implementation(project(":schemata-target-openapi"))
     implementation(project(":schemata-import-api"))
+    implementation(project(":schemata-config"))
     implementation(project(":schemata-import-xsd"))
     implementation(project(":schemata-import-proto"))
     implementation(project(":schemata-import-sql"))
