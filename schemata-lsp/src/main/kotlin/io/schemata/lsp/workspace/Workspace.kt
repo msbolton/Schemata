@@ -77,6 +77,7 @@ class Workspace(
 ) {
     private var sets = SchemaSets(emptyList())
     private var strict = false
+    private var exclude: (Path) -> Boolean = { false }
     private val documents = sortedMapOf<String, Document>()
     private val analyses = mutableMapOf<SetKey, SetAnalysis>()
     private val stale = mutableSetOf<String>()
@@ -89,9 +90,14 @@ class Workspace(
      */
     private val listings = mutableMapOf<SetKey, Set<String>>()
 
-    fun configure(roots: List<Path>, strict: Boolean) {
+    /**
+     * [exclude] receives each listed file as an absolute normalized path; a file it accepts is left
+     * out of its set, though an open document still counts.
+     */
+    fun configure(roots: List<Path>, strict: Boolean, exclude: (Path) -> Boolean = { false }) {
         sets = SchemaSets(roots)
         this.strict = strict
+        this.exclude = exclude
         analyses.clear()
         listings.clear()
     }
@@ -258,8 +264,9 @@ class Workspace(
 
     private fun listFiles(key: SetKey): Set<String> =
         listings.getOrPut(key) {
+            // The walk lists absolute normalized paths, the form [exclude] expects.
             walk(Paths.get(key.directory), key.recursive).filterTo(mutableSetOf()) {
-                sets.contains(key, it)
+                sets.contains(key, it) && !exclude(Paths.get(it))
             }
         }
 

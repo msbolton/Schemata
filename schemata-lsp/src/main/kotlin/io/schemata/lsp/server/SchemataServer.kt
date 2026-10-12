@@ -2,6 +2,7 @@ package io.schemata.lsp.server
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import io.schemata.config.ConfigLoader
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
@@ -79,7 +80,8 @@ import org.eclipse.lsp4j.services.WorkspaceService
  * the text the editor already holds. Only files whose diagnostics changed are published again.
  */
 class SchemataServer(
-    annotations: AnnotationRegistry,
+    private val annotations: AnnotationRegistry,
+    private val targetNames: List<String> = emptyList(),
     private val debounceMs: Long = DEBOUNCE_MS,
     private val onExit: (Int) -> Unit,
 ) : LanguageServer, LanguageClientAware, TextDocumentService, WorkspaceService {
@@ -105,6 +107,7 @@ class SchemataServer(
     private var watchFiles = false
     private var roots: List<String> = emptyList()
     private var strict = false
+    private var exclude: (Path) -> Boolean = { false }
     @Volatile private var shutdownRequested = false
 
     override fun connect(client: LanguageClient) {
@@ -124,7 +127,9 @@ class SchemataServer(
             folder = uri?.let(Uris::toPath)?.let { Paths.get(it) }
             watchFiles =
                 params.capabilities?.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
-            configure(params.initializationOptions as? JsonObject)
+            val options = params.initializationOptions as? JsonObject
+            readProjectFile(options)
+            configure(options)
             val capabilities =
                 ServerCapabilities().apply {
                     setTextDocumentSync(TextDocumentSyncKind.Full)
@@ -169,25 +174,59 @@ class SchemataServer(
     /**
      * `{"roots": ["model"], "strict": true}`; a key that is missing or of the wrong type keeps its
      * current value. A relative root resolves against the workspace folder, and is ignored when
-     * there is none.
+     * there is none. Roots given here replace any from `schemata.toml`, and its excludes with them.
      */
     private fun configure(options: JsonObject?) {
-        options
-            ?.get("roots")
-            ?.takeIf { it.isJsonArray }
-            ?.let { roots = it.asJsonArray.mapNotNull(::text) }
-        options
-            ?.get("strict")
-            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
-            ?.let { strict = it.asBoolean }
+        rootsIn(options)?.let {
+            roots = it
+            exclude = { false }
+        }
+        strictIn(options)?.let { strict = it }
         val base = folder
         val paths =
             roots.mapNotNull { root ->
                 val path = Paths.get(root)
                 if (path.isAbsolute) path else base?.resolve(path)
             }
-        workspace.configure(paths, strict)
+        workspace.configure(paths, strict, exclude)
     }
+
+    /**
+     * When [options] name no roots, the nearest `schemata.toml` at or above the workspace folder
+     * supplies the roots and excludes of its `[sources]` and the strictness of `[compile]`, so the
+     * editor reports what `schemata check` does (SCH-102); [configure] then lays [options] over
+     * them. A file with errors is the CLI's to report: the server notes it in the client's log and
+     * carries on as if there were no file.
+     */
+    private fun readProjectFile(options: JsonObject?) {
+        if (rootsIn(options) != null) return
+        val base = folder?.toAbsolutePath()?.normalize() ?: return
+        val file = ConfigLoader.discover(base) ?: return
+        val shown = base.relativize(file).toString()
+        val loaded = ConfigLoader.load(file, annotations, targetNames, shown)
+        val config = loaded.config
+        if (config == null) {
+            val first = loaded.diagnostics.first().message
+            client?.logMessage(
+                MessageParams(MessageType.Warning, "schemata: ignoring $shown: $first")
+            )
+            return
+        }
+        if (config.sources != null) {
+            roots = config.sourcePaths.map(Path::toString)
+            exclude = config::excluded
+        }
+        config.compile.strict?.let { strict = it.value }
+    }
+
+    private fun rootsIn(options: JsonObject?): List<String>? =
+        options?.get("roots")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull(::text)
+
+    private fun strictIn(options: JsonObject?): Boolean? =
+        options
+            ?.get("strict")
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
+            ?.asBoolean
 
     private fun text(element: JsonElement): String? =
         element.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
@@ -462,9 +501,10 @@ class SchemataServer(
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            targetNames: List<String> = emptyList(),
             debounceMs: Long = DEBOUNCE_MS,
             onExit: (Int) -> Unit,
-        ): Future<Void> = start(input, output, annotations, debounceMs, onExit).second
+        ): Future<Void> = start(input, output, annotations, targetNames, debounceMs, onExit).second
 
         /**
          * Serves one client on the given streams until the input ends, and returns the exit code: 0
@@ -475,9 +515,11 @@ class SchemataServer(
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            targetNames: List<String> = emptyList(),
             onExit: (Int) -> Unit,
         ): Int {
-            val (server, listening) = start(input, output, annotations, DEBOUNCE_MS, onExit)
+            val (server, listening) =
+                start(input, output, annotations, targetNames, DEBOUNCE_MS, onExit)
             listening.get()
             return if (server.shutdownRequested) 0 else 1
         }
@@ -486,10 +528,11 @@ class SchemataServer(
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            targetNames: List<String>,
             debounceMs: Long,
             onExit: (Int) -> Unit,
         ): Pair<SchemataServer, Future<Void>> {
-            val server = SchemataServer(annotations, debounceMs, onExit)
+            val server = SchemataServer(annotations, targetNames, debounceMs, onExit)
             val launcher = LSPLauncher.createServerLauncher(server, input, output)
             server.connect(launcher.remoteProxy)
             return server to launcher.startListening()

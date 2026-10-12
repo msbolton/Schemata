@@ -113,6 +113,23 @@ class WorkspaceTest {
     }
 
     @Test
+    fun `the workspace excludes files the matcher rejects`() {
+        val c = file("model/customers/c.schemata", customers)
+        val o = file("model/orders/o.schemata", orders)
+        val asked = mutableListOf<Path>()
+        val ws = workspace()
+        ws.configure(listOf(dir.resolve("model")), strict = false) { path ->
+            asked.add(path)
+            path == Path.of(c)
+        }
+        val analysis = ws.analysis(ws.open(o, orders))
+        assertEquals(setOf(o), analysis.diagnostics.keys)
+        assertTrue("SCH1011" in codes(analysis, o), codes(analysis, o).toString())
+        assertEquals(setOf(Path.of(c), Path.of(o)), asked.toSet())
+        assertTrue(asked.all { it.isAbsolute && it == it.normalize() }, asked.toString())
+    }
+
+    @Test
     fun `strict turns implicit ordinals into errors`() {
         val a = file("s/a.schemata", "schema a\nmodel R { x int32 }\n")
         val ws = workspace()
