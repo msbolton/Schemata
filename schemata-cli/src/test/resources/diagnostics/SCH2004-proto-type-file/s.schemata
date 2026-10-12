@@ -1,0 +1,4 @@
+schema s
+
+model HTTPServer { #1 a bool }
+model HttpServer { #1 b bool }

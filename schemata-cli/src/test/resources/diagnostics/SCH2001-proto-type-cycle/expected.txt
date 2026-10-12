@@ -1,0 +1,6 @@
+# targets=proto proto-layout=type
+warning[SCH2001] (lossy) (proto): model 'Customer' and model 'Order' reference each other; Protobuf cannot import files in a cycle, so they share s/customer.proto
+ --> s.schemata:3:7
+  = help: set `@proto(name: "…")` on 'Customer' to name the file
+
+0 errors, 1 warning

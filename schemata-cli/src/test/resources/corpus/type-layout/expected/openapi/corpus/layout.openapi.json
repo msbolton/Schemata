@@ -1,0 +1,162 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "corpus.layout",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "Orders"
+    }
+  ],
+  "paths": {
+    "/Orders/get": {
+      "post": {
+        "operationId": "Orders_get",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/corpus.layout.Order"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/corpus.layout.Order"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Orders/cancel": {
+      "post": {
+        "operationId": "Orders_cancel",
+        "tags": [
+          "Orders"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/corpus.layout.Order"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "corpus.layout.Order": {
+        "description": "An order and the customer who placed it.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/corpus.layout.Customer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/corpus.layout.Status"
+          },
+          "label": {
+            "$ref": "#/components/schemas/corpus.layout.Label"
+          },
+          "seat": {
+            "$ref": "#/components/schemas/corpus.layout.SeatKey"
+          }
+        },
+        "required": [
+          "id",
+          "customer",
+          "status",
+          "label",
+          "seat"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.layout.Customer": {
+        "description": "A customer and the last order they placed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/corpus.layout.Order"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.layout.Status": {
+        "type": "string",
+        "enum": [
+          "placed",
+          "shipped"
+        ]
+      },
+      "corpus.layout.Label": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "corpus.layout.SeatKey": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "number": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "row",
+          "number"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package corpus.layout.v1;
+
+import "corpus/layout/v1/customer.proto";
+import "google/protobuf/empty.proto";
+
+option java_package = "com.example.corpus.layout";
+option java_multiple_files = true;
+
+service Orders {
+  rpc Get(Order) returns (Order);
+  rpc Cancel(Order) returns (.google.protobuf.Empty);
+}
