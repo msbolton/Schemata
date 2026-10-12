@@ -2,8 +2,6 @@
 schema ex_msg @xsd(namespace: "urn:example:exchange:message")
 
 import ex_core
-import structures
-import ic_ism
 
 /// A data type for a report of entities.
 model SituationMessage {

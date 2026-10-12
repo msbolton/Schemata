@@ -91,6 +91,33 @@ class ImportsAndAliasesTest {
     }
 
     @Test
+    fun `a qualified reference uses the import`() {
+        val orders =
+            "orders.schemata" to
+                "schema shop.orders\nimport shop.customers\nmodel Order { who shop.customers.Customer }"
+        assertEquals(emptyList(), messages(analyze(customers, orders)))
+    }
+
+    @Test
+    fun `an import nothing references is still unused`() {
+        val other = "other.schemata" to "schema other.customers\nmodel Customer { y bool }"
+        val orders =
+            "orders.schemata" to
+                "schema shop.orders\nimport shop.customers\nmodel Order { who other.customers.Customer }"
+        assertEquals(
+            listOf("orders.schemata:2:1 import 'shop.customers' is unused"),
+            messages(analyze(customers, other, orders)),
+        )
+    }
+
+    @Test
+    fun `a qualified reference without an import needs none`() {
+        val orders =
+            "orders.schemata" to "schema shop.orders\nmodel Order { who shop.customers.Customer }"
+        assertEquals(emptyList(), messages(analyze(customers, orders)))
+    }
+
+    @Test
     fun `unknown and unused imports`() {
         val orders =
             "orders.schemata" to

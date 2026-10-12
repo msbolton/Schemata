@@ -338,7 +338,7 @@ class Resolver(
         }
         if (diagnostics.size != before) return null
         val beforeQualified = diagnostics.size
-        qualified(parts, at, sites)?.let {
+        qualified(parts, scope, at, sites)?.let {
             return it
         }
         if (diagnostics.size != beforeQualified) return null
@@ -383,12 +383,19 @@ class Resolver(
         return descend(base, parts.drop(2), at, sites.drop(1))
     }
 
-    /** `shop.customers.Customer[.Nested…]`: the longest namespace prefix that exists wins. */
-    private fun qualified(parts: List<String>, at: Span, sites: List<Span>): Found? {
+    /**
+     * `shop.customers.Customer[.Nested…]`: the longest namespace prefix that exists wins. A fully
+     * qualified name draws on its schema as a bare one does, so the file's unaliased import of that
+     * schema is used; an import is unused only when nothing from its schema is referenced.
+     */
+    private fun qualified(parts: List<String>, scope: Scope, at: Span, sites: List<Span>): Found? {
         for (split in parts.size - 1 downTo 1) {
             val namespace = parts.take(split).joinToString(".")
             if (!index.namespaceExists(namespace)) continue
             val base = index.find(QualifiedName(namespace, listOf(parts[split]))) ?: continue
+            (imports[scope.file.path] ?: emptyList())
+                .filter { it.alias == null && it.namespace == namespace }
+                .forEach { usedImports += it }
             if (sites.size == parts.size) {
                 val first = sites.first()
                 val last = sites[split - 1]

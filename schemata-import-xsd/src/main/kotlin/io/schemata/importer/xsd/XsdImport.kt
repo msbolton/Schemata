@@ -123,6 +123,9 @@ object XsdImport {
 
         val units =
             live.map { doc ->
+                // The schemas this unit may import: each live one its document xs:imports, then
+                // the ones its head unions and element references reach. Only those its output
+                // names a type from are kept, once every reference is final (see below).
                 val imports = mutableListOf<String>()
                 doc.imports.forEach { imp ->
                     val target = docsByNamespace[imp.namespace]
@@ -209,10 +212,17 @@ object XsdImport {
                 )
             }
         // Every namespace's elements have claimed their record names by now, so a reference to one,
-        // from its own namespace or another, can name the record it was declared under.
+        // from its own namespace or another, can name the record it was declared under. Only then
+        // is every qualified reference final, so only then can a unit drop the imports it never
+        // names a type from: an xs:import nothing in the output uses writes no line.
         val resolved =
             units.map { unit ->
-                unit.copy(declarations = unit.declarations.map(elementRecords::resolve))
+                val declarations = unit.declarations.map(elementRecords::resolve)
+                val named = namespacesNamedBy(declarations)
+                unit.copy(
+                    declarations = declarations,
+                    imports = unit.imports.filter { it in named },
+                )
             }
         // A note on a component many types share (an attribute flattened into every derived
         // type) is reported once. The note reported while lowering the declaring type wins over
@@ -251,6 +261,43 @@ object XsdImport {
         return sites
             .minByOrNull { it.second }
             ?.let { (path, line) -> path.ifEmpty { doc.path } to line }
+    }
+
+    /**
+     * The schemas [declarations] take a type from: the namespace of every qualified reference, its
+     * leading segments up to the first that starts upper-case (`shop.customers` of
+     * `shop.customers.Customer`), since every type name the importer writes starts upper-case and
+     * every schema name segment lower-case.
+     */
+    private fun namespacesNamedBy(declarations: List<UnitDecl>): Set<String> {
+        val named = mutableSetOf<String>()
+        fun visitType(type: UnitType) {
+            when (type) {
+                is UnitType.Ref -> {
+                    val segments =
+                        type.name.split('.').takeWhile { it.firstOrNull()?.isLowerCase() == true }
+                    if (segments.isNotEmpty()) named += segments.joinToString(".")
+                }
+                is UnitType.ListOf -> visitType(type.element)
+                is UnitType.MapOf -> {
+                    visitType(type.key)
+                    visitType(type.value)
+                }
+                is UnitType.Scalar -> Unit
+            }
+        }
+        fun visitDeclaration(decl: UnitDecl) {
+            when (decl) {
+                is UnitRecord -> {
+                    decl.fields.forEach { visitType(it.type) }
+                    decl.nested.forEach(::visitDeclaration)
+                }
+                is UnitUnion -> decl.members.forEach { visitType(it.type) }
+                else -> Unit
+            }
+        }
+        declarations.forEach(::visitDeclaration)
+        return named
     }
 
     /**

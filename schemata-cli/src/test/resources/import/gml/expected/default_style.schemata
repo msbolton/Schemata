@@ -3,7 +3,6 @@
 /// To obtain additional rights of use, visit http://www.opengeospatial.org/legal/ .
 schema default_style @xsd(namespace: "http://www.opengis.net/gml/3.2")
 
-import smil20
 import gmd
 import xlink
 

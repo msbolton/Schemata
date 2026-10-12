@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import io.schemata.core.CoreCodes
 import io.schemata.importer.ImportInput
 import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
@@ -24,10 +25,11 @@ import org.junit.jupiter.api.TestFactory
  * sql file's path under its root; an include or import outside the inputs is read from the case
  * directory too) into exactly its `expected/` tree, reports exactly the warnings in
  * `expected/import-warnings.txt` (none when the file is absent) and no error, since an import that
- * reports one writes nothing, and compiles under proto, xsd, and jsonschema without errors. The sql
- * target cannot carry a key the xsd never declared, nor some shapes it documents as beyond it, so
- * its errors other than a missing key are compared with `expected/sql-errors.txt` (none when
- * absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the warnings, and the sql errors.
+ * reports one writes nothing, and compiles under proto, xsd, and jsonschema without errors and with
+ * every import it writes used (no SCH1012). The sql target cannot carry a key the xsd never
+ * declared, nor some shapes it documents as beyond it, so its errors other than a missing key are
+ * compared with `expected/sql-errors.txt` (none when absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites
+ * the tree, the warnings, and the sql errors.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
@@ -132,6 +134,11 @@ class ImportCorpusTest {
                     .filter { it.severity == Severity.ERROR }
                     .joinToString("\n") { "${it.code.id} ${it.message}" },
         )
+        val unusedImports =
+            noSql.diagnostics
+                .filter { it.code == CoreCodes.UNUSED_IMPORT }
+                .map { "${it.span.file}:${it.span.startLine} ${it.message}" }
+        assertEquals(emptyList(), unusedImports, "imported ${case.name} leaves no import unused")
         val sqlErrors =
             Pipeline.compile(imported, listOf(SqlTarget))
                 .diagnostics
