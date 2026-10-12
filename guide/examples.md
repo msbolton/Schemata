@@ -800,16 +800,14 @@ model Money {
 
 The field numbers are the ordinals and the comments are the docs. The `option` lines steer code
 generation in other languages and say nothing about the data, but the language ones are kept as
-`@proto` keys on the schema line, four of `money.proto`'s five here, and compile back to the same
-`option` lines, in Schemata's fixed key order, which may differ from the source's. The fifth,
-`java_outer_classname = "MoneyProto"`, is the file's stem plus `Proto` in a file named for its
-message, the name `--proto-layout type` writes in every file itself, so it reads as nothing. The
-license header, separated from the message by a blank line, is not a doc. The corpus golden quoted
-here also holds `Date`, from `google/type/date.proto` beside it: importing the directory holding
-`google/` instead finds two files under one root that declare `package google.type`, which `protoc`
-reads as one package, so they import as one schema, `google.type`, in one file. Had `money.proto`
-been the only file there, it would have taken its path under that directory, `google.type.money`,
-and kept its package as `@proto(package: "google.type")`.
+`@proto` keys on the schema line, all five of `money.proto`'s here, and compile back to the same
+`option` lines, in Schemata's fixed key order, which may differ from the source's. The license
+header, separated from the message by a blank line, is not a doc. The corpus golden quoted here also
+holds `Date`, from `google/type/date.proto` beside it: importing the directory holding `google/`
+instead finds two files under one root that declare `package google.type`, which `protoc` reads as
+one package, so they import as one schema, `google.type`, in one file. Had `money.proto` been the
+only file there, it would have taken its path under that directory, `google.type.money`, and kept
+its package as `@proto(package: "google.type")`.
 
 The two files must agree on a language option for the schema to keep it. The golden's schema line
 holds the keys both files give the same value:
@@ -821,8 +819,10 @@ schema google.type @proto(java_package: "com.google.type") @proto(java_multiple_
 
 `go_package` differs between `date.proto` and `money.proto`, so it is dropped, and `money.proto`
 gets an SCH2405 naming `date.proto` as the first file of the package that declares the key. Choose
-the value with `@proto` on the imported schema. Each file's `java_outer_classname`, `DateProto` and
-`MoneyProto`, is its own wrapper name, so it reads as nothing without a warning.
+the value with `@proto` on the imported schema. `java_outer_classname` is `DateProto` in
+`date.proto` and `MoneyProto` in `money.proto`: each file's stem plus `Proto`, in a file named for
+its message, which is the name `--proto-layout type` writes in every file of a package of several
+files. So it reads as nothing, without a warning.
 
 Apart from the dropped option, nothing here needed a warning because every type in `Money` is
 one Schemata has. A `uint32`, a `google.protobuf.StringValue`, or a `oneof` mixed with other fields
