@@ -56,7 +56,6 @@ class ImportCommand : CliktCommand(name = "import") {
             fromFlag
                 ?: config?.import?.from?.value
                 ?: throw usageError("--from is required when no [import].from is configured")
-        val namespace = namespaceFlag ?: config?.import?.namespace?.value
         if (include.isNotEmpty() && from != "proto") {
             throw usageError("--include applies to --from proto")
         }
@@ -74,6 +73,10 @@ class ImportCommand : CliktCommand(name = "import") {
                 "sql" -> SqlImporter to loadSources(paths, config, from, SqlSet::load)
                 else -> XsdImporter to loadSources(paths, config, from, XsdSet::load)
             }
+        // The file's namespace is a default for a single input file; with several it is ignored,
+        // while --namespace on such a run is still a usage error.
+        val namespace =
+            namespaceFlag ?: config?.import?.namespace?.value?.takeIf { files.size == 1 }
         namespace?.let { ns ->
             if (!ns.split('.').all(ImportNames::isNamespaceSegment)) {
                 throw usageError("--namespace must be dotted lower-snake segments")

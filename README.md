@@ -135,13 +135,13 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
 ## Commands
 
-    schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] PATHS...
-    schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] PATHS...
-    schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] PATHS...
+    schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata import  --from xsd|proto|sql [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata targets [--format human|json]
     schemata config  [--config FILE|--no-config] [--format human|json] [PATHS...]
-    schemata fmt     [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] PATHS...
-    schemata upgrade [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] PATHS...
+    schemata fmt     [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata upgrade [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
     schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
     schemata lsp
@@ -152,15 +152,15 @@ service, and nothing for a schema without one, and the `proto` target writes eac
 `service` in its schema's `.proto`. `check` reports everything `compile` would and writes nothing.
 `import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and writes
 `--out/import/<file>`, one `.schemata` file per schema. `targets` lists each target's attribute keys
-and diagnostic codes. A `schemata.toml` at the project root supplies defaults for these options and
-the schema files to read when a command is given no paths; `config` prints what it resolved.
-`upgrade` rewrites 1.x schema files in the 2.0 syntax, in place; `--check` writes nothing and fails
-while any file would change. `diff OLD NEW` judges every change between two schema versions against
-each target's compatibility rulebook, so a breaking change is caught before it ships.
-`migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version to the
-next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp` runs the
-language server an editor starts; the guide's Editor support section covers the VS Code and Zed
-extensions and what the server does.
+and diagnostic codes. `upgrade` rewrites 1.x schema files in the 2.0 syntax, in place; `--check`
+writes nothing and fails while any file would change. `diff OLD NEW` judges every change between two
+schema versions against each target's compatibility rulebook, so a breaking change is caught before
+it ships. `migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version
+to the next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp`
+runs the language server an editor starts; the guide's Editor support section covers the VS Code and
+Zed extensions and what the server does. A `schemata.toml` at the project root supplies defaults for
+the commands' options and the schema files to read when a command is given no paths; `config` prints
+what it resolved.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.

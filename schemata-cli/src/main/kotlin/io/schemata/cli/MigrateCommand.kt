@@ -54,6 +54,7 @@ class MigrateCommand : CliktCommand(name = "migrate") {
     override fun run() {
         val config = configuration.resolve(this, reporting)
         val style = reporting.resolve(config)
+        val strict = compileStrict(reporting.strict, config)
         // Like --strict, the file can turn this on but never off.
         val allowDestructive =
             allowDestructiveFlag || config?.migrate?.allowDestructive?.value == true
@@ -64,7 +65,7 @@ class MigrateCommand : CliktCommand(name = "migrate") {
         val sources = reportSources(newSources + oldSources, config)
         val failures = cannotDiff(oldAnalyzed, newAnalyzed)
         if (failures.isNotEmpty()) {
-            val report = Report.of(failures, emptyList(), emptyList(), strict = reporting.strict)
+            val report = Report.of(failures, emptyList(), emptyList(), strict = strict)
             if (style.format == Format.JSON) {
                 echo(
                     MigrateRenderer.json(Migrated.EMPTY, report, emptyList(), failures),
@@ -79,7 +80,7 @@ class MigrateCommand : CliktCommand(name = "migrate") {
         val files =
             if (migrated.lowered) MigrationRenderer.files(migrated.migration, allowDestructive)
             else emptyList()
-        val report = migrateReport(migrated, files, reporting.strict)
+        val report = migrateReport(migrated, files, strict)
         val writes = report.written.isNotEmpty()
         if (writes) files.forEach { (path, content) -> writeOutput(out.resolve(path), content) }
         when (style.format) {

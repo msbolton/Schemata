@@ -50,7 +50,7 @@ class CompileCommandTest {
     fun `compiles a directory to one file per namespace per target and exits 2 on warnings`() {
         val (src, out) = tempSources("orders.schemata" to orders, "customers.schemata" to customers)
 
-        val result = CompileCommand().test("--target proto,sql --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto,sql --out $out $src")
 
         assertEquals(2, result.statusCode, result.stderr)
         assertTrue(out.resolve("proto/shop/orders.proto").readText().contains("message User"))
@@ -79,7 +79,7 @@ class CompileCommandTest {
     @Test
     fun `--target defaults to every registered target`() {
         val (src, out) = tempSources("customers.schemata" to customers)
-        val result = CompileCommand().test("--out $out $src")
+        val result = CompileCommand().test("--no-config --out $out $src")
         assertTrue(result.statusCode in setOf(0, 2), result.stderr)
         assertTrue(Files.exists(out.resolve("proto/shop/customers.proto")))
         assertTrue(Files.exists(out.resolve("sql/shop/customers.sql")))
@@ -99,7 +99,7 @@ class CompileCommandTest {
                     """
                         .trimIndent()
             )
-        val result = CompileCommand().test("--out $out $src")
+        val result = CompileCommand().test("--no-config --out $out $src")
         assertEquals(1, result.statusCode, result.stderr)
         assertTrue(Files.exists(out.resolve("proto/p.proto")), result.stderr)
         assertFalse(Files.exists(out.resolve("sql")), result.stderr)
@@ -114,7 +114,7 @@ class CompileCommandTest {
                 "orders.schemata" to corpus.resolve("orders.schemata").readText(),
                 "customers.schemata" to corpus.resolve("customers.schemata").readText(),
             )
-        val result = CompileCommand().test("--target proto --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto --out $out $src")
         assertEquals(2, result.statusCode, result.stderr)
         assertEquals(
             corpus.resolve("expected/proto/shop/orders.proto").readText(),
@@ -131,7 +131,7 @@ class CompileCommandTest {
     @Test
     fun `exits 1 and shows the excerpt on a syntax error`() {
         val (src, out) = tempSources("bad.schemata" to "schema a\nmodel R { x: uuid }")
-        val result = CompileCommand().test("--target proto --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto --out $out $src")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("error[SCH0001]: "), result.stderr)
         assertTrue(result.stderr.contains("2 | model R { x: uuid }"), result.stderr)
@@ -141,7 +141,7 @@ class CompileCommandTest {
     @Test
     fun `a 1x file is one SCH0008 that names the upgrade`() {
         val (src, out) = tempSources("old.schemata" to "namespace a\nrecord R { x: uuid }\n")
-        val result = CompileCommand().test("--target proto --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto --out $out $src")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("error[SCH0008]: this is a 1.x schema"), result.stderr)
         assertTrue(result.stderr.contains("help: run schemata upgrade on this file"), result.stderr)
@@ -156,7 +156,7 @@ class CompileCommandTest {
             tempSources(
                 "bad.schemata" to "schema shop.orders\n\nmodel OrderLine {\n  #1 model string\n}\n"
             )
-        val result = CompileCommand().test("--target proto --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto --out $out $src")
         assertEquals(1, result.statusCode, result.stderr)
         assertTrue(result.stderr.contains("error[SCH0001]"), result.stderr)
         assertFalse(result.stderr.contains("Exception"), result.stderr)
@@ -165,7 +165,7 @@ class CompileCommandTest {
     @Test
     fun `--strict rejects implicit ordinals and promotes warnings`() {
         val (src, out) = tempSources("s.schemata" to "schema s\n\nmodel R { x bool }")
-        val result = CompileCommand().test("--target proto --strict --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto --strict --out $out $src")
         assertEquals(1, result.statusCode)
         assertTrue(
             result.stderr.contains("error[SCH1014]: field 'x' has no explicit ordinal (--strict)"),
@@ -177,7 +177,8 @@ class CompileCommandTest {
     @Test
     fun `--format json writes one document to stdout and nothing to stderr`() {
         val (src, out) = tempSources("customers.schemata" to customers)
-        val result = CompileCommand().test("--target proto --format json --out $out $src")
+        val result =
+            CompileCommand().test("--no-config --target proto --format json --out $out $src")
         assertEquals("", result.stderr)
         assertTrue(result.stdout.startsWith("{\n  \"diagnostics\": ["), result.stdout)
         assertTrue(result.stdout.contains("\"exitCode\": ${result.statusCode}"), result.stdout)
@@ -190,16 +191,18 @@ class CompileCommandTest {
     @Test
     fun `--color always emits escapes and never does not`() {
         val (src, out) = tempSources("orders.schemata" to orders)
-        val colored = CompileCommand().test("--target proto --color always --out $out $src")
+        val colored =
+            CompileCommand().test("--no-config --target proto --color always --out $out $src")
         assertTrue(colored.stderr.contains("\u001b[33mwarning\u001b[0m"), colored.stderr)
-        val plain = CompileCommand().test("--target proto --color never --out $out $src")
+        val plain =
+            CompileCommand().test("--no-config --target proto --color never --out $out $src")
         assertFalse(plain.stderr.contains("\u001b["), plain.stderr)
     }
 
     @Test
     fun `rejects an unknown target`() {
         val (src, _) = tempSources("a.schemata" to "schema a")
-        val result = CompileCommand().test("--target avro $src")
+        val result = CompileCommand().test("--no-config --target avro $src")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("unknown target 'avro'"), result.stderr)
     }
@@ -207,7 +210,8 @@ class CompileCommandTest {
     @Test
     fun `--proto-layout type writes one proto file per type under the package directory`() {
         val (src, out) = tempSources("orders.schemata" to orders, "customers.schemata" to customers)
-        val result = CompileCommand().test("--target proto --proto-layout type --out $out $src")
+        val result =
+            CompileCommand().test("--no-config --target proto --proto-layout type --out $out $src")
         assertTrue(result.statusCode == 0 || result.statusCode == 2, result.stderr)
         assertTrue(Files.exists(out.resolve("proto/shop/orders/user.proto")), result.stderr)
         assertFalse(Files.exists(out.resolve("proto/shop/orders.proto")), result.stderr)
@@ -216,7 +220,7 @@ class CompileCommandTest {
     @Test
     fun `--proto-layout without the proto target is a usage error`() {
         val (src, _) = tempSources("a.schemata" to "schema a")
-        val result = CompileCommand().test("--target sql --proto-layout type $src")
+        val result = CompileCommand().test("--no-config --target sql --proto-layout type $src")
         assertEquals(1, result.statusCode)
         assertTrue(
             result.stderr.contains("--proto-layout needs the proto target; add proto to --target"),
@@ -227,7 +231,7 @@ class CompileCommandTest {
     @Test
     fun `--proto-layout rejects an unknown layout`() {
         val (src, _) = tempSources("a.schemata" to "schema a")
-        val result = CompileCommand().test("--proto-layout flat $src")
+        val result = CompileCommand().test("--no-config --proto-layout flat $src")
         assertTrue(result.statusCode != 0)
         assertTrue(result.stderr.contains("schema, type"), result.stderr)
     }
@@ -235,7 +239,7 @@ class CompileCommandTest {
     @Test
     fun `rejects a directory with no schemata files`() {
         val dir = Files.createTempDirectory(tmp, "schemata-empty")
-        val result = CompileCommand().test("--target proto $dir")
+        val result = CompileCommand().test("--no-config --target proto $dir")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("no .schemata files"), result.stderr)
     }
@@ -243,9 +247,9 @@ class CompileCommandTest {
     @Test
     fun `duplicate --target names lower once`() {
         val (src, out) = tempSources("customers.schemata" to customers)
-        val duplicated = CompileCommand().test("--target proto,proto --out $out $src")
+        val duplicated = CompileCommand().test("--no-config --target proto,proto --out $out $src")
         val (src2, out2) = tempSources("customers.schemata" to customers)
-        val single = CompileCommand().test("--target proto --out $out2 $src2")
+        val single = CompileCommand().test("--no-config --target proto --out $out2 $src2")
         assertEquals(
             1,
             duplicated.stderr.lines().count {
@@ -265,7 +269,8 @@ class CompileCommandTest {
         val (src, out) = tempSources("customers.schemata" to customers)
         val blocker = out.parent.resolve("blocker")
         blocker.writeText("not a directory")
-        val result = CompileCommand().test("--target proto --out ${blocker.resolve("sub")} $src")
+        val result =
+            CompileCommand().test("--no-config --target proto --out ${blocker.resolve("sub")} $src")
         assertEquals(1, result.statusCode, result.stderr)
         assertTrue(result.stderr.contains("cannot write"), result.stderr)
         assertFalse(result.stderr.contains("at io.schemata"), result.stderr)
@@ -274,7 +279,8 @@ class CompileCommandTest {
     @Test
     fun `a usage error raised while running prints the subcommand usage line`() {
         val (src, _) = tempSources("a.schemata" to "schema a")
-        val result = Schemata().subcommands(CompileCommand()).test("compile --target avro $src")
+        val result =
+            Schemata().subcommands(CompileCommand()).test("compile --no-config --target avro $src")
         assertEquals(1, result.statusCode)
         assertTrue(result.stderr.contains("Usage: schemata compile "), result.stderr)
         assertTrue(result.stderr.contains("unknown target 'avro'"), result.stderr)
@@ -287,7 +293,8 @@ class CompileCommandTest {
                 "customers.schemata" to
                     "schema shop.customers\n\nmodel Customer { #1 id uuid { id }  #2 name string }\n"
             )
-        val result = CompileCommand().test("--target proto,sql --strict --out $out $src")
+        val result =
+            CompileCommand().test("--no-config --target proto,sql --strict --out $out $src")
         assertEquals(1, result.statusCode, result.stderr)
         assertFalse(Files.exists(out.resolve("proto")), result.stderr)
         assertTrue(Files.exists(out.resolve("sql")), result.stderr)
@@ -309,7 +316,7 @@ class CompileCommandTest {
                     """
                         .trimIndent()
             )
-        val result = CompileCommand().test("--target proto --strict --out $out $src")
+        val result = CompileCommand().test("--no-config --target proto --strict --out $out $src")
         assertEquals(1, result.statusCode, result.stderr)
         assertTrue(
             result.stderr.contains("error[SCH2001] (lossy) (proto) [promoted]"),
@@ -383,7 +390,7 @@ class CompileCommandTest {
             )
         assertEquals(0, run.statusCode, run.stderr)
         val (src, out) = tempSources("shop.schemata" to shop)
-        val plain = CompileCommand().test("--target proto --out $out $src")
+        val plain = CompileCommand().test("--no-config --target proto --out $out $src")
         assertEquals(plain.statusCode, run.statusCode)
         assertEquals(
             out.resolve("proto/shop.proto").readText(),
@@ -603,5 +610,20 @@ class CompileCommandTest {
                 )
         assertEquals("", human.stdout)
         assertTrue(human.stderr.contains("no diagnostics"), human.stderr)
+    }
+
+    /**
+     * Every command test that is not about discovery passes `--no-config`, but a `schemata.toml` in
+     * the repository would still change how the CLI behaves for anyone working in it, so one here
+     * fails loudly.
+     */
+    @Test
+    fun `the repository holds no schemata toml`() {
+        val cli = java.nio.file.Path.of("").toAbsolutePath()
+        assertFalse(Files.exists(cli.resolve("schemata.toml")), "$cli holds a schemata.toml")
+        assertFalse(
+            Files.exists(cli.parent.resolve("schemata.toml")),
+            "${cli.parent} holds a schemata.toml",
+        )
     }
 }

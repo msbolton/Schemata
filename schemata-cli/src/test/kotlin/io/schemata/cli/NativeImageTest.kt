@@ -97,7 +97,15 @@ class NativeImageTest {
     @Test
     fun `check with the human renderer matches the jar`() {
         ready()
-        assertSame("check", "--format", "human", "--color", "never", File(examples, "shop").path)
+        assertSame(
+            "check",
+            "--no-config",
+            "--format",
+            "human",
+            "--color",
+            "never",
+            File(examples, "shop").path,
+        )
     }
 
     @Test
@@ -106,6 +114,7 @@ class NativeImageTest {
         listOf("contacts", "shop", "ledger").forEach { name ->
             assertSame(
                 "compile",
+                "--no-config",
                 "--format",
                 "json",
                 "--out",
