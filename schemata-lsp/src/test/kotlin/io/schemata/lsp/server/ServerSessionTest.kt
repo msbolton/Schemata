@@ -673,6 +673,23 @@ class ServerSessionTest {
     }
 
     @Test
+    fun `roots from the options and strict from the file combine`() {
+        write("schemata.toml", "[sources]\npaths = [\"model\"]\n\n[compile]\nstrict = true\n")
+        val elsewhere = write("model/x.schemata", "schema x\n\nmodel X { #1 x Nope }\n")
+        val c = write("schemas/customers/c.schemata", customers)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        session(mapOf("roots" to listOf("schemas"))).use { session ->
+            session.open(o, looseOrders)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            session.diagnostics(c) { it.isEmpty() }
+            session.settle(o)
+            assertEquals(0, session.publishCount(elsewhere))
+            assertEquals(emptyList(), session.logged())
+        }
+    }
+
+    @Test
     fun `a folder without a file behaves as before`() {
         val c = write("model/customers/c.schemata", customers)
         val o = write("model/orders/o.schemata", looseOrders)
@@ -694,7 +711,9 @@ class ServerSessionTest {
         val o = write("schemas/orders/o.schemata", looseOrders)
         session().use { session ->
             assertEquals(
-                listOf("schemata: ignoring schemata.toml: schemata.toml:7: unknown table 'colour'"),
+                listOf(
+                    "schemata: ignoring the configuration file: schemata.toml:7: unknown table 'colour'"
+                ),
                 session.logged(),
             )
             session.open(o, looseOrders)
@@ -721,7 +740,9 @@ class ServerSessionTest {
         // Without the target the same table is unknown and the whole file is ignored.
         session().use { session ->
             assertEquals(
-                listOf("schemata: ignoring schemata.toml: schemata.toml:7: unknown table 'proto'"),
+                listOf(
+                    "schemata: ignoring the configuration file: schemata.toml:7: unknown table 'proto'"
+                ),
                 session.logged(),
             )
         }
