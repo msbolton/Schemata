@@ -174,7 +174,11 @@ class SchemataServer(
     /**
      * `{"roots": ["model"], "strict": true}`; a key that is missing or of the wrong type keeps its
      * current value. A relative root resolves against the workspace folder, and is ignored when
-     * there is none. Roots given here replace any from `schemata.toml`, and its excludes with them.
+     * there is none. At initialize each setting is settled on its own: `roots`, and the excludes
+     * with them, come from the options when given and else from the `[sources]` of `schemata.toml`;
+     * `strict` comes from the options when given and else from its `[compile] strict`. The file is
+     * never consulted for a setting the options gave. Roots given here later replace the file's
+     * roots and excludes alike.
      */
     private fun configure(options: JsonObject?) {
         rootsIn(options)?.let {
@@ -192,14 +196,16 @@ class SchemataServer(
     }
 
     /**
-     * When [options] name no roots, the nearest `schemata.toml` at or above the workspace folder
-     * supplies the roots and excludes of its `[sources]` and the strictness of `[compile]`, so the
-     * editor reports what `schemata check` does (SCH-102); [configure] then lays [options] over
-     * them. A file with errors is the CLI's to report: the server notes it in the client's log and
-     * carries on as if there were no file.
+     * Fills in from the nearest `schemata.toml` at or above the workspace folder each setting
+     * [options] leave out: the roots and excludes of `[sources]`, the strictness of `[compile]`. So
+     * the editor reports what `schemata check` does (SCH-102). When the options give both, the file
+     * is not even looked for. A file with errors is the CLI's to report: the server notes it in the
+     * client's log and carries on as if there were no file.
      */
     private fun readProjectFile(options: JsonObject?) {
-        if (rootsIn(options) != null) return
+        val rootsGiven = rootsIn(options) != null
+        val strictGiven = strictIn(options) != null
+        if (rootsGiven && strictGiven) return
         val base = folder?.toAbsolutePath()?.normalize() ?: return
         val file = ConfigLoader.discover(base) ?: return
         val shown = base.relativize(file).toString()
@@ -208,15 +214,18 @@ class SchemataServer(
         if (config == null) {
             val first = loaded.diagnostics.first().message
             client?.logMessage(
-                MessageParams(MessageType.Warning, "schemata: ignoring $shown: $first")
+                MessageParams(
+                    MessageType.Warning,
+                    "schemata: ignoring the configuration file: $first",
+                )
             )
             return
         }
-        if (config.sources != null) {
+        if (!rootsGiven && config.sources != null) {
             roots = config.sourcePaths.map(Path::toString)
             exclude = config::excluded
         }
-        config.compile.strict?.let { strict = it.value }
+        if (!strictGiven) config.compile.strict?.let { strict = it.value }
     }
 
     private fun rootsIn(options: JsonObject?): List<String>? =
