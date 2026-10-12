@@ -34,17 +34,13 @@ class ProtoTypeFilesTest {
         return analysis.schema!!.referencesByKey()
     }
 
-    /** The key-rewritten schema of [sources] and the unit of the schema named [namespace]. */
-    private fun unit(namespace: String, vararg sources: String): Pair<Schema, ProtoUnit> {
-        val schema = analysed(*sources)
-        return schema to ProtoPackages.of(schema).unitOf(namespace)
-    }
+    /** The unit of the schema named [namespace] in the key-rewritten schema of [sources]. */
+    private fun unit(namespace: String, vararg sources: String): ProtoUnit =
+        ProtoPackages.of(analysed(*sources)).unitOf(namespace)
 
     private fun split(namespace: String, vararg sources: String): List<TypeFile> {
-        val (schema, unit) = unit(namespace, *sources)
         return ProtoTypeFiles.split(
-            unit,
-            schema,
+            unit(namespace, *sources),
             { Names.snakeCase(it.name) },
             { Names.snakeCase(it.name) },
         )
@@ -63,7 +59,7 @@ class ProtoTypeFilesTest {
 
     @Test
     fun `whole holds every declaration and service at the unit path`() {
-        val (_, unit) =
+        val unit =
             unit(
                 "shop.orders",
                 "schema shop.orders\n\nmodel Order { #1 n int32 }\n\nenum Status { #1 placed }\n\n" +
@@ -136,7 +132,7 @@ class ProtoTypeFilesTest {
     }
 
     @Test
-    fun `a key record shares its model's file`() {
+    fun `a key record is its own file`() {
         val files =
             split(
                 "shop.orders",
@@ -146,7 +142,8 @@ class ProtoTypeFilesTest {
         assertEquals(
             listOf(
                 "shop/orders/a.proto" to listOf("A"),
-                "shop/orders/pair.proto" to listOf("Pair", "PairKey"),
+                "shop/orders/pair.proto" to listOf("Pair"),
+                "shop/orders/pair_key.proto" to listOf("PairKey"),
             ),
             files.shapes(),
         )

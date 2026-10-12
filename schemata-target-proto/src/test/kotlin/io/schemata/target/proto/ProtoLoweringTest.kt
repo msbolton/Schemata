@@ -2538,56 +2538,25 @@ class ProtoLoweringTest {
     }
 
     @Test
-    fun `a key record shares its model's file`() {
-        val lowered =
-            lowerTypes(
-                shop(
-                    "model A { #1 pair Pair }\n\nmodel Pair { #1 a int32 { id }  #2 b int32 { id } }\n"
-                )
-            )
-        val pair = lowered.file("shop/orders/pair.proto")
-        assertEquals(listOf("Pair", "PairKey"), pair.declarations.map { it.name })
-        val a = lowered.file("shop/orders/a.proto")
-        assertEquals(listOf("shop/orders/pair.proto"), a.imports)
-        assertEquals(ProtoType.Named("PairKey"), message(a, "A").fields.single().type)
-        assertNull(lowered.protocErrors())
-    }
-
-    @Test
-    fun `a key record does not make its model's file a shared one`() {
+    fun `a key record is its own file and reports nothing`() {
         val source =
             shop(
                 "model A { #1 pair Pair }\n\nmodel Pair { #1 a int32 { id }  #2 b int32 { id } }\n"
             )
         val lowered = lowerTypes(source)
         assertEquals(
-            listOf("Pair", "PairKey"),
+            listOf("shop/orders/a.proto", "shop/orders/pair.proto", "shop/orders/pair_key.proto"),
+            lowered.model.files.map { it.path },
+        )
+        val a = lowered.file("shop/orders/a.proto")
+        assertEquals(listOf("shop/orders/pair_key.proto"), a.imports)
+        assertEquals(ProtoType.Named("PairKey"), message(a, "A").fields.single().type)
+        assertEquals(
+            listOf("Pair"),
             lowered.file("shop/orders/pair.proto").declarations.map { it.name },
         )
+        // The layout adds no shared-file note: the schema layout's notes are all there is.
         assertEquals(lower(source).codes(), lowered.codes())
-    }
-
-    @Test
-    fun `a key record in a shared file is not named by the note`() {
-        val lowered =
-            lowerTypes(
-                shop(
-                    "model Order { #1 a int32 { id }  #2 b int32 { id }  #3 customer Customer? }\n\n" +
-                        "model Customer { #1 last Order? }\n\n" +
-                        "model Line { #1 order Order }\n"
-                )
-            )
-        assertEquals(
-            listOf("Order", "OrderKey", "Customer"),
-            lowered.file("shop/orders/customer.proto").declarations.map { it.name },
-        )
-        assertEquals(
-            listOf(
-                "shop.orders.schemata:5 SCH2001 model 'Customer' and model 'Order' reference each other; " +
-                    "Protobuf cannot import files in a cycle, so they share shop/orders/customer.proto"
-            ),
-            lowered.located(),
-        )
         assertNull(lowered.protocErrors())
     }
 
