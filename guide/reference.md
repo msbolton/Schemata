@@ -344,6 +344,8 @@ unique constraint or an index on a field's column, or on every column the field 
 is an embedded model, a union, or an inline shape; neither goes on a list or a map (SCH1049),
 except that `{ unique }` on a list of a keyed model makes it a set: Postgres adds a unique over
 the parent's key and the copied key in the list's child table.
+Written `{ embed }`, or lowered under `@sql(strategy: json)`, such a list holds no copied key to
+constrain, so the option is reported (SCH2105) and enforces nothing.
 `@@unique(a, b)` and `@@index(a, b)` span several fields. The Postgres target is the one that
 writes keys, constraints, and indexes; to the others a key matters only through the references
 to its model (below). A top-level model with no key that no field uses is an error for the
@@ -452,7 +454,9 @@ reference with `{ unique }` and a singular back-reference.
 referenced row does in Postgres, which writes it as the foreign key's `ON DELETE` clause; the
 other targets have no deletes and ignore it. `restrict` is the default and writes no clause, since
 Postgres refuses the delete without one. `set_null` needs a nullable reference (SCH1052). A child
-table, the rows of a list, always cascades from its parent.
+table, the rows of a list, always cascades from its parent. A reference with no foreign key, one
+lowered to jsonb by `@sql(strategy: json)` or copied with `{ embed }`, has nothing to act on a
+delete: `cascade` or `set_null` on it is reported (SCH2105).
 
 ```schemata
 schema shop.orders

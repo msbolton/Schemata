@@ -1,0 +1,10 @@
+# targets=sql
+warning[SCH2105] (lossy) (sql): field 'R.tags': list contents are not typed by Postgres; lowered to jsonb
+ --> s.schemata:5:31
+  = help: use `@sql(strategy: table)` to lower the entries to a child table
+
+warning[SCH2105] (lossy) (sql): field 'R.tags': { unique } is not enforced; the list is lowered to jsonb
+ --> s.schemata:5:31
+  = help: remove the option, or drop the json strategy
+
+0 errors, 2 warnings

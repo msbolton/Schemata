@@ -1,0 +1,5 @@
+schema s
+
+model Customer { #1 id int32 { id } }
+
+model R { #1 id int32 { id }  #2 customer Customer @relation(onDelete: cascade) @sql(strategy: json) }

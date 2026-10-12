@@ -1,0 +1,6 @@
+# targets=sql
+warning[SCH2105] (lossy) (sql): field 'R.customer': onDelete is not enforced; the reference is lowered to embedded columns
+ --> s.schemata:5:31
+  = help: remove onDelete, or reference the model by key
+
+0 errors, 1 warning
