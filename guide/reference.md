@@ -577,7 +577,9 @@ Postgres does not enforce a collection's `minItems` or `maxItems` either way; th
 and reported as SCH2105, the same as any other unenforced refinement. A list of lists is written
 `list<T[]>`, since a type takes one `[]`, and so is a list of maps that bound their own size,
 `list<map<string, int32> { maxItems 3 }> { maxItems 10 }`, whose two bounds could not share one
-block; `fmt` writes every other `list<T>` as `T[]`. A collection nested inside another collection
+block; `fmt` writes every other `list<T>` as `T[]`, except one whose type argument holds a field
+flag (`id`, `unique`, `index`, `embed`), which stays as written so `check` still reports the flag
+(SCH1049) instead of reading it as the list's own. A collection nested inside another collection
 has no Protobuf form (SCH2005), and no relational form unless the outer collection takes
 `@sql(strategy: json)`.
 
@@ -1001,10 +1003,13 @@ such paths as one. Two bindings of one verb and path, parameter names aside, are
 `deprecated: true`; on a service, the tag's description also says `Deprecated.`
 
 A parameter is named by its field, carries the field's doc comment and `@deprecated`, and takes
-the field's schema: its type, refinements, nullability, and default. `@jsonschema(name)` renames a
-property, never a parameter (SCH2604). A path parameter is always `required`; a query parameter is
-`required` unless its field is nullable or has a default, and is written `style: form` with
-`explode: true`, so a list repeats the parameter.
+the field's schema: its type, refinements, and default. `@jsonschema(name)` renames a property,
+never a parameter (SCH2604). A path parameter is always `required`, and its field is never
+nullable (SCH1048); a query parameter is `required` unless its field is nullable or has a
+default, and is written `style: form` with `explode: true`, so a list repeats the parameter. A
+nullable field is an optional parameter with the plain schema, a `$ref` or `type: T` with no
+`{"type": "null"}`, since a query string has no null; a request or response body keeps the
+nullable shape.
 
 A response is `200`, with the response's schema as `application/json`, or as `text/event-stream`
 when it is streamed; an operation without a response answers `204`. Every model, enum, and union
@@ -1226,7 +1231,7 @@ every target.
 | a list of models without a key | `repeated <Message>` | a child table by default, named `<parent>_<field>`, keyed by the parent's key columns plus `position`; `@sql(strategy: json)` gives it a `jsonb` column | a repeated element of the model's type | an `array` of `$ref` items | as JSON Schema |
 | a list of keyed models | a repeated key field, as a single reference holds one | a child table named `<parent>_<field>` of the parent's key columns, `position`, and a copy of each element's key, with a foreign key to the element's table | a repeated key element | an `array` of keys | as JSON Schema |
 | `map<K, V>` | the native `map<K, V>` type | `jsonb` by default; `@sql(strategy: table)` gives it a child table with `key` and `value` columns | a wrapper element holding `entry` elements keyed by a `key` attribute; a refined scalar value sits in a `value` child element, since an extension cannot carry facets | an `object` with `additionalProperties`; an integer key adds a digit pattern on `propertyNames`, a refined string key its constraints | as JSON Schema |
-| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable model, union, `instant`, or `duration`, whose presence is already implicit, with a trailing `// schemata: T?` comment | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute | not `required`; a scalar's `type` becomes `[T, "null"]`, anything else `anyOf` with `{"type": "null"}` | as JSON Schema; as a query parameter, not `required` |
+| a nullable field (`T?`) | proto3 `optional` for a scalar or enum; a plain `repeated` or `map` for a nullable list or map (SCH2001); a plain message field for a nullable model, union, `instant`, or `duration`, whose presence is already implicit, with a trailing `// schemata: T?` comment | the column allows `NULL` | `minOccurs="0"` on an element, or `use="optional"` on an attribute | not `required`; a scalar's `type` becomes `[T, "null"]`, anything else `anyOf` with `{"type": "null"}` | as JSON Schema; as a query parameter, not `required` and with the plain schema, no `null` |
 | a default (`= literal`) | dropped, and kept only as a trailing comment (SCH2001) | a `DEFAULT` clause on the column | `default=` on the element or attribute; on an element, XSD applies it only when the element is present and empty | `default`, an annotation the reader applies; the field is not `required` | as JSON Schema; as a query parameter, not `required` |
 | a bound or pattern (`min`, `max`, `match`, `minItems`, `maxItems`) | dropped, and kept only as a trailing comment (SCH2001) | a narrower column type, such as `varchar(100)` or `numeric(19, 4)`, or a CHECK constraint; a `match` pattern with a construct Postgres regexes lack (`\p{…}`, `\b` as a word boundary, named groups, possessive quantifiers) drops the CHECK with a warning (SCH2105); lookahead and lookbehind are fine | facets on the restriction, such as `xs:maxLength` or `xs:pattern`; a pattern is anchored by wrapping an unanchored side in `.*`, and XSD's `.` excludes newlines | `minimum`/`maximum`, `minLength`/`maxLength`, `pattern` unchanged (both dialects match anywhere); a construct ECMA-262 lacks drops the pattern (SCH2301), including an identity escape such as `\-` outside a class, which the Unicode dialect JSON Schema assumes rejects; `min`/`max` on a decimal are dropped, since a decimal is a string with a precision-and-scale pattern (SCH2301); `bytes` bounds become base64 lengths (SCH2301 for `max`) | as JSON Schema, with SCH2604 where JSON Schema reports SCH2301 |
 | a back-reference (`@relation(field)`) | nothing | nothing | nothing | nothing | nothing |
