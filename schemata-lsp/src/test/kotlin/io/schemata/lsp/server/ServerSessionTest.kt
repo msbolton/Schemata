@@ -650,24 +650,55 @@ class ServerSessionTest {
         write(
             "schemata.toml",
             "[sources]\npaths = [\"schemas\"]\nexclude = [\"model/customers/**\"]\n\n" +
-                "[compile]\nstrict = true\n",
+                "[compile]\nstrict = false\n",
         )
         val modelCustomers = write("model/customers/c.schemata", customers)
         val modelOrders = write("model/orders/o.schemata", looseOrders)
         write("schemas/customers/c.schemata", customers)
         val schemaOrders = write("schemas/orders/o.schemata", looseOrders)
-        // Roots and strict given: the file's roots, excludes and strict are all ignored.
-        session(mapOf("roots" to listOf("model"), "strict" to false)).use { session ->
+        // Non-empty roots and strict given: the file's roots, excludes and strict are all ignored.
+        session(mapOf("roots" to listOf("model"), "strict" to true)).use { session ->
             session.open(modelOrders, looseOrders)
-            session.diagnostics(modelOrders) { it.isEmpty() }
+            val shown = session.diagnostics(modelOrders) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
             session.diagnostics(modelCustomers) { it.isEmpty() }
             session.settle(modelOrders)
             assertEquals(0, session.publishCount(schemaOrders))
         }
         // Strict alone given: the roots still come from the file, the strictness does not.
-        session(mapOf("strict" to false)).use { session ->
+        session(mapOf("strict" to true)).use { session ->
             session.open(schemaOrders, looseOrders)
-            session.diagnostics(schemaOrders) { it.isEmpty() }
+            val shown = session.diagnostics(schemaOrders) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            assertEquals(emptyList(), session.logged())
+        }
+    }
+
+    @Test
+    fun `empty roots and strict false in the options do not hide the file`() {
+        write("schemata.toml", sourcesAndStrict)
+        val c = write("schemas/customers/c.schemata", customers)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        val outside = write("other/x.schemata", "schema x\n\nmodel X { #1 x Nope }\n")
+        session(mapOf("roots" to emptyList<String>(), "strict" to false)).use { session ->
+            session.open(o, looseOrders)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            session.diagnostics(c) { it.isEmpty() }
+            session.settle(o)
+            assertEquals(0, session.publishCount(outside))
+            // The same defaults pushed again as settings keep the file's roots and strict.
+            configure(
+                session,
+                JsonObject().apply {
+                    add("schemata", roots().apply { addProperty("strict", false) })
+                },
+            )
+            session.change(o, looseOrders + "\n")
+            val again = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(again), again.toString())
+            session.settle(o)
+            assertEquals(0, session.publishCount(outside))
             assertEquals(emptyList(), session.logged())
         }
     }
