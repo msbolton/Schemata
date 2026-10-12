@@ -179,10 +179,6 @@ message Payment {
 }
 ```
 
-Compiled with `--proto-layout type`, the same example writes `shop/orders/order.proto`,
-`shop/orders/payment.proto`, and one file for each other type, with `order.proto` importing the
-files of `Payment`, `Status`, and `Customer` from `shop/customers/`.
-
 Postgres flattens the same union to a discriminator column and a `CHECK` for each arm that has
 fields; `Cash` has no fields, so it gets none.
 
@@ -192,6 +188,22 @@ From `examples/shop/expected/sql/shop/orders.sql`:
   CONSTRAINT "ck_order_payment_card" CHECK (("payment_kind" <> 'card') OR ("payment_card_last4" IS NOT NULL AND "payment_card_brand" IS NOT NULL)),
   CONSTRAINT "ck_order_payment_bank_transfer" CHECK (("payment_kind" <> 'bank_transfer') OR ("payment_bank_transfer_iban" IS NOT NULL)),
 ```
+
+Compiled with `--proto-layout type`, the same example writes one file per top-level type, each
+under its package's directory:
+
+```text
+shop/orders/order.proto
+shop/orders/payment.proto
+shop/orders/card.proto
+shop/orders/bank_transfer.proto
+shop/orders/cash.proto
+shop/orders/status.proto
+shop/customers/customer.proto
+```
+
+`order.proto` imports `google/protobuf/timestamp.proto`, `payment.proto` and `status.proto`, and
+`payment.proto` imports the files of its three members.
 
 Warnings from `examples/shop/expected/proto-warnings.txt`:
 ```text
