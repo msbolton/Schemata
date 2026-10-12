@@ -2554,6 +2554,44 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a key record does not make its model's file a shared one`() {
+        val source =
+            shop(
+                "model A { #1 pair Pair }\n\nmodel Pair { #1 a int32 { id }  #2 b int32 { id } }\n"
+            )
+        val lowered = lowerTypes(source)
+        assertEquals(
+            listOf("Pair", "PairKey"),
+            lowered.file("shop/orders/pair.proto").declarations.map { it.name },
+        )
+        assertEquals(lower(source).codes(), lowered.codes())
+    }
+
+    @Test
+    fun `a key record in a shared file is not named by the note`() {
+        val lowered =
+            lowerTypes(
+                shop(
+                    "model Order { #1 a int32 { id }  #2 b int32 { id }  #3 customer Customer? }\n\n" +
+                        "model Customer { #1 last Order? }\n\n" +
+                        "model Line { #1 order Order }\n"
+                )
+            )
+        assertEquals(
+            listOf("Order", "OrderKey", "Customer"),
+            lowered.file("shop/orders/customer.proto").declarations.map { it.name },
+        )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2001 model 'Customer' and model 'Order' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share shop/orders/customer.proto"
+            ),
+            lowered.located(),
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
     fun `a service is its own file importing its payloads`() {
         val lowered = lowerTypes(SERVICE, CATALOG)
         val service = lowered.file("shop/orders/orders.proto")
