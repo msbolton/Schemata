@@ -1,4 +1,4 @@
-schema envoy.extensions.compression.gzip.compressor.v3.gzip @proto(package: "envoy.extensions.compression.gzip.compressor.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.compression.gzip.compressor.v3") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/compression/gzip/compressor/v3;compressorv3")
+schema envoy.extensions.compression.gzip.compressor.v3.gzip @proto(package: "envoy.extensions.compression.gzip.compressor.v3") @proto(java_package: "io.envoyproxy.envoy.extensions.compression.gzip.compressor.v3") @proto(java_outer_classname: "GzipProto") @proto(java_multiple_files: true) @proto(go_package: "github.com/envoyproxy/go-control-plane/envoy/extensions/compression/gzip/compressor/v3;compressorv3")
 
 /// [#next-free-field: 6]
 model Gzip {

@@ -332,12 +332,15 @@ object ProtoLowering {
          * protoc names a file's Java wrapper class after the file, and with `java_multiple_files` a
          * message whose name differs from it only by case would be written to the same Java file
          * name, which a case-insensitive file system holds once. So under the type layout a unit
-         * that declares `java_multiple_files: true` names every file's wrapper itself.
+         * that declares `java_multiple_files: true` names every file's wrapper itself, unless it
+         * declares `java_outer_classname`, which only a unit of one file may.
          */
         private val namesWrappers =
-            layout == ProtoLayout.TYPE &&
-                ProtoFileOptions.of(unit).values["java_multiple_files"] ==
-                    AnnotationValue.Bool(true)
+            ProtoFileOptions.of(unit).values.let {
+                layout == ProtoLayout.TYPE &&
+                    it["java_multiple_files"] == AnnotationValue.Bool(true) &&
+                    "java_outer_classname" !in it
+            }
 
         /**
          * [decl]'s emitted name: its valid `@proto(name)` override, else the name it was given to
@@ -377,7 +380,9 @@ object ProtoLowering {
         fun lower(): List<ProtoFile> {
             unit.members.forEach { declaredPackage(it) }
             unit.members.forEach { declaredOptions(it) }
-            if (layout == ProtoLayout.TYPE) unit.members.forEach { outerClassname(it) }
+            if (layout == ProtoLayout.TYPE && files.size > 1) {
+                unit.members.forEach { outerClassname(it) }
+            }
             // Members share their files, so each option takes one value across the unit.
             val resolved = ProtoFileOptions.of(unit)
             resolved.conflicts.forEach { optionConflict(it, diagnostics) }
@@ -388,7 +393,7 @@ object ProtoLowering {
                     Symbol(serviceNames.getValue(it), "service '${it.name}'", it.nameSpan)
                 }
             scope(typeDecls.flatMap { symbols(it) } + serviceSymbols)
-            val options = resolved.values.map { (key, value) -> key to optionLiteral(value) }
+            val options = resolved.values.mapValues { (_, value) -> optionLiteral(value) }
             return files.map { file ->
                 imports.clear()
                 current = file.path
@@ -400,15 +405,26 @@ object ProtoLowering {
                     imports = imports.toList(),
                     declarations = declarations,
                     services = services,
-                    options =
-                        if (namesWrappers) {
-                            options + ("java_outer_classname" to SchemataText.string(wrapper(file)))
-                        } else {
-                            options
-                        },
+                    options = fileOptions(options, file),
                 )
             }
         }
+
+        /**
+         * The unit's [options] as [file] writes them, in key order: a wrapper class name the unit
+         * chooses itself takes `java_outer_classname`'s place, after `java_package`.
+         */
+        private fun fileOptions(
+            options: Map<String, String>,
+            file: TypeFile,
+        ): List<Pair<String, String>> =
+            ProtoFileOptions.keys.mapNotNull { key ->
+                if (namesWrappers && key.name == "java_outer_classname") {
+                    key.name to SchemataText.string(wrapper(file))
+                } else {
+                    options[key.name]?.let { key.name to it }
+                }
+            }
 
         /** `http_status.proto` → `HttpStatusProto`: the file's stem in upper camel case. */
         private fun wrapper(file: TypeFile): String =
@@ -521,7 +537,8 @@ object ProtoLowering {
 
         /**
          * `java_outer_classname` names the Java class that wraps one file's messages; every file of
-         * the type layout would claim that one class, and the generated code would not compile.
+         * a unit the type layout writes as several files would claim that one class, and the
+         * generated code would not compile. A unit of one file keeps it, as the schema layout does.
          */
         private fun outerClassname(namespace: Namespace) {
             val value =
