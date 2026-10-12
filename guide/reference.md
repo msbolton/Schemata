@@ -723,11 +723,13 @@ after the file, so with `java_multiple_files` the wrapper of `http_status.proto`
 the message `HTTPStatus` would be two Java files whose names differ only by case, and on a
 case-insensitive file system one would overwrite the other. A unit that declares
 `java_multiple_files: true` therefore writes `option java_outer_classname = "<Stem>Proto";` in
-every file, after its other options, the stem being the file name in UpperCamel: `order.proto`
-gets `OrderProto`. A top-level declaration or service whose name equals such a class name,
-ignoring case, is an error (SCH2004), as in `model 'OrderProto' and the Java class of order.proto
-both lower to 'OrderProto'`; set `@proto(name)` on it. `java_outer_classname` is refused under
-this layout (SCH2007), because it would name one Java class for every file. Two declarations, or a
+every file, in its key-order place after `java_package`, the stem being the file name in
+UpperCamel: `order.proto` gets `OrderProto`. A top-level declaration or service whose name equals
+such a class name, ignoring case, is an error (SCH2004), as in `model 'OrderProto' and the Java
+class of order.proto both lower to 'OrderProto'`; set `@proto(name)` on it. A declared
+`java_outer_classname` is refused (SCH2007) for a unit written as two or more files, because it
+would name one Java class for every file; a unit written as one file keeps it, as the schema
+layout does. Two declarations, or a
 declaration and a service, whose file names coincide are an error (SCH2004), as in `model
 'HTTPServer' and model 'HttpServer' both lower to file 'shop/orders/http_server.proto'`; set
 `@proto(name)` on one of them.
@@ -1955,11 +1957,12 @@ name. Files under one root that declare one package are one package to `protoc`,
 one schema, the package's, with each segment lower-snaked if need be (SCH2402). A language file
 option that every file declaring it gives one value becomes a `@proto` key of that schema; a key
 that the files give differing values is dropped, and each file whose value differs from the first
-file of the package that declares the key gets SCH2405. A `java_outer_classname` that is the file's
-own stem in UpperCamel plus `Proto`, in a file with `java_multiple_files = true` that is named for
-one of its own types or services (`order.proto` holding `Order`, with `OrderProto`), is the name
-the type layout writes itself; when every file declaring the key gives such a name, it reads as
-nothing, without a warning. Two files whose schema names coincide but
+file of the package that declares the key gets SCH2405. When two or more files of the package
+declare `java_outer_classname` and each gives its own stem in UpperCamel plus `Proto`, in a file
+with `java_multiple_files = true` that is named for one of its own types or services
+(`order.proto` holding `Order`, with `OrderProto`), the names are the ones the type layout writes
+itself, so the key reads as nothing, without a warning. A package of one file keeps its name. Two
+files whose schema names coincide but
 whose packages differ are an error (SCH2401).
 
 A name resolves as it does in `protoc`: against the file itself, the files it imports directly, and
