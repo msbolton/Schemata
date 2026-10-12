@@ -33,9 +33,9 @@ class CheckCommandTest {
     @Test
     fun `check reports what compile reports and writes nothing`() {
         val src = source(customers)
-        val check = CheckCommand().test("$src")
+        val check = CheckCommand().test("--no-config $src")
         assertFalse(Files.exists(src.parent.resolve("out")))
-        val compile = CompileCommand().test("--out ${src.parent.resolve("out")} $src")
+        val compile = CompileCommand().test("--no-config --out ${src.parent.resolve("out")} $src")
         assertEquals(compile.statusCode, check.statusCode)
         // The whole report, excerpts and counts included, is compile's less the lines naming what
         // it wrote.
@@ -49,15 +49,15 @@ class CheckCommandTest {
     @Test
     fun `check exits 2 on warnings, 1 under strict, and 0 when clean`() {
         val src = source(customers)
-        assertEquals(2, CheckCommand().test("--target proto $src").statusCode)
-        assertEquals(1, CheckCommand().test("--target proto --strict $src").statusCode)
+        assertEquals(2, CheckCommand().test("--no-config --target proto $src").statusCode)
+        assertEquals(1, CheckCommand().test("--no-config --target proto --strict $src").statusCode)
         val clean =
             source(
                 "schema shop.customers\n" +
                     "\n" +
                     "model Customer { #1 id uuid { id }  #2 name string }\n"
             )
-        val sqlOnly = CheckCommand().test("--target sql $clean")
+        val sqlOnly = CheckCommand().test("--no-config --target sql $clean")
         assertEquals(0, sqlOnly.statusCode, sqlOnly.stderr)
         assertTrue(sqlOnly.stderr.contains("no diagnostics"), sqlOnly.stderr)
     }
@@ -65,7 +65,7 @@ class CheckCommandTest {
     @Test
     fun `check --format json has no written or skipped entries`() {
         val src = source(customers)
-        val result = CheckCommand().test("--format json $src")
+        val result = CheckCommand().test("--no-config --format json $src")
         assertEquals("", result.stderr)
         assertTrue(result.stdout.contains("\"written\": []"), result.stdout)
         assertTrue(result.stdout.contains("\"skipped\": []"), result.stdout)
@@ -84,10 +84,33 @@ class CheckCommandTest {
     @Test
     fun `--proto-layout type reports the shared-file note`() {
         val src = source(mutual)
-        val result = CheckCommand().test("--target proto --proto-layout type $src")
+        val result = CheckCommand().test("--no-config --target proto --proto-layout type $src")
         assertTrue(result.stderr.contains("SCH2001"), result.stderr)
         assertTrue(result.stderr.contains("share shop/orders/"), result.stderr)
-        val plain = CheckCommand().test("--target proto $src")
+        val plain = CheckCommand().test("--no-config --target proto $src")
         assertFalse(plain.stderr.contains("SCH2001"), plain.stderr)
+    }
+
+    @Test
+    fun `check reads the same file`() {
+        val src = source("schema s\n\nmodel R { #1 x bool }\n")
+        val toml = src.parent.resolve("schemata.toml")
+        toml.writeText("[proto]\njava_package = \"com.example-{schema}\"\n")
+        val result = CheckCommand().test("--config $toml --target proto $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.contains(
+                "error[SCH2007] (proto): schema 's': @proto(java_package: \"com.example-s\") " +
+                    "is not a valid Java package"
+            ),
+            result.stderr,
+        )
+        // The value came from the file, but the target reports it where the schema is declared.
+        assertTrue(
+            result.stderr.contains(" --> ${src.resolve("customers.schemata")}:1:1"),
+            result.stderr,
+        )
+        val plain = CheckCommand().test("--no-config --target proto $src")
+        assertEquals(0, plain.statusCode, plain.stderr)
     }
 }

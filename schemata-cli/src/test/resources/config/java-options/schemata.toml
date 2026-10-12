@@ -1,0 +1,7 @@
+[compile]
+targets = ["proto"]
+
+[proto]
+java_package = "com.example.{schema}"
+java_multiple_files = true
+csharp_namespace = "Example.{Schema}"

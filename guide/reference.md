@@ -1288,9 +1288,10 @@ value is not carried.
 
 ## 18. The CLI
 
-`schemata` has nine commands: `compile`, `check`, `import`, `targets`, `fmt`, `upgrade`, `diff`,
-`migrate`, and `lsp`. This section covers `compile`, `check`, `targets`, `fmt`, `upgrade`, and
-`lsp`; `import` is section 19, `diff` section 20, and `migrate` section 21.
+`schemata` has ten commands: `compile`, `check`, `import`, `targets`, `config`, `fmt`, `upgrade`,
+`diff`, `migrate`, and `lsp`. This section covers `compile`, `check`, `targets`, `config`, `fmt`,
+`upgrade`, and `lsp`; `import` is section 19, `diff` section 20, and `migrate` section 21. The
+`schemata.toml` file that `config` prints is section 24.
 
 `compile <paths>...` compiles to `--out` (default `out`), for `--target` (a comma-separated list;
 default `proto`, `sql`, `xsd`, `jsonschema`, and `openapi`), reporting diagnostics in `--format`
@@ -1300,13 +1301,20 @@ union member, or operation left with an implicit ordinal. The openapi target wri
 schema without a service. A path may be a file or a directory, walked recursively for
 `.schemata` files. `--proto-layout schema|type` chooses the Protobuf file layout: `schema`, the
 default, writes one file per schema or reference cycle, and `type` writes one file per type under
-the package directory. It is a usage error when `--target` leaves `proto` out.
+the package directory. It is a usage error when `--target` leaves `proto` out. Every one of these
+options can take its default from a `schemata.toml` found from the working directory upward, and the
+paths can be left out when the file's `[sources]` names them; `--config FILE` reads that file
+instead, and `--no-config` ignores any (section 24).
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
 would, for every target, without writing anything.
 
 `targets` lists the targets, the attribute keys each accepts, and the diagnostic codes each can
 report, under `--format` (`human` or `json`).
+
+`config` prints the settings `schemata.toml` resolves to, each with the line of the file it came
+from or `default`, and the attributes the file adds to the schemas it is given or that `[sources]`
+names; section 24 describes it.
 
 `schemata fmt PATHS...` rewrites schema files in the canonical layout and names each file it
 changed; `schemata fmt --check PATHS...` writes nothing, prints a diff for each file that would
@@ -1388,7 +1396,7 @@ past the last character.
 
 ## 19. Importing
 
-    schemata import --from xsd|proto|sql [--out DIR] [--namespace NAME] [--include DIR]... [--strict] [--format human|json] [--color auto|always|never] PATHS...
+    schemata import [--from xsd|proto|sql] [--out DIR] [--namespace NAME] [--include DIR]... [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
 
 `import` reads a schema that already exists, as XML Schema, Protobuf, or Postgres DDL, and writes
 the `.schemata` source, in the 2.0 syntax, that describes the same data, reporting everything it
@@ -2687,7 +2695,7 @@ schema from another format.
 
 ## 20. Evolving a schema
 
-    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
 
 `diff OLD NEW` compares two versions of a schema set — each a file or a directory, loaded the same
 way `compile` loads one — and judges every change against each target's compatibility rulebook:
@@ -2701,6 +2709,10 @@ goes to stderr, the same as `check`. When a side does not parse or analyze clean
 `SCH2503` for that side instead of comparing anything; it does the same when the two sides share no
 schema at all, since that is two unrelated schema sets rather than two versions of one. A side in
 the 1.x syntax is one of those: upgrade both sides before comparing them.
+
+`diff`, like `migrate`, applies one `schemata.toml` to both sides: the file found from the working
+directory or named by `--config`, not one beside either tree. The attributes it adds are the same
+on OLD and NEW, so they are no change (section 24).
 
 ### Identity
 
@@ -3016,7 +3028,7 @@ no diagnostics
 
 ## 21. Migrating a database
 
-    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] OLD NEW
+    schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
 
 `migrate OLD NEW` writes the Postgres DDL that carries a database created from OLD's `compile`
 output to one identical to NEW's. Both sides load as `diff` loads them, and the same `SCH2503`
@@ -3294,9 +3306,19 @@ member, or operation left with an implicit ordinal as an error, as `--strict` do
 In Zed the same options are `binary.path` and the `roots` and `strict` entries of
 `initialization_options`, as shown above.
 
+**Project file.** When the editor sends no `roots`, the server takes them from the `[sources]` of
+the nearest `schemata.toml` at or above the first workspace folder: each path is a root, and the
+files on disk that `exclude` matches join no set. When the editor sends no `strict`, the server
+takes `[compile] strict`. Roots the editor sends win over the file's, but an empty `roots` list
+counts as none, since editors such as VS Code send one when the user has set no roots. `strict`
+works as `--strict` does: the editor or the file can turn it on, and the editor's `false` does not
+turn the file's off. The file is read once, when the editor starts the server, so restart the
+server after changing it. A file with errors is ignored with one line in the editor's log;
+`schemata check` reports the errors themselves (section 24).
+
 ## 23. Upgrading from 1.x
 
-    schemata upgrade [--check] [--format human|json] [--color auto|always|never] PATHS...
+    schemata upgrade [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
 
 2.0 changed the syntax, not the data model: a 1.x schema means in 2.0 what it meant in 1.x, with
 one exception, below. `schemata upgrade` rewrites 1.x files in place, mechanically, and reports
@@ -3405,3 +3427,323 @@ and the outputs compared file by file: with the references' lines left out, they
 otherwise they differ only by the 2.0 spelling of notes and messages and by warnings about the key
 fields a reference now writes. Each diagnostics fixture reports the same codes under both, apart
 from the checks 2.0 moved into options and the refinements `upgrade` cannot convert.
+
+## 24. Project configuration
+
+A `schemata.toml` file holds a project's defaults: the options its commands take, the schema files
+they read when given no paths, and attributes for the `schema` line of every schema. The file only
+fills in what a run leaves out, and a command run where there is no file behaves as it always has.
+
+### The file and discovery
+
+`compile`, `check`, `import`, `config`, `fmt`, `upgrade`, `diff`, and `migrate` look for
+`schemata.toml` in the working directory, then in each directory above it up to the root of the
+file system, and use the first one they find. `--config FILE` names the file instead, and
+`--no-config` ignores any file; the two together are a usage error. `targets` and `lsp` take
+neither option: `targets` reads no schemas, and the language server reads the file itself
+(section 22).
+
+Every path in the file, whether the `out` directory, an `include` directory, or a `[sources]` path
+or glob, is relative to the directory that holds the file, wherever the command runs. A path on the
+command line stays relative to the working directory.
+
+The file is TOML. A mistake in it stops the run before any schema is read: it is reported with its
+line of the file quoted, under the SCH29 family, and the command exits 1. That report follows the
+`--format` and `--color` of the command line only, since the file's own `[report]` is in doubt.
+
+```text
+error[SCH2902]: schemata.toml:2: unknown key 'proto.java_pakage'
+ --> schemata.toml:2:1
+  |
+2 | java_pakage = "x"
+  | ^^^^^^^^^^^^^^^^^
+  = help: did you mean 'java_package'
+
+1 error, 0 warnings
+```
+
+SCH2901 is a file that cannot be read or is not TOML, SCH2902 an unknown table or key, SCH2903 a
+value of the wrong type or outside its choices, SCH2904 a placeholder that is unknown or not
+accepted where it is written, and SCH2905 a `[sources]` path that names nothing.
+
+### Run settings
+
+Four tables give the defaults of command-line options. A value on the command line wins over the
+file's, and the file's over the built-in default.
+
+`[compile]`:
+
+| Key | Value | Default for |
+|---|---|---|
+| `targets` | an array of target names: `"proto"`, `"sql"`, `"xsd"`, `"jsonschema"`, `"openapi"` | `--target` of `compile` and `check` |
+| `out` | a string: a directory, relative to the file | `--out` of `compile` |
+| `strict` | `true` or `false` | `--strict` of `compile`, `check`, `diff`, and `migrate` |
+| `proto_layout` | `"schema"` or `"type"` | `--proto-layout` of `compile` and `check` |
+
+`[import]`:
+
+| Key | Value | Default for |
+|---|---|---|
+| `from` | `"xsd"`, `"proto"`, or `"sql"` | `--from` |
+| `namespace` | a string: a schema name | `--namespace` |
+| `include` | an array of strings: directories, relative to the file | `--include` |
+
+`[migrate]`:
+
+| Key | Value | Default for |
+|---|---|---|
+| `allow_destructive` | `true` or `false` | `--allow-destructive` |
+
+`[report]`:
+
+| Key | Value | Default for |
+|---|---|---|
+| `format` | `"human"` or `"json"` | `--format` of every command that reads the file |
+| `color` | `"auto"`, `"always"`, or `"never"` | `--color` of every command that reads the file |
+
+`strict` and `allow_destructive` can turn their flag on but never off: `strict = true` in the file
+makes every `check` strict, and no flag turns it off for one run, short of `--no-config`. `include`
+adds to the command line rather than giving way to it: an import looks in the `--include`
+directories first, then in the file's. `import` and `migrate` keep `out` as the default of their own
+`--out`; `[compile] out` is for `compile`.
+
+The file holds defaults, not demands, so a setting that does not fit a run is left out of it
+rather than refused. `proto_layout` applies only when `proto` is among the run's targets:
+`compile --target sql` ignores it, while `--proto-layout` with `--target sql` is still a usage
+error. `include` applies only to `--from proto`, and `namespace` only to an import of exactly one
+file; the options themselves keep their usage errors.
+
+### Sources
+
+`[sources]` names the schema files a command reads when it is given no paths.
+
+| Key | Value |
+|---|---|
+| `paths` | an array of strings: files or directories, relative to the file |
+| `exclude` | an array of globs, relative to the file |
+
+Each path must exist (SCH2905), and a directory is walked as one given on the command line is.
+`compile`, `check`, `fmt`, and `upgrade` read `paths` when they are given none, and `import` looks
+under them for files of its `--from` format; without paths and without `[sources]`, these are a
+usage error. `config` given no paths analyses the files `[sources]` names, and without `[sources]`
+prints the settings alone. Paths on the command line replace `paths`.
+
+`exclude` leaves out every file it matches, whether found under `paths` or under paths on the
+command line; an exclude that leaves out every file found is a usage error. A glob is matched
+against the file's path relative to the directory holding `schemata.toml`, with `/` between
+directories on every platform, Windows included, in the syntax of Java's `PathMatcher`: `*` matches
+within one directory name, `**` across directories, `?` one character, `{a,b}` either alternative,
+and `[abc]` one character of a set. `"schemas/drafts/**"` leaves out everything under
+`schemas/drafts`. A glob that holds `\` is SCH2903: in a glob it escapes the next character, so
+`"schemas\drafts\**"` would leave out nothing under `schemas/drafts`.
+
+`diff` and `migrate` read neither key: they compare the two trees their command line names, every
+file of each. The rest of the file applies to both sides alike: the one `schemata.toml` found from
+the working directory (or named by `--config`), not one beside either tree. Its target tables add
+the same attributes to OLD and to NEW, so a default the file gives both sides is no change, and
+`[compile] strict` and `[report]` apply as they do to `check`.
+
+### Target tables
+
+A table named for a target holds defaults for the attributes of the `schema` line. Its keys are the
+schema-line keys of that target that take one value (section 15):
+
+| Table | Keys |
+|---|---|
+| `[proto]` | `package`, `java_package`, `java_outer_classname`, `java_multiple_files`, `csharp_namespace`, `go_package`, `objc_class_prefix`, `php_namespace`, `php_class_prefix`, `php_metadata_namespace`, `ruby_package`, `swift_prefix` |
+| `[sql]` | `schema` |
+| `[xsd]` | `namespace`, `element_form`, `attribute_form` |
+| `[jsonschema]` | `id` |
+| `[openapi]` | `server`, `version` |
+
+A value takes the attribute's type: `java_multiple_files` is `true` or `false`, `element_form` and
+`attribute_form` are `"qualified"` or `"unqualified"`, and every other key is a string, which may
+hold placeholders. Any other key is SCH2902, whose help names the nearest known key or lists the
+table's keys.
+
+Each key becomes, for every schema that does not write it, the attribute `@<target>(<key>: …)` on
+that schema's `schema` line. Every target then reads it as if the schema had written it, whichever
+targets a run selects.
+
+### Placeholders
+
+A string value may name the schema it is for. For `schema shop.orders`:
+
+| Placeholder | Stands for | Written | Gives |
+|---|---|---|---|
+| `{schema}` | the schema name | `java_package = "com.example.{schema}"` | `com.example.shop.orders` |
+| `{Schema}` | the name, each segment UpperCamel | `csharp_namespace = "Example.{Schema}"` | `Example.Shop.Orders` |
+| `{schema_}` | the name, dots as underscores | `schema = "{schema_}"` in `[sql]` | `shop_orders` |
+| `{package}` | the Protobuf package of the schema's file | `java_package = "com.example.{package}"` | `com.example.shop.orders.v1` |
+| `{Package}` | that package, each segment UpperCamel | `csharp_namespace = "{Package}"` | `Shop.Orders.V1` |
+| `{{` and `}}` | a literal `{` and `}` | `server = "https://{{region}}.example.com"` in `[openapi]` | `https://{region}.example.com` |
+
+The two `{package}` rows assume `[proto] package = "{schema}.v1"`. `{Schema}` and `{Package}` make
+each dotted segment UpperCamel and drop the underscores within it, so `vnd_ops_all` gives
+`VndOpsAll`. `{package}` and `{Package}` are accepted only by the `[proto]` keys other than
+`package`, since the package is what they read. Any other name in braces, or a `{` that is never
+closed, is SCH2904. A key with fixed choices, such as `element_form`, takes its value as written.
+
+### Per-schema tables
+
+`[<target>.schemas."<schema>"]` sets keys for one schema, over the target table. Quote the schema
+name: TOML reads the dots of a bare key as nested tables. A per-schema table takes the same keys and
+placeholders as its target table, and one for a schema the run does not read does nothing.
+
+```toml
+[proto]
+java_package = "com.example.{schema}"
+
+[proto.schemas."shop.legacy"]
+java_package = "com.example.legacy"
+```
+
+### Precedence
+
+For an attribute of the `schema` line, the schema's own attribute wins, then its per-schema table,
+then the target table. With `[sql] schema = "{schema_}"` in the file, this schema keeps `shop`:
+
+```schemata
+schema shop.orders @sql(schema: "shop")
+
+model Order { #1 id int64 { id } }
+```
+
+For an option, the command line wins, then the file, then the built-in default. The exceptions are
+`strict` and `allow_destructive`, which the command line cannot turn off once the file turns them
+on, and `include`, whose directories come after those of `--include`.
+
+### How the attributes are made
+
+The schemas of a reference cycle are written to one Protobuf file (section 15), so the `[proto]`
+keys are expanded once per file: every schema of a cycle gets the value the cycle's first schema by
+name expands to. `package` is settled first, which is why it cannot use `{package}`; the other
+`[proto]` keys then read `{package}` as the file's package. With this file:
+
+```toml
+[proto]
+package = "{schema_}.v1"
+java_package = "com.example.{package}"
+```
+
+the `cyc.alpha` and `cyc.beta` cycle is written as `cyc_alpha/v1.proto`, with the package
+`cyc_alpha.v1` and `option java_package = "com.example.cyc_alpha.v1";` for both schemas. The keys
+of the other targets are expanded for each schema.
+
+A per-schema table for one schema of a cycle gives that schema its own value, just as an attribute
+on its `schema` line would. When that value differs from what the other schemas of the cycle get,
+they disagree, which is the SCH2007 error of section 15. Give every schema of the cycle the same
+value in its own table, or set the key in none of them.
+
+### Where a rejected value is reported
+
+The file checks a value's type and its placeholders, not what a target makes of it.
+`java_package = "com.example.{schema}-x"` is a string, but what it expands to is not dotted
+identifiers, and the target reports it at the `schema` line, as if the schema had written it:
+
+```text
+error[SCH2007] (proto): schema 'shop.orders': @proto(java_package: "com.example.shop.orders-x") is not a valid Java package
+ --> orders.schemata:2:1
+  |
+2 | schema shop.orders @sql(schema: "shop")
+  | ^^^^^^^^^^^^^^^^^^
+  = help: use dotted identifiers, for example `com.example.orders`
+```
+
+`schemata config` shows which line of the file set it.
+
+### The `config` command
+
+    schemata config [--config FILE|--no-config] [--format human|json] [--color auto|always|never] [PATHS...]
+
+`config` prints, on stdout, the file the other commands would use and each setting it resolves to,
+with where the value came from: a line of the file, or `default`. A run setting the file leaves
+unset shows its built-in default, except `import.from` and `import.namespace`, which have none and
+show only when set; `[sources]` and the target tables show only when the file has them. Given
+paths, or `[sources]`, it also analyses those schemas and lists each attribute the file adds to
+them, with the line that set it. With this file beside the two schema files of `examples/shop`:
+
+```toml
+[proto]
+java_package = "com.example.{schema}"
+java_multiple_files = true
+
+[sql]
+schema = "{schema_}"
+```
+
+`schemata config .` prints:
+
+```text
+file: schemata.toml
+compile.targets = ["proto", "sql", "xsd", "jsonschema", "openapi"]  (default)
+compile.out = "out"  (default)
+compile.strict = false  (default)
+compile.proto_layout = "schema"  (default)
+import.include = []  (default)
+migrate.allow_destructive = false  (default)
+report.format = "human"  (default)
+report.color = "auto"  (default)
+proto.java_package = "com.example.{schema}"  (schemata.toml:2)
+proto.java_multiple_files = true  (schemata.toml:3)
+sql.schema = "{schema_}"  (schemata.toml:6)
+synthesized:
+  shop.customers: @proto(java_package: "com.example.shop.customers")  (schemata.toml:2)
+  shop.customers: @proto(java_multiple_files: true)  (schemata.toml:3)
+  shop.customers: @sql(schema: "shop_customers")  (schemata.toml:6)
+  shop.orders: @proto(java_package: "com.example.shop.orders")  (schemata.toml:2)
+  shop.orders: @proto(java_multiple_files: true)  (schemata.toml:3)
+```
+
+`shop.orders` gets no `@sql(schema)`, since its `schema` line writes its own. With no file,
+`config` prints `no configuration file` and the defaults. `--format json` prints one document: the
+`file`, the `settings` by table, each key with its `value` and `line` (`null` for a default), the
+`sources` files, and the `synthesized` attributes. When the schemas do not analyse, `config` exits
+1 and reports why: under `--format json` the document is that report instead, and under `human`
+the settings print first and the report follows on stderr.
+
+### A complete file
+
+```toml
+# Defaults for every schemata command run in this repository.
+
+[compile]
+targets = ["proto", "sql", "openapi"]
+out = "build/schemata"
+proto_layout = "type"
+
+[import]
+from = "proto"
+include = ["third_party/proto"]
+
+[report]
+color = "never"
+
+[sources]
+paths = ["schemas"]
+exclude = ["schemas/drafts/**"]
+
+[proto]
+package = "{schema}.v1"
+java_package = "com.example.{package}"
+java_multiple_files = true
+csharp_namespace = "Example.{Package}"
+go_package = "example.com/gen/{schema_}"
+
+[proto.schemas."shop.customers"]
+package = "shop.customers"
+
+[sql]
+schema = "{schema_}"
+
+[openapi]
+server = "https://api.example.com"
+version = "2.3.0"
+```
+
+With this file at the root of a repository, `schemata compile` with no arguments, run anywhere
+inside it, compiles every schema under `schemas/` except the drafts to `build/schemata/` for three
+targets, with the Protobuf output one file per type. Each schema's Protobuf package gains a `.v1`,
+except `shop.customers`, which keeps its name, and its Java and C# names follow the package.
+`schemata import vendor/api` reads Protobuf without a `--from` and looks for the files it imports
+under `third_party/proto` too.

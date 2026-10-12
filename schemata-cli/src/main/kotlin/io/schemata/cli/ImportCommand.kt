@@ -8,10 +8,8 @@ import com.github.ajalt.clikt.parameters.groups.provideDelegate
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.path
-import io.schemata.cli.report.Sources
 import io.schemata.cli.report.importReport
 import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportNames
@@ -25,15 +23,13 @@ class ImportCommand : CliktCommand(name = "import") {
     override fun help(context: Context) =
         "Create .schemata files from an existing schema (XSD, Protobuf, or Postgres DDL)."
 
-    private val from by
-        option("--from", help = "Source format: xsd, proto, sql")
-            .choice("xsd", "proto", "sql")
-            .required()
+    private val fromFlag by
+        option("--from", help = "Source format: xsd, proto, sql").choice("xsd", "proto", "sql")
     private val out by
         option("--out", help = "Output directory (default: out)")
             .path(canBeFile = false)
             .default(Path("out"))
-    private val namespace by
+    private val namespaceFlag by
         option(
             "--namespace",
             help =
@@ -50,21 +46,37 @@ class ImportCommand : CliktCommand(name = "import") {
             .path(mustExist = true, canBeFile = false)
             .multiple()
     private val reporting by ReportingOptions()
-    private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
+    private val configuration by ConfigOptions()
+    private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
     override fun run() {
+        val config = configuration.resolve(this, reporting)
+        val style = reporting.resolve(config)
+        val from =
+            fromFlag
+                ?: config?.import?.from?.value
+                ?: throw usageError("--from is required when no [import].from is configured")
         if (include.isNotEmpty() && from != "proto") {
             throw usageError("--include applies to --from proto")
         }
+        // The file's directories come after the flags' and, like every path in the file, are
+        // relative to it; they are a default for proto imports, so another format ignores them.
+        val configuredInclude =
+            config
+                ?.takeIf { from == "proto" }
+                ?.let { c -> c.import.include?.value.orEmpty().map { c.directory.resolve(it) } }
+                .orEmpty()
+        val paths = inputPaths(inputs, config)
         val (importer: Importer, files) =
             when (from) {
-                "proto" -> ProtoImporter to ProtoSet.load(inputs)
-                "sql" -> SqlImporter to SqlSet.load(inputs)
-                else -> XsdImporter to XsdSet.load(inputs)
+                "proto" -> ProtoImporter to loadSources(paths, config, from, ProtoSet::load)
+                "sql" -> SqlImporter to loadSources(paths, config, from, SqlSet::load)
+                else -> XsdImporter to loadSources(paths, config, from, XsdSet::load)
             }
-        if (files.isEmpty()) {
-            throw usageError("no .$from files found under: ${inputs.joinToString(", ")}")
-        }
+        // The file's namespace is a default for a single input file; with several it is ignored,
+        // while --namespace on such a run is still a usage error.
+        val namespace =
+            namespaceFlag ?: config?.import?.namespace?.value?.takeIf { files.size == 1 }
         namespace?.let { ns ->
             if (!ns.split('.').all(ImportNames::isNamespaceSegment)) {
                 throw usageError("--namespace must be dotted lower-snake segments")
@@ -80,7 +92,7 @@ class ImportCommand : CliktCommand(name = "import") {
                     sources,
                     namespace,
                     ::locate,
-                    include.map { it.normalize().toString() },
+                    (include + configuredInclude).map { it.normalize().toString() },
                 )
             } else {
                 importer.import(sources, namespace, ::locate)
@@ -89,6 +101,6 @@ class ImportCommand : CliktCommand(name = "import") {
         if (report.errors == 0) {
             result.files.forEach { writeOutput(out.resolve("import").resolve(it.path), it.content) }
         }
-        emit(this, report, Sources.of(files), reporting, out.toString())
+        emit(this, report, reportSources(files, config), style, out.toString())
     }
 }

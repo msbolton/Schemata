@@ -18,7 +18,6 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
-import java.nio.file.Path
 
 class FmtCommand : CliktCommand(name = "fmt") {
     override fun help(context: Context) =
@@ -32,28 +31,31 @@ class FmtCommand : CliktCommand(name = "fmt") {
             )
             .flag()
     private val reporting by FormatOptions()
-    private val inputs by argument("PATHS").path(mustExist = true).multiple(required = true)
+    private val configuration by ConfigOptions()
+    private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
-    override fun run() =
-        rewriteInPlace(inputs, check, reporting, "formatted") { content, path ->
+    override fun run() {
+        val config = configuration.resolve(this, reporting)
+        val sources = loadSources(inputPaths(inputs, config), config)
+        rewriteInPlace(sources, check, reporting.resolve(config), "formatted") { content, path ->
             Formatter.format(content, path)
         }
+    }
 }
 
 /**
- * Rewrites each schema file under [inputs] in place with [rewrite], naming each changed file after
- * [verb] (`formatted a.schemata`); under [check] it writes nothing and prints a diff for each file
- * that would change instead. Exits 1 when any file fails to rewrite, or under [check] when any
- * would change; every file is tried either way.
+ * Rewrites each of [sources] in place with [rewrite], naming each changed file after [verb]
+ * (`formatted a.schemata`); under [check] it writes nothing and prints a diff for each file that
+ * would change instead. Exits 1 when any file fails to rewrite, or under [check] when any would
+ * change; every file is tried either way.
  */
 internal fun CliktCommand.rewriteInPlace(
-    inputs: List<Path>,
+    sources: List<SourceInput>,
     check: Boolean,
-    reporting: FormatOptions,
+    reporting: ReportStyle,
     verb: String,
     rewrite: (content: String, path: String) -> FormatResult,
 ) {
-    val sources = loadSources(inputs)
     var failed = false
     var differs = false
     // Under json, stdout carries only the diagnostic documents; everything else goes to stderr.

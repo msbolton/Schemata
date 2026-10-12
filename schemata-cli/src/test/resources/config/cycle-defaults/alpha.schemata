@@ -1,0 +1,12 @@
+schema cyc.alpha
+
+import cyc.beta as beta
+
+/// An order that points at its customer.
+model Order { #1 id int64  #2 customer beta.Customer  #3 note Note }
+
+model Note { #1 text string }
+
+service Orders {
+  #1 get(Order): beta.Customer
+}

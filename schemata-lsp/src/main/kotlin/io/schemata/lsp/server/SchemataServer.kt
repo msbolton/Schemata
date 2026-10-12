@@ -2,6 +2,7 @@ package io.schemata.lsp.server
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import io.schemata.config.ConfigLoader
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
@@ -79,7 +80,8 @@ import org.eclipse.lsp4j.services.WorkspaceService
  * the text the editor already holds. Only files whose diagnostics changed are published again.
  */
 class SchemataServer(
-    annotations: AnnotationRegistry,
+    private val annotations: AnnotationRegistry,
+    private val targetNames: List<String> = emptyList(),
     private val debounceMs: Long = DEBOUNCE_MS,
     private val onExit: (Int) -> Unit,
 ) : LanguageServer, LanguageClientAware, TextDocumentService, WorkspaceService {
@@ -105,6 +107,14 @@ class SchemataServer(
     private var watchFiles = false
     private var roots: List<String> = emptyList()
     private var strict = false
+    private var exclude: (Path) -> Boolean = { false }
+
+    /** The `[sources]` roots of `schemata.toml`, or null when it has none. */
+    private var fileRoots: List<String>? = null
+    private var fileExclude: (Path) -> Boolean = { false }
+
+    /** The `[compile] strict` of `schemata.toml`; false without one. */
+    private var fileStrict = false
     @Volatile private var shutdownRequested = false
 
     override fun connect(client: LanguageClient) {
@@ -124,7 +134,9 @@ class SchemataServer(
             folder = uri?.let(Uris::toPath)?.let { Paths.get(it) }
             watchFiles =
                 params.capabilities?.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
-            configure(params.initializationOptions as? JsonObject)
+            val options = params.initializationOptions as? JsonObject
+            readProjectFile(options)
+            configure(options)
             val capabilities =
                 ServerCapabilities().apply {
                     setTextDocumentSync(TextDocumentSyncKind.Full)
@@ -169,25 +181,77 @@ class SchemataServer(
     /**
      * `{"roots": ["model"], "strict": true}`; a key that is missing or of the wrong type keeps its
      * current value. A relative root resolves against the workspace folder, and is ignored when
-     * there is none.
+     * there is none. Each setting is settled on its own. Non-empty `roots` replace the roots and
+     * excludes of the `[sources]` in `schemata.toml`; an empty list brings back the file's, or no
+     * roots when it has none or was not read. Strictness is on when the options or the file turn it
+     * on, and the options never turn the file's off, as `--strict` never does on the command line.
+     * Editors such as the VS Code extension always send their defaults, an empty `roots` and a
+     * false `strict`, so neither value can mean that the user chose it over the file.
      */
     private fun configure(options: JsonObject?) {
-        options
-            ?.get("roots")
-            ?.takeIf { it.isJsonArray }
-            ?.let { roots = it.asJsonArray.mapNotNull(::text) }
-        options
-            ?.get("strict")
-            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
-            ?.let { strict = it.asBoolean }
+        rootsIn(options)?.let { given ->
+            if (given.isEmpty()) {
+                roots = fileRoots ?: emptyList()
+                exclude = fileExclude
+            } else {
+                roots = given
+                exclude = { false }
+            }
+        }
+        strictIn(options)?.let { strict = it || fileStrict }
         val base = folder
         val paths =
             roots.mapNotNull { root ->
                 val path = Paths.get(root)
                 if (path.isAbsolute) path else base?.resolve(path)
             }
-        workspace.configure(paths, strict)
+        workspace.configure(paths, strict, exclude)
     }
+
+    /**
+     * Reads the nearest `schemata.toml` at or above the workspace folder for the settings [options]
+     * leave to it: the roots and excludes of `[sources]`, the strictness of `[compile]`. So the
+     * editor reports what `schemata check` does (SCH-102). Empty `roots` and `strict: false` leave
+     * a setting to the file just as a missing key does, see [configure]; when the options give
+     * non-empty roots and `strict: true`, the file is not even looked for. A file with errors is
+     * the CLI's to report: the server notes it in the client's log and carries on as if there were
+     * no file.
+     */
+    private fun readProjectFile(options: JsonObject?) {
+        if (rootsIn(options).orEmpty().isNotEmpty() && strictIn(options) == true) return
+        val base = folder?.toAbsolutePath()?.normalize() ?: return
+        val file = ConfigLoader.discover(base) ?: return
+        val shown = base.relativize(file).toString()
+        val loaded = ConfigLoader.load(file, annotations, targetNames, shown)
+        val config = loaded.config
+        if (config == null) {
+            val first = loaded.diagnostics.first().message
+            client?.logMessage(
+                MessageParams(
+                    MessageType.Warning,
+                    "schemata: ignoring the configuration file: $first",
+                )
+            )
+            return
+        }
+        if (config.sources != null) {
+            fileRoots = config.sourcePaths.map(Path::toString)
+            fileExclude = config::excluded
+            roots = fileRoots.orEmpty()
+            exclude = fileExclude
+        }
+        fileStrict = config.compile.strict?.value == true
+        strict = fileStrict
+    }
+
+    private fun rootsIn(options: JsonObject?): List<String>? =
+        options?.get("roots")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull(::text)
+
+    private fun strictIn(options: JsonObject?): Boolean? =
+        options
+            ?.get("strict")
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }
+            ?.asBoolean
 
     private fun text(element: JsonElement): String? =
         element.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
@@ -462,9 +526,10 @@ class SchemataServer(
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            targetNames: List<String> = emptyList(),
             debounceMs: Long = DEBOUNCE_MS,
             onExit: (Int) -> Unit,
-        ): Future<Void> = start(input, output, annotations, debounceMs, onExit).second
+        ): Future<Void> = start(input, output, annotations, targetNames, debounceMs, onExit).second
 
         /**
          * Serves one client on the given streams until the input ends, and returns the exit code: 0
@@ -475,9 +540,11 @@ class SchemataServer(
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            targetNames: List<String> = emptyList(),
             onExit: (Int) -> Unit,
         ): Int {
-            val (server, listening) = start(input, output, annotations, DEBOUNCE_MS, onExit)
+            val (server, listening) =
+                start(input, output, annotations, targetNames, DEBOUNCE_MS, onExit)
             listening.get()
             return if (server.shutdownRequested) 0 else 1
         }
@@ -486,10 +553,11 @@ class SchemataServer(
             input: InputStream,
             output: OutputStream,
             annotations: AnnotationRegistry,
+            targetNames: List<String>,
             debounceMs: Long,
             onExit: (Int) -> Unit,
         ): Pair<SchemataServer, Future<Void>> {
-            val server = SchemataServer(annotations, debounceMs, onExit)
+            val server = SchemataServer(annotations, targetNames, debounceMs, onExit)
             val launcher = LSPLauncher.createServerLauncher(server, input, output)
             server.connect(launcher.remoteProxy)
             return server to launcher.startListening()

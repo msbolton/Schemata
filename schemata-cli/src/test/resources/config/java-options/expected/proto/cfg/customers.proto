@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package cfg.customers;
+
+option java_package = "com.example.cfg.customers";
+option java_multiple_files = true;
+option csharp_namespace = "Example.Cfg.Customers";
+
+// A customer, as an order carries it.
+message Customer {
+  string name = 1;
+  string email = 2;
+}

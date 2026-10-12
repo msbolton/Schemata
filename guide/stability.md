@@ -76,16 +76,22 @@ breaking does not ship in 2.x.
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,
 SCH20, SCH21, SCH22, and SCH23 for the Protobuf, Postgres, XML Schema, and JSON Schema targets,
-SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target, SCH27 for migration. A minor
-release may add warnings, so a `--strict` build can fail after an upgrade; every new code is in that
-release's notes. A set that compiled without errors keeps compiling without errors, unless it
-compiled only because of a compiler bug, which the notes name.
+SCH24 for import, SCH25 for evolution, SCH26 for the OpenAPI target, SCH27 for migration, SCH28 for
+the language server, SCH29 for configuration. A minor release may add warnings, so a `--strict`
+build can fail after an upgrade; every new code is in that release's notes. A set that compiled
+without errors keeps compiling without errors, unless it compiled only because of a compiler bug,
+which the notes name.
 
 **The command line.** Every command, flag, and exit code stays. The JSON report shapes of
 `check`, `compile`, `fmt`, `upgrade`, `diff`, `migrate`, `import`, and `targets` stay, the `kind`
-values of `diff` and `migrate` included; a minor may add fields. Not promised: `fmt`'s layout (a
-change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata` files
-`import` writes, and the wording of messages and of the human report.
+values of `diff` and `migrate` included, and so does the document `config` prints, with its `file`,
+`settings`, `sources`, and `synthesized` keys; a minor may add fields. Not promised: `fmt`'s layout
+(a change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata`
+files `import` writes, and the wording of messages and of the human report.
+
+**The configuration file.** Every table and key of `schemata.toml`, and every placeholder, keeps
+its name and its meaning for the whole of 2.x, so a file that loads keeps loading and gives the
+same defaults; a minor may add tables and keys.
 
 **Upgrading.** `schemata upgrade` keeps converting every schema a 1.x compiler accepted, except
 those it reports, for the whole of 2.x. Section 23 of the reference lists them: a positional

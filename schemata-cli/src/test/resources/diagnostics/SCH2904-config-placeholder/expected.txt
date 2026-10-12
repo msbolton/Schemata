@@ -1,0 +1,6 @@
+# config targets=proto
+error[SCH2904]: schemata.toml:2: sql.schema holds '{package}', which only [proto] keys other than package accept
+ --> schemata.toml:2:1
+  = help: placeholders are {schema}, {Schema} and {schema_}; [proto] keys other than package also take {package} and {Package}
+
+1 error, 0 warnings
