@@ -43,7 +43,9 @@ model OrderLine { #1 id int64 { id } }
 `import shop.customers` brings that schema's declarations into scope by their bare names.
 `import shop.customers as cust` makes them available only as `cust.Customer`, not by the bare name.
 When two unaliased imports both declare the same name, the bare name is ambiguous (SCH1009); the
-fully qualified name always works. An unused import is a warning (SCH1012). An alias is
+fully qualified name always works, with or without an import. An unaliased import is used when a
+name from its schema is referenced bare or fully qualified, an aliased one when a name is
+referenced through its alias; an unused import is a warning (SCH1012). An alias is
 lower_snake, like a segment of a schema name (SCH1045). A file imports a schema once and gives an
 alias to one import only; a repeat of either is an error (SCH1046).
 
@@ -1947,7 +1949,7 @@ loaded.
 | a choice branch with no type | a `string` member | SCH2404 |
 | `elementFormDefault`, `attributeFormDefault` | `@xsd(element_form)`, `@xsd(attribute_form)` | |
 | a `form` that differs from the default | nothing | SCH2403 |
-| `xs:import` | an `import` of the schema it lowers to | |
+| `xs:import` | an `import` of the schema it lowers to, when the output names a type from it | |
 | `xs:include` | the included declarations, merged | |
 | `xs:redefine`, `xs:override` | the named document, merged; the redefinitions dropped | SCH2405 |
 | `xs:notation` | nothing | SCH2405 |

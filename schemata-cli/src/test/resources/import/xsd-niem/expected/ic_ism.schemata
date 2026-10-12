@@ -86,21 +86,13 @@
 schema ic_ism @xsd(namespace: "urn:us:gov:ic:ism") @xsd(attribute_form: "qualified")
 
 import cv_enum_ism25_x
-import cv_enum_ism_atomic_energy_markings
 import cv_enum_ism_classification_all
 import cv_enum_ism_dissem
-import cv_enum_ismcatfgi_open
-import cv_enum_ismcatfgi_protected
 import cv_enum_ism_non_ic
 import cv_enum_ism_non_us_controls
 import cv_enum_ism_notice
-import cv_enum_ismcat_owner_producer
 import cv_enum_ism_poc_type
-import cv_enum_ismcat_rel_to
-import cv_enum_ismsar
 import cv_enum_ismsci_controls
-import cv_enum_ism_exempt_from
-import cv_enum_ism_complies_with
 
 model LongStringWithSecurity {
   value                      string

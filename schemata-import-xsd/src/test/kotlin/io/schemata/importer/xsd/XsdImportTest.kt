@@ -1039,6 +1039,57 @@ class XsdImportTest {
     }
 
     @Test
+    fun `an xs import nothing references writes no import line`() {
+        val customers =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:shop.customers">
+                  <xs:complexType name="CustomerType">
+                    <xs:sequence><xs:element name="name" type="xs:string"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "shop/customers.xsd",
+            )
+        val billing =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:shop.billing">
+                  <xs:complexType name="InvoiceType">
+                    <xs:sequence><xs:element name="total" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "shop/billing.xsd",
+            )
+        val orders =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:b="urn:schemata:shop.billing" targetNamespace="urn:schemata:shop.orders">
+                  <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
+                  <xs:import namespace="urn:schemata:shop.billing" schemaLocation="billing.xsd"/>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="invoice" type="b:InvoiceType"/>
+                      <xs:element name="note" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "shop/orders.xsd",
+            )
+        val imported = XsdImport.lower(listOf(orders, customers, billing), null)
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf("shop.billing"),
+            imported.units.single { it.namespace == "shop.orders" }.imports,
+        )
+    }
+
+    @Test
     fun `unresolved references are errors`() {
         val imported =
             lower(

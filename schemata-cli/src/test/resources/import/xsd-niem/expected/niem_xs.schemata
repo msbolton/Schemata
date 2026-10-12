@@ -1,8 +1,6 @@
 /// Proxy types that carry dictionary metadata and have XML data type simple contents.
 schema niem_xs @xsd(namespace: "http://release.niem.gov/niem/proxy/niem-xs/5.0/") @xsd(element_form: "unqualified")
 
-import structures
-
 /// A data type for a Uniform Resource Identifier Reference (URI).  A value can be absolute or relative, and may have an optional fragment identifier (i.e., it may be a URI Reference).
 model AnyURI {
   value                 string

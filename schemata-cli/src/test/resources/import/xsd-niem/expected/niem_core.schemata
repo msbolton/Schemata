@@ -2,7 +2,6 @@
 schema niem_core @xsd(namespace: "http://release.niem.gov/niem/niem-core/5.0/") @xsd(element_form: "unqualified")
 
 import niem_xs
-import structures
 
 /// A data type for the measurement of an angle.
 model AngularMeasure {
