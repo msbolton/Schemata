@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package cyc;
+package cyc.beta;
 
 enum Status {
   STATUS_UNSPECIFIED = 0;

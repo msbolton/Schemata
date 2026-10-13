@@ -2627,21 +2627,234 @@ class ProtoLoweringTest {
     }
 
     @Test
-    fun `a unit of schemas in a cycle is split under its merged package directory`() {
+    fun `a type cycle across schemas is one file in the host package`() {
         val lowered = lowerTypes(ALPHA, BETA)
         val file = lowered.model.files.single()
-        assertEquals("cyc/a.proto", file.path)
+        assertEquals("cyc/alpha/a.proto" to "cyc.alpha", file.path to file.packageName)
         assertEquals(listOf("A", "B"), file.declarations.map { it.name })
+        assertEquals(emptyList(), file.imports)
+        assertEquals(ProtoType.Named("B"), message(file, "A").fields.single().type)
+        assertEquals(ProtoType.Named("A"), message(file, "B").fields.single().type)
         assertEquals(
             listOf(
-                "cyc.alpha.schemata:1 SCH2001 schemas cyc.alpha and cyc.beta reference each other; " +
-                    "Protobuf cannot import files in a cycle, so they are written as one file under package 'cyc'",
                 "cyc.alpha.schemata:5 SCH2001 model 'A' and model 'B' reference each other; " +
-                    "Protobuf cannot import files in a cycle, so they share cyc/a.proto",
+                    "Protobuf cannot import files in a cycle, so they share cyc/alpha/a.proto",
+                "cyc.beta.schemata:5 SCH2001 model 'cyc.beta.B' is written under package " +
+                    "'cyc.alpha' in cyc/alpha/a.proto",
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            "break the reference cycle, or set `@proto(name: \"…\")` so that a declaration " +
+                "of its own schema names the file",
+            lowered.diagnostics[1].help,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `two moved declarations are listed in one note`() {
+        val lowered =
+            lowerTypes(
+                ALPHA,
+                "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A?  #2 c C? }\n\n" +
+                    "model C { #1 b B? }\n",
+            )
+        assertEquals(
+            listOf(
+                "cyc.alpha.schemata:5 SCH2001 model 'A', model 'B' and model 'C' reference each " +
+                    "other; Protobuf cannot import files in a cycle, so they share cyc/alpha/a.proto",
+                "cyc.beta.schemata:5 SCH2001 model 'cyc.beta.B' and model 'cyc.beta.C' are " +
+                    "written under package 'cyc.alpha' in cyc/alpha/a.proto",
             ),
             lowered.located(),
         )
         assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a schema cycle without a type cycle writes per schema packages that import each other`() {
+        val lowered =
+            lowerTypes(
+                "schema cyc.alpha\n\nimport cyc.beta\n\nmodel Order { #1 customer Customer }\n\n" +
+                    "model Note { #1 text string }\n",
+                "schema cyc.beta\n\nimport cyc.alpha\n\nmodel Customer { #1 note Note? }\n",
+            )
+        // No merge, so no note: the schema layout would report the cycle as one file.
+        assertEquals(emptyList(), lowered.codes())
+        assertEquals(
+            listOf(
+                "cyc/alpha/note.proto" to "cyc.alpha",
+                "cyc/alpha/order.proto" to "cyc.alpha",
+                "cyc/beta/customer.proto" to "cyc.beta",
+            ),
+            lowered.model.files.map { it.path to it.packageName },
+        )
+        val order = lowered.file("cyc/alpha/order.proto")
+        assertEquals(listOf("cyc/beta/customer.proto"), order.imports)
+        assertEquals(
+            ProtoType.Named(".cyc.beta.Customer"),
+            message(order, "Order").fields.single().type,
+        )
+        val customer = lowered.file("cyc/beta/customer.proto")
+        assertEquals(listOf("cyc/alpha/note.proto"), customer.imports)
+        assertEquals(
+            ProtoType.Named(".cyc.alpha.Note"),
+            message(customer, "Customer").fields.single().type,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a service in a cycle schema stays in its own package`() {
+        val lowered =
+            lowerTypes(
+                ALPHA + "\nservice Alphas {\n  #1 get(A): B\n}\n",
+                BETA + "\nservice Betas {\n  #1 get(B): A\n}\n",
+            )
+        assertEquals(
+            listOf(
+                "cyc/alpha/a.proto" to "cyc.alpha",
+                "cyc/alpha/alphas.proto" to "cyc.alpha",
+                "cyc/beta/betas.proto" to "cyc.beta",
+            ),
+            lowered.model.files.map { it.path to it.packageName },
+        )
+        val alphas = lowered.file("cyc/alpha/alphas.proto").services.single().rpcs.single()
+        assertEquals("A" to "B", alphas.request.reference to alphas.response.reference)
+        val betas = lowered.file("cyc/beta/betas.proto")
+        assertEquals(listOf("cyc/alpha/a.proto"), betas.imports)
+        val get = betas.services.single().rpcs.single()
+        assertEquals(
+            ".cyc.alpha.B" to ".cyc.alpha.A",
+            get.request.reference to get.response.reference,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a self reference stays a singleton file in its own package`() {
+        val lowered =
+            lowerTypes(
+                "schema tree\n\nmodel Node {\n  #1 kids Node[]\n  #2 payload Leaf?\n}\n" +
+                    "model Leaf { #1 text string }\n",
+                "schema other\n\nimport tree\n\nmodel Root { #1 node tree.Node }\n",
+            )
+        assertEquals(
+            listOf(
+                "other/root.proto" to "other",
+                "tree/leaf.proto" to "tree",
+                "tree/node.proto" to "tree",
+            ),
+            lowered.model.files.map { it.path to it.packageName },
+        )
+        assertEquals(listOf("Node"), lowered.file("tree/node.proto").declarations.map { it.name })
+        assertEquals(listOf("tree/node.proto"), lowered.file("other/root.proto").imports)
+        assertTrue(lowered.diagnostics.none { "written under package" in it.message })
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a third schema references a moved type through the host package`() {
+        val lowered =
+            lowerTypes(ALPHA, BETA, "schema other\n\nimport cyc.beta\n\nmodel O { #1 b B }\n")
+        assertEquals(
+            listOf("cyc/alpha/a.proto", "other/o.proto"),
+            lowered.model.files.map { it.path },
+        )
+        val other = lowered.file("other/o.proto")
+        assertEquals(listOf("cyc/alpha/a.proto"), other.imports)
+        assertEquals(ProtoType.Named(".cyc.alpha.B"), message(other, "O").fields.single().type)
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a shared file takes the host options without a conflict`() {
+        val lowered =
+            lowerTypes(
+                ALPHA.replace(
+                    "schema cyc.alpha",
+                    "schema cyc.alpha @proto(java_package: \"com.example.alpha\")",
+                ),
+                "schema cyc.beta @proto(java_package: \"com.example.beta\")\n\nimport cyc.alpha\n\n" +
+                    "model B { #1 a A? }\n\nmodel Solo { #1 n int32 }\n",
+            )
+        assertEquals(
+            listOf(
+                "SCH2001 model 'A' and model 'B' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share cyc/alpha/a.proto",
+                "SCH2001 model 'cyc.beta.B' is written under package 'cyc.alpha' in cyc/alpha/a.proto",
+            ),
+            lowered.codes(),
+        )
+        assertEquals(
+            listOf("java_package" to "\"com.example.alpha\""),
+            lowered.file("cyc/alpha/a.proto").options,
+        )
+        assertEquals(
+            listOf("java_package" to "\"com.example.beta\""),
+            lowered.file("cyc/beta/solo.proto").options,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `conflicting declared packages in a type cycle are not an error`() {
+        val schema =
+            analysed(
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"p.one\")"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"p.two\")"),
+            )
+        val lowered = ProtoLowering.lower(schema, ProtoLayout.TYPE)
+        assertEquals(
+            listOf(
+                "cyc.alpha.schemata:5 SCH2001 model 'A' and model 'B' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share p/one/a.proto",
+                "cyc.beta.schemata:5 SCH2001 model 'cyc.beta.B' is written under package " +
+                    "'p.one' in p/one/a.proto",
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            listOf("p/one/a.proto" to "p.one"),
+            lowered.model.files.map { it.path to it.packageName },
+        )
+        assertEquals(
+            listOf("p/one/a.proto"),
+            ProtoTarget(ProtoLayout.TYPE).compile(schema).files.map { it.path },
+        )
+    }
+
+    @Test
+    fun `a declared outer classname is counted per host`() {
+        val alpha = "schema cyc.alpha @proto(java_outer_classname: \"AlphaProto\")"
+        val beta =
+            BETA.replace(
+                "schema cyc.beta",
+                "schema cyc.beta @proto(java_outer_classname: \"BetaProto\")",
+            )
+        // cyc.alpha hosts the shared file and Extra's file; cyc.beta hosts none.
+        val two =
+            lowerTypes(
+                ALPHA.replace("schema cyc.alpha", alpha) + "\nmodel Extra { #1 n int32 }\n",
+                beta,
+            )
+        assertEquals(
+            listOf(
+                "cyc.alpha.schemata:1 SCH2007 schema 'cyc.alpha': " +
+                    "@proto(java_outer_classname: \"AlphaProto\") names one Java class for every " +
+                    "file of the type layout"
+            ),
+            two.located().filter { "SCH2007" in it },
+        )
+        // One hosted file keeps the declared name, and beta's own value applies to no file.
+        val one = lowerTypes(ALPHA.replace("schema cyc.alpha", alpha), beta)
+        assertEquals(emptyList(), one.codes().filter { it.startsWith("SCH2007") })
+        assertEquals(
+            listOf("java_outer_classname" to "\"AlphaProto\""),
+            one.file("cyc/alpha/a.proto").options,
+        )
+        assertNull(one.protocErrors())
     }
 
     @Test

@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package other;
 
-import "cyc/customer.proto";
-import "cyc/cyc_beta_note.proto";
+import "cyc/beta/customer.proto";
+import "cyc/beta/note.proto";
 
 message Audit {
-  .cyc.Customer customer = 1;
-  .cyc.CycBetaNote note = 2;
+  .cyc.beta.Customer customer = 1;
+  .cyc.beta.Note note = 2;
 }
