@@ -71,7 +71,7 @@ error[SCH2501]: openapi: s.Orders.get: @openapi(auth) added, so operation 'get' 
    |      ^^^
    = help: keep the old requirement on these operations, or require the new one on new operations
 
-error[SCH2501]: openapi: s.Orders.get: @openapi(scopes) added, so operation 'get' no longer accepts bearer, which breaks clients without those credentials
+error[SCH2501]: openapi: s.Orders.get: @openapi(scopes) added, so operation 'get' now needs the scopes orders:read, which breaks clients without those credentials
   --> new/orders.schemata:16:6
    |
 16 |   #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }

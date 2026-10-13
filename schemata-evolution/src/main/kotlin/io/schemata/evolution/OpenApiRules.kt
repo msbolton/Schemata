@@ -1,6 +1,7 @@
 package io.schemata.evolution
 
 import io.schemata.core.ir.AnnotationValue
+import io.schemata.core.ir.Field
 import io.schemata.core.ir.Operation
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Service
@@ -94,7 +95,7 @@ object OpenApiRules : Rulebook {
             is DeclarationKindChanged -> data(change, change.from.qualifiedName, ctx)
             is FieldAdded -> fieldAdded(change, ctx)
             is FieldRemoved -> data(change, change.record.qualifiedName, ctx)
-            is FieldRenamed -> data(change, change.record.qualifiedName, ctx)
+            is FieldRenamed -> fieldRenamed(change, ctx)
             is FieldTypeChanged -> data(change, change.record.qualifiedName, ctx)
             is FieldNullabilityChanged -> data(change, change.record.qualifiedName, ctx)
             is FieldDefaultChanged -> data(change, change.record.qualifiedName, ctx)
@@ -136,6 +137,36 @@ object OpenApiRules : Rulebook {
                 "make the field nullable or give it a default, so the header is optional",
             )
         else Verdict.Compatible
+    }
+
+    /**
+     * Whether [from] and [to], one field of [record] on each side, travel as an HTTP header in
+     * OLD's document and nothing else of OLD's document holds them: both carry `@openapi(header)`
+     * and OLD's operations take or answer with the model only as one message, never reaching it as
+     * a field's type, a union member, or a nested declaration, which would make it a component
+     * carrying the field under its JSON name.
+     */
+    private fun onlyAHeader(
+        record: QualifiedName,
+        from: Field,
+        to: Field,
+        ctx: ChangeContext,
+    ): Boolean =
+        from.annotations.string(target, HEADER) != null &&
+            to.annotations.string(target, HEADER) != null &&
+            (ctx.isRequest(Side.OLD, record) || ctx.isResponse(Side.OLD, record)) &&
+            !ctx.reachableAsPlainType(Side.OLD, record)
+
+    /**
+     * A header is named by `@openapi(header)`, never by the field, so renaming a field that is only
+     * a header changes nothing a client sees; a header rename is judged on the attribute. A doc
+     * change is compatible on any field, and a refinement change is judged as JSON Schema judges
+     * it, as a header's type change is, since the header's schema carries the refinements.
+     */
+    private fun fieldRenamed(change: FieldRenamed, ctx: ChangeContext): Verdict {
+        val record = change.record.qualifiedName
+        return if (onlyAHeader(record, change.from, change.to, ctx)) Verdict.Compatible
+        else data(change, record, ctx)
     }
 
     /** Only a namespace with services had a document; its declarations go with it. */
@@ -269,10 +300,13 @@ object OpenApiRules : Rulebook {
      * them, so each such operation both sides have is judged on its requirement before and after:
      * one that now needs credentials, no longer accepts a scheme it did, or needs more scopes
      * refuses calls that worked; one opened up (`none`, a scheme added to the alternatives, scopes
-     * removed) refuses nothing.
+     * removed) refuses nothing. When `auth` and `scopes` change together on one element, the
+     * schemes are the `auth` change's to report, so the `scopes` change names only the scopes it
+     * adds.
      */
     private fun requirementChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         val qualify = change.newOwner is NamespaceOwner
+        val scopesOnly = change.key == "scopes" && auth(change.oldOwner) != auth(change.newOwner)
         val reasons =
             beneath(change.newOwner).mapNotNull { (service, op) ->
                 val oldService = ctx.old.service(service.qualifiedName) ?: return@mapNotNull null
@@ -281,11 +315,9 @@ object OpenApiRules : Rulebook {
                         ?: oldService.operations.firstOrNull { it.name == op.name }
                         ?: return@mapNotNull null
                 val label = if (qualify) "'${service.name}.${op.name}'" else "'${op.name}'"
-                tightened(
-                    label,
-                    ctx.requirement(Side.OLD, oldService, oldOp),
-                    ctx.requirement(Side.NEW, service, op),
-                )
+                val from = ctx.requirement(Side.OLD, oldService, oldOp)
+                val to = ctx.requirement(Side.NEW, service, op)
+                if (scopesOnly) scopesAdded(label, from, to) else tightened(label, from, to)
             }
         if (reasons.isEmpty()) return Verdict.Compatible
         return Verdict.Breaking(
@@ -308,6 +340,33 @@ object OpenApiRules : Rulebook {
             is EnumValueOwner,
             is UnionMemberOwner -> emptyList()
         }
+
+    /** The `auth` written on the element [owner] stands for, or null when it writes none. */
+    private fun auth(owner: Owner): AnnotationValue? {
+        val annotations =
+            when (owner) {
+                is NamespaceOwner -> owner.namespace.annotations
+                is ServiceOwner -> owner.service.annotations
+                is OperationOwner -> owner.operation.annotations
+                is DeclarationOwner,
+                is FieldOwner,
+                is EnumValueOwner,
+                is UnionMemberOwner -> return null
+            }
+        return annotations[target]["auth"]
+    }
+
+    /** The scopes [new] needs that [old] did not, as a reason, or null when it needs none more. */
+    private fun scopesAdded(
+        label: String,
+        old: SecurityRequirement?,
+        new: SecurityRequirement?,
+    ): String? {
+        if (new == null || new.schemes.isEmpty()) return null
+        val added = new.scopes.filter { it !in old?.scopes.orEmpty() }
+        return if (added.isEmpty()) null
+        else "operation $label now needs the scopes ${added.joinToString(" ")}"
+    }
 
     /** Why [new] refuses a call [old] admitted, or null when it refuses none. */
     private fun tightened(
