@@ -235,7 +235,7 @@ class ConfigLoaderTest {
     }
 
     @Test
-    fun `the string security keys of openapi load and its flag and tuple keys are unknown`() {
+    fun `the string security keys of openapi load and its flag tuple and scopes keys are unknown`() {
         val config =
             loaded(
                 """
@@ -245,7 +245,6 @@ class ConfigLoaderTest {
                 oauth2_token_url = "https://auth.example.com/token"
                 oauth2_authorization_url = "https://auth.example.com/authorize"
                 openid = "https://auth.example.com/.well-known/openid-configuration"
-                scopes = "orders:read"
                 """
                     .trimIndent()
             )
@@ -257,13 +256,12 @@ class ConfigLoaderTest {
                 "oauth2_authorization_url" to Setting<Any>("https://auth.example.com/authorize", 5),
                 "openid" to
                     Setting<Any>("https://auth.example.com/.well-known/openid-configuration", 6),
-                "scopes" to Setting<Any>("orders:read", 7),
             ),
             config.defaults["openapi"]?.keys,
         )
         val keys =
             "keys of [openapi] are api_key, bearer, oauth2_authorization_url, oauth2_token_url, " +
-                "openid, scopes, server, version"
+                "openid, server, version"
         assertDiagnostic(
             "SCH2902 schemata.toml:2: unknown key 'openapi.basic'",
             keys,
@@ -273,6 +271,11 @@ class ConfigLoaderTest {
             "SCH2902 schemata.toml:2: unknown key 'openapi.auth'",
             keys,
             failure("[openapi]\nauth = \"bearer\"\n"),
+        )
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'openapi.scopes'",
+            keys,
+            failure("[openapi]\nscopes = \"orders:read\"\n"),
         )
     }
 
