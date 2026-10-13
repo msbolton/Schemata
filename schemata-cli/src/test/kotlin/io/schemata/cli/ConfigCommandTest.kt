@@ -104,6 +104,32 @@ class ConfigCommandTest {
     }
 
     @Test
+    fun `config shows per schema values under the type layout`() {
+        val toml =
+            toml(
+                "[compile]\nproto_layout = \"type\"\n\n[proto]\njava_package = \"com.example.{schema}\"\n"
+            )
+        val src = tmp.resolve("src")
+        schema("src/alpha.schemata", "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b B? }\n")
+        schema("src/beta.schemata", "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n")
+        val result = ConfigCommand().test("--config $toml $src")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertTrue(
+            result.stdout.lines().contains("compile.proto_layout = \"type\"  ($toml:2)"),
+            result.stdout,
+        )
+        assertEquals(
+            listOf(
+                "synthesized:",
+                "  cyc.alpha: @proto(java_package: \"com.example.cyc.alpha\")  ($toml:5)",
+                "  cyc.beta: @proto(java_package: \"com.example.cyc.beta\")  ($toml:5)",
+                "",
+            ),
+            result.stdout.lines().dropWhile { it != "synthesized:" },
+        )
+    }
+
+    @Test
     fun `config lists the synthesized annotations with their lines`() {
         val toml =
             toml(

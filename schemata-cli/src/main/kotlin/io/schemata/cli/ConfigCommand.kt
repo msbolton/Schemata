@@ -54,9 +54,20 @@ class ConfigCommand : CliktCommand(name = "config") {
             emit(this, report, reportSources(schemas, config), style, out = "")
             return
         }
+        // `config` writes nothing, so the `[proto]` keys expand under the file's layout, the one
+        // `compile` takes when the command line names none.
         val synthesized =
             analyzed?.schema?.let { schema ->
-                config?.let { AnnotationDefaults.plan(schema, it, Pipeline.annotations) }.orEmpty()
+                config
+                    ?.let {
+                        AnnotationDefaults.plan(
+                            schema,
+                            it,
+                            Pipeline.annotations,
+                            configuredProtoLayout(null, it),
+                        )
+                    }
+                    .orEmpty()
             }
         val text =
             when (style.format) {
