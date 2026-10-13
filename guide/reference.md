@@ -3658,10 +3658,14 @@ on, and `include`, whose directories come after those of `--include`.
 
 ### How the attributes are made
 
-The schemas of a reference cycle are written to one Protobuf file (section 15), so the `[proto]`
-keys are expanded once per file: every schema of a cycle gets the value the cycle's first schema by
-name expands to. `package` is settled first, which is why it cannot use `{package}`; the other
-`[proto]` keys then read `{package}` as the file's package. With this file:
+Under the schema layout, the default, the schemas of a reference cycle are written to one Protobuf
+file (section 15), so the `[proto]` keys are expanded once per cycle: every schema of a cycle gets
+the value the cycle's first schema by name expands to. Under the type layout each schema is written
+under its own package, so the `[proto]` keys are expanded for each schema from its own name and its
+own package, and the schemas of a cycle have nothing to agree on. The layout is the run's: the
+proto target's `--proto-layout`, else `[compile] proto_layout`; `schemata config` shows the values
+under the file's. `package` is settled first, which is why it cannot use `{package}`; the other
+`[proto]` keys then read `{package}` as the package so settled. With this file:
 
 ```toml
 [proto]
@@ -3669,14 +3673,17 @@ package = "{schema_}.v1"
 java_package = "com.example.{package}"
 ```
 
-the `cyc.alpha` and `cyc.beta` cycle is written as `cyc_alpha/v1.proto`, with the package
-`cyc_alpha.v1` and `option java_package = "com.example.cyc_alpha.v1";` for both schemas. The keys
-of the other targets are expanded for each schema.
+Under the schema layout, the `cyc.alpha` and `cyc.beta` cycle is written as `cyc_alpha/v1.proto`,
+with the package `cyc_alpha.v1` and `option java_package = "com.example.cyc_alpha.v1";` for both
+schemas. Under the type layout, `cyc.alpha` takes the package `cyc_alpha.v1` and the Java package
+`com.example.cyc_alpha.v1`, and `cyc.beta` takes `cyc_beta.v1` and `com.example.cyc_beta.v1`. The
+keys of the other targets are expanded for each schema in either layout.
 
-A per-schema table for one schema of a cycle gives that schema its own value, just as an attribute
-on its `schema` line would. When that value differs from what the other schemas of the cycle get,
-they disagree, which is the SCH2007 error of section 15. Give every schema of the cycle the same
-value in its own table, or set the key in none of them.
+Under the schema layout, a per-schema table for one schema of a cycle gives that schema its own
+value, just as an attribute on its `schema` line would. When that value differs from what the other
+schemas of the cycle get, they disagree, which is the SCH2007 error of section 15. Give every schema
+of the cycle the same value in its own table, or set the key in none of them. Under the type layout
+each schema's value stands on its own.
 
 ### Where a rejected value is reported
 
