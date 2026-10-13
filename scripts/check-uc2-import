@@ -49,9 +49,10 @@ ROUND_TRIP_TOLERATED = [
 ARG_BUDGET = 100_000
 SCHEMA_LINE = re.compile(r"^schema\s+([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)(.*)$")
 DECLARED_PACKAGE = re.compile(r'@proto\([^)]*\bpackage:\s*"([^"]+)"')
-TOP_LEVEL_DECLARATION = re.compile(r"^(?:model|enum|union|service)\s")
+TOP_LEVEL_DECLARATION = re.compile(r"^(model|enum|union|service)\s+([A-Za-z_][A-Za-z0-9_]*)")
 PACKAGE_LINE = re.compile(r"^package\s+([A-Za-z0-9_.]+)\s*;", re.MULTILINE)
 MOVED_NOTE = re.compile(r" (?:is|are) written under package '[^']*' in (\S+\.proto)$")
+MOVED_DECLARATION = re.compile(r"\b(?:model|enum|union) '([^']+)'")
 BATTLEFIELD_ENTITY = Path("uc2_battlefield_entity") / "battlefield_entity.proto"
 
 
@@ -122,7 +123,9 @@ def check_type_packages(proto_root, protos, schemata_files, report, failures):
     Reads the emitted .proto files, the imported .schemata files and the compile report, writes
     nothing, and reports counts only, so no name from the IEPD reaches the summary. A file shared
     by declarations of several schemas is counted from the SCH2001 note the compiler reports once
-    per such file, which ends with the file's path.
+    per such file, which ends with the file's path and names each moved declaration by its
+    qualified name. A schema whose every top-level declaration moved and that declares no service
+    writes no file of its own, so it owns no package directory.
     """
     if not protos:
         return "skipped"
@@ -139,10 +142,12 @@ def check_type_packages(proto_root, protos, schemata_files, report, failures):
         failures.append(f"type packages: {off} of {len(protos)} files carry a package other than their directory's")
 
     shared = set()
+    moved = set()
     for d in report["diagnostics"]:
         m = MOVED_NOTE.search(d["message"]) if d["code"] == "SCH2001" else None
         if m:
             shared.add(m.group(1))
+            moved.update(MOVED_DECLARATION.findall(d["message"][: m.start()]))
     if len(shared) > 1:
         failures.append(f"type packages: {len(shared)} files hold declarations of more than one schema, at most 1 expected")
 
@@ -150,13 +155,16 @@ def check_type_packages(proto_root, protos, schemata_files, report, failures):
     if not entity.is_file():
         failures.append(f"type packages: {BATTLEFIELD_ENTITY.as_posix()} was not written")
     elif package_of(entity) != "uc2_battlefield_entity":
-        failures.append(f"type packages: {BATTLEFIELD_ENTITY.as_posix()} does not carry package uc2_battlefield_entity;")
+        failures.append(f"type packages: {BATTLEFIELD_ENTITY.as_posix()} does not carry package uc2_battlefield_entity")
 
     owners = set()
     for f in schemata_files:
         lines = Path(f).read_text(encoding="utf-8").splitlines()
         head = next((m for m in map(SCHEMA_LINE.match, lines) if m), None)
-        if head is None or not any(TOP_LEVEL_DECLARATION.match(line) for line in lines):
+        if head is None:
+            continue
+        tops = [m.groups() for m in map(TOP_LEVEL_DECLARATION.match, lines) if m]
+        if all(kind != "service" and f"{head.group(1)}.{name}" in moved for kind, name in tops):
             continue
         declared = DECLARED_PACKAGE.search(head.group(2))
         owners.add(declared.group(1) if declared else head.group(1))
