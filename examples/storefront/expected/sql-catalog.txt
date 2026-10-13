@@ -211,9 +211,9 @@ table catalog.product_variants -- One form of a product that can be bought, such
   constraint fk_product_variants_product FOREIGN KEY (product_id) REFERENCES catalog.product(id) ON DELETE CASCADE
   constraint pk_product_variants PRIMARY KEY (product_id, "position")
 schema common
-table common.problem -- A problem report in the shape of RFC 9457, the body of every error response. Members beyond
-those declared are allowed, as the RFC allows extensions. `instance` stays required because a
-top-level model needs a key.
+table common.problem -- A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,
+`status` and `instance` are required, `instance` because a top-level model needs a key. Members
+beyond those declared are allowed, as the RFC allows extensions.
   column type character varying(2048) not null default 'about:blank'::character varying -- A URI naming the kind of problem; `about:blank` when the status says it all.
   column title character varying(200) not null -- A short summary of the kind of problem, the same for every occurrence.
   column status integer not null -- The HTTP status code of the response.

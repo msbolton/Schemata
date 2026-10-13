@@ -369,7 +369,7 @@
         "additionalProperties": false
       },
       "storefront.common.Problem": {
-        "description": "A problem report in the shape of RFC 9457, the body of every error response. Members beyond\nthose declared are allowed, as the RFC allows extensions. `instance` stays required because a\ntop-level model needs a key.",
+        "description": "A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,\n`status` and `instance` are required, `instance` because a top-level model needs a key. Members\nbeyond those declared are allowed, as the RFC allows extensions.",
         "type": "object",
         "properties": {
           "type": {

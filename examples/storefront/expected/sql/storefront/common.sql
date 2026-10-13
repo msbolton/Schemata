@@ -21,9 +21,9 @@ CREATE TABLE "common"."problem_errors" (
 
 ALTER TABLE "common"."problem_errors" ADD CONSTRAINT "fk_problem_errors_problem" FOREIGN KEY ("problem_instance") REFERENCES "common"."problem" ("instance") ON DELETE CASCADE;
 
-COMMENT ON TABLE "common"."problem" IS 'A problem report in the shape of RFC 9457, the body of every error response. Members beyond
-those declared are allowed, as the RFC allows extensions. `instance` stays required because a
-top-level model needs a key.';
+COMMENT ON TABLE "common"."problem" IS 'A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,
+`status` and `instance` are required, `instance` because a top-level model needs a key. Members
+beyond those declared are allowed, as the RFC allows extensions.';
 COMMENT ON COLUMN "common"."problem"."type" IS 'A URI naming the kind of problem; `about:blank` when the status says it all.';
 COMMENT ON COLUMN "common"."problem"."title" IS 'A short summary of the kind of problem, the same for every occurrence.';
 COMMENT ON COLUMN "common"."problem"."status" IS 'The HTTP status code of the response.';
