@@ -1,0 +1,39 @@
+/// Back-office work on the catalog and on orders, for the company's own tools. They sign in with
+/// OAuth 2.0 client credentials, and each service needs its own scopes.
+schema storefront.admin @openapi(oauth2_token_url: "https://id.example.com/token", auth: oauth2)
+
+import storefront.catalog
+import storefront.common
+import storefront.orders
+
+/// Which variant's stock to change, and to what.
+model SetAvailability { #1 sku string { id, max 64 }  #2 availability Availability }
+
+model ProductId { #1 id uuid { id } }
+
+/// Hands an order to a carrier.
+model Ship {
+  #1 id              uuid   { id }
+  #2 carrier         string { max 50 }
+  #3 tracking_number string { max 100 }
+}
+
+/// Change the catalog.
+@openapi(scopes: "catalog:write")
+service CatalogAdmin {
+  errors { 400 Problem  401 Problem  403 Problem  default Problem }
+  /// Add a product under an id the tool chooses, or replace the one it names.
+  #1 put_product(Product): Product  put "/admin/products/{id}"
+  #2 remove_product(ProductId)  delete "/admin/products/{id}"  errors { 404 Problem }
+  #3 set_availability(SetAvailability)  put "/admin/variants/{sku}/availability" 204
+}
+
+/// Fulfil orders.
+@openapi(scopes: "orders:read orders:write")
+service OrderAdmin {
+  errors { 401 Problem  403 Problem  404 Problem  default Problem }
+  /// Read any customer's order.
+  @openapi(scopes: "orders:read") #1 get_order(OrderId): Order  get "/admin/orders/{id}"
+  /// Record that the order left with a carrier.
+  #2 ship(Ship): Order  post "/admin/orders/{id}/shipments"  errors { 409 Problem }
+}

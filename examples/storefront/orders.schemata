@@ -1,0 +1,81 @@
+/// Checkout and the orders it places.
+schema storefront.orders @openapi(bearer: "JWT", auth: bearer)
+
+import storefront.cart
+import storefront.catalog
+import storefront.common
+import storefront.users
+
+enum OrderStatus { #1 pending #2 paid #3 shipped #4 delivered #5 cancelled #6 refunded }
+
+/// An order checkout placed.
+model Order {
+  #1  id            uuid        { id }
+  /// The number the customer quotes, such as `SF-104223`.
+  #2  number        string      { unique, max 20 }
+  #3  customer      Profile
+  #4  status        OrderStatus = pending
+  #5  lines         Line[]      { minItems 1 }
+  /// The address the order ships to, as it was at checkout.
+  #6  shipping      Address     { embed }
+  #7  subtotal      Money
+  #8  shipping_cost Money
+  #9  tax           Money
+  #10 total         Money
+  #11 placed_at     instant
+
+  /// A variant bought, at the price it had at checkout.
+  model Line {
+    #1 product    Product
+    #2 sku        string  { max 64 }
+    #3 name       string  { max 200 }
+    #4 quantity   int32   { min 1 }
+    #5 unit_price Money
+  }
+}
+
+/// Places an order for everything in the cart.
+model Checkout {
+  /// A key the client makes up, so a retried checkout places one order.
+  #1 idempotency_key  uuid    { id } @openapi(header: "Idempotency-Key")
+  #2 cart             Cart
+  #3 shipping_address Address
+  #4 note             string? { max 500 }
+}
+
+/// The order checkout placed, and where to read it from now on.
+model Placed {
+  /// The URL of the new order.
+  #1 location string { id, max 2048 } @openapi(header: "Location")
+  #2 order    Order
+  #3 number   string { max 20 }
+  #4 total    Money
+}
+
+/// Which orders to list, newest first.
+model ListOrders { #1 status OrderStatus?  #2 cursor Cursor?  #3 limit Limit = 20 }
+
+/// One page of the customer's orders.
+model OrderPage {
+  #1 etag  string     { id, max 64 } @openapi(header: "ETag")
+  #2 items Order[]    { embed }
+  #3 page  PageInfo
+  /// The listing this page answers, with which to ask for the next one.
+  #4 query ListOrders
+}
+
+model OrderId { #1 id uuid { id } }
+
+/// Why the customer cancels.
+model CancelOrder { #1 id uuid { id }  #2 reason string? { max 500 } }
+
+/// Check out, and follow the orders placed.
+service Orders {
+  errors { 400 Problem  401 Problem  default Problem }
+  /// Place an order for the cart. The `Location` header is the new order's URL.
+  #1 checkout(Checkout): Placed  post "/orders" 201  errors { 409 Problem  422 Problem }
+  #2 list(ListOrders): OrderPage  get "/orders"
+  #3 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+  /// Cancel an order that has not shipped.
+  #4 cancel(CancelOrder): Order  post "/orders/{id}/cancel"  errors { 404 Problem  409 Problem }
+}

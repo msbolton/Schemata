@@ -1,0 +1,483 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "storefront.auth",
+    "version": "1.0.0",
+    "description": "Accounts and sessions: sign up, sign in, keep a session alive, and sign out."
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Sign up, sign in, and sign out. Only signing out needs a session."
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "operationId": "Auth_register",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Create an account and start its first session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/storefront.auth.Register"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.auth.Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "Auth_login",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Start a session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/storefront.auth.Login"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.auth.Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "Auth_refresh",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Trade a refresh token for a new session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/storefront.auth.RefreshToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.auth.Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "Auth_logout",
+        "tags": [
+          "Auth"
+        ],
+        "summary": "End the session the refresh token belongs to.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/storefront.auth.RefreshToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "storefront.auth.Register": {
+        "description": "A new account.",
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "pattern": "^[^@]+@[^@]+$",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.auth.Session": {
+        "description": "A session: a short-lived access token, sent as `Authorization: Bearer …`, and the refresh\ntoken that renews it.",
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "token_type": {
+            "type": "string",
+            "default": "Bearer"
+          },
+          "expires_in": {
+            "description": "Seconds until the access token expires.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "refresh_token": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_in",
+          "refresh_token",
+          "user_id"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.common.Problem": {
+        "description": "A problem report in the shape of RFC 9457, the body of every error response. Members beyond\nthose declared are allowed, as the RFC allows extensions. `instance` stays required because a\ntop-level model needs a key.",
+        "type": "object",
+        "properties": {
+          "type": {
+            "description": "A URI naming the kind of problem; `about:blank` when the status says it all.",
+            "type": "string",
+            "maxLength": 2048,
+            "default": "about:blank"
+          },
+          "title": {
+            "description": "A short summary of the kind of problem, the same for every occurrence.",
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "description": "The HTTP status code of the response.",
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "description": "What went wrong this time.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "instance": {
+            "description": "A URI naming this occurrence, to quote when asking for help.",
+            "type": "string",
+            "maxLength": 2048
+          },
+          "errors": {
+            "description": "The request's fields that failed their checks, when it failed on its fields.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/storefront.common.Problem.Violation"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "instance"
+        ]
+      },
+      "storefront.common.Problem.Violation": {
+        "description": "One field of the request and what is wrong with it.",
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.auth.Login": {
+        "description": "The credentials a session starts from.",
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "pattern": "^[^@]+@[^@]+$",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.auth.RefreshToken": {
+        "description": "A refresh token, traded for a new session or given up at sign-out.",
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

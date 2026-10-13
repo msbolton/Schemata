@@ -1,0 +1,153 @@
+SCH2001 field 'SetAvailability.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'ProductId.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Ship.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Ship.carrier': refinements on string { max 50 } are not enforced by Protobuf
+SCH2001 field 'Ship.tracking_number': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Register.email': refinements on string { max 254, match "^[^@]+@[^@]+$" } are not enforced by Protobuf
+SCH2001 field 'Register.password': refinements on string { min 12, max 128 } are not enforced by Protobuf
+SCH2001 field 'Register.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Login.email': refinements on string { max 254, match "^[^@]+@[^@]+$" } are not enforced by Protobuf
+SCH2001 field 'Login.password': refinements on string { min 1, max 128 } are not enforced by Protobuf
+SCH2001 field 'RefreshToken.refresh_token': refinements on string { max 512 } are not enforced by Protobuf
+SCH2001 field 'Session.access_token': refinements on string { max 4096 } are not enforced by Protobuf
+SCH2001 field 'Session.token_type': default "Bearer" is not carried by proto3
+SCH2001 field 'Session.expires_in': refinements on int32 { min 1 } are not enforced by Protobuf
+SCH2001 field 'Session.refresh_token': refinements on string { max 512 } are not enforced by Protobuf
+SCH2001 field 'Session.user_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Cart.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Line.product_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Line.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32 { min 1, max 99 } are not enforced by Protobuf
+SCH2001 field 'AddItem.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'AddItem.product_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'AddItem.quantity': refinements on int32 { min 1, max 99 } are not enforced by Protobuf
+SCH2001 field 'AddItem.quantity': default 1 is not carried by proto3
+SCH2001 field 'SetQuantity.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'SetQuantity.quantity': refinements on int32 { min 1, max 99 } are not enforced by Protobuf
+SCH2001 field 'ItemSku.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Category.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Category.slug': refinements on string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" } are not enforced by Protobuf
+SCH2001 field 'Category.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Category.parent_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'CategoryList.etag': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 enum 'Availability': proto3 requires a zero value; synthesized AVAILABILITY_UNSPECIFIED = 0
+SCH2001 field 'Product.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Product.slug': refinements on string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" } are not enforced by Protobuf
+SCH2001 field 'Product.name': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Product.description': refinements on string { max 5000 } are not enforced by Protobuf
+SCH2001 field 'Product.category_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Product.brand': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Product.variants': refinements on Variant[] { minItems 1 } are not enforced by Protobuf
+SCH2001 field 'Product.images': refinements on string[] { maxItems 20, max 2048 } are not enforced by Protobuf
+SCH2001 field 'Product.rating': refinements on float64 { min 1, max 5 } are not enforced by Protobuf
+SCH2001 field 'Variant.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Variant.size': refinements on string { max 20 } are not enforced by Protobuf
+SCH2001 field 'Variant.color': refinements on string { max 30 } are not enforced by Protobuf
+SCH2001 field 'ProductSlug.slug': refinements on string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" } are not enforced by Protobuf
+SCH2001 enum 'ProductSort': proto3 requires a zero value; synthesized PRODUCT_SORT_UNSPECIFIED = 0
+SCH2001 field 'ProductSearch.q': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'ProductSearch.category': refinements on string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" } are not enforced by Protobuf
+SCH2001 field 'ProductSearch.brand': refinements on string[] { maxItems 10, max 100 } are not enforced by Protobuf
+SCH2001 field 'ProductSearch.brand': a nullable list has no Protobuf representation; lowered to repeated
+SCH2001 field 'ProductSearch.min_price': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'ProductSearch.max_price': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'ProductSearch.sort': default PRODUCT_SORT_RELEVANCE is not carried by proto3
+SCH2001 field 'ProductSearch.cursor': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'ProductSearch.limit': refinements on int32 { min 1, max 100 } are not enforced by Protobuf
+SCH2001 field 'ProductSearch.limit': default 20 is not carried by proto3
+SCH2001 field 'ProductPage.etag': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Money.amount': decimal has no Protobuf representation; lowered to string
+SCH2001 field 'Money.currency': refinements on string { min 3, max 3, match "^[A-Z]{3}$" } are not enforced by Protobuf
+SCH2001 field 'PageInfo.next_cursor': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'PageInfo.total': refinements on int64 { min 0 } are not enforced by Protobuf
+SCH2001 field 'Problem.type': refinements on string { max 2048 } are not enforced by Protobuf
+SCH2001 field 'Problem.type': default "about:blank" is not carried by proto3
+SCH2001 field 'Problem.title': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Problem.status': refinements on int32 { min 400, max 599 } are not enforced by Protobuf
+SCH2001 field 'Problem.detail': refinements on string { max 2000 } are not enforced by Protobuf
+SCH2001 field 'Problem.instance': refinements on string { max 2048 } are not enforced by Protobuf
+SCH2001 field 'Problem.errors': a nullable list has no Protobuf representation; lowered to repeated
+SCH2001 field 'Violation.field': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Violation.message': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 enum 'OrderStatus': proto3 requires a zero value; synthesized ORDER_STATUS_UNSPECIFIED = 0
+SCH2001 field 'Order.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Order.number': refinements on string { max 20 } are not enforced by Protobuf
+SCH2001 field 'Order.customer_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Order.status': default ORDER_STATUS_PENDING is not carried by proto3
+SCH2001 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Protobuf
+SCH2001 field 'Line.product_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Line.sku': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'Line.name': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Line.quantity': refinements on int32 { min 1 } are not enforced by Protobuf
+SCH2001 field 'Checkout.idempotency_key': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Checkout.cart_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Checkout.shipping_address_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Checkout.note': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 field 'Placed.location': refinements on string { max 2048 } are not enforced by Protobuf
+SCH2001 field 'Placed.order_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Placed.number': refinements on string { max 20 } are not enforced by Protobuf
+SCH2001 field 'ListOrders.cursor': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'ListOrders.limit': refinements on int32 { min 1, max 100 } are not enforced by Protobuf
+SCH2001 field 'ListOrders.limit': default 20 is not carried by proto3
+SCH2001 field 'OrderPage.etag': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'OrderId.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'CancelOrder.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'CancelOrder.reason': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 enum 'PaymentStatus': proto3 requires a zero value; synthesized PAYMENT_STATUS_UNSPECIFIED = 0
+SCH2001 field 'Card.token': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Card.brand': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'Card.last4': refinements on string { min 4, max 4, match "^[0-9]{4}$" } are not enforced by Protobuf
+SCH2001 enum 'WalletKind': proto3 requires a zero value; synthesized WALLET_KIND_UNSPECIFIED = 0
+SCH2001 field 'Wallet.token': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'BankTransfer.iban': refinements on string { max 34 } are not enforced by Protobuf
+SCH2001 field 'Payment.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Payment.order_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Payment.failure': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 field 'Pay.idempotency_key': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Pay.order_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'PaymentId.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Refund.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Refund.reason': refinements on string { max 500 } are not enforced by Protobuf
+SCH2001 enum 'NoticeKind': proto3 requires a zero value; synthesized NOTICE_KIND_UNSPECIFIED = 0
+SCH2001 field 'Notice.event_id': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Notice.payment_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Notice.signature': refinements on string { max 512 } are not enforced by Protobuf
+SCH2001 field 'Review.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Review.product_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Review.author_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Review.rating': refinements on int32 { min 1, max 5 } are not enforced by Protobuf
+SCH2001 field 'Review.title': refinements on string { max 120 } are not enforced by Protobuf
+SCH2001 field 'Review.body': refinements on string { max 5000 } are not enforced by Protobuf
+SCH2001 field 'Review.verified': default false is not carried by proto3
+SCH2001 field 'ListReviews.product_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'ListReviews.rating': refinements on int32 { min 1, max 5 } are not enforced by Protobuf
+SCH2001 field 'ListReviews.cursor': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'ListReviews.limit': refinements on int32 { min 1, max 100 } are not enforced by Protobuf
+SCH2001 field 'ListReviews.limit': default 20 is not carried by proto3
+SCH2001 field 'ReviewPage.etag': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'WriteReview.product_id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'WriteReview.rating': refinements on int32 { min 1, max 5 } are not enforced by Protobuf
+SCH2001 field 'WriteReview.title': refinements on string { max 120 } are not enforced by Protobuf
+SCH2001 field 'WriteReview.body': refinements on string { max 5000 } are not enforced by Protobuf
+SCH2001 field 'ReviewId.id': uuid has no Protobuf representation; lowered to string
+SCH2001 enum 'AddressKind': proto3 requires a zero value; synthesized ADDRESS_KIND_UNSPECIFIED = 0
+SCH2001 field 'Profile.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Profile.email': refinements on string { max 254, match "^[^@]+@[^@]+$" } are not enforced by Protobuf
+SCH2001 field 'Profile.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Profile.phone': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'Profile.marketing': default false is not carried by proto3
+SCH2001 field 'Profile.etag': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'UpdateProfile.if_match': refinements on string { max 64 } are not enforced by Protobuf
+SCH2001 field 'UpdateProfile.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'UpdateProfile.phone': refinements on string { max 32 } are not enforced by Protobuf
+SCH2001 field 'Address.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'Address.name': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Address.line1': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Address.line2': refinements on string { max 200 } are not enforced by Protobuf
+SCH2001 field 'Address.city': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Address.region': refinements on string { max 100 } are not enforced by Protobuf
+SCH2001 field 'Address.postal_code': refinements on string { max 20 } are not enforced by Protobuf
+SCH2001 field 'Address.country': refinements on string { min 2, max 2, match "^[A-Z]{2}$" } are not enforced by Protobuf
+SCH2001 field 'Address.is_default': default false is not carried by proto3
+SCH2001 field 'AddressId.id': uuid has no Protobuf representation; lowered to string
+SCH2001 field 'AddressBook.etag': refinements on string { max 64 } are not enforced by Protobuf

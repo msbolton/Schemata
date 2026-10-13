@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package storefront.payments;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "storefront/common.proto";
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_PENDING = 1;
+  PAYMENT_STATUS_AUTHORIZED = 2;
+  PAYMENT_STATUS_CAPTURED = 3;
+  PAYMENT_STATUS_FAILED = 4;
+  PAYMENT_STATUS_REFUNDED = 5;
+}
+
+// A card, held by the provider and named here by its token.
+message Card {
+  string token = 1;  // schemata: string { max 200 }
+  string brand = 2;  // schemata: string { max 32 }
+  string last4 = 3;  // schemata: string { min 4, max 4, match "^[0-9]{4}$" }
+}
+
+enum WalletKind {
+  WALLET_KIND_UNSPECIFIED = 0;
+  WALLET_KIND_APPLE_PAY = 1;
+  WALLET_KIND_GOOGLE_PAY = 2;
+  WALLET_KIND_PAYPAL = 3;
+}
+
+message Wallet {
+  WalletKind kind = 1;
+  string token = 2;  // schemata: string { max 200 }
+}
+
+message BankTransfer {
+  string iban = 1;  // schemata: string { max 34 }
+}
+
+message Method {
+  oneof kind {
+    Card card = 1;
+    Wallet wallet = 2;
+    BankTransfer bank_transfer = 3;
+  }
+}
+
+// A payment for one order.
+message Payment {
+  string id = 1;  // schemata: uuid
+  string order_id = 2;  // schemata: uuid
+  .storefront.common.Money amount = 3;
+  Method method = 4;
+  PaymentStatus status = 5;
+  // Why the provider declined, when it did.
+  optional string failure = 6;  // schemata: string? { max 500 }
+  .google.protobuf.Timestamp created_at = 7;
+}
+
+// Pays for an order.
+message Pay {
+  // A key the client makes up, so a retried payment charges once.
+  string idempotency_key = 1;  // schemata: uuid
+  string order_id = 2;  // schemata: uuid
+  Method method = 3;
+}
+
+message PaymentId {
+  string id = 1;  // schemata: uuid
+}
+
+// Gives some or all of a captured payment back.
+message Refund {
+  string id = 1;  // schemata: uuid
+  // How much to give back; the whole payment when left out.
+  .storefront.common.Money amount = 2;  // schemata: Money?
+  optional string reason = 3;  // schemata: string? { max 500 }
+}
+
+enum NoticeKind {
+  NOTICE_KIND_UNSPECIFIED = 0;
+  NOTICE_KIND_AUTHORIZED = 1;
+  NOTICE_KIND_CAPTURED = 2;
+  NOTICE_KIND_FAILED = 3;
+  NOTICE_KIND_REFUNDED = 4;
+}
+
+// What the provider reports about a payment.
+message Notice {
+  string event_id = 1;  // schemata: string { max 100 }
+  NoticeKind kind = 2;
+  string payment_id = 3;  // schemata: uuid
+  .google.protobuf.Timestamp occurred_at = 4;
+  // The provider's signature over the body.
+  string signature = 5;  // schemata: string { max 512 }
+}
+
+// Pay for orders and refund them.
+service Payments {
+  rpc Pay(.storefront.payments.Pay) returns (Payment);  // schemata: post "/orders/{order_id}/payments"
+  rpc Get(PaymentId) returns (Payment);  // schemata: get "/payments/{id}"
+  rpc Refund(.storefront.payments.Refund) returns (Payment);  // schemata: post "/payments/{id}/refunds"
+  // Where the provider posts its notices. It signs in with the shared secret, not a session.
+  rpc Notify(Notice) returns (.google.protobuf.Empty);  // schemata: post "/payments/notices"
+}

@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:storefront.payments"
+           xmlns:ns1="urn:schemata:storefront.common"
+           targetNamespace="urn:schemata:storefront.payments"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:storefront.common" schemaLocation="common.xsd"/>
+  <xs:simpleType name="PaymentStatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="authorized"/>
+      <xs:enumeration value="captured"/>
+      <xs:enumeration value="failed"/>
+      <xs:enumeration value="refunded"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="CardType">
+    <xs:annotation>
+      <xs:documentation>A card, held by the provider and named here by its token.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="token">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="brand">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="32"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="last4">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="4"/>
+            <xs:maxLength value="4"/>
+            <xs:pattern value="[0-9]{4}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="WalletKindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="apple_pay"/>
+      <xs:enumeration value="google_pay"/>
+      <xs:enumeration value="paypal"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="WalletType">
+    <xs:sequence>
+      <xs:element name="kind" type="tns:WalletKindType"/>
+      <xs:element name="token">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="BankTransferType">
+    <xs:sequence>
+      <xs:element name="iban">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="34"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MethodType">
+    <xs:choice>
+      <xs:element name="card" type="tns:CardType"/>
+      <xs:element name="wallet" type="tns:WalletType"/>
+      <xs:element name="bank_transfer" type="tns:BankTransferType"/>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="PaymentType">
+    <xs:annotation>
+      <xs:documentation>A payment for one order.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="order_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="amount" type="ns1:MoneyType"/>
+      <xs:element name="method" type="tns:MethodType"/>
+      <xs:element name="status" type="tns:PaymentStatusType"/>
+      <xs:element name="failure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Why the provider declined, when it did.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="500"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="created_at" type="xs:dateTime"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PayType">
+    <xs:annotation>
+      <xs:documentation>Pays for an order.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="idempotency_key">
+        <xs:annotation>
+          <xs:documentation>A key the client makes up, so a retried payment charges once.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="order_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="method" type="tns:MethodType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PaymentIdType">
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RefundType">
+    <xs:annotation>
+      <xs:documentation>Gives some or all of a captured payment back.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="amount" type="ns1:MoneyType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>How much to give back; the whole payment when left out.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="reason" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="500"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="NoticeKindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="authorized"/>
+      <xs:enumeration value="captured"/>
+      <xs:enumeration value="failed"/>
+      <xs:enumeration value="refunded"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="NoticeType">
+    <xs:annotation>
+      <xs:documentation>What the provider reports about a payment.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="event_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="kind" type="tns:NoticeKindType"/>
+      <xs:element name="payment_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="occurred_at" type="xs:dateTime"/>
+      <xs:element name="signature">
+        <xs:annotation>
+          <xs:documentation>The provider's signature over the body.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="512"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="card" type="tns:CardType"/>
+  <xs:element name="wallet" type="tns:WalletType"/>
+  <xs:element name="bank_transfer" type="tns:BankTransferType"/>
+  <xs:element name="payment" type="tns:PaymentType"/>
+  <xs:element name="pay" type="tns:PayType"/>
+  <xs:element name="payment_id" type="tns:PaymentIdType"/>
+  <xs:element name="refund" type="tns:RefundType"/>
+  <xs:element name="notice" type="tns:NoticeType"/>
+</xs:schema>

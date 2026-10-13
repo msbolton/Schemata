@@ -1,0 +1,57 @@
+/// Product reviews: anyone may read them, and a signed-in customer may write one.
+schema storefront.reviews @openapi(bearer: "JWT", auth: bearer)
+
+import storefront.catalog
+import storefront.common
+import storefront.users
+
+/// A customer's review of a product.
+model Review {
+  #1 id         uuid    { id }
+  #2 product    Product
+  #3 author     Profile
+  #4 rating     int32   { min 1, max 5 }
+  #5 title      string  { max 120 }
+  #6 body       string? { max 5000 }
+  /// Whether the author bought the product here.
+  #7 verified   bool    = false
+  #8 created_at instant
+}
+
+/// Which reviews of a product to list, newest first.
+model ListReviews {
+  #1 product_id uuid    { id }
+  #2 rating     int32?  { min 1, max 5 }
+  #3 cursor     Cursor?
+  #4 limit      Limit   = 20
+}
+
+/// One page of a product's reviews.
+model ReviewPage {
+  #1 etag  string   { id, max 64 } @openapi(header: "ETag")
+  #2 items Review[] { embed }
+  #3 page  PageInfo
+}
+
+/// A new review of a product.
+model WriteReview {
+  #1 product_id uuid    { id }
+  #2 rating     int32   { min 1, max 5 }
+  #3 title      string  { max 120 }
+  #4 body       string? { max 5000 }
+}
+
+model ReviewId { #1 id uuid { id } }
+
+/// Read and write reviews.
+service Reviews {
+  errors { 400 Problem  404 Problem  default Problem }
+  @openapi(auth: none) #1 list(ListReviews): ReviewPage  get "/products/{product_id}/reviews"
+  /// Review a product; a customer reviews each product once.
+  #2 write(WriteReview): Review  post "/products/{product_id}/reviews" 201  errors {
+    401 Problem
+    409 Problem
+  }
+  /// Remove one of the customer's own reviews.
+  #3 remove(ReviewId)  delete "/reviews/{id}"  errors { 401 Problem  403 Problem }
+}
