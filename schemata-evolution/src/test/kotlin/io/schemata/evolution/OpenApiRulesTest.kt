@@ -4,6 +4,7 @@ import io.schemata.core.ir.Schema
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class OpenApiRulesTest {
     /** Every change between [old] and [new], each with its `openapi` verdict. */
@@ -444,5 +445,306 @@ class OpenApiRulesTest {
         val new = analysed(base + "service S { #1 get(A): B  #5 post(A): B }")
         val kinds = judged(old, new).map { it.first.kind }
         assertEquals(listOf("operation.added", "operation.removed"), kinds)
+    }
+
+    @Test
+    fun `a success code changed is breaking`() {
+        val old = analysed(base + "service S { #1 put(A): B  post \"/a\" 201 }")
+        val new = analysed(base + "service S { #1 put(A): B  post \"/a\" 202 }")
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.put: the success code changed from 201 to 202 breaks clients that check " +
+                    "for the old one",
+                "add a new operation instead of changing this one's success code",
+            ),
+            only(old, new),
+        )
+    }
+
+    @Test
+    fun `an error added is a note, removed compatible and a body changed breaking`() {
+        val old =
+            analysed(base + "service S { #1 put(A): B  post \"/a\"  errors { 404 A  409 A  500 } }")
+        val new =
+            analysed(base + "service S { #1 put(A): B  post \"/a\"  errors { 404 A  409 B  503 } }")
+        assertEquals(
+            listOf(
+                "operation.errorChanged" to
+                    Verdict.Breaking(
+                        "t.S.put: the 409 response changed from A to B breaks clients that read " +
+                            "the old one",
+                        "add a new operation instead of changing this one's error responses",
+                    ),
+                "operation.errorAdded" to
+                    Verdict.Note(
+                        "t.S.put: the operation can now answer 503; a client may not handle it",
+                        "tell clients about the new response before the operation sends it",
+                    ),
+                "operation.errorRemoved" to Verdict.Compatible,
+            ),
+            judged(old, new).map { it.first.kind to it.second },
+        )
+    }
+
+    @Test
+    fun `an error body is reachable from services and judged as JSON Schema judges it`() {
+        val old =
+            analysed(
+                "schema t\n\nmodel A { #1 id uuid }\n\nmodel P { #1 detail string }\n\n" +
+                    "service S { errors { 404 P }  #1 get(A): A  get \"/a\" }"
+            )
+        val new =
+            analysed(
+                "schema t\n\nmodel A { #1 id uuid }\n\nmodel P { #1 detail int32 }\n\n" +
+                    "service S { errors { 404 P }  #1 get(A): A  get \"/a\" }"
+            )
+        val ctx = ChangeContext(old, new)
+        assertTrue(ctx.reachableFromServices(Side.OLD, qn("t", "P")))
+        val change = Differ.diff(old, new).single()
+        assertIs<FieldTypeChanged>(change)
+        assertEquals(JsonSchemaRules.classify(change, ctx), OpenApiRules.classify(change, ctx))
+        assertIs<Verdict.Breaking>(OpenApiRules.classify(change, ctx))
+    }
+
+    private val headerBase = "schema t\n\nmodel Inner { #1 id uuid }\n"
+
+    private fun headers(request: String, response: String) =
+        analysed(
+            headerBase +
+                "\nmodel In { #1 id uuid  $request }\n\nmodel Out { #1 id uuid  $response }\n\n" +
+                "model Holder { #1 in In }\n\nservice S { #1 put(In): Out  post \"/a\" }"
+        )
+
+    @Test
+    fun `a field moved into or out of a header or its header renamed is breaking`() {
+        val plain = headers("#2 key string?", "#2 tag string?")
+        val keyed =
+            headers("#2 key string? @openapi(header: \"Idempotency-Key\")", "#2 tag string?")
+        assertEquals(
+            Verdict.Breaking(
+                "t.In.key: @openapi(header) added, so field 'key' moves into the Idempotency-Key " +
+                    "header, which breaks clients that send or read it where it was",
+                "add a new field for the header instead of moving this one",
+            ),
+            only(plain, keyed),
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t.In.key: @openapi(header) removed, so field 'key' moves out of the " +
+                    "Idempotency-Key header, which breaks clients that send or read the header",
+                "keep @openapi(header: \"Idempotency-Key\")",
+            ),
+            only(keyed, plain),
+        )
+        val renamed = headers("#2 key string? @openapi(header: \"X-Key\")", "#2 tag string?")
+        assertEquals(
+            Verdict.Breaking(
+                "t.In.key: @openapi(header) changed, so the Idempotency-Key header is renamed " +
+                    "to X-Key, which breaks clients that send or read the old one",
+                "keep @openapi(header: \"Idempotency-Key\")",
+            ),
+            only(keyed, renamed),
+        )
+        val recased =
+            headers("#2 key string? @openapi(header: \"idempotency-key\")", "#2 tag string?")
+        assertEquals(Verdict.Compatible, only(keyed, recased))
+        val tagged = headers("#2 key string?", "#2 tag string? @openapi(header: \"X-Tag\")")
+        assertIs<Verdict.Breaking>(only(plain, tagged))
+    }
+
+    @Test
+    fun `a header on a model no operation takes or answers with changes nothing`() {
+        val old = analysed(headerBase + "\nmodel Loose { #1 id uuid  #2 key string? }\n")
+        val new =
+            analysed(
+                headerBase +
+                    "\nmodel Loose { #1 id uuid  #2 key string? @openapi(header: \"X-Key\") }\n"
+            )
+        assertEquals(Verdict.Compatible, only(old, new))
+    }
+
+    @Test
+    fun `a header added with a new field breaks only when a request requires it`() {
+        val old = headers("#2 note string?", "#2 tag string?")
+        assertEquals(
+            Verdict.Breaking(
+                "t.In.key: a required request header X-Key was added, which breaks clients " +
+                    "that do not send it",
+                "make the field nullable or give it a default, so the header is optional",
+            ),
+            only(
+                old,
+                headers(
+                    "#2 note string?  #3 key string @openapi(header: \"X-Key\")",
+                    "#2 tag string?",
+                ),
+            ),
+        )
+        assertEquals(
+            Verdict.Compatible,
+            only(
+                old,
+                headers(
+                    "#2 note string?  #3 key string? @openapi(header: \"X-Key\")",
+                    "#2 tag string?",
+                ),
+            ),
+        )
+        assertEquals(
+            Verdict.Compatible,
+            only(
+                old,
+                headers(
+                    "#2 note string?",
+                    "#2 tag string?  #3 etag string @openapi(header: \"ETag\")",
+                ),
+            ),
+        )
+    }
+
+    private fun secured(line: String, service: String) =
+        analysed(
+            "schema t @openapi(bearer, basic, oauth2_token_url: \"https://a.example.com/token\"" +
+                "$line)\n\nmodel A { #1 id uuid }\n\n$service"
+        )
+
+    private val oneGet = "service S { #1 get(A): A  get \"/a\" }"
+
+    @Test
+    fun `a requirement added tightened or given scopes is breaking`() {
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(auth) added, so operation 'S.get' now requires bearer, which breaks " +
+                    "clients without those credentials",
+                "keep the old requirement on these operations, or require the new one on new " +
+                    "operations",
+            ),
+            only(secured("", oneGet), secured(", auth: bearer", oneGet)),
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(auth) changed, so operation 'S.get' no longer accepts basic, which " +
+                    "breaks clients without those credentials",
+                "keep the old requirement on these operations, or require the new one on new " +
+                    "operations",
+            ),
+            only(secured(", auth: (bearer, basic)", oneGet), secured(", auth: bearer", oneGet)),
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(auth) changed, so operation 'S.get' no longer accepts bearer, which " +
+                    "breaks clients without those credentials",
+                "keep the old requirement on these operations, or require the new one on new " +
+                    "operations",
+            ),
+            only(secured(", auth: bearer", oneGet), secured(", auth: basic", oneGet)),
+        )
+        val read =
+            "service S { @openapi(auth: oauth2, scopes: \"a:read\") #1 get(A): A  get \"/a\" }"
+        val write =
+            "service S { @openapi(auth: oauth2, scopes: \"a:read a:write\") #1 get(A): A  get \"/a\" }"
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.get: @openapi(scopes) changed, so operation 'get' now needs the scopes " +
+                    "a:write, which breaks clients without those credentials",
+                "keep the old requirement on these operations, or require the new one on new " +
+                    "operations",
+            ),
+            only(secured("", read), secured("", write)),
+        )
+    }
+
+    @Test
+    fun `a requirement relaxed is compatible`() {
+        assertEquals(
+            Verdict.Compatible,
+            only(secured(", auth: bearer", oneGet), secured(", auth: (bearer, basic)", oneGet)),
+        )
+        assertEquals(
+            Verdict.Compatible,
+            only(
+                secured(", auth: bearer", oneGet),
+                secured(
+                    ", auth: bearer",
+                    "service S { @openapi(auth: none) #1 get(A): A  get \"/a\" }",
+                ),
+            ),
+        )
+        assertEquals(
+            Verdict.Compatible,
+            only(
+                secured(
+                    "",
+                    "service S { @openapi(auth: oauth2, scopes: \"a:read a:write\") #1 get(A): A  get \"/a\" }",
+                ),
+                secured(
+                    "",
+                    "service S { @openapi(auth: oauth2, scopes: \"a:read\") #1 get(A): A  get \"/a\" }",
+                ),
+            ),
+        )
+        val service =
+            "@openapi(auth: basic) service S { @openapi(auth: bearer) #1 get(A): A  get \"/a\" }"
+        assertEquals(
+            Verdict.Compatible,
+            only(secured(", auth: bearer", service), secured(", auth: basic", service)),
+        )
+    }
+
+    @Test
+    fun `scheme keys judge removal while required, URL and format changes and additions`() {
+        val bearerOnly =
+            "schema t @openapi(bearer, auth: bearer)\n\nmodel A { #1 id uuid }\n\n$oneGet"
+        val withBasic =
+            "schema t @openapi(bearer, basic, auth: bearer)\n\nmodel A { #1 id uuid }\n\n$oneGet"
+        val basicRequired =
+            "schema t @openapi(bearer, basic, auth: basic)\n\nmodel A { #1 id uuid }\n\n$oneGet"
+        val basicGone =
+            "schema t @openapi(bearer, auth: basic)\n\nmodel A { #1 id uuid }\n\n$oneGet"
+        assertEquals(Verdict.Compatible, only(analysed(bearerOnly), analysed(withBasic)))
+        assertEquals(Verdict.Compatible, only(analysed(withBasic), analysed(bearerOnly)))
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(basic) removed, so the basic scheme is gone while operations " +
+                    "require it, which breaks clients that authenticate with it",
+                "keep the scheme until no operation requires it",
+            ),
+            only(analysed(basicRequired), analysed(basicGone)),
+        )
+        val jwt =
+            "schema t @openapi(bearer: \"JWT\", auth: bearer)\n\nmodel A { #1 id uuid }\n\n$oneGet"
+        assertEquals(
+            Verdict.Note(
+                "t: the bearer token format changed from none to JWT",
+                "tell clients which token format to send",
+            ),
+            only(analysed(bearerOnly), analysed(jwt)),
+        )
+        fun token(url: String) =
+            analysed(
+                "schema t @openapi(oauth2_token_url: \"$url\", auth: oauth2)\n\n" +
+                    "model A { #1 id uuid }\n\n$oneGet"
+            )
+        assertEquals(
+            Verdict.Note(
+                "t: @openapi(oauth2_token_url) changed from \"https://a.example.com/token\" to " +
+                    "\"https://b.example.com/token\"; clients configured with the old URL must move",
+                "keep the old URL answering until every client uses the new one",
+            ),
+            only(token("https://a.example.com/token"), token("https://b.example.com/token")),
+        )
+        fun apiKey(value: String) =
+            analysed(
+                "schema t @openapi(api_key: \"$value\", auth: api_key)\n\n" +
+                    "model A { #1 id uuid }\n\n$oneGet"
+            )
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(api_key) changed from \"header X-Key\" to \"query key\", which " +
+                    "breaks clients that send the key where it was",
+                "keep @openapi(api_key: \"header X-Key\")",
+            ),
+            only(apiKey("header X-Key"), apiKey("query key")),
+        )
     }
 }

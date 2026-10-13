@@ -776,4 +776,74 @@ class DifferTest {
             Differ.diff(old, new).map { "${it.kind} ${it.path}" },
         )
     }
+
+    @Test
+    fun `a success code declared on either side is compared and the default rule is not`() {
+        val old =
+            analysed(
+                opBase +
+                    "service S { #1 put(A): B  post \"/a\"  #2 add(A): B  post \"/b\" 201  " +
+                    "#3 drop(A): B  post \"/c\" }"
+            )
+        val new =
+            analysed(
+                opBase +
+                    "service S { #1 put(A): B  post \"/a\" 200  #2 add(A): B  post \"/b\" 202  " +
+                    "#3 drop(A)  post \"/c\" }"
+            )
+        val changes = Differ.diff(old, new)
+        assertEquals(
+            listOf("operation.statusChanged t.S.add", "operation.responseChanged t.S.drop"),
+            changes.map { "${it.kind} ${it.path}" },
+        )
+        val status = changes.filterIsInstance<OperationStatusChanged>().single()
+        assertEquals(201 to 202, status.from to status.to)
+    }
+
+    @Test
+    fun `error responses are compared by code on the effective list`() {
+        val old =
+            analysed(
+                opBase +
+                    "service S { errors { 400 A  500 }  #1 get(A): B  get \"/a\"  errors { 404 A }  " +
+                    "#2 put(A): B  post \"/b\" }"
+            )
+        val new =
+            analysed(
+                opBase +
+                    "service S { errors { 400 B  503 }  " +
+                    "#1 get(A): B  get \"/a\"  errors { 404 A  400 A }  " +
+                    "#2 put(A): B  post \"/b\"  errors { default A } }"
+            )
+        val changes = Differ.diff(old, new)
+        assertEquals(
+            listOf(
+                "operation.errorAdded t.S.get",
+                "operation.errorRemoved t.S.get",
+                "operation.errorChanged t.S.put",
+                "operation.errorAdded t.S.put",
+                "operation.errorAdded t.S.put",
+                "operation.errorRemoved t.S.put",
+            ),
+            changes.map { "${it.kind} ${it.path}" },
+        )
+        val changed = changes.filterIsInstance<OperationErrorChanged>().single()
+        assertEquals(400, changed.code)
+        assertEquals(qn("t", "A") to qn("t", "B"), changed.from to changed.to)
+        assertEquals(
+            listOf(503, 503, null),
+            changes.filterIsInstance<OperationErrorAdded>().map { it.error.code },
+        )
+        assertEquals(
+            listOf(500, 500),
+            changes.filterIsInstance<OperationErrorRemoved>().map { it.error.code },
+        )
+    }
+
+    @Test
+    fun `a service clause on a service without operations reports nothing`() {
+        val old = analysed(opBase + "service S { errors { 400 A } }")
+        val new = analysed(opBase + "service S { errors { 400 B  500 } }")
+        assertEquals(emptyList(), Differ.diff(old, new))
+    }
 }

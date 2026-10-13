@@ -69,7 +69,11 @@ object SqlRules : Rulebook {
             is OperationMoved,
             is OperationRequestChanged,
             is OperationResponseChanged,
-            is OperationBindingChanged -> Verdict.Compatible
+            is OperationBindingChanged,
+            is OperationStatusChanged,
+            is OperationErrorAdded,
+            is OperationErrorRemoved,
+            is OperationErrorChanged -> Verdict.Compatible
         }
 
     private fun namespaceRemoved(change: NamespaceRemoved, ctx: ChangeContext): Verdict =

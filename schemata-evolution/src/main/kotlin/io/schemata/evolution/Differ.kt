@@ -19,7 +19,9 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.declaresKey
+import io.schemata.core.ir.effectiveErrors
 import io.schemata.core.ir.selfAndNested
+import io.schemata.core.ir.successStatus
 import io.schemata.lang.Span
 
 /**
@@ -349,7 +351,8 @@ object Differ {
 
     /**
      * Payloads and bindings are plain data, so any difference in type, streaming, verb, or path
-     * shows.
+     * shows. The success code is compared when either side declares one; otherwise it follows the
+     * response, whose change already says so.
      */
     private fun operation(
         oldService: Service,
@@ -366,6 +369,12 @@ object Differ {
             out += OperationResponseChanged(p, new.span, service, new, old.response, new.response)
         if (old.binding != new.binding)
             out += OperationBindingChanged(p, new.span, service, new, old.binding, new.binding)
+        if (old.status != null || new.status != null) {
+            val from = old.successStatus()
+            val to = new.successStatus()
+            if (from != to) out += OperationStatusChanged(p, new.span, service, new, from, to)
+        }
+        errors(p, oldService, service, old, new, out)
         annotations(
             p,
             new.nameSpan,
@@ -376,6 +385,47 @@ object Differ {
             out,
         )
         if (old.doc != new.doc) out += DocChanged(p, new.nameSpan, OperationOwner(service, new))
+    }
+
+    /**
+     * Error responses compare by code on each side's effective list, the service's clause merged
+     * with the operation's: a code only NEW lists is added, a code only OLD lists is removed, and a
+     * code both list whose body differs is changed, in NEW's order and then the removals. A
+     * service's clause therefore shows on each of its operations.
+     */
+    private fun errors(
+        path: String,
+        oldService: Service,
+        service: Service,
+        old: Operation,
+        new: Operation,
+        out: MutableList<Change>,
+    ) {
+        val before = effectiveErrors(oldService, old)
+        val after = effectiveErrors(service, new)
+        val oldByCode = before.associateBy { it.code }
+        after.forEach { response ->
+            val previous = oldByCode[response.code]
+            when {
+                response.code !in oldByCode ->
+                    out += OperationErrorAdded(path, new.span, service, new, response)
+                previous?.body != response.body ->
+                    out +=
+                        OperationErrorChanged(
+                            path,
+                            new.span,
+                            service,
+                            new,
+                            response.code,
+                            previous?.body,
+                            response.body,
+                        )
+            }
+        }
+        val newCodes = after.map { it.code }.toSet()
+        before
+            .filter { it.code !in newCodes }
+            .forEach { out += OperationErrorRemoved(path, new.span, service, new, it) }
     }
 
     internal fun reservedOf(decl: TypeDecl): Reserved? =
