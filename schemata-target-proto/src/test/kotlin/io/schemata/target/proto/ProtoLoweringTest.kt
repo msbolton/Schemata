@@ -2966,6 +2966,106 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a same package scope takes one value per option as a schema layout unit does`() {
+        val a =
+            "schema a @proto(package: \"p.v1\") @proto(java_package: \"com.a\") " +
+                "@proto(java_multiple_files: true)\n\nimport b\n\nmodel Xa { #1 y b.Yb? }\n"
+        val b =
+            "schema b @proto(package: \"p.v1\") @proto(java_package: \"com.b\")\n\n" +
+                "import c\n\nmodel Yb { #1 z c.Zc? }\n"
+        val c = "schema c\n\nimport a\n\nmodel Zc { #1 x a.Xa? }\n"
+        val conflict =
+            "b.schemata:1 SCH2007 schemas a and b reference each other " +
+                "but declare java_package 'com.a' and 'com.b'"
+        assertEquals(listOf(conflict), lower(a, b, c).located().filter { "SCH2007" in it })
+        val lowered = lowerTypes(a, b, c)
+        assertEquals(listOf(conflict), lowered.located().filter { "SCH2007" in it })
+        // b shares a's package, so its declaration is not moved: only c's is.
+        assertEquals(
+            listOf(
+                "c.schemata:5 SCH2001 model 'c.Zc' is written under package 'p.v1' in " +
+                    "p/v1/xa.proto"
+            ),
+            lowered.located().filter { "written under package" in it },
+        )
+    }
+
+    @Test
+    fun `same package schemas without a type cycle take one value per option`() {
+        fun sources(alpha: String, beta: String) =
+            arrayOf(
+                "schema a @proto(package: \"p\") @proto(java_package: \"$alpha\")\n\n" +
+                    "import b\n\nmodel Order { #1 customer b.Customer }\n\n" +
+                    "model Note { #1 text string }\n",
+                "schema b @proto(package: \"p\") @proto(java_package: \"$beta\")\n\n" +
+                    "import a\n\nmodel Customer { #1 note a.Note? }\n",
+            )
+        val differing = lowerTypes(*sources("com.a", "com.b"))
+        assertEquals(
+            listOf(
+                "b.schemata:1 SCH2007 schemas a and b reference each other " +
+                    "but declare java_package 'com.a' and 'com.b'"
+            ),
+            differing.located(),
+        )
+        val agreeing = lowerTypes(*sources("com.p", "com.p"))
+        assertEquals(emptyList(), agreeing.codes())
+        assertEquals(
+            listOf("p/customer.proto", "p/note.proto", "p/order.proto"),
+            agreeing.model.files.map { it.path },
+        )
+        assertTrue(agreeing.model.files.all { it.options == listOf("java_package" to "\"com.p\"") })
+        assertNull(agreeing.protocErrors())
+    }
+
+    @Test
+    fun `a same package scope checks every wrapper class against every declaration`() {
+        val option = "@proto(package: \"p\") @proto(java_multiple_files: true)"
+        val lowered =
+            lowerTypes(
+                "schema a $option\n\nimport b\n\nmodel Order { #1 thing b.Thing }\n\n" +
+                    "model Note { #1 text string }\n",
+                "schema b $option\n\nimport a\n\nmodel Thing { #1 note a.Note? }\n\n" +
+                    "model OrderProto { #1 x bool }\n",
+            )
+        assertEquals(
+            listOf(
+                "b.schemata:7 SCH2004 model 'OrderProto' and the Java class of order.proto " +
+                    "both lower to 'OrderProto'"
+            ),
+            lowered.located(),
+        )
+    }
+
+    @Test
+    fun `a composite key of a moved model is referenced in its own package`() {
+        val lowered =
+            lowerTypes(
+                "schema alpha\n\nimport beta\n\n" +
+                    "model Seat {\n  #1 row int32\n  #2 num int32\n  #3 act beta.Act?\n\n" +
+                    "  @@id(row, num)\n}\n",
+                "schema beta\n\nimport alpha\n\nmodel Act { #1 seat alpha.Seat { embed } }\n",
+                "schema other\n\nimport alpha\n\nmodel Ticket { #2 seat alpha.Seat }\n",
+            )
+        // Seat is moved into the host's file; its key record stays in its own package.
+        assertEquals(
+            listOf("Seat", "Act"),
+            lowered.file("beta/act.proto").declarations.map { it.name },
+        )
+        assertEquals(
+            listOf("SeatKey"),
+            lowered.file("alpha/seat_key.proto").declarations.map { it.name },
+        )
+        val ticket = lowered.file("other/ticket.proto")
+        assertEquals(listOf("alpha/seat_key.proto"), ticket.imports)
+        assertEquals(
+            ProtoType.Named(".alpha.SeatKey"),
+            message(ticket, "Ticket").fields.single().type,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
     fun `the file is named by the minimum name after renames`() {
         val lowered =
             lowerTypes(

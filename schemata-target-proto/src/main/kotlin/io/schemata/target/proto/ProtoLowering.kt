@@ -205,7 +205,8 @@ object ProtoLowering {
 
     /**
      * Reports a file option two members of a merged unit declare differently: they share one file,
-     * which holds one value per option, so that is an error at the later member.
+     * or under the type layout one package, which holds one value per option, so that is an error
+     * at the later member.
      */
     private fun optionConflict(
         conflict: ProtoFileOptions.Conflict,
@@ -464,16 +465,18 @@ object ProtoLowering {
         /**
          * protoc names a file's Java wrapper class after the file, and with `java_multiple_files` a
          * message whose name differs from it only by case would be written to the same Java file
-         * name, which a case-insensitive file system holds once. So under the type layout a file
-         * whose [host] declares `java_multiple_files: true` names its wrapper itself, unless the
-         * host declares `java_outer_classname`, which only a schema hosting one file may.
+         * name, which a case-insensitive file system holds once. So under the type layout every
+         * file of a scope whose options set `java_multiple_files: true` names its wrapper itself,
+         * unless the scope's options set `java_outer_classname`, which only a scope writing one
+         * file may.
          */
-        private fun namesWrappers(host: Namespace): Boolean =
+        private val namesWrappers: Boolean by lazy {
             layout == ProtoLayout.TYPE &&
-                ProtoFileOptions.of(listOf(host)).values.let {
+                ProtoFileOptions.of(unit).values.let {
                     it["java_multiple_files"] == AnnotationValue.Bool(true) &&
                         "java_outer_classname" !in it
                 }
+        }
 
         /**
          * [decl]'s emitted name: its valid `@proto(name)` override, else the name it was given to
@@ -538,21 +541,18 @@ object ProtoLowering {
         fun lower(): List<ProtoFile> {
             unit.members.forEach { declaredPackage(it) }
             unit.members.forEach { declaredOptions(it) }
-            if (layout == ProtoLayout.TYPE) {
-                unit.members
-                    .filter { member -> files.count { it.host.name == member.name } > 1 }
-                    .forEach { outerClassname(it) }
+            if (layout == ProtoLayout.TYPE && files.size > 1) {
+                unit.members.forEach { outerClassname(it) }
             }
-            // Under the schema layout the members share their file, so each option takes one value
-            // across the unit; under the type layout each file takes its host schema's options.
-            val unitOptions =
-                if (layout == ProtoLayout.SCHEMA) {
-                    val resolved = ProtoFileOptions.of(unit)
-                    resolved.conflicts.forEach { optionConflict(it, diagnostics) }
-                    literals(resolved.values)
-                } else {
-                    emptyMap()
-                }
+            // Each option takes one value across the unit, reported once if its members disagree.
+            // Under the schema layout the members share their file. Under the type layout they
+            // share one package, and the importer reads a package back as one schema with one
+            // value per option, so files of one package that disagreed could not be compiled back
+            // from their import. A file holding declarations moved from another scope takes this
+            // scope's options, never theirs.
+            val resolved = ProtoFileOptions.of(unit)
+            resolved.conflicts.forEach { optionConflict(it, diagnostics) }
+            val unitOptions = literals(resolved.values)
             // Every file of the unit is one package scope, and services share it with messages
             // and enums. An invalid service override is reported before the declarations' own.
             val serviceSymbols =
@@ -565,16 +565,13 @@ object ProtoLowering {
                 current = file.path
                 val declarations = file.declarations.map { decl(it) }
                 val services = file.services.map { service(it, serviceNames.getValue(it)) }
-                val options =
-                    if (layout == ProtoLayout.SCHEMA) unitOptions
-                    else literals(ProtoFileOptions.of(listOf(file.host)).values)
                 ProtoFile(
                     path = file.path,
                     packageName = file.scope.packageName,
                     imports = imports.toList(),
                     declarations = declarations,
                     services = services,
-                    options = fileOptions(options, file),
+                    options = fileOptions(unitOptions, file),
                 )
             }
         }
@@ -584,15 +581,15 @@ object ProtoLowering {
             values.mapValues { (_, value) -> optionLiteral(value) }
 
         /**
-         * [options] as [file] writes them, in key order: a wrapper class name the file's host
-         * chooses itself takes `java_outer_classname`'s place, after `java_package`.
+         * [options] as [file] writes them, in key order: a wrapper class name the file chooses
+         * itself takes `java_outer_classname`'s place, after `java_package`.
          */
         private fun fileOptions(
             options: Map<String, String>,
             file: TypeFile,
         ): List<Pair<String, String>> =
             ProtoFileOptions.keys.mapNotNull { key ->
-                if (namesWrappers(file.host) && key.name == "java_outer_classname") {
+                if (namesWrappers && key.name == "java_outer_classname") {
                     key.name to SchemataText.string(wrapper(file))
                 } else {
                     options[key.name]?.let { key.name to it }
@@ -630,8 +627,8 @@ object ProtoLowering {
         /**
          * Reports the declarations of other scopes' schemas that [file] holds. Each references a
          * declaration of the file's host schema in a cycle, and protoc rejects files that import
-         * each other, so it is written in the host's file, under the host's package and with the
-         * host's options rather than its own schema's. The note sits at the first of them; its help
+         * each other, so it is written in the host's file, under the package and with the options
+         * of the host's scope rather than its own. The note sits at the first of them; its help
          * names the two ways to give a declaration back to its own schema's package.
          */
         private fun movedFile(file: TypeFile) {
@@ -708,26 +705,16 @@ object ProtoLowering {
 
         /**
          * Reports every top-level declaration or service whose emitted name is, ignoring case, the
-         * wrapper class name of a file with the same host: the host's options put both in one Java
-         * package, so both would become one Java file. Hosts are taken in name order.
+         * wrapper class name of a file of the scope: the scope's options put every file it writes
+         * in one Java package, whichever schema declared what the file holds, so both would become
+         * one Java file. Declarations come in source order with schemas by name, then services.
          */
         private fun wrapperCollisions() {
-            for (host in unit.members.filter { namesWrappers(it) }) {
-                hostWrapperCollisions(host)
-            }
-        }
-
-        private fun hostWrapperCollisions(host: Namespace) {
-            val hosted = files.filter { it.host.name == host.name }
-            val wrappers = hosted.associateBy { wrapper(it).lowercase() }
-            val held = hosted.flatMap { file -> file.declarations.map { it.qualifiedName } }.toSet()
+            if (!namesWrappers) return
+            val wrappers = files.associateBy { wrapper(it).lowercase() }
             val named =
-                typeDecls
-                    .filter { it.qualifiedName in held }
-                    .map { Triple(it.kindWord, emitted(it), it.nameSpan) } +
-                    serviceDecls
-                        .filter { it.qualifiedName.namespace == host.name }
-                        .map { Triple("service", serviceNames.getValue(it), it.nameSpan) }
+                typeDecls.map { Triple(it.kindWord, emitted(it), it.nameSpan) } +
+                    serviceDecls.map { Triple("service", serviceNames.getValue(it), it.nameSpan) }
             for ((kind, name, span) in named) {
                 val file = wrappers[name.lowercase()] ?: continue
                 diagnostics +=
@@ -743,10 +730,11 @@ object ProtoLowering {
 
         /**
          * `java_outer_classname` names the Java class that wraps one file's messages. Under the
-         * type layout a file takes its host schema's options, so every file a schema hosts would
-         * claim that one class, and when it hosts several the generated code would not compile. A
-         * schema hosting one file keeps it, as the schema layout does; a file holding declarations
-         * moved from other schemas counts for its host only.
+         * type layout every file of a scope takes the scope's options, so every file it writes
+         * would claim that one class, and when it writes several the generated code would not
+         * compile. Each member declaring the key is reported. A scope writing one file keeps it, as
+         * the schema layout does; a file holding declarations moved from other scopes counts for
+         * its host's scope only.
          */
         private fun outerClassname(namespace: Namespace) {
             val value =
