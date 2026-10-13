@@ -602,6 +602,33 @@ class OpenApiRulesTest {
         )
     }
 
+    @Test
+    fun `a header field renamed on a model used only as a payload is compatible`() {
+        val etag = headers("#2 key string?", "#2 etag string @openapi(header: \"ETag\")")
+        val version = headers("#2 key string?", "#2 version string @openapi(header: \"ETag\")")
+        assertEquals(Verdict.Compatible, only(etag, version))
+    }
+
+    @Test
+    fun `a header field renamed on a model also used as a field type stays breaking`() {
+        fun held(field: String) =
+            analysed(
+                "schema t\n\nmodel In { #1 id uuid  $field @openapi(header: \"X-Key\") }\n\n" +
+                    "model Holder { #1 id uuid  #2 in In }\n\n" +
+                    "service S { #1 put(In): Holder  post \"/a\" }"
+            )
+        val key = held("#2 key string")
+        val token = held("#2 token string")
+        assertEquals(
+            Verdict.Breaking(
+                "t.In.token: the field was renamed from 'key' to 'token' breaks old documents " +
+                    "that still use the old name",
+                "pin the emitted name with @jsonschema(name: \"key\")",
+            ),
+            only(key, token),
+        )
+    }
+
     private fun secured(line: String, service: String) =
         analysed(
             "schema t @openapi(bearer, basic, oauth2_token_url: \"https://a.example.com/token\"" +
@@ -651,6 +678,78 @@ class OpenApiRulesTest {
                     "operations",
             ),
             only(secured("", read), secured("", write)),
+        )
+    }
+
+    @Test
+    fun `scopes changed with auth on one owner report only the scopes they add`() {
+        val bearer = "service S { @openapi(auth: bearer) #1 get(A): A  get \"/a\" }"
+        val oauth =
+            "service S { @openapi(auth: oauth2, scopes: \"a:read\") #1 get(A): A  get \"/a\" }"
+        val verdicts =
+            judged(secured("", bearer), secured("", oauth)).associate {
+                (it.first as AnnotationChanged).key to it.second
+            }
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.get: @openapi(auth) changed, so operation 'get' no longer accepts bearer, " +
+                    "which breaks clients without those credentials",
+                "keep the old requirement on these operations, or require the new one on new " +
+                    "operations",
+            ),
+            verdicts["auth"],
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t.S.get: @openapi(scopes) added, so operation 'get' now needs the scopes " +
+                    "a:read, which breaks clients without those credentials",
+                "keep the old requirement on these operations, or require the new one on new " +
+                    "operations",
+            ),
+            verdicts["scopes"],
+        )
+        val readWrite =
+            "service S { @openapi(auth: oauth2, scopes: \"a:read a:write\") #1 get(A): A  get \"/a\" }"
+        val openRead =
+            "service S { @openapi(auth: (oauth2, bearer), scopes: \"a:read\") #1 get(A): A  get \"/a\" }"
+        val relaxed =
+            judged(secured("", readWrite), secured("", openRead)).associate {
+                (it.first as AnnotationChanged).key to it.second
+            }
+        assertEquals(Verdict.Compatible, relaxed["auth"])
+        assertEquals(Verdict.Compatible, relaxed["scopes"])
+    }
+
+    @Test
+    fun `the oauth2 authorization URL added or removed while oauth2 is required is breaking`() {
+        val tokenUrl = "oauth2_token_url: \"https://a.example.com/token\""
+        val authUrl = "oauth2_authorization_url: \"https://a.example.com/authorize\""
+        val clientCredentials =
+            analysed(
+                "schema t @openapi($tokenUrl, auth: oauth2)\n\nmodel A { #1 id uuid }\n\n$oneGet"
+            )
+        val authorizationCode =
+            analysed(
+                "schema t @openapi($tokenUrl, $authUrl, auth: oauth2)\n\n" +
+                    "model A { #1 id uuid }\n\n$oneGet"
+            )
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(oauth2_authorization_url) added, so the oauth2 flow changes from " +
+                    "clientCredentials to authorizationCode, which breaks clients that use the " +
+                    "old flow",
+                "keep the old flow until no client uses it",
+            ),
+            only(clientCredentials, authorizationCode),
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t: @openapi(oauth2_authorization_url) removed, so the oauth2 flow changes from " +
+                    "authorizationCode to clientCredentials, which breaks clients that use the " +
+                    "old flow",
+                "keep the old flow until no client uses it",
+            ),
+            only(authorizationCode, clientCredentials),
         )
     }
 

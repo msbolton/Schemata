@@ -242,6 +242,48 @@ class ChangeContext(
     }
 
     /**
+     * Whether the OpenAPI document on [side] carries [decl] as a schema of its own: reached through
+     * a field type, a union member, or nesting from a declaration the document carries, or taken or
+     * answered with as a stream. A model an operation only takes or answers with as one message is
+     * not one by that use alone, since its header fields leave its body and the body is written in
+     * place.
+     */
+    fun reachableAsPlainType(side: Side, decl: QualifiedName): Boolean =
+        decl in (if (side == Side.OLD) oldPlainTypes else newPlainTypes)
+
+    private val oldPlainTypes by lazy { plainTypes(old) }
+    private val newPlainTypes by lazy { plainTypes(new) }
+
+    private fun plainTypes(schema: Schema): Set<QualifiedName> {
+        val plain = mutableSetOf<QualifiedName>()
+        val expanded = mutableSetOf<QualifiedName>()
+        fun expand(qn: QualifiedName) {
+            if (!expanded.add(qn)) return
+            val decl = schema.lookupOrNull(qn) ?: return
+            val types =
+                when (decl) {
+                    is RecordType -> decl.fields.map { it.type }
+                    is UnionType -> decl.members.map { it.type }
+                    is EnumType -> emptyList()
+                }
+            (types.flatMap(::refsIn) + decl.nested.map { it.qualifiedName }).forEach {
+                plain += it
+                expand(it)
+            }
+        }
+        schema.services().forEach { service ->
+            service.operations.forEach { op ->
+                listOfNotNull(op.request, op.response).forEach {
+                    if (it.stream) plain += it.target
+                    expand(it.target)
+                }
+                effectiveErrors(service, op).mapNotNull { it.body }.forEach(::expand)
+            }
+        }
+        return plain
+    }
+
+    /**
      * Whether some operation on [side] takes [record] as its request, one message rather than a
      * stream: where `@openapi(header)` turns a field into a request header.
      */
