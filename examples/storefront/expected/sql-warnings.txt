@@ -1,0 +1,4 @@
+SCH2105 field 'Product.variants': refinements on Variant[] { minItems 1 } are not enforced by Postgres
+SCH2105 field 'Product.images': refinements on string[] { maxItems 20, max 2048 } are not enforced by Postgres
+SCH2105 field 'ProductSearch.brand': refinements on string[]? { maxItems 10, max 100 } are not enforced by Postgres
+SCH2105 field 'Order.lines': refinements on Line[] { minItems 1 } are not enforced by Postgres

@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.payments",
+  "title": "storefront.payments",
+  "$defs": {
+    "PaymentStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "authorized",
+        "captured",
+        "failed",
+        "refunded"
+      ]
+    },
+    "Card": {
+      "description": "A card, held by the provider and named here by its token.",
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "brand": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "last4": {
+          "type": "string",
+          "pattern": "^[0-9]{4}$",
+          "minLength": 4,
+          "maxLength": 4
+        }
+      },
+      "required": [
+        "token",
+        "brand",
+        "last4"
+      ],
+      "additionalProperties": false
+    },
+    "WalletKind": {
+      "type": "string",
+      "enum": [
+        "apple_pay",
+        "google_pay",
+        "paypal"
+      ]
+    },
+    "Wallet": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WalletKind"
+        },
+        "token": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "kind",
+        "token"
+      ],
+      "additionalProperties": false
+    },
+    "BankTransfer": {
+      "type": "object",
+      "properties": {
+        "iban": {
+          "type": "string",
+          "maxLength": 34
+        }
+      },
+      "required": [
+        "iban"
+      ],
+      "additionalProperties": false
+    },
+    "Method": {
+      "type": "object",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "card": {
+              "$ref": "#/$defs/Card"
+            }
+          },
+          "required": [
+            "card"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "wallet": {
+              "$ref": "#/$defs/Wallet"
+            }
+          },
+          "required": [
+            "wallet"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bank_transfer": {
+              "$ref": "#/$defs/BankTransfer"
+            }
+          },
+          "required": [
+            "bank_transfer"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Payment": {
+      "description": "A payment for one order.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "order_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "amount": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "method": {
+          "$ref": "#/$defs/Method"
+        },
+        "status": {
+          "$ref": "#/$defs/PaymentStatus"
+        },
+        "failure": {
+          "description": "Why the provider declined, when it did.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "order_id",
+        "amount",
+        "method",
+        "status",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "Pay": {
+      "description": "Pays for an order.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "A key the client makes up, so a retried payment charges once.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "order_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "method": {
+          "$ref": "#/$defs/Method"
+        }
+      },
+      "required": [
+        "idempotency_key",
+        "order_id",
+        "method"
+      ],
+      "additionalProperties": false
+    },
+    "PaymentId": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Refund": {
+      "description": "Gives some or all of a captured payment back.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "amount": {
+          "description": "How much to give back; the whole payment when left out.",
+          "anyOf": [
+            {
+              "$ref": "urn:schemata:storefront.common#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "NoticeKind": {
+      "type": "string",
+      "enum": [
+        "authorized",
+        "captured",
+        "failed",
+        "refunded"
+      ]
+    },
+    "Notice": {
+      "description": "What the provider reports about a payment.",
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "kind": {
+          "$ref": "#/$defs/NoticeKind"
+        },
+        "payment_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signature": {
+          "description": "The provider's signature over the body.",
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "event_id",
+        "kind",
+        "payment_id",
+        "occurred_at",
+        "signature"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

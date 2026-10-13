@@ -1,0 +1,74 @@
+/// Payments for orders, and the notices the payment provider sends about them.
+schema storefront.payments @openapi(bearer: "JWT", api_key: "header X-Webhook-Secret", auth: bearer)
+
+import storefront.common
+import storefront.orders
+
+enum PaymentStatus { #1 pending #2 authorized #3 captured #4 failed #5 refunded }
+
+/// A card, held by the provider and named here by its token.
+model Card {
+  #1 token string { max 200 }
+  #2 brand string { max 32 }
+  #3 last4 string { min 4, max 4, match "^[0-9]{4}$" }
+}
+
+enum WalletKind { #1 apple_pay #2 google_pay #3 paypal }
+
+model Wallet { #1 kind WalletKind  #2 token string { max 200 } }
+
+model BankTransfer { #1 iban string { max 34 } }
+
+union Method = #1 Card | #2 Wallet | #3 BankTransfer
+
+/// A payment for one order.
+model Payment {
+  #1 id         uuid          { id }
+  #2 order      Order
+  #3 amount     Money
+  #4 method     Method
+  #5 status     PaymentStatus
+  /// Why the provider declined, when it did.
+  #6 failure    string?       { max 500 }
+  #7 created_at instant
+}
+
+/// Pays for an order.
+model Pay {
+  /// A key the client makes up, so a retried payment charges once.
+  #1 idempotency_key uuid   { id } @openapi(header: "Idempotency-Key")
+  #2 order_id        uuid
+  #3 method          Method
+}
+
+model PaymentId { #1 id uuid { id } }
+
+/// Gives some or all of a captured payment back.
+model Refund {
+  #1 id     uuid    { id }
+  /// How much to give back; the whole payment when left out.
+  #2 amount Money?
+  #3 reason string? { max 500 }
+}
+
+enum NoticeKind { #1 authorized #2 captured #3 failed #4 refunded }
+
+/// What the provider reports about a payment.
+model Notice {
+  #1 event_id    string     { id, max 100 }
+  #2 kind        NoticeKind
+  #3 payment_id  uuid
+  #4 occurred_at instant
+  /// The provider's signature over the body.
+  #5 signature   string     { max 512 } @openapi(header: "X-Signature")
+}
+
+/// Pay for orders and refund them.
+service Payments {
+  errors { 400 Problem  401 Problem  default Problem }
+  #1 pay(Pay): Payment  post "/orders/{order_id}/payments" 201  errors { 402 Problem  404 Problem }
+  #2 get(PaymentId): Payment  get "/payments/{id}"  errors { 404 Problem }
+  #3 refund(Refund): Payment  post "/payments/{id}/refunds"  errors { 404 Problem  409 Problem }
+  /// Where the provider posts its notices. It signs in with the shared secret, not a session.
+  @openapi(auth: api_key) #4 notify(Notice)  post "/payments/notices" 202
+}

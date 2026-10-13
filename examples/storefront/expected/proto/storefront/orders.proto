@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package storefront.orders;
+
+import "google/protobuf/timestamp.proto";
+import "storefront/common.proto";
+import "storefront/users.proto";
+
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_PAID = 2;
+  ORDER_STATUS_SHIPPED = 3;
+  ORDER_STATUS_DELIVERED = 4;
+  ORDER_STATUS_CANCELLED = 5;
+  ORDER_STATUS_REFUNDED = 6;
+}
+
+// An order checkout placed.
+message Order {
+  string id = 1;  // schemata: uuid
+  // The number the customer quotes, such as `SF-104223`.
+  string number = 2;  // schemata: string { max 20 }
+  string customer_id = 3;  // schemata: uuid
+  OrderStatus status = 4;  // schemata: default = ORDER_STATUS_PENDING
+  repeated Line lines = 5;  // schemata: Line[] { minItems 1 }
+  // The address the order ships to, as it was at checkout.
+  .storefront.users.Address shipping = 6;
+  .storefront.common.Money subtotal = 7;
+  .storefront.common.Money shipping_cost = 8;
+  .storefront.common.Money tax = 9;
+  .storefront.common.Money total = 10;
+  .google.protobuf.Timestamp placed_at = 11;
+
+  // A variant bought, at the price it had at checkout.
+  message Line {
+    string product_id = 1;  // schemata: uuid
+    string sku = 2;  // schemata: string { max 64 }
+    string name = 3;  // schemata: string { max 200 }
+    int32 quantity = 4;  // schemata: int32 { min 1 }
+    .storefront.common.Money unit_price = 5;
+  }
+}
+
+// Places an order for everything in the cart.
+message Checkout {
+  // A key the client makes up, so a retried checkout places one order.
+  string idempotency_key = 1;  // schemata: uuid
+  string cart_id = 2;  // schemata: uuid
+  string shipping_address_id = 3;  // schemata: uuid
+  optional string note = 4;  // schemata: string? { max 500 }
+}
+
+// The order checkout placed, and where to read it from now on.
+message Placed {
+  // The URL of the new order.
+  string location = 1;  // schemata: string { max 2048 }
+  string order_id = 2;  // schemata: uuid
+  string number = 3;  // schemata: string { max 20 }
+  .storefront.common.Money total = 4;
+}
+
+// Which orders to list, newest first.
+message ListOrders {
+  optional OrderStatus status = 1;
+  optional string cursor = 2;  // schemata: string? { max 200 }
+  int32 limit = 3;  // schemata: int32 { min 1, max 100 }; default = 20
+}
+
+// One page of the customer's orders.
+message OrderPage {
+  string etag = 1;  // schemata: string { max 64 }
+  repeated Order items = 2;
+  .storefront.common.PageInfo page = 3;
+  // The listing this page answers, with which to ask for the next one.
+  ListOrders query = 4;
+}
+
+message OrderId {
+  string id = 1;  // schemata: uuid
+}
+
+// Why the customer cancels.
+message CancelOrder {
+  string id = 1;  // schemata: uuid
+  optional string reason = 2;  // schemata: string? { max 500 }
+}
+
+// Check out, and follow the orders placed.
+service Orders {
+  // Place an order for the cart. The `Location` header is the new order's URL.
+  rpc Checkout(.storefront.orders.Checkout) returns (Placed);  // schemata: post "/orders"
+  rpc List(ListOrders) returns (OrderPage);  // schemata: get "/orders"
+  rpc Get(OrderId) returns (Order);  // schemata: get "/orders/{id}"
+  // Cancel an order that has not shipped.
+  rpc Cancel(CancelOrder) returns (Order);  // schemata: post "/orders/{id}/cancel"
+}

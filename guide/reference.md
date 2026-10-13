@@ -818,7 +818,13 @@ carry properties the model does not declare.
 `@openapi(version: "…")` and `@openapi(server: "…")` on a schema set its OpenAPI document's
 `info.version` (default `1.0.0`) and its one server URL, which must be an absolute URL or a path
 (SCH2603). `@openapi(name: "…")` renames a service's tag or an operation's `operationId`; section
-16 shows all three.
+16 shows all three. `@openapi(header: "…")` on a field moves it into an HTTP header wherever its
+model is an operation's request, response, or error body. The security schemes of a schema's
+document are keys of its `schema` line, one of each kind: `bearer` (bare, or `bearer: "JWT"` to
+name the token's format), `basic`, `api_key: "header X-API-Key"`, `oauth2_token_url: "…"` with an
+optional `oauth2_authorization_url: "…"`, and `openid: "…"`. `@openapi(auth: …)` and
+`@openapi(scopes: "…")`, on the schema line, a service, or an operation, say which of them an
+operation requires; section 16 shows the headers and every security key.
 
 `guide/annotations.md` lists every key each target accepts, the elements it applies to, and the
 codes each target can report.
@@ -925,8 +931,9 @@ service Orders {
 
 ### Operations
 
-An operation is written `#n name(Request): Response`, optionally followed by a binding. Its name is
-lower_snake and unique within its service (SCH1005). Either payload may be left out: `cancel`
+An operation is written `#n name(Request): Response`, optionally followed by a binding and by an
+`errors` clause ([Success codes and errors](#success-codes-and-errors)). Its name is lower_snake
+and unique within its service (SCH1005). Either payload may be left out: `cancel`
 above returns nothing, and `ping(): Pong` would take nothing. A payload names a model or a union,
 directly or through an alias, and may come from another schema, as a field's type can. It may
 not be nullable, a scalar, an enum, or a collection (SCH1047); wrap such a value in a model. A
@@ -1041,7 +1048,9 @@ nullable field is an optional parameter with the plain schema, a `$ref` or `type
 nullable shape.
 
 A response is `200`, with the response's schema as `application/json`, or as `text/event-stream`
-when it is streamed; an operation without a response answers `204`. Every model, enum, and union
+when it is streamed; an operation without a response answers `204`. A binding can name another
+code, and an `errors` clause adds error responses
+([Success codes and errors](#success-codes-and-errors)). Every model, enum, and union
 an operation reaches is a component under `#/components/schemas`, keyed `<schema>.<Name>`
 (`shop.orders.Order`, `shop.orders.Order.Line`) and lowered exactly as the JSON Schema target
 lowers it. A model's nested declarations are components beside it even when no operation reaches
@@ -1129,6 +1138,366 @@ The document's version is `2.1.0` and its server `https://api.example.com/v2`; t
 `orders`, `get`'s `operationId` is `getOrder`, and `ping` is `post /orders/ping` with
 `operationId` `orders_ping`.
 
+### Success codes and errors
+
+A binding may end with the operation's success code, one space after the path:
+`post "/orders" 201`. The code is `200`, `201`, `202`, or `204`. Without one, an operation with a
+response answers `200` and one without answers `204`, as before. A `204` on an operation with a
+response, and a code on an operation without a binding, are errors (SCH1055).
+
+An `errors { … }` clause lists the operation's error responses: each a code from `400` to `599`, or
+`default` for any other, optionally followed by its body. A body names a model or a union, directly
+or through an alias, from this schema or another, under the rule of a payload: it may not be
+nullable, a scalar, an enum, or a collection (SCH1055). Written as a member of a service, the clause
+applies to every operation of the service. Written at the end of an operation, after its binding
+when it has one, it adds codes to the service's and replaces the service's body for a code both
+list. A clause belongs to an operation only when it opens on the line where the operation's
+signature or binding ends; a clause that opens on a later line is the service's. A code listed twice
+in one clause, a code outside its range, and a service with two clauses are errors (SCH1055); a code
+that is neither a number nor `default`, and an `errors` without its braces, are syntax errors
+(SCH0010). `errors` and `default` are clauses' words only there: a field, an operation, or a model
+may still be named either.
+
+The OpenAPI document writes each code as a response after the success response, in ascending order
+with `default` last. A body is `application/json` with a `$ref` to its component, or with the
+object of its other fields when the body model has header fields (below), and the response's
+description is the body's name, as the success response's is. A code without a body is a response
+with a description only, the code's reason phrase: `Not Found` for `404`, and `Error` for
+`default`. An error body is a component like every type an operation reaches. No other target
+writes a success code or an error response: gRPC has no typed error bodies, and the other targets
+read no services.
+
+```schemata
+schema shop.orders
+
+model Problem { #1 instance string { id }  #2 title string  #3 status int32 }
+
+model Conflict { #1 order_id uuid { id }  #2 reason string }
+
+model OrderId { #1 id uuid { id } }
+
+model PlaceOrder { #1 customer_id uuid { id }  #2 sku string }
+
+model Order { #1 id uuid { id }  #2 sku string }
+
+service Orders {
+  errors { 400 Problem  409 Problem  default Problem }
+  #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+  #2 place(PlaceOrder): Order  post "/orders" 201  errors { 409 Conflict }
+  #3 cancel(OrderId)  delete "/orders/{id}"  errors { 404 Problem  503 }
+}
+```
+
+`get` answers `200`, `400`, `404`, `409`, and `default`; `place` answers `201`, and its `409` is a
+`Conflict`; `cancel` answers `204` and its own `404` and `503`:
+
+```json
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable"
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shop.orders.Problem"
+                }
+              }
+            }
+          }
+        }
+```
+
+```schemata error SCH1055
+schema shop.orders
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id } }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}" 204
+}
+```
+
+```schemata error SCH0010
+schema shop.orders
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id } }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Order  others Order }
+}
+```
+
+### Headers
+
+`@openapi(header: "Name")` on a field of a model moves the field into the HTTP header `Name`
+wherever the model is an operation's request, response, or error body.
+
+On a request the field is a parameter `in: header`, `required` unless the field is nullable or has
+a default, and it is never a query parameter or part of the body. A request model with a header
+field is a partial request, as one whose fields the path binds is: its body is an object of its
+other fields, and the model is not a component itself.
+
+On a response or an error body the field is an entry of that response's `headers`, with the
+field's schema and doc comment, `required` by the same rule, and the body is an object of the
+other fields. A model whose fields are all headers answers with headers and no body.
+
+Anywhere else the attribute changes nothing and the field is an ordinary field: as another model's
+field, as a union member, in the model's own component when an operation reaches the model as a
+plain type, and on every other target.
+
+```schemata
+schema shop.orders
+
+model Order { #1 id uuid { id }  #2 sku string { max 64 } }
+
+/// Places one order, however often the request is retried.
+model PlaceOrder {
+  #1 idempotency_key uuid   { id } @openapi(header: "Idempotency-Key")
+  #2 sku             string { max 64 }
+}
+
+/// The order placed.
+model Placed {
+  /// The URL of the new order.
+  #1 location string { id, max 2048 } @openapi(header: "Location")
+  #2 order    Order
+}
+
+service Orders {
+  #1 place(PlaceOrder): Placed  post "/orders" 201
+}
+```
+
+`place` sends its key as a header and `sku` as its body, and answers with `Location` and an
+object holding `order_id`, the key of `Order`:
+
+```json
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Places one order, however often the request is retried.",
+                "type": "object",
+                "properties": {
+                  "sku": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "sku"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Placed",
+            "headers": {
+              "Location": {
+                "description": "The URL of the new order.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "maxLength": 2048
+                }
+              }
+            },
+```
+
+A header field is a scalar or an enum, not a list, a map, a model, or a union. Its name is an HTTP
+token, made of letters, digits, and ``!#$%&'*+-.^_`|~``, and two header fields of one model may not
+share a name, ignoring case. `Accept`, `Content-Type`, and `Authorization` are refused, since
+OpenAPI ignores them as header parameters; a security scheme sends `Authorization` (below). Each
+of these is SCH2605, at the attribute. A cookie is not a header field: an API key in a cookie is a
+security scheme.
+
+```schemata error SCH2605
+schema shop.orders
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id }  #2 kind string @openapi(header: "Content-Type") }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+}
+```
+
+### Security
+
+A schema's security schemes are `@openapi` keys of its `schema` line, at most one of each kind.
+Each is written under its key's name in `components.securitySchemes`, `oauth2` for the two OAuth
+keys, in the order of this table:
+
+| Key | Scheme |
+|---|---|
+| `bearer`, or `bearer: "JWT"` | `type: http`, `scheme: bearer`, the value as `bearerFormat` |
+| `basic` | `type: http`, `scheme: basic` |
+| `api_key: "<in> <name>"` | `type: apiKey`, sent in a `header`, the `query`, or a `cookie` under that name: `"header X-API-Key"` |
+| `oauth2_token_url: "…"` | `type: oauth2` with a `clientCredentials` flow; with `oauth2_authorization_url: "…"` as well, an `authorizationCode` flow with both URLs instead |
+| `openid: "…"` | `type: openIdConnect` with that discovery URL |
+
+The implicit and password flows of OAuth 2.0 are deprecated by OAuth 2.1, and are not offered.
+
+`@openapi(auth: …)` names the scheme an operation requires. It goes on the schema line, a service,
+or an operation, and the nearest wins: `auth: bearer` requires that scheme, `auth: (bearer,
+api_key)` accepts either, and `auth: none` requires nothing. `@openapi(scopes: "a:read b:write")`,
+one string of names separated by spaces since a scope name often holds a `:`, gives the scopes an
+`oauth2` or `openid` scheme of the requirement needs, and the nearest wins in the same way. An
+`oauth2` scheme's `scopes` map holds every scope any requirement names, sorted, each with an empty
+description.
+
+The schema line's `auth` is the document's top-level `security`. OpenAPI has no security for a tag,
+so a service's or an operation's requirement is written as each operation's own `security`, and
+only where it differs from the document's; `auth: none` there writes `security: []`. An operation
+with no `auth` in effect writes no `security`. A scheme may be declared and never required.
+
+```schemata
+schema shop.orders @openapi(bearer: "JWT", api_key: "header X-API-Key", auth: bearer)
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id } }
+
+model Health { #1 status string { id } }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+  @openapi(auth: (bearer, api_key))
+  #2 lookup(OrderId): Order  get "/lookup/{id}"
+  @openapi(auth: none)
+  #3 health(): Health  get "/health"
+}
+```
+
+The document requires `bearer`. `get` writes no `security` of its own, `lookup` writes
+`[{"bearer": []}, {"api_key": []}]`, and `health` writes `[]`. The two schemes become:
+
+```json
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "api_key": {
+        "type": "apiKey",
+        "name": "X-API-Key",
+        "in": "header"
+      }
+    }
+```
+
+An OAuth 2.0 scheme with scopes per service and per operation:
+
+```schemata
+schema shop.admin @openapi(oauth2_token_url: "https://id.example.com/token", oauth2_authorization_url: "https://id.example.com/authorize", auth: oauth2)
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id } }
+
+@openapi(scopes: "orders:read")
+service Admin {
+  #1 get(OrderId): Order  get "/admin/orders/{id}"
+  @openapi(scopes: "orders:read orders:write")
+  #2 cancel(OrderId)  delete "/admin/orders/{id}"
+}
+```
+
+The document requires `oauth2` with no scopes, so both operations write their own `security`:
+`get`'s is `[{"oauth2": ["orders:read"]}]`. The scheme is:
+
+```json
+      "oauth2": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://id.example.com/authorize",
+            "tokenUrl": "https://id.example.com/token",
+            "scopes": {
+              "orders:read": "",
+              "orders:write": ""
+            }
+          }
+        }
+      }
+```
+
+An `auth` that names a scheme the schema does not declare, `none` together with a scheme, `scopes`
+where the requirement in effect has no `oauth2` or `openid` scheme, an `api_key` that is not one
+of `header`, `query`, or `cookie` followed by a name, an `oauth2_authorization_url` without an
+`oauth2_token_url`, and a URL that is not absolute `http` or `https` are errors (SCH2606), each at
+its key. A requirement that every one of several schemes be presented at once, and a second scheme
+of one kind, cannot be written. Every other target ignores these keys, as it ignores bindings.
+
+```schemata error SCH2606
+schema shop.orders @openapi(bearer, auth: basic)
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id } }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+}
+```
+
 ### Protobuf
 
 The Protobuf target writes each service as a gRPC `service` at the end of its schema's `.proto`
@@ -1185,7 +1554,7 @@ refinements, so `import --from proto` can read it back (section 19):
 | a binding | a note after the rpc: `// schemata: get "/orders/{id}"` |
 | an ordinal | a note after the rpc, `// schemata: #5`, unless the ordinal is both the rpc's position in the service, counting from 1, and one more than the ordinal before it |
 | `reserved` | a note line after the last rpc: `// schemata: reserved #6, "archive"` |
-| `@openapi` keys | nothing |
+| a success code, an `errors` clause, and the `@openapi` keys | nothing |
 
 An rpc with both an ordinal and a binding takes one note, the ordinal first, the two separated by
 `; `. Every one of those carriers, in one schema:
@@ -1239,9 +1608,12 @@ and need none.
 ordinal. The openapi and proto rulebooks judge a change to a service; section 20 lists their
 verdicts.
 
-`fmt` writes a service in braces, one operation per line, with two spaces before the binding. When
-that line would pass 100 columns, the binding moves to the next line, one level deeper. A service
-with no members and no comments inside its braces is `service S {}`.
+`fmt` writes a service in braces, one operation per line, with two spaces before the binding and
+one before a success code. A short `errors` clause stays on its line, two spaces after what comes
+before it and two between its entries, as in `errors { 404 Problem  503 }`; a service's clause is
+a line of its own. When an operation's line would pass 100 columns, the binding moves to the next
+line, one level deeper, and a clause that does not fit in 100 columns is written one code per
+line. A service with no members and no comments inside its braces is `service S {}`.
 
 ## 17. How constructs lower
 
@@ -1276,6 +1648,10 @@ every target.
 | `reserved` | `reserved <n>;` and `reserved "name";` inside the message; in a service, a `// schemata: reserved …` line | nothing | not represented | not represented | not represented |
 | a service | a `service`, named by its name or `@proto(name)`; section 16 | nothing | nothing | nothing | a tag; section 16 |
 | an operation | an `rpc`, named in UpperCamel or by `@proto(name)`; no payload is `.google.protobuf.Empty`, and the binding and an ordinal off its position ride in a `// schemata:` note | nothing | nothing | nothing | an operation under its path and verb; section 16 |
+| a success code (`post "/orders" 201`) | nothing | nothing | nothing | nothing | the status of the success response; section 16 |
+| an `errors` clause | nothing | nothing | nothing | nothing | one response per code after the success response, ascending with `default` last, each body a component; section 16 |
+| `@openapi(header)` on a field | an ordinary field | an ordinary column | an ordinary element | an ordinary property | a header parameter where its model is a request, a response header where it is a response or an error body, and elsewhere an ordinary property; section 16 |
+| the `@openapi` security keys | nothing | nothing | nothing | nothing | `components.securitySchemes`, the document's `security`, and an operation's own `security` where its requirement differs; section 16 |
 
 The JSON Schema target writes a tagged union as `type: object` beside its `oneOf`; every arm pins
 `type: object` itself, so the outer type is a harmless statement of the whole. A field default on
@@ -2922,9 +3298,24 @@ A binding rides in a note beside the rpc, never in that path. The two rulebooks'
 | `@proto(name)` changed on a service or an operation | breaking when the service or rpc name it emits changes | compatible |
 | `@openapi(name)` changed on a service or an operation | compatible | breaking when the tag or `operationId` it emits changes; a service's tag prefixes every `operationId` that does not set its own |
 | `@openapi(version)` or `@openapi(server)` changed | compatible | compatible |
+| An operation's success status changed, as when `201` is added to a binding that answered `200` | compatible | breaking |
+| An error code added to an operation, by its own clause or its service's | compatible | note: a client generated from OLD may not handle it |
+| An error code removed | compatible | compatible |
+| An error code's body changed, added, or removed | compatible | breaking, as a changed response is |
+| A field moved into or out of a header by `@openapi(header)`, or its header renamed | compatible | breaking |
+| A header field added to a request, required (not nullable, no default) | compatible | breaking |
+| A header field added to a request, nullable or with a default, or added to a response | compatible | compatible |
+| A header field's type changed | as for any field | as a parameter's type change: the JSON Schema column's verdict for the field |
+| `@openapi(auth)` or `@openapi(scopes)` changed so an operation requires more: a requirement where it had none, a scheme of another kind, a scheme taken from an either-list, or a scope added | compatible | breaking |
+| `@openapi(auth)` or `@openapi(scopes)` changed so an operation requires less: `none`, a scheme added to an either-list, or a scope removed | compatible | compatible |
+| `@openapi(oauth2_token_url)`, `@openapi(oauth2_authorization_url)`, or `@openapi(openid)` changed, or the format `@openapi(bearer)` names | compatible | note: a client configured with the old value must change it |
 | `@deprecated` added or removed on a service or an operation | note | note |
 | `reserved` changed on a service | compatible | compatible |
 | Schema removed | breaking when it declared a service; else as in the table above | breaking when it declared a service, else compatible |
+
+Error responses are compared on each operation's whole list, its service's clause merged with its
+own, so a code that moves from an operation's clause to its service's, with the same body, is no
+change to that operation.
 
 `@proto(package)` moves every method path in its schema too, and under the schema layout in every
 schema of its reference cycle; it is already breaking (above).
@@ -2955,8 +3346,10 @@ enum, a union), `field.added`, `field.removed`, `field.renamed`, `field.typeChan
 `unionMember.typeChanged`, `reserved.changed`, `service.added`, `service.removed`,
 `operation.added`, `operation.removed`, `operation.renamed`, `operation.moved`,
 `operation.requestChanged`, `operation.responseChanged`, `operation.bindingChanged`,
-`annotation.changed` (an option or an attribute), `deprecation.changed`, and `doc.changed`; 2.0
-renamed 1.x's `namespace.*` and `declaration.*` kinds. `old` and `new` are the values as Schemata
+`operation.statusChanged`, `operation.errorAdded`, `operation.errorRemoved`,
+`operation.errorChanged` (an error code's body), `annotation.changed` (an option or an attribute),
+`deprecation.changed`, and `doc.changed`; 2.0 renamed 1.x's `namespace.*` and `declaration.*`
+kinds. `old` and `new` are the values as Schemata
 source, so a string reads `"eu"` with its quotes and a type `string { max 100 }`. When the sides
 cannot be compared (`SCH2503`), the JSON report keeps that shape — `changes` empty, every `summary`
 count zero, `exitCode` 1 — and adds an `errors` array, one `{code, message, help, file, line}` per
@@ -3646,12 +4039,13 @@ schema-line keys of that target that take one value (section 15):
 | `[sql]` | `schema` |
 | `[xsd]` | `namespace`, `element_form`, `attribute_form` |
 | `[jsonschema]` | `id` |
-| `[openapi]` | `server`, `version` |
+| `[openapi]` | `server`, `version`, `bearer`, `api_key`, `oauth2_token_url`, `oauth2_authorization_url`, `openid`, `scopes` |
 
 A value takes the attribute's type: `java_multiple_files` is `true` or `false`, `element_form` and
 `attribute_form` are `"qualified"` or `"unqualified"`, and every other key is a string, which may
 hold placeholders. Any other key is SCH2902, whose help names the nearest known key or lists the
-table's keys.
+table's keys. `@openapi(basic)` and `@openapi(auth)` are not keys of `[openapi]`: a flag and a list
+of names have no single value to default to, so a schema writes them on its own `schema` line.
 
 Each key becomes, for every schema that does not write it, the attribute `@<target>(<key>: …)` on
 that schema's `schema` line. Every target then reads it as if the schema had written it, whichever

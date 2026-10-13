@@ -1,17 +1,17 @@
 # Worked examples
 
-Four example schemas live under `examples/`: `contacts`, `shop`, `ledger`, and `services`. Each
-has a committed `expected/proto` tree, an `expected/sql` tree, an `expected/xsd` tree, an
-`expected/jsonschema` tree, and the warnings the compiler reports for each target; `services`,
-the one that declares a service, has an `expected/openapi` tree too. Build the CLI once, then point
-it at any of them to reproduce what is shown here:
+Five example schemas live under `examples/`: `contacts`, `shop`, `ledger`, `services`, and
+`storefront`. Each has a committed `expected/proto` tree, an `expected/sql` tree, an
+`expected/xsd` tree, an `expected/jsonschema` tree, and the warnings the compiler reports for each
+target; `services` and `storefront`, the two that declare services, have an `expected/openapi`
+tree too. Build the CLI once, then point it at any of them to reproduce what is shown here:
 
 ```text
 java -jar schemata-<version>.jar compile --out out examples/contacts
 ```
 
-Swap `examples/contacts` for `examples/shop`, `examples/ledger`, or `examples/services` to compile
-the others.
+Swap `examples/contacts` for `examples/shop`, `examples/ledger`, `examples/services`, or
+`examples/storefront` to compile the others.
 
 ## contacts
 
@@ -692,6 +692,178 @@ again byte for byte.
 
 Section 16 of the reference has every rule, and section 20 shows what `schemata diff` says about a
 changed service.
+
+## storefront
+
+An ecommerce API in nine schemas. `storefront.common` holds what the others share, and each of
+the other eight is one part of the shop with a service of its own: `auth`, `users`, `catalog`,
+`cart`, `orders`, `payments`, `reviews`, and `admin`. It shows what a service says about HTTP
+beyond its paths: success codes, error responses, headers, and security schemes.
+
+```text
+java -jar schemata-<version>.jar compile --out out examples/storefront
+```
+
+writes nine files for each of Protobuf, Postgres, XSD, and JSON Schema, and eight OpenAPI
+documents under `out/openapi/storefront/`, one for each schema that declares a service.
+
+Every error response carries a `Problem`, the problem report of RFC 9457. No field holds one, so
+Postgres gives it a table of its own, which needs a key; `instance`, the URI that names one
+occurrence, is a natural one.
+
+From `examples/storefront/common.schemata`:
+```schemata
+/// A problem report in the shape of RFC 9457, the body of every error response.
+model Problem {
+  /// A URI naming the kind of problem; `about:blank` when the status says it all.
+  #1 type     string      { max 2048 } = "about:blank"
+  /// A short summary of the kind of problem, the same for every occurrence.
+  #2 title    string      { max 200 }
+  /// The HTTP status code of the response.
+  #3 status   int32       { min 400, max 599 }
+  /// What went wrong this time.
+  #4 detail   string?     { max 2000 }
+  /// A URI naming this occurrence, to quote when asking for help.
+  #5 instance string      { id, max 2048 }
+  /// The request's fields that failed their checks.
+  #6 errors   Violation[]
+
+  /// One field of the request and what is wrong with it.
+  model Violation { #1 field string { max 200 }  #2 message string { max 500 } }
+}
+```
+
+Each schema is its own OpenAPI document, so each declares its security schemes on its own
+`schema` line. `storefront.auth` declares a bearer token and requires it, `@openapi(auth: none)`
+on `Auth` lifts that for every operation of the service, and `logout` asks for the token again.
+The service's `errors` clause gives every operation `400`, `429`, and `default`, and each
+operation adds its own codes; `register` answers `201`.
+
+From `examples/storefront/auth.schemata`:
+```schemata
+/// Sign up, sign in, and sign out. Only signing out needs a session.
+@openapi(auth: none)
+service Auth {
+  errors { 400 Problem  429 Problem  default Problem }
+  /// Create an account and start its first session.
+  #1 register(Register): Session  post "/auth/register" 201  errors { 409 Problem }
+  /// Start a session.
+  #2 login(Login): Session  post "/auth/login"  errors { 401 Problem }
+  /// Trade a refresh token for a new session.
+  #3 refresh(RefreshToken): Session  post "/auth/refresh"  errors { 401 Problem }
+  /// End the session the refresh token belongs to.
+  @openapi(auth: bearer) #4 logout(RefreshToken)  post "/auth/logout"  errors { 401 Problem }
+}
+```
+
+In `storefront/auth.openapi.json` the document's `security` requires `bearer`; `register`,
+`login`, and `refresh` write `security: []`, and `logout`, whose requirement is the document's,
+writes none.
+
+Checkout carries headers both ways. `Idempotency-Key` is a header parameter of the request, and
+`Location` a header of the `201` response; each body is an object of the model's other fields.
+A field typed as a keyed model holds its key, so the request body has `cart_id` and
+`shipping_address_id`, and the response body `order_id`.
+
+From `examples/storefront/orders.schemata`:
+```schemata
+/// Places an order for everything in the cart.
+model Checkout {
+  /// A key the client makes up, so a retried checkout places one order.
+  #1 idempotency_key  uuid    { id } @openapi(header: "Idempotency-Key")
+  #2 cart             Cart
+  #3 shipping_address Address
+  #4 note             string? { max 500 }
+}
+
+/// The order checkout placed, and where to read it from now on.
+model Placed {
+  /// The URL of the new order.
+  #1 location string { id, max 2048 } @openapi(header: "Location")
+  #2 order    Order
+  #3 number   string { max 20 }
+  #4 total    Money
+}
+```
+
+From `examples/storefront/orders.schemata`:
+```schemata
+/// Check out, and follow the orders placed.
+service Orders {
+  errors { 400 Problem  401 Problem  default Problem }
+  /// Place an order for the cart. The `Location` header is the new order's URL.
+  #1 checkout(Checkout): Placed  post "/orders" 201  errors { 409 Problem  422 Problem }
+  #2 list(ListOrders): OrderPage  get "/orders"
+  #3 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+  /// Cancel an order that has not shipped.
+  #4 cancel(CancelOrder): Order  post "/orders/{id}/cancel"  errors { 404 Problem  409 Problem }
+}
+```
+
+`list` returns one page and echoes the listing it answers, so a client asks for the next page with
+the same filters and the page's `next_cursor`. Every page response in the storefront has an `ETag`
+header, which is also its key.
+
+`search` in `storefront.catalog` is a `get` that binds nothing in its path, so every field of its
+request is a query parameter. None is required, since each is nullable or has a default, and
+`brand`, a list, repeats: `?brand=acme&brand=zenith`. `storefront.catalog` accepts either of two
+schemes, a customer's bearer token or a partner's `X-API-Key`.
+
+From `examples/storefront/catalog.schemata`:
+```schemata
+/// What a search asks for. Each filter is a query parameter, and a filter left out matches every
+/// product.
+model ProductSearch {
+  /// Words to look for in a product's name and description.
+  #1 q            string?         { max 200 }
+  /// A category's slug; its subcategories match too.
+  #2 category     Slug?
+  /// Any of these brands.
+  #3 brand        string[]?       { maxItems 10, max 100 }
+  #4 min_price    decimal(19, 4)?
+  #5 max_price    decimal(19, 4)?
+  #6 availability Availability?
+  #7 sort         ProductSort     = relevance
+  #8 cursor       Cursor?
+  #9 limit        Limit           = 20
+}
+```
+
+`storefront.admin` serves the company's own tools, which sign in with OAuth 2.0 client
+credentials. Every operation requires its `oauth2` scheme, and each service names the scopes its
+operations need, `get_order` fewer than the rest of its service.
+
+From `examples/storefront/admin.schemata`:
+```schemata
+/// Change the catalog.
+@openapi(scopes: "catalog:write")
+service CatalogAdmin {
+  errors { 400 Problem  401 Problem  403 Problem  default Problem }
+  /// Add a product under an id the tool chooses, or replace the one it names.
+  #1 put_product(Product): Product  put "/admin/products/{id}"
+  #2 remove_product(ProductId)  delete "/admin/products/{id}"  errors { 404 Problem }
+  #3 set_availability(SetAvailability)  put "/admin/variants/{sku}/availability" 204
+}
+
+/// Fulfil orders.
+@openapi(scopes: "orders:read orders:write")
+service OrderAdmin {
+  errors { 401 Problem  403 Problem  404 Problem  default Problem }
+  /// Read any customer's order.
+  @openapi(scopes: "orders:read") #1 get_order(OrderId): Order  get "/admin/orders/{id}"
+  /// Record that the order left with a carrier.
+  #2 ship(Ship): Order  post "/admin/orders/{id}/shipments"  errors { 409 Problem }
+}
+```
+
+The scheme's `scopes` map lists every scope a requirement names, sorted: `catalog:write`,
+`orders:read`, and `orders:write`.
+
+`storefront.payments` adds a second scheme, the API key the payment provider signs its notices
+with, and `notify` requires it instead of a session; it has no response, so its `202` has no
+body. No target but OpenAPI writes a success code, an error response, a header, or a scheme:
+the Protobuf, Postgres, XSD, and JSON Schema output is what the same schemas would give without
+them.
 
 ## GPX
 

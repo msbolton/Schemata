@@ -1,0 +1,42 @@
+/// Accounts and sessions: sign up, sign in, keep a session alive, and sign out.
+schema storefront.auth @openapi(bearer: "JWT", auth: bearer)
+
+import storefront.common
+
+/// A new account.
+model Register {
+  #1 email    Email  { id }
+  #2 password string { min 12, max 128 }
+  #3 name     string { max 100 }
+}
+
+/// The credentials a session starts from.
+model Login { #1 email Email { id }  #2 password string { min 1, max 128 } }
+
+/// A refresh token, traded for a new session or given up at sign-out.
+model RefreshToken { #1 refresh_token string { id, max 512 } }
+
+/// A session: a short-lived access token, sent as `Authorization: Bearer …`, and the refresh
+/// token that renews it.
+model Session {
+  #1 access_token  string { id, max 4096 }
+  #2 token_type    string = "Bearer"
+  /// Seconds until the access token expires.
+  #3 expires_in    int32  { min 1 }
+  #4 refresh_token string { max 512 }
+  #5 user_id       uuid
+}
+
+/// Sign up, sign in, and sign out. Only signing out needs a session.
+@openapi(auth: none)
+service Auth {
+  errors { 400 Problem  429 Problem  default Problem }
+  /// Create an account and start its first session.
+  #1 register(Register): Session  post "/auth/register" 201  errors { 409 Problem }
+  /// Start a session.
+  #2 login(Login): Session  post "/auth/login"  errors { 401 Problem }
+  /// Trade a refresh token for a new session.
+  #3 refresh(RefreshToken): Session  post "/auth/refresh"  errors { 401 Problem }
+  /// End the session the refresh token belongs to.
+  @openapi(auth: bearer) #4 logout(RefreshToken)  post "/auth/logout"  errors { 401 Problem }
+}
