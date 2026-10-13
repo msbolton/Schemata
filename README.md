@@ -142,7 +142,7 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
     schemata config  [--config FILE|--no-config] [--format human|json] [--color auto|always|never] [PATHS...]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata upgrade [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
-    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--proto-layout schema|type] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
     schemata migrate [--out DIR] [--allow-destructive] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
     schemata lsp
 

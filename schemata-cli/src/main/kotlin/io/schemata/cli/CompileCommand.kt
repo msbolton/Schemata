@@ -90,7 +90,10 @@ internal fun CliktCommand.selectTargets(names: List<String>?): List<Target<*>> =
             )
     } ?: Pipeline.targets
 
-/** The `--proto-layout` option shared by compile and check; absent keeps the schema layout. */
+/**
+ * The `--proto-layout` option shared by compile, check, and diff; absent, the configuration's
+ * layout applies, else the schema layout.
+ */
 internal fun CliktCommand.protoLayoutOption() =
     option(
             "--proto-layout",
