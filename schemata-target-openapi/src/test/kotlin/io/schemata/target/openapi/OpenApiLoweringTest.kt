@@ -20,6 +20,7 @@ import io.schemata.target.jsonschema.ObjectSchema
 import io.schemata.target.jsonschema.RefSchema
 import io.schemata.target.jsonschema.ScalarSchema
 import io.schemata.target.jsonschema.TaggedUnionSchema
+import io.schemata.testkit.OpenApi
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -170,18 +171,22 @@ class OpenApiLoweringTest {
         )
         assertNull(get.requestBody)
         assertEquals(
-            Response.Content(
-                200,
-                "Order",
-                "application/json",
-                RefSchema("#/components/schemas/shop.orders.Order", Common()),
+            mapOf(
+                "200" to
+                    Response(
+                        "Order",
+                        Body(
+                            "application/json",
+                            RefSchema("#/components/schemas/shop.orders.Order", Common()),
+                        ),
+                    )
             ),
-            get.response,
+            get.responses,
         )
 
         val delete = doc.paths[0].operations.single { it.verb == Verb.DELETE }
         assertEquals("Orders_cancel", delete.operationId)
-        assertEquals(Response.Empty("No content"), delete.response)
+        assertEquals(mapOf("204" to Response("No content")), delete.responses)
         assertEquals(listOf(Verb.GET, Verb.DELETE), doc.paths[0].operations.map { it.verb })
 
         val list = doc.paths[1].operations.single { it.verb == Verb.GET }
@@ -203,13 +208,17 @@ class OpenApiLoweringTest {
             list.parameters[1].schema,
         )
         assertEquals(
-            Response.Content(
-                200,
-                "Stream of Order",
-                "text/event-stream",
-                RefSchema("#/components/schemas/shop.orders.Order", Common()),
+            mapOf(
+                "200" to
+                    Response(
+                        "Stream of Order",
+                        Body(
+                            "text/event-stream",
+                            RefSchema("#/components/schemas/shop.orders.Order", Common()),
+                        ),
+                    )
             ),
-            list.response,
+            list.responses,
         )
 
         val place = doc.paths[1].operations.single { it.verb == Verb.POST }
@@ -346,7 +355,7 @@ class OpenApiLoweringTest {
             )
         val doc = l.model.documents.single()
         val op = doc.paths.single().operations.single()
-        assertEquals(Response.Empty("No content"), op.response)
+        assertEquals(mapOf("204" to Response("No content")), op.responses)
         val body = op.requestBody!!.schema as ObjectSchema
         assertEquals(
             ArraySchema(RefSchema("#/components/schemas/t.Tag", Common())),
@@ -1019,7 +1028,7 @@ class OpenApiLoweringTest {
                     item.operations.flatMap { op ->
                         op.parameters.map { it.schema } +
                             listOfNotNull(op.requestBody?.schema) +
-                            listOfNotNull((op.response as? Response.Content)?.schema)
+                            op.responses.values.mapNotNull { it.content?.schema }
                     }
                 }
         assertTrue(schemas.flatMap(::refs).all { it in keys })
@@ -1120,5 +1129,237 @@ class OpenApiLoweringTest {
             listOf("shop.Book", "shop.PairKey", "shop.Party"),
             members.components.map { it.key }.sorted(),
         )
+    }
+
+    private fun only(l: Lowered<OpenApiModel>): OpenApiOperation =
+        l.model.documents.single().paths.single().operations.single()
+
+    private fun json(key: String): Body =
+        Body("application/json", RefSchema("#/components/schemas/$key"))
+
+    @Test
+    fun `a declared success code is the success response's code`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 sku string }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 place(Place): R  post "/r" 201
+                  #2 queue(Place)  post "/q" 202
+                  #3 drop(Place)  post "/d" 204
+                }
+                """
+            )
+        val ops = l.model.documents.single().paths.associate { it.path to it.operations.single() }
+        assertEquals(
+            listOf("201" to Response("R", json("t.R"))),
+            ops.getValue("/r").responses.toList(),
+        )
+        assertEquals(listOf("202" to Response("Accepted")), ops.getValue("/q").responses.toList())
+        assertEquals(listOf("204" to Response("No content")), ops.getValue("/d").responses.toList())
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `an operation error replaces the service body for the same code`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Id { #1 id uuid }
+
+                model R { #1 ok bool }
+
+                model Missing { #1 what string }
+
+                model Gone { #1 since string }
+
+                model Problem { #1 title string }
+
+                service S {
+                  errors { default Problem  404 Missing  500 }
+
+                  #1 get(Id): R  get "/r/{id}"  errors { 404 Gone  400 }
+                  #2 ping(): R  get "/ping"
+                }
+                """
+            )
+        val doc = l.model.documents.single()
+        val get = doc.paths.single { it.path == "/r/{id}" }.operations.single()
+        assertEquals(
+            listOf(
+                "200" to Response("R", json("t.R")),
+                "400" to Response("Bad Request"),
+                "404" to Response("Gone", json("t.Gone")),
+                "500" to Response("Internal Server Error"),
+                "default" to Response("Problem", json("t.Problem")),
+            ),
+            get.responses.toList(),
+        )
+        val ping = doc.paths.single { it.path == "/ping" }.operations.single()
+        assertEquals(listOf("200", "404", "500", "default"), ping.responses.keys.toList())
+        assertEquals(Response("Missing", json("t.Missing")), ping.responses.getValue("404"))
+        assertEquals(
+            listOf("t.R", "t.Gone", "t.Problem", "t.Missing"),
+            doc.components.map { it.key },
+        )
+
+        val text = OpenApiRenderer.render(l.model).single().content
+        val written =
+            text.substringAfter("\"operationId\": \"S_get\"").substringBefore("\"operationId\"")
+        val at =
+            listOf("\"200\"", "\"400\"", "\"404\"", "\"500\"", "\"default\"").map {
+                written.indexOf(it)
+            }
+        assertTrue(at.all { it >= 0 }, written)
+        assertEquals(at.sorted(), at)
+        assertNull(OpenApi.validate(text))
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a code without a body is described by its reason phrase`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model R { #1 ok bool }
+
+                service S {
+                  errors { 401  404  418  422  503  default }
+
+                  #1 ping(): R  get "/ping"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "200" to Response("R", json("t.R")),
+                "401" to Response("Unauthorized"),
+                "404" to Response("Not Found"),
+                "418" to Response("Error"),
+                "422" to Response("Unprocessable Content"),
+                "503" to Response("Service Unavailable"),
+                "default" to Response("Error"),
+            ),
+            only(l).responses.toList(),
+        )
+    }
+
+    @Test
+    fun `reason phrases cover the registered client and server errors`() {
+        assertEquals("Bad Request", HttpStatus.reason(400))
+        assertEquals("Content Too Large", HttpStatus.reason(413))
+        assertEquals("Too Many Requests", HttpStatus.reason(429))
+        assertEquals("Unavailable For Legal Reasons", HttpStatus.reason(451))
+        assertEquals("Not Extended", HttpStatus.reason(510))
+        assertEquals("Network Authentication Required", HttpStatus.reason(511))
+        assertEquals("Error", HttpStatus.reason(418))
+        assertEquals("Error", HttpStatus.reason(499))
+        assertEquals("Error", HttpStatus.reason(null))
+        assertEquals(39, (400..599).count { HttpStatus.reason(it) != "Error" })
+    }
+
+    @Test
+    fun `an error body reaches its components as a response does`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Id { #1 id uuid }
+
+                model R { #1 ok bool }
+
+                model Problem {
+                  #1 title  string
+                  #2 kind   Kind
+                  #3 fields Problem.Field[]
+
+                  model Field { #1 name string }
+                }
+
+                enum Kind { a b }
+
+                service S {
+                  #1 get(Id): R  get "/r/{id}"  errors { 400 Problem }
+                }
+                """
+            )
+        val doc = l.model.documents.single()
+        assertEquals(Response("Problem", json("t.Problem")), only(l).responses.getValue("400"))
+        assertEquals(
+            listOf("t.R", "t.Problem", "t.Problem.Field", "t.Kind"),
+            doc.components.map { it.key },
+        )
+        val problem = doc.components.single { it.key == "t.Problem" }.schema as ObjectSchema
+        assertEquals(listOf("title", "kind", "fields"), problem.properties.map { it.name })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `an error body from another schema is a component under its schema's key`() {
+        val l =
+            lower(
+                "schema c\n\nmodel Problem { #1 title string }",
+                """
+                schema t
+
+                import c
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 ping(): R  get "/ping"  errors { 500 Problem }
+                }
+                """,
+            )
+        val doc = l.model.documents.single()
+        assertEquals(Response("Problem", json("c.Problem")), only(l).responses.getValue("500"))
+        assertEquals(listOf("t.R", "c.Problem"), doc.components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a union error body is a reference to its union component`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 sku string }
+
+                model R { #1 ok bool }
+
+                model Stock { #1 sku string }
+
+                model Clash { #1 reason string }
+
+                union Refusal = #1 Stock | #2 Clash
+
+                service S {
+                  #1 place(Place): R  post "/r" 201  errors { 409 Refusal }
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "201" to Response("R", json("t.R")),
+                "409" to Response("Refusal", json("t.Refusal")),
+            ),
+            only(l).responses.toList(),
+        )
+        assertEquals(
+            listOf("t.Place", "t.R", "t.Refusal", "t.Stock", "t.Clash"),
+            l.model.documents.single().components.map { it.key },
+        )
+        assertEquals(emptyList(), messages(l))
     }
 }

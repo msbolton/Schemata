@@ -5,6 +5,7 @@ import io.schemata.target.jsonschema.Common
 import io.schemata.target.jsonschema.JsonDef
 import io.schemata.target.jsonschema.ObjectSchema
 import io.schemata.target.jsonschema.Property
+import io.schemata.target.jsonschema.RefSchema
 import io.schemata.target.jsonschema.ScalarSchema
 import io.schemata.testkit.Golden
 import kotlin.test.Test
@@ -67,7 +68,7 @@ class OpenApiRendererTest {
                                             ),
                                         ),
                                     requestBody = null,
-                                    response = Response.Empty("No content"),
+                                    responses = mapOf("204" to Response("No content")),
                                 )
                             ),
                         )
@@ -141,6 +142,155 @@ class OpenApiRendererTest {
                     "responses": {
                       "204": {
                         "description": "No content"
+                      }
+                    }
+                  }
+                }
+              },
+              "components": {
+                "schemas": {
+                  "t.R": {
+                    "type": "object",
+                    "properties": {
+                      "ok": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "ok"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+            """
+                .trimIndent() + "\n",
+            text,
+        )
+    }
+
+    @Test
+    fun `renders every response in order with headers before content`() {
+        val document =
+            OpenApiDocument(
+                path = "t.openapi.json",
+                title = "t",
+                version = "1.0.0",
+                description = null,
+                server = null,
+                tags = listOf(Tag("S", null)),
+                paths =
+                    listOf(
+                        PathItem(
+                            "/r",
+                            listOf(
+                                OpenApiOperation(
+                                    Verb.POST,
+                                    "S_make",
+                                    "S",
+                                    null,
+                                    null,
+                                    deprecated = false,
+                                    parameters = emptyList(),
+                                    requestBody = null,
+                                    responses =
+                                        linkedMapOf(
+                                            "201" to
+                                                Response(
+                                                    "Created",
+                                                    Body(
+                                                        "application/json",
+                                                        RefSchema("#/components/schemas/t.R"),
+                                                    ),
+                                                    linkedMapOf(
+                                                        "Location" to
+                                                            Header(
+                                                                ScalarSchema("string"),
+                                                                "Where it lives.",
+                                                                required = true,
+                                                                deprecated = false,
+                                                            ),
+                                                        "X-Old" to
+                                                            Header(
+                                                                ScalarSchema("string"),
+                                                                null,
+                                                                required = false,
+                                                                deprecated = true,
+                                                            ),
+                                                    ),
+                                                ),
+                                            "404" to Response("Not Found"),
+                                            "default" to Response("Error"),
+                                        ),
+                                )
+                            ),
+                        )
+                    ),
+                components =
+                    listOf(
+                        JsonDef(
+                            "t.R",
+                            ObjectSchema(
+                                listOf(Property("ok", ScalarSchema("boolean"), true)),
+                                closed = true,
+                            ),
+                        )
+                    ),
+            )
+        val text = OpenApiRenderer.render(OpenApiModel(listOf(document))).single().content
+        assertEquals(
+            """
+            {
+              "openapi": "3.1.0",
+              "info": {
+                "title": "t",
+                "version": "1.0.0"
+              },
+              "tags": [
+                {
+                  "name": "S"
+                }
+              ],
+              "paths": {
+                "/r": {
+                  "post": {
+                    "operationId": "S_make",
+                    "tags": [
+                      "S"
+                    ],
+                    "responses": {
+                      "201": {
+                        "description": "Created",
+                        "headers": {
+                          "Location": {
+                            "description": "Where it lives.",
+                            "required": true,
+                            "schema": {
+                              "type": "string"
+                            }
+                          },
+                          "X-Old": {
+                            "required": false,
+                            "deprecated": true,
+                            "schema": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "content": {
+                          "application/json": {
+                            "schema": {
+                              "${'$'}ref": "#/components/schemas/t.R"
+                            }
+                          }
+                        }
+                      },
+                      "404": {
+                        "description": "Not Found"
+                      },
+                      "default": {
+                        "description": "Error"
                       }
                     }
                   }

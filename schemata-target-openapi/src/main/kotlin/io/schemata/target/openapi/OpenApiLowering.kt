@@ -17,9 +17,11 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Verb
+import io.schemata.core.ir.effectiveErrors
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.storedFields
+import io.schemata.core.ir.successStatus
 import io.schemata.lang.Diagnostic
 import io.schemata.target.Lowered
 import io.schemata.target.deprecated
@@ -177,7 +179,10 @@ private class NamespaceLowering(
             is BodyPlan.Partial -> body.fields.forEach { needed += refsIn(it.type) }
             null -> {}
         }
-        op.response?.let { needed += it.target }
+        op.response?.let { needed += if (it.stream) listOf(it.target) else bodyRoots(it.target) }
+        effectiveErrors(service, op).forEach { error ->
+            error.body?.let { needed += bodyRoots(it) }
+        }
         if (routeTaken) return null
         return Plan(service, op, operationId, verb, path, record, pathFields, queryFields, body)
     }
@@ -302,6 +307,12 @@ private class NamespaceLowering(
         }
 
     /**
+     * The declarations a response or an error body of [target] makes components of: the body
+     * itself, which the response refers to.
+     */
+    private fun bodyRoots(target: QualifiedName): List<QualifiedName> = listOf(target)
+
+    /**
      * [roots] and everything they reach, depth first in field order: what a declaration references,
      * then its nested declarations, which its component carries with it.
      */
@@ -359,18 +370,13 @@ private class NamespaceLowering(
                         document.partialRecord(plan.record!!, body.fields, "operation '${op.name}'"),
                     )
             }
-        val response =
-            op.response?.let {
-                val name = it.target.simpleName
-                if (it.stream)
-                    Response.Content(
-                        200,
-                        "Stream of $name",
-                        "text/event-stream",
-                        RefSchema(refOf(it.target)),
-                    )
-                else Response.Content(200, name, "application/json", RefSchema(refOf(it.target)))
-            } ?: Response.Empty("No content")
+        val responses = LinkedHashMap<String, Response>()
+        responses[op.successStatus().toString()] = success(op)
+        // the effective list is in ascending code order with `default` last, as it is written
+        effectiveErrors(plan.service, op).forEach { error ->
+            responses[error.code?.toString() ?: "default"] =
+                error.body?.let { bodyResponse(it) } ?: Response(HttpStatus.reason(error.code))
+        }
         return OpenApiOperation(
             verb = plan.verb,
             operationId = plan.operationId,
@@ -380,9 +386,33 @@ private class NamespaceLowering(
             deprecated = op.annotations.deprecated || plan.service.annotations.deprecated,
             parameters = parameters,
             requestBody = requestBody,
-            response = response,
+            responses = responses,
         )
     }
+
+    /**
+     * The success response: a 204 has no content and keeps the description `No content`; a 200,
+     * 201, or 202 without a response has no content and is described by its reason phrase; a
+     * streamed response is `text/event-stream` of its messages.
+     */
+    private fun success(op: Operation): Response {
+        val status = op.successStatus()
+        val payload = op.response
+        return when {
+            status == 204 -> Response("No content")
+            payload == null -> Response(HttpStatus.reason(status))
+            payload.stream ->
+                Response(
+                    "Stream of ${payload.target.simpleName}",
+                    Body("text/event-stream", RefSchema(refOf(payload.target))),
+                )
+            else -> bodyResponse(payload.target)
+        }
+    }
+
+    /** A response whose body is [target]: `application/json` of its component, named by it. */
+    private fun bodyResponse(target: QualifiedName): Response =
+        Response(target.simpleName, Body("application/json", RefSchema(refOf(target))))
 
     /**
      * [field] as a parameter named by its Schemata name; its doc and deprecation go on the

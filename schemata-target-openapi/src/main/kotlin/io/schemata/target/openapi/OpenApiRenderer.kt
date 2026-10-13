@@ -74,7 +74,7 @@ object OpenApiRenderer {
                         "content" to content(body.mediaType, body.schema),
                     )
         }
-        members += "responses" to responses(op.response)
+        members += "responses" to JsonObject(op.responses.map { (code, r) -> code to response(r) })
         return JsonObject(members)
     }
 
@@ -93,19 +93,23 @@ object OpenApiRenderer {
         return JsonObject(members)
     }
 
-    private fun responses(response: Response): JsonObject =
-        when (response) {
-            is Response.Content ->
-                obj(
-                    response.status.toString() to
-                        obj(
-                            "description" to JsonString(response.description),
-                            "content" to content(response.mediaType, response.schema),
-                        )
-                )
-            is Response.Empty ->
-                obj("204" to obj("description" to JsonString(response.description)))
-        }
+    private fun response(r: Response): JsonObject {
+        val members = mutableListOf<Pair<String, JsonValue>>()
+        members += "description" to JsonString(r.description)
+        if (r.headers.isNotEmpty())
+            members += "headers" to JsonObject(r.headers.map { (name, h) -> name to header(h) })
+        r.content?.let { members += "content" to content(it.mediaType, it.schema) }
+        return JsonObject(members)
+    }
+
+    private fun header(h: Header): JsonObject {
+        val members = mutableListOf<Pair<String, JsonValue>>()
+        h.description?.let { members += "description" to JsonString(it) }
+        members += "required" to JsonBool(h.required)
+        if (h.deprecated) members += "deprecated" to JsonBool(true)
+        members += "schema" to schema(h.schema)
+        return JsonObject(members)
+    }
 
     private fun content(mediaType: String, schema: JsonSchema): JsonObject =
         obj(mediaType to obj("schema" to schema(schema)))

@@ -1,0 +1,25 @@
+/// Success codes and error responses.
+schema corpus.responses
+
+import corpus.problems as problems
+
+model OrderId { #1 id uuid }
+
+model PlaceOrder { #1 sku string { max 64 }  #2 quantity int32 { min 1 } }
+
+model Order { #1 id uuid  #2 sku string  #3 quantity int32 }
+
+model OutOfStock { #1 sku string  #2 available int32 }
+
+model Conflict { #1 reason string }
+
+union Refusal = #1 OutOfStock | #2 Conflict
+
+/// Orders, with the codes they answer.
+service Orders {
+  errors { 401  500 problems.Problem  default problems.Problem }
+  #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 problems.Problem }
+  #2 place(PlaceOrder): Order  post "/orders" 201  errors { 400 problems.Problem  409 Refusal }
+  #3 cancel(OrderId)  post "/orders/{id}/cancel" 202
+  #4 remove(OrderId)  delete "/orders/{id}" 204  errors { 404  503 }
+}
