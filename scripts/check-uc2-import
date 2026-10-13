@@ -13,7 +13,11 @@ Stages, all inside a temporary directory that is removed afterwards (the IEPD is
   3. xmllint --schema over every emitted .xsd against a one-element instance: exit 0 or 3 means the schema
      loaded, exit 5 (the schema failed to compile) or anything else fails
   4. protoc over every emitted .proto, when protoc is on PATH
-  4b. compile to proto again with --proto-layout type (any error fails), then protoc over every file it emitted
+  4b. compile to proto again with --proto-layout type (any error fails), then protoc over every file it emitted,
+      then the packages, from package lines and counts only: every file's package is its directory's,
+      uc2_battlefield_entity/battlefield_entity.proto carries package uc2_battlefield_entity, the package
+      directories are exactly the packages of the schemas that declare a type or service, and at most one
+      file holds declarations of more than one schema (counted from the SCH2001 note on its moved declarations)
   5. round trip: import the emitted .xsd tree, compile to xsd again, and compare the two trees file by file;
      SCH2402 (a schema name derived from the file name), SCH2403 (a dropped member element name) and
      SCH2403 (an enumeration value renamed again, since the XSD target writes the original text back)
@@ -43,6 +47,12 @@ ROUND_TRIP_TOLERATED = [
     re.compile(r"SCH2403 (union|element) '.*': member element name '.*' has no Schemata equivalent and is dropped; .*"),
 ]
 ARG_BUDGET = 100_000
+SCHEMA_LINE = re.compile(r"^schema\s+([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)(.*)$")
+DECLARED_PACKAGE = re.compile(r'@proto\([^)]*\bpackage:\s*"([^"]+)"')
+TOP_LEVEL_DECLARATION = re.compile(r"^(?:model|enum|union|service)\s")
+PACKAGE_LINE = re.compile(r"^package\s+([A-Za-z0-9_.]+)\s*;", re.MULTILINE)
+MOVED_NOTE = re.compile(r" (?:is|are) written under package '[^']*' in (\S+\.proto)$")
+BATTLEFIELD_ENTITY = Path("uc2_battlefield_entity") / "battlefield_entity.proto"
 
 
 def find_binary(explicit):
@@ -98,6 +108,67 @@ def tolerated_on_return(d):
         return False
     text = f'{d["code"]} {d["message"]}'
     return any(r.fullmatch(text) for r in ROUND_TRIP_TOLERATED)
+
+
+def package_of(proto):
+    """The name on a .proto file's package line, or "" when it has none."""
+    m = PACKAGE_LINE.search(proto.read_text(encoding="utf-8"))
+    return m.group(1) if m else ""
+
+
+def check_type_packages(proto_root, protos, schemata_files, report, failures):
+    """Check that the type layout keeps each type in its own schema's package; return the summary.
+
+    Reads the emitted .proto files, the imported .schemata files and the compile report, writes
+    nothing, and reports counts only, so no name from the IEPD reaches the summary. A file shared
+    by declarations of several schemas is counted from the SCH2001 note the compiler reports once
+    per such file, which ends with the file's path.
+    """
+    if not protos:
+        return "skipped"
+    before = len(failures)
+
+    directories = set()
+    off = 0
+    for f in protos:
+        directory = ".".join(Path(f).relative_to(proto_root).parent.parts)
+        directories.add(directory)
+        if package_of(Path(f)) != directory:
+            off += 1
+    if off:
+        failures.append(f"type packages: {off} of {len(protos)} files carry a package other than their directory's")
+
+    shared = set()
+    for d in report["diagnostics"]:
+        m = MOVED_NOTE.search(d["message"]) if d["code"] == "SCH2001" else None
+        if m:
+            shared.add(m.group(1))
+    if len(shared) > 1:
+        failures.append(f"type packages: {len(shared)} files hold declarations of more than one schema, at most 1 expected")
+
+    entity = proto_root / BATTLEFIELD_ENTITY
+    if not entity.is_file():
+        failures.append(f"type packages: {BATTLEFIELD_ENTITY.as_posix()} was not written")
+    elif package_of(entity) != "uc2_battlefield_entity":
+        failures.append(f"type packages: {BATTLEFIELD_ENTITY.as_posix()} does not carry package uc2_battlefield_entity;")
+
+    owners = set()
+    for f in schemata_files:
+        lines = Path(f).read_text(encoding="utf-8").splitlines()
+        head = next((m for m in map(SCHEMA_LINE.match, lines) if m), None)
+        if head is None or not any(TOP_LEVEL_DECLARATION.match(line) for line in lines):
+            continue
+        declared = DECLARED_PACKAGE.search(head.group(2))
+        owners.add(declared.group(1) if declared else head.group(1))
+    if owners != directories:
+        failures.append(
+            f"type packages: {len(owners - directories)} schemas that declare a type or service have no "
+            f"package directory, and {len(directories - owners)} package directories are no schema's package"
+        )
+
+    files_word = "file" if len(shared) == 1 else "files"
+    verdict = "ok" if len(failures) == before else "FAIL"
+    return f"{verdict} ({len(owners & directories)} own, {len(shared)} shared {files_word}, {off} off their directory)"
 
 
 def main():
@@ -202,11 +273,13 @@ def main():
 
         protoc_result, protos = run_protoc("protoc", work / "proto" / "proto")
 
-        # 4b. the per-type Protobuf layout: one file per type under its package directory. A missing
-        # file here is a failure of its own, since the layout must write something for any schema.
+        # 4b. the per-type Protobuf layout: one file per type in its own schema's package directory, a
+        # file shared across schemas only by types in a reference cycle. A missing file here is a failure
+        # of its own, since the layout must write something for any schema.
         type_proto = work / "proto-type"
         type_protos = []
         protoc_type_result = "skipped"
+        type_packages_result = "skipped"
         if files:
             rep = run_json(
                 bin_ + ["compile", "--target", "proto", "--proto-layout", "type", "--out", str(type_proto),
@@ -216,6 +289,7 @@ def main():
             for d in errors_of(rep):
                 failures.append(f'compile proto (type layout): {d["code"]} {where(d)} {d["message"]}')
             protoc_type_result, type_protos = run_protoc("protoc (type)", type_proto / "proto")
+            type_packages_result = check_type_packages(type_proto / "proto", type_protos, files, rep, failures)
 
         # 5. round trip
         rt_result = "skipped"
@@ -290,6 +364,7 @@ def main():
                  if protoc_result != "skipped" else "  protoc:            skipped")
     lines.append(f"  protoc (type):     {protoc_type_result} ({len(type_protos)} files)"
                  if protoc_type_result != "skipped" else "  protoc (type):     skipped")
+    lines.append(f"  type packages:     {type_packages_result}")
     lines.append(f"  round trip:        {rt_result}")
     lines.append(f"  whole tree:        {tree_result}")
     lines.append(f"  whole tree codes:  {fmt(tree_codes)}")
