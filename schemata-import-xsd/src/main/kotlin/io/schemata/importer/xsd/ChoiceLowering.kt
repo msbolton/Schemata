@@ -399,10 +399,34 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 "inline choice has no Schemata equivalent; members imported as optional fields",
                 particle.line,
             )
-        // Each branch, a wildcard among them, is an optional field; a repeated choice repeats
-        // every branch, so a branch's occurrence is multiplied by the choice's and a branch
-        // that may repeat is a list.
-        return branches.flatMap {
+        return optionalBranchFields(
+            recordName,
+            branches,
+            particle,
+            whereCollision,
+            claimed,
+            nested,
+            siblings,
+            enclosing,
+        )
+    }
+
+    /**
+     * Each of a choice's [branches], a wildcard among them, as an optional field of the record: a
+     * repeated choice repeats every branch, so a branch's occurrence is multiplied by [particle]'s
+     * and a branch that may repeat is a list.
+     */
+    private fun optionalBranchFields(
+        recordName: String,
+        branches: List<XParticle>,
+        particle: XParticle.Nested,
+        whereCollision: String,
+        claimed: MutableMap<String, Claim>,
+        nested: MutableList<UnitDecl>,
+        siblings: MutableList<UnitDecl>,
+        enclosing: Set<QName>,
+    ): List<UnitField> =
+        branches.flatMap {
             when (it) {
                 is XParticle.Element ->
                     listOfNotNull(
@@ -453,7 +477,6 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 is XParticle.GroupRef -> emptyList() // only an unresolved ref survives expansion
             }
         }
-    }
 
     /**
      * Whether [ct], whose content is a bare choice, lowers to a union: only when the choice occurs
@@ -472,6 +495,81 @@ internal class ChoiceLowering(private val context: ImportContext) {
             context
                 .quietly { context.complexLowering.expandParticles(choice.particles, "") }
                 .any { it !is XParticle.Any }
+    }
+
+    /**
+     * Whether a member of [choice] names the declaration [choice] would be a union for: an element
+     * typed [type] (the named complex type being declared), or a reference to the global element
+     * [element] (the one whose anonymous type holds [choice]) or to one typed [type]. A union may
+     * not list itself, so such a choice is a model instead, see [selfNamingFields]. A choice nested
+     * in [choice] offers its branches as members too, as [unionFromChoice] takes them; two choices
+     * naming each other are still two unions.
+     */
+    internal fun namesItself(choice: XContent.Choice, type: QName?, element: QName?): Boolean =
+        // Only the answer is wanted: whatever expanding the branches reports is reported where
+        // they are lowered.
+        context.quietly {
+            fun names(particles: List<XParticle>): Boolean =
+                context.complexLowering.expandParticles(particles, "").any { p ->
+                    when (p) {
+                        is XParticle.Element -> {
+                            val el = p.element
+                            val ref = el.ref
+                            if (ref != null) {
+                                ref == element ||
+                                    (type != null &&
+                                        context.complexLowering.resolveElementRef(el, "")?.type ==
+                                            type)
+                            } else type != null && el.type == type
+                        }
+                        is XParticle.Nested ->
+                            (p.content as? XContent.Choice)?.let { names(it.particles) } == true
+                        else -> false
+                    }
+                }
+            names(choice.particles)
+        }
+
+    /**
+     * The fields of the model [ct] lowers to under [recordName] when its bare choice names itself
+     * (see [namesItself]): one optional field per branch, a list for a branch that may repeat, as
+     * an inline choice's fallback gives, and one note at [line], the declaration. The triple is
+     * [ComplexLowering.fieldsAndNested]'s: fields, nested declarations, record annotations.
+     */
+    internal fun selfNamingFields(
+        ct: XComplexType,
+        choice: XContent.Choice,
+        recordName: String,
+        where: String,
+        line: Int,
+        siblings: MutableList<UnitDecl>,
+    ): Triple<List<UnitField>, List<UnitDecl>, List<UnitAnnotation>> {
+        unionExtras(ct, where)
+        context.diagnostics +=
+            context.lossy(
+                ImportCodes.APPROXIMATED,
+                where,
+                "choice names itself; members imported as optional fields",
+                line,
+            )
+        val claimed = mutableMapOf<String, Claim>()
+        val nested = mutableListOf<UnitDecl>()
+        val enclosing = setOfNotNull(ct.name?.let { QName(context.doc.targetNamespace, it) })
+        val particle = XParticle.Nested(choice, choice.minOccurs, choice.maxOccurs, ct.line)
+        val fields =
+            optionalBranchFields(
+                recordName,
+                context.complexLowering.expandParticles(choice.particles, where),
+                particle,
+                where,
+                claimed,
+                nested,
+                siblings,
+                enclosing,
+            )
+        val settled =
+            context.renameAttributesBesideElements(context.settleNames(fields, claimed), claimed)
+        return Triple(settled, nested, emptyList())
     }
 
     /**
@@ -589,13 +687,30 @@ internal class ChoiceLowering(private val context: ImportContext) {
                         val ref = sharedBranchRecord(e, group, unionWhere, siblings)
                         ref to Names.snakeCase(ref.name)
                     }
-                if (checkMismatch && e.name != stem) {
+                val placeholder =
+                    (type as? UnitType.Ref)?.takeIf { it.name.startsWith(ELEMENT_REF_PREFIX) }
+                if (checkMismatch && placeholder != null) {
+                    // The record an element reference names may be numbered once every
+                    // namespace's elements have claimed theirs, so the note waits for the name the
+                    // XSD target gives that record's element, and goes when it is this one's.
+                    val note =
+                        context.lossy(
+                            ImportCodes.APPROXIMATED,
+                            unionWhere,
+                            memberNameTail(e.name, stem),
+                            e.el.line,
+                        )
+                    context.diagnostics += note
+                    context.elementRecords.deferNote(note, placeholder) { regenerated ->
+                        if (regenerated == e.name) null
+                        else "$unionWhere: ${memberNameTail(e.name, regenerated)}"
+                    }
+                } else if (checkMismatch && e.name != stem) {
                     context.diagnostics +=
                         context.lossy(
                             ImportCodes.APPROXIMATED,
                             unionWhere,
-                            "member element name '${e.name}' has no Schemata equivalent and is dropped; the " +
-                                "regenerated element will be named '$stem'",
+                            memberNameTail(e.name, stem),
                             e.el.line,
                         )
                 }
@@ -710,8 +825,21 @@ internal class ChoiceLowering(private val context: ImportContext) {
         if (el.type != null) {
             val qname = el.type
             if (qname.namespace == ImportTypes.XS) {
-                // A builtin member is typed as a field of it would be, a bare decimal taking
-                // the default precision and scale; a list builtin, like any list, is a string.
+                // A list builtin (xs:IDREFS, xs:ENTITIES, xs:NMTOKENS) is a whitespace-separated
+                // list, which a member cannot be: the member is a string, noted as that alone,
+                // never as the list of string a field of it would be.
+                if (ImportTypes.builtin(qname.local)?.type is UnitType.ListOf) {
+                    context.diagnostics +=
+                        context.lossy(
+                            ImportCodes.DROPPED,
+                            unionWhere,
+                            "member typed xs:${qname.local} imported as string",
+                            el.line,
+                        )
+                    return UnitType.Scalar("string", emptyList()) to "string"
+                }
+                // Any other builtin member is typed as a field of it would be, a bare decimal
+                // taking the default precision and scale.
                 val type = context.simpleTypes.resolveTypeRef(qname, unionWhere, el.line)
                 if (type == null) {
                     context.diagnostics +=
@@ -835,6 +963,11 @@ internal class ChoiceLowering(private val context: ImportContext) {
                 UnitType.Scalar("string", emptyList()) to "string"
             }
         }
+
+    /** A member element's name that the XSD target writes as [regenerated] instead. */
+    private fun memberNameTail(name: String, regenerated: String): String =
+        "member element name '$name' has no Schemata equivalent and is dropped; the regenerated " +
+            "element will be named '$regenerated'"
 
     /**
      * [original]'s regenerated element or union-member name, exactly as the XSD target writes it.

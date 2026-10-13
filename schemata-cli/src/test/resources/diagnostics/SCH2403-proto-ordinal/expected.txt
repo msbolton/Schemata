@@ -1,0 +1,10 @@
+# import=proto
+warning[SCH2403] (lossy): service 'S': rpc 'B': ordinal #2 is already used by rpc 'A'; the next free ordinal is taken
+  --> s.proto:11:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): service 'S': rpc 'C': ordinal #4 is reserved; the next free ordinal is taken
+  --> s.proto:12:3
+   = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

@@ -52,14 +52,11 @@ SCH2403 complex type 'DateType': extension of 'ObjectType' has no Schemata equiv
 SCH2403 complex type 'Degree180PlusMinusType': simpleContent extension of 'Degree180PlusMinusSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'Degree180PlusMinusType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 complex type 'Degree180PlusMinusType': facet minExclusive dropped
-SCH2403 complex type 'Degree180PlusMinusType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 attribute 'sigmaErrorValue': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'Degree360Type': simpleContent extension of 'Degree360SimpleType' has no Schemata equivalent; imported as a model with a 'value' field
 SCH2403 complex type 'Degree360Type': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2404 complex type 'Degree360Type': facet maxExclusive dropped
-SCH2403 complex type 'Degree360Type': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'Degree90PlusMinusType': simpleContent extension of 'Degree90PlusMinusSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
-SCH2403 complex type 'Degree90PlusMinusType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'Degree90PlusMinusType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'IdentificationType': extension of 'ObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2405 element 'IdentificationCategoryAbstract': abstract element 'IdentificationCategoryAbstract' has no type and no substituting element; dropped
@@ -67,7 +64,6 @@ SCH2403 element 'GeographicCoordinateLatitude': element 'GeographicCoordinateLat
 SCH2403 complex type 'LatitudeCoordinateType': extension of 'ObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'LatitudeDegreeValue': element 'LatitudeDegreeValue' has no Schemata equivalent; the regenerated root element will be named 'latitude_degree'
 SCH2403 complex type 'LatitudeDegreeType': simpleContent extension of 'LatitudeDegreeSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
-SCH2403 complex type 'LatitudeDegreeType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'LatitudeDegreeType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 element 'CircularRegionRadiusLengthMeasure': element 'CircularRegionRadiusLengthMeasure' has no Schemata equivalent; the regenerated root element will be named 'length_measure'
 SCH2403 complex type 'LengthMeasureType': extension of 'MeasureType' has no Schemata equivalent; base fields flattened into the model
@@ -82,7 +78,6 @@ SCH2403 element 'GeographicCoordinateLongitude': element 'GeographicCoordinateLo
 SCH2403 complex type 'LongitudeCoordinateType': extension of 'ObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 element 'LongitudeDegreeValue': element 'LongitudeDegreeValue' has no Schemata equivalent; the regenerated root element will be named 'longitude_degree'
 SCH2403 complex type 'LongitudeDegreeType': simpleContent extension of 'LongitudeDegreeSimpleType' has no Schemata equivalent; imported as a model with a 'value' field
-SCH2403 complex type 'LongitudeDegreeType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'LongitudeDegreeType': decimal without totalDigits and fractionDigits imported as decimal(38, 9)
 SCH2403 complex type 'MeasureType': extension of 'ObjectType' has no Schemata equivalent; base fields flattened into the model
 SCH2403 complex type 'MetadataType': extension of 'MetadataType' has no Schemata equivalent; base fields flattened into the model

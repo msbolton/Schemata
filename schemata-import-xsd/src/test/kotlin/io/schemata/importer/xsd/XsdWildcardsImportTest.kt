@@ -216,4 +216,33 @@ class XsdWildcardsImportTest {
             records.single { it.name == "Repeated" }.fields.single().type,
         )
     }
+
+    @Test
+    fun `documentation on a wildcard becomes the field doc`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="ExtensionsType">
+                <xs:sequence>
+                  <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+                    <xs:annotation><xs:documentation>Elements from another schema.</xs:documentation></xs:annotation>
+                  </xs:any>
+                </xs:sequence>
+                <xs:anyAttribute processContents="skip">
+                  <xs:annotation><xs:documentation>Attributes from anywhere.</xs:documentation></xs:annotation>
+                </xs:anyAttribute>
+              </xs:complexType>
+              <xs:element name="extensions" type="ExtensionsType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val extensions = unit(imported, "t").declarations.filterIsInstance<UnitRecord>().single()
+        assertEquals(
+            listOf(
+                "any" to "Elements from another schema.",
+                "attributes" to "Attributes from anywhere.",
+            ),
+            extensions.fields.map { it.name to it.doc },
+        )
+    }
 }

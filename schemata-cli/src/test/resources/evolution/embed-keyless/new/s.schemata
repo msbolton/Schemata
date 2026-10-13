@@ -1,0 +1,9 @@
+schema s
+
+model Address { #1 street string { max 100 } }
+
+model Note { #1 text string { max 200 } }
+
+union Detail = #1 Address { embed } | #2 Note
+
+model Order { #1 id uuid { id }  #2 shipping Address { embed }  #3 detail Detail  #4 memo Note? }

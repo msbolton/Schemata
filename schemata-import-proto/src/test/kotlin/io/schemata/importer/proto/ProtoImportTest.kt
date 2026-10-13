@@ -604,7 +604,7 @@ class ProtoImportTest {
                       rpc Cancel(Id) returns (google.protobuf.Empty) {  // schemata: #5; delete "/orders/{id}"
                         option deprecated = true;
                       }
-                      rpc GetURL(Id) returns (Order);
+                      rpc GetURL(Id) returns (Order);  // schemata: #4
                       // schemata: reserved #6, "archive"
                     }
                     """
@@ -624,10 +624,7 @@ class ProtoImportTest {
                 .trimIndent() + "\n",
             "/// Orders.\n" + text(r, "t.schemata").substringAfter("\n/// Orders.\n"),
         )
-        assertEquals(
-            listOf("SCH2402 service 'Orders': rpc 'GetURL': renamed to 'get_url'"),
-            messages(r),
-        )
+        assertEquals(emptyList(), messages(r))
     }
 
     @Test
@@ -687,7 +684,7 @@ class ProtoImportTest {
     }
 
     @Test
-    fun `an rpc rename says how the proto name is kept`() {
+    fun `a kept rpc name is not reported`() {
         val r =
             importText(
                 "t.proto" to
@@ -699,9 +696,16 @@ class ProtoImportTest {
                     """
             )
         assertEquals(
-            listOf("keep @proto(name) so the regenerated rpc keeps its proto name"),
-            r.diagnostics.map { it.help },
+            "schema t\n" +
+                "\n" +
+                "model M { #1 x int32 }\n" +
+                "\n" +
+                "service S {\n" +
+                "  @proto(name: \"GetURL\") #1 get_url(M): M\n" +
+                "}\n",
+            text(r, "t.schemata"),
         )
+        assertEquals(emptyList(), messages(r))
     }
 
     @Test
@@ -811,7 +815,7 @@ class ProtoImportTest {
                     message M { int32 x = 1; }
                     service S {
                       rpc A(M) returns (M);  // schemata: #2
-                      rpc B(M) returns (M);
+                      rpc B(M) returns (M);  // schemata: #2
                       rpc C(M) returns (M);
                     }
                     """
@@ -830,11 +834,41 @@ class ProtoImportTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used; the next free ordinal is taken",
-                "SCH2403 service 'S': rpc 'C': ordinal #3 is already used; the next free ordinal is taken",
+                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used by rpc 'A'; the next free ordinal is taken"
             ),
             messages(r),
         )
+    }
+
+    @Test
+    fun `the rpcs after a noted one follow on from its ordinal`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);  // schemata: #2
+                      rpc B(M) returns (M);
+                      rpc C(M) returns (M);
+                    }
+                    """
+            )
+        assertEquals(
+            "schema t\n" +
+                "\n" +
+                "model M { #1 x int32 }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #2 a(M): M\n" +
+                "  #3 b(M): M\n" +
+                "  #4 c(M): M\n" +
+                "}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
     }
 
     @Test
@@ -849,6 +883,7 @@ class ProtoImportTest {
                     service S {
                       rpc A(M) returns (M);
                       rpc B(M) returns (M);
+                      rpc C(M) returns (M);
                       // schemata: reserved #2
                     }
                     """
@@ -861,13 +896,52 @@ class ProtoImportTest {
                 "service S {\n" +
                 "  #1 a(M): M\n" +
                 "  #3 b(M): M\n" +
+                "  #4 c(M): M\n" +
                 "  reserved #2\n" +
                 "}\n",
             text(r, "t.schemata"),
         )
         assertEquals(
             listOf(
-                "SCH2403 service 'S': rpc 'B': ordinal #2 is already used; the next free ordinal is taken"
+                "SCH2403 service 'S': rpc 'B': ordinal #2 is reserved; the next free ordinal is taken"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a following ordinal already used names the rpc that holds it`() {
+        val r =
+            importText(
+                "t.proto" to
+                    """
+                    syntax = "proto3";
+                    package t;
+                    message M { int32 x = 1; }
+                    service S {
+                      rpc A(M) returns (M);
+                      rpc B(M) returns (M);  // schemata: #3
+                      rpc C(M) returns (M);  // schemata: #2
+                      rpc D(M) returns (M);
+                    }
+                    """
+            )
+        assertEquals(
+            "schema t\n" +
+                "\n" +
+                "model M { #1 x int32 }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #1 a(M): M\n" +
+                "  #3 b(M): M\n" +
+                "  #2 c(M): M\n" +
+                "  #4 d(M): M\n" +
+                "}\n",
+            text(r, "t.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 service 'S': rpc 'D': ordinal #3 is already used by rpc 'B'; the next free ordinal is taken"
             ),
             messages(r),
         )

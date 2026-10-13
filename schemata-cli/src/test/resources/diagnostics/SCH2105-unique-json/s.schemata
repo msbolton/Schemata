@@ -1,0 +1,5 @@
+schema s
+
+model Tag { #1 id int32 { id } }
+
+model R { #1 id int32 { id }  #2 tags Tag[] { unique } @sql(strategy: json) }

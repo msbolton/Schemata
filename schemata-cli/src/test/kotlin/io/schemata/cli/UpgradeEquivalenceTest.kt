@@ -37,6 +37,8 @@ import org.junit.jupiter.api.TestFactory
  *   XSD, JSON Schema, and OpenAPI;
  * - `on delete`: an `ON DELETE` clause on a foreign key;
  * - `type notes`: the `schemata:` notes on an emitted field are written in 2.0 spelling;
+ * - `nullable parameter`: an OpenAPI parameter whose field is nullable takes the plain schema,
+ *   since a query string has no null, so it is an optional parameter with no `null` in its schema;
  * - `message text`: a diagnostic says `model` or `schema`, spells a type as 2.0 does, or is a
  *   warning on a field a reference now emits;
  * - `keyword rename`: an identifier that is a 2.0 keyword is renamed `<name>_value`;
@@ -385,7 +387,8 @@ class UpgradeEquivalenceTest {
 
     /**
      * The two versions of the output at [path] with what [reasons] allow left out: the notes' text,
-     * the `ON DELETE` clauses, and the constructs a reference by key changes ([ReferenceMask]).
+     * the `ON DELETE` clauses, a nullable parameter's null, and the constructs a reference by key
+     * changes ([ReferenceMask]).
      */
     private fun mask(
         path: String,
@@ -400,8 +403,9 @@ class UpgradeEquivalenceTest {
             if ("on delete" in reasons) out = out.replace(ON_DELETE, "")
             return out
         }
-        val a = plain(before)
-        val b = plain(after)
+        val nullable = "nullable parameter" in reasons
+        val a = plain(if (nullable) NullableParameterMask.mask(before) else before)
+        val b = plain(if (nullable) NullableParameterMask.mask(after) else after)
         return if ("reference by key" in reasons) ReferenceMask.mask(path, a, b, refs) else a to b
     }
 
@@ -459,12 +463,13 @@ class UpgradeEquivalenceTest {
                 "reference by key",
                 "on delete",
                 "type notes",
+                "nullable parameter",
                 "message text",
                 "keyword rename",
                 "retired check",
                 "upgrade refuses",
             )
-        val MASKABLE = setOf("type notes", "on delete", "reference by key")
+        val MASKABLE = setOf("type notes", "on delete", "nullable parameter", "reference by key")
 
         /**
          * Codes 2.0 retired, each read as the code that reports the same mistake now: an unknown

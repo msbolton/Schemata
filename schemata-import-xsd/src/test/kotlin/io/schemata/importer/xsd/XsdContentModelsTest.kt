@@ -177,9 +177,9 @@ class XsdContentModelsTest {
             imported.diagnostics.none { it.code.id == "SCH2401" },
             messages(imported).toString(),
         )
-        assertTrue(
-            messages(imported).any { "list simple type imported as string" in it },
-            messages(imported).toString(),
+        assertEquals(
+            listOf("SCH2405 union 'Target': member typed xs:IDREFS imported as string"),
+            messages(imported).filter { "IDREFS" in it || "list" in it },
         )
     }
 
@@ -594,13 +594,114 @@ class XsdContentModelsTest {
             </xs:schema>
             """
         val imported = lower(docs("t.xsd" to xml))
-        val unions =
-            unit(imported, "t").declarations.filterIsInstance<UnitUnion>().associateBy { it.name }
-        assertEquals(setOf("Node", "Tree"), unions.keys)
-        assertEquals(UnitType.Ref("Node"), unions.getValue("Tree").members[0].type)
-        assertEquals(UnitType.Ref("Node"), unions.getValue("Node").members[0].type)
+        assertEquals(
+            listOf(Triple("node", UnitType.Ref("Node"), true), Triple("leaf", string, true)),
+            records(imported, "t").getValue("Node").fields.map {
+                Triple(it.name, it.type, it.nullable)
+            },
+        )
+        val tree = unit(imported, "t").declarations.filterIsInstance<UnitUnion>().single()
+        assertEquals("Tree", tree.name)
+        assertEquals(
+            listOf(UnitType.Ref("Node"), UnitType.Scalar("int32", emptyList())),
+            tree.members.map { it.type },
+        )
+        assertTrue(
+            "SCH2403 element 'node': choice names itself; members imported as optional fields" in
+                messages(imported),
+            messages(imported).toString(),
+        )
         assertTrue(
             imported.diagnostics.none { it.code.id == "SCH2401" },
+            messages(imported).toString(),
+        )
+    }
+
+    @Test
+    fun `a named choice type that names itself imports as a model`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:complexType name="NodeType"><xs:choice>
+                <xs:element name="child" type="tns:NodeType" maxOccurs="unbounded"/>
+                <xs:element name="label" type="xs:string"/>
+              </xs:choice></xs:complexType>
+              <xs:element name="node" type="tns:NodeType"/>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        assertTrue(unit(imported, "t").declarations.none { it is UnitUnion })
+        assertEquals(
+            listOf(
+                Triple("child", UnitType.ListOf(UnitType.Ref("Node"), false, emptyList()), false),
+                Triple("label", string, true),
+            ),
+            records(imported, "t").getValue("Node").fields.map {
+                Triple(it.name, it.type, it.nullable)
+            },
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'NodeType': choice names itself; members imported as optional fields"
+            ),
+            messages(imported),
+        )
+    }
+
+    @Test
+    fun `two choices that reference each other stay unions`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:element name="ping"><xs:complexType><xs:choice>
+                <xs:element ref="tns:pong"/>
+                <xs:element name="stop" type="xs:string"/>
+              </xs:choice></xs:complexType></xs:element>
+              <xs:element name="pong"><xs:complexType><xs:choice>
+                <xs:element ref="tns:ping"/>
+                <xs:element name="halt" type="xs:boolean"/>
+              </xs:choice></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        val unions =
+            unit(imported, "t").declarations.filterIsInstance<UnitUnion>().associateBy { it.name }
+        assertEquals(
+            listOf(UnitType.Ref("Pong"), string),
+            unions.getValue("Ping").members.map { it.type },
+        )
+        assertEquals(
+            listOf(UnitType.Ref("Ping"), UnitType.Scalar("bool", emptyList())),
+            unions.getValue("Pong").members.map { it.type },
+        )
+        assertTrue(messages(imported).none { "names itself" in it }, messages(imported).toString())
+    }
+
+    @Test
+    fun `a repeated self naming choice imports list fields`() {
+        val xml =
+            """
+            <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
+              <xs:element name="node"><xs:complexType><xs:choice maxOccurs="unbounded">
+                <xs:element ref="tns:node"/>
+                <xs:element name="leaf" type="xs:string"/>
+              </xs:choice></xs:complexType></xs:element>
+            </xs:schema>
+            """
+        val imported = lower(docs("t.xsd" to xml))
+        assertTrue(unit(imported, "t").declarations.none { it is UnitUnion })
+        assertEquals(
+            listOf(
+                Triple("node", UnitType.ListOf(UnitType.Ref("Node"), false, emptyList()), false),
+                Triple("leaf", UnitType.ListOf(string, false, emptyList()), false),
+            ),
+            records(imported, "t").getValue("Node").fields.map {
+                Triple(it.name, it.type, it.nullable)
+            },
+        )
+        assertTrue(
+            "SCH2403 element 'node': inline choice has no Schemata equivalent; members imported as optional fields" in
+                messages(imported),
             messages(imported).toString(),
         )
     }
@@ -719,6 +820,7 @@ class XsdContentModelsTest {
             """
             <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemata:t" targetNamespace="urn:schemata:t">
               <xs:complexType name="PageType"><xs:sequence><xs:element ref="tns:foo_bar"/></xs:sequence></xs:complexType>
+              <xs:complexType name="PickType"><xs:choice><xs:element ref="tns:foo_bar"/><xs:element name="s" type="xs:string"/></xs:choice></xs:complexType>
               <xs:element name="page" type="tns:PageType"/>
               <xs:element name="fooBar"><xs:complexType><xs:sequence><xs:element name="p" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
               <xs:element name="foo_bar"><xs:complexType><xs:sequence><xs:element name="q" type="xs:string"/></xs:sequence></xs:complexType></xs:element>
@@ -733,6 +835,17 @@ class XsdContentModelsTest {
                 "SCH2403 element 'foo_bar': element 'fooBar' already lowers to model 'FooBar'; imported as 'FooBar2'"
             ),
             messages(imported).filter { "FooBar2" in it },
+        )
+        val pick =
+            unit(imported, "t").declarations.filterIsInstance<UnitUnion>().single {
+                it.name == "Pick"
+            }
+        assertEquals(listOf(UnitType.Ref("FooBar2"), string), pick.members.map { it.type })
+        assertTrue(
+            "SCH2403 union 'Pick': member element name 'foo_bar' has no Schemata equivalent and " +
+                "is dropped; the regenerated element will be named 'foo_bar2'" in
+                messages(imported),
+            messages(imported).toString(),
         )
         assertTrue(imported.diagnostics.none { it.code.id == "SCH2401" })
     }

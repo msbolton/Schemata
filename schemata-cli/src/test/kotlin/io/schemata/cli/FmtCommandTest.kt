@@ -132,6 +132,21 @@ class FmtCommandTest {
     }
 
     @Test
+    fun `fmt keeps a field flag inside a type argument so check still reports it`() {
+        val f = write("a.schemata", "schema t\nmodel R {\n#1 a list<string { unique }>\n}\n")
+        val r = FmtCommand().test(listOf("--no-config", f.path))
+        assertEquals(0, r.statusCode, r.stderr)
+        assertEquals("schema t\n\nmodel R { #1 a list<string { unique }> }\n", f.readText())
+        val checked = CheckCommand().test(listOf("--no-config", "--color", "never", f.path))
+        assertEquals(1, checked.statusCode)
+        assertTrue(
+            "error[SCH1049]: option 'unique' belongs to a field, not to a type argument or an alias" in
+                checked.stderr,
+            checked.stderr,
+        )
+    }
+
+    @Test
     fun `fmt with no paths rewrites the files sources names and skips excluded ones`() {
         val messy = "schema t\nmodel R {\n#1 a bool\n}\n"
         val kept = File(dir, "schemas").apply { mkdirs() }.resolve("a.schemata")

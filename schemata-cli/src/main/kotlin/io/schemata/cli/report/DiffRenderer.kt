@@ -37,6 +37,7 @@ import io.schemata.evolution.NamespaceOwner
 import io.schemata.evolution.NamespaceRemoved
 import io.schemata.evolution.OperationAdded
 import io.schemata.evolution.OperationBindingChanged
+import io.schemata.evolution.OperationMoved
 import io.schemata.evolution.OperationOwner
 import io.schemata.evolution.OperationRemoved
 import io.schemata.evolution.OperationRenamed
@@ -181,12 +182,13 @@ object DiffRenderer {
             is FieldRefinementChanged -> TypeText.of(c.from.type, c.from.nullable)
             is FieldDefaultChanged -> valueText(c.from.default)
             is EnumValueRenamed -> c.from.name
-            is UnionMemberTypeChanged -> TypeText.of(c.from.type)
+            is UnionMemberTypeChanged -> shown(c.from.type)
             is ReservedChanged -> reservedText(c.from)
             is AnnotationChanged -> annotationText(c.from)
             is DeprecationChanged -> (!c.deprecated).toString()
             is DeclarationKindChanged -> c.from.kindWord
             is OperationRenamed -> c.from.name
+            is OperationMoved -> "#${c.from.ordinal}"
             is OperationRequestChanged -> payloadText(c.from)
             is OperationResponseChanged -> payloadText(c.from)
             is OperationBindingChanged -> bindingText(c.from)
@@ -201,12 +203,13 @@ object DiffRenderer {
             is FieldRefinementChanged -> TypeText.of(c.to.type, c.to.nullable)
             is FieldDefaultChanged -> valueText(c.to.default)
             is EnumValueRenamed -> c.to.name
-            is UnionMemberTypeChanged -> TypeText.of(c.to.type)
+            is UnionMemberTypeChanged -> shown(c.to.type)
             is ReservedChanged -> reservedText(c.to)
             is AnnotationChanged -> annotationText(c.to)
             is DeprecationChanged -> c.deprecated.toString()
             is DeclarationKindChanged -> c.to.kindWord
             is OperationRenamed -> c.to.name
+            is OperationMoved -> "#${c.to.ordinal}"
             is OperationRequestChanged -> payloadText(c.to)
             is OperationResponseChanged -> payloadText(c.to)
             is OperationBindingChanged -> bindingText(c.to)
@@ -279,7 +282,7 @@ object DiffRenderer {
             is UnionMemberAdded -> "member added: ${TypeText.of(c.member.type)}"
             is UnionMemberRemoved -> "member removed: ${TypeText.of(c.member.type)}"
             is UnionMemberTypeChanged ->
-                "member type changed from ${TypeText.of(c.from.type)} to ${TypeText.of(c.to.type)}"
+                "member type changed from ${shown(c.from.type)} to ${shown(c.to.type)}"
             is ReservedChanged -> "reserved changed"
             is AnnotationChanged ->
                 memberPrefix(c.newOwner) + "${annotationLabel(c)} ${changeWord(c)}"
@@ -292,6 +295,8 @@ object DiffRenderer {
             is OperationAdded -> "operation '${c.operation.name}' added"
             is OperationRemoved -> "${dep}operation '${c.operation.name}' removed"
             is OperationRenamed -> "${dep}operation '${c.from.name}' renamed to '${c.to.name}'"
+            is OperationMoved ->
+                "${dep}operation '${c.to.name}' moved from #${c.from.ordinal} to #${c.to.ordinal}"
             is OperationRequestChanged ->
                 "${dep}operation '${c.operation.name}' request changed from " +
                     "${payloadText(c.from)} to ${payloadText(c.to)}"
@@ -368,6 +373,7 @@ object DiffRenderer {
             is OperationAdded -> change.service.qualifiedName.toString()
             is OperationRemoved -> change.service.qualifiedName.toString()
             is OperationRenamed -> change.service.qualifiedName.toString()
+            is OperationMoved -> change.service.qualifiedName.toString()
             is OperationRequestChanged -> change.service.qualifiedName.toString()
             is OperationResponseChanged -> change.service.qualifiedName.toString()
             is OperationBindingChanged -> change.service.qualifiedName.toString()

@@ -12,20 +12,33 @@ import io.schemata.lang.SchemataText
 import io.schemata.target.Names
 
 /**
- * The ordinals a service's operations have taken so far, beside its [reserved] ranges, which none
- * may take: Schemata refuses two operations of one ordinal and an operation on a reserved one.
+ * The ordinals a service's operations have taken so far, each with the rpc that took it, beside its
+ * [reserved] ranges, which none may take: Schemata refuses two operations of one ordinal and an
+ * operation on a reserved one.
  */
 private class RpcOrdinals(private val reserved: List<IntRange>) {
-    private val used = mutableSetOf<Int>()
+    private val owners = mutableMapOf<Int, String>()
 
-    private fun free(n: Int): Boolean = n !in used && reserved.none { n in it }
+    /** The ordinal taken last, 0 before any: an rpc with no ordinal of its own wants the next. */
+    var last = 0
+        private set
 
-    /** [wanted] when it is free, else the next free ordinal above it; either is now taken. */
-    fun claim(wanted: Int): Int {
-        var n = maxOf(wanted, 1)
-        while (!free(n)) n++
-        used += n
-        return n
+    /** What keeps [n] from being taken, `already used by rpc 'A'` or `reserved`, or null. */
+    private fun holder(n: Int): String? =
+        owners[n]?.let { "already used by rpc '$it'" }
+            ?: "reserved".takeIf { reserved.any { n in it } }
+
+    /**
+     * Takes [wanted] for [rpc] when it is free, else the next free ordinal above it. The result
+     * pairs the ordinal taken with what held [wanted], null when nothing did.
+     */
+    fun claim(wanted: Int, rpc: String): Pair<Int, String?> {
+        val held = holder(wanted)
+        var n = wanted
+        while (holder(n) != null) n++
+        owners[n] = rpc
+        last = n
+        return n to held
     }
 }
 
@@ -53,9 +66,7 @@ internal class ServiceLowering(private val lowering: FileLowering) {
             val claimed = mutableMapOf<String, String>()
             val operations = mutableListOf<UnitOperation>()
             s.rpcs.forEach { rpc ->
-                operation(rpc, where, claimed, operations.size + 1, ordinals)?.let {
-                    operations += it
-                }
+                operation(rpc, where, claimed, ordinals)?.let { operations += it }
             }
             s.reservedNotes.zip(notes).forEach { (note, parsed) ->
                 if (parsed == null) {
@@ -87,14 +98,14 @@ internal class ServiceLowering(private val lowering: FileLowering) {
      * An rpc as an operation, or null when it is dropped: a payload must be a message, or
      * `google.protobuf.Empty` for none. The target writes the UpperCamel form of the operation's
      * name, so a name that form does not give back keeps its proto spelling in `@proto(name)`. A
-     * note's ordinal wins; otherwise the operation takes [position], its place among the rpcs kept.
-     * An ordinal [ordinals] already holds is replaced by the next free one.
+     * note's ordinal wins; otherwise the operation takes the one after the ordinal taken last, so
+     * the rpcs after a moved one follow on from it. An ordinal [ordinals] already holds, or one the
+     * service reserves, is replaced by the next free one and reported, naming what held it.
      */
     private fun operation(
         rpc: ProtoRpc,
         service: String,
         claimed: MutableMap<String, String>,
-        position: Int,
         ordinals: RpcOrdinals,
     ): UnitOperation? {
         val where = "$service: rpc '${rpc.name}'"
@@ -151,17 +162,10 @@ internal class ServiceLowering(private val lowering: FileLowering) {
             )
             return null
         }
+        // The annotation regenerates the proto name exactly, so the change is not reported.
         val annotations =
             if (Names.upperCamel(name) == rpc.name) emptyList()
-            else {
-                lowering.report(
-                    ImportCodes.RENAMED,
-                    "$where: renamed to '$name'",
-                    rpc.pos,
-                    RPC_RENAME_HELP,
-                )
-                listOf(UnitAnnotation("proto", "name", SchemataText.string(rpc.name)))
-            }
+            else listOf(UnitAnnotation("proto", "name", SchemataText.string(rpc.name)))
         val note =
             rpc.note?.let { text ->
                 NoteText.parseOperationNote(text)
@@ -179,12 +183,12 @@ internal class ServiceLowering(private val lowering: FileLowering) {
                     UnitPayload(lowering.reference(symbol, emptyList()), t.stream)
                 }
             }
-        val wanted = note?.ordinal ?: position
-        val ordinal = ordinals.claim(wanted)
-        if (ordinal != wanted) {
+        val wanted = note?.ordinal ?: (ordinals.last + 1)
+        val (ordinal, held) = ordinals.claim(wanted, rpc.name)
+        if (held != null) {
             lowering.report(
                 ImportCodes.APPROXIMATED,
-                "$where: ordinal #$wanted is already used; the next free ordinal is taken",
+                "$where: ordinal #$wanted is $held; the next free ordinal is taken",
                 rpc.pos,
             )
         }
@@ -202,6 +206,5 @@ internal class ServiceLowering(private val lowering: FileLowering) {
 
     private companion object {
         const val EMPTY = "google.protobuf.Empty"
-        const val RPC_RENAME_HELP = "keep @proto(name) so the regenerated rpc keeps its proto name"
     }
 }

@@ -45,7 +45,29 @@ internal class ChildTables(private val context: LoweringContext) {
         strategy: String?,
         type: ListOf,
     ): Contribution {
-        if (strategy == "json") return json(ctx, field, "list", jsonHelp(type.element))
+        if (strategy == "json") {
+            val lowered = json(ctx, field, "list", jsonHelp(type.element))
+            // the list is one jsonb value: no child table to make a set of, no key to delete by.
+            // `field.unique` on a list is only ever set for a keyed model element; core refuses it
+            // anywhere else.
+            if (field.unique)
+                context.recordLowering.notEnforced(
+                    ctx,
+                    field,
+                    "{ unique }",
+                    "the list is lowered to jsonb",
+                    UNIQUE_JSON_HELP,
+                )
+            if (context.recordLowering.asksOnDelete(type))
+                context.recordLowering.notEnforced(
+                    ctx,
+                    field,
+                    "onDelete",
+                    "the reference is lowered to jsonb",
+                    ON_DELETE_HELP,
+                )
+            return lowered
+        }
         return when (val element = type.element) {
             is Scalar ->
                 if (strategy == "table") {
@@ -284,7 +306,8 @@ internal class ChildTables(private val context: LoweringContext) {
      *   columns, nullable when the element is, and a foreign key `fk_<child>_value`, so a list of a
      *   record's own type never repeats the parent-key column or its foreign key name; `{ unique }`
      *   on the list adds a unique over the parent key and those columns, so each parent holds each
-     *   key once. Written `{ embed }`, it is copied as a keyless one is.
+     *   key once. Written `{ embed }`, it is copied as a keyless one is, and `{ unique }` or a
+     *   delete action on the list is reported, since copied rows carry no key.
      *
      * Every column the element adds is checked against the parent-key and position or key columns
      * ahead of it. A list or map bound ([refinements]) is reported since there is no column left to
@@ -308,6 +331,26 @@ internal class ChildTables(private val context: LoweringContext) {
         val rows = record != null && entry == null && mapKey == null
         if (rows && context.recordLowering.recursionError(ctx, field, record!!))
             return Contribution.NONE
+        // copied rows hold the element's columns but no reference: nothing to make a set of by
+        // key, and no foreign key to act on delete
+        if (embedded && record != null && mapKey == null) {
+            if (field.unique)
+                context.recordLowering.notEnforced(
+                    ctx,
+                    field,
+                    "{ unique }",
+                    "embedded rows carry no key",
+                    UNIQUE_EMBED_HELP,
+                )
+            if (context.recordLowering.asksOnDelete(field.type))
+                context.recordLowering.notEnforced(
+                    ctx,
+                    field,
+                    "onDelete",
+                    "the reference is lowered to embedded columns",
+                    ON_DELETE_HELP,
+                )
+        }
         if (refinements.hasBounds) {
             context.error(
                 SqlCodes.LOSSY,

@@ -1,10 +1,15 @@
 schema ubl_common_extension_components_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2")
 
-import ubl_unqualified_data_types_2_1
 import ubl_common_basic_components_2_1
-import ubl_common_signature_components_2_1
 
 model ExtensionContent {
+  /// Any element in any namespace other than the UBL extension
+  /// namespace is allowed to be the apex element of an extension.
+  /// Only those elements found in the UBL schemas and in the
+  /// trees of schemas imported in this module are validated.
+  /// Any element for which there is no schema declaration in any
+  /// of the trees of schemas passes validation and is not
+  /// treated as a schema constraint violation.
   any string @xsd(any) @xsd(wildcard: "##other")
 
   @@xsd(name: "ExtensionContent")

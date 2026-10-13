@@ -1,0 +1,6 @@
+# targets=sql
+warning[SCH2105] (lossy) (sql): field 'R.tags': { unique } is not enforced; embedded rows carry no key
+ --> s.schemata:5:31
+  = help: remove the option, or drop the embed
+
+0 errors, 1 warning

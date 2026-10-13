@@ -1,0 +1,18 @@
+s.Order
+  field 'tags': @sql(strategy) added    proto: compatible, sql: breaking, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+1 change
+proto: 0 breaking, 0 notes
+sql: 1 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 0 breaking, 0 notes
+
+error[SCH2501]: sql: s.Order.tags: @sql(strategy) changed breaks how existing rows map onto tables
+  --> new/s.schemata:12:6
+   |
+12 |   #5 tags     string[]   @sql(strategy: table)
+   |      ^^^^
+   = help: avoid changing @sql(strategy) once the table holds data
+
+1 error, 0 warnings

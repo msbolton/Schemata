@@ -15,7 +15,8 @@ Stages, all inside a temporary directory that is removed afterwards (the IEPD is
   4. protoc over every emitted .proto, when protoc is on PATH
   4b. compile to proto again with --proto-layout type (any error fails), then protoc over every file it emitted
   5. round trip: import the emitted .xsd tree, compile to xsd again, and compare the two trees file by file;
-     SCH2402 (a schema name derived from the file name) and SCH2403 (a dropped member element name)
+     SCH2402 (a schema name derived from the file name), SCH2403 (a dropped member element name) and
+     SCH2403 (an enumeration value renamed again, since the XSD target writes the original text back)
      are the only tolerated diagnostics on the way back
   6. import of the whole IEPD_DIR/core-xsd directory: only a JSON report is required (exit 0, 1 or 2);
      a crash or a missing report fails, and the diagnostics are tallied
@@ -37,6 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TARGETS = ["proto", "sql", "xsd", "jsonschema", "openapi"]
 SQL_TOLERATED = {"SCH2106", "SCH2102"}
 ROUND_TRIP_TOLERATED = [
+    re.compile(r"SCH2403 enum value '[^']*': enum value '[^']*' has no Schemata equivalent; imported as '[^']*'"),
     re.compile(r"SCH2402 .*: schema name '.*' was derived from the file name"),
     re.compile(r"SCH2403 (union|element) '.*': member element name '.*' has no Schemata equivalent and is dropped; .*"),
 ]

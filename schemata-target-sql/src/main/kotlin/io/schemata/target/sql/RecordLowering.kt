@@ -11,6 +11,7 @@ import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Ref
 import io.schemata.core.ir.Refinements
 import io.schemata.core.ir.Scalar
+import io.schemata.core.ir.Type
 import io.schemata.core.ir.UnionType
 import io.schemata.lang.Span
 import io.schemata.target.NameClaims
@@ -332,7 +333,9 @@ internal class RecordLowering(private val context: LoweringContext) {
      * keyless one; `{ embed }` on the field copies the target's columns under the field's prefix
      * either way, with no foreign key, a keyed target's key columns among them; `json` lowers the
      * whole reference to jsonb; `table` keeps the default reference for a keyed target and is not
-     * allowed for a keyless one or an embedded copy, which have no table to reference.
+     * allowed for a keyless one or an embedded copy, which have no table to reference. A delete
+     * action on a reference lowered to jsonb or copied inline has no foreign key to act on and is
+     * reported.
      */
     private fun recordField(
         ctx: FieldContext,
@@ -343,7 +346,17 @@ internal class RecordLowering(private val context: LoweringContext) {
     ): Contribution {
         val entry = context.catalog[target.qualifiedName]?.takeUnless { ref.relation.embed }
         return when (strategy) {
-            "json" -> context.childTables.json(ctx, field, "model", DROP_JSON_HELP)
+            "json" ->
+                context.childTables.json(ctx, field, "model", DROP_JSON_HELP).also {
+                    if (asksOnDelete(ref))
+                        notEnforced(
+                            ctx,
+                            field,
+                            "onDelete",
+                            "the reference is lowered to jsonb",
+                            ON_DELETE_HELP,
+                        )
+                }
             "table" ->
                 when {
                     entry != null -> reference(ctx, field, entry)
@@ -354,7 +367,17 @@ internal class RecordLowering(private val context: LoweringContext) {
                 }
             else ->
                 if (entry != null) reference(ctx, field, entry)
-                else embed(ctx, field, target, columnOf(field, ctx.where))
+                else
+                    embed(ctx, field, target, columnOf(field, ctx.where)).also {
+                        if (asksOnDelete(ref))
+                            notEnforced(
+                                ctx,
+                                field,
+                                "onDelete",
+                                "the reference is lowered to embedded columns",
+                                ON_DELETE_HELP,
+                            )
+                    }
         }
     }
 
@@ -374,6 +397,36 @@ internal class RecordLowering(private val context: LoweringContext) {
                 if (alternatives != null) "use $alternatives" else "remove the strategy annotation",
         )
         return Contribution.NONE
+    }
+
+    /**
+     * Warns that [option] on [field] asks for a constraint the lowering left nowhere to live:
+     * [lowering] says where the field went instead, and [help] how to make the option mean
+     * something again. The DDL is unchanged; the option is simply not enforced.
+     */
+    internal fun notEnforced(
+        ctx: FieldContext,
+        field: Field,
+        option: String,
+        lowering: String,
+        help: String,
+    ) {
+        context.error(
+            SqlCodes.LOSSY,
+            "${ctx.where}: $option is not enforced; $lowering",
+            field.span,
+            help = help,
+        )
+    }
+
+    /**
+     * Whether [type], a reference or a list of references, asks for a delete action other than
+     * `restrict`. `restrict` is the default and reads the same as no `onDelete` at all, so it is
+     * never reported: without a foreign key nothing is restricted either way.
+     */
+    internal fun asksOnDelete(type: Type): Boolean {
+        val ref = (if (type is ListOf) type.element else type) as? Ref ?: return false
+        return ref.relation.onDelete != OnDelete.RESTRICT
     }
 
     /**

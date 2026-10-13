@@ -83,13 +83,15 @@ sealed interface XContent {
 sealed interface XParticle {
     data class Element(val element: XElement) : XParticle
 
-    // an element wildcard: [namespace] and [processContents] as written, or null when absent
+    // an element wildcard: [namespace] and [processContents] as written, or null when absent, and
+    // the documentation written on it
     data class Any(
         val line: Int,
         val minOccurs: Int = 1,
         val maxOccurs: Int? = 1,
         val namespace: String? = null,
         val processContents: String? = null,
+        val doc: String? = null,
     ) : XParticle
 
     data class GroupRef(val ref: QName, val minOccurs: Int, val maxOccurs: Int?, val line: Int) :
@@ -142,11 +144,13 @@ sealed interface XAttributeUse {
 
     data class GroupRef(val ref: QName, val line: Int) : XAttributeUse
 
-    // an attribute wildcard: [namespace] and [processContents] as written, or null when absent
+    // an attribute wildcard: [namespace] and [processContents] as written, or null when absent, and
+    // the documentation written on it
     data class AnyAttribute(
         val line: Int,
         val namespace: String? = null,
         val processContents: String? = null,
+        val doc: String? = null,
     ) : XAttributeUse
 }
 

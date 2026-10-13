@@ -3,8 +3,6 @@ schema ubl_signature_aggregate_components_2_1 @xsd(namespace: "urn:oasis:names:s
 import ubl_signature_basic_components_2_1
 import ubl_common_basic_components_2_1
 import ubl_xmldsig_core_schema_2_1
-import ubl_x_ad_e_sv132_2_1
-import ubl_x_ad_e_sv141_2_1
 
 /// ABIE
 /// Signature Information. Details

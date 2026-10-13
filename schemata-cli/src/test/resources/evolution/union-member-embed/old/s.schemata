@@ -1,0 +1,9 @@
+schema s
+
+model Customer { #1 id uuid { id }  #2 name string { max 64 } }
+
+model Address { #1 street string { max 100 } }
+
+union Party = #1 Customer | #2 Address
+
+model Account { #1 id uuid { id }  #2 party Party  #3 home Address }

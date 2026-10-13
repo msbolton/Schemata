@@ -718,4 +718,62 @@ class DifferTest {
         assertTrue(annotation.oldOwner is OperationOwner)
         assertTrue(annotation.newOwner is OperationOwner)
     }
+
+    @Test
+    fun `a bound changed on a union member is still a member type change`() {
+        val old =
+            union(
+                "s",
+                "U",
+                Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(8))),
+                Scalar(Builtin.INT32),
+            )
+        val new =
+            union(
+                "s",
+                "U",
+                Scalar(Builtin.STRING, Refinements(max = BigDecimal.valueOf(4))),
+                Scalar(Builtin.INT32),
+            )
+        assertEquals(listOf("unionMember.typeChanged"), diff(ns(old), ns(new)).map { it.kind })
+    }
+
+    private val opBase = "schema t\n\nmodel A { #1 id uuid }\n\nmodel B { #1 id uuid }\n"
+
+    @Test
+    fun `an operation renumbered under its name is a move`() {
+        val old = analysed(opBase + "service S { #1 get(A): B  #2 put(A): B  #3 cancel(A) }")
+        val new = analysed(opBase + "service S { #1 get(A): B  #4 cancel(A)  #5 put(A): A }")
+        val changes = Differ.diff(old, new)
+        assertEquals(
+            listOf(
+                "operation.moved t.S.cancel",
+                "operation.moved t.S.put",
+                "operation.responseChanged t.S.put",
+            ),
+            changes.map { "${it.kind} ${it.path}" },
+        )
+        val put = changes.filterIsInstance<OperationMoved>().single { it.to.name == "put" }
+        assertEquals(2 to 5, put.from.ordinal to put.to.ordinal)
+    }
+
+    @Test
+    fun `operations match by ordinal before name`() {
+        val old = analysed(opBase + "service S { #1 get(A)  #2 put(A) }")
+        val new = analysed(opBase + "service S { #1 put(A)  #2 get(A) }")
+        assertEquals(
+            listOf("operation.renamed t.S.put", "operation.renamed t.S.get"),
+            Differ.diff(old, new).map { "${it.kind} ${it.path}" },
+        )
+    }
+
+    @Test
+    fun `an operation renumbered under a new name is a removal and an addition`() {
+        val old = analysed(opBase + "service S { #1 get(A)  #2 put(A) }")
+        val new = analysed(opBase + "service S { #1 get(A)  #3 store(A) }")
+        assertEquals(
+            listOf("operation.added t.S.store", "operation.removed t.S.put"),
+            Differ.diff(old, new).map { "${it.kind} ${it.path}" },
+        )
+    }
 }

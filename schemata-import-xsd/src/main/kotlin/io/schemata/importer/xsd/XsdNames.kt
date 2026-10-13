@@ -4,9 +4,10 @@ import io.schemata.importer.ImportNames
 
 /** The naming rules that exist only because of how the XSD target names what it writes. */
 object XsdNames {
-    // Matches the xsd target's own NCName check: an `@xsd(name)` override it would reject as not a
-    // valid XML name (for example, one starting with a digit, as a bare enumeration value may) can
-    // never regenerate the original text, so the importer must not offer it as an override.
+    // Matches the xsd target's own NCName check, which every override but an enum value's must
+    // pass: an element, attribute, or type name that is not an XML name can never regenerate the
+    // original text, so the importer offers no override for one. An enumeration value is written
+    // as text, so any non-empty value may be its override (see SimpleTypes.enumValueNames).
     private val ncName = Regex("^[A-Za-z_][A-Za-z0-9_.\\-]*$")
 
     fun isValidOverride(s: String): Boolean = ncName.matches(s)

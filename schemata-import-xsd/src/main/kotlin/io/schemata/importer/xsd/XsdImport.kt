@@ -123,6 +123,9 @@ object XsdImport {
 
         val units =
             live.map { doc ->
+                // The schemas this unit may import: each live one its document xs:imports, then
+                // the ones its head unions and element references reach. Only those its output
+                // names a type from are kept, once every reference is final (see below).
                 val imports = mutableListOf<String>()
                 doc.imports.forEach { imp ->
                     val target = docsByNamespace[imp.namespace]
@@ -209,11 +212,21 @@ object XsdImport {
                 )
             }
         // Every namespace's elements have claimed their record names by now, so a reference to one,
-        // from its own namespace or another, can name the record it was declared under.
+        // from its own namespace or another, can name the record it was declared under. Only then
+        // is every qualified reference final, so only then can a unit drop the imports it never
+        // names a type from: an xs:import nothing in the output uses writes no line.
         val resolved =
             units.map { unit ->
-                unit.copy(declarations = unit.declarations.map(elementRecords::resolve))
+                val declarations = unit.declarations.map(elementRecords::resolve)
+                val named = namespacesNamedBy(declarations)
+                unit.copy(
+                    declarations = declarations,
+                    imports = unit.imports.filter { it in named },
+                )
             }
+        // A member note naming an element's record waited for that record's final name; settle it
+        // before notes are told apart, so the settled text is what is compared.
+        elementRecords.settleNotes(diagnostics, inherited)
         // A note on a component many types share (an attribute flattened into every derived
         // type) is reported once. The note reported while lowering the declaring type wins over
         // a copy made while flattening it into a derived type, since only it names the right
@@ -251,6 +264,43 @@ object XsdImport {
         return sites
             .minByOrNull { it.second }
             ?.let { (path, line) -> path.ifEmpty { doc.path } to line }
+    }
+
+    /**
+     * The schemas [declarations] take a type from: the namespace of every qualified reference, its
+     * leading segments up to the first that starts upper-case (`shop.customers` of
+     * `shop.customers.Customer`), since every type name the importer writes starts upper-case and
+     * every schema name segment lower-case.
+     */
+    private fun namespacesNamedBy(declarations: List<UnitDecl>): Set<String> {
+        val named = mutableSetOf<String>()
+        fun visitType(type: UnitType) {
+            when (type) {
+                is UnitType.Ref -> {
+                    val segments =
+                        type.name.split('.').takeWhile { it.firstOrNull()?.isLowerCase() == true }
+                    if (segments.isNotEmpty()) named += segments.joinToString(".")
+                }
+                is UnitType.ListOf -> visitType(type.element)
+                is UnitType.MapOf -> {
+                    visitType(type.key)
+                    visitType(type.value)
+                }
+                is UnitType.Scalar -> Unit
+            }
+        }
+        fun visitDeclaration(decl: UnitDecl) {
+            when (decl) {
+                is UnitRecord -> {
+                    decl.fields.forEach { visitType(it.type) }
+                    decl.nested.forEach(::visitDeclaration)
+                }
+                is UnitUnion -> decl.members.forEach { visitType(it.type) }
+                else -> Unit
+            }
+        }
+        declarations.forEach(::visitDeclaration)
+        return named
     }
 
     /**
@@ -453,9 +503,11 @@ object XsdImport {
     /**
      * [original]'s fixed Schemata identifier, the `@xsd(name)` override that regenerates [original]
      * exactly (`full-name` → `full_name` with `@xsd(name: "full-name")`), and, when [original] is
-     * not even a valid XML name (a bare enumeration value may start with a digit, as `2d` does), no
-     * override at all: the xsd target rejects one that isn't a valid name, so offering it would
-     * only trade one way of failing to round trip for another. A valid identifier is kept as-is.
+     * not even a valid XML name (an element or attribute name never is, but a bare enumeration
+     * value may be, as `2d` is; enumeration values take their overrides in
+     * SimpleTypes.enumValueNames), no override at all: the xsd target rejects one that isn't a
+     * valid name, so offering it would only trade one way of failing to round trip for another. A
+     * valid identifier is kept as-is.
      */
     internal fun fieldNameFor(original: String): FieldName {
         if (ImportNames.isLowerSnake(original)) return FieldName(original, null, unfixable = false)
@@ -646,13 +698,18 @@ object XsdImport {
                     )
             }
             val siblings = mutableListOf<UnitDecl>()
-            val content = ct.content
-            if (content is XContent.Choice && context.choiceLowering.isUnionType(ct)) {
+            val unionChoice =
+                (ct.content as? XContent.Choice)?.takeIf { context.choiceLowering.isUnionType(ct) }
+            // A choice with a member of this very type would be a union listing itself, which
+            // no schema may hold: it is a model with a field per member instead.
+            val selfNaming =
+                unionChoice?.takeIf { context.choiceLowering.namesItself(it, headQName, null) }
+            if (unionChoice != null && selfNaming == null) {
                 val unionWhere = "union '${info.finalName}'"
                 context.choiceLowering.unionExtras(ct, unionWhere)
                 val union =
                     context.choiceLowering.unionFromChoice(
-                        content,
+                        unionChoice,
                         info.finalName,
                         unionWhere,
                         ct.doc,
@@ -695,12 +752,22 @@ object XsdImport {
                     null
                 }
             val (fields, nested, recordAnnotations) =
-                context.complexLowering.fieldsAndNested(
-                    ct,
-                    "complex type '$original'",
-                    info.finalName,
-                    siblings,
-                )
+                selfNaming?.let {
+                    context.choiceLowering.selfNamingFields(
+                        ct,
+                        it,
+                        info.finalName,
+                        "complex type '$original'",
+                        ct.line,
+                        siblings,
+                    )
+                }
+                    ?: context.complexLowering.fieldsAndNested(
+                        ct,
+                        "complex type '$original'",
+                        info.finalName,
+                        siblings,
+                    )
             val annotations = listOfNotNull(typeOverride, rootAnnotation) + recordAnnotations
             return listOf(UnitRecord(info.finalName, fields, nested, ct.doc, annotations)) +
                 siblings
@@ -720,13 +787,24 @@ object XsdImport {
             val name = elementRecordName(original, el.line)
             if (!context.claimTopLevel(name, "element '$original'", el.line)) return emptyList()
             val siblings = mutableListOf<UnitDecl>()
-            val content = ct.content
-            if (content is XContent.Choice && context.choiceLowering.isUnionType(ct)) {
+            val unionChoice =
+                (ct.content as? XContent.Choice)?.takeIf { context.choiceLowering.isUnionType(ct) }
+            // A choice with a member that refs this very element would be a union listing
+            // itself, which no schema may hold: it is a model with a field per member instead.
+            val selfNaming =
+                unionChoice?.takeIf {
+                    context.choiceLowering.namesItself(
+                        it,
+                        null,
+                        QName(context.doc.targetNamespace, original),
+                    )
+                }
+            if (unionChoice != null && selfNaming == null) {
                 val unionWhere = "union '$name'"
                 context.choiceLowering.unionExtras(ct, unionWhere)
                 val union =
                     context.choiceLowering.unionFromChoice(
-                        content,
+                        unionChoice,
                         name,
                         unionWhere,
                         ct.doc ?: el.doc,
@@ -746,7 +824,22 @@ object XsdImport {
                     )
             }
             val (fields, nested, annotations) =
-                context.complexLowering.fieldsAndNested(ct, "element '$original'", name, siblings)
+                selfNaming?.let {
+                    context.choiceLowering.selfNamingFields(
+                        ct,
+                        it,
+                        name,
+                        "element '$original'",
+                        el.line,
+                        siblings,
+                    )
+                }
+                    ?: context.complexLowering.fieldsAndNested(
+                        ct,
+                        "element '$original'",
+                        name,
+                        siblings,
+                    )
             return listOf(UnitRecord(name, fields, nested, ct.doc ?: el.doc, annotations)) +
                 siblings
         }
@@ -843,6 +936,38 @@ internal class ElementRecords {
 
     /** Each placeholder's element and, for one in another namespace, that namespace's name. */
     private val references = mutableListOf<Pair<QName, String?>>()
+
+    /**
+     * Member notes held until the record their member names is known: the placeholder, and the
+     * note's message given the element name the XSD target regenerates for that record.
+     */
+    private val held = IdentityHashMap<Diagnostic, Pair<UnitType.Ref, (String) -> String?>>()
+
+    /**
+     * Holds [note], already reported, until [settleNotes]: [message] then gets the element name the
+     * XSD target writes for the record [placeholder] stands for, and gives the note's message, or
+     * null when there is then nothing to note.
+     */
+    fun deferNote(note: Diagnostic, placeholder: UnitType.Ref, message: (String) -> String?) {
+        held[note] = placeholder to message
+    }
+
+    /**
+     * [diagnostics] with each held note settled in its place, or taken out when it notes nothing; a
+     * settled note stays [inherited] when it was.
+     */
+    fun settleNotes(diagnostics: MutableList<Diagnostic>, inherited: MutableSet<Diagnostic>) {
+        val settled =
+            diagnostics.mapNotNull { d ->
+                val (placeholder, message) = held[d] ?: return@mapNotNull d
+                val record = (resolve(placeholder) as UnitType.Ref).name.substringAfterLast('.')
+                message(Names.snakeCase(record))?.let { text ->
+                    d.copy(message = text).also { if (d in inherited) inherited += it }
+                }
+            }
+        diagnostics.clear()
+        diagnostics += settled
+    }
 
     /** Records that the global element [element]'s type is declared as the record [name]. */
     fun declare(element: QName, name: String) {
