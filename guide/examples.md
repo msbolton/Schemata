@@ -707,15 +707,15 @@ java -jar schemata-<version>.jar compile --out out examples/storefront
 writes nine files for each of Protobuf, Postgres, XSD, and JSON Schema, and eight OpenAPI
 documents under `out/openapi/storefront/`, one for each schema that declares a service.
 
-Every error response carries a `Problem`, the problem report of RFC 9457. No field holds one, so
-Postgres gives it a table of its own, which needs a key; `instance`, the URI that names one
-occurrence, is a natural one.
+Every error response carries a `Problem`, a stricter profile of the problem report of RFC 9457
+that requires `title`, `status` and `instance`. No field holds one, so Postgres gives it a table of
+its own, which needs a key; `instance`, the URI that names one occurrence, is a natural one.
 
 From `examples/storefront/common.schemata`:
 ```schemata
-/// A problem report in the shape of RFC 9457, the body of every error response. Members beyond
-/// those declared are allowed, as the RFC allows extensions. `instance` stays required because a
-/// top-level model needs a key.
+/// A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,
+/// `status` and `instance` are required, `instance` because a top-level model needs a key. Members
+/// beyond those declared are allowed, as the RFC allows extensions.
 model Problem {
   /// A URI naming the kind of problem; `about:blank` when the status says it all.
   #1 type     string       { max 2048 } = "about:blank"

@@ -1617,11 +1617,14 @@ ordinal. The openapi and proto rulebooks judge a change to a service; section 20
 verdicts.
 
 `fmt` writes a service in braces, one operation per line, with two spaces before the binding and
-one before a success code. A short `errors` clause stays on its line, two spaces after what comes
-before it and two between its entries, as in `errors { 404 Problem  503 }`; a service's clause is
-a line of its own. When an operation's line would pass 100 columns, the binding moves to the next
-line, one level deeper, and a clause that does not fit in 100 columns is written one code per
-line. A service with no members and no comments inside its braces is `service S {}`.
+one before a success code. A short `errors` clause written on one line stays on its operation's
+line, two spaces after what comes before it and two between its entries, as in
+`errors { 404 Problem  503 }`; a service's clause is a line of its own. A clause written over
+several lines, or holding a comment, stays one code per line even when it would fit on one, its
+`{` still on the line the clause opens on. When an operation's line would pass 100 columns, the
+binding moves to the next line, one level deeper, and a clause that does not fit in 100 columns is
+written one code per line. A service with no members and no comments inside its braces is
+`service S {}`.
 
 ## 17. How constructs lower
 
@@ -3314,6 +3317,7 @@ A binding rides in a note beside the rpc, never in that path. The two rulebooks'
 | A header field added to a request, required (not nullable, no default) | compatible | breaking |
 | A header field added to a request, nullable or with a default, or added to a response | compatible | compatible |
 | A header field's type changed | as for any field | as a parameter's type change: the JSON Schema column's verdict for the field |
+| A header field renamed, its header unchanged, on a model OLD's operations take or answer with only as a whole | as for any field | compatible: the header is named by `@openapi(header)`; a model OLD also reaches through a field, a union member, or nesting is a component, and there the rename takes the JSON Schema column's verdict |
 | `@openapi(auth)` or `@openapi(scopes)` changed so an operation requires more: a requirement where it had none, a scheme of another kind, a scheme taken from an either-list, or a scope added | compatible | breaking |
 | `@openapi(auth)` or `@openapi(scopes)` changed so an operation requires less: `none`, a scheme added to an either-list, or a scope removed | compatible | compatible |
 | A security scheme added | compatible | compatible |
@@ -4049,13 +4053,15 @@ schema-line keys of that target that take one value (section 15):
 | `[sql]` | `schema` |
 | `[xsd]` | `namespace`, `element_form`, `attribute_form` |
 | `[jsonschema]` | `id` |
-| `[openapi]` | `server`, `version`, `bearer`, `api_key`, `oauth2_token_url`, `oauth2_authorization_url`, `openid`, `scopes` |
+| `[openapi]` | `server`, `version`, `bearer`, `api_key`, `oauth2_token_url`, `oauth2_authorization_url`, `openid` |
 
 A value takes the attribute's type: `java_multiple_files` is `true` or `false`, `element_form` and
 `attribute_form` are `"qualified"` or `"unqualified"`, and every other key is a string, which may
 hold placeholders. Any other key is SCH2902, whose help names the nearest known key or lists the
 table's keys. `@openapi(basic)` and `@openapi(auth)` are not keys of `[openapi]`: a flag and a list
 of names have no single value to default to, so a schema writes them on its own `schema` line.
+Nor is `@openapi(scopes)`: its scopes belong to the oauth2 or openid scheme the same line's `auth`
+requires, which the file cannot default, so it too is written on the `schema` line.
 
 Each key becomes, for every schema that does not write it, the attribute `@<target>(<key>: …)` on
 that schema's `schema` line. Every target then reads it as if the schema had written it, whichever
