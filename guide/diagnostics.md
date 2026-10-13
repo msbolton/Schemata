@@ -74,6 +74,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH1052 | error | semantic | a required reference sets itself null when its target is deleted | field 'Order.customer' sets itself null when its target is deleted, but it is required | make the reference nullable or choose restrict |
 | SCH1053 | error | semantic | an inline shape's or enum's name collides with a declaration | the inline enum of field 'status' is named 'OrderStatus', which model 'Order' already declares | name it with @name("…") |
 | SCH1054 | warning | semantic | timestamps are unpinned in a model with explicit ordinals | timestamps are unpinned; adding a field later renumbers them | write `@@timestamps(#2, #3)` |
+| SCH1055 | error | semantic | an operation's success code or error responses break a rule | success code 203 is not 200, 201, 202 or 204<br>success code 204 cannot carry the response 'Order'<br>error code 302 is outside 400 to 599<br>more than one errors clause<br>error body 'uuid' is not a model or a union<br>error code 404 is listed twice | use 200, 201, 202 or 204, or leave the code out<br>use 200 for a response, or remove the response<br>use a code from 400 to 599, or default<br>list every code of the service in one errors clause<br>wrap it in a model<br>list each code once in a clause |
 
 Retired, never reused: SCH1007, SCH1008, SCH1037.
 

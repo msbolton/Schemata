@@ -14,9 +14,11 @@ import io.schemata.core.ir.storedFields
 /**
  * For every namespace, the other namespaces its written declarations refer to: stored fields
  * (virtual back-references are never written, so they refer to nothing), union members at any
- * nesting depth, and rpc request and response types. A namespace's references to itself are not
- * edges. Run it on the key-rewritten schema: there a single-key reference is already a scalar or
- * enum and so ties nothing, while a composite key is a reference to the target's key record.
+ * nesting depth, and rpc request and response types. An operation's error bodies are not edges: an
+ * rpc carries no typed error, so no Protobuf file imports one. A namespace's references to itself
+ * are not edges. Run it on the key-rewritten schema: there a single-key reference is already a
+ * scalar or enum and so ties nothing, while a composite key is a reference to the target's key
+ * record.
  */
 fun Schema.namespaceReferences(): Map<String, Set<String>> =
     namespaces.associate { ns ->
