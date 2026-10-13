@@ -284,8 +284,10 @@ class AnnotationChecker(
                 (literal as? Literal.NameLit)
                     ?.takeIf { spec.choices == null || it.name in spec.choices }
                     ?.let { AnnotationValue.Name(it.name) }
+            // a single bare name is the one-element tuple, so `auth: bearer` reads as `(bearer)`
             ValueKind.NAME_TUPLE ->
                 (written as? Written.Tuple)?.let { AnnotationValue.Names(it.names) }
+                    ?: (literal as? Literal.NameLit)?.let { AnnotationValue.Names(listOf(it.name)) }
         }
     }
 
@@ -298,7 +300,7 @@ class AnnotationChecker(
             ValueKind.NAME ->
                 spec.choices?.let { "expects one of: ${it.sorted().joinToString(", ")}" }
                     ?: "expects a name"
-            ValueKind.NAME_TUPLE -> "expects a tuple of names: (a, b)"
+            ValueKind.NAME_TUPLE -> "expects a name or a tuple of names: (a, b)"
         }
 
     /** A "write it like this" help message for writing [spec]'s key under [target]. */

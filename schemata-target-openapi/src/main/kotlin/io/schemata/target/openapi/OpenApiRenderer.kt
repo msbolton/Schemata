@@ -31,6 +31,7 @@ object OpenApiRenderer {
                     )
                 )
         doc.server?.let { members += "servers" to JsonArray(listOf(obj("url" to JsonString(it)))) }
+        doc.security?.let { members += "security" to security(it) }
         members +=
             "tags" to
                 JsonArray(
@@ -51,9 +52,14 @@ object OpenApiRenderer {
                             JsonObject(item.operations.map { it.verb.lower to operation(it) })
                     }
                 )
-        members +=
-            "components" to
-                obj("schemas" to JsonObject(doc.components.map { it.key to schema(it.schema) }))
+        val components =
+            mutableListOf<Pair<String, JsonValue>>(
+                "schemas" to JsonObject(doc.components.map { it.key to schema(it.schema) })
+            )
+        if (doc.securitySchemes.isNotEmpty())
+            components +=
+                "securitySchemes" to JsonObject(doc.securitySchemes.map { it.name to scheme(it) })
+        members += "components" to JsonObject(components)
         return JsonObject(members)
     }
 
@@ -75,6 +81,7 @@ object OpenApiRenderer {
                     )
         }
         members += "responses" to JsonObject(op.responses.map { (code, r) -> code to response(r) })
+        op.security?.let { members += "security" to security(it) }
         return JsonObject(members)
     }
 
@@ -115,4 +122,46 @@ object OpenApiRenderer {
         obj(mediaType to obj("schema" to schema(schema)))
 
     private fun schema(schema: JsonSchema): JsonObject = JsonSchemaRenderer.node(schema)
+
+    /** A `security` list: one object per alternative, mapping the scheme to its scopes. */
+    private fun security(requirements: List<Requirement>): JsonArray =
+        JsonArray(requirements.map { obj(it.scheme to JsonArray(it.scopes.map(::JsonString))) })
+
+    private fun scheme(scheme: SecurityScheme): JsonObject =
+        when (scheme) {
+            is SecurityScheme.Http ->
+                JsonObject(
+                    listOfNotNull(
+                        "type" to JsonString("http"),
+                        "scheme" to JsonString(scheme.scheme),
+                        scheme.bearerFormat?.let { "bearerFormat" to JsonString(it) },
+                    )
+                )
+            is SecurityScheme.ApiKey ->
+                obj(
+                    "type" to JsonString("apiKey"),
+                    "name" to JsonString(scheme.parameter),
+                    "in" to JsonString(scheme.location),
+                )
+            is SecurityScheme.OAuth2 -> {
+                val scopes = "scopes" to JsonObject(scheme.scopes.map { it to JsonString("") })
+                val flow =
+                    scheme.authorizationUrl?.let { authorization ->
+                        "authorizationCode" to
+                            obj(
+                                "authorizationUrl" to JsonString(authorization),
+                                "tokenUrl" to JsonString(scheme.tokenUrl),
+                                scopes,
+                            )
+                    }
+                        ?: ("clientCredentials" to
+                            obj("tokenUrl" to JsonString(scheme.tokenUrl), scopes))
+                obj("type" to JsonString("oauth2"), "flows" to obj(flow))
+            }
+            is SecurityScheme.OpenIdConnect ->
+                obj(
+                    "type" to JsonString("openIdConnect"),
+                    "openIdConnectUrl" to JsonString(scheme.url),
+                )
+        }
 }

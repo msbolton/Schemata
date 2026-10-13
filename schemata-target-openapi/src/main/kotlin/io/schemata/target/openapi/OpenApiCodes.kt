@@ -41,6 +41,14 @@ object OpenApiCodes {
             Category.SEMANTIC,
             "a header field is not a scalar or an enum, or its header name is not one OpenAPI can write",
         )
+    val SECURITY =
+        DiagnosticCode(
+            "SCH2606",
+            Severity.ERROR,
+            Category.SEMANTIC,
+            "an @openapi security scheme or requirement is not valid",
+        )
 
-    val all: List<DiagnosticCode> = listOf(QUERY_SHAPE, COLLISION, INVALID_OVERRIDE, LOSSY, HEADER)
+    val all: List<DiagnosticCode> =
+        listOf(QUERY_SHAPE, COLLISION, INVALID_OVERRIDE, LOSSY, HEADER, SECURITY)
 }

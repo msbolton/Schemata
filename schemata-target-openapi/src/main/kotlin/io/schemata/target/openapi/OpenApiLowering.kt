@@ -85,6 +85,8 @@ private class NamespaceLowering(
             keys = ::keyOf,
         )
 
+    private val security = SecurityLowering(namespace, diagnostics)
+
     /** The declarations the operations use directly, in first-use order. */
     private val needed = LinkedHashSet<QualifiedName>()
     private val operationIds = mutableMapOf<String, Pair<Service, Operation>>()
@@ -97,6 +99,7 @@ private class NamespaceLowering(
         // lowers a field schema or a partial body: a name collision is then blamed as the JSON
         // Schema target blames it
         val plans = namespace.services.flatMap { s -> s.operations.mapNotNull { plan(s, it) } }
+        security.check()
         val closure = closure(needed)
         val components = document.lower(closure)
         checkKeys(closure)
@@ -111,6 +114,13 @@ private class NamespaceLowering(
             tags = tags(),
             paths = paths.map { (path, ops) -> PathItem(path, ops.sortedBy { it.verb.ordinal }) },
             components = components,
+            // an oauth2 scheme lists the scopes of the operations kept in this document
+            securitySchemes =
+                security.schemes(
+                    listOfNotNull(security.document) +
+                        plans.mapNotNull { security.requirement(it.service, it.operation) }
+                ),
+            security = security.document?.let(security::written),
         )
     }
 
@@ -489,6 +499,7 @@ private class NamespaceLowering(
             parameters = parameters,
             requestBody = requestBody,
             responses = responses,
+            security = security.operation(plan.service, op),
         )
     }
 
