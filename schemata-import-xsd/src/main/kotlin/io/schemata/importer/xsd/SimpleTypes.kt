@@ -95,6 +95,8 @@ internal class SimpleTypes(private val context: ImportContext) {
                 when {
                     name != base.name ->
                         FieldName(name, override, unfixable = !XsdNames.isValidOverride(f.value))
+                    // a value that is not an XML name and was not renamed by a collision keeps its
+                    // text in the override
                     base.annotation == null && base.unfixable -> base.copy(annotation = override)
                     else -> base
                 }

@@ -47,7 +47,9 @@ internal class ChildTables(private val context: LoweringContext) {
     ): Contribution {
         if (strategy == "json") {
             val lowered = json(ctx, field, "list", jsonHelp(type.element))
-            // the list is one jsonb value: no child table to make a set of, no key to delete by
+            // the list is one jsonb value: no child table to make a set of, no key to delete by.
+            // `field.unique` on a list is only ever set for a keyed model element; core refuses it
+            // anywhere else.
             if (field.unique)
                 context.recordLowering.notEnforced(
                     ctx,

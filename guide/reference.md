@@ -1245,6 +1245,10 @@ every target.
 | a service | a `service`, named by its name or `@proto(name)`; section 16 | nothing | nothing | nothing | a tag; section 16 |
 | an operation | an `rpc`, named in UpperCamel or by `@proto(name)`; no payload is `.google.protobuf.Empty`, and the binding and an ordinal off its position ride in a `// schemata:` note | nothing | nothing | nothing | an operation under its path and verb; section 16 |
 
+The JSON Schema target writes a tagged union as `type: object` beside its `oneOf`; every arm pins
+`type: object` itself, so the outer type is a harmless statement of the whole. A field default on
+a referenced type is written as a `default` beside the `$ref`, which draft 2020-12 applies.
+
 ### 17.1 Relations
 
 A reference to a keyed model is the model's key on every target. Given

@@ -237,6 +237,7 @@ internal class RecordLowering(private val context: ImportContext) {
         keys(ctx, spec)
         constraints(ctx, spec)
         leftovers(ctx)
+        // slots may hold a Ref to an enum not seen yet until this pass has run
         resolveEnumLists(run)
         resolveJson(run)
         return spec.decl()
