@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import io.schemata.cli.report.Sources
 import io.schemata.config.ConfigLoader
 import io.schemata.config.ProjectConfig
+import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
 import io.schemata.target.proto.ProtoTarget
 import java.nio.file.Path
@@ -44,6 +45,22 @@ internal fun CliktCommand.compileTargets(
         }
     return withProtoLayout(targets, layout ?: configured)
 }
+
+/**
+ * The Protobuf layout [targets] write: the selected proto target's own, else the schema layout. A
+ * run whose layout was chosen holds a `ProtoTarget` instance; the registry's entry is the companion
+ * object, which is no `ProtoTarget` instance and writes the schema layout.
+ */
+internal fun protoLayoutOf(targets: List<Target<*>>): ProtoLayout =
+    targets.filterIsInstance<ProtoTarget>().firstOrNull()?.layout ?: ProtoLayout.SCHEMA
+
+/**
+ * The Protobuf layout for a command that writes no Protobuf: `--proto-layout` as [flag], else
+ * `[compile] proto_layout`, else the schema layout. Both hold a layout name, since the option and
+ * the loader accept nothing else.
+ */
+internal fun configuredProtoLayout(flag: String?, config: ProjectConfig?): ProtoLayout =
+    (flag ?: config?.compile?.protoLayout?.value)?.let { ProtoLayout.of(it) } ?: ProtoLayout.SCHEMA
 
 /**
  * `--strict`, or `[compile] strict = true`, for every command that has the flag: the file can turn

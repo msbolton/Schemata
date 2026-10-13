@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package other;
+
+import "cyc/beta/customer.proto";
+import "cyc/beta/note.proto";
+
+option java_package = "com.example.other";
+
+message Audit {
+  .cyc.beta.Customer customer = 1;
+  .cyc.beta.Note note = 2;
+}

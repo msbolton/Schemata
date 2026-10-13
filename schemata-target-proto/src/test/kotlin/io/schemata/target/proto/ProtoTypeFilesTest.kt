@@ -5,8 +5,10 @@ import io.schemata.core.Analyzer
 import io.schemata.core.annotations.AnnotationRegistry
 import io.schemata.core.annotations.CoreAnnotations
 import io.schemata.core.ir.Schema
+import io.schemata.core.ir.TypeDecl
 import io.schemata.lang.Parser
 import io.schemata.target.Names
+import io.schemata.target.ProtoLayout
 import io.schemata.target.ProtoPackages
 import io.schemata.target.ProtoUnit
 import io.schemata.target.referencesByKey
@@ -38,12 +40,19 @@ class ProtoTypeFilesTest {
     private fun unit(namespace: String, vararg sources: String): ProtoUnit =
         ProtoPackages.of(analysed(*sources)).unitOf(namespace)
 
+    /**
+     * The type layout's files of the scope of the schema named [namespace]: its type files from the
+     * components of every schema, then its services' files, sorted by path, each named by its
+     * declaration's own name.
+     */
     private fun split(namespace: String, vararg sources: String): List<TypeFile> {
-        return ProtoTypeFiles.split(
-            unit(namespace, *sources),
-            { Names.snakeCase(it.name) },
-            { Names.snakeCase(it.name) },
-        )
+        val packages = ProtoPackages.of(analysed(*sources), ProtoLayout.TYPE)
+        val scope = packages.unitOf(namespace)
+        val name = { decl: TypeDecl -> Names.snakeCase(decl.name) }
+        val typeFiles = ProtoTypeFiles.typeFiles(ProtoTypeFiles.components(packages, name), name)
+        return (typeFiles.filter { it.scope === scope } +
+                ProtoTypeFiles.serviceFiles(scope) { Names.snakeCase(it.name) })
+            .sortedBy { it.path }
     }
 
     /** Each file as its path and the names of what it holds. */
@@ -150,21 +159,44 @@ class ProtoTypeFilesTest {
     }
 
     @Test
-    fun `a reference to another unit ties nothing`() {
-        val files =
-            split(
-                "shop.orders",
-                "schema shop.orders\n\nimport shop.catalog\n\nmodel Order { #1 money Money }\n\n" +
-                    "model Line { #1 money Money }\n",
-                "schema shop.catalog\n\nmodel Money { #1 amount int64 }\n",
+    fun `a cross namespace cycle is hosted by the first sorting name`() {
+        val sources =
+            arrayOf(
+                "schema cyc.alpha\n\nimport cyc.beta\n\nmodel Order { #1 customer Customer }\n\n" +
+                    "model Note { #1 text string }\n",
+                "schema cyc.beta\n\nimport cyc.alpha\n\nmodel Customer { #1 orders Order[] }\n",
             )
+        val beta = split("cyc.beta", *sources)
         assertEquals(
-            listOf(
-                "shop/orders/line.proto" to listOf("Line"),
-                "shop/orders/order.proto" to listOf("Order"),
-            ),
-            files.shapes(),
+            listOf("cyc/beta/customer.proto" to listOf("Order", "Customer")),
+            beta.shapes(),
         )
+        val shared = beta.single()
+        assertEquals("cyc.beta", shared.host.name)
+        assertEquals("cyc.beta", shared.scope.packageName)
+        assertEquals("Customer", shared.naming?.name)
+        assertEquals(listOf("cyc.alpha.Order"), shared.moved.map { it.qualifiedName.toString() })
+        assertEquals(
+            listOf("cyc/alpha/note.proto" to listOf("Note")),
+            split("cyc.alpha", *sources).shapes(),
+        )
+    }
+
+    @Test
+    fun `a tie between namespaces is hosted by the first namespace`() {
+        val sources =
+            arrayOf(
+                "schema cyc.alpha\n\nimport cyc.beta as beta\n\nmodel Task { #1 sub beta.Task? }\n",
+                "schema cyc.beta\n\nimport cyc.alpha as alpha\n\nmodel Task { #1 parent alpha.Task? }\n",
+            )
+        val alpha = split("cyc.alpha", *sources)
+        assertEquals(listOf("cyc/alpha/task.proto" to listOf("Task", "Task")), alpha.shapes())
+        assertEquals("cyc.alpha", alpha.single().host.name)
+        assertEquals(
+            listOf("cyc.beta.Task"),
+            alpha.single().moved.map { it.qualifiedName.toString() },
+        )
+        assertEquals(emptyList(), split("cyc.beta", *sources))
     }
 
     @Test

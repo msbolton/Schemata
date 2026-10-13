@@ -36,8 +36,10 @@ text says, is your responsibility and not the compiler's.
 
 **Schemas map by default.** A schema is a Protobuf package, a Postgres schema, an XML namespace,
 and a JSON Schema id unless an attribute says otherwise. A schema that declares a service is also
-one OpenAPI document. Schemas that reference each other in a cycle share one Protobuf package and
-file, since Protobuf cannot import files in a cycle.
+one OpenAPI document. Under the default schema layout, schemas that reference each other in a
+cycle share one Protobuf package and file, since Protobuf cannot import files in a cycle; under the
+type layout only types that reference each other in a cycle share a file, and a type keeps its own
+schema's package unless it shares a file with a type of another schema.
 
 **Services are a layer on top.** A service names operations whose requests and responses are the
 models and unions the data language already declares, each the whole document even when its model
@@ -72,6 +74,17 @@ same calls, and a gRPC client keeps calling the same method paths with the same 
 may change between releases, in comments, formatting, ordering, or a fixed bug in a construct that
 was wrong. A change `diff` would call a note is listed in the release notes; a change it would call
 breaking does not ship in 2.x.
+
+**The type layout's cycle rule.** 2.9 corrected one rule of the type layout that 2.6 introduced,
+and this is the one change to the output that did not wait for 3.0. From 2.6 to 2.8,
+`--proto-layout type` wrote every type of schemas that reference each other in a cycle under one
+merged package; from 2.9 each type keeps its own schema's package, and only types that reference
+each other in a cycle share a file and its host schema's package. For the types and services of
+such schemas, the full message names, and with them `Any` type URLs and the packages of generated
+classes, and the gRPC method paths changed, and so did the paths and directories of their `.proto`
+files: `cyc/customer.proto`, for one, became `cyc/beta/customer.proto`, so consumers' own `import`
+lines and the build rules that name those files change too. The wire format did not. Output under
+the schema layout, the default, is unchanged.
 
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,

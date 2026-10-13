@@ -15,9 +15,10 @@ lower_snake. Several files may declare the same schema; the compilation unit is 
 files given on the command line, with any directories walked recursively. Output paths follow the
 schema name, so `schema shop.orders` writes `shop/orders.proto`, `shop/orders.sql`,
 `shop/orders.xsd`, and `shop/orders.schema.json`, and `shop/orders.openapi.json` when it declares a
-service. Protobuf is the exception: schemas whose types reference each other in a cycle share one
-`.proto` file, named for their package (section 15). A doc comment may precede the `schema` line,
-and the schema's attributes follow its name on the same line (section 15);
+service. Protobuf is the exception: under the default schema layout, schemas whose types
+reference each other in a cycle share one `.proto` file, named for their package; the type layout
+keeps each type in its own schema's package (section 15). A doc comment may precede the `schema`
+line, and the schema's attributes follow its name on the same line (section 15);
 `examples/shop/orders.schemata` shows both. A UTF-8 byte-order mark at the start of a file is
 skipped; `fmt` never writes one.
 
@@ -686,12 +687,13 @@ and a non-empty path for `go_package`. `csharp_namespace`, the two PHP namespace
 prefixes also accept an empty value, which protoc reads as the global namespace or no prefix.
 `java_multiple_files` is `true` or `false`.
 
-Protobuf cannot import files in a cycle, so schemas that reference each other in a cycle are
-written as one `.proto` file. A reference is a stored field's type, a union member, or an rpc's
-request or response, whether directly or through other schemas; a back-reference ties nothing, and
-neither does a reference that carries a single key, which becomes a key field. The file's package
-is the one the schemas declare with `@proto(package)`. When none declares one, it is the leading
-dotted segments their names share, so `cyc.alpha` and `cyc.beta` give package `cyc` and file
+Protobuf cannot import files in a cycle, so under the schema layout, the default, schemas that
+reference each other in a cycle are written as one `.proto` file; the type layout, below, splits
+them by type instead. A reference is a stored field's type, a union member, or an rpc's request or
+response, whether directly or through other schemas; a back-reference ties nothing, and neither
+does a reference that carries a single key, which becomes a key field. The file's package is the
+one the schemas declare with `@proto(package)`. When none declares one, it is the leading dotted
+segments their names share, so `cyc.alpha` and `cyc.beta` give package `cyc` and file
 `cyc.proto`; when they share none, or the shared segments are the name or the package of another
 schema or cycle, it is the alphabetically first schema's name. Either way, when no schema declares
 a package the merge is reported as SCH2001, and its help says to set `@proto(package)` to one
@@ -700,7 +702,7 @@ are an error (SCH2007) and nothing is written. Each language option takes the on
 schemas of the cycle declare, and a schema that declares none adds nothing; different values are an
 error (SCH2007) and nothing is written.
 
-A top-level name that two schemas of the cycle declare is kept by one of them. A name set by
+A top-level name that two schemas of the merged file declare is kept by one of them. A name set by
 `@proto(name)` and the name of a service are never changed, so a plain name loses to them wherever
 they are declared; otherwise the alphabetically first schema keeps it. Each plain name that loses
 is prefixed with its schema's UpperCamel name, reported as SCH2001: `Task` declared by `niem_core`
@@ -708,39 +710,66 @@ and by `uc2_system_task` stays `Task` in the first and becomes `Uc2SystemTaskTas
 Set `@proto(name)` on one of the declarations to choose its name. A reference from a
 schema outside the cycle is written `.cyc.Customer` with `import "cyc.proto"`.
 
-A schema that joins or leaves a cycle without `@proto(package)` changes its package, and a schema
-that joins a cycle and sorts earlier can take a name from a declaration already published, which
-is then renamed: its generated classes and its `Any` type URL change. `diff` reports neither yet,
-so when they matter pin the package with `@proto(package)` and the names with `@proto(name)`.
+Under the schema layout, a schema that joins or leaves a cycle without `@proto(package)` changes
+its package, and a schema that joins a cycle and sorts earlier can take a name from a declaration
+already published, which is then renamed: its generated classes and its `Any` type URL change.
+Under the type layout the same holds for a type that joins or leaves a reference cycle with types
+of another schema: it moves into or out of another schema's package, or takes a prefixed name
+there. `diff` reports none of these yet. When they matter, pin the package with `@proto(package)`
+and the names with `@proto(name)` under the schema layout; under the type layout, read the SCH2001
+note on each moved declaration and choose the schema that hosts the file with `@proto(name)`.
 
-The type layout, `--proto-layout type`, writes each unit, a schema or a cycle of schemas that
-already share one file, as a directory named by its package path, so `shop.orders` gives
+The type layout, `--proto-layout type`, writes each schema as a directory named by its own package
+path, the package it declares with `@proto(package)` or else its name, so `shop.orders` gives
 `shop/orders/`, with one `.proto` file for each top-level type and each service. A file is named
 by the snake case of the emitted name, so `Order` is `order.proto`, `HTTPStatus` is
 `http_status.proto`, and `@proto(name)` on a declaration names its file too. A nested declaration
-stays inside its parent's message. Declarations that reference each other, directly or through
-others of the unit, share one file, because Protobuf cannot import files in a cycle; it takes the
-first sorting name and is reported once as SCH2001, as in `model 'Customer' and model 'Order'
-reference each other; Protobuf cannot import files in a cycle, so they share
+stays inside its parent's message. A file imports the files of the types it references, in its
+package or another, and writes a type of another package by its full name, `.cyc.beta.Customer`.
+Protobuf forbids import cycles between files, not between packages, so schemas that reference each
+other in a cycle are not merged here: each keeps its own package and directory, and only
+declarations that reference each other, directly or through others, share one file. The file
+takes the first sorting name and is reported once as SCH2001, as in `model 'Customer' and model
+'Order' reference each other; Protobuf cannot import files in a cycle, so they share
 shop/orders/customer.proto`. Its help says to set `@proto(name)` on the member that should name
-the file. A key record, such as the `SeatKey` synthesized for a composite key, is always its own
-file, `seat_key.proto`: after an import it is an ordinary model, and the round trip stays byte for
-byte. Every file of a unit carries the package and the same option lines, and imports the files of
-the types it references, in its package or another. protoc names each file's Java wrapper class
-after the file, so with `java_multiple_files` the wrapper of `http_status.proto`, `HttpStatus`, and
-the message `HTTPStatus` would be two Java files whose names differ only by case, and on a
-case-insensitive file system one would overwrite the other. A unit that declares
-`java_multiple_files: true` therefore writes `option java_outer_classname = "<Stem>Proto";` in
-every file, in its key-order place after `java_package`, the stem being the file name in
-UpperCamel: `order.proto` gets `OrderProto`. A top-level declaration or service whose name equals
-such a class name, ignoring case, is an error (SCH2004), as in `model 'OrderProto' and the Java
-class of order.proto both lower to 'OrderProto'`; set `@proto(name)` on it. A declared
-`java_outer_classname` is refused (SCH2007) for a unit written as two or more files, because it
-would name one Java class for every file; a unit written as one file keeps it, as the schema
-layout does. Two declarations, or a
-declaration and a service, whose file names coincide are an error (SCH2004), as in `model
-'HTTPServer' and model 'HttpServer' both lower to file 'shop/orders/http_server.proto'`; set
-`@proto(name)` on one of them.
+the file. The schema layout's note on a merged cycle is not reported under this layout.
+
+Every file has a host schema, whose directory and package it takes, with that package's option
+lines: the schema of its declarations, or, when declarations of more than one schema share the file,
+the schema of the one whose file name sorts first. The declarations of the other schemas move into
+the host's package, and the first of them gets a second SCH2001 note, which names every declaration
+that moved: `model 'cyc.alpha.Order' is written under package 'cyc.beta' in cyc/beta/customer.proto`
+for the `cyc.alpha` and `cyc.beta` cycle. Its help says to break the reference cycle, or to set
+`@proto(name)` so that a declaration of the moved one's own schema names the file. A moved
+declaration's full name, and with it its `Any` type URL and the package of its generated classes,
+come from the host schema; the options of its own schema's package do not apply to it. A moved
+declaration whose name a declaration or a service of the host schema already has is prefixed with
+its own schema's UpperCamel name, reported as SCH2001 as under the schema layout, unless it sets
+`@proto(name)`, which keeps its name; a prefixed name that is still taken is an error (SCH2004). Two
+schemas of one cycle that declare the same `@proto(package)` stay one package, sharing its
+directory, and the schema layout's renames apply between them. Schemas of one cycle that declare
+different packages may declare different language options under this layout without an error, since
+no file takes options from more than one package. Schemas that declare the same package must agree
+on them as under the schema layout: each option takes the one value they declare, a schema that
+declares none adds nothing, and different values are an error (SCH2007) and nothing is written.
+
+A key record, such as the `SeatKey` synthesized for a composite key, is always its own file,
+`seat_key.proto`, even when its model shares a cycle file in another package: the key record stays
+in its model's own package. After an import it is an ordinary model, and the round trip stays byte
+for byte. protoc names each file's Java wrapper class after the file, so with `java_multiple_files`
+the wrapper of `http_status.proto`, `HttpStatus`, and the message `HTTPStatus` would be two Java
+files whose names differ only by case, and on a case-insensitive file system one would overwrite the
+other. Every file of a package whose options set `java_multiple_files: true` therefore writes
+`option java_outer_classname = "<Stem>Proto";`, in its key-order place after `java_package`, the
+stem being the file name in UpperCamel: `order.proto` gets `OrderProto`. A top-level declaration or
+service whose name equals, ignoring case, the class name of any file of its package is an error
+(SCH2004), as in `model 'OrderProto' and the Java class of order.proto both lower to 'OrderProto'`;
+set `@proto(name)` on it. A declared `java_outer_classname` is refused (SCH2007) for a package
+written as two or more files, because it would name one Java class for every file; a package written
+as one file keeps it, as the schema layout does. Two declarations, or a declaration and a service,
+whose file names coincide in one directory are an error (SCH2004), as in `model 'HTTPServer' and
+model 'HttpServer' both lower to file 'shop/orders/http_server.proto'`; set `@proto(name)` on one of
+them.
 
 `@sql(schema: "…")` renames a schema's Postgres schema. `@@sql(table: "…")` and
 `@sql(column: "…")` rename a model's table or a field's column. An empty
@@ -1114,9 +1143,12 @@ too (SCH2004). An override that is not a valid Protobuf identifier is SCH2007.
 
 A request or a response is written the way a field of that type would be: the message's name as it
 stands in the file, `Order` or `Order.Line`, or `.shop.catalog.Money` with an `import` of its file
-when it comes from another schema; a type from another schema of the same cycle shares the file and
-is written by its name with no import. protoc looks an rpc's types up from inside the service, where
-the service's rpc names are names too, so a message that is named like one of them, or whose path
+when it comes from another schema. Under the schema layout a type from another schema of the same
+cycle shares the file and is written by its name with no import. Under the type layout a service
+is a file of its own in its schema's package, so it imports the file of every type it names, and a
+type in another package, one of a schema of the same cycle included, is written by its full name,
+as `.cyc.beta.Customer`. protoc looks an rpc's types up from inside the service, where the
+service's rpc names are names too, so a message that is named like one of them, or whose path
 begins with one, is written from the package instead: `order(Order.Line)` becomes
 `rpc Order(.shop.orders.Order.Line)`, and a message `Order` under an rpc `Order` becomes
 `.shop.orders.Order`. A union is the message the union lowers to, and an alias the type it stands
@@ -1317,10 +1349,12 @@ and treating every warning as an error under `--strict`, which also reports any 
 union member, or operation left with an implicit ordinal. The openapi target writes nothing for a
 schema without a service. A path may be a file or a directory, walked recursively for
 `.schemata` files. `--proto-layout schema|type` chooses the Protobuf file layout: `schema`, the
-default, writes one file per schema or reference cycle, and `type` writes one file per type under
-the package directory. It is a usage error when `--target` leaves `proto` out. Every one of these
-options can take its default from a `schemata.toml` found from the working directory upward, and the
-paths can be left out when the file's `[sources]` names them; `--config FILE` reads that file
+default, writes one file per schema or reference cycle, and `type` writes one file per type in its
+own schema's package directory, sharing a file only between types that reference each other in a
+cycle (section 15). It is a usage error when `--target` leaves `proto` out. `diff` takes the
+same option for the packages of the gRPC method paths it reports (section 20). Every one of these
+options can take its default from a `schemata.toml` found from the working directory upward, and
+the paths can be left out when the file's `[sources]` names them; `--config FILE` reads that file
 instead, and `--no-config` ignores any (section 24).
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
@@ -2699,8 +2733,13 @@ outputs as its key, so importing one of those gives back a scalar field such as 
 which compiles to the same output again but is no longer a reference; only SQL brings references
 back as references.
 
-A Protobuf file that merges a reference cycle imports back as one schema named for its package,
-and compiling that gives the same file byte for byte.
+A Protobuf file that merges a reference cycle imports back as one schema named for its package, and
+compiling that gives the same file byte for byte. Under the type layout the files of one package
+import back as one schema, as above, so a file that types of several schemas share imports as part
+of its host's schema (section 15): a moved type comes back as a declaration of that schema and its
+original schema is lost, and a schema whose declarations all moved and that declares no service
+wrote no file of its own and does not come back. Compiling the import under the type layout gives
+the same tree byte for byte.
 
 XSD: names, docs, nullability, defaults, refinements, and the `@xsd` keys come back, and importing
 the xsd target's own output reports nothing. Ordinals, `reserved`, `@deprecated`, and the other
@@ -2731,7 +2770,7 @@ schema from another format.
 
 ## 20. Evolving a schema
 
-    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--proto-layout schema|type] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
 
 `diff OLD NEW` compares two versions of a schema set — each a file or a directory, loaded the same
 way `compile` loads one — and judges every change against each target's compatibility rulebook:
@@ -2749,6 +2788,12 @@ the 1.x syntax is one of those: upgrade both sides before comparing them.
 `diff`, like `migrate`, applies one `schemata.toml` to both sides: the file found from the working
 directory or named by `--config`, not one beside either tree. The attributes it adds are the same
 on OLD and NEW, so they are no change (section 24).
+
+`--proto-layout schema|type` names the Protobuf layout whose packages the proto rulebook reads
+method paths under, as `compile` would write them; without it `diff` takes `proto_layout` from the
+file, else `schema`. As for `compile`, it is a usage error when `--target` leaves `proto` out.
+`migrate` reads the file's `proto_layout` too, so both commands expand the `[proto]` keys of
+section 24 as `compile` does; it takes no flag, since its SQL rules read no package.
 
 ### Identity
 
@@ -2859,8 +2904,11 @@ lowering; a change to any other declaration is compatible on openapi, which neve
 Postgres, XSD, and JSON Schema rulebooks call every change to a service compatible, since none of
 them writes one. The proto rulebook judges a service by what a gRPC client generated from OLD
 calls: each rpc by its method path, `/<package>.<Service>/<Rpc>`, with the request and response
-messages it was built against. A binding rides in a note beside the rpc, never in that path. The
-two rulebooks' own rows:
+messages it was built against. The package is the one the Protobuf target writes the service under
+in the layout `diff` runs with: a service of a schema in a reference cycle takes the cycle's package
+under the schema layout and its own schema's under the type layout, so service `S` of `cyc.alpha`,
+in a cycle with `cyc.beta`, is called `/cyc.S/…` under one and `/cyc.alpha.S/…` under the other.
+A binding rides in a note beside the rpc, never in that path. The two rulebooks' own rows:
 
 | Change | Protobuf | OpenAPI |
 |---|---|---|
@@ -2878,7 +2926,8 @@ two rulebooks' own rows:
 | `reserved` changed on a service | compatible | compatible |
 | Schema removed | breaking when it declared a service; else as in the table above | breaking when it declared a service, else compatible |
 
-`@proto(package)` moves every method path in its schema too, and is already breaking (above).
+`@proto(package)` moves every method path in its schema too, and under the schema layout in every
+schema of its reference cycle; it is already breaking (above).
 
 `reserved` changes how a removal reads on proto only. Removing a field is compatible on the wire
 regardless, but reported as a note unless the removed ordinal and name are both still `reserved` in
@@ -3521,7 +3570,7 @@ file's, and the file's over the built-in default.
 | `targets` | an array of target names: `"proto"`, `"sql"`, `"xsd"`, `"jsonschema"`, `"openapi"` | `--target` of `compile` and `check` |
 | `out` | a string: a directory, relative to the file | `--out` of `compile` |
 | `strict` | `true` or `false` | `--strict` of `compile`, `check`, `diff`, and `migrate` |
-| `proto_layout` | `"schema"` or `"type"` | `--proto-layout` of `compile` and `check` |
+| `proto_layout` | `"schema"` or `"type"` | `--proto-layout` of `compile`, `check`, and `diff`, and the layout `migrate` analyses both sides under |
 
 `[import]`:
 
@@ -3552,9 +3601,9 @@ directories first, then in the file's. `import` and `migrate` keep `out` as the 
 
 The file holds defaults, not demands, so a setting that does not fit a run is left out of it
 rather than refused. `proto_layout` applies only when `proto` is among the run's targets:
-`compile --target sql` ignores it, while `--proto-layout` with `--target sql` is still a usage
-error. `include` applies only to `--from proto`, and `namespace` only to an import of exactly one
-file; the options themselves keep their usage errors.
+`compile --target sql` and `diff --target sql` ignore it, while `--proto-layout` with
+`--target sql` is still a usage error. `include` applies only to `--from proto`, and `namespace`
+only to an import of exactly one file; the options themselves keep their usage errors.
 
 ### Sources
 
@@ -3658,10 +3707,17 @@ on, and `include`, whose directories come after those of `--include`.
 
 ### How the attributes are made
 
-The schemas of a reference cycle are written to one Protobuf file (section 15), so the `[proto]`
-keys are expanded once per file: every schema of a cycle gets the value the cycle's first schema by
-name expands to. `package` is settled first, which is why it cannot use `{package}`; the other
-`[proto]` keys then read `{package}` as the file's package. With this file:
+Under the schema layout, the default, the schemas of a reference cycle are written to one Protobuf
+file (section 15), so the `[proto]` keys are expanded once per cycle: every schema of a cycle gets
+the value the cycle's first schema by name expands to. Under the type layout each schema is written
+under its own package, so `package` is expanded for each schema from its own name, and the other
+`[proto]` keys once per package: `{schema}` and `{package}` expand from the package's first schema
+by name and from the package. Schemas of a cycle that declare one package share one expansion, as
+every schema of a cycle does under the schema layout; any other schema expands from its own name and
+its own package. The layout is the run's: the proto target's `--proto-layout`, else
+`[compile] proto_layout`; `schemata config` shows the values under the file's. `package` is settled
+first, which is why it cannot use `{package}`; the other `[proto]` keys then read `{package}` as the
+package so settled. With this file:
 
 ```toml
 [proto]
@@ -3669,14 +3725,18 @@ package = "{schema_}.v1"
 java_package = "com.example.{package}"
 ```
 
-the `cyc.alpha` and `cyc.beta` cycle is written as `cyc_alpha/v1.proto`, with the package
-`cyc_alpha.v1` and `option java_package = "com.example.cyc_alpha.v1";` for both schemas. The keys
-of the other targets are expanded for each schema.
+Under the schema layout, the `cyc.alpha` and `cyc.beta` cycle is written as `cyc_alpha/v1.proto`,
+with the package `cyc_alpha.v1` and `option java_package = "com.example.cyc_alpha.v1";` for both
+schemas. Under the type layout, `cyc.alpha` takes the package `cyc_alpha.v1` and the Java package
+`com.example.cyc_alpha.v1`, and `cyc.beta` takes `cyc_beta.v1` and `com.example.cyc_beta.v1`. The
+keys of the other targets are expanded for each schema in either layout.
 
-A per-schema table for one schema of a cycle gives that schema its own value, just as an attribute
-on its `schema` line would. When that value differs from what the other schemas of the cycle get,
-they disagree, which is the SCH2007 error of section 15. Give every schema of the cycle the same
-value in its own table, or set the key in none of them.
+Under the schema layout, a per-schema table for one schema of a cycle gives that schema its own
+value, just as an attribute on its `schema` line would. When that value differs from what the other
+schemas of the cycle get, they disagree, which is the SCH2007 error of section 15. Give every schema
+of the cycle the same value in its own table, or set the key in none of them. Under the type layout
+the same holds for the schemas of a cycle that declare one package; any other schema's value stands
+on its own.
 
 ### Where a rejected value is reported
 

@@ -14,7 +14,7 @@ import io.schemata.config.Setting
 import io.schemata.config.Synthesized
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.lang.SchemataText
-import io.schemata.target.proto.ProtoLayout
+import io.schemata.target.ProtoLayout
 
 /**
  * `schemata config`: the configuration the other commands would run with (SCH-102). Each setting
@@ -54,9 +54,20 @@ class ConfigCommand : CliktCommand(name = "config") {
             emit(this, report, reportSources(schemas, config), style, out = "")
             return
         }
+        // `config` writes nothing, so the `[proto]` keys expand under the file's layout, the one
+        // `compile` takes when the command line names none.
         val synthesized =
             analyzed?.schema?.let { schema ->
-                config?.let { AnnotationDefaults.plan(schema, it, Pipeline.annotations) }.orEmpty()
+                config
+                    ?.let {
+                        AnnotationDefaults.plan(
+                            schema,
+                            it,
+                            Pipeline.annotations,
+                            configuredProtoLayout(null, it),
+                        )
+                    }
+                    .orEmpty()
             }
         val text =
             when (style.format) {

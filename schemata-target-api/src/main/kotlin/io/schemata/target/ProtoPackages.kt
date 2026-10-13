@@ -22,9 +22,11 @@ data class ProtoUnit(
 }
 
 /**
- * The file units of a key-rewritten schema and the package and path of each. Namespaces that refer
- * to each other in a cycle cannot be separate files, since `protoc` rejects files that import each
- * other, so a cycle's members share one unit.
+ * The file units of a key-rewritten schema and the package and path of each. Under the schema
+ * layout namespaces that refer to each other in a cycle cannot be separate files, since `protoc`
+ * rejects files that import each other, so a cycle's members share one unit. Under the type layout
+ * a unit is a package scope instead: every schema keeps its own package, and only members of one
+ * cycle that declare the same package share a scope.
  */
 class ProtoPackages private constructor(val units: List<ProtoUnit>) {
     private val byNamespace: Map<String, ProtoUnit> =
@@ -39,6 +41,11 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
         /** The raw `@proto(package)` text, or null when the namespace declares none. */
         fun declared(namespace: Namespace): String? =
             namespace.annotations.string("proto", "package")
+
+        /**
+         * The package [namespace] takes on its own: its declared `@proto(package)`, else its name.
+         */
+        fun own(namespace: Namespace): String = declared(namespace) ?: namespace.name
 
         /** [schema] must already be key-rewritten, so single-key references tie nothing. */
         fun of(schema: Schema): ProtoPackages {
@@ -62,7 +69,36 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
             return ProtoPackages(units)
         }
 
+        /**
+         * [schema]'s units under [layout]: the schema layout's units, or the type layout's scopes.
+         */
+        fun of(schema: Schema, layout: ProtoLayout): ProtoPackages =
+            when (layout) {
+                ProtoLayout.SCHEMA -> of(schema)
+                ProtoLayout.TYPE -> ProtoPackages(scopes(schema))
+            }
+
         private fun pathOf(name: String) = name.replace('.', '/') + ".proto"
+
+        /**
+         * The package scopes of the type layout. Files of different packages may import each other
+         * as long as no two files import each other, and the type layout writes a file per type, so
+         * a reference cycle between schemas does not merge their packages: each schema takes its
+         * own. Members of one cycle that declare the same package still share a scope, since their
+         * declarations sit in one proto package where each name may be used once, so they keep the
+         * cycle's renames and collision checks, and one value per language option; splitting them
+         * would make valid input a package collision. A scope is never derived or in conflict, and
+         * its path is its first member's, as a singleton's is.
+         */
+        private fun scopes(schema: Schema): List<ProtoUnit> {
+            val byName = schema.namespaces.associateBy { it.name }
+            return stronglyConnected(schema.namespaceReferences())
+                .flatMap { names -> names.map { byName.getValue(it) }.groupBy { own(it) }.values }
+                .map { members ->
+                    ProtoUnit(members, own(members.first()), pathOf(members.first().name))
+                }
+                .sortedBy { it.members.first().name }
+        }
 
         /** [members]' declared package, else a singleton's name or a cycle's common prefix. */
         private fun candidate(members: List<Namespace>): String =
@@ -83,7 +119,7 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
         ): ProtoUnit {
             val first = members.first()
             if (members.size == 1) {
-                return ProtoUnit(members, declared(first) ?: first.name, pathOf(first.name))
+                return ProtoUnit(members, own(first), pathOf(first.name))
             }
             val declaredBy = members.filter { declared(it) != null }
             val firstDeclared = declaredBy.firstOrNull()?.let { declared(it) }

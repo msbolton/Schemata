@@ -1,0 +1,5 @@
+schema niem_core
+
+import uc2_system_task as uc2
+
+model Task { #1 detail uc2.Task }

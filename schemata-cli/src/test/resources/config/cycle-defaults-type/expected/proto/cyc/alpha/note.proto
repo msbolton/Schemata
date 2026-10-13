@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package cyc.alpha;
+
+option java_package = "com.example.cyc.alpha";
+
+message Note {
+  string text = 1;
+}

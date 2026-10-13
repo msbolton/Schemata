@@ -1,4 +1,4 @@
-package io.schemata.target.proto
+package io.schemata.target
 
 /** How the Protobuf target lays out files: one per schema or reference cycle, or one per type. */
 enum class ProtoLayout(val flag: String) {

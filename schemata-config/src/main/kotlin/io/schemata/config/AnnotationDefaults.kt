@@ -8,6 +8,7 @@ import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Annotations
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.Schema
+import io.schemata.target.ProtoLayout
 import io.schemata.target.ProtoPackages
 import io.schemata.target.referencesByKey
 
@@ -31,19 +32,26 @@ object AnnotationDefaults {
 
     /**
      * What [config] adds to [schema]: every configured key a schema does not declare, in schema
-     * order then target order then key order.
+     * order then target order then key order. [layout] is the Protobuf layout the run writes, which
+     * decides what the `[proto]` keys expand from.
      */
     fun plan(
         schema: Schema,
         config: ProjectConfig,
         registry: AnnotationRegistry,
+        layout: ProtoLayout = ProtoLayout.SCHEMA,
     ): List<Synthesized> {
         if (config.defaults.isEmpty()) return emptyList()
-        // Every schema of a reference cycle shares one `.proto` file, so each must get the same
-        // value: the one the file's first schema expands to. Which schemas share a file follows
-        // from the references alone, so the files are known before any package is. `package` is
-        // settled first, which is why it may not use `{package}`; the other keys then take
-        // `{package}` from the file's package as settled.
+        // Under the schema layout every schema of a reference cycle shares one `.proto` file, so
+        // each must get the same value: the one the file's first schema expands to. Which schemas
+        // share a file follows from the references alone, so the files are known before any
+        // package is. Under the type layout each schema is written under its own package, so
+        // `package` expands from each schema's own name. The other keys expand once per package
+        // scope, from its first schema's name and its package: schemas of one cycle that declare
+        // one package share its options, as a cycle's members share a file under the schema
+        // layout, and a scope of one schema expands from that schema. `package` is settled first,
+        // which is why it may not use `{package}`; the scopes and `{package}` follow from the
+        // packages as settled.
         val files by lazy { ProtoPackages.of(schema.referencesByKey()) }
         val packages =
             schema.namespaces
@@ -51,14 +59,17 @@ object AnnotationDefaults {
                     val setting = effective(config, PROTO, ns.name)[PACKAGE]
                     if (setting == null || declares(ns, PROTO, PACKAGE)) null
                     else {
-                        val first = files.unitOf(ns.name).members.first().name
-                        synthesize(ns.name, PROTO, PACKAGE, setting, registry, first, null)
+                        val expandedFrom =
+                            when (layout) {
+                                ProtoLayout.SCHEMA -> files.unitOf(ns.name).members.first().name
+                                ProtoLayout.TYPE -> ns.name
+                            }
+                        synthesize(ns.name, PROTO, PACKAGE, setting, registry, expandedFrom, null)
                     }
                 }
                 .associateBy { it.namespace }
-        val units by lazy {
-            ProtoPackages.of(withEntries(schema, packages.values.toList()).referencesByKey())
-        }
+        val settled by lazy { withEntries(schema, packages.values.toList()) }
+        val units by lazy { ProtoPackages.of(settled.referencesByKey(), layout) }
         return schema.namespaces.flatMap { ns ->
             config.defaults.keys.flatMap { target ->
                 effective(config, target, ns.name).mapNotNull { (key, setting) ->
@@ -85,9 +96,17 @@ object AnnotationDefaults {
         }
     }
 
-    /** [schema] with [plan] applied: each namespace's annotations gain the synthesized entries. */
-    fun apply(schema: Schema, config: ProjectConfig, registry: AnnotationRegistry): Schema {
-        val plan = plan(schema, config, registry)
+    /**
+     * [schema] with [plan] applied under [layout]: each namespace's annotations gain the
+     * synthesized entries.
+     */
+    fun apply(
+        schema: Schema,
+        config: ProjectConfig,
+        registry: AnnotationRegistry,
+        layout: ProtoLayout = ProtoLayout.SCHEMA,
+    ): Schema {
+        val plan = plan(schema, config, registry, layout)
         return if (plan.isEmpty()) schema else withEntries(schema, plan)
     }
 

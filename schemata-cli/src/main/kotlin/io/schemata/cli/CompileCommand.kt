@@ -19,8 +19,8 @@ import io.schemata.cli.report.JsonRenderer
 import io.schemata.cli.report.Report
 import io.schemata.cli.report.Sources
 import io.schemata.config.ProjectConfig
+import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
-import io.schemata.target.proto.ProtoLayout
 import io.schemata.target.proto.ProtoTarget
 import java.io.IOException
 import java.nio.file.Path
@@ -90,7 +90,10 @@ internal fun CliktCommand.selectTargets(names: List<String>?): List<Target<*>> =
             )
     } ?: Pipeline.targets
 
-/** The `--proto-layout` option shared by compile and check; absent keeps the schema layout. */
+/**
+ * The `--proto-layout` option shared by compile, check, and diff; absent, the configuration's
+ * layout applies, else the schema layout.
+ */
 internal fun CliktCommand.protoLayoutOption() =
     option(
             "--proto-layout",
