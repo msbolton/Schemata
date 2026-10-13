@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package cyc.beta;
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OPEN = 1;
+  STATUS_CLOSED = 2;
+}

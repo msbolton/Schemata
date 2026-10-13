@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package cyc.beta;
+
+import "cyc/beta/status.proto";
+
+option java_package = "com.example.cyc.beta";
+
+// A note about a customer.
+message Note {
+  string text = 1;
+  Status status = 2;
+}

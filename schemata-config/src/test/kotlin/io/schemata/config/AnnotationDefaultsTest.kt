@@ -7,6 +7,7 @@ import io.schemata.core.annotations.CoreAnnotations
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Parser
+import io.schemata.target.ProtoLayout
 import io.schemata.target.jsonschema.JsonSchemaAnnotations
 import io.schemata.target.openapi.OpenApiAnnotations
 import io.schemata.target.proto.ProtoAnnotations
@@ -65,6 +66,9 @@ class AnnotationDefaultsTest {
 
     private fun applied(text: String, vararg sources: String): Schema =
         AnnotationDefaults.apply(analysed(*sources), config(text), registry)
+
+    private fun appliedUnder(layout: ProtoLayout, text: String, vararg sources: String): Schema =
+        AnnotationDefaults.apply(analysed(*sources), config(text), registry, layout)
 
     private fun Schema.value(namespace: String, target: String, key: String): AnnotationValue? =
         namespaces.single { it.name == namespace }.annotations[target][key]
@@ -239,6 +243,92 @@ class AnnotationDefaultsTest {
                 schema.value(member, "proto", "java_package"),
             )
         }
+    }
+
+    @Test
+    fun `the type layout expands proto keys per schema`() {
+        val schema =
+            appliedUnder(
+                ProtoLayout.TYPE,
+                "[proto]\njava_package = \"com.example.{schema}\"\n",
+                ALPHA,
+                BETA,
+            )
+        assertEquals(
+            str("com.example.cyc.alpha"),
+            schema.value("cyc.alpha", "proto", "java_package"),
+        )
+        assertEquals(str("com.example.cyc.beta"), schema.value("cyc.beta", "proto", "java_package"))
+    }
+
+    @Test
+    fun `the type layout expands package per schema`() {
+        val schema =
+            appliedUnder(ProtoLayout.TYPE, "[proto]\npackage = \"{schema_}.v1\"\n", ALPHA, BETA)
+        assertEquals(str("cyc_alpha.v1"), schema.value("cyc.alpha", "proto", "package"))
+        assertEquals(str("cyc_beta.v1"), schema.value("cyc.beta", "proto", "package"))
+        assertEquals(
+            emptyList(),
+            ProtoTarget(ProtoLayout.TYPE)
+                .lower(schema)
+                .diagnostics
+                .filter { it.code.id == "SCH2007" }
+                .map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `the type layout expands the package placeholder from the schema's own package`() {
+        val schema =
+            appliedUnder(
+                ProtoLayout.TYPE,
+                "[proto]\ncsharp_namespace = \"X.{Package}\"\n",
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"shop.v1\")"),
+                BETA,
+            )
+        assertEquals(str("X.Shop.V1"), schema.value("cyc.alpha", "proto", "csharp_namespace"))
+        assertEquals(str("X.Cyc.Beta"), schema.value("cyc.beta", "proto", "csharp_namespace"))
+    }
+
+    @Test
+    fun `the type layout expands proto keys once per package scope`() {
+        val schema =
+            appliedUnder(
+                ProtoLayout.TYPE,
+                "[proto]\njava_package = \"com.x.{schema}\"\n",
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"p\")"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"p\")"),
+            )
+        for (member in listOf("cyc.alpha", "cyc.beta")) {
+            assertEquals(str("com.x.cyc.alpha"), schema.value(member, "proto", "java_package"))
+        }
+        assertEquals(
+            emptyList(),
+            ProtoTarget(ProtoLayout.TYPE)
+                .lower(schema)
+                .diagnostics
+                .filter { it.code.id == "SCH2007" }
+                .map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
+    fun `the schema layout is the default`() {
+        val schema = analysed(ALPHA, BETA)
+        val config = config("[proto]\njava_package = \"com.example.{schema}\"\n")
+        val plan = AnnotationDefaults.plan(schema, config, registry)
+        assertEquals(AnnotationDefaults.plan(schema, config, registry, ProtoLayout.SCHEMA), plan)
+        assertEquals(
+            listOf(
+                Synthesized("cyc.alpha", "proto", "java_package", str("com.example.cyc.alpha"), 2),
+                Synthesized("cyc.beta", "proto", "java_package", str("com.example.cyc.alpha"), 2),
+            ),
+            plan,
+        )
+        assertEquals(
+            AnnotationDefaults.apply(schema, config, registry, ProtoLayout.SCHEMA),
+            AnnotationDefaults.apply(schema, config, registry),
+        )
     }
 
     @Test

@@ -1,0 +1,5 @@
+schema niem_core
+
+import vnd_work_orders as vnd
+
+model Task { #1 detail vnd.Task }

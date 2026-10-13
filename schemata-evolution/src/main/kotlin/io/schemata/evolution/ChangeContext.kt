@@ -21,6 +21,7 @@ import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.service
 import io.schemata.core.ir.services
 import io.schemata.target.Names
+import io.schemata.target.ProtoLayout
 import io.schemata.target.ProtoPackages
 import io.schemata.target.bool
 import io.schemata.target.deprecated
@@ -42,9 +43,14 @@ enum class ReservedStatus {
 /**
  * Everything a [Rulebook] needs beyond the bare [Change]: what NEW still reserves, what OLD
  * deprecated, the name a target actually emits for a member, and the roles (`keyed`, `root`,
- * `open`, `hasTable`) a target's own lowering would assign a record.
+ * `open`, `hasTable`) a target's own lowering would assign a record. [protoLayout] is the Protobuf
+ * layout the packages of gRPC method paths are computed under.
  */
-class ChangeContext(val old: Schema, val new: Schema) {
+class ChangeContext(
+    val old: Schema,
+    val new: Schema,
+    val protoLayout: ProtoLayout = ProtoLayout.SCHEMA,
+) {
     /**
      * Which of a removed member's [ordinal] and [name] NEW's declaration or service at [declPath]
      * still reserves: both, one, or neither.
@@ -184,15 +190,16 @@ class ChangeContext(val old: Schema, val new: Schema) {
             ?: "${tagName(service)}_${operation.name}"
 
     /**
-     * The Protobuf file units of [side]'s schema, which decide the package of every service's
-     * method path. Computed once per side: a diff judges each removed rpc on its own, and the
-     * assignment walks the whole schema.
+     * The Protobuf packages of [side]'s schema under [protoLayout], which decide the package of
+     * every service's method path: under the schema layout the schemas of a reference cycle share
+     * one package, under the type layout each schema keeps its own. Computed once per side: a diff
+     * judges each removed rpc on its own, and the assignment walks the whole schema.
      */
     internal fun protoPackages(side: Side): ProtoPackages =
         if (side == Side.OLD) oldProtoPackages else newProtoPackages
 
-    private val oldProtoPackages by lazy { ProtoPackages.of(old.referencesByKey()) }
-    private val newProtoPackages by lazy { ProtoPackages.of(new.referencesByKey()) }
+    private val oldProtoPackages by lazy { ProtoPackages.of(old.referencesByKey(), protoLayout) }
+    private val newProtoPackages by lazy { ProtoPackages.of(new.referencesByKey(), protoLayout) }
 
     /**
      * Whether [decl] is one an OpenAPI document on [side] carries: reachable from some service's

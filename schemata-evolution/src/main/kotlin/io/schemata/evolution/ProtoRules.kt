@@ -412,8 +412,9 @@ object ProtoRules : Rulebook {
 
     /** `/<package>.<Service>`, the part of a method path every rpc of [service] shares. */
     private fun servicePath(side: Side, service: Service, ctx: ChangeContext): String =
-        // A method path carries the package of the proto file the service is written to; schemas in
-        // a reference cycle share one file, so the target's own assignment decides it.
+        // A method path carries the package the service is written under. Under the schema
+        // layout schemas in a reference cycle share one file and so one package; under the type
+        // layout a service keeps its own schema's package. The context computes it per layout.
         "/${ctx.protoPackages(side).packageOf(service.qualifiedName.namespace)}." +
             ctx.emittedName(target, ServiceOwner(service))
 }

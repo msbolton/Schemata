@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package cyc.beta;
+
+import "cyc/alpha/note.proto";
+import "cyc/beta/note.proto";
+
+option java_package = "com.example.cyc.beta";
+
+// An order that points at its customer.
+message Order {
+  int64 id = 1;
+  Customer customer = 2;
+  .cyc.alpha.Note note = 3;
+}
+
+message Customer {
+  string name = 1;
+  repeated Order orders = 2;
+  Note note = 3;  // schemata: Note?
+}

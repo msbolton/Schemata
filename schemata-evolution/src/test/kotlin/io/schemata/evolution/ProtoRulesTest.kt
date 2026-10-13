@@ -12,6 +12,7 @@ import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Scalar
 import io.schemata.core.ir.Schema
 import io.schemata.target.ProtoFileOptions
+import io.schemata.target.ProtoLayout
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -407,13 +408,18 @@ class ProtoRulesTest {
         assertEquals(Verdict.Compatible, verdict(ProtoRules, ns(old), ns(new)))
     }
 
-    /** Every change between [old] and [new], each with its `proto` verdict. */
-    private fun judged(old: Schema, new: Schema): List<Pair<Change, Verdict>> {
-        val ctx = ChangeContext(old, new)
+    /** Every change between [old] and [new], each with its `proto` verdict under [layout]. */
+    private fun judged(
+        old: Schema,
+        new: Schema,
+        layout: ProtoLayout = ProtoLayout.SCHEMA,
+    ): List<Pair<Change, Verdict>> {
+        val ctx = ChangeContext(old, new, layout)
         return Differ.diff(old, new).map { it to ProtoRules.classify(it, ctx) }
     }
 
-    private fun only(old: Schema, new: Schema): Verdict = judged(old, new).single().second
+    private fun only(old: Schema, new: Schema, layout: ProtoLayout = ProtoLayout.SCHEMA): Verdict =
+        judged(old, new, layout).single().second
 
     private val serviceBase = "schema t\n\nmodel A { #1 id uuid }\n\nmodel B { #1 id uuid }\n"
 
@@ -615,6 +621,66 @@ class ProtoRulesTest {
         assertSame(ctx.protoPackages(Side.NEW), ctx.protoPackages(Side.NEW))
         assertEquals("cyc", ctx.protoPackages(Side.OLD).packageOf("cyc.beta"))
         assertEquals("cyc.beta", ctx.protoPackages(Side.NEW).packageOf("cyc.beta"))
+    }
+
+    @Test
+    fun `a service in a cycle schema is called under its own package under the type layout`() {
+        val old = analysedAll(cycleAlpha + "\nservice S { #1 get(A): B }", cycleBeta)
+        val new = analysedAll(cycleAlpha, cycleBeta)
+        assertEquals(
+            Verdict.Breaking(
+                "cyc.alpha.S: the service was removed breaks clients that call /cyc.alpha.S/…",
+                "deprecate its operations and keep the service until no client calls it",
+            ),
+            only(old, new, ProtoLayout.TYPE),
+        )
+    }
+
+    @Test
+    fun `a declared package on one cycle member names only its own services under the type layout`() {
+        val pinned =
+            cycleAlpha.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"shop.v1\")")
+        val old =
+            analysedAll(
+                pinned + "\nservice S { #1 get(A): B }",
+                cycleBeta + "\nservice T { #1 get(B): A }",
+            )
+        val new = analysedAll(pinned, cycleBeta)
+        fun messages(layout: ProtoLayout) =
+            judged(old, new, layout).map { assertIs<Verdict.Breaking>(it.second).message }.sorted()
+        assertEquals(
+            listOf(
+                "cyc.alpha.S: the service was removed breaks clients that call /shop.v1.S/…",
+                "cyc.beta.T: the service was removed breaks clients that call /cyc.beta.T/…",
+            ),
+            messages(ProtoLayout.TYPE),
+        )
+        // Under the schema layout the cycle shares the declared package.
+        assertEquals(
+            listOf(
+                "cyc.alpha.S: the service was removed breaks clients that call /shop.v1.S/…",
+                "cyc.beta.T: the service was removed breaks clients that call /shop.v1.T/…",
+            ),
+            messages(ProtoLayout.SCHEMA),
+        )
+    }
+
+    @Test
+    fun `the context caches packages per side and layout`() {
+        val cycle = analysedAll(cycleAlpha, cycleBeta)
+        val alone = analysedAll("schema cyc.beta\n\nmodel B { #1 x int32 }\n")
+        val typed = ChangeContext(cycle, alone, ProtoLayout.TYPE)
+        assertSame(typed.protoPackages(Side.OLD), typed.protoPackages(Side.OLD))
+        assertSame(typed.protoPackages(Side.NEW), typed.protoPackages(Side.NEW))
+        assertEquals("cyc.beta", typed.protoPackages(Side.OLD).packageOf("cyc.beta"))
+        assertEquals("cyc.alpha", typed.protoPackages(Side.OLD).packageOf("cyc.alpha"))
+        assertEquals("cyc.beta", typed.protoPackages(Side.NEW).packageOf("cyc.beta"))
+        val schemaLayout = ChangeContext(cycle, alone, ProtoLayout.SCHEMA)
+        assertEquals("cyc", schemaLayout.protoPackages(Side.OLD).packageOf("cyc.beta"))
+        assertEquals(
+            "cyc",
+            ChangeContext(cycle, alone).protoPackages(Side.OLD).packageOf("cyc.beta"),
+        )
     }
 
     @Test

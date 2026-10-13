@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package cyc.alpha;
+
+import "cyc/beta/customer.proto";
+
+option java_package = "com.example.cyc.alpha";
+
+service Orders {
+  rpc Get(.cyc.beta.Order) returns (.cyc.beta.Customer);
+}

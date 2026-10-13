@@ -3,6 +3,7 @@ package io.schemata.target.proto
 import io.schemata.core.ir.Schema
 import io.schemata.target.Lowered
 import io.schemata.target.OutputFile
+import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
 
 /** The Protobuf target, writing its files in [layout]. */

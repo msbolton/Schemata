@@ -165,8 +165,11 @@ object Pipeline {
         val analyzed = analyze(sources, strict)
         val schema = analyzed.schema ?: return PipelineResult(analyzed.diagnostics, emptyList())
         // The configuration's target tables become schema-line annotations every target then
-        // reads as if the schema had written them.
-        val configured = config?.let { AnnotationDefaults.apply(schema, it, annotations) } ?: schema
+        // reads as if the schema had written them. The `[proto]` keys expand under the layout
+        // the selected Protobuf target writes.
+        val layout = protoLayoutOf(selected)
+        val configured =
+            config?.let { AnnotationDefaults.apply(schema, it, annotations, layout) } ?: schema
         return PipelineResult(analyzed.diagnostics, selected.map { perTarget(it, configured) })
     }
 }
