@@ -151,6 +151,36 @@ internal class AstSupport(
     }
 
     /**
+     * A success or error code as written: plain digits, with no sign and no leading zero, else
+     * SCH0010 and null. [what] opens the message (`operation 'get': error code`). Plain digits that
+     * do not fit in 32 bits are SCH0003.
+     */
+    fun code(node: TerminalNode, what: String): Int? {
+        val text = node.text
+        if (!PLAIN_CODE.matches(text)) {
+            diagnostics +=
+                Diagnostic(
+                    LangCodes.ERRORS_SYNTAX,
+                    "$what '$text' is not a plain integer",
+                    span(node.symbol),
+                    help = PLAIN_CODE_HELP,
+                )
+            return null
+        }
+        return text.toIntOrNull()
+            ?: run {
+                diagnostics +=
+                    Diagnostic(
+                        LangCodes.NUMERIC_LITERAL_RANGE,
+                        "number '$text' is out of range",
+                        span(node.symbol),
+                        help = "use a value that fits in 32 bits",
+                    )
+                null
+            }
+    }
+
+    /**
      * Null when [path] is well formed; otherwise what is wrong, with [parameters] filled as far as
      * it got.
      */
@@ -212,9 +242,11 @@ internal class AstSupport(
     private companion object {
         const val ESCAPE_HELP =
             "write \\\\ for a backslash; the escapes are \\\" \\\\ \\n \\t \\r \\u{…}"
+        const val PLAIN_CODE_HELP = "write the code as digits, with no sign and no leading zero"
         val VERBS = setOf("get", "post", "put", "patch", "delete", "head", "options")
         val LOWER_SNAKE = Regex("[a-z][a-z0-9]*(_[a-z0-9]+)*")
         val SEGMENT = Regex("[A-Za-z0-9._~-]+")
+        val PLAIN_CODE = Regex("0|[1-9][0-9]*")
     }
 
     // ANTLR counts columns in Unicode code points; a token's own text is a normal UTF-16 Java

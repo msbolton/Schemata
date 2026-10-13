@@ -1,0 +1,8 @@
+schema t
+
+model A { #1 x int32 }
+
+service S {
+  oops { 404 }
+  #1 a(A): A  post "/a" 0201  errors { 404 A  Problem }
+}

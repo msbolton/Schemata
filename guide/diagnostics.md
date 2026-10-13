@@ -17,6 +17,7 @@ Every code the compiler can report, with the message shapes and help text its fi
 | SCH0007 | error | syntax | a binding's path is malformed | path "a/{X}" is malformed: it must start with / | write the path as /segment/{param}; parameters are lower_snake |
 | SCH0008 | error | syntax | a 1.x schema; run schemata upgrade | this is a 1.x schema | run schemata upgrade on this file |
 | SCH0009 | warning | lossy | upgrade renamed a name 2.0 keeps as a keyword | field 'model' is renamed 'model_value', since 2.0 keeps `model` as a keyword | the Postgres column keeps its name through @sql(column: …); the Protobuf, XSD, and JSON names follow the new name unless pinned with @proto, @xsd, or @jsonschema(name: …) |
+| SCH0010 | error | syntax | a success code or an errors clause is malformed | 'oops' is not a clause<br>success code '0201' is not a plain integer<br>error code 'Problem' is not an integer or default | only an errors { … } clause can follow an operation or stand in a service<br>write the code as digits, with no sign and no leading zero<br>write a code from 400 to 599 or default, each followed by its body if it has one |
 
 ## Semantics (SCH1xxx)
 
