@@ -338,4 +338,45 @@ class RulebookRowsTest {
     private fun max(n: Int) = Refinements(max = BigDecimal(n))
 
     private fun xsdName(name: String) = ann("xsd", "name", AnnotationValue.Str(name))
+
+    @Test
+    fun `http constructs are judged by openapi alone`() {
+        val old =
+            analysed(
+                "schema t @openapi(bearer, auth: bearer)\n\nmodel A { #1 id uuid }\n\n" +
+                    "model B { #1 id uuid  #2 tag string? }\n\n" +
+                    "service S { #1 put(A): B  post \"/a\" 201  errors { 404 A  500 } }"
+            )
+        val new =
+            analysed(
+                "schema t @openapi(bearer: \"JWT\", basic, auth: basic)\n\nmodel A { #1 id uuid }\n\n" +
+                    "model B { #1 id uuid  #2 tag string? @openapi(header: \"X-Tag\") }\n\n" +
+                    "service S { @openapi(auth: none) " +
+                    "#1 put(A): B  post \"/a\" 202  errors { 404 B  503 } }"
+            )
+        val compatible = List(9) { "compatible" }
+        assertEquals(
+            mapOf(
+                "proto" to compatible,
+                "sql" to compatible,
+                "xsd" to compatible,
+                "jsonschema" to compatible,
+                // bearer format, auth (relaxed by the operation's none), basic added, the header,
+                // the code, the 404 body, 503 added, 500 removed, the operation's none
+                "openapi" to
+                    listOf(
+                        "note",
+                        "compatible",
+                        "compatible",
+                        "breaking",
+                        "breaking",
+                        "breaking",
+                        "note",
+                        "compatible",
+                        "compatible",
+                    ),
+            ),
+            judged(old.namespaces, new.namespaces),
+        )
+    }
 }

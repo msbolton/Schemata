@@ -767,4 +767,27 @@ class ProtoRulesTest {
             judged(old, new).map { it.first.kind to it.second },
         )
     }
+
+    @Test
+    fun `success codes and error responses are compatible on proto`() {
+        val old =
+            analysed(
+                serviceBase + "service S { #1 put(A): B  post \"/a\" 201  errors { 404 A  500 } }"
+            )
+        val new =
+            analysed(
+                serviceBase + "service S { #1 put(A): B  post \"/a\" 202  errors { 404 B  503 } }"
+            )
+        val judged = judged(old, new)
+        assertEquals(
+            listOf(
+                "operation.statusChanged",
+                "operation.errorChanged",
+                "operation.errorAdded",
+                "operation.errorRemoved",
+            ),
+            judged.map { it.first.kind },
+        )
+        judged.forEach { assertEquals(Verdict.Compatible, it.second, it.first.kind) }
+    }
 }

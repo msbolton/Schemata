@@ -113,7 +113,9 @@ fun verdict(rulebook: Rulebook, old: Namespace, new: Namespace): Verdict =
 
 /**
  * Core's keys plus `@openapi(name)` and `@proto(name)` on services and operations,
- * `@proto(package)` on a namespace, and `@sql(strategy)` on a field, as the CLI registers them.
+ * `@proto(package)` on a namespace, `@sql(strategy)` on a field, `@openapi(header)` on a field, the
+ * `@openapi` scheme keys on a namespace, and `@openapi(auth)` and `@openapi(scopes)` on a
+ * namespace, a service, or an operation, as the CLI registers them.
  */
 private val snippetAnnotations =
     AnnotationRegistry(
@@ -124,6 +126,51 @@ private val snippetAnnotations =
                 setOf(Element.SERVICE, Element.OPERATION),
                 ValueKind.STRING,
                 Role.NAME,
+            ) +
+            AnnotationSpec(
+                "openapi",
+                "header",
+                setOf(Element.FIELD),
+                ValueKind.STRING,
+                Role.REPRESENTATION,
+            ) +
+            AnnotationSpec(
+                "openapi",
+                "bearer",
+                setOf(Element.NAMESPACE),
+                ValueKind.STRING,
+                Role.REPRESENTATION,
+                optional = true,
+            ) +
+            AnnotationSpec(
+                "openapi",
+                "basic",
+                setOf(Element.NAMESPACE),
+                ValueKind.FLAG,
+                Role.REPRESENTATION,
+            ) +
+            listOf("api_key", "oauth2_token_url", "oauth2_authorization_url", "openid").map {
+                AnnotationSpec(
+                    "openapi",
+                    it,
+                    setOf(Element.NAMESPACE),
+                    ValueKind.STRING,
+                    Role.REPRESENTATION,
+                )
+            } +
+            AnnotationSpec(
+                "openapi",
+                "auth",
+                setOf(Element.NAMESPACE, Element.SERVICE, Element.OPERATION),
+                ValueKind.NAME_TUPLE,
+                Role.REPRESENTATION,
+            ) +
+            AnnotationSpec(
+                "openapi",
+                "scopes",
+                setOf(Element.NAMESPACE, Element.SERVICE, Element.OPERATION),
+                ValueKind.STRING,
+                Role.REPRESENTATION,
             ) +
             AnnotationSpec(
                 "proto",

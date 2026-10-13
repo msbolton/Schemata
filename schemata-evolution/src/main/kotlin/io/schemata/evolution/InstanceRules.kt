@@ -83,7 +83,11 @@ class InstanceRules(
             is OperationMoved,
             is OperationRequestChanged,
             is OperationResponseChanged,
-            is OperationBindingChanged -> Verdict.Compatible
+            is OperationBindingChanged,
+            is OperationStatusChanged,
+            is OperationErrorAdded,
+            is OperationErrorRemoved,
+            is OperationErrorChanged -> Verdict.Compatible
         }
 
     /**
