@@ -81,8 +81,10 @@ and this is the one change to the output that did not wait for 3.0. From 2.6 to 
 merged package; from 2.9 each type keeps its own schema's package, and only types that reference
 each other in a cycle share a file and its host schema's package. For the types and services of
 such schemas, the full message names, and with them `Any` type URLs and the packages of generated
-classes, and the gRPC method paths changed; the wire format did not. Output under the schema
-layout, the default, is unchanged.
+classes, and the gRPC method paths changed, and so did the paths and directories of their `.proto`
+files: `cyc/customer.proto`, for one, became `cyc/beta/customer.proto`, so consumers' own `import`
+lines and the build rules that name those files change too. The wire format did not. Output under
+the schema layout, the default, is unchanged.
 
 **Diagnostics.** A code keeps its number, its severity, and its meaning, and a retired code is never
 reused. Every family stays where it is: SCH0 for syntax, SCH1 for the language and core checks,
