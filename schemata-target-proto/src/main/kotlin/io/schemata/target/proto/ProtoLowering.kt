@@ -30,6 +30,7 @@ import io.schemata.target.Lowered
 import io.schemata.target.Names
 import io.schemata.target.OverrideNames
 import io.schemata.target.ProtoFileOptions
+import io.schemata.target.ProtoLayout
 import io.schemata.target.ProtoPackages
 import io.schemata.target.ProtoUnit
 import io.schemata.target.deprecated

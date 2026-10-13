@@ -35,6 +35,7 @@ import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.target.Lowered
 import io.schemata.target.ProtoFileOptions
+import io.schemata.target.ProtoLayout
 import io.schemata.testkit.Protoc
 import java.io.File
 import java.math.BigDecimal

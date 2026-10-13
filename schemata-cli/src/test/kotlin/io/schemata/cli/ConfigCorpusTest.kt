@@ -2,8 +2,8 @@ package io.schemata.cli
 
 import io.schemata.config.ConfigLoader
 import io.schemata.config.ProjectConfig
+import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
-import io.schemata.target.proto.ProtoLayout
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.testkit.Protoc
 import java.io.File

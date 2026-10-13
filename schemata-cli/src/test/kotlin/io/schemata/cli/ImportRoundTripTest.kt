@@ -6,9 +6,9 @@ import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
+import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
 import io.schemata.target.jsonschema.JsonSchemaTarget
-import io.schemata.target.proto.ProtoLayout
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlCodes
 import io.schemata.target.sql.SqlTarget
