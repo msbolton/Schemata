@@ -1,0 +1,5 @@
+schema uc2_system_task
+
+import niem_core as core
+
+model Task { #1 parent core.Task[] }
