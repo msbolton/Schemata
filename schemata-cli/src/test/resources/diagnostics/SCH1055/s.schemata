@@ -1,0 +1,8 @@
+schema t
+
+model Order { #1 id uuid }
+
+service Orders {
+  #1 place(Order): Order  post "/orders" 203
+  #2 replace(Order): Order  put "/orders" 204
+}

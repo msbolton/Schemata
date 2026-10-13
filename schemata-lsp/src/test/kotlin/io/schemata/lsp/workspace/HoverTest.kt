@@ -146,6 +146,34 @@ class HoverTest {
     }
 
     @Test
+    fun `an operation hover shows its success code and its own errors clause`() {
+        val f = Fixture(dir)
+        val a =
+            f.open(
+                "t/a.schemata",
+                "schema t\nmodel A { #1 x int32 }\nmodel Problem { #1 title string }\n" +
+                    "service S {\n  errors { 500 Problem }\n" +
+                    "  #1 create(A): A  post \"/a\"   201  errors {409   Problem default}\n}\n",
+            )
+        val hover = f.queries.hover(a, f.at(a, "create("))!!
+        assertEquals(
+            block("#1 create(A): A  post \"/a\" 201  errors { 409 Problem  default }"),
+            hover.markdown,
+        )
+        assertEquals(f.range(a, "create"), hover.range)
+    }
+
+    @Test
+    fun `a builtin written as an error body shows its description`() {
+        val f = Fixture(dir)
+        val a = f.open("t/a.schemata", "schema t\nservice S { #1 get()  errors { 404 uuid } }\n")
+        assertEquals(
+            block("uuid") + "\n\na universally unique identifier",
+            f.queries.hover(a, f.at(a, "uuid"))!!.markdown,
+        )
+    }
+
+    @Test
     fun `a builtin written as a payload shows its description`() {
         val f = Fixture(dir)
         val a = f.open("t/a.schemata", "schema t\nservice S { #1 get(uuid) }\n")

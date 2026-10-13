@@ -1,0 +1,17 @@
+error[SCH1055]: service 'Orders': error code 302 is outside 400 to 599
+ --> s.schemata:6:23
+  = help: use a code from 400 to 599, or default
+
+error[SCH1055]: service 'Orders': more than one errors clause
+ --> s.schemata:7:3
+  = help: list every code of the service in one errors clause
+
+error[SCH1055]: operation 'get': error body 'uuid' is not a model or a union
+ --> s.schemata:8:54
+  = help: wrap it in a model
+
+error[SCH1055]: operation 'get': error code 404 is listed twice
+ --> s.schemata:8:60
+  = help: list each code once in a clause
+
+4 errors, 0 warnings

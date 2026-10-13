@@ -1266,6 +1266,23 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `success codes and error bodies change no proto file`() {
+        val problem = "schema b\n\nmodel Problem { #1 title string }\n"
+        fun lowered(service: String): Lowered<ProtoModel> =
+            lower("schema a\n\nmodel R { #1 x int32 }\n\n$service", problem)
+        fun rendered(l: Lowered<ProtoModel>): Map<String, String> =
+            ProtoRenderer.render(l.model).associate { it.path to it.content }
+        val plain = lowered("service S {\n  #1 go(R): R  post \"/r\"\n}")
+        val withErrors =
+            lowered(
+                "service S {\n  errors { 500 b.Problem }\n" +
+                    "  #1 go(R): R  post \"/r\" 201  errors { 409 b.Problem }\n}"
+            )
+        assertEquals(rendered(plain), rendered(withErrors))
+        assertEquals(emptyList(), withErrors.file("a.proto").imports)
+    }
+
+    @Test
     fun `a nested payload is spelled by its path`() {
         val rpc =
             lower(

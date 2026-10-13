@@ -1,13 +1,17 @@
 package io.schemata.core
 
+import io.schemata.core.ir.ErrorResponse
 import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.Payload
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Verb
+import io.schemata.core.ir.effectiveErrors
 import io.schemata.core.ir.service
 import io.schemata.core.ir.services
+import io.schemata.core.ir.successStatus
 import io.schemata.lang.Parser
+import io.schemata.lang.Span
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -161,6 +165,158 @@ class ServicesTest {
             qn("shop", "OrderId"),
             r.schema!!.services().single().operations[0].request!!.target,
         )
+    }
+
+    @Test
+    fun `success codes lower and the default rule fills the rest`() {
+        val r =
+            analyze(
+                BASE +
+                    "service S {\n" +
+                    "  #1 get(OrderId): Order  get \"/orders/{id}\"\n" +
+                    "  #2 place(Order): Order  post \"/orders\" 201\n" +
+                    "  #3 queue(Order)  post \"/queue\" 202\n" +
+                    "  #4 drop(OrderId)  delete \"/orders/{id}\"\n" +
+                    "  #5 touch(OrderId): Order  put \"/orders/{id}\" 200\n" +
+                    "  #6 clear(OrderId)  delete \"/all/{id}\" 204\n" +
+                    "  #7 ping()\n" +
+                    "}"
+            )
+        assertEquals(emptyList(), messages(r))
+        val ops = r.schema!!.services().single().operations
+        assertEquals(listOf(null, 201, 202, null, 200, 204, null), ops.map { it.status })
+        assertEquals(listOf(200, 201, 202, 204, 200, 204, 204), ops.map { it.successStatus() })
+    }
+
+    @Test
+    fun `a success code outside the four or a 204 with a response is SCH1055`() {
+        val r =
+            analyze(
+                BASE +
+                    "service S {\n" +
+                    "  #1 a(OrderId): Order  get \"/a/{id}\" 203\n" +
+                    "  #2 b(OrderId): Order  get \"/b/{id}\" 204\n" +
+                    "  #3 c(OrderId)  get \"/c/{id}\" 301\n" +
+                    "}"
+            )
+        assertEquals(
+            listOf(
+                "SCH1055 operation 'a': success code 203 is not 200, 201, 202 or 204",
+                "SCH1055 operation 'b': success code 204 cannot carry the response 'Order'",
+                "SCH1055 operation 'c': success code 301 is not 200, 201, 202 or 204",
+            ),
+            messages(r),
+        )
+        assertEquals(Span("t.schemata", 10, 39, 10, 41), r.diagnostics[0].span)
+    }
+
+    @Test
+    fun `errors clauses lower and merge into the effective list`() {
+        val r =
+            analyze(
+                BASE +
+                    "alias Err = Order\n" +
+                    "service S {\n" +
+                    "  errors { 500 Order  default Nested }\n" +
+                    "  #1 a(OrderId): Order  get \"/a/{id}\"  errors { 404 Err  410  default Either }\n" +
+                    "  #2 b(OrderId): Order  get \"/b/{id}\"\n" +
+                    "}"
+            )
+        assertEquals(emptyList(), messages(r))
+        val s = r.schema!!.services().single()
+        val order = qn("shop", "Order")
+        val nested = qn("shop", "Nested")
+        val either = qn("shop", "Either")
+        assertEquals(listOf(ErrorResponse(500, order), ErrorResponse(null, nested)), s.errors)
+        val (a, b) = s.operations
+        assertEquals(
+            listOf(
+                ErrorResponse(404, order),
+                ErrorResponse(410, null),
+                ErrorResponse(null, either),
+            ),
+            a.errors,
+        )
+        assertEquals(
+            listOf(
+                ErrorResponse(404, order),
+                ErrorResponse(410, null),
+                ErrorResponse(500, order),
+                ErrorResponse(null, either),
+            ),
+            effectiveErrors(s, a),
+        )
+        assertEquals(emptyList(), b.errors)
+        assertEquals(
+            listOf(ErrorResponse(500, order), ErrorResponse(null, nested)),
+            effectiveErrors(s, b),
+        )
+    }
+
+    @Test
+    fun `error codes and bodies that break a rule are SCH1055 at the code or the body`() {
+        val r =
+            analyze(
+                BASE +
+                    "service S {\n" +
+                    "  errors { 500 Order  302  500 Nested }\n" +
+                    "  errors { 503 }\n" +
+                    "  #1 a(OrderId): Order  get \"/a/{id}\"  errors { 404 uuid  409 Order?  410 Status  411 Order[]  default Either  600  default }\n" +
+                    "}"
+            )
+        assertEquals(
+            listOf(
+                "SCH1055 service 'S': error code 302 is outside 400 to 599",
+                "SCH1055 service 'S': error code 500 is listed twice",
+                "SCH1055 service 'S': more than one errors clause",
+                "SCH1055 operation 'a': error body 'uuid' is not a model or a union",
+                "SCH1055 operation 'a': error body 'Order?' is not a model or a union",
+                "SCH1055 operation 'a': error body 'Status' is not a model or a union",
+                "SCH1055 operation 'a': error body 'Order[]' is not a model or a union",
+                "SCH1055 operation 'a': error code 600 is outside 400 to 599",
+                "SCH1055 operation 'a': error code default is listed twice",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            listOf(
+                Span("t.schemata", 10, 23, 10, 25),
+                Span("t.schemata", 11, 3, 11, 8),
+                Span("t.schemata", 12, 53, 12, 56),
+            ),
+            listOf(r.diagnostics[0].span, r.diagnostics[2].span, r.diagnostics[3].span),
+        )
+    }
+
+    @Test
+    fun `an error body from another schema marks its import used`() {
+        val common = "schema common\nmodel Problem { #1 title string }"
+        val onService =
+            "schema api\nimport common\nservice S {\n  errors { 500 Problem }\n  #1 ping()\n}"
+        val r = analyze(common, onService)
+        assertEquals(emptyList(), messages(r))
+        // namespaces are sorted by name: api, then common
+        assertEquals(
+            listOf(ErrorResponse(500, qn("common", "Problem"))),
+            r.schema!!.namespaces[0].services.single().errors,
+        )
+        val onOperation =
+            "schema api\nimport common\nmodel A { #1 x int32 }\n" +
+                "service S { #1 a(A): A  errors { 409 Problem } }"
+        val op = analyze(common, onOperation)
+        assertEquals(emptyList(), messages(op))
+        assertEquals(
+            listOf(ErrorResponse(409, qn("common", "Problem"))),
+            op.schema!!.namespaces[0].services.single().operations.single().errors,
+        )
+        val inSecondClause =
+            "schema api\nimport common\nservice S {\n  errors { 500 }\n  errors { 503 Problem }\n}"
+        assertEquals(
+            listOf("SCH1055 service 'S': more than one errors clause"),
+            messages(analyze(common, inSecondClause)),
+        )
+        val unused = "schema api\nimport common\nservice S { #1 ping() }"
+        assertEquals(listOf("SCH1012 import 'common' is unused"), messages(analyze(common, unused)))
     }
 
     @Test
