@@ -1866,4 +1866,251 @@ class OpenApiLoweringTest {
             messages(l),
         )
     }
+
+    @Test
+    fun `every declared scheme is a component in a fixed order`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(openid: "https://id.example.com/.well-known/openid-configuration", oauth2_authorization_url: "https://id.example.com/authorize", oauth2_token_url: "https://id.example.com/token", api_key: "header X-API-Key", basic, bearer: "JWT")
+
+                model R { #1 ok bool }
+
+                service S {
+                  @openapi(auth: oauth2, scopes: "orders:write orders:read")
+                  #1 write(): R  post "/w"
+                  @openapi(auth: (oauth2, openid), scopes: "admin")
+                  #2 admin(): R  post "/a"
+                  @openapi(auth: openid, scopes: "profile")
+                  #3 me(): R  get "/me"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        assertEquals(
+            listOf(
+                SecurityScheme.Http("bearer", "bearer", "JWT"),
+                SecurityScheme.Http("basic", "basic", null),
+                SecurityScheme.ApiKey("api_key", "header", "X-API-Key"),
+                SecurityScheme.OAuth2(
+                    "oauth2",
+                    "https://id.example.com/token",
+                    "https://id.example.com/authorize",
+                    listOf("admin", "orders:read", "orders:write"),
+                ),
+                SecurityScheme.OpenIdConnect(
+                    "openid",
+                    "https://id.example.com/.well-known/openid-configuration",
+                ),
+            ),
+            l.model.documents.single().securitySchemes,
+        )
+    }
+
+    @Test
+    fun `a requirement lists one entry per scheme with scopes only for oauth2 and openid`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, oauth2_token_url: "https://id.example.com/token")
+
+                model R { #1 ok bool }
+
+                service S {
+                  @openapi(auth: (bearer, oauth2), scopes: "orders:read")
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertNull(doc.security)
+        assertEquals(
+            listOf(
+                Requirement("bearer", emptyList()),
+                Requirement("oauth2", listOf("orders:read")),
+            ),
+            doc.paths.single().operations.single().security,
+        )
+    }
+
+    @Test
+    fun `operation security is written only where it differs from the document`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, auth: bearer)
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                  @openapi(auth: none)
+                  #2 health(): R  get "/health"
+                  @openapi(auth: bearer)
+                  #3 same(): R  get "/same"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf(Requirement("bearer", emptyList())), doc.security)
+        fun op(path: String) = doc.paths.single { it.path == path }.operations.single()
+        assertNull(op("/r").security)
+        assertEquals(emptyList(), op("/health").security)
+        assertNull(op("/same").security)
+    }
+
+    @Test
+    fun `a service requirement reaches its operations and scopes travel with their auth`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, oauth2_token_url: "https://id.example.com/token", auth: bearer)
+
+                model R { #1 ok bool }
+
+                @openapi(auth: oauth2, scopes: "orders:read")
+                service S {
+                  #1 list(): R  get "/r"
+                  @openapi(scopes: "orders:write")
+                  #2 write(): R  post "/r"
+                  @openapi(auth: oauth2)
+                  #3 plain(): R  put "/r"
+                  @openapi(auth: bearer)
+                  #4 token(): R  delete "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf(Requirement("bearer", emptyList())), doc.security)
+        fun op(verb: Verb) = doc.paths.single().operations.single { it.verb == verb }
+        assertEquals(listOf(Requirement("oauth2", listOf("orders:read"))), op(Verb.GET).security)
+        assertEquals(listOf(Requirement("oauth2", listOf("orders:write"))), op(Verb.POST).security)
+        assertEquals(listOf(Requirement("oauth2", emptyList())), op(Verb.PUT).security)
+        assertNull(op(Verb.DELETE).security)
+        assertEquals(
+            listOf("orders:read", "orders:write"),
+            doc.securitySchemes.filterIsInstance<SecurityScheme.OAuth2>().single().scopes,
+        )
+    }
+
+    @Test
+    fun `no security is written when no auth is in effect`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer)
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertNull(doc.security)
+        assertNull(doc.paths.single().operations.single().security)
+        assertEquals(listOf(SecurityScheme.Http("bearer", "bearer", null)), doc.securitySchemes)
+    }
+
+    @Test
+    fun `an auth naming an undeclared or unknown scheme or none with a scheme is SCH2606`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer)
+
+                model R { #1 ok bool }
+
+                service S {
+                  @openapi(auth: basic)
+                  #1 a(): R  get "/a"
+                  @openapi(auth: jwt)
+                  #2 b(): R  get "/b"
+                  @openapi(auth: (none, bearer))
+                  #3 c(): R  get "/c"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2606 operation 'a': @openapi(auth) names 'basic', which the schema does not declare",
+                "SCH2606 operation 'b': @openapi(auth) names 'jwt', which is not a scheme",
+                "SCH2606 operation 'c': @openapi(auth) names none together with a scheme",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            listOf(
+                "declare it on the schema line with `@openapi(basic)`, or name a declared scheme",
+                "name bearer, basic, api_key, oauth2, openid, or none",
+                "write `@openapi(auth: none)` alone, or leave none out",
+            ),
+            l.diagnostics.map { it.help },
+        )
+    }
+
+    @Test
+    fun `scopes without an oauth2 or openid requirement are SCH2606`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, oauth2_token_url: "https://id.example.com/token", scopes: "a")
+
+                model R { #1 ok bool }
+
+                @openapi(auth: oauth2)
+                service S {
+                  @openapi(scopes: "b")
+                  #1 a(): R  get "/a"
+                  @openapi(auth: bearer, scopes: "c")
+                  #2 b(): R  get "/b"
+                  @openapi(auth: none, scopes: "d")
+                  #3 c(): R  get "/c"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2606 schema 't': @openapi(scopes) applies to no oauth2 or openid scheme",
+                "SCH2606 operation 'b': @openapi(scopes) applies to no oauth2 or openid scheme",
+                "SCH2606 operation 'c': @openapi(scopes) applies to no oauth2 or openid scheme",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            "require oauth2 or openid with `@openapi(auth: oauth2)` at the same level, or remove " +
+                "the scopes",
+            l.diagnostics.first().help,
+        )
+    }
+
+    @Test
+    fun `a malformed scheme value is SCH2606 and the scheme is left out`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(api_key: "body token", oauth2_authorization_url: "https://id.example.com/authorize", openid: "id.example.com")
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2606 schema 't': @openapi(api_key: \"body token\") is not \"<in> <name>\"",
+                "SCH2606 schema 't': @openapi(oauth2_authorization_url) needs @openapi(oauth2_token_url)",
+                "SCH2606 schema 't': @openapi(openid: \"id.example.com\") is not an absolute http or https URL",
+            ),
+            messages(l),
+        )
+        assertEquals(emptyList(), l.model.documents.single().securitySchemes)
+    }
 }

@@ -113,6 +113,14 @@ Codes:
 | `server` | schema | string |  |
 | `name` | service, operation | string |  |
 | `header` | field | string |  |
+| `bearer` | schema | string |  |
+| `basic` | schema | flag |  |
+| `api_key` | schema | string |  |
+| `oauth2_token_url` | schema | string |  |
+| `oauth2_authorization_url` | schema | string |  |
+| `openid` | schema | string |  |
+| `auth` | schema, service, operation | name_tuple |  |
+| `scopes` | schema, service, operation | string |  |
 
 Codes:
 
@@ -123,3 +131,4 @@ Codes:
 | SCH2603 | error | semantic | an @openapi value is not a valid id, URL, or key |
 | SCH2604 | warning | lossy | something OpenAPI cannot express was dropped by the lowering |
 | SCH2605 | error | semantic | a header field is not a scalar or an enum, or its header name is not one OpenAPI can write |
+| SCH2606 | error | semantic | an @openapi security scheme or requirement is not valid |

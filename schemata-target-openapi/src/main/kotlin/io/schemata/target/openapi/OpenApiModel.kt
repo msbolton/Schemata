@@ -23,6 +23,10 @@ data class OpenApiDocument(
     val tags: List<Tag>,
     val paths: List<PathItem>,
     val components: List<JsonDef>,
+    /** The schema line's schemes, written under `components.securitySchemes`. */
+    val securitySchemes: List<SecurityScheme> = emptyList(),
+    /** The schema line's requirement as the top-level `security`; null writes none. */
+    val security: List<Requirement>? = null,
 )
 
 data class Tag(val name: String, val description: String?)
@@ -44,6 +48,11 @@ data class OpenApiOperation(
     val parameters: List<Parameter>,
     val requestBody: Body?,
     val responses: Map<String, Response>,
+    /**
+     * The operation's own `security`, written only when its requirement differs from the
+     * document's; null writes none, an empty list writes `security: []`.
+     */
+    val security: List<Requirement>? = null,
 )
 
 /**
@@ -83,3 +92,38 @@ data class Header(
     val required: Boolean,
     val deprecated: Boolean,
 )
+
+/** A scheme under `components.securitySchemes`, named by the `@openapi` key that declares it. */
+sealed interface SecurityScheme {
+    val name: String
+
+    /**
+     * `type: http` with [scheme] `bearer` or `basic`; [bearerFormat] is written for bearer only.
+     */
+    data class Http(override val name: String, val scheme: String, val bearerFormat: String?) :
+        SecurityScheme
+
+    /** `type: apiKey`, sent in [location] (`header`, `query` or `cookie`) as [parameter]. */
+    data class ApiKey(override val name: String, val location: String, val parameter: String) :
+        SecurityScheme
+
+    /**
+     * `type: oauth2` with one flow: `authorizationCode` when [authorizationUrl] is set, else
+     * `clientCredentials`. [scopes] are sorted and each is written with an empty description.
+     */
+    data class OAuth2(
+        override val name: String,
+        val tokenUrl: String,
+        val authorizationUrl: String?,
+        val scopes: List<String>,
+    ) : SecurityScheme
+
+    /** `type: openIdConnect` with its discovery [url]. */
+    data class OpenIdConnect(override val name: String, val url: String) : SecurityScheme
+}
+
+/**
+ * One entry of a `security` list: the scheme named [scheme] with the [scopes] it needs. The entries
+ * of one list are alternatives.
+ */
+data class Requirement(val scheme: String, val scopes: List<String>)

@@ -1,0 +1,10 @@
+schema s @openapi(bearer, auth: (bearer, basic), scopes: "a:read")
+
+model R { #1 ok bool }
+
+service S {
+  @openapi(auth: (none, bearer))
+  #1 ping(): R
+  @openapi(auth: jwt)
+  #2 pong(): R
+}
