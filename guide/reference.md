@@ -1318,9 +1318,10 @@ union member, or operation left with an implicit ordinal. The openapi target wri
 schema without a service. A path may be a file or a directory, walked recursively for
 `.schemata` files. `--proto-layout schema|type` chooses the Protobuf file layout: `schema`, the
 default, writes one file per schema or reference cycle, and `type` writes one file per type under
-the package directory. It is a usage error when `--target` leaves `proto` out. Every one of these
-options can take its default from a `schemata.toml` found from the working directory upward, and the
-paths can be left out when the file's `[sources]` names them; `--config FILE` reads that file
+the package directory. It is a usage error when `--target` leaves `proto` out. `diff` takes the
+same option for the packages of the gRPC method paths it reports (section 20). Every one of these
+options can take its default from a `schemata.toml` found from the working directory upward, and
+the paths can be left out when the file's `[sources]` names them; `--config FILE` reads that file
 instead, and `--no-config` ignores any (section 24).
 
 `check <paths>...` takes the same options except `--out`; it reports every diagnostic `compile`
@@ -2731,7 +2732,7 @@ schema from another format.
 
 ## 20. Evolving a schema
 
-    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
+    schemata diff    [--target proto,sql,xsd,jsonschema,openapi] [--proto-layout schema|type] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] OLD NEW
 
 `diff OLD NEW` compares two versions of a schema set — each a file or a directory, loaded the same
 way `compile` loads one — and judges every change against each target's compatibility rulebook:
@@ -2749,6 +2750,12 @@ the 1.x syntax is one of those: upgrade both sides before comparing them.
 `diff`, like `migrate`, applies one `schemata.toml` to both sides: the file found from the working
 directory or named by `--config`, not one beside either tree. The attributes it adds are the same
 on OLD and NEW, so they are no change (section 24).
+
+`--proto-layout schema|type` names the Protobuf layout whose packages the proto rulebook reads
+method paths under, as `compile` would write them; without it `diff` takes `proto_layout` from the
+file, else `schema`. As for `compile`, it is a usage error when `--target` leaves `proto` out.
+`migrate` reads the file's `proto_layout` too, so both commands expand the `[proto]` keys of
+section 24 as `compile` does; it takes no flag, since its SQL rules read no package.
 
 ### Identity
 
@@ -2859,8 +2866,11 @@ lowering; a change to any other declaration is compatible on openapi, which neve
 Postgres, XSD, and JSON Schema rulebooks call every change to a service compatible, since none of
 them writes one. The proto rulebook judges a service by what a gRPC client generated from OLD
 calls: each rpc by its method path, `/<package>.<Service>/<Rpc>`, with the request and response
-messages it was built against. A binding rides in a note beside the rpc, never in that path. The
-two rulebooks' own rows:
+messages it was built against. The package is the one the Protobuf target writes the service under
+in the layout `diff` runs with: a service of a schema in a reference cycle takes the cycle's package
+under the schema layout and its own schema's under the type layout, so service `S` of `cyc.alpha`,
+in a cycle with `cyc.beta`, is called `/cyc.S/…` under one and `/cyc.alpha.S/…` under the other.
+A binding rides in a note beside the rpc, never in that path. The two rulebooks' own rows:
 
 | Change | Protobuf | OpenAPI |
 |---|---|---|
@@ -2878,7 +2888,8 @@ two rulebooks' own rows:
 | `reserved` changed on a service | compatible | compatible |
 | Schema removed | breaking when it declared a service; else as in the table above | breaking when it declared a service, else compatible |
 
-`@proto(package)` moves every method path in its schema too, and is already breaking (above).
+`@proto(package)` moves every method path in its schema too, and under the schema layout in every
+schema of its reference cycle; it is already breaking (above).
 
 `reserved` changes how a removal reads on proto only. Removing a field is compatible on the wire
 regardless, but reported as a note unless the removed ordinal and name are both still `reserved` in
@@ -3521,7 +3532,7 @@ file's, and the file's over the built-in default.
 | `targets` | an array of target names: `"proto"`, `"sql"`, `"xsd"`, `"jsonschema"`, `"openapi"` | `--target` of `compile` and `check` |
 | `out` | a string: a directory, relative to the file | `--out` of `compile` |
 | `strict` | `true` or `false` | `--strict` of `compile`, `check`, `diff`, and `migrate` |
-| `proto_layout` | `"schema"` or `"type"` | `--proto-layout` of `compile` and `check` |
+| `proto_layout` | `"schema"` or `"type"` | `--proto-layout` of `compile`, `check`, and `diff`, and the layout `migrate` analyses both sides under |
 
 `[import]`:
 
@@ -3552,9 +3563,9 @@ directories first, then in the file's. `import` and `migrate` keep `out` as the 
 
 The file holds defaults, not demands, so a setting that does not fit a run is left out of it
 rather than refused. `proto_layout` applies only when `proto` is among the run's targets:
-`compile --target sql` ignores it, while `--proto-layout` with `--target sql` is still a usage
-error. `include` applies only to `--from proto`, and `namespace` only to an import of exactly one
-file; the options themselves keep their usage errors.
+`compile --target sql` and `diff --target sql` ignore it, while `--proto-layout` with
+`--target sql` is still a usage error. `include` applies only to `--from proto`, and `namespace`
+only to an import of exactly one file; the options themselves keep their usage errors.
 
 ### Sources
 

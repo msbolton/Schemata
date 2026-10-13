@@ -7,12 +7,26 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.io.TempDir
 
+private const val CYCLE_ALPHA = "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b B? }\n"
+
+private const val CYCLE_BETA = "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n"
+
+private const val CYCLE_SERVICE = "\nservice S { #1 get(A): B }\n"
+
 class DiffCommandTest {
     @TempDir lateinit var dir: File
 
     private fun side(name: String, text: String): File {
         val sideDir = File(dir, name).apply { mkdirs() }
         File(sideDir, "s.schemata").writeText(text)
+        return sideDir
+    }
+
+    /** A side of two schemas in a reference cycle, `cyc.alpha` written as [alpha]. */
+    private fun cycleSide(name: String, alpha: String): File {
+        val sideDir = File(dir, name).apply { mkdirs() }
+        File(sideDir, "alpha.schemata").writeText(alpha)
+        File(sideDir, "beta.schemata").writeText(CYCLE_BETA)
         return sideDir
     }
 
@@ -215,5 +229,60 @@ class DiffCommandTest {
         assertEquals(1, r.statusCode, r.stderr)
         assertTrue(r.stderr.contains("error[SCH2502]"), r.stderr)
         assertTrue(r.stderr.contains("[promoted]"), r.stderr)
+    }
+
+    @Test
+    fun `proto layout from the flag changes method paths`() {
+        val old = cycleSide("old", CYCLE_ALPHA + CYCLE_SERVICE)
+        val new = cycleSide("new", CYCLE_ALPHA)
+        val r =
+            DiffCommand()
+                .test("--no-config --target proto --proto-layout type ${old.path} ${new.path}")
+        assertEquals(1, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("clients that call /cyc.alpha.S/…"), r.stderr)
+        val schemaLayout = DiffCommand().test("--no-config --target proto ${old.path} ${new.path}")
+        assertEquals(1, schemaLayout.statusCode, schemaLayout.stderr)
+        assertTrue(schemaLayout.stderr.contains("clients that call /cyc.S/…"), schemaLayout.stderr)
+    }
+
+    @Test
+    fun `proto layout from the configuration changes method paths`() {
+        val toml =
+            File(dir, "schemata.toml").apply { writeText("[compile]\nproto_layout = \"type\"\n") }
+        val old = cycleSide("old", CYCLE_ALPHA + CYCLE_SERVICE)
+        val new = cycleSide("new", CYCLE_ALPHA)
+        val r = DiffCommand().test("--config ${toml.path} --target proto ${old.path} ${new.path}")
+        assertEquals(1, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("clients that call /cyc.alpha.S/…"), r.stderr)
+        // The flag still wins over the file.
+        val flag =
+            DiffCommand()
+                .test(
+                    "--config ${toml.path} --target proto --proto-layout schema " +
+                        "${old.path} ${new.path}"
+                )
+        assertTrue(flag.stderr.contains("clients that call /cyc.S/…"), flag.stderr)
+    }
+
+    @Test
+    fun `proto layout without the proto target is a usage error`() {
+        val schema = "schema s\n\nmodel R { #1 x int32 }\n"
+        val old = side("old", schema)
+        val new = side("new", schema)
+        val r =
+            DiffCommand()
+                .test("--no-config --target sql --proto-layout type ${old.path} ${new.path}")
+        assertEquals(1, r.statusCode)
+        assertTrue(
+            r.stderr.contains("--proto-layout needs the proto target; add proto to --target"),
+            r.stderr,
+        )
+        // The file's layout is only a default, so a run without proto ignores it.
+        val toml =
+            File(dir, "schemata.toml").apply { writeText("[compile]\nproto_layout = \"type\"\n") }
+        val configured =
+            DiffCommand().test("--config ${toml.path} --target sql ${old.path} ${new.path}")
+        assertEquals(0, configured.statusCode, configured.stderr)
+        assertTrue(configured.stderr.contains("no changes"), configured.stderr)
     }
 }

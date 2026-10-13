@@ -16,9 +16,11 @@ import io.schemata.core.ir.Schema
 import io.schemata.evolution.Comparison
 import io.schemata.evolution.Evolution
 import io.schemata.evolution.EvolutionCodes
+import io.schemata.evolution.ProtoRules
 import io.schemata.evolution.Rulebooks
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.Severity
+import io.schemata.target.ProtoLayout
 import java.nio.file.Path
 
 class DiffCommand : CliktCommand(name = "diff") {
@@ -27,6 +29,8 @@ class DiffCommand : CliktCommand(name = "diff") {
 
     private val targetNames by
         option("--target", help = "Comma-separated targets to judge (default: all)").split(",")
+
+    private val protoLayout by protoLayoutOption()
 
     private val reporting by ReportingOptions()
 
@@ -46,8 +50,13 @@ class DiffCommand : CliktCommand(name = "diff") {
                 ?.distinct()
                 ?.map { Rulebooks.named(it) ?: throw usageError("unknown target '$it'") }
                 ?: Rulebooks.all
-        val oldSide = load(old, config)
-        val newSide = load(new, config)
+        // As for compile: a layout named on the command line does nothing without the proto
+        // rulebook, so it is a usage error, while the file's layout is only a default.
+        if (protoLayout != null && rulebooks.none { it.target == ProtoRules.target })
+            throw usageError("--proto-layout needs the proto target; add proto to --target")
+        val layout = configuredProtoLayout(protoLayout, config)
+        val oldSide = load(old, config, layout)
+        val newSide = load(new, config, layout)
         val failures = cannotDiff(oldSide.analyzed, newSide.analyzed)
         val sources = reportSources(newSide.sources + oldSide.sources, config)
         if (failures.isNotEmpty()) {
@@ -62,7 +71,7 @@ class DiffCommand : CliktCommand(name = "diff") {
         }
         val oldSchema = oldSide.analyzed.schema!!
         val newSchema = newSide.analyzed.schema!!
-        val comparison = Evolution.compare(oldSchema, newSchema, rulebooks)
+        val comparison = Evolution.compare(oldSchema, newSchema, rulebooks, layout)
         val report = Report.of(comparison.diagnostics, emptyList(), emptyList(), strict = strict)
         when (style.format) {
             Format.JSON ->
@@ -78,9 +87,9 @@ class DiffCommand : CliktCommand(name = "diff") {
             throw ProgramResult(report.exitCode)
     }
 
-    private fun load(path: Path, config: ProjectConfig?): Loaded {
+    private fun load(path: Path, config: ProjectConfig?, layout: ProtoLayout): Loaded {
         val sources = loadSources(listOf(path))
-        return Loaded(sources, analyzeSide(sources, config))
+        return Loaded(sources, analyzeSide(sources, config, layout))
     }
 }
 
@@ -89,14 +98,20 @@ private data class Loaded(val sources: List<SourceInput>, val analyzed: Analyzed
 /**
  * One side as `diff` analyses it: never with strict ordinals, since `--strict` on `diff` only
  * promotes notes to breaks and an implicit ordinal is reported in the trailer instead. [config]'s
- * target tables join the schema as `compile` would apply them, and one file serves both sides, so a
- * default the file gives both is no change.
+ * target tables join the schema as `compile` would apply them under [protoLayout], and one file
+ * serves both sides, so a default the file gives both is no change.
  */
-internal fun analyzeSide(sources: List<SourceInput>, config: ProjectConfig? = null): Analyzed {
+internal fun analyzeSide(
+    sources: List<SourceInput>,
+    config: ProjectConfig? = null,
+    protoLayout: ProtoLayout = ProtoLayout.SCHEMA,
+): Analyzed {
     val analyzed = Pipeline.analyze(sources, strict = false)
     val schema = analyzed.schema
     if (config == null || schema == null) return analyzed
-    return analyzed.copy(schema = AnnotationDefaults.apply(schema, config, Pipeline.annotations))
+    return analyzed.copy(
+        schema = AnnotationDefaults.apply(schema, config, Pipeline.annotations, protoLayout)
+    )
 }
 
 /**

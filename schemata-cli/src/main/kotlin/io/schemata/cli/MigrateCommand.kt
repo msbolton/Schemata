@@ -60,8 +60,11 @@ class MigrateCommand : CliktCommand(name = "migrate") {
             allowDestructiveFlag || config?.migrate?.allowDestructive?.value == true
         val oldSources = loadSources(listOf(old))
         val newSources = loadSources(listOf(new))
-        val oldAnalyzed = analyzeSide(oldSources, config)
-        val newAnalyzed = analyzeSide(newSources, config)
+        // The `[proto]` keys join both sides as `compile` would expand them under the file's
+        // layout. The SQL rules read no package, so `migrate` takes no --proto-layout.
+        val layout = configuredProtoLayout(null, config)
+        val oldAnalyzed = analyzeSide(oldSources, config, layout)
+        val newAnalyzed = analyzeSide(newSources, config, layout)
         val sources = reportSources(newSources + oldSources, config)
         val failures = cannotDiff(oldAnalyzed, newAnalyzed)
         if (failures.isNotEmpty()) {

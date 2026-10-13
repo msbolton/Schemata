@@ -2,6 +2,7 @@ package io.schemata.evolution
 
 import io.schemata.core.ir.Schema
 import io.schemata.lang.Diagnostic
+import io.schemata.target.ProtoLayout
 
 /** One target's [Verdict] for a [Change]. */
 data class TargetVerdict(val target: String, val verdict: Verdict)
@@ -27,8 +28,17 @@ data class Comparison(val judged: List<Judged>, val diagnostics: List<Diagnostic
  * for.
  */
 object Evolution {
-    fun compare(old: Schema, new: Schema, rulebooks: List<Rulebook>): Comparison {
-        val ctx = ChangeContext(old, new)
+    /**
+     * [protoLayout] is the Protobuf layout under which the proto rulebook computes the package of
+     * every gRPC method path; the other rulebooks read no package.
+     */
+    fun compare(
+        old: Schema,
+        new: Schema,
+        rulebooks: List<Rulebook>,
+        protoLayout: ProtoLayout = ProtoLayout.SCHEMA,
+    ): Comparison {
+        val ctx = ChangeContext(old, new, protoLayout)
         val diagnostics = mutableListOf<Diagnostic>()
         val judged =
             Differ.diff(old, new).map { change ->
