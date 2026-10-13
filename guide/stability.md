@@ -85,9 +85,10 @@ which the notes name.
 **The command line.** Every command, flag, and exit code stays. The JSON report shapes of
 `check`, `compile`, `fmt`, `upgrade`, `diff`, `migrate`, `import`, and `targets` stay, the `kind`
 values of `diff` and `migrate` included, and so does the document `config` prints, with its `file`,
-`settings`, `sources`, and `synthesized` keys; a minor may add fields. Not promised: `fmt`'s layout
-(a change is listed in the notes and `fmt --check` may fail after an upgrade), the `.schemata`
-files `import` writes, and the wording of messages and of the human report.
+`settings`, `sources`, and `synthesized` keys; a minor may add fields and may add a `kind` value,
+so a consumer with an exhaustive switch must tolerate a kind it does not know. Not promised:
+`fmt`'s layout (a change is listed in the notes and `fmt --check` may fail after an upgrade), the
+`.schemata` files `import` writes, and the wording of messages and of the human report.
 
 **The configuration file.** Every table and key of `schemata.toml`, and every placeholder, keeps
 its name and its meaning for the whole of 2.x, so a file that loads keeps loading and gives the

@@ -1,0 +1,28 @@
+s.Orders
+  operation 'place' moved from #2 to #5    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'cancel' moved from #3 to #6    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'cancel' response changed from Order to none    proto: breaking, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  reserved changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+4 changes
+proto: 1 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 1 breaking, 0 notes
+
+error[SCH2501]: openapi: s.Orders.cancel: the response changed from Order to none breaks clients that read the old one
+  --> new/s.schemata:10:3
+   |
+10 |   #6 cancel(OrderId)  delete "/orders/{id}"
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new operation instead of changing this one's response
+
+error[SCH2501]: proto: s.Orders.cancel: the response changed from Order to none breaks clients that read the old message
+  --> new/s.schemata:10:3
+   |
+10 |   #6 cancel(OrderId)  delete "/orders/{id}"
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new operation instead of changing this one's response
+
+2 errors, 0 warnings

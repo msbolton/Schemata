@@ -245,4 +245,46 @@ class FormatterLayoutTest {
         val text = "schema s\n\nmodel M { #1 a list<int32 { min 0 }> { min 1 } }\n"
         assertEquals(text, fmt(text))
     }
+
+    @Test
+    fun `a field flag inside a type argument keeps the list form`() {
+        val text =
+            """
+            schema s
+
+            model K { #1 id int32 { id } }
+
+            model A { #1 a list<string { unique }> }
+
+            model B { #1 b list<K { embed }> }
+
+            model C { #1 c list<int32 { index, min 0 }> }
+
+            model D { #1 d list<int64 { id }> }
+
+            alias T = list<string { unique }>
+
+            union U = list<string { unique }> | int32
+            """
+                .trimIndent() + "\n"
+        assertEquals(text, fmt(text))
+    }
+
+    @Test
+    fun `size options inside a type argument still merge`() {
+        assertEquals(
+            "schema s\n\n" +
+                "model M { #1 a string[] { max 20, match \"x\" }  #2 b int32[]? { min 0, max 9 } }\n",
+            fmt(
+                """
+                schema s
+
+                model M {
+                  #1 a list<string { max 20, match "x" }>
+                  #2 b list<int32 { min 0, max 9 }>?
+                }
+            """
+            ),
+        )
+    }
 }

@@ -325,3 +325,12 @@ internal const val DROP_JSON_HELP =
 
 /** The help for a `json` lowering that is the only mapping the shape has. */
 internal const val JSONB_ONLY_HELP = "keep jsonb; Postgres has no typed mapping for this shape"
+
+/** The help for `{ unique }` on a list whose rows are copies, which carry no key to constrain. */
+internal const val UNIQUE_EMBED_HELP = "remove the option, or drop the embed"
+
+/** The help for `{ unique }` on a list lowered whole to one jsonb column. */
+internal const val UNIQUE_JSON_HELP = "remove the option, or drop the json strategy"
+
+/** The help for a delete action on a reference that has no foreign key to carry it. */
+internal const val ON_DELETE_HELP = "remove onDelete, or reference the model by key"

@@ -1,10 +1,7 @@
 /// Entities exchanged between systems, in the NIEM idiom: an abstract head with substituting elements, an augmentation point, security markings, and references by ID.
 schema ex_core @xsd(namespace: "urn:example:exchange:core")
 
-import structures
 import niem_core
-import niem_xs
-import ic_ism
 
 /// A data type for a thing in the environment.
 union Entity = AirObject | GroundObject

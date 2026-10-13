@@ -376,6 +376,49 @@ class XsdLoweringTest {
     }
 
     @Test
+    fun `an enum value override may be any string`() {
+        val e =
+            enum(
+                "s",
+                "Fix",
+                "none",
+                "v2d",
+                valueAnnotations = mapOf("v2d" to xsd("name" to AnnotationValue.Str("2d"))),
+            )
+        val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(e)))))
+        assertEquals(emptyList(), lowered.diagnostics.map { "${it.code.id} ${it.message}" })
+        assertEquals(
+            XsdEnumeration(
+                "FixType",
+                null,
+                listOf(XsdEnumValue("none", null), XsdEnumValue("2d", null)),
+            ),
+            lowered.model.files.single().types.single(),
+        )
+    }
+
+    @Test
+    fun `an empty enum value override is SCH2205`() {
+        val e =
+            enum(
+                "s",
+                "Fix",
+                "none",
+                "v2d",
+                valueAnnotations = mapOf("v2d" to xsd("name" to AnnotationValue.Str(""))),
+            )
+        val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(e)))))
+        val d = lowered.diagnostics.single()
+        assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
+        assertEquals("enum value 'Fix.v2d': @xsd(name: \"\") is empty", d.message)
+        assertEquals("give the value's text", d.help)
+        assertEquals(
+            listOf(XsdEnumValue("none", null), XsdEnumValue("v2d", null)),
+            (lowered.model.files.single().types.single() as XsdEnumeration).values,
+        )
+    }
+
+    @Test
     fun `a pattern xsd cannot express is dropped with a lossy warning`() {
         val r =
             record(

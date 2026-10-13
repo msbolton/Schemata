@@ -14,7 +14,7 @@ service Orders {
   rpc Forget (kitchen.maps.Item) returns (google.protobuf.Empty) {  // schemata: #5; delete "/items/{name}"
     option deprecated = true;
   }
-  rpc Submit (Request) returns (kitchen.maps.Item);
+  rpc Submit (Request) returns (kitchen.maps.Item);  // schemata: #4
   rpc GetURL (Request) returns (Request);  // schemata: #7
   // schemata: reserved #6, "archive"
 }

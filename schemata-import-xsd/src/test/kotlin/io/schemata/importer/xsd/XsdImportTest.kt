@@ -892,7 +892,7 @@ class XsdImportTest {
     }
 
     @Test
-    fun `a name that is not a valid XML name gets no override`() {
+    fun `an enumeration value that is not an XML name keeps its text in an override`() {
         val imported =
             lower(
                 """
@@ -909,8 +909,8 @@ class XsdImportTest {
             )
         assertEquals(
             listOf(
-                UnitEnumValue("v2d", null, emptyList()),
-                UnitEnumValue("v3d", null, emptyList()),
+                UnitEnumValue("v2d", null, listOf(xsd("name", "\"2d\""))),
+                UnitEnumValue("v3d", null, listOf(xsd("name", "\"3d\""))),
             ),
             enum(imported, "Fix").values,
         )
@@ -1036,6 +1036,57 @@ class XsdImportTest {
         val order =
             ordersUnit.declarations.filterIsInstance<UnitRecord>().single { it.name == "Order" }
         assertEquals(UnitType.Ref("shop.customers.Customer"), order.fields.single().type)
+    }
+
+    @Test
+    fun `an xs import nothing references writes no import line`() {
+        val customers =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:shop.customers">
+                  <xs:complexType name="CustomerType">
+                    <xs:sequence><xs:element name="name" type="xs:string"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "shop/customers.xsd",
+            )
+        val billing =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs targetNamespace="urn:schemata:shop.billing">
+                  <xs:complexType name="InvoiceType">
+                    <xs:sequence><xs:element name="total" type="xs:int"/></xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "shop/billing.xsd",
+            )
+        val orders =
+            doc(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:b="urn:schemata:shop.billing" targetNamespace="urn:schemata:shop.orders">
+                  <xs:import namespace="urn:schemata:shop.customers" schemaLocation="customers.xsd"/>
+                  <xs:import namespace="urn:schemata:shop.billing" schemaLocation="billing.xsd"/>
+                  <xs:complexType name="OrderType">
+                    <xs:sequence>
+                      <xs:element name="invoice" type="b:InvoiceType"/>
+                      <xs:element name="note" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:schema>
+                """,
+                "shop/orders.xsd",
+            )
+        val imported = XsdImport.lower(listOf(orders, customers, billing), null)
+        assertEquals(emptyList(), imported.diagnostics)
+        assertEquals(
+            listOf("shop.billing"),
+            imported.units.single { it.namespace == "shop.orders" }.imports,
+        )
     }
 
     @Test
@@ -1331,13 +1382,55 @@ class XsdImportTest {
         assertEquals(
             listOf(
                 "SCH2403 complex type 'AmountType': simpleContent extension of 'AmountType' has " +
-                    "no Schemata equivalent; imported as a model with a 'value' field",
-                "SCH2403 complex type 'AmountType': decimal without totalDigits and " +
-                    "fractionDigits imported as decimal(38, 9)",
+                    "no Schemata equivalent; imported as a model with a 'value' field"
             ),
             imported.diagnostics
                 .filter { it.span.file == "cbc.xsd" }
                 .map { "${it.code.id} ${it.message}" },
+        )
+        // The bare xs:decimal is written in ccts.xsd; the restriction in udt.xsd and the
+        // extension in cbc.xsd inherit it and do not note it again.
+        assertEquals(
+            listOf("ccts.xsd"),
+            imported.diagnostics.filter { "decimal without" in it.message }.map { it.span.file },
+        )
+    }
+
+    @Test
+    fun `a simple content extension of a named decimal type does not repeat its note`() {
+        val imported =
+            lower(
+                """
+                <?xml version="1.0"?>
+                <xs:schema $xs xmlns:tns="urn:schemata:s" targetNamespace="urn:schemata:s">
+                  <xs:simpleType name="LatitudeSimpleType">
+                    <xs:restriction base="xs:decimal"><xs:minInclusive value="-90"/></xs:restriction>
+                  </xs:simpleType>
+                  <xs:complexType name="LatitudeType">
+                    <xs:simpleContent>
+                      <xs:extension base="tns:LatitudeSimpleType">
+                        <xs:attribute name="datum" type="xs:string"/>
+                      </xs:extension>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                  <xs:complexType name="PriceType">
+                    <xs:simpleContent>
+                      <xs:extension base="xs:decimal">
+                        <xs:attribute name="currency" type="xs:string"/>
+                      </xs:extension>
+                    </xs:simpleContent>
+                  </xs:complexType>
+                </xs:schema>
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2403 complex type 'LatitudeType': decimal without totalDigits and " +
+                    "fractionDigits imported as decimal(38, 9)",
+                "SCH2403 complex type 'PriceType': decimal without totalDigits and " +
+                    "fractionDigits imported as decimal(38, 9)",
+            ),
+            messages(imported).filter { "decimal without" in it },
         )
     }
 
@@ -1430,7 +1523,9 @@ class XsdImportTest {
         )
         assertEquals(listOf(xsd("name", "\"paid-out\"")), sign.values[5].annotations)
         assertEquals(listOf(xsd("name", "\"paid_out\"")), sign.values[6].annotations)
-        assertEquals(emptyList(), sign.values[7].annotations)
+        assertEquals(listOf(xsd("name", "\"x y\"")), sign.values[7].annotations)
+        assertEquals(listOf(xsd("name", "\"+x-y\"")), sign.values[3].annotations)
+        assertEquals(listOf(xsd("name", "\"x/y\"")), sign.values[9].annotations)
         assertEquals(listOf(xsd("name", "\"x.y\"")), sign.values[8].annotations)
         assertEquals(
             listOf(

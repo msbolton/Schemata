@@ -14,14 +14,16 @@ import io.schemata.lang.Span
  * A target's `@<target>(name = "…")` overrides, validated once per declaration or enum value
  * however many files refer to them. [overrideName] validates any other override key the same way
  * (`@sql(column: "…")`, say), reporting each use. [problem] returns null for a valid value, else
- * the message tail; an invalid override is reported with [code] and ignored, so the declared name
- * is used.
+ * the message tail; [valueProblem] does the same for an enum value's override, which a target may
+ * write as data rather than as a name. An invalid override is reported with [code] and ignored, so
+ * the declared name is used.
  */
 class OverrideNames(
     private val target: String,
     private val code: DiagnosticCode,
     private val sink: MutableList<Diagnostic>,
     private val problem: (String) -> String?,
+    private val valueProblem: (String) -> String? = problem,
     private val help: (String) -> String,
 ) {
     private val declOverrides = mutableMapOf<QualifiedName, String?>()
@@ -39,6 +41,7 @@ class OverrideNames(
                 value.annotations,
                 "enum value '${enum.name}.${value.name}'",
                 value.nameSpan,
+                check = valueProblem,
             )
         }
 
@@ -55,9 +58,10 @@ class OverrideNames(
         where: String,
         span: Span,
         key: String = "name",
+        check: (String) -> String? = problem,
     ): String? {
         val value = annotations.string(target, key) ?: return null
-        val tail = problem(value) ?: return value
+        val tail = check(value) ?: return value
         sink +=
             Diagnostic(
                 code,

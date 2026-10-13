@@ -164,13 +164,17 @@ private class Col(val column: SqlColumn, val local: String, val nullable: Boolea
         get() = column.name
 }
 
-/** What one top-level record's lowering shares: its namespace, imports, and json fields. */
+/**
+ * What one top-level record's lowering shares: its namespace, imports, json fields, and array
+ * fields whose note waits on an enum.
+ */
 internal class Run(
     val namespace: String,
     val imports: MutableSet<String>,
     val topNames: Set<String>,
 ) {
     val json = mutableListOf<JsonUse>()
+    val enumLists = mutableListOf<EnumListUse>()
 }
 
 /** A table being lowered into a record; [label] names the record in messages. */
@@ -184,7 +188,22 @@ internal class JsonUse(
     val column: SqlColumn,
 )
 
-/** A scalar column's type and what goes with it. */
+/**
+ * An array field whose note names an enum element, kept once the record is complete when the enum
+ * is nested where the field can name it; [own] is the list the column itself gives otherwise.
+ */
+internal class EnumListUse(
+    val owner: RecordSpec,
+    val slot: Slot,
+    val ctx: TableCtx,
+    val column: SqlColumn,
+    val own: UnitType,
+)
+
+/**
+ * A scalar column's type and what goes with it; [pending] is the column's own list when [type] is
+ * an enum list note still to be settled.
+ */
 private class ScalarOut(
     val type: UnitType,
     val default: String?,
@@ -192,6 +211,7 @@ private class ScalarOut(
     val strategy: String?,
     val json: Boolean,
     val keyable: Boolean,
+    val pending: UnitType? = null,
 )
 
 /**
@@ -217,6 +237,8 @@ internal class RecordLowering(private val context: ImportContext) {
         keys(ctx, spec)
         constraints(ctx, spec)
         leftovers(ctx)
+        // slots may hold a Ref to an enum not seen yet until this pass has run
+        resolveEnumLists(run)
         resolveJson(run)
         return spec.decl()
     }
@@ -692,7 +714,15 @@ internal class RecordLowering(private val context: ImportContext) {
 
     private fun scalarSlot(ctx: TableCtx, spec: RecordSpec, c: Col, key: Boolean): Slot {
         val out =
-            scalarType(ctx, spec, c, ImportNames.upperCamel(c.local), overridable = true, key = key)
+            scalarType(
+                ctx,
+                spec,
+                c,
+                ImportNames.upperCamel(c.local),
+                overridable = true,
+                key = key,
+                defer = true,
+            )
         val (name, column) = spec.fieldName(c.local)
         val slot =
             Slot(
@@ -708,6 +738,7 @@ internal class RecordLowering(private val context: ImportContext) {
         slot.sqlType = out.sqlType
         slot.strategy = out.strategy
         if (out.json) ctx.run.json += JsonUse(spec, slot, ctx, c.column)
+        out.pending?.let { ctx.run.enumLists += EnumListUse(spec, slot, ctx, c.column, it) }
         return slot
     }
 
@@ -716,6 +747,8 @@ internal class RecordLowering(private val context: ImportContext) {
      * `@sql(type)` keeps a spelling the SQL target would not write, when [overridable]; a spelling
      * outside the target's own is reported as widened unless a note says what the column holds. A
      * [key] column is read as a plain scalar whatever its spelling, an array or json one included.
+     * With [defer], an array whose note names an enum element is settled once the record is
+     * complete.
      */
     private fun scalarType(
         ctx: TableCtx,
@@ -724,6 +757,7 @@ internal class RecordLowering(private val context: ImportContext) {
         enumBase: String,
         overridable: Boolean,
         key: Boolean = false,
+        defer: Boolean = false,
     ): ScalarOut {
         val column = c.column
         val note =
@@ -741,13 +775,26 @@ internal class RecordLowering(private val context: ImportContext) {
         val written = column.type
         return when {
             key -> plain(ctx, spec, c, note, enumBase, overridable)
-            written.endsWith("[]") && !written.endsWith("[][]") -> array(ctx, c, note)
+            written.endsWith("[]") && !written.endsWith("[][]") -> array(ctx, spec, c, note, defer)
             written == "jsonb" || written == "json" -> json(ctx, spec, c, note, overridable)
             else -> plain(ctx, spec, c, note, enumBase, overridable)
         }
     }
 
-    private fun array(ctx: TableCtx, c: Col, note: NoteText.Parsed?): ScalarOut {
+    /**
+     * An array column: a list of the scalar its element type maps to, or the list its note gives. A
+     * note naming no type is taken as it is. A note whose element is one bare name, on a `text[]`
+     * column, is how a list of an enum reads, and is kept when that name is an enum nested where
+     * the field is or around it: with [defer] that is settled once the record is complete, since a
+     * later column may declare the enum, and otherwise here. Any other note is ignored.
+     */
+    private fun array(
+        ctx: TableCtx,
+        spec: RecordSpec,
+        c: Col,
+        note: NoteText.Parsed?,
+        defer: Boolean,
+    ): ScalarOut {
         val column = c.column
         val base = column.type.removeSuffix("[]")
         val mapped = mapType(base)
@@ -756,17 +803,19 @@ internal class RecordLowering(private val context: ImportContext) {
                 mapped.builtin,
                 mapped.refinements.filter { it.first == "p" || it.first == "s" },
             )
-        var type: UnitType = UnitType.ListOf(element, false, emptyList())
+        val own: UnitType = UnitType.ListOf(element, false, emptyList())
+        var type = own
+        var pending: UnitType? = null
         val noted = note?.type
-        if (noted is UnitType.ListOf && refs(noted).isEmpty()) {
-            type = noted
-        } else if (noted != null) {
-            context.say(
-                ctx,
-                column,
-                ImportCodes.APPROXIMATED,
-                "note '${column.note}' does not fit a ${column.type} column; ignored",
-            )
+        val enumList = (noted as? UnitType.ListOf)?.takeIf { base == "text" && namesOne(it) }
+        when {
+            noted is UnitType.ListOf && refs(noted).isEmpty() -> type = noted
+            enumList != null && defer -> {
+                type = enumList
+                pending = own
+            }
+            enumList != null && isEnumElement(spec, enumList.element) -> type = enumList
+            noted != null -> unfit(ctx, column)
         }
         if (noted !is UnitType.ListOf && spell(element) != mapped.canonical) {
             context.say(
@@ -777,7 +826,23 @@ internal class RecordLowering(private val context: ImportContext) {
             )
         }
         dropDefault(ctx, column)
-        return ScalarOut(type, null, null, null, json = false, keyable = false)
+        return ScalarOut(type, null, null, null, json = false, keyable = false, pending = pending)
+    }
+
+    /**
+     * Whether [list]'s element is one name with no namespace, as an enum nested nearby is named.
+     */
+    private fun namesOne(list: UnitType.ListOf): Boolean =
+        (list.element as? UnitType.Ref)?.name?.contains('.') == false
+
+    /** Reports that [column]'s note names a type its array cannot hold; the note is ignored. */
+    private fun unfit(ctx: TableCtx, column: SqlColumn) {
+        context.say(
+            ctx,
+            column,
+            ImportCodes.APPROXIMATED,
+            "note '${column.note}' does not fit a ${column.type} column; ignored",
+        )
     }
 
     private fun json(
@@ -1253,6 +1318,21 @@ internal class RecordLowering(private val context: ImportContext) {
                     "foreign key over (${it.columns.joinToString(", ")}) dropped",
                 )
             }
+    }
+
+    /**
+     * Settles each array field whose note names an enum element, now that the record is complete:
+     * the note stands when the name is an enum nested where the field is or around it; otherwise
+     * the field takes its column's own list and the note is reported as ignored.
+     */
+    private fun resolveEnumLists(run: Run) {
+        for (use in run.enumLists) {
+            val element = (use.slot.type as? UnitType.ListOf)?.element ?: continue
+            if (isEnumElement(use.owner, element)) continue
+            use.slot.type = use.own
+            unfit(use.ctx, use.column)
+        }
+        run.enumLists.clear()
     }
 
     /**

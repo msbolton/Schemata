@@ -138,6 +138,11 @@ def main():
                 f"compile {target}",
             )
             compile_results[target] = tally(rep)
+            unused = sum(n for (code, _), n in compile_results[target].items() if code == "SCH1012")
+            if unused:
+                failures.append(
+                    f"compile: SCH1012 reported {unused} times; imported trees must carry no unused import"
+                )
             tolerated = SQL_TOLERATED if target == "sql" else ()
             for d in errors_of(rep, tolerated):
                 failures.append(f'compile {target}: {d["code"]} {where(d)} {d["message"]}')

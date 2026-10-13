@@ -7,6 +7,8 @@
 #                      declared beside the model (Protobuf, XSD, JSON Schema, OpenAPI)
 #   on delete          an ON DELETE clause on a foreign key
 #   type notes         the `schemata:` note on an emitted field is in 2.0 spelling
+#   nullable parameter an OpenAPI parameter whose field is nullable takes the plain schema: a
+#                      query string has no null, so it is an optional parameter
 #   message text       a diagnostic says model or schema, spells a type as 2.0 does, or warns
 #                      about a field a reference now emits
 #   keyword rename     an identifier that is a 2.0 keyword is renamed `<name>_value`
@@ -43,6 +45,7 @@ corpus/scalars/diagnostics  message text
 corpus/scalars/proto/corpus/scalars.proto  type notes
 corpus/services/diagnostics  message text
 corpus/services/proto/corpus/services.proto  type notes
+corpus/services/openapi/corpus/services.openapi.json  nullable parameter
 corpus/shadow/diagnostics  message text
 corpus/strings/diagnostics  message text
 corpus/strings/proto/corpus/strings.proto  type notes
@@ -164,8 +167,10 @@ evolution/schema-moved/old/proto/b.proto  type notes
 evolution/schema-moved/old/xsd/a.xsd  reference by key
 evolution/services/new/diagnostics  message text
 evolution/services/new/proto/s.proto  type notes
+evolution/services/new/openapi/s.openapi.json  nullable parameter
 evolution/services/old/diagnostics  message text
 evolution/services/old/proto/s.proto  type notes
+evolution/services/old/openapi/s.openapi.json  nullable parameter
 evolution/strategy-changed/new/diagnostics  message text
 evolution/strategy-changed/new/proto/s.proto  type notes
 evolution/strategy-changed/old/diagnostics  message text
@@ -230,6 +235,7 @@ examples/ledger/xsd/ledger/reports.xsd  reference by key
 examples/services/diagnostics  message text
 examples/services/proto/shop/catalog.proto  type notes
 examples/services/proto/shop/orders.proto  type notes
+examples/services/openapi/shop/orders.openapi.json  nullable parameter
 examples/shop/diagnostics  message text
 examples/shop/jsonschema/shop/orders.schema.json  reference by key
 examples/shop/proto/shop/customers.proto  type notes

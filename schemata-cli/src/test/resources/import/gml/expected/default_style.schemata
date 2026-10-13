@@ -3,7 +3,6 @@
 /// To obtain additional rights of use, visit http://www.opengeospatial.org/legal/ .
 schema default_style @xsd(namespace: "http://www.opengis.net/gml/3.2")
 
-import smil20
 import gmd
 import xlink
 
@@ -1018,7 +1017,7 @@ model MultiGeometryProperty {
 }
 
 /// gml:SignType is a convenience type with values "+" (plus) and "-" (minus).
-enum Sign { minus plus }
+enum Sign { @xsd(name: "-") minus @xsd(name: "+") plus }
 
 model AbstractContinuousCoverage {
   meta_data_property    MetaDataProperty[] @xsd(name: "metaDataProperty")
@@ -5392,8 +5391,8 @@ model Degrees {
     @xsd(name: "E") e
     @xsd(name: "S") s
     @xsd(name: "W") w
-    plus
-    minus
+    @xsd(name: "+") plus
+    @xsd(name: "-") minus
   }
 }
 
@@ -5848,7 +5847,12 @@ model DefinitionProxy {
   @@xsd(name: "DefinitionProxy")
 }
 
-enum IncrementOrder { plus_x_plus_y plus_y_plus_x plus_x_y minus_x_y }
+enum IncrementOrder {
+  @xsd(name: "+x+y") plus_x_plus_y
+  @xsd(name: "+y+x") plus_y_plus_x
+  @xsd(name: "+x-y") plus_x_y
+  @xsd(name: "-x-y") minus_x_y
+}
 
 model MovingObjectStatus {
   meta_data_property    MetaDataProperty[]    @xsd(name: "metaDataProperty")

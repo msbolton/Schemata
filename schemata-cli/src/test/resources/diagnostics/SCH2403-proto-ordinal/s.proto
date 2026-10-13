@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package s;
+
+message M {
+  int32 x = 1;
+}
+
+service S {
+  rpc A(M) returns (M);  // schemata: #2
+  rpc B(M) returns (M);  // schemata: #2
+  rpc C(M) returns (M);
+  // schemata: reserved #4
+}

@@ -152,6 +152,7 @@ model Trk {
 
 /// You can add extend GPX by adding your own elements from another schema here.
 model Extensions {
+  /// You can add extend GPX by adding your own elements from another schema here.
   any string[] @xsd(any) @xsd(wildcard: "##other")
 
   @@xsd(name: "extensions")
@@ -261,4 +262,4 @@ model Bounds {
 
 /// Type of GPS fix.  none means GPS had no fix.  To signify "the fix info is unknown, leave out fixType entirely. pps = military signal used
 @xsd(name: "fix")
-enum Fix { none v2d v3d dgps pps }
+enum Fix { none @xsd(name: "2d") v2d @xsd(name: "3d") v3d dgps pps }

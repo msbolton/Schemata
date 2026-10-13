@@ -83,14 +83,7 @@
             "style": "form",
             "explode": true,
             "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/corpus.services.Status"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/components/schemas/corpus.services.Status"
             }
           },
           {

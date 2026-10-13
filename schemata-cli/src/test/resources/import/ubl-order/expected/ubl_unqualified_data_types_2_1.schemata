@@ -1,7 +1,5 @@
 schema ubl_unqualified_data_types_2_1 @xsd(namespace: "urn:oasis:names:specification:ubl:schema:xsd:UnqualifiedDataTypes-2")
 
-import ccts_cct_schema_module_2_1
-
 /// UBLUDT000001
 /// UDT
 /// Amount. Type

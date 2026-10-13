@@ -1,0 +1,13 @@
+schema s
+
+model Customer { #1 id uuid { id }  #2 name string { max 64 } }
+
+model Line { #1 sku string { max 32 }  #2 qty int32 }
+
+model Order {
+  #1 id       uuid       { id }
+  #2 customer Customer
+  #3 watchers Customer[]
+  #4 lines    Line[]
+  #5 tags     string[]
+}

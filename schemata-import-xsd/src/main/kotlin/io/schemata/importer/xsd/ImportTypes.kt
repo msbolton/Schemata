@@ -113,20 +113,28 @@ object ImportTypes {
     /**
      * Applies the XSD facet rules to [base], returning the refined scalar and the lossy notes.
      * [line] is where the facets are declared, for a note that no single facet carries; a facet
-     * whose value does not parse as its kind requires is dropped and noted.
+     * whose value does not parse as its kind requires is dropped and noted. A note about a facet is
+     * kept only when [report] accepts the facet, and the note that a decimal took the default
+     * precision and scale only when [defaultNote]; the refined type is the same either way.
      */
     fun facets(
         base: UnitType.Scalar,
         facets: List<XFacet>,
         line: Int,
+        defaultNote: Boolean = true,
+        report: (XFacet) -> Boolean = { true },
     ): Pair<UnitType.Scalar, List<Note>> {
         val notes = mutableListOf<Note>()
         val refinements = mutableListOf<Pair<String, String>>()
         var remaining = facets
 
+        fun note(n: Note, f: XFacet) {
+            if (report(f)) notes += n
+        }
+
         if (base.builtin == "decimal") {
             val digits = facets.filter { it.name == "totalDigits" || it.name == "fractionDigits" }
-            digits.filter { countOf(it) == null }.forEach { notes += unparsed(it) }
+            digits.filter { countOf(it) == null }.forEach { note(unparsed(it), it) }
             val total = digits.firstOrNull { it.name == "totalDigits" }?.let(::countOf)
             val fraction = digits.firstOrNull { it.name == "fractionDigits" }?.let(::countOf)
             if (total != null && fraction != null) {
@@ -136,19 +144,21 @@ object ImportTypes {
                 refinements += "p" to "38"
                 refinements += "s" to "9"
                 val at = digits.firstOrNull()?.line ?: line
-                notes +=
-                    Note(
-                        ImportCodes.APPROXIMATED,
-                        "decimal without totalDigits and fractionDigits imported as decimal(38, 9)",
-                        at,
-                    )
+                if (defaultNote) {
+                    notes +=
+                        Note(
+                            ImportCodes.APPROXIMATED,
+                            "decimal without totalDigits and fractionDigits imported as decimal(38, 9)",
+                            at,
+                        )
+                }
             }
             remaining = facets.filterNot { it.name == "totalDigits" || it.name == "fractionDigits" }
         }
 
         fun bound(key: String, f: XFacet) {
             val value = plainNumber(f.value)
-            if (value == null) notes += unparsed(f) else refinements += key to value
+            if (value == null) note(unparsed(f), f) else refinements += key to value
         }
 
         fun exclusive(key: String, f: XFacet, step: BigInteger) {
@@ -158,56 +168,56 @@ object ImportTypes {
                 } catch (e: NumberFormatException) {
                     null
                 }
-            if (value == null) notes += unparsed(f)
+            if (value == null) note(unparsed(f), f)
             else refinements += key to (value + step).toString()
         }
 
         fun length(f: XFacet, vararg keys: String) {
             val value = countOf(f)
-            if (value == null) notes += unparsed(f) else keys.forEach { refinements += it to value }
+            if (value == null) note(unparsed(f), f) else keys.forEach { refinements += it to value }
         }
 
         var patternSeen = false
         for (f in remaining) {
             when (f.name) {
                 "minInclusive" ->
-                    if (base.builtin in numeric) bound("min", f) else notes += dropped(f)
+                    if (base.builtin in numeric) bound("min", f) else note(dropped(f), f)
                 "maxInclusive" ->
-                    if (base.builtin in numeric) bound("max", f) else notes += dropped(f)
+                    if (base.builtin in numeric) bound("max", f) else note(dropped(f), f)
                 "minExclusive" ->
                     if (base.builtin == "int32" || base.builtin == "int64") {
                         exclusive("min", f, BigInteger.ONE)
                     } else {
-                        notes += dropped(f)
+                        note(dropped(f), f)
                     }
                 "maxExclusive" ->
                     if (base.builtin == "int32" || base.builtin == "int64") {
                         exclusive("max", f, BigInteger.ONE.negate())
                     } else {
-                        notes += dropped(f)
+                        note(dropped(f), f)
                     }
                 "minLength" ->
-                    if (base.builtin in lengthBearing) length(f, "min") else notes += dropped(f)
+                    if (base.builtin in lengthBearing) length(f, "min") else note(dropped(f), f)
                 "maxLength" ->
-                    if (base.builtin in lengthBearing) length(f, "max") else notes += dropped(f)
+                    if (base.builtin in lengthBearing) length(f, "max") else note(dropped(f), f)
                 "length" ->
                     if (base.builtin in lengthBearing) length(f, "min", "max")
-                    else notes += dropped(f)
+                    else note(dropped(f), f)
                 "pattern" ->
                     if (base.builtin != "string") {
-                        notes += dropped(f)
+                        note(dropped(f), f)
                     } else if (patternSeen) {
-                        notes += dropped(f)
+                        note(dropped(f), f)
                     } else {
                         patternSeen = true
                         if (isUuidPattern(f.value)) {
                             return Pair(UnitType.Scalar("uuid", emptyList()), emptyList())
                         }
                         val literal = quotePattern(unanchor(f.value))
-                        if (literal == null) notes += unparsed(f)
+                        if (literal == null) note(unparsed(f), f)
                         else refinements += "pattern" to literal
                     }
-                else -> notes += dropped(f)
+                else -> note(dropped(f), f)
             }
         }
         return Pair(base.copy(refinements = refinements), notes)

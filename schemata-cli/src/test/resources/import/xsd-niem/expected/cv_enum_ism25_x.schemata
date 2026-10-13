@@ -37,109 +37,109 @@ enum CVEnumISM25X {
   /// effectiveness of an intelligence method
   /// currently in use, available for use, or under
   /// development.
-  v25_x1
+  @xsd(name: "25X1") v25_x1
   /// "25X1, EO 12951" (prescribed by the DNI for use on information described in E.O. 12951,
   /// Release of Imagery Acquired by Space-Based National Intelligence Reconnaissance Systems)
-  v25_x1_eo_12951
+  @xsd(name: "25X1-EO-12951") v25_x1_eo_12951
   /// Reveal information that would assist
   /// in the development, production, or use of
   /// weapons of mass destruction.
-  v25_x2
+  @xsd(name: "25X2") v25_x2
   /// Reveal information that would
   /// impair U.S. cryptologic systems or activities.
-  v25_x3
+  @xsd(name: "25X3") v25_x3
   /// Reveal information that would
   /// impair the application of state-of-the-art
   /// technology within a U.S. weapon system.
-  v25_x4
+  @xsd(name: "25X4") v25_x4
   /// Reveal formally named or numbered
   /// U.S. military war plans that remain in effect,
   /// or reveal operational or tactical elements of
   /// prior plans that are contained in such active
   /// plans;
-  v25_x5
+  @xsd(name: "25X5") v25_x5
   /// Reveal information, including foreign
   /// government information, that would cause
   /// serious harm to relations between the United
   /// States and a foreign government, or to
   /// ongoing diplomatic activities of the United
   /// States
-  v25_x6
+  @xsd(name: "25X6") v25_x6
   /// Reveal information that would
   /// impair the current ability of United States
   /// Government officials to protect the President,
   /// Vice President, and other protectees for
   /// whom protection services, in the interest of
   /// the national security, are authorized.
-  v25_x7
+  @xsd(name: "25X7") v25_x7
   /// Reveal information that would
   /// seriously impair current national security
   /// emergency preparedness plans or reveal
   /// current vulnerabilities of systems,
   /// installations, or infrastructures relating to the
   /// national security.
-  v25_x8
+  @xsd(name: "25X8") v25_x8
   /// Violate a statute, treaty, or
   /// international agreement that does not permit
   /// the automatic or unilateral declassification of
   /// information at 25 years.
-  v25_x9
+  @xsd(name: "25X9") v25_x9
   /// The ISCAP has authorized use of this code in the FBI’s
   /// classification guidance (which results in a 75-year classification
   /// period) for any agency sourcing/reusing the information.
-  v50_x1
+  @xsd(name: "50X1") v50_x1
   /// When the information clearly and
   /// demonstrably could be expected to
   /// reveal the identity of a confidential
   /// human source or a human intelligence
   /// source.
-  v50_x1_hum
+  @xsd(name: "50X1-HUM") v50_x1_hum
   /// Reveal information that would assist
   /// in the development, production, or use of
   /// weapons of mass destruction.
-  v50_x2
+  @xsd(name: "50X2") v50_x2
   /// When the information clearly and
   /// demonstrably could reveal key design
   /// concepts of weapons of mass
   /// destruction.
-  v50_x2_wmd
+  @xsd(name: "50X2-WMD") v50_x2_wmd
   /// Reveal information that would
   /// impair U.S. cryptologic systems or activities.
-  v50_x3
+  @xsd(name: "50X3") v50_x3
   /// Reveal information that would
   /// impair the application of state-of-the-art
   /// technology within a U.S. weapon system.
-  v50_x4
+  @xsd(name: "50X4") v50_x4
   /// Reveal formally named or numbered
   /// U.S. military war plans that remain in effect,
   /// or reveal operational or tactical elements of
   /// prior plans that are contained in such active
   /// plans;
-  v50_x5
+  @xsd(name: "50X5") v50_x5
   /// Reveal information, including foreign
   /// government information, that would cause
   /// serious harm to relations between the United
   /// States and a foreign government, or to
   /// ongoing diplomatic activities of the United
   /// States
-  v50_x6
+  @xsd(name: "50X6") v50_x6
   /// Reveal information that would
   /// impair the current ability of United States
   /// Government officials to protect the President,
   /// Vice President, and other protectees for
   /// whom protection services, in the interest of
   /// the national security, are authorized.
-  v50_x7
+  @xsd(name: "50X7") v50_x7
   /// Reveal information that would
   /// seriously impair current national security
   /// emergency preparedness plans or reveal
   /// current vulnerabilities of systems,
   /// installations, or infrastructures relating to the
   /// national security.
-  v50_x8
+  @xsd(name: "50X8") v50_x8
   /// Violate a statute, treaty, or
   /// international agreement that does not permit
   /// the automatic or unilateral declassification of
   /// information at 25 years.
-  v50_x9
+  @xsd(name: "50X9") v50_x9
 }
