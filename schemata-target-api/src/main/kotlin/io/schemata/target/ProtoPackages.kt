@@ -86,9 +86,9 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
          * a reference cycle between schemas does not merge their packages: each schema takes its
          * own. Members of one cycle that declare the same package still share a scope, since their
          * declarations sit in one proto package where each name may be used once, so they keep the
-         * cycle's renames and collision checks; splitting them would make valid input a package
-         * collision. A scope is never derived or in conflict, and its path is its first member's,
-         * as a singleton's is.
+         * cycle's renames and collision checks, and one value per language option; splitting them
+         * would make valid input a package collision. A scope is never derived or in conflict, and
+         * its path is its first member's, as a singleton's is.
          */
         private fun scopes(schema: Schema): List<ProtoUnit> {
             val byName = schema.namespaces.associateBy { it.name }

@@ -19,10 +19,11 @@ import io.schemata.target.stronglyConnected
 
 /**
  * One file: its path; the top-level declarations and services it holds, in source order with
- * schemas by name; the [host] schema whose language options it writes; the package [scope] whose
- * package and directory it takes; the declaration [naming] it is named after, null for a service's
- * file and for the schema layout's one file; and the declarations of other scopes' schemas [moved]
- * into it.
+ * schemas by name; the [host] schema that holds it, the schema of the member it was placed by, of
+ * its service, or the schema layout unit's first; the host's package [scope], whose package,
+ * directory and language options it takes; the declaration [naming] it is named after, null for a
+ * service's file and for the schema layout's one file; and the declarations of other scopes'
+ * schemas [moved] into it.
  */
 internal class TypeFile(
     val path: String,
