@@ -196,6 +196,78 @@ class ProtoPackagesTest {
         assertEquals("a.proto", unit.path)
     }
 
+    private fun typePackages(vararg namespaces: Namespace) =
+        ProtoPackages.of(Schema(namespaces.sortedBy { it.name }), ProtoLayout.TYPE)
+
+    @Test
+    fun `of with the type layout gives every schema its own package`() {
+        val packages =
+            typePackages(ns("cyc.alpha", listOf("cyc.beta")), ns("cyc.beta", listOf("cyc.alpha")))
+        assertEquals(
+            listOf(
+                Triple(listOf("cyc.alpha"), "cyc.alpha", "cyc/alpha.proto"),
+                Triple(listOf("cyc.beta"), "cyc.beta", "cyc/beta.proto"),
+            ),
+            packages.units.map { u -> Triple(u.members.map { it.name }, u.packageName, u.path) },
+        )
+        assertTrue(packages.units.none { it.merged || it.derived || it.conflict != null })
+        assertEquals("cyc.beta", packages.packageOf("cyc.beta"))
+        val declared =
+            typePackages(
+                ns("cyc.alpha", listOf("cyc.beta"), pkg = "p.one"),
+                ns("cyc.beta", listOf("cyc.alpha"), pkg = "p.two"),
+            )
+        assertEquals(listOf("p.one", "p.two"), declared.units.map { it.packageName })
+        assertTrue(declared.units.none { it.conflict != null })
+    }
+
+    @Test
+    fun `a cycle whose members declare one package is one scope under the type layout`() {
+        val packages =
+            typePackages(
+                ns("a", listOf("b"), pkg = "p.v1"),
+                ns("b", listOf("c")),
+                ns("c", listOf("a"), pkg = "p.v1"),
+            )
+        assertEquals(
+            listOf(listOf("a", "c") to "p.v1", listOf("b") to "b"),
+            packages.units.map { u -> u.members.map { it.name } to u.packageName },
+        )
+        val scope = packages.unitOf("c")
+        assertTrue(scope === packages.unitOf("a"))
+        assertTrue(scope.merged)
+        assertFalse(scope.derived)
+        assertNull(scope.conflict)
+        assertEquals("a.proto", scope.path)
+    }
+
+    @Test
+    fun `of with the schema layout equals of`() {
+        val cases =
+            listOf(
+                listOf(ns("b.c", pkg = "x.v1")),
+                listOf(ns("cyc.alpha", listOf("cyc.beta")), ns("cyc.beta", listOf("cyc.alpha"))),
+                listOf(
+                    ns("a", listOf("b"), pkg = "p"),
+                    ns("b", listOf("c"), pkg = "p"),
+                    ns("c", listOf("a"), pkg = "q"),
+                ),
+            )
+        for (namespaces in cases) {
+            val schema = Schema(namespaces.sortedBy { it.name })
+            assertEquals(
+                ProtoPackages.of(schema).units,
+                ProtoPackages.of(schema, ProtoLayout.SCHEMA).units,
+            )
+        }
+    }
+
+    @Test
+    fun `own is the declared package or the name`() {
+        assertEquals("x.v1", ProtoPackages.own(ns("b.c", pkg = "x.v1")))
+        assertEquals("b.c", ProtoPackages.own(ns("b.c")))
+    }
+
     private fun compile(vararg files: Pair<String, String>): Schema =
         Analyzer.analyze(
                 files.map { (name, text) -> Parser.parse(text, name).file!! },

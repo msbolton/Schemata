@@ -14,7 +14,7 @@ import io.schemata.config.Setting
 import io.schemata.config.Synthesized
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.lang.SchemataText
-import io.schemata.target.proto.ProtoLayout
+import io.schemata.target.ProtoLayout
 
 /**
  * `schemata config`: the configuration the other commands would run with (SCH-102). Each setting

@@ -23,8 +23,8 @@ import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.upgrade.Upgrader
+import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
-import io.schemata.target.proto.ProtoLayout
 import io.schemata.target.proto.ProtoTarget
 import java.io.File
 
