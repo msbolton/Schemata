@@ -66,6 +66,14 @@ object LangCodes {
             "upgrade renamed a name 2.0 keeps as a keyword",
         )
 
+    val ERRORS_SYNTAX =
+        DiagnosticCode(
+            "SCH0010",
+            Severity.ERROR,
+            Category.SYNTAX,
+            "a success code or an errors clause is malformed",
+        )
+
     val all: List<DiagnosticCode> =
         listOf(
             SYNTAX,
@@ -77,5 +85,6 @@ object LangCodes {
             MALFORMED_PATH,
             LEGACY_SYNTAX,
             KEYWORD_RENAMED,
+            ERRORS_SYNTAX,
         )
 }

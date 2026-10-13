@@ -1,0 +1,13 @@
+error[SCH0010]: service 'S': 'oops' is not a clause
+ --> s.schemata:6:3
+  = help: only an errors { … } clause can follow an operation or stand in a service
+
+error[SCH0010]: operation 'a': success code '0201' is not a plain integer
+ --> s.schemata:7:25
+  = help: write the code as digits, with no sign and no leading zero
+
+error[SCH0010]: operation 'a': error code 'Problem' is not an integer or default
+ --> s.schemata:7:47
+  = help: write a code from 400 to 599 or default, each followed by its body if it has one
+
+3 errors, 0 warnings
