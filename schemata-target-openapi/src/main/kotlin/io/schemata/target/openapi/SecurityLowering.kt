@@ -225,7 +225,8 @@ internal class SecurityLowering(
 
     private companion object {
         val URL_KEYS = listOf("oauth2_token_url", "oauth2_authorization_url", "openid")
-        val URL = Regex("https?://[^\\s/?#]+\\S*")
+        // a URL's scheme is case-insensitive, so `HTTPS://` is as good as `https://`
+        val URL = Regex("(?i:https?)://[^\\s/?#]+\\S*")
         val API_KEY = Regex("(header|query|cookie)\\s+(\\S+)")
     }
 }

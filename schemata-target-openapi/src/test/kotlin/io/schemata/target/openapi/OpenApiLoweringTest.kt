@@ -2113,4 +2113,30 @@ class OpenApiLoweringTest {
         )
         assertEquals(emptyList(), l.model.documents.single().securitySchemes)
     }
+
+    @Test
+    fun `a URL scheme in any letter case is accepted`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(openid: "HTTPS://id.example.com/.well-known/openid-configuration", auth: openid)
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        assertEquals(
+            listOf(
+                SecurityScheme.OpenIdConnect(
+                    "openid",
+                    "HTTPS://id.example.com/.well-known/openid-configuration",
+                )
+            ),
+            l.model.documents.single().securitySchemes,
+        )
+    }
 }
