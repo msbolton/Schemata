@@ -112,6 +112,7 @@ Codes:
 | `version` | schema | string |  |
 | `server` | schema | string |  |
 | `name` | service, operation | string |  |
+| `header` | field | string |  |
 
 Codes:
 
@@ -121,3 +122,4 @@ Codes:
 | SCH2602 | error | semantic | two services, operations, or schemas lower to one OpenAPI name |
 | SCH2603 | error | semantic | an @openapi value is not a valid id, URL, or key |
 | SCH2604 | warning | lossy | something OpenAPI cannot express was dropped by the lowering |
+| SCH2605 | error | semantic | a header field is not a scalar or an enum, or its header name is not one OpenAPI can write |

@@ -1,0 +1,17 @@
+schema s
+
+model Call {
+  #1 tags string[] @openapi(header: "X-Tags")
+  #2 bad string @openapi(header: "X Bad")
+  #3 kind string @openapi(header: "Content-Type")
+  #4 auth string @openapi(header: "Authorization")
+  #5 first string @openapi(header: "X-Id")
+  #6 second string @openapi(header: "x-id")
+  #7 body string
+}
+
+model R { #1 ok bool }
+
+service S {
+  #1 call(Call): R  post "/calls"
+}

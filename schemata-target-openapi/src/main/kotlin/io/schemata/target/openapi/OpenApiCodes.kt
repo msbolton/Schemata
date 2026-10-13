@@ -34,6 +34,13 @@ object OpenApiCodes {
             Category.LOSSY,
             "something OpenAPI cannot express was dropped by the lowering",
         )
+    val HEADER =
+        DiagnosticCode(
+            "SCH2605",
+            Severity.ERROR,
+            Category.SEMANTIC,
+            "a header field is not a scalar or an enum, or its header name is not one OpenAPI can write",
+        )
 
-    val all: List<DiagnosticCode> = listOf(QUERY_SHAPE, COLLISION, INVALID_OVERRIDE, LOSSY)
+    val all: List<DiagnosticCode> = listOf(QUERY_SHAPE, COLLISION, INVALID_OVERRIDE, LOSSY, HEADER)
 }
