@@ -734,39 +734,42 @@ takes the first sorting name and is reported once as SCH2001, as in `model 'Cust
 shop/orders/customer.proto`. Its help says to set `@proto(name)` on the member that should name
 the file. The schema layout's note on a merged cycle is not reported under this layout.
 
-Every file has a host schema, whose directory, package, and option lines it takes: the schema of
-its declarations, or, when declarations of more than one schema share the file, the schema of the
-one whose file name sorts first. The declarations of the other schemas move into the host's
-package, and the first of them gets a second SCH2001 note, which names every declaration that
-moved: `model 'cyc.alpha.Order' is written under package 'cyc.beta' in cyc/beta/customer.proto`
+Every file has a host schema, whose directory and package it takes, with that package's option
+lines: the schema of its declarations, or, when declarations of more than one schema share the file,
+the schema of the one whose file name sorts first. The declarations of the other schemas move into
+the host's package, and the first of them gets a second SCH2001 note, which names every declaration
+that moved: `model 'cyc.alpha.Order' is written under package 'cyc.beta' in cyc/beta/customer.proto`
 for the `cyc.alpha` and `cyc.beta` cycle. Its help says to break the reference cycle, or to set
 `@proto(name)` so that a declaration of the moved one's own schema names the file. A moved
 declaration's full name, and with it its `Any` type URL and the package of its generated classes,
-come from the host schema; the options of its own schema do not apply to it. A moved declaration
-whose name a declaration or a service of the host schema already has is prefixed with its own
-schema's UpperCamel name, reported as SCH2001 as under the schema layout, unless it sets
-`@proto(name)`, which keeps its name; a prefixed name that is still taken is an error (SCH2004).
-Two schemas of one cycle that declare the same `@proto(package)` stay one package, sharing its
-directory, and the schema layout's renames apply between them. Since each file takes its host's
-package and options, schemas of one cycle may declare different packages and different language
-options under this layout without an error.
+come from the host schema; the options of its own schema's package do not apply to it. A moved
+declaration whose name a declaration or a service of the host schema already has is prefixed with
+its own schema's UpperCamel name, reported as SCH2001 as under the schema layout, unless it sets
+`@proto(name)`, which keeps its name; a prefixed name that is still taken is an error (SCH2004). Two
+schemas of one cycle that declare the same `@proto(package)` stay one package, sharing its
+directory, and the schema layout's renames apply between them. Schemas of one cycle that declare
+different packages may declare different language options under this layout without an error, since
+no file takes options from more than one package. Schemas that declare the same package must agree
+on them as under the schema layout: each option takes the one value they declare, a schema that
+declares none adds nothing, and different values are an error (SCH2007) and nothing is written.
 
 A key record, such as the `SeatKey` synthesized for a composite key, is always its own file,
-`seat_key.proto`: after an import it is an ordinary model, and the round trip stays byte for
-byte. protoc names each file's Java wrapper class after the file, so with `java_multiple_files`
+`seat_key.proto`, even when its model shares a cycle file in another package: the key record stays
+in its model's own package. After an import it is an ordinary model, and the round trip stays byte
+for byte. protoc names each file's Java wrapper class after the file, so with `java_multiple_files`
 the wrapper of `http_status.proto`, `HttpStatus`, and the message `HTTPStatus` would be two Java
-files whose names differ only by case, and on a case-insensitive file system one would overwrite
-the other. A file whose host schema declares `java_multiple_files: true` therefore writes
+files whose names differ only by case, and on a case-insensitive file system one would overwrite the
+other. Every file of a package whose options set `java_multiple_files: true` therefore writes
 `option java_outer_classname = "<Stem>Proto";`, in its key-order place after `java_package`, the
-stem being the file name in UpperCamel: `order.proto` gets `OrderProto`. A top-level declaration
-or service whose name equals such a class name, ignoring case, is an error (SCH2004), as in
-`model 'OrderProto' and the Java class of order.proto both lower to 'OrderProto'`; set
-`@proto(name)` on it. A declared `java_outer_classname` is refused (SCH2007) for a schema that
-hosts two or more files, because it would name one Java class for every file; a schema that hosts
-one file keeps it, as the schema layout does. Two declarations, or a declaration and a service,
+stem being the file name in UpperCamel: `order.proto` gets `OrderProto`. A top-level declaration or
+service whose name equals, ignoring case, the class name of any file of its package is an error
+(SCH2004), as in `model 'OrderProto' and the Java class of order.proto both lower to 'OrderProto'`;
+set `@proto(name)` on it. A declared `java_outer_classname` is refused (SCH2007) for a package
+written as two or more files, because it would name one Java class for every file; a package written
+as one file keeps it, as the schema layout does. Two declarations, or a declaration and a service,
 whose file names coincide in one directory are an error (SCH2004), as in `model 'HTTPServer' and
-model 'HttpServer' both lower to file 'shop/orders/http_server.proto'`; set `@proto(name)` on one
-of them.
+model 'HttpServer' both lower to file 'shop/orders/http_server.proto'`; set `@proto(name)` on one of
+them.
 
 `@sql(schema: "…")` renames a schema's Postgres schema. `@@sql(table: "…")` and
 `@sql(column: "…")` rename a model's table or a field's column. An empty
@@ -2730,13 +2733,13 @@ outputs as its key, so importing one of those gives back a scalar field such as 
 which compiles to the same output again but is no longer a reference; only SQL brings references
 back as references.
 
-A Protobuf file that merges a reference cycle imports back as one schema named for its package,
-and compiling that gives the same file byte for byte. Under the type layout the files of one
-package import back as one schema, as above, so a file that types of several schemas share
-imports as part of its host's schema (section 15): a moved type comes back as a declaration of
-that schema and its original schema is lost, and a schema whose declarations all moved wrote no
-file of its own and does not come back. Compiling the import under the type layout gives the same
-tree byte for byte.
+A Protobuf file that merges a reference cycle imports back as one schema named for its package, and
+compiling that gives the same file byte for byte. Under the type layout the files of one package
+import back as one schema, as above, so a file that types of several schemas share imports as part
+of its host's schema (section 15): a moved type comes back as a declaration of that schema and its
+original schema is lost, and a schema whose declarations all moved and that declares no service
+wrote no file of its own and does not come back. Compiling the import under the type layout gives
+the same tree byte for byte.
 
 XSD: names, docs, nullability, defaults, refinements, and the `@xsd` keys come back, and importing
 the xsd target's own output reports nothing. Ordinals, `reserved`, `@deprecated`, and the other
@@ -3707,11 +3710,14 @@ on, and `include`, whose directories come after those of `--include`.
 Under the schema layout, the default, the schemas of a reference cycle are written to one Protobuf
 file (section 15), so the `[proto]` keys are expanded once per cycle: every schema of a cycle gets
 the value the cycle's first schema by name expands to. Under the type layout each schema is written
-under its own package, so the `[proto]` keys are expanded for each schema from its own name and its
-own package, and the schemas of a cycle have nothing to agree on. The layout is the run's: the
-proto target's `--proto-layout`, else `[compile] proto_layout`; `schemata config` shows the values
-under the file's. `package` is settled first, which is why it cannot use `{package}`; the other
-`[proto]` keys then read `{package}` as the package so settled. With this file:
+under its own package, so `package` is expanded for each schema from its own name, and the other
+`[proto]` keys once per package: `{schema}` and `{package}` expand from the package's first schema
+by name and from the package. Schemas of a cycle that declare one package share one expansion, as
+every schema of a cycle does under the schema layout; any other schema expands from its own name and
+its own package. The layout is the run's: the proto target's `--proto-layout`, else
+`[compile] proto_layout`; `schemata config` shows the values under the file's. `package` is settled
+first, which is why it cannot use `{package}`; the other `[proto]` keys then read `{package}` as the
+package so settled. With this file:
 
 ```toml
 [proto]
@@ -3729,7 +3735,8 @@ Under the schema layout, a per-schema table for one schema of a cycle gives that
 value, just as an attribute on its `schema` line would. When that value differs from what the other
 schemas of the cycle get, they disagree, which is the SCH2007 error of section 15. Give every schema
 of the cycle the same value in its own table, or set the key in none of them. Under the type layout
-each schema's value stands on its own.
+the same holds for the schemas of a cycle that declare one package; any other schema's value stands
+on its own.
 
 ### Where a rejected value is reported
 
