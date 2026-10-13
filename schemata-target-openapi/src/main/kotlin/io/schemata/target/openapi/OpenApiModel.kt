@@ -30,6 +30,10 @@ data class Tag(val name: String, val description: String?)
 /** One path and its operations, in verb order (get, post, put, patch, delete, head, options). */
 data class PathItem(val path: String, val operations: List<OpenApiOperation>)
 
+/**
+ * [responses] maps each code to its response, in the order they are written: the success code
+ * first, then the error codes ascending, `default` last.
+ */
 data class OpenApiOperation(
     val verb: Verb,
     val operationId: String,
@@ -39,7 +43,7 @@ data class OpenApiOperation(
     val deprecated: Boolean,
     val parameters: List<Parameter>,
     val requestBody: Body?,
-    val response: Response,
+    val responses: Map<String, Response>,
 )
 
 /**
@@ -56,17 +60,26 @@ data class Parameter(
     val style: Boolean,
 )
 
-/** A required request body of one media type. */
+/** A required request body, or a response's content, of one media type. */
 data class Body(val mediaType: String, val schema: JsonSchema)
 
-/** The one response an operation describes: `200` with content, or `204` without. */
-sealed interface Response {
-    data class Content(
-        val status: Int,
-        val description: String,
-        val mediaType: String,
-        val schema: JsonSchema,
-    ) : Response
+/**
+ * One response: [content] is null when the response has no body; [headers] are its HTTP headers by
+ * name, in the order they are written.
+ */
+data class Response(
+    val description: String,
+    val content: Body? = null,
+    val headers: Map<String, Header> = emptyMap(),
+)
 
-    data class Empty(val description: String) : Response
-}
+/**
+ * A response header. [schema] carries no description, deprecation, or null, as a parameter's schema
+ * does: those are the header's own.
+ */
+data class Header(
+    val schema: JsonSchema,
+    val description: String?,
+    val required: Boolean,
+    val deprecated: Boolean,
+)
