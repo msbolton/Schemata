@@ -1362,4 +1362,508 @@ class OpenApiLoweringTest {
         )
         assertEquals(emptyList(), messages(l))
     }
+
+    @Test
+    fun `a get request header is a header parameter`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Find {
+                  #1 id    uuid
+                  #2 key   string  @openapi(header: "Idempotency-Key")
+                  /// Who is asking.
+                  #3 trace string? @openapi(header: "X-Trace")
+                  #4 q     string?
+                }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 find(Find): R  get "/items/{id}"
+                }
+                """
+            )
+        val op = only(l)
+        assertEquals(
+            listOf(
+                Parameter("id", "path", true, uuid, null, false, style = false),
+                Parameter("q", "query", false, ScalarSchema("string"), null, false, style = true),
+                Parameter(
+                    "Idempotency-Key",
+                    "header",
+                    true,
+                    ScalarSchema("string"),
+                    null,
+                    false,
+                    style = false,
+                ),
+                Parameter(
+                    "X-Trace",
+                    "header",
+                    false,
+                    ScalarSchema("string"),
+                    "Who is asking.",
+                    false,
+                    style = false,
+                ),
+            ),
+            op.parameters,
+        )
+        assertNull(op.requestBody)
+        assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a request header on a body verb leaves the other fields as a partial body`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 key string @openapi(header: "Idempotency-Key")  #2 sku string }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 place(Place): R  post "/orders"
+                }
+                """
+            )
+        val op = only(l)
+        assertEquals(
+            listOf(
+                Parameter(
+                    "Idempotency-Key",
+                    "header",
+                    true,
+                    ScalarSchema("string"),
+                    null,
+                    false,
+                    style = false,
+                )
+            ),
+            op.parameters,
+        )
+        val body = op.requestBody!!.schema as ObjectSchema
+        assertEquals(listOf("sku"), body.properties.map { it.name })
+        assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a request of headers only has no body`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Ping { #1 key string @openapi(header: "X-Key") }
+
+                service S {
+                  #1 ping(Ping)  post "/ping"
+                }
+                """
+            )
+        val op = only(l)
+        assertEquals(listOf("X-Key"), op.parameters.map { it.name })
+        assertNull(op.requestBody)
+        assertEquals(emptyList(), l.model.documents.single().components)
+    }
+
+    @Test
+    fun `a response of headers only has no content`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 sku string }
+
+                model Created {
+                  /// Where the order lives.
+                  #1 location string @openapi(header: "Location")
+                }
+
+                service S {
+                  #1 place(Place): Created  post "/orders" 201
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "201" to
+                    Response(
+                        "Created",
+                        null,
+                        mapOf(
+                            "Location" to
+                                Header(
+                                    ScalarSchema("string"),
+                                    "Where the order lives.",
+                                    required = true,
+                                    deprecated = false,
+                                )
+                        ),
+                    )
+            ),
+            only(l).responses.toList(),
+        )
+        assertEquals(listOf("t.Place"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a response header takes its field's schema and the body the remaining fields`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Page {
+                  #1 next  string?  @openapi(header: "X-Next")
+                  #2 total int32    @openapi(header: "X-Total") = 0
+                  #3 items string[]
+                }
+
+                service S {
+                  #1 list(): Page  get "/items"
+                }
+                """
+            )
+        val ok = only(l).responses.getValue("200")
+        assertEquals("Page", ok.description)
+        assertEquals(
+            listOf(
+                "X-Next" to
+                    Header(ScalarSchema("string"), null, required = false, deprecated = false),
+                "X-Total" to
+                    Header(
+                        ScalarSchema(
+                            "integer",
+                            minimum = BigDecimal("-2147483648"),
+                            maximum = BigDecimal("2147483647"),
+                            common = Common(default = JsonNumber("0")),
+                        ),
+                        null,
+                        required = false,
+                        deprecated = false,
+                    ),
+            ),
+            ok.headers.toList(),
+        )
+        assertEquals("application/json", ok.content!!.mediaType)
+        assertEquals(
+            listOf("items"),
+            (ok.content!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(emptyList(), l.model.documents.single().components)
+    }
+
+    @Test
+    fun `an error body with header fields writes its headers and the remaining fields`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model R { #1 ok bool }
+
+                model Limited { #1 retry int32 @openapi(header: "Retry-After")  #2 detail string }
+
+                service S {
+                  #1 ping(): R  get "/ping"  errors { 429 Limited }
+                }
+                """
+            )
+        val limited = only(l).responses.getValue("429")
+        assertEquals("Limited", limited.description)
+        assertEquals(listOf("Retry-After"), limited.headers.keys.toList())
+        assertTrue(limited.headers.getValue("Retry-After").required)
+        assertEquals(
+            listOf("detail"),
+            (limited.content!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a header model reused as a field type keeps every field in its component`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Session { #1 token string @openapi(header: "X-Token")  #2 user string }
+
+                model Audit { #1 session Session }
+
+                model Q { #1 id uuid }
+
+                service S {
+                  #1 open(): Session  post "/sessions"
+                  #2 audit(Q): Audit  get "/audits/{id}"
+                }
+                """
+            )
+        val doc = l.model.documents.single()
+        val open = doc.paths.single { it.path == "/sessions" }.operations.single()
+        val ok = open.responses.getValue("200")
+        assertEquals(listOf("X-Token"), ok.headers.keys.toList())
+        assertEquals(
+            listOf("user"),
+            (ok.content!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(listOf("t.Audit", "t.Session"), doc.components.map { it.key })
+        val session = doc.components.single { it.key == "t.Session" }.schema as ObjectSchema
+        assertEquals(listOf("token", "user"), session.properties.map { it.name })
+        assertEquals(
+            RefSchema("#/components/schemas/t.Session"),
+            (doc.components.single { it.key == "t.Audit" }.schema as ObjectSchema)
+                .properties
+                .single()
+                .schema,
+        )
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a streamed payload keeps its header fields`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Event { #1 id string @openapi(header: "X-Id")  #2 body string }
+
+                service S {
+                  #1 watch(): stream Event  get "/events"
+                }
+                """
+            )
+        assertEquals(
+            Response(
+                "Stream of Event",
+                Body("text/event-stream", RefSchema("#/components/schemas/t.Event")),
+            ),
+            only(l).responses.getValue("200"),
+        )
+        val event = l.model.documents.single().components.single().schema as ObjectSchema
+        assertEquals(listOf("id", "body"), event.properties.map { it.name })
+    }
+
+    @Test
+    fun `headers lower to a valid document`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 key string @openapi(header: "Idempotency-Key")  #2 sku string }
+
+                model Created { #1 location string @openapi(header: "Location")  #2 id uuid }
+
+                model Limited { #1 retry int32 @openapi(header: "Retry-After")  #2 detail string }
+
+                model Find { #1 trace string? @openapi(header: "X-Trace")  #2 q string? }
+
+                service S {
+                  #1 place(Place): Created  post "/orders" 201  errors { 429 Limited }
+                  #2 find(Find): Created  get "/orders"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        assertNull(OpenApi.validate(OpenApiRenderer.render(l.model).single().content))
+    }
+
+    @Test
+    fun `a header field that is not a scalar or an enum stays a body field`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Who { #1 name string }
+
+                enum Kind { a b }
+
+                model Call {
+                  #1 tags string[]            @openapi(header: "X-Tags")
+                  #2 meta map<string, string> @openapi(header: "X-Meta")
+                  #3 who  Who                 @openapi(header: "X-Who")
+                  #4 kind Kind                @openapi(header: "X-Kind")
+                }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 call(Call): R  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.tags': a header holds a scalar or an enum, not a list",
+                "SCH2605 field 'Call.meta': a header holds a scalar or an enum, not a map",
+                "SCH2605 field 'Call.who': a header holds a scalar or an enum, not a model",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            List(3) { "make the field a scalar or an enum, or take off @openapi(header)" },
+            l.diagnostics.map { it.help },
+        )
+        val op = only(l)
+        assertEquals(
+            listOf(
+                Parameter(
+                    "X-Kind",
+                    "header",
+                    true,
+                    RefSchema("#/components/schemas/t.Kind"),
+                    null,
+                    false,
+                    style = false,
+                )
+            ),
+            op.parameters,
+        )
+        assertEquals(
+            listOf("tags", "meta", "who"),
+            (op.requestBody!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(
+            listOf("t.Kind", "t.Who", "t.R"),
+            l.model.documents.single().components.map { it.key },
+        )
+    }
+
+    @Test
+    fun `a header name that is not an HTTP token is refused`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call {
+                  #1 a string @openapi(header: "X Bad")
+                  #2 b string @openapi(header: "X:Y")
+                  #3 c string @openapi(header: "X-Ok_1.2~")
+                }
+
+                service S {
+                  #1 call(Call)  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.a': header \"X Bad\" is not an HTTP token",
+                "SCH2605 field 'Call.b': header \"X:Y\" is not an HTTP token",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            "use letters, digits, and the punctuation an HTTP token allows, such as `-`, `_`, and `.`",
+            l.diagnostics.first().help,
+        )
+        assertEquals(listOf("X-Ok_1.2~"), only(l).parameters.map { it.name })
+    }
+
+    @Test
+    fun `accept content-type and authorization are refused as headers`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call {
+                  #1 a string @openapi(header: "accept")
+                  #2 b string @openapi(header: "Content-Type")
+                  #3 c string @openapi(header: "AUTHORIZATION")
+                }
+
+                service S {
+                  #1 call(Call)  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.a': header \"accept\" is ignored by OpenAPI",
+                "SCH2605 field 'Call.b': header \"Content-Type\" is ignored by OpenAPI",
+                "SCH2605 field 'Call.c': header \"AUTHORIZATION\" is ignored by OpenAPI",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            listOf(
+                "the media type is written with the content; take off @openapi(header)",
+                "the media type is written with the content; take off @openapi(header)",
+                "describe authentication with a security scheme on the schema line, such as `@openapi(bearer)`",
+            ),
+            l.diagnostics.map { it.help },
+        )
+        assertTrue(only(l).parameters.isEmpty())
+    }
+
+    @Test
+    fun `two headers of one model equal ignoring case are refused`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call {
+                  #1 first  string @openapi(header: "X-Id")
+                  #2 second string @openapi(header: "x-id")
+                }
+
+                service S {
+                  #1 call(Call)  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.second': header \"x-id\" repeats header \"X-Id\" of field 'first', ignoring case"
+            ),
+            messages(l),
+        )
+        assertEquals(
+            "give each header of a model its own name; header names are compared ignoring case",
+            l.diagnostics.single().help,
+        )
+        val op = only(l)
+        assertEquals(listOf("X-Id"), op.parameters.map { it.name })
+        assertEquals(
+            listOf("second"),
+            (op.requestBody!!.schema as ObjectSchema).properties.map { it.name },
+        )
+    }
+
+    @Test
+    fun `a refused header is reported once though two operations use its model`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call { #1 a string @openapi(header: "X Bad") }
+
+                service S {
+                  #1 one(Call)  post "/one"
+                  #2 two(Call): Call  post "/two"
+                }
+                """
+            )
+        assertEquals(
+            listOf("SCH2605 field 'Call.a': header \"X Bad\" is not an HTTP token"),
+            messages(l),
+        )
+    }
 }

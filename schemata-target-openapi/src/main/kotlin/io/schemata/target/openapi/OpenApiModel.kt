@@ -47,8 +47,8 @@ data class OpenApiOperation(
 )
 
 /**
- * [location] is `path` or `query`; [style] prints `style: form` and `explode: true`, as a query
- * parameter carries them.
+ * [location] is `path`, `query`, or `header`; [style] prints `style: form` and `explode: true`, as
+ * a query parameter carries them.
  */
 data class Parameter(
     val name: String,

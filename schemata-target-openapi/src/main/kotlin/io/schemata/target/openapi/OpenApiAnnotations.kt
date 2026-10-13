@@ -30,5 +30,14 @@ object OpenApiAnnotations {
                 ValueKind.STRING,
                 Role.NAME,
             ),
+            // the field travels as the named HTTP header where its model is a request, a response,
+            // or an error body
+            AnnotationSpec(
+                "openapi",
+                "header",
+                setOf(Element.FIELD),
+                ValueKind.STRING,
+                Role.REPRESENTATION,
+            ),
         )
 }
