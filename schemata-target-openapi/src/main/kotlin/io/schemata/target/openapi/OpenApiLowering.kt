@@ -150,6 +150,11 @@ private class NamespaceLowering(
     }
 
     /**
+     * Each model's header fields, as [headers] finds them, so a refused header is reported once.
+     */
+    private val headersByRecord = mutableMapOf<QualifiedName, List<HeaderField>>()
+
+    /**
      * Names, route, parameters, and body of [op], with what they reference added to [needed]; null
      * when its route repeats another operation's. A request model with header fields is partial, as
      * one whose fields the path binds: its body holds the fields left, and it is not a component
@@ -354,15 +359,13 @@ private class NamespaceLowering(
         return record.storedFields.flatMap { refsIn(it.type) }
     }
 
-    private val headerFields = mutableMapOf<QualifiedName, List<HeaderField>>()
-
     /**
      * [record]'s fields that become HTTP headers where the model is an operation's request,
      * response, or error body, in field order. A field whose header is refused is reported once and
      * stays an ordinary field.
      */
     private fun headers(record: RecordType): List<HeaderField> =
-        headerFields.getOrPut(record.qualifiedName) {
+        headersByRecord.getOrPut(record.qualifiedName) {
             val byName = mutableMapOf<String, HeaderField>()
             record.storedFields.mapNotNull { field ->
                 val name = field.annotations.string("openapi", "header") ?: return@mapNotNull null
