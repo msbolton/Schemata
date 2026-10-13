@@ -1143,7 +1143,8 @@ The document's version is `2.1.0` and its server `https://api.example.com/v2`; t
 A binding may end with the operation's success code, one space after the path:
 `post "/orders" 201`. The code is `200`, `201`, `202`, or `204`. Without one, an operation with a
 response answers `200` and one without answers `204`, as before. A `204` on an operation with a
-response, and a code on an operation without a binding, are errors (SCH1055).
+response is an error, and so is a code other than those four (SCH1055). The code is part of the
+binding, so an operation without a binding has none to write.
 
 An `errors { … }` clause lists the operation's error responses: each a code from `400` to `599`, or
 `default` for any other, optionally followed by its body. A body names a model or a union, directly
@@ -1154,9 +1155,10 @@ when it has one, it adds codes to the service's and replaces the service's body 
 list. A clause belongs to an operation only when it opens on the line where the operation's
 signature or binding ends; a clause that opens on a later line is the service's. A code listed twice
 in one clause, a code outside its range, and a service with two clauses are errors (SCH1055); a code
-that is neither a number nor `default`, and an `errors` without its braces, are syntax errors
-(SCH0010). `errors` and `default` are clauses' words only there: a field, an operation, or a model
-may still be named either.
+that is neither a number nor `default` is a syntax error (SCH0010), as is an `errors` without its
+braces (SCH0001), and a code too large for 32 bits is SCH0003. `errors` and `default` are clauses'
+words only there: a field, an operation, or a model may still be named either. Inside a clause
+`default` reads as the code, so a type named `default` cannot be an error body.
 
 The OpenAPI document writes each code as a response after the success response, in ascending order
 with `default` last. A body is `application/json` with a `$ref` to its component, or with the
@@ -1363,7 +1365,8 @@ A header field is a scalar or an enum, not a list, a map, a model, or a union. I
 token, made of letters, digits, and ``!#$%&'*+-.^_`|~``, and two header fields of one model may not
 share a name, ignoring case. `Accept`, `Content-Type`, and `Authorization` are refused, since
 OpenAPI ignores them as header parameters; a security scheme sends `Authorization` (below). Each
-of these is SCH2605, at the attribute. A cookie is not a header field: an API key in a cookie is a
+of these is SCH2605, at the field's name, since an attribute carries no position of its own for
+each key. A cookie is not a header field: an API key in a cookie is a
 security scheme.
 
 ```schemata error SCH2605
@@ -1398,9 +1401,12 @@ The implicit and password flows of OAuth 2.0 are deprecated by OAuth 2.1, and ar
 or an operation, and the nearest wins: `auth: bearer` requires that scheme, `auth: (bearer,
 api_key)` accepts either, and `auth: none` requires nothing. `@openapi(scopes: "a:read b:write")`,
 one string of names separated by spaces since a scope name often holds a `:`, gives the scopes an
-`oauth2` or `openid` scheme of the requirement needs, and the nearest wins in the same way. An
-`oauth2` scheme's `scopes` map holds every scope any requirement names, sorted, each with an empty
-description.
+`oauth2` or `openid` scheme of the requirement needs. Scopes are inherited together with the `auth`
+they belong to, so a nearer level that writes `auth` without `scopes` requires that scheme with no
+scopes: a service's `@openapi(scopes: "orders:read")` and an operation's `@openapi(auth: oauth2)`
+give that operation `security: [{"oauth2": []}]`. A level that writes `scopes` but no `auth` keeps
+the inherited schemes and replaces their scopes. An `oauth2` scheme's `scopes` map holds every scope
+any requirement names, sorted, each with an empty description.
 
 The schema line's `auth` is the document's top-level `security`. OpenAPI has no security for a tag,
 so a service's or an operation's requirement is written as each operation's own `security`, and
@@ -1480,11 +1486,13 @@ The document requires `oauth2` with no scopes, so both operations write their ow
 ```
 
 An `auth` that names a scheme the schema does not declare, `none` together with a scheme, `scopes`
-where the requirement in effect has no `oauth2` or `openid` scheme, an `api_key` that is not one
-of `header`, `query`, or `cookie` followed by a name, an `oauth2_authorization_url` without an
+where the requirement in effect has no `oauth2` or `openid` scheme, an `api_key` that is not one of
+`header`, `query`, or `cookie` followed by a name, an `oauth2_authorization_url` without an
 `oauth2_token_url`, and a URL that is not absolute `http` or `https` are errors (SCH2606), each at
-its key. A requirement that every one of several schemes be presented at once, and a second scheme
-of one kind, cannot be written. Every other target ignores these keys, as it ignores bindings.
+the schema line, service, or operation that writes the key, since an attribute carries no position
+of its own for each key. A requirement that every one of several schemes be presented at once, and a
+second scheme of one kind, cannot be written. Every other target ignores these keys, as it ignores
+bindings.
 
 ```schemata error SCH2606
 schema shop.orders @openapi(bearer, auth: basic)
@@ -3302,13 +3310,16 @@ A binding rides in a note beside the rpc, never in that path. The two rulebooks'
 | An error code added to an operation, by its own clause or its service's | compatible | note: a client generated from OLD may not handle it |
 | An error code removed | compatible | compatible |
 | An error code's body changed, added, or removed | compatible | breaking, as a changed response is |
-| A field moved into or out of a header by `@openapi(header)`, or its header renamed | compatible | breaking |
+| A field moved into or out of a header by `@openapi(header)`, or its header renamed, other than in letter case | compatible | breaking |
 | A header field added to a request, required (not nullable, no default) | compatible | breaking |
 | A header field added to a request, nullable or with a default, or added to a response | compatible | compatible |
 | A header field's type changed | as for any field | as a parameter's type change: the JSON Schema column's verdict for the field |
 | `@openapi(auth)` or `@openapi(scopes)` changed so an operation requires more: a requirement where it had none, a scheme of another kind, a scheme taken from an either-list, or a scope added | compatible | breaking |
 | `@openapi(auth)` or `@openapi(scopes)` changed so an operation requires less: `none`, a scheme added to an either-list, or a scope removed | compatible | compatible |
-| `@openapi(oauth2_token_url)`, `@openapi(oauth2_authorization_url)`, or `@openapi(openid)` changed, or the format `@openapi(bearer)` names | compatible | note: a client configured with the old value must change it |
+| A security scheme added | compatible | compatible |
+| A security scheme removed, or `@openapi(api_key)` changed to another place or name, while an operation of OLD requires the scheme | compatible | breaking |
+| `@openapi(oauth2_authorization_url)` added or removed while an operation of OLD requires `oauth2`, so the flow changes | compatible | breaking |
+| `@openapi(oauth2_token_url)`, `@openapi(oauth2_authorization_url)`, or `@openapi(openid)` changed from one value to another, or the format `@openapi(bearer)` names | compatible | note: a client configured with the old value must change it |
 | `@deprecated` added or removed on a service or an operation | note | note |
 | `reserved` changed on a service | compatible | compatible |
 | Schema removed | breaking when it declared a service; else as in the table above | breaking when it declared a service, else compatible |
@@ -3348,12 +3359,11 @@ enum, a union), `field.added`, `field.removed`, `field.renamed`, `field.typeChan
 `operation.requestChanged`, `operation.responseChanged`, `operation.bindingChanged`,
 `operation.statusChanged`, `operation.errorAdded`, `operation.errorRemoved`,
 `operation.errorChanged` (an error code's body), `annotation.changed` (an option or an attribute),
-`deprecation.changed`, and `doc.changed`; 2.0 renamed 1.x's `namespace.*` and `declaration.*`
-kinds. `old` and `new` are the values as Schemata
-source, so a string reads `"eu"` with its quotes and a type `string { max 100 }`. When the sides
-cannot be compared (`SCH2503`), the JSON report keeps that shape — `changes` empty, every `summary`
-count zero, `exitCode` 1 — and adds an `errors` array, one `{code, message, help, file, line}` per
-reason.
+`deprecation.changed`, and `doc.changed`; 2.0 renamed 1.x's `namespace.*` and `declaration.*` kinds.
+`old` and `new` are the values as Schemata source, so a string reads `"eu"` with its quotes and a
+type `string { max 100 }`. When the sides cannot be compared (`SCH2503`), the JSON report keeps that
+shape — `changes` empty, every `summary` count zero, `exitCode` 1 — and adds an `errors` array, one
+`{code, message, help, file, line}` per reason.
 
 ### Worked example
 
