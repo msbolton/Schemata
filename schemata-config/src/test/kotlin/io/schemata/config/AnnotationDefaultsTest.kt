@@ -291,6 +291,28 @@ class AnnotationDefaultsTest {
     }
 
     @Test
+    fun `the type layout expands proto keys once per package scope`() {
+        val schema =
+            appliedUnder(
+                ProtoLayout.TYPE,
+                "[proto]\njava_package = \"com.x.{schema}\"\n",
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"p\")"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"p\")"),
+            )
+        for (member in listOf("cyc.alpha", "cyc.beta")) {
+            assertEquals(str("com.x.cyc.alpha"), schema.value(member, "proto", "java_package"))
+        }
+        assertEquals(
+            emptyList(),
+            ProtoTarget(ProtoLayout.TYPE)
+                .lower(schema)
+                .diagnostics
+                .filter { it.code.id == "SCH2007" }
+                .map { "${it.code.id} ${it.message}" },
+        )
+    }
+
+    @Test
     fun `the schema layout is the default`() {
         val schema = analysed(ALPHA, BETA)
         val config = config("[proto]\njava_package = \"com.example.{schema}\"\n")

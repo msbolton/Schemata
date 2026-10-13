@@ -46,9 +46,12 @@ object AnnotationDefaults {
         // each must get the same value: the one the file's first schema expands to. Which schemas
         // share a file follows from the references alone, so the files are known before any
         // package is. Under the type layout each schema is written under its own package, so
-        // each expands from its own name and its own package, and a cycle has nothing to agree
-        // on. `package` is settled first, which is why it may not use `{package}`; the other keys
-        // then take `{package}` from the package as settled.
+        // `package` expands from each schema's own name. The other keys expand once per package
+        // scope, from its first schema's name and its package: schemas of one cycle that declare
+        // one package share its options, as a cycle's members share a file under the schema
+        // layout, and a scope of one schema expands from that schema. `package` is settled first,
+        // which is why it may not use `{package}`; the scopes and `{package}` follow from the
+        // packages as settled.
         val files by lazy { ProtoPackages.of(schema.referencesByKey()) }
         val packages =
             schema.namespaces
@@ -66,26 +69,13 @@ object AnnotationDefaults {
                 }
                 .associateBy { it.namespace }
         val settled by lazy { withEntries(schema, packages.values.toList()) }
-        val units by lazy { ProtoPackages.of(settled.referencesByKey()) }
-        val ownPackages by lazy {
-            settled.namespaces.associate { it.name to ProtoPackages.own(it) }
-        }
+        val units by lazy { ProtoPackages.of(settled.referencesByKey(), layout) }
         return schema.namespaces.flatMap { ns ->
             config.defaults.keys.flatMap { target ->
                 effective(config, target, ns.name).mapNotNull { (key, setting) ->
                     when {
                         declares(ns, target, key) -> null
                         target == PROTO && key == PACKAGE -> packages[ns.name]
-                        target == PROTO && layout == ProtoLayout.TYPE ->
-                            synthesize(
-                                ns.name,
-                                target,
-                                key,
-                                setting,
-                                registry,
-                                ns.name,
-                                ownPackages.getValue(ns.name),
-                            )
                         target == PROTO -> {
                             val unit = units.unitOf(ns.name)
                             val first = unit.members.first().name
