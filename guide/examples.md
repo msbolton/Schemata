@@ -713,23 +713,27 @@ occurrence, is a natural one.
 
 From `examples/storefront/common.schemata`:
 ```schemata
-/// A problem report in the shape of RFC 9457, the body of every error response.
+/// A problem report in the shape of RFC 9457, the body of every error response. Members beyond
+/// those declared are allowed, as the RFC allows extensions. `instance` stays required because a
+/// top-level model needs a key.
 model Problem {
   /// A URI naming the kind of problem; `about:blank` when the status says it all.
-  #1 type     string      { max 2048 } = "about:blank"
+  #1 type     string       { max 2048 } = "about:blank"
   /// A short summary of the kind of problem, the same for every occurrence.
-  #2 title    string      { max 200 }
+  #2 title    string       { max 200 }
   /// The HTTP status code of the response.
-  #3 status   int32       { min 400, max 599 }
+  #3 status   int32        { min 400, max 599 }
   /// What went wrong this time.
-  #4 detail   string?     { max 2000 }
+  #4 detail   string?      { max 2000 }
   /// A URI naming this occurrence, to quote when asking for help.
-  #5 instance string      { id, max 2048 }
-  /// The request's fields that failed their checks.
-  #6 errors   Violation[]
+  #5 instance string       { id, max 2048 }
+  /// The request's fields that failed their checks, when it failed on its fields.
+  #6 errors   Violation[]?
 
   /// One field of the request and what is wrong with it.
   model Violation { #1 field string { max 200 }  #2 message string { max 500 } }
+
+  @@jsonschema(open)
 }
 ```
 
@@ -859,9 +863,10 @@ service OrderAdmin {
 The scheme's `scopes` map lists every scope a requirement names, sorted: `catalog:write`,
 `orders:read`, and `orders:write`.
 
-`storefront.payments` adds a second scheme, the API key the payment provider signs its notices
-with, and `notify` requires it instead of a session; it has no response, so its `202` has no
-body. No target but OpenAPI writes a success code, an error response, a header, or a scheme:
+`storefront.payments` adds a second scheme, the `X-Webhook-Secret` API key that authenticates the
+payment provider, and `notify` requires it instead of a session; the provider also signs each
+notice's body, and the `X-Signature` header carries that signature; it has no response, so its `202`
+has no body. No target but OpenAPI writes a success code, an error response, a header, or a scheme:
 the Protobuf, Postgres, XSD, and JSON Schema output is what the same schemas would give without
 them.
 
