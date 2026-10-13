@@ -73,6 +73,8 @@ object XsdLowering {
         return Lowered(XsdModel(files), diagnostics)
     }
 
+    private const val EMPTY_VALUE = "is empty"
+
     /**
      * Names shared by every file: a declaration's XSD type name and the validated `@xsd(name)`
      * overrides of declarations and enum values. Each override is checked once for the whole
@@ -87,9 +89,13 @@ object XsdLowering {
                 { if (XsdNames.isNCName(it)) null else "is not a valid XML name" },
                 // An enum value's override is written as an xs:enumeration value, which is text,
                 // not a name: anything but an empty one is accepted.
-                valueProblem = { if (it.isEmpty()) "is not a valid XML name" else null },
+                valueProblem = { if (it.isEmpty()) EMPTY_VALUE else null },
             ) {
-                "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore"
+                if (it == EMPTY_VALUE) {
+                    "give the value's text"
+                } else {
+                    "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore"
+                }
             }
 
         /**

@@ -4,7 +4,6 @@ import io.schemata.core.ir.Schema
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 class OpenApiRulesTest {
     /** Every change between [old] and [new], each with its `openapi` verdict. */
@@ -444,7 +443,6 @@ class OpenApiRulesTest {
         val old = analysed(base + "service S { #1 get(A): B  #2 put(A): B }")
         val new = analysed(base + "service S { #1 get(A): B  #5 post(A): B }")
         val kinds = judged(old, new).map { it.first.kind }
-        assertEquals(setOf("operation.removed", "operation.added"), kinds.toSet())
-        assertTrue("operation.moved" !in kinds)
+        assertEquals(listOf("operation.added", "operation.removed"), kinds)
     }
 }

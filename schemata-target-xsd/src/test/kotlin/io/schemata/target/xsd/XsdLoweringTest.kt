@@ -410,11 +410,8 @@ class XsdLoweringTest {
         val lowered = XsdLowering.lower(Schema(listOf(namespace("s", declarations = listOf(e)))))
         val d = lowered.diagnostics.single()
         assertEquals(XsdCodes.INVALID_OVERRIDE, d.code)
-        assertEquals("enum value 'Fix.v2d': @xsd(name: \"\") is not a valid XML name", d.message)
-        assertEquals(
-            "use letters, digits, underscores, hyphens, and dots, starting with a letter or underscore",
-            d.help,
-        )
+        assertEquals("enum value 'Fix.v2d': @xsd(name: \"\") is empty", d.message)
+        assertEquals("give the value's text", d.help)
         assertEquals(
             listOf(XsdEnumValue("none", null), XsdEnumValue("v2d", null)),
             (lowered.model.files.single().types.single() as XsdEnumeration).values,
