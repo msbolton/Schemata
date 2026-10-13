@@ -141,7 +141,12 @@ object ProtoLowering {
             } else {
                 emptyList()
             }
-        val typeFiles = ProtoTypeFiles.typeFiles(components) { fileName(names, renames, it) }
+        // A declaration moved into another scope's file may collide with a name there. The host
+        // was chosen above, before these renames; each file is named after them, so compiling the
+        // file's import again names it the same.
+        val allRenames =
+            renames + movedRenames(schema, packages, components, renames, names, diagnostics)
+        val typeFiles = ProtoTypeFiles.typeFiles(components) { fileName(names, allRenames, it) }
         // A reference into another scope imports the file holding its target, so every unit is
         // partitioned before any is lowered.
         val fileOf = HashMap<QualifiedName, String>()
@@ -151,7 +156,7 @@ object ProtoLowering {
                 FileLowering(
                     schema,
                     names,
-                    renames,
+                    allRenames,
                     unit,
                     layout,
                     typeFiles.filter { it.scope === unit },
@@ -279,13 +284,8 @@ object ProtoLowering {
                     else claimed.putIfAbsent(declared, claim(member, decl))
                 }
                 for (service in member.services) {
-                    // A service whose override is invalid keeps its own name; the file reports it.
-                    val name =
-                        service.annotations.string("proto", "name")?.takeIf {
-                            ProtoNames.isIdentifier(it)
-                        } ?: service.name
                     claimed.putIfAbsent(
-                        name,
+                        claimedName(service),
                         Claim(member, "service '${service.qualifiedName}'", key = false),
                     )
                 }
@@ -311,6 +311,91 @@ object ProtoLowering {
             }
         }
         return renames
+    }
+
+    /**
+     * The name [service] claims in its package scope: its valid `@proto(name)`, else its own. A
+     * service whose override is invalid keeps its own name; its file reports the override.
+     */
+    private fun claimedName(service: Service): String =
+        service.annotations.string("proto", "name")?.takeIf { ProtoNames.isIdentifier(it) }
+            ?: service.name
+
+    /**
+     * The new names of declarations moved into another scope's file that would collide there, keyed
+     * by qualified name. Under the type layout each package is its own scope, and a declaration in
+     * a cycle with a declaration of another scope's schema can be written in that schema's file,
+     * the host's, and so joins the host's scope. The scope's own declarations that stay and its
+     * services claim their names first: their schema put them there. Then moved declarations with a
+     * valid `@proto(name)`, or a name their own cycle's renames gave them, claim theirs; the author
+     * or that rename chose it, so it never changes. Then each moved plain name, component by
+     * component in file order, that another schema already claimed is prefixed with its schema's
+     * name in upper camel case, with the same note as a cycle's renames. A prefixed name that is
+     * itself taken is left for the name-collision check. The host was chosen before these renames,
+     * so they never move a file to another package; the file is named by the smallest name after
+     * them.
+     */
+    private fun movedRenames(
+        schema: Schema,
+        packages: ProtoPackages,
+        components: List<TypeComponent>,
+        renames: Map<QualifiedName, String>,
+        names: OverrideNames,
+        diagnostics: MutableList<Diagnostic>,
+    ): Map<QualifiedName, String> {
+        val movedNames = components.flatMap { it.moved }.map { it.qualifiedName }.toSet()
+        if (movedNames.isEmpty()) return emptyMap()
+        val byName = packages.units.flatMap { it.members }.associateBy { it.name }
+        fun claim(decl: TypeDecl) =
+            Claim(
+                byName.getValue(decl.qualifiedName.namespace),
+                schema.holder(decl),
+                schema.isKeyRecord(decl),
+            )
+        val result = mutableMapOf<QualifiedName, String>()
+        for (scope in packages.units) {
+            val incoming = components.filter { it.scope === scope }.flatMap { it.moved }
+            if (incoming.isEmpty()) continue
+            val claimed = mutableMapOf<String, Claim>()
+            for (member in scope.members) {
+                for (decl in member.declarations) {
+                    if (decl.qualifiedName in movedNames) continue
+                    val name = names.nameOverride(decl) ?: renames[decl.qualifiedName] ?: decl.name
+                    claimed.putIfAbsent(name, claim(decl))
+                }
+                for (service in member.services) {
+                    claimed.putIfAbsent(
+                        claimedName(service),
+                        Claim(member, "service '${service.qualifiedName}'", key = false),
+                    )
+                }
+            }
+            val plain = mutableListOf<TypeDecl>()
+            for (decl in incoming) {
+                val chosen = names.nameOverride(decl) ?: renames[decl.qualifiedName]
+                if (chosen == null) plain += decl else claimed.putIfAbsent(chosen, claim(decl))
+            }
+            val taken = (claimed.keys + plain.map { it.name }).toMutableSet()
+            for (decl in plain) {
+                val own = claim(decl)
+                val user = claimed.putIfAbsent(decl.name, own) ?: continue
+                if (user.member === own.member) continue
+                val prefix = own.member.name.split('.').joinToString("") { Names.upperCamel(it) }
+                val renamed = prefix + decl.name
+                if (!taken.add(renamed)) continue
+                result[decl.qualifiedName] = renamed
+                val those = if (own.key || user.key) "one of the models" else "one of them"
+                diagnostics +=
+                    Diagnostic(
+                        ProtoCodes.LOSSY,
+                        "${own.holder}: proto name '${decl.name}' is also used by ${user.holder}; " +
+                            "written as '$renamed'",
+                        decl.nameSpan,
+                        help = "set `@proto(name: \"…\")` on $those to choose the name",
+                    )
+            }
+        }
+        return result
     }
 
     /**

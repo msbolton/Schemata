@@ -1,0 +1,14 @@
+# targets=proto proto-layout=type
+warning[SCH2001] (lossy) (proto): model 'Task' and model 'VndWorkOrdersTask' reference each other; Protobuf cannot import files in a cycle, so they share niem_core/task.proto
+ --> niem_core.schemata:5:7
+  = help: set `@proto(name: "…")` on 'Task' to name the file
+
+warning[SCH2001] (lossy) (proto): model 'vnd_work_orders.Task' is written under package 'niem_core' in niem_core/task.proto
+ --> vnd_work_orders.schemata:5:7
+  = help: break the reference cycle, or set `@proto(name: "…")` so that a declaration of its own schema names the file
+
+warning[SCH2001] (lossy) (proto): model 'vnd_work_orders.Task': proto name 'Task' is also used by model 'niem_core.Task'; written as 'VndWorkOrdersTask'
+ --> vnd_work_orders.schemata:5:7
+  = help: set `@proto(name: "…")` on one of them to choose the name
+
+0 errors, 3 warnings

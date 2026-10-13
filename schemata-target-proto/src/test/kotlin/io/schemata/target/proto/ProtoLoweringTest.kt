@@ -2858,6 +2858,140 @@ class ProtoLoweringTest {
     }
 
     @Test
+    fun `a moved declaration that collides with a host name is prefixed`() {
+        val lowered = lowerTypes(NIEM, VND)
+        val file = lowered.model.files.single()
+        assertEquals("niem_core/task.proto" to "niem_core", file.path to file.packageName)
+        assertEquals(listOf("Task", "VndWorkOrdersTask"), file.declarations.map { it.name })
+        assertEquals(
+            ProtoType.Named("VndWorkOrdersTask"),
+            message(file, "Task").fields.single().type,
+        )
+        assertEquals(
+            ProtoType.Named("Task"),
+            message(file, "VndWorkOrdersTask").fields.single().type,
+        )
+        assertEquals(
+            listOf(
+                "vnd_work_orders.schemata:5 SCH2001 model 'vnd_work_orders.Task': proto name 'Task' " +
+                    "is also used by model 'niem_core.Task'; written as 'VndWorkOrdersTask'",
+                "niem_core.schemata:5 SCH2001 model 'Task' and model 'VndWorkOrdersTask' reference " +
+                    "each other; Protobuf cannot import files in a cycle, so they share " +
+                    "niem_core/task.proto",
+                "vnd_work_orders.schemata:5 SCH2001 model 'vnd_work_orders.Task' is written under " +
+                    "package 'niem_core' in niem_core/task.proto",
+            ),
+            lowered.located(),
+        )
+        assertEquals(1, lowered.codes().count { "; written as '" in it })
+        assertEquals(
+            "set `@proto(name: \"…\")` on one of them to choose the name",
+            lowered.diagnostics.first().help,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `a moved declaration with a proto name override keeps it`() {
+        val kept =
+            lowerTypes(
+                NIEM,
+                VND.replace(
+                    "model Task { #1 parent niem.Task? }",
+                    "model Task {\n  #1 parent niem.Task?\n\n  @@proto(name: \"TaskDetail\")\n}",
+                ),
+            )
+        assertEquals(
+            listOf(
+                "SCH2001 model 'Task' and model 'TaskDetail' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share niem_core/task.proto",
+                "SCH2001 model 'vnd_work_orders.Task' is written under package 'niem_core' in " +
+                    "niem_core/task.proto",
+            ),
+            kept.codes(),
+        )
+        assertEquals(
+            listOf("Task", "TaskDetail"),
+            kept.model.files.single().declarations.map { it.name },
+        )
+        assertNull(kept.protocErrors())
+        // A declared name that is taken is the author's collision: it is not prefixed.
+        val taken =
+            lowerTypes(
+                NIEM,
+                VND.replace(
+                    "model Task { #1 parent niem.Task? }",
+                    "model Task {\n  #1 parent niem.Task?\n\n  @@proto(name: \"Task\")\n}",
+                ),
+            )
+        assertEquals(
+            listOf(
+                "niem_core.schemata:5 SCH2001 model 'Task' and model 'Task' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share niem_core/task.proto",
+                "vnd_work_orders.schemata:5 SCH2001 model 'vnd_work_orders.Task' is written under " +
+                    "package 'niem_core' in niem_core/task.proto",
+                "vnd_work_orders.schemata:5 SCH2004 proto name 'Task' is already used by model " +
+                    "'Task' (niem_core.schemata:5)",
+            ),
+            taken.located(),
+        )
+    }
+
+    @Test
+    fun `a same package cycle scope keeps the schema layout renames`() {
+        val lowered =
+            lowerTypes(
+                NIEM.replace("schema niem_core", "schema niem_core @proto(package: \"vnd\")"),
+                "schema vnd_work_orders @proto(package: \"vnd\")\n\nimport niem_core as niem\n\n" +
+                    "model Task { #1 n int32 }\n\nmodel Link { #1 to niem.Task? }\n",
+            )
+        // One scope: two would both lower to package 'vnd' (SCH2004).
+        assertEquals(
+            listOf(
+                "vnd_work_orders.schemata:5 SCH2001 model 'vnd_work_orders.Task': proto name 'Task' " +
+                    "is also used by model 'niem_core.Task'; written as 'VndWorkOrdersTask'"
+            ),
+            lowered.located(),
+        )
+        assertEquals(
+            listOf("vnd/link.proto", "vnd/task.proto", "vnd/vnd_work_orders_task.proto"),
+            lowered.model.files.map { it.path },
+        )
+        assertEquals(listOf("vnd"), lowered.model.files.map { it.packageName }.distinct())
+        assertEquals(
+            ProtoType.Named("VndWorkOrdersTask"),
+            message(lowered.file("vnd/task.proto"), "Task").fields.single().type,
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
+    fun `the file is named by the minimum name after renames`() {
+        val lowered =
+            lowerTypes(
+                "schema m\n\nimport x.y\n\nmodel Zed { #1 other x.y.Zed? }\n",
+                "schema x.y\n\nimport m\n\nmodel Zed { #1 back m.Zed? }\n",
+            )
+        // m hosts on the tie (m sorts before x.y); the rename sorts below the host's name.
+        val file = lowered.model.files.single()
+        assertEquals("m/xy_zed.proto" to "m", file.path to file.packageName)
+        assertEquals(listOf("Zed", "XYZed"), file.declarations.map { it.name })
+        assertEquals(ProtoType.Named("XYZed"), message(file, "Zed").fields.single().type)
+        assertEquals(
+            listOf(
+                "x.y.schemata:5 SCH2001 model 'x.y.Zed': proto name 'Zed' is also used by model " +
+                    "'m.Zed'; written as 'XYZed'",
+                "x.y.schemata:5 SCH2001 model 'XYZed' and model 'Zed' reference each other; " +
+                    "Protobuf cannot import files in a cycle, so they share m/xy_zed.proto",
+                "x.y.schemata:5 SCH2001 model 'x.y.Zed' is written under package 'm' in " +
+                    "m/xy_zed.proto",
+            ),
+            lowered.located(),
+        )
+        assertNull(lowered.protocErrors())
+    }
+
+    @Test
     fun `the shadowing rule holds across files`() {
         val lowered =
             lowerTypes(
