@@ -17,12 +17,15 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.declaresKey
+import io.schemata.core.ir.effectiveErrors
 import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.service
 import io.schemata.core.ir.services
+import io.schemata.target.HttpSecurity
 import io.schemata.target.Names
 import io.schemata.target.ProtoLayout
 import io.schemata.target.ProtoPackages
+import io.schemata.target.SecurityRequirement
 import io.schemata.target.bool
 import io.schemata.target.deprecated
 import io.schemata.target.flag
@@ -92,6 +95,10 @@ class ChangeContext(
             is OperationRequestChanged -> oldOperationDeprecated(change.service, change.operation)
             is OperationResponseChanged -> oldOperationDeprecated(change.service, change.operation)
             is OperationBindingChanged -> oldOperationDeprecated(change.service, change.operation)
+            is OperationStatusChanged -> oldOperationDeprecated(change.service, change.operation)
+            is OperationErrorAdded -> oldOperationDeprecated(change.service, change.operation)
+            is OperationErrorRemoved -> oldOperationDeprecated(change.service, change.operation)
+            is OperationErrorChanged -> oldOperationDeprecated(change.service, change.operation)
             else -> false
         }
 
@@ -202,8 +209,8 @@ class ChangeContext(
     private val newProtoPackages by lazy { ProtoPackages.of(new.referencesByKey(), protoLayout) }
 
     /**
-     * Whether [decl] is one an OpenAPI document on [side] carries: reachable from some service's
-     * request or response through field types, union members, and nesting.
+     * Whether [decl] is one an OpenAPI document on [side] carries: reachable from some operation's
+     * request, response, or error body through field types, union members, and nesting.
      */
     fun reachableFromServices(side: Side, decl: QualifiedName): Boolean =
         decl in (if (side == Side.OLD) oldReachable else newReachable)
@@ -225,13 +232,116 @@ class ChangeContext(
             types.flatMap(::refsIn).forEach(::visit)
             decl.nested.forEach { visit(it.qualifiedName) }
         }
-        schema
-            .services()
-            .flatMap { it.operations }
-            .flatMap { listOfNotNull(it.request, it.response) }
-            .forEach { visit(it.target) }
+        schema.services().forEach { service ->
+            service.operations.forEach { op ->
+                listOfNotNull(op.request?.target, op.response?.target).forEach(::visit)
+                effectiveErrors(service, op).mapNotNull { it.body }.forEach(::visit)
+            }
+        }
         return seen
     }
+
+    /**
+     * Whether the OpenAPI document on [side] carries [decl] as a schema of its own: reached through
+     * a field type, a union member, or nesting from a declaration the document carries, or taken or
+     * answered with as a stream. A model an operation only takes or answers with as one message is
+     * not one by that use alone, since its header fields leave its body and the body is written in
+     * place.
+     */
+    fun reachableAsPlainType(side: Side, decl: QualifiedName): Boolean =
+        decl in (if (side == Side.OLD) oldPlainTypes else newPlainTypes)
+
+    private val oldPlainTypes by lazy { plainTypes(old) }
+    private val newPlainTypes by lazy { plainTypes(new) }
+
+    private fun plainTypes(schema: Schema): Set<QualifiedName> {
+        val plain = mutableSetOf<QualifiedName>()
+        val expanded = mutableSetOf<QualifiedName>()
+        fun expand(qn: QualifiedName) {
+            if (!expanded.add(qn)) return
+            val decl = schema.lookupOrNull(qn) ?: return
+            val types =
+                when (decl) {
+                    is RecordType -> decl.fields.map { it.type }
+                    is UnionType -> decl.members.map { it.type }
+                    is EnumType -> emptyList()
+                }
+            (types.flatMap(::refsIn) + decl.nested.map { it.qualifiedName }).forEach {
+                plain += it
+                expand(it)
+            }
+        }
+        schema.services().forEach { service ->
+            service.operations.forEach { op ->
+                listOfNotNull(op.request, op.response).forEach {
+                    if (it.stream) plain += it.target
+                    expand(it.target)
+                }
+                effectiveErrors(service, op).mapNotNull { it.body }.forEach(::expand)
+            }
+        }
+        return plain
+    }
+
+    /**
+     * Whether some operation on [side] takes [record] as its request, one message rather than a
+     * stream: where `@openapi(header)` turns a field into a request header.
+     */
+    fun isRequest(side: Side, record: QualifiedName): Boolean =
+        record in (if (side == Side.OLD) oldPayloads else newPayloads).requests
+
+    /**
+     * Whether some operation on [side] answers with [record] as its response, one message rather
+     * than a stream, or as an error body: where `@openapi(header)` turns a field into a response
+     * header.
+     */
+    fun isResponse(side: Side, record: QualifiedName): Boolean =
+        record in (if (side == Side.OLD) oldPayloads else newPayloads).responses
+
+    private class Payloads(val requests: Set<QualifiedName>, val responses: Set<QualifiedName>)
+
+    private val oldPayloads by lazy { payloads(old) }
+    private val newPayloads by lazy { payloads(new) }
+
+    private fun payloads(schema: Schema): Payloads {
+        val requests = mutableSetOf<QualifiedName>()
+        val responses = mutableSetOf<QualifiedName>()
+        schema.services().forEach { service ->
+            service.operations.forEach { op ->
+                op.request?.takeIf { !it.stream }?.let { requests += it.target }
+                op.response?.takeIf { !it.stream }?.let { responses += it.target }
+                effectiveErrors(service, op).mapNotNull { it.body }.forEach { responses += it }
+            }
+        }
+        return Payloads(requests, responses)
+    }
+
+    /**
+     * The security requirement [operation] of [service] is under on [side]: the nearest `auth` of
+     * the operation, its service, and its schema line, with the scopes that go with it.
+     */
+    fun requirement(side: Side, service: Service, operation: Operation): SecurityRequirement? {
+        val line =
+            schema(side).namespaces.firstOrNull { it.name == service.qualifiedName.namespace }
+        return HttpSecurity.requirement(
+            line?.annotations ?: Annotations.NONE,
+            service.annotations,
+            operation.annotations,
+        )
+    }
+
+    /** Whether some operation of the namespace [namespace] on [side] requires [scheme]. */
+    fun requires(side: Side, namespace: String, scheme: String): Boolean =
+        schema(side)
+            .namespaces
+            .firstOrNull { it.name == namespace }
+            ?.services
+            .orEmpty()
+            .any { service ->
+                service.operations.any { op ->
+                    requirement(side, service, op)?.schemes?.contains(scheme) == true
+                }
+            }
 
     private fun refsIn(type: Type): List<QualifiedName> =
         when (type) {

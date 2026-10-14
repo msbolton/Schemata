@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.admin",
+  "title": "storefront.admin",
+  "$defs": {
+    "SetAvailability": {
+      "description": "Which variant's stock to change, and to what.",
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "availability": {
+          "$ref": "urn:schemata:storefront.catalog#/$defs/Availability"
+        }
+      },
+      "required": [
+        "sku",
+        "availability"
+      ],
+      "additionalProperties": false
+    },
+    "ProductId": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Ship": {
+      "description": "Hands an order to a carrier.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "carrier": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "tracking_number": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "id",
+        "carrier",
+        "tracking_number"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

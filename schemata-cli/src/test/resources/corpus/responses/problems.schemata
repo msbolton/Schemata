@@ -1,0 +1,11 @@
+/// Error shapes the services share.
+schema corpus.problems
+
+/// An error in the RFC 9457 shape.
+model Problem {
+  #1 type     string
+  #2 title    string
+  #3 status   int32
+  #4 detail   string?
+  #5 instance string?
+}

@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package storefront.catalog;
+
+import "google/protobuf/empty.proto";
+import "storefront/common.proto";
+
+// A category; categories nest under a parent.
+message Category {
+  string id = 1;  // schemata: uuid
+  string slug = 2;  // schemata: string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" }
+  string name = 3;  // schemata: string { max 100 }
+  optional string parent_id = 4;  // schemata: uuid?
+}
+
+// Every category, parents before their children.
+message CategoryList {
+  string etag = 1;  // schemata: string { max 64 }
+  repeated Category items = 2;
+}
+
+enum Availability {
+  AVAILABILITY_UNSPECIFIED = 0;
+  AVAILABILITY_IN_STOCK = 1;
+  AVAILABILITY_BACKORDER = 2;
+  AVAILABILITY_OUT_OF_STOCK = 3;
+}
+
+// A product and the variants it is sold in.
+message Product {
+  string id = 1;  // schemata: uuid
+  string slug = 2;  // schemata: string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" }
+  string name = 3;  // schemata: string { max 200 }
+  optional string description = 4;  // schemata: string? { max 5000 }
+  string category_id = 5;  // schemata: uuid
+  optional string brand = 6;  // schemata: string? { max 100 }
+  repeated Variant variants = 7;  // schemata: Variant[] { minItems 1 }
+  // Image URLs, the first one the product's main image.
+  repeated string images = 8;  // schemata: string[] { maxItems 20, max 2048 }
+  // The average review rating, absent until the first review.
+  optional double rating = 9;  // schemata: float64? { min 1, max 5 }
+
+  // One form of a product that can be bought, such as a size and a colour.
+  message Variant {
+    string sku = 1;  // schemata: string { max 64 }
+    optional string size = 2;  // schemata: string? { max 20 }
+    optional string color = 3;  // schemata: string? { max 30 }
+    .storefront.common.Money price = 4;
+    Availability availability = 5;
+  }
+}
+
+message ProductSlug {
+  string slug = 1;  // schemata: string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" }
+}
+
+enum ProductSort {
+  PRODUCT_SORT_UNSPECIFIED = 0;
+  PRODUCT_SORT_RELEVANCE = 1;
+  PRODUCT_SORT_PRICE_ASC = 2;
+  PRODUCT_SORT_PRICE_DESC = 3;
+  PRODUCT_SORT_NEWEST = 4;
+  PRODUCT_SORT_RATING = 5;
+}
+
+// What a search asks for. Each filter is a query parameter, and a filter left out matches every
+// product.
+message ProductSearch {
+  // Words to look for in a product's name and description.
+  optional string q = 1;  // schemata: string? { max 200 }
+  // A category's slug; its subcategories match too.
+  optional string category = 2;  // schemata: string? { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" }
+  // Any of these brands.
+  repeated string brand = 3;  // schemata: string[]? { maxItems 10, max 100 }
+  optional string min_price = 4;  // schemata: decimal(19, 4)?
+  optional string max_price = 5;  // schemata: decimal(19, 4)?
+  optional Availability availability = 6;
+  ProductSort sort = 7;  // schemata: default = PRODUCT_SORT_RELEVANCE
+  optional string cursor = 8;  // schemata: string? { max 200 }
+  int32 limit = 9;  // schemata: int32 { min 1, max 100 }; default = 20
+}
+
+// One page of a search.
+message ProductPage {
+  string etag = 1;  // schemata: string { max 64 }
+  repeated Product items = 2;
+  .storefront.common.PageInfo page = 3;
+  // The search this page answers, with which to ask for the next one.
+  ProductSearch query = 4;
+}
+
+// Browse and search the catalog.
+service Catalog {
+  // Every category. Anyone may read them.
+  rpc ListCategories(.google.protobuf.Empty) returns (CategoryList);  // schemata: get "/categories"
+  // Search products, one page at a time.
+  rpc Search(ProductSearch) returns (ProductPage);  // schemata: get "/products"
+  rpc GetProduct(ProductSlug) returns (Product);  // schemata: get "/products/{slug}"
+}

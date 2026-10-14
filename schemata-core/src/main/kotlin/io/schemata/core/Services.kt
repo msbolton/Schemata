@@ -2,6 +2,7 @@ package io.schemata.core
 
 import io.schemata.core.annotations.Element
 import io.schemata.core.ir.EnumType
+import io.schemata.core.ir.ErrorResponse
 import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.Operation
 import io.schemata.core.ir.Payload
@@ -17,10 +18,12 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
 import io.schemata.lang.Span
 import io.schemata.lang.ast.BindingDecl
+import io.schemata.lang.ast.ErrorsDecl
 import io.schemata.lang.ast.OperationDecl
 import io.schemata.lang.ast.PayloadDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.ServiceDecl
+import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
 
 /**
@@ -29,11 +32,17 @@ import io.schemata.lang.ast.UnionDecl
  * union, never nullable. A binding's `{name}` segments must each name a non-nullable scalar or enum
  * field of the request record, once; a streamed request has no path parameters and no
  * parameter-only verb; and one verb and path belong to one operation per namespace, paths that
- * differ only in their parameters' names counting as one.
+ * differ only in their parameters' names counting as one. A success code is 200, 201, 202 or 204,
+ * and 204 only for an operation without a response. An `errors` clause lists codes from 400 to 599
+ * or `default`, each once, each body a record or a union as a payload is; a service has at most one
+ * clause of its own.
  */
 internal object Services {
     // reserved as an operation name, as it is for fields
     private const val NULL_NAME = "null"
+
+    private val SUCCESS_CODES = setOf(200, 201, 202, 204)
+    private val ERROR_CODES = 400..599
 
     /**
      * Routes already taken in the namespace: verb and path template to the service and operation
@@ -83,6 +92,7 @@ internal object Services {
                 options,
                 diagnostics,
             )
+        val serviceErrors = serviceErrors(decl, scope, index, resolver, diagnostics)
         val seen = mutableSetOf<String>()
         val operations =
             decl.operations.mapIndexed { i, op ->
@@ -95,6 +105,20 @@ internal object Services {
                     op.binding?.let {
                         binding(decl, op, it, request, index, declarations, routes, diagnostics)
                     }
+                val status = status(op, diagnostics)
+                val errors =
+                    op.errors
+                        ?.let {
+                            clause(
+                                it,
+                                "operation '${op.name}'",
+                                scope,
+                                index,
+                                resolver,
+                                diagnostics,
+                            )
+                        }
+                        .orEmpty()
                 Operation(
                     ordinal = ordinals[i],
                     name = op.name,
@@ -105,6 +129,8 @@ internal object Services {
                     span = op.span,
                     nameSpan = op.nameSpan,
                     annotations = annotations.check(op.annotations, Element.OPERATION),
+                    status = status,
+                    errors = errors,
                 )
             }
         return Service(
@@ -116,6 +142,7 @@ internal object Services {
             span = decl.span,
             nameSpan = decl.nameSpan,
             annotations = serviceAnnotations,
+            errors = serviceErrors,
         )
     }
 
@@ -182,6 +209,149 @@ internal object Services {
             return null
         }
         return Payload(ref.target, p.stream)
+    }
+
+    /**
+     * The written success code when it is allowed; null for none or a broken one, which is
+     * reported. A code is only ever written in a binding, so an operation without one has none.
+     */
+    private fun status(op: OperationDecl, diagnostics: MutableList<Diagnostic>): Int? {
+        val b = op.binding ?: return null
+        val code = b.status ?: return null
+        val span = b.statusSpan ?: return null
+        if (code !in SUCCESS_CODES) {
+            diagnostics +=
+                error(
+                    CoreCodes.RESPONSES,
+                    "operation '${op.name}': success code $code is not 200, 201, 202 or 204",
+                    span,
+                    help = "use 200, 201, 202 or 204, or leave the code out",
+                )
+            return null
+        }
+        val response = op.response
+        if (code == 204 && response != null) {
+            diagnostics +=
+                error(
+                    CoreCodes.RESPONSES,
+                    "operation '${op.name}': success code 204 cannot carry the response " +
+                        "'${response.type.text()}'",
+                    span,
+                    help = "use 200 for a response, or remove the response",
+                )
+            return null
+        }
+        return code
+    }
+
+    /**
+     * The service's own clause. A second clause is reported at its `errors` word and left out of
+     * the IR, but its bodies are still resolved, so their imports count as used and the language
+     * server still finds them.
+     */
+    private fun serviceErrors(
+        decl: ServiceDecl,
+        scope: Scope,
+        index: DeclarationIndex,
+        resolver: Resolver,
+        diagnostics: MutableList<Diagnostic>,
+    ): List<ErrorResponse> {
+        val where = "service '${decl.name}'"
+        val lowered =
+            decl.errors.mapIndexed { i, written ->
+                if (i > 0) {
+                    val s = written.span
+                    diagnostics +=
+                        error(
+                            CoreCodes.RESPONSES,
+                            "$where: more than one errors clause",
+                            Span(
+                                s.file,
+                                s.startLine,
+                                s.startColumn,
+                                s.startLine,
+                                s.startColumn + 5,
+                            ),
+                            help = "list every code of the service in one errors clause",
+                        )
+                }
+                clause(written, where, scope, index, resolver, diagnostics)
+            }
+        return lowered.firstOrNull().orEmpty()
+    }
+
+    /**
+     * The entries of [clause] that keep every rule: a code from 400 to 599 or `default`, listed
+     * once, and a body that resolves to a record or a union. Each broken rule is reported at the
+     * code or the body, and that entry is left out. [where] names the operation or the service.
+     */
+    private fun clause(
+        clause: ErrorsDecl,
+        where: String,
+        scope: Scope,
+        index: DeclarationIndex,
+        resolver: Resolver,
+        diagnostics: MutableList<Diagnostic>,
+    ): List<ErrorResponse> {
+        val seen = mutableSetOf<Int?>()
+        val out = mutableListOf<ErrorResponse>()
+        for (r in clause.responses) {
+            val code = r.code
+            val shown = code?.toString() ?: "default"
+            var ok = true
+            if (code != null && code !in ERROR_CODES) {
+                diagnostics +=
+                    error(
+                        CoreCodes.RESPONSES,
+                        "$where: error code $shown is outside 400 to 599",
+                        r.codeSpan,
+                        help = "use a code from 400 to 599, or default",
+                    )
+                ok = false
+            } else if (!seen.add(code)) {
+                diagnostics +=
+                    error(
+                        CoreCodes.RESPONSES,
+                        "$where: error code $shown is listed twice",
+                        r.codeSpan,
+                        help = "list each code once in a clause",
+                    )
+                ok = false
+            }
+            val written = r.body
+            val body = written?.let { body(it, where, scope, index, resolver, diagnostics) }
+            if (written != null && body == null) ok = false
+            if (ok) out += ErrorResponse(code, body)
+        }
+        return out
+    }
+
+    /**
+     * What an error body names, resolved as a payload is, aliases followed; null when it does not
+     * resolve or is not a non-nullable record or union, which is reported.
+     */
+    private fun body(
+        type: TypeExpr,
+        where: String,
+        scope: Scope,
+        index: DeclarationIndex,
+        resolver: Resolver,
+        diagnostics: MutableList<Diagnostic>,
+    ): QualifiedName? {
+        val resolved = resolver.resolve(type, scope) ?: return null
+        val ref = resolved.type as? Ref
+        val target = ref?.let { index.find(it.target)?.decl }
+        if (ref == null || resolved.nullable || (target !is RecordDecl && target !is UnionDecl)) {
+            diagnostics +=
+                error(
+                    CoreCodes.RESPONSES,
+                    "$where: error body '${type.text()}' is not a model or a union",
+                    type.span,
+                    help = "wrap it in a model",
+                )
+            return null
+        }
+        return ref.target
     }
 
     /** Null when the binding breaks a rule; every broken rule is reported. */

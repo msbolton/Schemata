@@ -301,12 +301,16 @@ private class Validator(
     /**
      * The keys [target] declares for a schema line, by the TOML value each takes. A key whose
      * annotation is a bare flag or a name tuple has no single literal to default to, so the file
-     * cannot set it.
+     * cannot set it. `@openapi(scopes)` cannot be set either: its scopes belong to the oauth2 or
+     * openid scheme the same line's `auth` requires, and `auth` is a name tuple the file cannot
+     * default, so a default `scopes` would be refused on every schema line that does not itself
+     * require such a scheme.
      */
     private fun schemaLineKeys(target: String): Map<String, Expect> =
         registry
             .specs(target)
             .filter { Element.NAMESPACE in it.elements }
+            .filterNot { target == "openapi" && it.key == "scopes" }
             .mapNotNull { spec ->
                 val expect =
                     when (spec.valueKind) {

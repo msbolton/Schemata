@@ -1,0 +1,22 @@
+# targets=openapi
+error[SCH2605] (openapi): field 'Call.tags': a header holds a scalar or an enum, not a list
+ --> s.schemata:4:6
+  = help: make the field a scalar or an enum, or take off @openapi(header)
+
+error[SCH2605] (openapi): field 'Call.bad': header "X Bad" is not an HTTP token
+ --> s.schemata:5:6
+  = help: use letters, digits, and the punctuation an HTTP token allows, such as `-`, `_`, and `.`
+
+error[SCH2605] (openapi): field 'Call.kind': header "Content-Type" is ignored by OpenAPI
+ --> s.schemata:6:6
+  = help: the media type is written with the content; take off @openapi(header)
+
+error[SCH2605] (openapi): field 'Call.auth': header "Authorization" is ignored by OpenAPI
+ --> s.schemata:7:6
+  = help: describe authentication with a security scheme on the schema line, such as `@openapi(bearer)`
+
+error[SCH2605] (openapi): field 'Call.second': header "x-id" repeats header "X-Id" of field 'first', ignoring case
+ --> s.schemata:9:6
+  = help: give each header of a model its own name; header names are compared ignoring case
+
+5 errors, 0 warnings

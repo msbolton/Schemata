@@ -1,0 +1,88 @@
+/// Categories and products: browse, search, and read one. Partners call it with an API key,
+/// customers with their session's token.
+schema storefront.catalog @openapi(bearer, api_key: "header X-API-Key", auth: (bearer, api_key))
+
+import storefront.common
+
+/// A URL-safe name: lower-case words joined by hyphens.
+alias Slug = string { min 1, max 100, match "^[a-z0-9]+(-[a-z0-9]+)*$" }
+
+/// A category; categories nest under a parent.
+model Category {
+  #1 id     uuid      { id }
+  #2 slug   Slug      { unique }
+  #3 name   string    { max 100 }
+  #4 parent Category?
+}
+
+/// Every category, parents before their children.
+model CategoryList {
+  #1 etag  string     { id, max 64 } @openapi(header: "ETag")
+  #2 items Category[] { embed }
+}
+
+enum Availability { #1 in_stock #2 backorder #3 out_of_stock }
+
+/// A product and the variants it is sold in.
+model Product {
+  #1 id          uuid      { id }
+  #2 slug        Slug      { unique }
+  #3 name        string    { max 200 }
+  #4 description string?   { max 5000 }
+  #5 category    Category
+  #6 brand       string?   { max 100 }
+  #7 variants    Variant[] { minItems 1 }
+  /// Image URLs, the first one the product's main image.
+  #8 images      string[]  { maxItems 20, max 2048 }
+  /// The average review rating, absent until the first review.
+  #9 rating      float64?  { min 1, max 5 }
+
+  /// One form of a product that can be bought, such as a size and a colour.
+  model Variant {
+    #1 sku          string       { max 64 }
+    #2 size         string?      { max 20 }
+    #3 color        string?      { max 30 }
+    #4 price        Money
+    #5 availability Availability
+  }
+}
+
+model ProductSlug { #1 slug Slug { id } }
+
+enum ProductSort { #1 relevance #2 price_asc #3 price_desc #4 newest #5 rating }
+
+/// What a search asks for. Each filter is a query parameter, and a filter left out matches every
+/// product.
+model ProductSearch {
+  /// Words to look for in a product's name and description.
+  #1 q            string?         { max 200 }
+  /// A category's slug; its subcategories match too.
+  #2 category     Slug?
+  /// Any of these brands.
+  #3 brand        string[]?       { maxItems 10, max 100 }
+  #4 min_price    decimal(19, 4)?
+  #5 max_price    decimal(19, 4)?
+  #6 availability Availability?
+  #7 sort         ProductSort     = relevance
+  #8 cursor       Cursor?
+  #9 limit        Limit           = 20
+}
+
+/// One page of a search.
+model ProductPage {
+  #1 etag  string        { id, max 64 } @openapi(header: "ETag")
+  #2 items Product[]     { embed }
+  #3 page  PageInfo
+  /// The search this page answers, with which to ask for the next one.
+  #4 query ProductSearch
+}
+
+/// Browse and search the catalog.
+service Catalog {
+  errors { 400 Problem  default Problem }
+  /// Every category. Anyone may read them.
+  @openapi(auth: none) #1 list_categories(): CategoryList  get "/categories"
+  /// Search products, one page at a time.
+  #2 search(ProductSearch): ProductPage  get "/products"
+  #3 get_product(ProductSlug): Product  get "/products/{slug}"  errors { 404 Problem }
+}

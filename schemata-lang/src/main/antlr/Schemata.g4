@@ -41,12 +41,24 @@ reservedItem  : ORDINAL (RANGE ORDINAL)? | STRING_LITERAL ;
 // A service is its own kind of top-level thing, never a declaration: a service cannot be nested
 // in a model and a model cannot be named after one by accident.
 serviceDecl   : doc? attribute* SERVICE IDENT '{' serviceMember* '}' ;
-serviceMember : operation | reservedStmt ;
-operation     : doc? attribute* ORDINAL? IDENT '(' payload? ')' (':' payload)? binding? ;
+// An `errors { … }` clause is a member of a service, or ends an operation. The optional clause of
+// an operation is read greedily, so the grammar gives the operation any clause that follows it;
+// the AST builder keeps it there only when it opens on the line the operation's signature or
+// binding ends on, and hands a clause on a later line to the service.
+serviceMember : operation | reservedStmt | errorsClause ;
+operation     : doc? attribute* ORDINAL? IDENT '(' payload? ')' (':' payload)? binding? errorsClause? ;
 payload       : STREAM? typeExpr ;
 // The verb is an identifier, not a token: `get` and `post` stay legal field names. The builder
-// checks it against the HTTP methods.
-binding       : IDENT STRING_LITERAL ;
+// checks it against the HTTP methods. The integer after the path is the success code; no member
+// starts with an integer, so it is never read as the next operation.
+binding       : IDENT STRING_LITERAL INT_LITERAL? ;
+// `errors` is an identifier as the verbs are, checked by the builder, so it stays a legal name;
+// only a word followed by `{` is a clause, and `errors(` is an operation. The entries are a flat
+// run of codes and types that the builder pairs up: an integer or a bare `default` starts an
+// entry and the type right after it is its body, so `default` can follow a code that has none.
+// A string or a decimal is read only so that the builder can report it as a code.
+errorsClause  : IDENT '{' errorItem* '}' ;
+errorItem     : INT_LITERAL | FLOAT_LITERAL | STRING_LITERAL | typeExpr ;
 
 // `operation` parses to a node so the AST builder can report it as reserved for a future version
 // instead of a generic syntax error.

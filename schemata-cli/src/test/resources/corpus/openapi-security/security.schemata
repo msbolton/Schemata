@@ -1,0 +1,25 @@
+/// Accounts behind every kind of scheme.
+schema corpus.security @openapi(bearer: "JWT", basic, api_key: "header X-API-Key", oauth2_token_url: "https://auth.example.com/token", oauth2_authorization_url: "https://auth.example.com/authorize", openid: "https://auth.example.com/.well-known/openid-configuration", auth: bearer)
+
+model AccountId { #1 id uuid }
+
+model Account { #1 id uuid  #2 name string { max 100 } }
+
+model Health { #1 ok bool }
+
+/// Read and manage accounts.
+service Accounts {
+  #1 get(AccountId): Account  get "/accounts/{id}"
+  @openapi(auth: (bearer, api_key)) #2 lookup(AccountId): Account  get "/lookup/{id}"
+  @openapi(auth: oauth2, scopes: "accounts:write")
+  #3 rename(Account): Account  put "/accounts/{id}"
+  @openapi(auth: openid, scopes: "openid profile")
+  #4 me(): Account  get "/me"
+}
+
+/// Operator tools.
+@openapi(auth: basic)
+service Admin {
+  #1 purge(AccountId)  delete "/admin/accounts/{id}"
+  @openapi(auth: none) #2 health(): Health  get "/health"
+}

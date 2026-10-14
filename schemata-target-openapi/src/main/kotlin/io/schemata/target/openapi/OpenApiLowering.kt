@@ -17,9 +17,11 @@ import io.schemata.core.ir.Type
 import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.Verb
+import io.schemata.core.ir.effectiveErrors
 import io.schemata.core.ir.kindWord
 import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.storedFields
+import io.schemata.core.ir.successStatus
 import io.schemata.lang.Diagnostic
 import io.schemata.target.Lowered
 import io.schemata.target.deprecated
@@ -83,6 +85,8 @@ private class NamespaceLowering(
             keys = ::keyOf,
         )
 
+    private val security = SecurityLowering(namespace, diagnostics)
+
     /** The declarations the operations use directly, in first-use order. */
     private val needed = LinkedHashSet<QualifiedName>()
     private val operationIds = mutableMapOf<String, Pair<Service, Operation>>()
@@ -95,6 +99,7 @@ private class NamespaceLowering(
         // lowers a field schema or a partial body: a name collision is then blamed as the JSON
         // Schema target blames it
         val plans = namespace.services.flatMap { s -> s.operations.mapNotNull { plan(s, it) } }
+        security.check()
         val closure = closure(needed)
         val components = document.lower(closure)
         checkKeys(closure)
@@ -109,6 +114,13 @@ private class NamespaceLowering(
             tags = tags(),
             paths = paths.map { (path, ops) -> PathItem(path, ops.sortedBy { it.verb.ordinal }) },
             components = components,
+            // an oauth2 scheme lists the scopes of the operations kept in this document
+            securitySchemes =
+                security.schemes(
+                    listOfNotNull(security.document) +
+                        plans.mapNotNull { security.requirement(it.service, it.operation) }
+                ),
+            security = security.document?.let(security::written),
         )
     }
 
@@ -122,8 +134,12 @@ private class NamespaceLowering(
         val record: RecordType?,
         val pathFields: List<Field>,
         val queryFields: List<Field>,
+        val headerFields: List<HeaderField>,
         val body: BodyPlan?,
     )
+
+    /** A field `@openapi(header)` moves into the HTTP header [name]. */
+    private class HeaderField(val field: Field, val name: String)
 
     private sealed interface BodyPlan {
         /** The whole payload as its component, in [mediaType]. */
@@ -134,8 +150,15 @@ private class NamespaceLowering(
     }
 
     /**
+     * Each model's header fields, as [headers] finds them, so a refused header is reported once.
+     */
+    private val headersByRecord = mutableMapOf<QualifiedName, List<HeaderField>>()
+
+    /**
      * Names, route, parameters, and body of [op], with what they reference added to [needed]; null
-     * when its route repeats another operation's.
+     * when its route repeats another operation's. A request model with header fields is partial, as
+     * one whose fields the path binds: its body holds the fields left, and it is not a component
+     * itself.
      */
     private fun plan(service: Service, op: Operation): Plan? {
         val operationId = operationId(service, op)
@@ -153,9 +176,16 @@ private class NamespaceLowering(
                 op.binding?.parameters.orEmpty().map { name ->
                     record.fields.first { it.name == name }
                 }
+        // a field the path binds is a path parameter, whatever header it also names
+        val headerFields =
+            if (request == null || request.stream || record == null) emptyList()
+            else headers(record).filter { it.field !in pathFields }
         val remaining =
             if (request == null || request.stream) emptyList()
-            else record?.storedFields.orEmpty().filter { it !in pathFields }
+            else
+                record?.storedFields.orEmpty().filter { field ->
+                    field !in pathFields && headerFields.none { it.field == field }
+                }
         val queryFields =
             if (verb.parameterised) remaining.filter { queryable(op, it) } else emptyList()
         val body: BodyPlan? =
@@ -167,19 +197,36 @@ private class NamespaceLowering(
                     null
                 }
                 record == null -> BodyPlan.Whole("application/json", request.target)
-                pathFields.isEmpty() -> BodyPlan.Whole("application/json", request.target)
+                pathFields.isEmpty() && headerFields.isEmpty() ->
+                    BodyPlan.Whole("application/json", request.target)
                 remaining.isEmpty() -> null
                 else -> BodyPlan.Partial(remaining)
             }
-        (pathFields + queryFields).forEach { needed += refsIn(it.type) }
+        (pathFields + queryFields + headerFields.map { it.field }).forEach {
+            needed += refsIn(it.type)
+        }
         when (body) {
             is BodyPlan.Whole -> needed += body.target
             is BodyPlan.Partial -> body.fields.forEach { needed += refsIn(it.type) }
             null -> {}
         }
-        op.response?.let { needed += it.target }
+        op.response?.let { needed += if (it.stream) listOf(it.target) else bodyRoots(it.target) }
+        effectiveErrors(service, op).forEach { error ->
+            error.body?.let { needed += bodyRoots(it) }
+        }
         if (routeTaken) return null
-        return Plan(service, op, operationId, verb, path, record, pathFields, queryFields, body)
+        return Plan(
+            service,
+            op,
+            operationId,
+            verb,
+            path,
+            record,
+            pathFields,
+            queryFields,
+            headerFields,
+            body,
+        )
     }
 
     /**
@@ -302,6 +349,83 @@ private class NamespaceLowering(
         }
 
     /**
+     * The declarations a response or an error body of [target] makes components of: the body
+     * itself, which the response refers to; for a model with header fields, which the response
+     * writes inline, only what its fields reference.
+     */
+    private fun bodyRoots(target: QualifiedName): List<QualifiedName> {
+        val record = schema.lookup(target) as? RecordType ?: return listOf(target)
+        if (headers(record).isEmpty()) return listOf(target)
+        return record.storedFields.flatMap { refsIn(it.type) }
+    }
+
+    /**
+     * [record]'s fields that become HTTP headers where the model is an operation's request,
+     * response, or error body, in field order. A field whose header is refused is reported once and
+     * stays an ordinary field.
+     */
+    private fun headers(record: RecordType): List<HeaderField> =
+        headersByRecord.getOrPut(record.qualifiedName) {
+            val byName = mutableMapOf<String, HeaderField>()
+            record.storedFields.mapNotNull { field ->
+                val name = field.annotations.string("openapi", "header") ?: return@mapNotNull null
+                val refusal = headerRefusal(field, name, byName[name.lowercase()])
+                if (refusal == null) HeaderField(field, name).also { byName[name.lowercase()] = it }
+                else {
+                    diagnostics +=
+                        Diagnostic(
+                            OpenApiCodes.HEADER,
+                            "field '${record.name}.${field.name}': ${refusal.first}",
+                            field.nameSpan,
+                            help = refusal.second,
+                        )
+                    null
+                }
+            }
+        }
+
+    /**
+     * Why [field] cannot travel as the header [name], as a message and its help; null when it can.
+     * A header holds one flat value; its name is an HTTP token; `Accept`, `Content-Type`, and
+     * `Authorization` are ignored by OpenAPI as header parameters, the first two being the
+     * content's media type and the last a security scheme's; and two headers of one model may not
+     * share a name, since header names are compared ignoring case. [earlier] is the model's earlier
+     * header of the same name.
+     */
+    private fun headerRefusal(
+        field: Field,
+        name: String,
+        earlier: HeaderField?,
+    ): Pair<String, String>? {
+        val kind =
+            when (val type = field.type) {
+                is Scalar -> null
+                is Ref -> schema.lookup(type.target).takeIf { it !is EnumType }?.kindWord
+                is ListOf -> "list"
+                is MapOf -> "map"
+            }
+        val lower = name.lowercase()
+        return when {
+            kind != null ->
+                "a header holds a scalar or an enum, not a $kind" to
+                    "make the field a scalar or an enum, or take off @openapi(header)"
+            !HTTP_TOKEN.matches(name) ->
+                "header \"$name\" is not an HTTP token" to
+                    "use letters, digits, and the punctuation an HTTP token allows, such as `-`, `_`, and `.`"
+            lower in MEDIA_HEADERS ->
+                "header \"$name\" is ignored by OpenAPI" to
+                    "the media type is written with the content; take off @openapi(header)"
+            lower == "authorization" ->
+                "header \"$name\" is ignored by OpenAPI" to
+                    "describe authentication with a security scheme on the schema line, such as `@openapi(bearer)`"
+            earlier != null ->
+                "header \"$name\" repeats header \"${earlier.name}\" of field '${earlier.field.name}', ignoring case" to
+                    "give each header of a model its own name; header names are compared ignoring case"
+            else -> null
+        }
+    }
+
+    /**
      * [roots] and everything they reach, depth first in field order: what a declaration references,
      * then its nested declarations, which its component carries with it.
      */
@@ -348,7 +472,8 @@ private class NamespaceLowering(
         val (summary, description) = paragraphs(op.doc)
         val parameters =
             plan.pathFields.map { parameter(plan, it, "path") } +
-                plan.queryFields.map { parameter(plan, it, "query") }
+                plan.queryFields.map { parameter(plan, it, "query") } +
+                plan.headerFields.map { parameter(plan, it.field, "header", it.name) }
         val requestBody =
             when (val body = plan.body) {
                 null -> null
@@ -359,18 +484,14 @@ private class NamespaceLowering(
                         document.partialRecord(plan.record!!, body.fields, "operation '${op.name}'"),
                     )
             }
-        val response =
-            op.response?.let {
-                val name = it.target.simpleName
-                if (it.stream)
-                    Response.Content(
-                        200,
-                        "Stream of $name",
-                        "text/event-stream",
-                        RefSchema(refOf(it.target)),
-                    )
-                else Response.Content(200, name, "application/json", RefSchema(refOf(it.target)))
-            } ?: Response.Empty("No content")
+        val responses = LinkedHashMap<String, Response>()
+        responses[op.successStatus().toString()] = success(op)
+        // the effective list is in ascending code order with `default` last, as it is written
+        effectiveErrors(plan.service, op).forEach { error ->
+            responses[error.code?.toString() ?: "default"] =
+                error.body?.let { bodyResponse(it, "operation '${op.name}'") }
+                    ?: Response(HttpStatus.reason(error.code))
+        }
         return OpenApiOperation(
             verb = plan.verb,
             operationId = plan.operationId,
@@ -380,18 +501,85 @@ private class NamespaceLowering(
             deprecated = op.annotations.deprecated || plan.service.annotations.deprecated,
             parameters = parameters,
             requestBody = requestBody,
-            response = response,
+            responses = responses,
+            security = security.operation(plan.service, op),
         )
     }
 
     /**
-     * [field] as a parameter named by its Schemata name; its doc and deprecation go on the
-     * parameter, its type, refinements, and default stay in the schema. A nullable field is an
-     * optional parameter with the plain schema, since a query string has no null; a path parameter
+     * The success response: a 204 has no content and keeps the description `No content`; a 200,
+     * 201, or 202 without a response has no content and is described by its reason phrase; a
+     * streamed response is `text/event-stream` of its messages.
+     */
+    private fun success(op: Operation): Response {
+        val status = op.successStatus()
+        val payload = op.response
+        return when {
+            status == 204 -> Response("No content")
+            payload == null -> Response(HttpStatus.reason(status))
+            payload.stream ->
+                Response(
+                    "Stream of ${payload.target.simpleName}",
+                    Body("text/event-stream", RefSchema(refOf(payload.target))),
+                )
+            else -> bodyResponse(payload.target, "operation '${op.name}'")
+        }
+    }
+
+    /**
+     * A response whose body is [target], named by it: `application/json` of its component, or, for
+     * a model with header fields, those fields as the response's headers and the rest as an inline
+     * object, with no content when no field is left. [where] names the use in a precondition
+     * failure.
+     */
+    private fun bodyResponse(target: QualifiedName, where: String): Response {
+        val record = schema.lookup(target) as? RecordType
+        val headers = record?.let(::headers).orEmpty()
+        if (record == null || headers.isEmpty())
+            return Response(target.simpleName, Body("application/json", RefSchema(refOf(target))))
+        val rest = record.storedFields.filter { field -> headers.none { it.field == field } }
+        return Response(
+            description = target.simpleName,
+            content =
+                if (rest.isEmpty()) null
+                else Body("application/json", document.partialRecord(record, rest, where)),
+            headers = headers.associate { it.name to header(record, it.field) },
+        )
+    }
+
+    /**
+     * [field] of [record] as a response header: required unless nullable or defaulted, its doc and
+     * deprecation on the header, its type, refinements, and default in the schema.
+     */
+    private fun header(record: RecordType, field: Field): Header {
+        val schema = document.fieldSchema(record, field)
+        return Header(
+            schema =
+                withCommon(
+                    schema,
+                    schema.common.copy(description = null, deprecated = false, nullable = false),
+                ),
+            description = field.doc,
+            required = !field.nullable && field.default == null,
+            deprecated = field.annotations.deprecated,
+        )
+    }
+
+    /**
+     * [field] as a parameter, named by its Schemata name in the path and the query and by [name] in
+     * a header; its doc and deprecation go on the parameter, its type, refinements, and default
+     * stay in the schema. A nullable or defaulted query or header field is an optional parameter
+     * with the plain schema, since neither a query string nor a header has a null; a path parameter
      * is never nullable, analysis refuses one.
      */
-    private fun parameter(plan: Plan, field: Field, location: String): Parameter {
-        if (field.annotations.string("jsonschema", "name") != null) {
+    private fun parameter(
+        plan: Plan,
+        field: Field,
+        location: String,
+        name: String = field.name,
+    ): Parameter {
+        // a header is named by `@openapi(header)`, so only a path or query parameter loses a rename
+        if (location != "header" && field.annotations.string("jsonschema", "name") != null) {
             diagnostics +=
                 Diagnostic(
                     OpenApiCodes.LOSSY,
@@ -401,11 +589,10 @@ private class NamespaceLowering(
                 )
         }
         val schema: JsonSchema = document.fieldSchema(plan.record!!, field)
-        val query = location == "query"
         return Parameter(
-            name = field.name,
+            name = name,
             location = location,
-            required = !query || (!field.nullable && field.default == null),
+            required = location == "path" || (!field.nullable && field.default == null),
             schema =
                 withCommon(
                     schema,
@@ -413,7 +600,7 @@ private class NamespaceLowering(
                 ),
             description = field.doc,
             deprecated = field.annotations.deprecated,
-            style = query,
+            style = location == "query",
         )
     }
 
@@ -498,5 +685,8 @@ private class NamespaceLowering(
         val COMPONENT_KEY = Regex("[a-zA-Z0-9._-]+")
         val SERVER = Regex("[A-Za-z][A-Za-z0-9+.-]*://\\S+|/\\S*")
         val BLANK_LINE = Regex("\n[ \t]*\n")
+        // the `tchar` characters of an HTTP token, which a header name is made of
+        val HTTP_TOKEN = Regex("[A-Za-z0-9!#\$%&'*+.^_`|~-]+")
+        val MEDIA_HEADERS = setOf("accept", "content-type")
     }
 }

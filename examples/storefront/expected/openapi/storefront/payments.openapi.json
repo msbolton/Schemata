@@ -1,0 +1,698 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "storefront.payments",
+    "version": "1.0.0",
+    "description": "Payments for orders, and the notices the payment provider sends about them."
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Payments",
+      "description": "Pay for orders and refund them."
+    }
+  ],
+  "paths": {
+    "/orders/{order_id}/payments": {
+      "post": {
+        "operationId": "Payments_pay",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "A key the client makes up, so a retried payment charges once.",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Pays for an order.",
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "$ref": "#/components/schemas/storefront.payments.Method"
+                  }
+                },
+                "required": [
+                  "method"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.payments.Payment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/{id}": {
+      "get": {
+        "operationId": "Payments_get",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.payments.Payment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/{id}/refunds": {
+      "post": {
+        "operationId": "Payments_refund",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Gives some or all of a captured payment back.",
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "description": "How much to give back; the whole payment when left out.",
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/storefront.common.Money"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.payments.Payment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/notices": {
+      "post": {
+        "operationId": "Payments_notify",
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Where the provider posts its notices. It signs in with the shared secret, not a session.",
+        "parameters": [
+          {
+            "name": "X-Signature",
+            "in": "header",
+            "required": true,
+            "description": "The provider's signature over the body.",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "What the provider reports about a payment.",
+                "type": "object",
+                "properties": {
+                  "event_id": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "kind": {
+                    "$ref": "#/components/schemas/storefront.payments.NoticeKind"
+                  },
+                  "payment_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                  },
+                  "occurred_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "event_id",
+                  "kind",
+                  "payment_id",
+                  "occurred_at"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "storefront.payments.Method": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "card": {
+                "$ref": "#/components/schemas/storefront.payments.Card"
+              }
+            },
+            "required": [
+              "card"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "wallet": {
+                "$ref": "#/components/schemas/storefront.payments.Wallet"
+              }
+            },
+            "required": [
+              "wallet"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "bank_transfer": {
+                "$ref": "#/components/schemas/storefront.payments.BankTransfer"
+              }
+            },
+            "required": [
+              "bank_transfer"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "storefront.payments.Card": {
+        "description": "A card, held by the provider and named here by its token.",
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "brand": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "last4": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$",
+            "minLength": 4,
+            "maxLength": 4
+          }
+        },
+        "required": [
+          "token",
+          "brand",
+          "last4"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.payments.Wallet": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/storefront.payments.WalletKind"
+          },
+          "token": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "kind",
+          "token"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.payments.WalletKind": {
+        "type": "string",
+        "enum": [
+          "apple_pay",
+          "google_pay",
+          "paypal"
+        ]
+      },
+      "storefront.payments.BankTransfer": {
+        "type": "object",
+        "properties": {
+          "iban": {
+            "type": "string",
+            "maxLength": 34
+          }
+        },
+        "required": [
+          "iban"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.payments.Payment": {
+        "description": "A payment for one order.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "order_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          },
+          "method": {
+            "$ref": "#/components/schemas/storefront.payments.Method"
+          },
+          "status": {
+            "$ref": "#/components/schemas/storefront.payments.PaymentStatus"
+          },
+          "failure": {
+            "description": "Why the provider declined, when it did.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "amount",
+          "method",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.common.Money": {
+        "description": "An amount in one currency.",
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "minLength": 3,
+            "maxLength": 3
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.payments.PaymentStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "authorized",
+          "captured",
+          "failed",
+          "refunded"
+        ]
+      },
+      "storefront.common.Problem": {
+        "description": "A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,\n`status` and `instance` are required, `instance` because a top-level model needs a key. Members\nbeyond those declared are allowed, as the RFC allows extensions.",
+        "type": "object",
+        "properties": {
+          "type": {
+            "description": "A URI naming the kind of problem; `about:blank` when the status says it all.",
+            "type": "string",
+            "maxLength": 2048,
+            "default": "about:blank"
+          },
+          "title": {
+            "description": "A short summary of the kind of problem, the same for every occurrence.",
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "description": "The HTTP status code of the response.",
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "description": "What went wrong this time.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "instance": {
+            "description": "A URI naming this occurrence, to quote when asking for help.",
+            "type": "string",
+            "maxLength": 2048
+          },
+          "errors": {
+            "description": "The request's fields that failed their checks, when it failed on its fields.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/storefront.common.Problem.Violation"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "instance"
+        ]
+      },
+      "storefront.common.Problem.Violation": {
+        "description": "One field of the request and what is wrong with it.",
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.payments.NoticeKind": {
+        "type": "string",
+        "enum": [
+          "authorized",
+          "captured",
+          "failed",
+          "refunded"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "api_key": {
+        "type": "apiKey",
+        "name": "X-Webhook-Secret",
+        "in": "header"
+      }
+    }
+  }
+}

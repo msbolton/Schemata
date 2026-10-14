@@ -3,6 +3,7 @@ package io.schemata.cli.report
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.BoolValue
 import io.schemata.core.ir.EnumRef
+import io.schemata.core.ir.ErrorResponse
 import io.schemata.core.ir.IntValue
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RealValue
@@ -37,12 +38,16 @@ import io.schemata.evolution.NamespaceOwner
 import io.schemata.evolution.NamespaceRemoved
 import io.schemata.evolution.OperationAdded
 import io.schemata.evolution.OperationBindingChanged
+import io.schemata.evolution.OperationErrorAdded
+import io.schemata.evolution.OperationErrorChanged
+import io.schemata.evolution.OperationErrorRemoved
 import io.schemata.evolution.OperationMoved
 import io.schemata.evolution.OperationOwner
 import io.schemata.evolution.OperationRemoved
 import io.schemata.evolution.OperationRenamed
 import io.schemata.evolution.OperationRequestChanged
 import io.schemata.evolution.OperationResponseChanged
+import io.schemata.evolution.OperationStatusChanged
 import io.schemata.evolution.Owner
 import io.schemata.evolution.ReservedChanged
 import io.schemata.evolution.Rulebook
@@ -57,6 +62,9 @@ import io.schemata.evolution.Verdict
 import io.schemata.evolution.annotationLabel
 import io.schemata.evolution.bindingText
 import io.schemata.evolution.changeWord
+import io.schemata.evolution.errorBodyText
+import io.schemata.evolution.errorCodeText
+import io.schemata.evolution.errorText
 import io.schemata.evolution.payloadText
 import io.schemata.evolution.shown
 import io.schemata.lang.Diagnostic
@@ -192,6 +200,9 @@ object DiffRenderer {
             is OperationRequestChanged -> payloadText(c.from)
             is OperationResponseChanged -> payloadText(c.from)
             is OperationBindingChanged -> bindingText(c.from)
+            is OperationStatusChanged -> c.from.toString()
+            is OperationErrorRemoved -> errorText(c.error)
+            is OperationErrorChanged -> errorText(ErrorResponse(c.code, c.from))
             else -> null
         }
 
@@ -213,6 +224,9 @@ object DiffRenderer {
             is OperationRequestChanged -> payloadText(c.to)
             is OperationResponseChanged -> payloadText(c.to)
             is OperationBindingChanged -> bindingText(c.to)
+            is OperationStatusChanged -> c.to.toString()
+            is OperationErrorAdded -> errorText(c.error)
+            is OperationErrorChanged -> errorText(ErrorResponse(c.code, c.to))
             else -> null
         }
 
@@ -306,6 +320,17 @@ object DiffRenderer {
             is OperationBindingChanged ->
                 "${dep}operation '${c.operation.name}' binding changed from " +
                     "${bindingText(c.from)} to ${bindingText(c.to)}"
+            is OperationStatusChanged ->
+                "${dep}operation '${c.operation.name}' success code changed from ${c.from} to " +
+                    "${c.to}"
+            is OperationErrorAdded ->
+                "${dep}operation '${c.operation.name}' error response ${errorText(c.error)} added"
+            is OperationErrorRemoved ->
+                "${dep}operation '${c.operation.name}' error response ${errorText(c.error)} removed"
+            is OperationErrorChanged ->
+                "${dep}operation '${c.operation.name}' error response " +
+                    "${errorCodeText(c.code)} body changed from ${errorBodyText(c.from)} to " +
+                    errorBodyText(c.to)
         }
     }
 
@@ -377,6 +402,10 @@ object DiffRenderer {
             is OperationRequestChanged -> change.service.qualifiedName.toString()
             is OperationResponseChanged -> change.service.qualifiedName.toString()
             is OperationBindingChanged -> change.service.qualifiedName.toString()
+            is OperationStatusChanged -> change.service.qualifiedName.toString()
+            is OperationErrorAdded -> change.service.qualifiedName.toString()
+            is OperationErrorRemoved -> change.service.qualifiedName.toString()
+            is OperationErrorChanged -> change.service.qualifiedName.toString()
         }
 
     private fun ownerKey(owner: Owner): String =

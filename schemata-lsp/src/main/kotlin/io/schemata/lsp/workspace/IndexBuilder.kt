@@ -61,7 +61,10 @@ class IndexBuilder private constructor(recorded: Recorded) {
         file.services.forEach { service(file, namespace, it) }
     }
 
-    /** A service and its operations define names; its payload types are recorded as references. */
+    /**
+     * A service and its operations define names; its payload types and error bodies are recorded as
+     * references by the resolver, and the builtins among them here.
+     */
     private fun service(file: SourceFile, namespace: String, decl: ServiceDecl) {
         val name = QualifiedName(namespace, listOf(decl.name))
         services.putIfAbsent(name, ServiceAt(decl, file))
@@ -71,6 +74,7 @@ class IndexBuilder private constructor(recorded: Recorded) {
             op.request?.let { builtinsIn(it.type) }
             op.response?.let { builtinsIn(it.type) }
         }
+        errorBodies(decl).forEach(::builtinsIn)
     }
 
     private fun declaration(

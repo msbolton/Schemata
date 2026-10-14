@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.cart",
+  "title": "storefront.cart",
+  "$defs": {
+    "Cart": {
+      "description": "What the customer means to buy.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cart.Line"
+          }
+        },
+        "subtotal": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "lines",
+        "subtotal",
+        "updated_at"
+      ],
+      "additionalProperties": false
+    },
+    "Cart.Line": {
+      "description": "A variant of a product, and how many of it.",
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        },
+        "unit_price": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        }
+      },
+      "required": [
+        "product_id",
+        "sku",
+        "quantity",
+        "unit_price"
+      ],
+      "additionalProperties": false
+    },
+    "AddItem": {
+      "description": "A variant to put in the cart; one already there gains the quantity.",
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "product_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99,
+          "default": 1
+        }
+      },
+      "required": [
+        "sku",
+        "product_id"
+      ],
+      "additionalProperties": false
+    },
+    "SetQuantity": {
+      "description": "A new quantity for a variant in the cart.",
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        }
+      },
+      "required": [
+        "sku",
+        "quantity"
+      ],
+      "additionalProperties": false
+    },
+    "ItemSku": {
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "sku"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

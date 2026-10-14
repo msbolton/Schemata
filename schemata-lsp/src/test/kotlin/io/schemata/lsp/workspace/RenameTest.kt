@@ -494,6 +494,25 @@ class RenameTest {
     }
 
     @Test
+    fun `renaming a model renames it in errors clauses`() {
+        val f = Fixture(dir)
+        val common =
+            f.open(
+                "shop/common.schemata",
+                "schema shop.common\nmodel Problem { #1 title string }\n",
+            )
+        val apiText =
+            "schema shop.api\nimport shop.common\nmodel A { #1 x int32 }\n" +
+                "service S {\n  errors { 500 Problem }\n" +
+                "  #1 a(A): A  post \"/a\"  errors { 409 Problem  default Problem }\n}\n"
+        val api = f.open("shop/api.schemata", apiText)
+        val after = renameAndReanalyse(f, common, f.at(common, "Problem"), "Failure")
+        assertEquals(setOf(common, api), after.keys)
+        assertEquals(apiText.replace("Problem", "Failure"), after[api])
+        assertEquals("schema shop.common\nmodel Failure { #1 title string }\n", after[common])
+    }
+
+    @Test
     fun `renaming an operation or a service follows the naming rules and collisions`() {
         val f = Fixture(dir)
         val a = f.open("t/a.schemata", SERVICE_API)

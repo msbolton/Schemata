@@ -10,6 +10,7 @@ import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.ast.ServiceDecl
 import io.schemata.lang.ast.SourceFile
 import io.schemata.lang.ast.TypeExpr
 import io.schemata.lang.ast.UnionDecl
@@ -285,7 +286,10 @@ internal class Rename(
 
 internal fun fileName(path: String) = path.substringAfterLast('/').substringAfterLast('\\')
 
-/** Every type expression written in [file], generic arguments and operation payloads included. */
+/**
+ * Every type expression written in [file], generic arguments, operation payloads and error bodies
+ * included.
+ */
 internal fun typesIn(file: SourceFile): List<TypeExpr> {
     val types = mutableListOf<TypeExpr>()
     fun add(type: TypeExpr) {
@@ -309,9 +313,16 @@ internal fun typesIn(file: SourceFile): List<TypeExpr> {
             op.request?.let { add(it.type) }
             op.response?.let { add(it.type) }
         }
+        errorBodies(service).forEach(::add)
     }
     return types
 }
+
+/** The body types of a service's own `errors` clauses and of its operations', in source order. */
+internal fun errorBodies(service: ServiceDecl): List<TypeExpr> =
+    (service.errors + service.operations.mapNotNull { it.errors })
+        .sortedWith(compareBy({ it.span.startLine }, { it.span.startColumn }))
+        .flatMap { clause -> clause.responses.mapNotNull { it.body } }
 
 /** Whether some site of the index covers the first character of [span]. */
 internal fun ReferenceIndex.covers(span: Span): Boolean =

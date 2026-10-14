@@ -76,6 +76,7 @@ object CoreCodes {
         error("SCH1053", "an inline shape's or enum's name collides with a declaration")
     val TIMESTAMPS_UNPINNED =
         warning("SCH1054", "timestamps are unpinned in a model with explicit ordinals")
+    val RESPONSES = error("SCH1055", "an operation's success code or error responses break a rule")
 
     val all: List<DiagnosticCode> =
         listOf(
@@ -130,5 +131,6 @@ object CoreCodes {
             SET_NULL_REQUIRED,
             HOISTED_NAME_COLLISION,
             TIMESTAMPS_UNPINNED,
+            RESPONSES,
         )
 }

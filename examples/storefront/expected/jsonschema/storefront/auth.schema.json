@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.auth",
+  "title": "storefront.auth",
+  "$defs": {
+    "Register": {
+      "description": "A new account.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "pattern": "^[^@]+@[^@]+$",
+          "maxLength": 254
+        },
+        "password": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "email",
+        "password",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Login": {
+      "description": "The credentials a session starts from.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "pattern": "^[^@]+@[^@]+$",
+          "maxLength": 254
+        },
+        "password": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "email",
+        "password"
+      ],
+      "additionalProperties": false
+    },
+    "RefreshToken": {
+      "description": "A refresh token, traded for a new session or given up at sign-out.",
+      "type": "object",
+      "properties": {
+        "refresh_token": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "refresh_token"
+      ],
+      "additionalProperties": false
+    },
+    "Session": {
+      "description": "A session: a short-lived access token, sent as `Authorization: Bearer …`, and the refresh\ntoken that renews it.",
+      "type": "object",
+      "properties": {
+        "access_token": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "token_type": {
+          "type": "string",
+          "default": "Bearer"
+        },
+        "expires_in": {
+          "description": "Seconds until the access token expires.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "refresh_token": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "user_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "required": [
+        "access_token",
+        "expires_in",
+        "refresh_token",
+        "user_id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

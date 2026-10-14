@@ -5,7 +5,9 @@ import io.schemata.lang.Span
 import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.ErrorsDecl
 import io.schemata.lang.ast.RecordDecl
+import io.schemata.lang.format.Formatter
 
 /** One line per builtin type name, shown when the cursor rests on it. */
 object BuiltinDocs {
@@ -51,6 +53,20 @@ private fun rest(after: Span, whole: Span): Span =
 private fun kindWord(decl: Declaration): String =
     if (decl is RecordDecl) "model" else DeclarationIndex.kindOf(decl)
 
+/**
+ * An operation's `errors` clause as the formatter prints it after [line]: on that line, two spaces
+ * on, while the line fits the formatter's width, else one code per line.
+ */
+private fun errorsText(clause: ErrorsDecl, line: String, slice: (Span) -> String): String {
+    val entries =
+        clause.responses.map { r ->
+            (r.code?.toString() ?: "default") + (r.body?.let { " " + typeText(it, slice) } ?: "")
+        }
+    val inline = if (entries.isEmpty()) "errors {}" else "errors { ${entries.joinToString("  ")} }"
+    if ("$line  $inline".length <= Formatter.LINE_WIDTH) return "  $inline"
+    return "  errors {\n" + entries.joinToString("") { "  $it\n" } + "}"
+}
+
 /** What to show for [symbol], or null when the set no longer declares it. */
 internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
     when (symbol) {
@@ -89,13 +105,18 @@ internal fun hoverText(analysis: SetAnalysis, symbol: Symbol): String? =
             val lines = at?.let { analysis.snapshot(it.file.path)?.lines }
             if (op == null || lines == null) null
             else {
-                // The operation's line as the formatter prints it, without its annotations.
-                // The ordinal is padded to the widest one in the service, as the formatter pads it.
+                // The operation as the formatter prints it, without its annotations: the ordinal
+                // padded to the widest one in the service, the success code after the path, and
+                // the operation's own errors clause.
                 val width =
                     at.decl.operations.maxOf { op -> op.ordinal?.let { "#$it".length } ?: 0 }
                 val ordinal = op.ordinal?.let { "#$it".padEnd(width) + " " } ?: ""
-                val binding = op.binding?.let { "  ${it.verb} ${lines.slice(it.pathSpan)}" } ?: ""
-                block("$ordinal${op.name}${payloadsText(op, lines::slice)}$binding", op.doc)
+                val status = op.binding?.status?.let { " $it" } ?: ""
+                val binding =
+                    op.binding?.let { "  ${it.verb} ${lines.slice(it.pathSpan)}$status" } ?: ""
+                val signature = "$ordinal${op.name}${payloadsText(op, lines::slice)}$binding"
+                val clause = op.errors?.let { errorsText(it, signature, lines::slice) } ?: ""
+                block(signature + clause, op.doc)
             }
         }
         is Symbol.Namespace -> {

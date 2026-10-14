@@ -89,6 +89,11 @@ object ProtoRules : Rulebook {
                 )
             // a binding rides in a comment beside the rpc, never in its method path
             is OperationBindingChanged -> Verdict.Compatible
+            // gRPC has no HTTP success code and no typed error body
+            is OperationStatusChanged,
+            is OperationErrorAdded,
+            is OperationErrorRemoved,
+            is OperationErrorChanged -> Verdict.Compatible
         }
 
     /**

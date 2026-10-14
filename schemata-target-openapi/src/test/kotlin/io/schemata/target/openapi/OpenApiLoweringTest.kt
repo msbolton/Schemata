@@ -20,6 +20,7 @@ import io.schemata.target.jsonschema.ObjectSchema
 import io.schemata.target.jsonschema.RefSchema
 import io.schemata.target.jsonschema.ScalarSchema
 import io.schemata.target.jsonschema.TaggedUnionSchema
+import io.schemata.testkit.OpenApi
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -170,18 +171,22 @@ class OpenApiLoweringTest {
         )
         assertNull(get.requestBody)
         assertEquals(
-            Response.Content(
-                200,
-                "Order",
-                "application/json",
-                RefSchema("#/components/schemas/shop.orders.Order", Common()),
+            mapOf(
+                "200" to
+                    Response(
+                        "Order",
+                        Body(
+                            "application/json",
+                            RefSchema("#/components/schemas/shop.orders.Order", Common()),
+                        ),
+                    )
             ),
-            get.response,
+            get.responses,
         )
 
         val delete = doc.paths[0].operations.single { it.verb == Verb.DELETE }
         assertEquals("Orders_cancel", delete.operationId)
-        assertEquals(Response.Empty("No content"), delete.response)
+        assertEquals(mapOf("204" to Response("No content")), delete.responses)
         assertEquals(listOf(Verb.GET, Verb.DELETE), doc.paths[0].operations.map { it.verb })
 
         val list = doc.paths[1].operations.single { it.verb == Verb.GET }
@@ -203,13 +208,17 @@ class OpenApiLoweringTest {
             list.parameters[1].schema,
         )
         assertEquals(
-            Response.Content(
-                200,
-                "Stream of Order",
-                "text/event-stream",
-                RefSchema("#/components/schemas/shop.orders.Order", Common()),
+            mapOf(
+                "200" to
+                    Response(
+                        "Stream of Order",
+                        Body(
+                            "text/event-stream",
+                            RefSchema("#/components/schemas/shop.orders.Order", Common()),
+                        ),
+                    )
             ),
-            list.response,
+            list.responses,
         )
 
         val place = doc.paths[1].operations.single { it.verb == Verb.POST }
@@ -346,7 +355,7 @@ class OpenApiLoweringTest {
             )
         val doc = l.model.documents.single()
         val op = doc.paths.single().operations.single()
-        assertEquals(Response.Empty("No content"), op.response)
+        assertEquals(mapOf("204" to Response("No content")), op.responses)
         val body = op.requestBody!!.schema as ObjectSchema
         assertEquals(
             ArraySchema(RefSchema("#/components/schemas/t.Tag", Common())),
@@ -1019,7 +1028,7 @@ class OpenApiLoweringTest {
                     item.operations.flatMap { op ->
                         op.parameters.map { it.schema } +
                             listOfNotNull(op.requestBody?.schema) +
-                            listOfNotNull((op.response as? Response.Content)?.schema)
+                            op.responses.values.mapNotNull { it.content?.schema }
                     }
                 }
         assertTrue(schemas.flatMap(::refs).all { it in keys })
@@ -1119,6 +1128,1015 @@ class OpenApiLoweringTest {
         assertEquals(
             listOf("shop.Book", "shop.PairKey", "shop.Party"),
             members.components.map { it.key }.sorted(),
+        )
+    }
+
+    private fun only(l: Lowered<OpenApiModel>): OpenApiOperation =
+        l.model.documents.single().paths.single().operations.single()
+
+    private fun json(key: String): Body =
+        Body("application/json", RefSchema("#/components/schemas/$key"))
+
+    @Test
+    fun `a declared success code is the success response's code`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 sku string }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 place(Place): R  post "/r" 201
+                  #2 queue(Place)  post "/q" 202
+                  #3 drop(Place)  post "/d" 204
+                }
+                """
+            )
+        val ops = l.model.documents.single().paths.associate { it.path to it.operations.single() }
+        assertEquals(
+            listOf("201" to Response("R", json("t.R"))),
+            ops.getValue("/r").responses.toList(),
+        )
+        assertEquals(listOf("202" to Response("Accepted")), ops.getValue("/q").responses.toList())
+        assertEquals(listOf("204" to Response("No content")), ops.getValue("/d").responses.toList())
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `an operation error replaces the service body for the same code`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Id { #1 id uuid }
+
+                model R { #1 ok bool }
+
+                model Missing { #1 what string }
+
+                model Gone { #1 since string }
+
+                model Problem { #1 title string }
+
+                service S {
+                  errors { default Problem  404 Missing  500 }
+
+                  #1 get(Id): R  get "/r/{id}"  errors { 404 Gone  400 }
+                  #2 ping(): R  get "/ping"
+                }
+                """
+            )
+        val doc = l.model.documents.single()
+        val get = doc.paths.single { it.path == "/r/{id}" }.operations.single()
+        assertEquals(
+            listOf(
+                "200" to Response("R", json("t.R")),
+                "400" to Response("Bad Request"),
+                "404" to Response("Gone", json("t.Gone")),
+                "500" to Response("Internal Server Error"),
+                "default" to Response("Problem", json("t.Problem")),
+            ),
+            get.responses.toList(),
+        )
+        val ping = doc.paths.single { it.path == "/ping" }.operations.single()
+        assertEquals(listOf("200", "404", "500", "default"), ping.responses.keys.toList())
+        assertEquals(Response("Missing", json("t.Missing")), ping.responses.getValue("404"))
+        assertEquals(
+            listOf("t.R", "t.Gone", "t.Problem", "t.Missing"),
+            doc.components.map { it.key },
+        )
+
+        val text = OpenApiRenderer.render(l.model).single().content
+        val written =
+            text.substringAfter("\"operationId\": \"S_get\"").substringBefore("\"operationId\"")
+        val at =
+            listOf("\"200\"", "\"400\"", "\"404\"", "\"500\"", "\"default\"").map {
+                written.indexOf(it)
+            }
+        assertTrue(at.all { it >= 0 }, written)
+        assertEquals(at.sorted(), at)
+        assertNull(OpenApi.validate(text))
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a code without a body is described by its reason phrase`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model R { #1 ok bool }
+
+                service S {
+                  errors { 401  404  418  422  503  default }
+
+                  #1 ping(): R  get "/ping"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "200" to Response("R", json("t.R")),
+                "401" to Response("Unauthorized"),
+                "404" to Response("Not Found"),
+                "418" to Response("Error"),
+                "422" to Response("Unprocessable Content"),
+                "503" to Response("Service Unavailable"),
+                "default" to Response("Error"),
+            ),
+            only(l).responses.toList(),
+        )
+    }
+
+    @Test
+    fun `reason phrases cover the registered client and server errors`() {
+        assertEquals("Bad Request", HttpStatus.reason(400))
+        assertEquals("Content Too Large", HttpStatus.reason(413))
+        assertEquals("Too Many Requests", HttpStatus.reason(429))
+        assertEquals("Unavailable For Legal Reasons", HttpStatus.reason(451))
+        assertEquals("Not Extended", HttpStatus.reason(510))
+        assertEquals("Network Authentication Required", HttpStatus.reason(511))
+        assertEquals("Error", HttpStatus.reason(418))
+        assertEquals("Error", HttpStatus.reason(499))
+        assertEquals("Error", HttpStatus.reason(null))
+        assertEquals(39, (400..599).count { HttpStatus.reason(it) != "Error" })
+    }
+
+    @Test
+    fun `an error body reaches its components as a response does`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Id { #1 id uuid }
+
+                model R { #1 ok bool }
+
+                model Problem {
+                  #1 title  string
+                  #2 kind   Kind
+                  #3 fields Problem.Field[]
+
+                  model Field { #1 name string }
+                }
+
+                enum Kind { a b }
+
+                service S {
+                  #1 get(Id): R  get "/r/{id}"  errors { 400 Problem }
+                }
+                """
+            )
+        val doc = l.model.documents.single()
+        assertEquals(Response("Problem", json("t.Problem")), only(l).responses.getValue("400"))
+        assertEquals(
+            listOf("t.R", "t.Problem", "t.Problem.Field", "t.Kind"),
+            doc.components.map { it.key },
+        )
+        val problem = doc.components.single { it.key == "t.Problem" }.schema as ObjectSchema
+        assertEquals(listOf("title", "kind", "fields"), problem.properties.map { it.name })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `an error body from another schema is a component under its schema's key`() {
+        val l =
+            lower(
+                "schema c\n\nmodel Problem { #1 title string }",
+                """
+                schema t
+
+                import c
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 ping(): R  get "/ping"  errors { 500 Problem }
+                }
+                """,
+            )
+        val doc = l.model.documents.single()
+        assertEquals(Response("Problem", json("c.Problem")), only(l).responses.getValue("500"))
+        assertEquals(listOf("t.R", "c.Problem"), doc.components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a union error body is a reference to its union component`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 sku string }
+
+                model R { #1 ok bool }
+
+                model Stock { #1 sku string }
+
+                model Clash { #1 reason string }
+
+                union Refusal = #1 Stock | #2 Clash
+
+                service S {
+                  #1 place(Place): R  post "/r" 201  errors { 409 Refusal }
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "201" to Response("R", json("t.R")),
+                "409" to Response("Refusal", json("t.Refusal")),
+            ),
+            only(l).responses.toList(),
+        )
+        assertEquals(
+            listOf("t.Place", "t.R", "t.Refusal", "t.Stock", "t.Clash"),
+            l.model.documents.single().components.map { it.key },
+        )
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a get request header is a header parameter`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Find {
+                  #1 id    uuid
+                  #2 key   string  @openapi(header: "Idempotency-Key")
+                  /// Who is asking.
+                  #3 trace string? @openapi(header: "X-Trace")
+                  #4 q     string?
+                }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 find(Find): R  get "/items/{id}"
+                }
+                """
+            )
+        val op = only(l)
+        assertEquals(
+            listOf(
+                Parameter("id", "path", true, uuid, null, false, style = false),
+                Parameter("q", "query", false, ScalarSchema("string"), null, false, style = true),
+                Parameter(
+                    "Idempotency-Key",
+                    "header",
+                    true,
+                    ScalarSchema("string"),
+                    null,
+                    false,
+                    style = false,
+                ),
+                Parameter(
+                    "X-Trace",
+                    "header",
+                    false,
+                    ScalarSchema("string"),
+                    "Who is asking.",
+                    false,
+                    style = false,
+                ),
+            ),
+            op.parameters,
+        )
+        assertNull(op.requestBody)
+        assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a request header on a body verb leaves the other fields as a partial body`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 key string @openapi(header: "Idempotency-Key")  #2 sku string }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 place(Place): R  post "/orders"
+                }
+                """
+            )
+        val op = only(l)
+        assertEquals(
+            listOf(
+                Parameter(
+                    "Idempotency-Key",
+                    "header",
+                    true,
+                    ScalarSchema("string"),
+                    null,
+                    false,
+                    style = false,
+                )
+            ),
+            op.parameters,
+        )
+        val body = op.requestBody!!.schema as ObjectSchema
+        assertEquals(listOf("sku"), body.properties.map { it.name })
+        assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a request of headers only has no body`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Ping { #1 key string @openapi(header: "X-Key") }
+
+                service S {
+                  #1 ping(Ping)  post "/ping"
+                }
+                """
+            )
+        val op = only(l)
+        assertEquals(listOf("X-Key"), op.parameters.map { it.name })
+        assertNull(op.requestBody)
+        assertEquals(emptyList(), l.model.documents.single().components)
+    }
+
+    @Test
+    fun `a response of headers only has no content`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 sku string }
+
+                model Created {
+                  /// Where the order lives.
+                  #1 location string @openapi(header: "Location")
+                }
+
+                service S {
+                  #1 place(Place): Created  post "/orders" 201
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "201" to
+                    Response(
+                        "Created",
+                        null,
+                        mapOf(
+                            "Location" to
+                                Header(
+                                    ScalarSchema("string"),
+                                    "Where the order lives.",
+                                    required = true,
+                                    deprecated = false,
+                                )
+                        ),
+                    )
+            ),
+            only(l).responses.toList(),
+        )
+        assertEquals(listOf("t.Place"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a response header takes its field's schema and the body the remaining fields`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Page {
+                  #1 next  string?  @openapi(header: "X-Next")
+                  #2 total int32    @openapi(header: "X-Total") = 0
+                  #3 items string[]
+                }
+
+                service S {
+                  #1 list(): Page  get "/items"
+                }
+                """
+            )
+        val ok = only(l).responses.getValue("200")
+        assertEquals("Page", ok.description)
+        assertEquals(
+            listOf(
+                "X-Next" to
+                    Header(ScalarSchema("string"), null, required = false, deprecated = false),
+                "X-Total" to
+                    Header(
+                        ScalarSchema(
+                            "integer",
+                            minimum = BigDecimal("-2147483648"),
+                            maximum = BigDecimal("2147483647"),
+                            common = Common(default = JsonNumber("0")),
+                        ),
+                        null,
+                        required = false,
+                        deprecated = false,
+                    ),
+            ),
+            ok.headers.toList(),
+        )
+        assertEquals("application/json", ok.content!!.mediaType)
+        assertEquals(
+            listOf("items"),
+            (ok.content!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(emptyList(), l.model.documents.single().components)
+    }
+
+    @Test
+    fun `an error body with header fields writes its headers and the remaining fields`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model R { #1 ok bool }
+
+                model Limited { #1 retry int32 @openapi(header: "Retry-After")  #2 detail string }
+
+                service S {
+                  #1 ping(): R  get "/ping"  errors { 429 Limited }
+                }
+                """
+            )
+        val limited = only(l).responses.getValue("429")
+        assertEquals("Limited", limited.description)
+        assertEquals(listOf("Retry-After"), limited.headers.keys.toList())
+        assertTrue(limited.headers.getValue("Retry-After").required)
+        assertEquals(
+            listOf("detail"),
+            (limited.content!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(listOf("t.R"), l.model.documents.single().components.map { it.key })
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a header model reused as a field type keeps every field in its component`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Session { #1 token string @openapi(header: "X-Token")  #2 user string }
+
+                model Audit { #1 session Session }
+
+                model Q { #1 id uuid }
+
+                service S {
+                  #1 open(): Session  post "/sessions"
+                  #2 audit(Q): Audit  get "/audits/{id}"
+                }
+                """
+            )
+        val doc = l.model.documents.single()
+        val open = doc.paths.single { it.path == "/sessions" }.operations.single()
+        val ok = open.responses.getValue("200")
+        assertEquals(listOf("X-Token"), ok.headers.keys.toList())
+        assertEquals(
+            listOf("user"),
+            (ok.content!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(listOf("t.Audit", "t.Session"), doc.components.map { it.key })
+        val session = doc.components.single { it.key == "t.Session" }.schema as ObjectSchema
+        assertEquals(listOf("token", "user"), session.properties.map { it.name })
+        assertEquals(
+            RefSchema("#/components/schemas/t.Session"),
+            (doc.components.single { it.key == "t.Audit" }.schema as ObjectSchema)
+                .properties
+                .single()
+                .schema,
+        )
+        assertEquals(emptyList(), messages(l))
+    }
+
+    @Test
+    fun `a streamed payload keeps its header fields`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Event { #1 id string @openapi(header: "X-Id")  #2 body string }
+
+                service S {
+                  #1 watch(): stream Event  get "/events"
+                }
+                """
+            )
+        assertEquals(
+            Response(
+                "Stream of Event",
+                Body("text/event-stream", RefSchema("#/components/schemas/t.Event")),
+            ),
+            only(l).responses.getValue("200"),
+        )
+        val event = l.model.documents.single().components.single().schema as ObjectSchema
+        assertEquals(listOf("id", "body"), event.properties.map { it.name })
+    }
+
+    @Test
+    fun `headers lower to a valid document`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Place { #1 key string @openapi(header: "Idempotency-Key")  #2 sku string }
+
+                model Created { #1 location string @openapi(header: "Location")  #2 id uuid }
+
+                model Limited { #1 retry int32 @openapi(header: "Retry-After")  #2 detail string }
+
+                model Find { #1 trace string? @openapi(header: "X-Trace")  #2 q string? }
+
+                service S {
+                  #1 place(Place): Created  post "/orders" 201  errors { 429 Limited }
+                  #2 find(Find): Created  get "/orders"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        assertNull(OpenApi.validate(OpenApiRenderer.render(l.model).single().content))
+    }
+
+    @Test
+    fun `a header field that is not a scalar or an enum stays a body field`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Who { #1 name string }
+
+                enum Kind { a b }
+
+                model Call {
+                  #1 tags string[]            @openapi(header: "X-Tags")
+                  #2 meta map<string, string> @openapi(header: "X-Meta")
+                  #3 who  Who                 @openapi(header: "X-Who")
+                  #4 kind Kind                @openapi(header: "X-Kind")
+                }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 call(Call): R  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.tags': a header holds a scalar or an enum, not a list",
+                "SCH2605 field 'Call.meta': a header holds a scalar or an enum, not a map",
+                "SCH2605 field 'Call.who': a header holds a scalar or an enum, not a model",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            List(3) { "make the field a scalar or an enum, or take off @openapi(header)" },
+            l.diagnostics.map { it.help },
+        )
+        val op = only(l)
+        assertEquals(
+            listOf(
+                Parameter(
+                    "X-Kind",
+                    "header",
+                    true,
+                    RefSchema("#/components/schemas/t.Kind"),
+                    null,
+                    false,
+                    style = false,
+                )
+            ),
+            op.parameters,
+        )
+        assertEquals(
+            listOf("tags", "meta", "who"),
+            (op.requestBody!!.schema as ObjectSchema).properties.map { it.name },
+        )
+        assertEquals(
+            listOf("t.Kind", "t.Who", "t.R"),
+            l.model.documents.single().components.map { it.key },
+        )
+    }
+
+    @Test
+    fun `a header name that is not an HTTP token is refused`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call {
+                  #1 a string @openapi(header: "X Bad")
+                  #2 b string @openapi(header: "X:Y")
+                  #3 c string @openapi(header: "X-Ok_1.2~")
+                }
+
+                service S {
+                  #1 call(Call)  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.a': header \"X Bad\" is not an HTTP token",
+                "SCH2605 field 'Call.b': header \"X:Y\" is not an HTTP token",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            "use letters, digits, and the punctuation an HTTP token allows, such as `-`, `_`, and `.`",
+            l.diagnostics.first().help,
+        )
+        assertEquals(listOf("X-Ok_1.2~"), only(l).parameters.map { it.name })
+    }
+
+    @Test
+    fun `accept content-type and authorization are refused as headers`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call {
+                  #1 a string @openapi(header: "accept")
+                  #2 b string @openapi(header: "Content-Type")
+                  #3 c string @openapi(header: "AUTHORIZATION")
+                }
+
+                service S {
+                  #1 call(Call)  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.a': header \"accept\" is ignored by OpenAPI",
+                "SCH2605 field 'Call.b': header \"Content-Type\" is ignored by OpenAPI",
+                "SCH2605 field 'Call.c': header \"AUTHORIZATION\" is ignored by OpenAPI",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            listOf(
+                "the media type is written with the content; take off @openapi(header)",
+                "the media type is written with the content; take off @openapi(header)",
+                "describe authentication with a security scheme on the schema line, such as `@openapi(bearer)`",
+            ),
+            l.diagnostics.map { it.help },
+        )
+        assertTrue(only(l).parameters.isEmpty())
+    }
+
+    @Test
+    fun `two headers of one model equal ignoring case are refused`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call {
+                  #1 first  string @openapi(header: "X-Id")
+                  #2 second string @openapi(header: "x-id")
+                }
+
+                service S {
+                  #1 call(Call)  post "/calls"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Call.second': header \"x-id\" repeats header \"X-Id\" of field 'first', ignoring case"
+            ),
+            messages(l),
+        )
+        assertEquals(
+            "give each header of a model its own name; header names are compared ignoring case",
+            l.diagnostics.single().help,
+        )
+        val op = only(l)
+        assertEquals(listOf("X-Id"), op.parameters.map { it.name })
+        assertEquals(
+            listOf("second"),
+            (op.requestBody!!.schema as ObjectSchema).properties.map { it.name },
+        )
+    }
+
+    @Test
+    fun `a refused header is reported once though two operations use its model`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Call { #1 a string @openapi(header: "X Bad") }
+
+                service S {
+                  #1 one(Call)  post "/one"
+                  #2 two(Call): Call  post "/two"
+                }
+                """
+            )
+        assertEquals(
+            listOf("SCH2605 field 'Call.a': header \"X Bad\" is not an HTTP token"),
+            messages(l),
+        )
+    }
+
+    @Test
+    fun `every declared scheme is a component in a fixed order`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(openid: "https://id.example.com/.well-known/openid-configuration", oauth2_authorization_url: "https://id.example.com/authorize", oauth2_token_url: "https://id.example.com/token", api_key: "header X-API-Key", basic, bearer: "JWT")
+
+                model R { #1 ok bool }
+
+                service S {
+                  @openapi(auth: oauth2, scopes: "orders:write orders:read")
+                  #1 write(): R  post "/w"
+                  @openapi(auth: (oauth2, openid), scopes: "admin")
+                  #2 admin(): R  post "/a"
+                  @openapi(auth: openid, scopes: "profile")
+                  #3 me(): R  get "/me"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        assertEquals(
+            listOf(
+                SecurityScheme.Http("bearer", "bearer", "JWT"),
+                SecurityScheme.Http("basic", "basic", null),
+                SecurityScheme.ApiKey("api_key", "header", "X-API-Key"),
+                SecurityScheme.OAuth2(
+                    "oauth2",
+                    "https://id.example.com/token",
+                    "https://id.example.com/authorize",
+                    listOf("admin", "orders:read", "orders:write"),
+                ),
+                SecurityScheme.OpenIdConnect(
+                    "openid",
+                    "https://id.example.com/.well-known/openid-configuration",
+                ),
+            ),
+            l.model.documents.single().securitySchemes,
+        )
+    }
+
+    @Test
+    fun `a requirement lists one entry per scheme with scopes only for oauth2 and openid`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, oauth2_token_url: "https://id.example.com/token")
+
+                model R { #1 ok bool }
+
+                service S {
+                  @openapi(auth: (bearer, oauth2), scopes: "orders:read")
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertNull(doc.security)
+        assertEquals(
+            listOf(
+                Requirement("bearer", emptyList()),
+                Requirement("oauth2", listOf("orders:read")),
+            ),
+            doc.paths.single().operations.single().security,
+        )
+    }
+
+    @Test
+    fun `operation security is written only where it differs from the document`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, auth: bearer)
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                  @openapi(auth: none)
+                  #2 health(): R  get "/health"
+                  @openapi(auth: bearer)
+                  #3 same(): R  get "/same"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf(Requirement("bearer", emptyList())), doc.security)
+        fun op(path: String) = doc.paths.single { it.path == path }.operations.single()
+        assertNull(op("/r").security)
+        assertEquals(emptyList(), op("/health").security)
+        assertNull(op("/same").security)
+    }
+
+    @Test
+    fun `a service requirement reaches its operations and scopes travel with their auth`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, oauth2_token_url: "https://id.example.com/token", auth: bearer)
+
+                model R { #1 ok bool }
+
+                @openapi(auth: oauth2, scopes: "orders:read")
+                service S {
+                  #1 list(): R  get "/r"
+                  @openapi(scopes: "orders:write")
+                  #2 write(): R  post "/r"
+                  @openapi(auth: oauth2)
+                  #3 plain(): R  put "/r"
+                  @openapi(auth: bearer)
+                  #4 token(): R  delete "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf(Requirement("bearer", emptyList())), doc.security)
+        fun op(verb: Verb) = doc.paths.single().operations.single { it.verb == verb }
+        assertEquals(listOf(Requirement("oauth2", listOf("orders:read"))), op(Verb.GET).security)
+        assertEquals(listOf(Requirement("oauth2", listOf("orders:write"))), op(Verb.POST).security)
+        assertEquals(listOf(Requirement("oauth2", emptyList())), op(Verb.PUT).security)
+        assertNull(op(Verb.DELETE).security)
+        assertEquals(
+            listOf("orders:read", "orders:write"),
+            doc.securitySchemes.filterIsInstance<SecurityScheme.OAuth2>().single().scopes,
+        )
+    }
+
+    @Test
+    fun `no security is written when no auth is in effect`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer)
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertNull(doc.security)
+        assertNull(doc.paths.single().operations.single().security)
+        assertEquals(listOf(SecurityScheme.Http("bearer", "bearer", null)), doc.securitySchemes)
+    }
+
+    @Test
+    fun `an auth naming an undeclared or unknown scheme or none with a scheme is SCH2606`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer)
+
+                model R { #1 ok bool }
+
+                service S {
+                  @openapi(auth: basic)
+                  #1 a(): R  get "/a"
+                  @openapi(auth: jwt)
+                  #2 b(): R  get "/b"
+                  @openapi(auth: (none, bearer))
+                  #3 c(): R  get "/c"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2606 operation 'a': @openapi(auth) names 'basic', which the schema does not declare",
+                "SCH2606 operation 'b': @openapi(auth) names 'jwt', which is not a scheme",
+                "SCH2606 operation 'c': @openapi(auth) names none together with a scheme",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            listOf(
+                "declare it on the schema line with `@openapi(basic)`, or name a declared scheme",
+                "name bearer, basic, api_key, oauth2, openid, or none",
+                "write `@openapi(auth: none)` alone, or leave none out",
+            ),
+            l.diagnostics.map { it.help },
+        )
+    }
+
+    @Test
+    fun `scopes without an oauth2 or openid requirement are SCH2606`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(bearer, oauth2_token_url: "https://id.example.com/token", scopes: "a")
+
+                model R { #1 ok bool }
+
+                @openapi(auth: oauth2)
+                service S {
+                  @openapi(scopes: "b")
+                  #1 a(): R  get "/a"
+                  @openapi(auth: bearer, scopes: "c")
+                  #2 b(): R  get "/b"
+                  @openapi(auth: none, scopes: "d")
+                  #3 c(): R  get "/c"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2606 schema 't': @openapi(scopes) applies to no oauth2 or openid scheme",
+                "SCH2606 operation 'b': @openapi(scopes) applies to no oauth2 or openid scheme",
+                "SCH2606 operation 'c': @openapi(scopes) applies to no oauth2 or openid scheme",
+            ),
+            messages(l),
+        )
+        assertEquals(
+            "require oauth2 or openid with `@openapi(auth: oauth2)` at the same level, or remove " +
+                "the scopes",
+            l.diagnostics.first().help,
+        )
+    }
+
+    @Test
+    fun `a malformed scheme value is SCH2606 and the scheme is left out`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(api_key: "body token", oauth2_authorization_url: "https://id.example.com/authorize", openid: "id.example.com")
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2606 schema 't': @openapi(api_key: \"body token\") is not \"<in> <name>\"",
+                "SCH2606 schema 't': @openapi(oauth2_authorization_url) needs @openapi(oauth2_token_url)",
+                "SCH2606 schema 't': @openapi(openid: \"id.example.com\") is not an absolute http or https URL",
+            ),
+            messages(l),
+        )
+        assertEquals(emptyList(), l.model.documents.single().securitySchemes)
+    }
+
+    @Test
+    fun `a URL scheme in any letter case is accepted`() {
+        val l =
+            lower(
+                """
+                schema t @openapi(openid: "HTTPS://id.example.com/.well-known/openid-configuration", auth: openid)
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 get(): R  get "/r"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        assertEquals(
+            listOf(
+                SecurityScheme.OpenIdConnect(
+                    "openid",
+                    "HTTPS://id.example.com/.well-known/openid-configuration",
+                )
+            ),
+            l.model.documents.single().securitySchemes,
         )
     }
 }

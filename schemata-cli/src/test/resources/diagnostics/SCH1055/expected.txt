@@ -1,0 +1,9 @@
+error[SCH1055]: operation 'place': success code 203 is not 200, 201, 202 or 204
+ --> s.schemata:6:42
+  = help: use 200, 201, 202 or 204, or leave the code out
+
+error[SCH1055]: operation 'replace': success code 204 cannot carry the response 'Order'
+ --> s.schemata:7:43
+  = help: use 200 for a response, or remove the response
+
+2 errors, 0 warnings

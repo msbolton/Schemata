@@ -1,0 +1,21 @@
+schema s @openapi(bearer: "JWT", api_key: "header X-API-Key", oauth2_token_url: "https://auth.example.com/oauth/token", auth: bearer)
+
+model OrderId { #1 id uuid { id } }
+
+model PlaceOrder { #1 sku string { id }  #2 quantity int32  #3 request_id string? @openapi(header: "Idempotency-Key") }
+
+model Order { #1 id uuid { id }  #2 total decimal(12, 2)  #3 etag string? @openapi(header: "ETag") }
+
+model Problem { #1 type string { id }  #2 title string }
+
+model Conflict { #1 type string { id }  #2 current uuid }
+
+service Orders {
+  errors { 400 Problem  503 }
+  @openapi(auth: oauth2, scopes: "orders:read")
+  #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+  #2 place(PlaceOrder): Order  post "/orders" 201  errors { 409 Conflict }
+  @openapi(auth: bearer)
+  #3 cancel(OrderId)  delete "/orders/{id}"
+  #4 ping()  get "/ping"
+}

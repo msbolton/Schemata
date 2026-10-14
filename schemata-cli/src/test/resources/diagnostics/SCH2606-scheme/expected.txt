@@ -1,0 +1,14 @@
+# targets=openapi
+error[SCH2606] (openapi): schema 's': @openapi(api_key: "header") is not "<in> <name>"
+ --> s.schemata:1:1
+  = help: write `@openapi(api_key: "header X-API-Key")`: header, query, or cookie, then the name
+
+error[SCH2606] (openapi): schema 's': @openapi(oauth2_authorization_url) needs @openapi(oauth2_token_url)
+ --> s.schemata:1:1
+  = help: add `@openapi(oauth2_token_url: "…")`; the authorization code flow needs both URLs
+
+error[SCH2606] (openapi): schema 's': @openapi(openid: "auth.example.com") is not an absolute http or https URL
+ --> s.schemata:1:1
+  = help: use an absolute URL such as `https://auth.example.com/token`
+
+3 errors, 0 warnings

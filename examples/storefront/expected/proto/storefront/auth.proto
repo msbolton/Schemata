@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package storefront.auth;
+
+import "google/protobuf/empty.proto";
+
+// A new account.
+message Register {
+  string email = 1;  // schemata: string { max 254, match "^[^@]+@[^@]+$" }
+  string password = 2;  // schemata: string { min 12, max 128 }
+  string name = 3;  // schemata: string { max 100 }
+}
+
+// The credentials a session starts from.
+message Login {
+  string email = 1;  // schemata: string { max 254, match "^[^@]+@[^@]+$" }
+  string password = 2;  // schemata: string { min 1, max 128 }
+}
+
+// A refresh token, traded for a new session or given up at sign-out.
+message RefreshToken {
+  string refresh_token = 1;  // schemata: string { max 512 }
+}
+
+// A session: a short-lived access token, sent as `Authorization: Bearer …`, and the refresh
+// token that renews it.
+message Session {
+  string access_token = 1;  // schemata: string { max 4096 }
+  string token_type = 2;  // schemata: default = "Bearer"
+  // Seconds until the access token expires.
+  int32 expires_in = 3;  // schemata: int32 { min 1 }
+  string refresh_token = 4;  // schemata: string { max 512 }
+  string user_id = 5;  // schemata: uuid
+}
+
+// Sign up, sign in, and sign out. Only signing out needs a session.
+service Auth {
+  // Create an account and start its first session.
+  rpc Register(.storefront.auth.Register) returns (Session);  // schemata: post "/auth/register"
+  // Start a session.
+  rpc Login(.storefront.auth.Login) returns (Session);  // schemata: post "/auth/login"
+  // Trade a refresh token for a new session.
+  rpc Refresh(RefreshToken) returns (Session);  // schemata: post "/auth/refresh"
+  // End the session the refresh token belongs to.
+  rpc Logout(RefreshToken) returns (.google.protobuf.Empty);  // schemata: post "/auth/logout"
+}

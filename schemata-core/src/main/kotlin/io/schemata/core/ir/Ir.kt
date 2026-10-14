@@ -50,7 +50,11 @@ data class Namespace(
     val doc: String? = null,
 )
 
-/** A `service` block: operations in source order; [reserved] holds retired operations. */
+/**
+ * A `service` block: operations in source order; [reserved] holds retired operations; [errors] is
+ * the service's own `errors` clause in source order, which every operation inherits
+ * ([effectiveErrors]).
+ */
 data class Service(
     val qualifiedName: QualifiedName,
     val name: String,
@@ -60,11 +64,14 @@ data class Service(
     val span: Span,
     val nameSpan: Span,
     val annotations: Annotations = Annotations.NONE,
+    val errors: List<ErrorResponse> = emptyList(),
 )
 
 /**
  * [ordinal] is the operation's stable identity, as a field's. [request] is null for `()`,
- * [response] when the operation returns nothing, [binding] when no HTTP route is written.
+ * [response] when the operation returns nothing, [binding] when no HTTP route is written. [status]
+ * is the success code written after the path, null for the default rule ([successStatus]); [errors]
+ * is the operation's own `errors` clause in source order.
  */
 data class Operation(
     val ordinal: Int,
@@ -76,10 +83,34 @@ data class Operation(
     val span: Span,
     val nameSpan: Span,
     val annotations: Annotations = Annotations.NONE,
+    val status: Int? = null,
+    val errors: List<ErrorResponse> = emptyList(),
 )
 
 /** [target] is a record or a union; [stream] means many messages instead of one. */
 data class Payload(val target: QualifiedName, val stream: Boolean)
+
+/**
+ * One entry of an `errors` clause: [code] is 400 to 599, or null for `default`, which stands for
+ * every error status the clause does not list; [body] is a record or a union, or null for a code
+ * written without one.
+ */
+data class ErrorResponse(val code: Int?, val body: QualifiedName?)
+
+/** The HTTP status of a success: the written code, else 200 with a response and 204 without. */
+fun Operation.successStatus(): Int = status ?: if (response != null) 200 else 204
+
+/**
+ * The error responses [operation] answers with: [service]'s clause merged with the operation's own,
+ * the operation's entry replacing the service's for a code both list, even when it has no body;
+ * ascending by code, with `default` last.
+ */
+fun effectiveErrors(service: Service, operation: Operation): List<ErrorResponse> {
+    val byCode = LinkedHashMap<Int?, ErrorResponse>()
+    service.errors.forEach { byCode[it.code] = it }
+    operation.errors.forEach { byCode[it.code] = it }
+    return byCode.values.sortedWith(compareBy<ErrorResponse, Int?>(nullsLast()) { it.code })
+}
 
 /** [path] as written; [parameters] are its `{name}` segments in path order. */
 data class HttpBinding(val verb: Verb, val path: String, val parameters: List<String>) {

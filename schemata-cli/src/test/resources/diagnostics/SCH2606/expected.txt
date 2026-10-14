@@ -1,0 +1,18 @@
+# targets=openapi
+error[SCH2606] (openapi): schema 's': @openapi(auth) names 'basic', which the schema does not declare
+ --> s.schemata:1:1
+  = help: declare it on the schema line with `@openapi(basic)`, or name a declared scheme
+
+error[SCH2606] (openapi): schema 's': @openapi(scopes) applies to no oauth2 or openid scheme
+ --> s.schemata:1:1
+  = help: require oauth2 or openid with `@openapi(auth: oauth2)` at the same level, or remove the scopes
+
+error[SCH2606] (openapi): operation 'ping': @openapi(auth) names none together with a scheme
+ --> s.schemata:7:6
+  = help: write `@openapi(auth: none)` alone, or leave none out
+
+error[SCH2606] (openapi): operation 'pong': @openapi(auth) names 'jwt', which is not a scheme
+ --> s.schemata:9:6
+  = help: name bearer, basic, api_key, oauth2, openid, or none
+
+4 errors, 0 warnings

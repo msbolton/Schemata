@@ -443,8 +443,9 @@ object Formatter {
         }
 
         /**
-         * Always the braced form, one operation per line, except that a service with no members at
-         * all prints as `service S {}`.
+         * Always the braced form, one member per line in source order (an operation, a `reserved`
+         * statement, or the service's own `errors` clause), except that a service with no members
+         * at all prints as `service S {}`.
          */
         internal fun service(s: ServiceDecl, indent: String): String = buildString {
             comments.leading[s.span]?.forEach { appendLine(indent + it.text) }
@@ -458,9 +459,14 @@ object Formatter {
                     BodyMember(it.span, isNested = false, operationLines(it, innerIndent, ordWidth))
             }
             members += reservedMembers(s.reserved, innerIndent)
+            s.errors.forEach {
+                members +=
+                    BodyMember(it.span, isNested = false, serviceErrorsLines(it, innerIndent))
+            }
             val canOneLine =
                 s.operations.isEmpty() &&
                     s.reserved.isEmpty() &&
+                    s.errors.isEmpty() &&
                     comments.headerTrailing[s.span].isNullOrEmpty() &&
                     comments.endOfBlock[s.span].isNullOrEmpty()
             append(block(indent, "service ${s.name}", s.span, canOneLine, "", members))

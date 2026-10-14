@@ -8,9 +8,12 @@ import io.schemata.lang.ast.AliasDecl
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.AnnotationArg
 import io.schemata.lang.ast.AnnotationValue
+import io.schemata.lang.ast.BindingDecl
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
 import io.schemata.lang.ast.EnumValueDecl
+import io.schemata.lang.ast.ErrorResponseDecl
+import io.schemata.lang.ast.ErrorsDecl
 import io.schemata.lang.ast.FieldDecl
 import io.schemata.lang.ast.ImportDecl
 import io.schemata.lang.ast.Literal
@@ -29,6 +32,12 @@ import io.schemata.lang.ast.UnionMemberDecl
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.TerminalNode
+
+/** The word that opens an `errors { … }` clause; any other word there is SCH0010. */
+private const val ERRORS_WORD = "errors"
+
+/** The code word for every error status an `errors` clause does not list. */
+private const val DEFAULT_WORD = "default"
 
 /**
  * Parse tree → AST, including what the 1.x surface could not say: option blocks, postfix lists, and
@@ -337,26 +346,49 @@ internal class AstBuilder(
         )
     }
 
+    /**
+     * Operations, `errors` clauses and reserved statements, each built in source order so that the
+     * diagnostics of operations and clauses interleave as they are written; a clause the grammar
+     * read after an operation but that opens on a later line is the service's (see [build] of an
+     * operation).
+     */
     private fun build(ctx: SchemataParser.ServiceDeclContext): ServiceDecl {
         val doc = doc(ctx.doc())
         val annotations = ctx.attribute().map { build(it) }
         val members = ctx.serviceMember()
+        val where = "service '${ctx.IDENT().text}'"
+        val operations = mutableListOf<OperationDecl>()
+        val errors = mutableListOf<ErrorsDecl>()
+        for (member in members) {
+            member.operation()?.let { op ->
+                val (built, detached) = build(op)
+                operations += built
+                detached?.let { errors += clause(it, where) }
+            }
+            member.errorsClause()?.let { errors += clause(it, where) }
+        }
         return ServiceDecl(
             name = ctx.IDENT().text,
             nameSpan = ctx.IDENT().symbol.span(),
-            operations = members.mapNotNull { it.operation() }.map { build(it) },
+            operations = operations,
             reserved = members.mapNotNull { it.reservedStmt() }.flatMap { build(it) },
             doc = doc,
             annotations = annotations,
             span = ctx.span(),
+            errors = errors,
         )
     }
 
     /**
      * The request is told from the response by where each payload sits relative to the `)`, found
-     * by its token type.
+     * by its token type. The grammar gives an operation any `errors` clause that follows it; the
+     * clause is the operation's only when it opens on the line where the signature or the binding
+     * ends. Otherwise it comes back as the second value, for the service, and the operation's span
+     * stops before it.
      */
-    private fun build(ctx: SchemataParser.OperationContext): OperationDecl {
+    private fun build(
+        ctx: SchemataParser.OperationContext
+    ): Pair<OperationDecl, SchemataParser.ErrorsClauseContext?> {
         val doc = doc(ctx.doc())
         val annotations = ctx.attribute().map { build(it) }
         val close =
@@ -364,22 +396,111 @@ internal class AstBuilder(
                 it is TerminalNode && it.symbol.type == SchemataParser.RPAREN
             }
         val payloads = ctx.payload()
-        val request = payloads.firstOrNull { ctx.children.indexOf(it) < close }?.let { build(it) }
-        val response = payloads.firstOrNull { ctx.children.indexOf(it) > close }?.let { build(it) }
-        return OperationDecl(
-            ordinal = ctx.ORDINAL()?.let { support.ordinal(it) },
-            ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
-            name = ctx.IDENT().text,
-            nameSpan = ctx.IDENT().symbol.span(),
-            request = request,
-            response = response,
-            binding =
-                ctx.binding()?.let { support.binding(it.IDENT(), it.STRING_LITERAL(), it.span()) },
-            doc = doc,
-            annotations = annotations,
-            span = ctx.span(),
+        val requestCtx = payloads.firstOrNull { ctx.children.indexOf(it) < close }
+        val responseCtx = payloads.firstOrNull { ctx.children.indexOf(it) > close }
+        val request = requestCtx?.let { build(it) }
+        val response = responseCtx?.let { build(it) }
+        val ordinal = ctx.ORDINAL()?.let { support.ordinal(it) }
+        val name = ctx.IDENT().text
+        val where = "operation '$name'"
+        val binding = ctx.binding()?.let { binding(it, where) }
+        val signatureEnd =
+            ctx.binding()?.stop ?: responseCtx?.stop ?: (ctx.children[close] as TerminalNode).symbol
+        val written = ctx.errorsClause()
+        val own = written?.takeIf { it.start.line == signatureEnd.line }
+        val errors = own?.let { clause(it, where) }
+        val span =
+            if (written != null && own == null) support.span(ctx.start, signatureEnd)
+            else ctx.span()
+        val op =
+            OperationDecl(
+                ordinal = ordinal,
+                ordinalSpan = ctx.ORDINAL()?.symbol?.span(),
+                name = name,
+                nameSpan = ctx.IDENT().symbol.span(),
+                request = request,
+                response = response,
+                binding = binding,
+                doc = doc,
+                annotations = annotations,
+                span = span,
+                errors = errors,
+            )
+        return op to written?.takeIf { own == null }
+    }
+
+    /** The route, with the success code that may end it. [where] names the operation. */
+    private fun binding(ctx: SchemataParser.BindingContext, where: String): BindingDecl {
+        val binding = support.binding(ctx.IDENT(), ctx.STRING_LITERAL(), ctx.span())
+        val code = ctx.INT_LITERAL() ?: return binding
+        return binding.copy(
+            status = support.code(code, "$where: success code"),
+            statusSpan = code.symbol.span(),
         )
     }
+
+    /**
+     * `errors { 404 Problem 410 default Problem }`. The grammar reads the entries as a flat run of
+     * codes and types: an integer or a bare `default` starts an entry, and a type right after it is
+     * its body. Anything else where a code belongs is SCH0010, as is a clause opened by a word
+     * other than `errors`; a malformed integer is reported and its entry left out. [where] names
+     * the operation or the service.
+     */
+    private fun clause(ctx: SchemataParser.ErrorsClauseContext, where: String): ErrorsDecl {
+        val word = ctx.IDENT()
+        if (word.text != ERRORS_WORD) {
+            diagnostics +=
+                Diagnostic(
+                    LangCodes.ERRORS_SYNTAX,
+                    "$where: '${word.text}' is not a clause",
+                    word.symbol.span(),
+                    help =
+                        "only an errors { … } clause can follow an operation or stand in a service",
+                )
+        }
+        val responses = mutableListOf<ErrorResponseDecl>()
+        // whether the last entry is a code still waiting for its body
+        var open = false
+        for (item in ctx.errorItem()) {
+            val integer = item.INT_LITERAL()
+            val type = item.typeExpr()
+            when {
+                integer != null -> {
+                    val code = support.code(integer, "$where: error code")
+                    val span = integer.symbol.span()
+                    if (code != null) responses += ErrorResponseDecl(code, span, null, span)
+                    open = code != null
+                }
+                type != null && type.text == DEFAULT_WORD -> {
+                    val span = item.span()
+                    responses += ErrorResponseDecl(null, span, null, span)
+                    open = true
+                }
+                type != null && open -> {
+                    val last = responses.removeAt(responses.size - 1)
+                    val body = build(type)
+                    responses += last.copy(body = body, span = through(last.codeSpan, body.span))
+                    open = false
+                }
+                else -> {
+                    diagnostics +=
+                        Diagnostic(
+                            LangCodes.ERRORS_SYNTAX,
+                            "$where: error code '${item.text}' is not an integer or default",
+                            item.span(),
+                            help =
+                                "write a code from 400 to 599 or default, each followed by its body if it has one",
+                        )
+                    open = false
+                }
+            }
+        }
+        return ErrorsDecl(responses, ctx.span())
+    }
+
+    /** From the start of [from] to the end of [to]. */
+    private fun through(from: Span, to: Span): Span =
+        Span(from.file, from.startLine, from.startColumn, to.endLine, to.endColumn)
 
     private fun build(ctx: SchemataParser.PayloadContext): PayloadDecl =
         PayloadDecl(build(ctx.typeExpr()), ctx.STREAM() != null, ctx.span())

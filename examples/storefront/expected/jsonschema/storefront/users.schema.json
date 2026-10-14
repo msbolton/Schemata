@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.users",
+  "title": "storefront.users",
+  "$defs": {
+    "AddressKind": {
+      "type": "string",
+      "enum": [
+        "shipping",
+        "billing"
+      ]
+    },
+    "Profile": {
+      "description": "The signed-in customer.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "email": {
+          "type": "string",
+          "pattern": "^[^@]+@[^@]+$",
+          "maxLength": 254
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "phone": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 32
+        },
+        "marketing": {
+          "type": "boolean",
+          "default": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "etag": {
+          "description": "The version of the profile, for a later conditional update.",
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name",
+        "created_at",
+        "etag"
+      ],
+      "additionalProperties": false
+    },
+    "UpdateProfile": {
+      "description": "The parts of the profile to change; a field left out keeps its value.",
+      "type": "object",
+      "properties": {
+        "if_match": {
+          "description": "The `ETag` the profile was read with; the update fails with 412 when it changed since.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "phone": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 32
+        },
+        "marketing": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "if_match"
+      ],
+      "additionalProperties": false
+    },
+    "Address": {
+      "description": "A postal address in the address book.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "kind": {
+          "$ref": "#/$defs/AddressKind"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "line1": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "line2": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "city": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "postal_code": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "country": {
+          "description": "A two-letter ISO 3166-1 country code.",
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "minLength": 2,
+          "maxLength": 2
+        },
+        "is_default": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "line1",
+        "city",
+        "postal_code",
+        "country"
+      ],
+      "additionalProperties": false
+    },
+    "AddressId": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AddressBook": {
+      "description": "Every address of the customer, default addresses first.",
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Address"
+          }
+        }
+      },
+      "required": [
+        "etag",
+        "items"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

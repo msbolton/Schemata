@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package storefront.cart;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "storefront/common.proto";
+
+// What the customer means to buy.
+message Cart {
+  string id = 1;  // schemata: uuid
+  repeated Line lines = 2;
+  .storefront.common.Money subtotal = 3;
+  .google.protobuf.Timestamp updated_at = 4;
+
+  // A variant of a product, and how many of it.
+  message Line {
+    string product_id = 1;  // schemata: uuid
+    string sku = 2;  // schemata: string { max 64 }
+    int32 quantity = 3;  // schemata: int32 { min 1, max 99 }
+    .storefront.common.Money unit_price = 4;
+  }
+}
+
+// A variant to put in the cart; one already there gains the quantity.
+message AddItem {
+  string sku = 1;  // schemata: string { max 64 }
+  string product_id = 2;  // schemata: uuid
+  int32 quantity = 3;  // schemata: int32 { min 1, max 99 }; default = 1
+}
+
+// A new quantity for a variant in the cart.
+message SetQuantity {
+  string sku = 1;  // schemata: string { max 64 }
+  int32 quantity = 2;  // schemata: int32 { min 1, max 99 }
+}
+
+message ItemSku {
+  string sku = 1;  // schemata: string { max 64 }
+}
+
+// Fill and empty the cart.
+service Carts {
+  rpc GetCart(.google.protobuf.Empty) returns (Cart);  // schemata: get "/cart"
+  rpc AddItem(.storefront.cart.AddItem) returns (Cart);  // schemata: post "/cart/items"
+  rpc SetQuantity(.storefront.cart.SetQuantity) returns (Cart);  // schemata: patch "/cart/items/{sku}"
+  rpc RemoveItem(ItemSku) returns (Cart);  // schemata: delete "/cart/items/{sku}"
+  rpc Clear(.google.protobuf.Empty) returns (.google.protobuf.Empty);  // schemata: delete "/cart"
+}

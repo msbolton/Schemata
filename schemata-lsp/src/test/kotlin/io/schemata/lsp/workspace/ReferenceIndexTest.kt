@@ -264,6 +264,30 @@ class ReferenceIndexTest {
     }
 
     @Test
+    fun `an error body is a type reference that goes to its declaration`() {
+        val f = Fixture(dir)
+        val common =
+            f.open(
+                "shop/common.schemata",
+                "schema shop.common\nmodel Problem { #1 title string }\n",
+            )
+        val api =
+            f.open(
+                "shop/api.schemata",
+                "schema shop.api\nimport shop.common\nmodel A { #1 x int32 }\n" +
+                    "service S {\n  errors { 500 Problem }\n" +
+                    "  #1 a(A): A  post \"/a\"  errors { 409 Problem }\n}\n",
+            )
+        val declaration = listOf(f.location(common, "Problem"))
+        assertEquals(declaration, f.queries.definition(api, f.at(api, "Problem }")))
+        assertEquals(declaration, f.queries.definition(api, f.at(api, "Problem }", 1)))
+        assertEquals(
+            setOf(f.location(api, "Problem"), f.location(api, "Problem", 1)),
+            f.queries.references(common, f.at(common, "Problem"), false).toSet(),
+        )
+    }
+
+    @Test
     fun `go to definition crosses a back-reference`() {
         val f = Fixture(dir)
         val a =
