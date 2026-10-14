@@ -179,7 +179,12 @@ internal class OperationLowering(
 
     fun lower(): List<LoweredService> {
         schemas.declarations()[namespace].orEmpty().forEach { top.claim(it.name) }
-        return groups().map(::service)
+        val groups = groups()
+        // every service is named before any operation makes a model, so a model whose name a
+        // service has takes a suffix instead
+        val names = groups.map(::serviceName)
+        names.forEach { schemas.reserve(namespace, it) }
+        return groups.zip(names, ::service)
     }
 
     private fun groups(): List<Group> {
@@ -217,7 +222,8 @@ internal class OperationLowering(
             listOfNotNull(untagged.takeIf { it.operations.isNotEmpty() })
     }
 
-    private fun service(group: Group): LoweredService {
+    /** The service name [group] claims at the top of the namespace, reporting a change. */
+    private fun serviceName(group: Group): String {
         val tag = group.tag
         val valid = tag != null && OpenApiNames.ID.matches(tag)
         val wanted = ImportNames.upperCamel(tag ?: namespace.substringAfterLast('.'))
@@ -234,6 +240,12 @@ internal class OperationLowering(
                     wanted,
                 )
         }
+        return name
+    }
+
+    private fun service(group: Group, name: String): LoweredService {
+        val tag = group.tag
+        val valid = tag != null && OpenApiNames.ID.matches(tag)
         // the target names a tag after its service, unless `@openapi(name)` keeps another spelling
         val compiledTag = if (valid) tag!! else name
         val annotations = if (valid && name != tag) listOf(openapi("name", tag!!)) else emptyList()
@@ -306,7 +318,12 @@ internal class OperationLowering(
                 return droppedOperation(p.at, "path parameter '$wire' is not a scalar or an enum")
         }
         val (name, nameAnnotation) = name(found, compiledTag, names)
-        val opId = ImportNames.upperCamel(op.operationId ?: name)
+        // the models are named after the operationId the target writes back, so a compile and a
+        // second import give them the same names: the document's own when it is valid, since
+        // `@openapi(name)` keeps it, otherwise `<Tag>_<name>`
+        val written =
+            op.operationId?.takeIf { OpenApiNames.ID.matches(it) } ?: "${compiledTag}_$name"
+        val opId = ImportNames.upperCamel(written)
         val bodyVerb = found.verb in BODY_VERBS
         val owner = "${opId}Request"
         val fields = Scope()
@@ -819,14 +836,14 @@ internal class OperationLowering(
         val node = media.node.path("schema")
         val ref = schema.`$ref`
         val target = if (ref != null) (refs.resolve(media.doc, at, ref) ?: return null) else null
-        val kind =
-            if (target != null) kind(target.doc, target.pointer, target.node)
-            else kind(media.doc, at, node)
-        // a component is read from its own document's tree, which a file reached only through a
-        // `$ref` has even though its model is empty
-        val component = target?.takeIf { it.name != null && it.section == "schemas" }
+        // a reference is read as the declaration its component lowers to; one that declares
+        // nothing, such as an alias or a schema inside a component, is wrapped. A component is
+        // read from its own document's tree, which a file reached only through a `$ref` has even
+        // though its model is empty
+        val declared = target?.let(schemas::declarationKind)
+        val kind = if (target == null) kind(media.doc, at, node) else null
         return when {
-            target != null && kind == Kind.MODEL && beside != null && component != null -> {
+            declared == DeclKind.MODEL && beside != null -> {
                 report.at(
                     media.doc,
                     at,
@@ -843,7 +860,9 @@ internal class OperationLowering(
                     )
                 )
             }
-            target != null && beside == null && (kind == Kind.MODEL || kind == Kind.UNION) ->
+            target != null &&
+                beside == null &&
+                (declared == DeclKind.MODEL || declared == DeclKind.UNION) ->
                 Body.Named(schemas.refName(target, namespace))
             target == null && (kind == Kind.MODEL || (kind == Kind.UNION && beside == null)) ->
                 Body.Declared(schemas.declaration(media.doc, at, schema, wanted, into = namespace))
@@ -1072,7 +1091,7 @@ internal class OperationLowering(
             at,
             ImportCodes.RENAMED,
             "$kind '$wire' is imported as '$name', since '$wanted' is taken",
-            ImportCodes.RENAME_HELP,
+            SUFFIX_HELP,
         )
     }
 
@@ -1109,7 +1128,9 @@ internal class OperationLowering(
         /**
          * Whether the target can write [name] as a path or query parameter's name: not empty, and
          * free of whitespace, control characters and [PARAMETER_PUNCTUATION]. This must stay in
-         * step with the OpenAPI target's own rule, which refuses any other name.
+         * step with the target's own rule, which refuses any other name:
+         * `OpenApiLowering.isParameterName` in schemata-target-openapi, and its copy
+         * `OpenApiRules.isParameterName` in schemata-evolution.
          */
         fun isParameterName(name: String): Boolean =
             name.isNotEmpty() &&

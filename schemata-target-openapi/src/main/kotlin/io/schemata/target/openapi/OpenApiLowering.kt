@@ -783,7 +783,8 @@ private class NamespaceLowering(
         val MEDIA_HEADERS = setOf("accept", "content-type")
 
         // the characters a path segment or a query string would have to escape in a parameter
-        // name; keep in step with `OpenApiRules.isParameterName` in schemata-evolution
+        // name; keep in step with `OpenApiRules.isParameterName` in schemata-evolution and
+        // `OperationLowering.isParameterName` in schemata-import-openapi
         const val PARAMETER_PUNCTUATION = "{}/?#&=%"
 
         fun isParameterName(name: String): Boolean =

@@ -193,6 +193,14 @@ class SchemaLowering(
     }
 
     /**
+     * Takes [name] at the top level of [namespace] for something other than a declaration, such as
+     * a service, so a declaration [synthesize] makes there takes a suffix instead.
+     */
+    fun reserve(namespace: String, name: String) {
+        space(namespace).names.claim(name)
+    }
+
+    /**
      * How a field in [fromNamespace], outside any model, refers to the component [target], such as
      * `Cart.Line` or `storefront.common.Problem`. The target must be a model, enum or union.
      */
@@ -1463,7 +1471,6 @@ class SchemaLowering(
 
     private companion object {
         val STRING = UnitType.Scalar("string", emptyList())
-        const val SUFFIX_HELP = "rename one of them in the document, or keep the suffixed name"
         val OPEN = UnitAnnotation("jsonschema", "open", null)
 
         const val UUID_PATTERN =

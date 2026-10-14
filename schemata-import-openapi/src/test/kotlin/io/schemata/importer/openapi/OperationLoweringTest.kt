@@ -179,12 +179,12 @@ class OperationLoweringTest {
             """
             schema shop
 
-            model GetOrdersIdLinesRequest { id string }
+            model OrdersGetOrdersIdLinesRequest { id string }
 
             service Orders {
               #1 list()  get "/orders"
               @openapi(name: "createOrder") #2 create_order()  post "/orders"
-              #3 get_orders_id_lines(GetOrdersIdLinesRequest)  get "/orders/{id}/lines"
+              #3 get_orders_id_lines(OrdersGetOrdersIdLinesRequest)  get "/orders/{id}/lines"
               #4 export_orders()  get "/orders/export"
               @openapi(name: "list") #5 list2()  delete "/orders/export"
             }
@@ -1556,6 +1556,200 @@ class OperationLoweringTest {
             listOf(
                 "SCH2402 shop.yaml: #/paths/~1orders/get/parameters/0: parameter 'page\u2003size' is imported as 'page_size' with no @openapi(name), since the target cannot write it",
                 "SCH2402 shop.yaml: #/paths/~1orders/get/parameters/1: parameter 'next\u0085page' is imported as 'next_page' with no @openapi(name), since the target cannot write it",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `models of an operation without a valid id are named after the id the target writes`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                tags: [{name: order list}]
+                paths:
+                  /orders/{id}:
+                    get:
+                      tags: [order list]
+                      parameters:
+                        - {name: id, in: path, required: true, schema: {type: string}}
+                      responses: {'204': {description: No content}}
+                    delete:
+                      tags: [order list]
+                      operationId: cancel order
+                      parameters:
+                        - {name: id, in: path, required: true, schema: {type: string}}
+                      responses: {'204': {description: No content}}
+                """
+            )
+        val shop = text(r)
+        assertTrue("model OrderListGetOrdersIdRequest { id string }" in shop, shop)
+        assertTrue("model OrderListCancelOrderRequest { id string }" in shop, shop)
+    }
+
+    @Test
+    fun `an alias component as a response body is wrapped`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                paths:
+                  /orders:
+                    get:
+                      operationId: Shop_get
+                      responses:
+                        '200':
+                          description: Order
+                          content:
+                            application/json:
+                              schema: {${'$'}ref: '#/components/schemas/Alias'}
+                components:
+                  schemas:
+                    Alias: {${'$'}ref: '#/components/schemas/Order'}
+                    Order: {type: object, properties: {id: {type: string}}, required: [id], additionalProperties: false}
+                """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            model Order { id string }
+
+            model ShopGetResponse { items Order }
+
+            service Shop {
+              #1 get(): ShopGetResponse  get "/orders"
+            }
+            """
+                .trimIndent() + "\n",
+            text(r),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Alias: component 'Alias' is not a model, enum or union; each use takes its type",
+                "SCH2403 shop.yaml: #/paths/~1orders/get/responses/200/content/application~1json/schema: the body of response '200' is wrapped in 'ShopGetResponse' as field 'items', since it is not a model",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a request body naming a schema inside a component is wrapped`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                paths:
+                  /addresses:
+                    post:
+                      operationId: Shop_create
+                      requestBody:
+                        content:
+                          application/json:
+                            schema: {${'$'}ref: '#/components/schemas/Order/properties/address'}
+                      responses: {'204': {description: No content}}
+                components:
+                  schemas:
+                    Order:
+                      type: object
+                      properties:
+                        address:
+                          type: object
+                          properties: {city: {type: string}}
+                          required: [city]
+                          additionalProperties: false
+                      required: [address]
+                      additionalProperties: false
+                """
+            )
+        val shop = text(r)
+        assertTrue("#1 create(ShopCreateRequest)  post \"/addresses\"" in shop, shop)
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/paths/~1addresses/post/requestBody/content/application~1json/schema: the request body is wrapped in 'ShopCreateRequest' as field 'items', since it is not a model"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a closed object component without properties is a body by name`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                paths:
+                  /ping:
+                    get:
+                      operationId: Shop_ping
+                      responses:
+                        '200':
+                          description: Empty
+                          content:
+                            application/json:
+                              schema: {${'$'}ref: '#/components/schemas/Empty'}
+                components:
+                  schemas:
+                    Empty: {type: object, additionalProperties: false}
+                """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            model Empty {}
+
+            service Shop {
+              #1 ping(): Empty  get "/ping"
+            }
+            """
+                .trimIndent() + "\n",
+            text(r),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `a model made for an operation does not take a service's name`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                tags: [{name: Orders}]
+                paths:
+                  /orders:
+                    get:
+                      tags: [Orders]
+                      operationId: Orders_list
+                      responses:
+                        '200':
+                          description: Orders
+                          headers:
+                            X-Total: {required: true, schema: {type: integer, format: int32}}
+                """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            model Orders2 { x_total int32 @openapi(header: "X-Total") }
+
+            service Orders {
+              #1 list(): Orders2  get "/orders"
+            }
+            """
+                .trimIndent() + "\n",
+            text(r),
+        )
+        assertEquals(
+            listOf(
+                "SCH2402 shop.yaml: #/paths/~1orders/get/responses/200: model 'Orders' is imported as 'Orders2', since 'Orders' is taken"
             ),
             messages(r),
         )
