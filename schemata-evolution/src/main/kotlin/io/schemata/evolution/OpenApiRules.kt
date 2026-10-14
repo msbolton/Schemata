@@ -6,6 +6,7 @@ import io.schemata.core.ir.Operation
 import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.Service
 import io.schemata.core.ir.service
+import io.schemata.core.ir.services
 import io.schemata.target.HttpSecurity
 import io.schemata.target.SecurityRequirement
 import io.schemata.target.string
@@ -24,6 +25,7 @@ object OpenApiRules : Rulebook {
     override val target = "openapi"
 
     private const val HEADER = "header"
+    private const val NAME = "name"
 
     /** The keys whose change moves the requirement of every operation beneath them. */
     private val REQUIREMENT_KEYS = setOf("auth", "scopes")
@@ -256,8 +258,9 @@ object OpenApiRules : Rulebook {
      * pin its own; on an operation it replaces the `operationId`. Either is compatible only while
      * the emitted name stays the same, as when a pin is added alongside a rename. `auth` and
      * `scopes` are judged on the requirements they move, a schema line's scheme keys on the
-     * credentials clients send, and `header` on where a field travels; the namespace's other keys
-     * (`version`, `server`) describe the document, not any operation.
+     * credentials clients send, and `header` on where a field travels; a field's `name` on the path
+     * or query parameter it names; the namespace's other keys (`version`, `server`) describe the
+     * document, not any operation.
      */
     private fun annotationChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
         val owner = change.newOwner
@@ -267,6 +270,7 @@ object OpenApiRules : Rulebook {
                 return schemeChanged(change, ctx, owner)
             if (owner is FieldOwner && change.key == HEADER)
                 return headerChanged(change, ctx, owner)
+            if (owner is FieldOwner && change.key == NAME) return parameterNameChanged(change, ctx)
         }
         return when (owner) {
             is ServiceOwner,
@@ -495,6 +499,59 @@ object OpenApiRules : Rulebook {
                 )
         }
     }
+
+    /**
+     * `@openapi(name)` on a field names the path or query parameter the field becomes, so a change
+     * to the name it emits breaks clients that send the parameter, where an operation of OLD takes
+     * the field as one: a field its binding's path names, or any field of its request when its verb
+     * (`get`, `delete`, `head`, `options`) reads the request from the query. A field with
+     * `@openapi(header)` is a header named by that, and on any other model the name changes
+     * nothing; a name the target refuses falls back to the field's own.
+     */
+    private fun parameterNameChanged(change: AnnotationChanged, ctx: ChangeContext): Verdict {
+        val old = change.oldOwner as? FieldOwner ?: return Verdict.Compatible
+        val new = change.newOwner as? FieldOwner ?: return Verdict.Compatible
+        if (!isParameter(old, ctx)) return Verdict.Compatible
+        val from = parameterName(old.field)
+        val to = parameterName(new.field)
+        if (from == to) return Verdict.Compatible
+        return Verdict.Breaking(
+            "${change.path}: the parameter name changes from '$from' to '$to', which breaks " +
+                "clients that send it",
+            "keep @openapi(name: \"$from\")",
+        )
+    }
+
+    /** Whether some operation of OLD takes [owner]'s field as a path or query parameter. */
+    private fun isParameter(owner: FieldOwner, ctx: ChangeContext): Boolean {
+        val field = owner.field
+        if (field.annotations.string(target, HEADER) != null) return false
+        val record = owner.record.qualifiedName
+        return ctx.old.services().any { service ->
+            service.operations.any { op ->
+                val request = op.request
+                val binding = op.binding
+                request != null &&
+                    !request.stream &&
+                    request.target == record &&
+                    binding != null &&
+                    (field.name in binding.parameters || binding.verb.parameterised)
+            }
+        }
+    }
+
+    /** The parameter name [field] is written with: its valid `@openapi(name)`, else its name. */
+    private fun parameterName(field: Field): String =
+        field.annotations.string(target, NAME)?.takeIf(::isParameterName) ?: field.name
+
+    /**
+     * What the OpenAPI target accepts as a parameter name: not empty, and no whitespace, control
+     * character, or any of `{ } / ? # & = %`; keep in step with `OpenApiLowering.isParameterName`,
+     * which this module cannot depend on.
+     */
+    private fun isParameterName(name: String): Boolean =
+        name.isNotEmpty() &&
+            name.none { it.isWhitespace() || it.isISOControl() || it in "{}/?#&=%" }
 
     private fun deprecationChanged(change: DeprecationChanged, ctx: ChangeContext): Verdict {
         val word =

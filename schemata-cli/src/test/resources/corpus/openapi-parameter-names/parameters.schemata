@@ -1,0 +1,33 @@
+/// Orders, with the parameter names their clients send.
+schema corpus.parameters
+
+model OrderId { #1 order_id uuid @openapi(name: "orderId") }
+
+model LineId {
+  #1 order_id uuid  @openapi(name: "orderId")
+  #2 line_no  int32 @openapi(name: "lineNo")
+}
+
+/// Which orders to list.
+model ListOrders {
+  /// How many orders one page holds.
+  #1 page_size int32?  @openapi(name: "pageSize")
+  #2 sort_by   string? @openapi(name: "sort-by")
+  #3 status    string? @jsonschema(name: "orderStatus") @openapi(name: "orderStatus")
+}
+
+model Rename { #1 order_id uuid @openapi(name: "orderId")  #2 note string }
+
+model Order { #1 id uuid  #2 total int64 }
+
+/// One page of orders.
+model Page { #1 items Order[] }
+
+/// Read orders and their lines.
+service Orders {
+  #1 list(ListOrders): Page  get "/orders"
+  #2 get(OrderId): Order  get "/orders/{order_id}"
+  #3 line(LineId): Order  get "/orders/{order_id}/lines/{line_no}"
+  #4 annotate(Rename): Order  put "/orders/{order_id}"
+  #5 cancel(OrderId)  delete "/orders/{order_id}"
+}

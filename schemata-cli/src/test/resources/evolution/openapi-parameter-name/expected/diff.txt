@@ -1,0 +1,30 @@
+s.OrderId
+  field 'order_id': @openapi(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+s.ListOrders
+  field 'cursor': @openapi(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  field 'page_size': @openapi(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+s.Order
+  field 'total': @openapi(name) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+
+4 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 2 breaking, 0 notes
+
+error[SCH2501]: openapi: s.OrderId.order_id: the parameter name changes from 'order_id' to 'orderId', which breaks clients that send it
+ --> new/orders.schemata:3:20
+  |
+3 | model OrderId { #1 order_id uuid { id } @openapi(name: "orderId") }
+  |                    ^^^^^^^^
+  = help: keep @openapi(name: "order_id")
+
+error[SCH2501]: openapi: s.ListOrders.page_size: the parameter name changes from 'page_size' to 'pageSize', which breaks clients that send it
+ --> new/orders.schemata:5:73
+  |
+5 | model ListOrders { #1 cursor string { id } @openapi(name: "cursor")  #2 page_size int32? @openapi(name: "pageSize") }
+  |                                                                         ^^^^^^^^^
+  = help: keep @openapi(name: "page_size")
+
+2 errors, 0 warnings

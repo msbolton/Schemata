@@ -1,0 +1,9 @@
+schema s
+
+model Q { #1 page int32? @openapi(name: "p")  #2 p int32? }
+
+model R { #1 ok bool }
+
+service S {
+  #1 find(Q): R  get "/find"
+}

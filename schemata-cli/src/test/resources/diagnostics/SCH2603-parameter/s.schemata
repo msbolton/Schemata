@@ -1,0 +1,9 @@
+schema s
+
+model Q { #1 text string @openapi(name: "a b") }
+
+model R { #1 ok bool }
+
+service S {
+  #1 find(Q): R  get "/find"
+}
