@@ -608,9 +608,9 @@ class SchemaLowering(
     /**
      * A union from a `oneOf` or `anyOf`. Each member is a reference, a scalar, or an inline schema
      * declared beside the union as `<Union>Member<n>`. In the target's own form each member is a
-     * closed object of one required property, the member's tag; a tag that is not the one the
-     * target would write is approximated. A `null` member makes each use of the union nullable
-     * instead.
+     * closed object of one required property, the member's tag. A scalar under a tag that names a
+     * model is that model carried by its key; any other tag that is not the one the target would
+     * write is approximated. A `null` member makes each use of the union nullable instead.
      */
     private fun union(decl: Decl, doc: OpenApiDoc, at: Pointer, node: JsonNode): UnitUnion {
         val key = choiceKey(node)

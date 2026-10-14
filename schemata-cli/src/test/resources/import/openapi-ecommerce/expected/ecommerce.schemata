@@ -1,0 +1,782 @@
+/// The storefront's public API: accounts, the catalog, the cart, checkout, orders, payments and reviews.
+///
+/// Admin operations need an OAuth2 token with the scope each one names.
+schema ecommerce @openapi(version: "2.3.0") @openapi(server: "https://api.shop.example.com/v1") @openapi(bearer: "JWT") @openapi(api_key: "header X-API-Key") @openapi(oauth2_token_url: "https://auth.shop.example.com/token") @openapi(oauth2_authorization_url: "https://auth.shop.example.com/authorize") @openapi(auth: bearer)
+
+/// A problem report, as RFC 9457 describes one.
+model Problem {
+  type     string  = "about:blank"
+  title    string
+  status   int32   { min 100, max 599 }
+  detail   string?
+  instance string?
+
+  @@jsonschema(open)
+}
+
+/// One field that failed its checks.
+model FieldError {
+  /// A JSON pointer into the request.
+  field   string
+  message string
+
+  @@jsonschema(open)
+}
+
+/// A problem report naming the fields that failed their checks.
+model ValidationProblem {
+  type     string       = "about:blank"
+  title    string
+  status   int32        { min 100, max 599 }
+  detail   string?
+  instance string?
+  errors   FieldError[] { minItems 1 }
+
+  @@jsonschema(open)
+}
+
+/// Where a page sits in the whole listing.
+model PageInfo {
+  page        int32 { min 1 }
+  page_size   int32 { min 1, max 100 } @jsonschema(name: "pageSize")
+  total_items int64 { min 0 } @jsonschema(name: "totalItems")
+  total_pages int32 { min 0 } @jsonschema(name: "totalPages")
+
+  @@jsonschema(open)
+}
+
+/// The tokens a sign-in gives.
+model AuthTokens {
+  access_token  string @jsonschema(name: "accessToken")
+  refresh_token string @jsonschema(name: "refreshToken")
+  /// Seconds until the access token expires.
+  expires_in    int32  { min 1 } @jsonschema(name: "expiresIn")
+  token_type    string @jsonschema(name: "tokenType")
+
+  @@jsonschema(open)
+}
+
+/// What a user may do.
+enum Role {
+  @jsonschema(name: "CUSTOMER") customer
+  @jsonschema(name: "SUPPORT") support
+  @jsonschema(name: "ADMIN") admin
+}
+
+/// A customer's account.
+model User {
+  id               uuid
+  email            string
+  display_name     string  { max 80 } @jsonschema(name: "displayName")
+  phone            string? { match "^\+[1-9][0-9]{6,14}$" }
+  marketing_opt_in bool    @jsonschema(name: "marketingOptIn") = false
+  created_at       instant @jsonschema(name: "createdAt")
+
+  @@jsonschema(open)
+}
+
+/// A user as the back office sees one.
+model AdminUser {
+  id               uuid
+  email            string
+  display_name     string   { max 80 } @jsonschema(name: "displayName")
+  phone            string?  { match "^\+[1-9][0-9]{6,14}$" }
+  marketing_opt_in bool     @jsonschema(name: "marketingOptIn") = false
+  created_at       instant  @jsonschema(name: "createdAt")
+  roles            Role[]   { minItems 1 }
+  last_login_at    instant? @jsonschema(name: "lastLoginAt")
+
+  @@jsonschema(open)
+}
+
+/// A postal address.
+model Address {
+  id          uuid?
+  line1       string  { max 200 }
+  line2       string? { max 200 }
+  city        string  { max 100 }
+  region      string? { max 100 }
+  postal_code string  { max 20 } @jsonschema(name: "postalCode")
+  country     string  { match "^[A-Z]{2}$" }
+  is_default  bool    @jsonschema(name: "isDefault") = false
+
+  @@jsonschema(open)
+}
+
+/// An amount in one currency.
+model Money {
+  amount   decimal(12, 2)
+  currency string         { match "^[A-Z]{3}$" }
+
+  @@jsonschema(open)
+}
+
+/// A category of products.
+model Category {
+  id        uuid
+  slug      string { match "^[a-z0-9-]+$" }
+  name      string { max 100 }
+  parent_id uuid?  @jsonschema(name: "parentId")
+
+  @@jsonschema(open)
+}
+
+/// The order to list products in.
+enum ProductSort {
+  @jsonschema(name: "RELEVANCE") relevance
+  @jsonschema(name: "PRICE_ASC") price_asc
+  @jsonschema(name: "PRICE_DESC") price_desc
+  @jsonschema(name: "NEWEST") newest
+}
+
+/// A product as a listing shows it.
+model ProductSummary {
+  id            uuid
+  sku           string    { max 64 }
+  name          string    { max 200 }
+  price         Money
+  category      Category?
+  thumbnail_url string?   @jsonschema(name: "thumbnailUrl")
+  in_stock      bool      @jsonschema(name: "inStock")
+  tags          string[]? { maxItems 10 }
+
+  @@jsonschema(open)
+}
+
+/// A product with everything about it.
+model Product {
+  id            uuid
+  sku           string               { max 64 }
+  name          string               { max 200 }
+  price         Money
+  category      Category?
+  thumbnail_url string?              @jsonschema(name: "thumbnailUrl")
+  in_stock      bool                 @jsonschema(name: "inStock")
+  tags          string[]?            { maxItems 10 }
+  description   string               { max 10000 }
+  images        string[]?            { maxItems 20 }
+  /// Free-text attributes such as material.
+  attributes    map<string, string>?
+  legacy_sku    string?              @deprecated @jsonschema(name: "legacySku")
+  created_at    instant?             @jsonschema(name: "createdAt")
+  updated_at    instant?             @jsonschema(name: "updatedAt")
+
+  @@jsonschema(open)
+}
+
+/// A new product.
+model ProductInput {
+  sku         string { max 64 }
+  name        string { max 200 }
+  price       Money
+  description string { max 10000 }
+  category_id uuid?  @jsonschema(name: "categoryId")
+  stock       int32  { min 0 } = 0
+
+  @@jsonschema(open)
+}
+
+/// One page of products.
+model ProductPage {
+  items ProductSummary[]
+  page  PageInfo
+
+  @@jsonschema(open)
+}
+
+/// The products a search found.
+model SearchResults {
+  items      ProductSummary[]    { maxItems 50 }
+  total_hits int64               { min 0 } @jsonschema(name: "totalHits")
+  /// Hits by category slug.
+  facets     map<string, int64>?
+
+  @@jsonschema(open)
+}
+
+/// A product in the cart.
+model CartItem {
+  sku        string { max 64 }
+  product_id uuid   @jsonschema(name: "productId")
+  name       string
+  quantity   int32  { min 1, max 99 }
+  unit_price Money  @jsonschema(name: "unitPrice")
+  line_total Money  @jsonschema(name: "lineTotal")
+
+  @@jsonschema(open)
+}
+
+/// The items the customer means to buy.
+model Cart {
+  id         uuid
+  items      CartItem[]
+  subtotal   Money
+  updated_at instant    @jsonschema(name: "updatedAt")
+
+  @@jsonschema(open)
+}
+
+/// Where an order is in its life.
+enum OrderStatus {
+  @jsonschema(name: "PENDING") pending
+  @jsonschema(name: "PAID") paid
+  @jsonschema(name: "SHIPPED") shipped
+  @jsonschema(name: "DELIVERED") delivered
+  @jsonschema(name: "CANCELLED") cancelled
+  @jsonschema(name: "REFUNDED") refunded
+}
+
+/// A product bought, at the price it had.
+model OrderItem {
+  product_id uuid   @jsonschema(name: "productId")
+  sku        string { max 64 }
+  name       string { max 200 }
+  quantity   int32  { min 1 }
+  unit_price Money  @jsonschema(name: "unitPrice")
+
+  @@jsonschema(open)
+}
+
+/// An order checkout placed.
+model Order {
+  id               uuid
+  number           string      { max 20 }
+  status           OrderStatus
+  items            OrderItem[] { minItems 1 }
+  shipping_address Address?    @jsonschema(name: "shippingAddress")
+  totals           OrderTotals
+  coupon_code      string?     @jsonschema(name: "couponCode")
+  placed_at        instant     @jsonschema(name: "placedAt")
+
+  model OrderTotals {
+    subtotal Money
+    shipping Money
+    tax      Money
+    total    Money
+
+    @@jsonschema(open)
+  }
+
+  @@jsonschema(open)
+}
+
+/// One page of orders.
+model OrderPage {
+  items Order[]
+  page  PageInfo
+
+  @@jsonschema(open)
+}
+
+/// The invoice for an order.
+model Invoice {
+  order_id    uuid        @jsonschema(name: "orderId")
+  number      string      { max 20 }
+  issued_at   instant     @jsonschema(name: "issuedAt")
+  lines       OrderItem[]
+  total       Money
+  pdf_url     string?     @jsonschema(name: "pdfUrl")
+  /// Local time after which lines move to the next invoice.
+  cutoff_time time?       @jsonschema(name: "cutoffTime")
+
+  @@jsonschema(open)
+}
+
+/// Payment by card.
+model CardPayment {
+  type  string
+  token string
+  last4 string { match "^[0-9]{4}$" }
+
+  @@jsonschema(open)
+}
+
+/// Payment through PayPal.
+model PayPalPayment {
+  type        string
+  payer_email string @jsonschema(name: "payerEmail")
+
+  @@jsonschema(open)
+}
+
+/// Payment by bank transfer.
+model BankTransferPayment {
+  type string
+  iban string { match "^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$" }
+
+  @@jsonschema(open)
+}
+
+/// How the customer pays.
+union PaymentMethod = CardPayment | PayPalPayment | BankTransferPayment
+
+/// A payment to make for an order.
+model CreatePaymentRequest {
+  order_id            uuid          @jsonschema(name: "orderId")
+  method              PaymentMethod
+  save_payment_method bool          @jsonschema(name: "savePaymentMethod") = false
+
+  @@jsonschema(open)
+}
+
+/// Where a payment is in its life.
+enum PaymentStatus {
+  @jsonschema(name: "PENDING") pending
+  @jsonschema(name: "AUTHORIZED") authorized
+  @jsonschema(name: "CAPTURED") captured
+  @jsonschema(name: "FAILED") failed
+  @jsonschema(name: "REFUNDED") refunded
+}
+
+/// A payment for an order.
+model Payment {
+  id             uuid
+  order_id       uuid          @jsonschema(name: "orderId")
+  status         PaymentStatus
+  amount         Money
+  failure_reason string?       @jsonschema(name: "failureReason")
+  created_at     instant       @jsonschema(name: "createdAt")
+
+  @@jsonschema(open)
+}
+
+/// Money given back for a payment.
+model Refund {
+  id         uuid
+  payment_id uuid         @jsonschema(name: "paymentId")
+  amount     Money
+  status     RefundStatus
+
+  enum RefundStatus {
+    @jsonschema(name: "PENDING") pending
+    @jsonschema(name: "SUCCEEDED") succeeded
+    @jsonschema(name: "FAILED") failed
+  }
+
+  @@jsonschema(open)
+}
+
+/// A customer's review of a product.
+model Review {
+  id         uuid
+  product_id uuid         @jsonschema(name: "productId")
+  author     string       { max 80 }
+  rating     int32        { min 1, max 5 }
+  title      string?      { max 120 }
+  body       string       { max 5000 }
+  status     ReviewStatus
+  created_at instant      @jsonschema(name: "createdAt")
+
+  enum ReviewStatus {
+    @jsonschema(name: "PENDING") pending
+    @jsonschema(name: "PUBLISHED") published
+    @jsonschema(name: "REJECTED") rejected
+  }
+
+  @@jsonschema(open)
+}
+
+/// One page of reviews.
+model ReviewPage {
+  items          Review[]
+  page           PageInfo
+  average_rating float64? { min 1, max 5 } @jsonschema(name: "averageRating")
+
+  @@jsonschema(open)
+}
+
+/// One page of users.
+model AdminUserPage {
+  items AdminUser[]
+  page  PageInfo
+
+  @@jsonschema(open)
+}
+
+/// Sales between two days.
+model SalesReport {
+  from                date
+  to                  date
+  orders              int64  { min 0 }
+  revenue             Money
+  average_order_value Money? @jsonschema(name: "averageOrderValue")
+
+  @@jsonschema(open)
+}
+
+model RegisterRequest {
+  email        string { max 254 }
+  password     string { min 12 }
+  display_name string { max 80 } @jsonschema(name: "displayName")
+
+  @@jsonschema(open)
+}
+
+model LoginRequest {
+  email    string
+  password string
+
+  @@jsonschema(open)
+}
+
+model RefreshTokenRequest {
+  refresh_token string @jsonschema(name: "refreshToken")
+
+  @@jsonschema(open)
+}
+
+model UpdateCurrentUserRequest {
+  display_name     string? { max 80 } @jsonschema(name: "displayName")
+  phone            string? { match "^\+[1-9][0-9]{6,14}$" }
+  marketing_opt_in bool?   @jsonschema(name: "marketingOptIn")
+
+  @@jsonschema(open)
+}
+
+model ListAddressesResponse { items Address[] }
+
+/// A postal address.
+model CreateAddressResponse {
+  id          uuid?
+  line1       string  { max 200 }
+  line2       string? { max 200 }
+  city        string  { max 100 }
+  region      string? { max 100 }
+  postal_code string  { max 20 } @jsonschema(name: "postalCode")
+  country     string  { match "^[A-Z]{2}$" }
+  is_default  bool    @jsonschema(name: "isDefault") = false
+  /// The new address's URL.
+  location    string  @openapi(header: "Location")
+
+  @@jsonschema(open)
+}
+
+model DeleteAddressRequest { address_id uuid @openapi(name: "addressId") }
+
+model ListCategoriesResponse { items Category[] }
+
+model ListProductsRequest {
+  /// The page to return, from 1.
+  page      int32        { min 1 } = 1
+  /// Items per page.
+  page_size int32        { min 1, max 100 } @openapi(name: "pageSize") = 20
+  /// A category slug.
+  category  string?      { max 64 }
+  sort      ProductSort?
+}
+
+model SearchProductsRequest {
+  /// The words to look for.
+  q     string { min 2, max 200 }
+  /// The most hits to return.
+  limit int32  { min 1, max 50 } = 10
+}
+
+model GetProductRequest { product_id uuid @openapi(name: "productId") }
+
+/// A product with everything about it.
+model GetProductResponse {
+  id            uuid
+  sku           string               { max 64 }
+  name          string               { max 200 }
+  price         Money
+  category      Category?
+  thumbnail_url string?              @jsonschema(name: "thumbnailUrl")
+  in_stock      bool                 @jsonschema(name: "inStock")
+  tags          string[]?            { maxItems 10 }
+  description   string               { max 10000 }
+  images        string[]?            { maxItems 20 }
+  /// Free-text attributes such as material.
+  attributes    map<string, string>?
+  legacy_sku    string?              @deprecated @jsonschema(name: "legacySku")
+  created_at    instant?             @jsonschema(name: "createdAt")
+  updated_at    instant?             @jsonschema(name: "updatedAt")
+  e_tag         string               @openapi(header: "ETag")
+
+  @@jsonschema(open)
+}
+
+model AddCartItemRequest {
+  sku      string { max 64 }
+  quantity int32  { min 1, max 99 } = 1
+
+  @@jsonschema(open)
+}
+
+model UpdateCartItemRequest {
+  sku      string { max 64, match "^[A-Z0-9-]+$" }
+  quantity int32  { min 1, max 99 }
+
+  @@jsonschema(open)
+}
+
+model RemoveCartItemRequest { sku string { max 64, match "^[A-Z0-9-]+$" } }
+
+model CheckoutRequest {
+  /// A key the client makes up, so a retried checkout places one order.
+  idempotency_key     string        { min 8, max 64 } @openapi(header: "Idempotency-Key")
+  shipping_address_id uuid          @jsonschema(name: "shippingAddressId")
+  payment_method      PaymentMethod @jsonschema(name: "paymentMethod")
+  coupon_code         string?       { max 32 } @jsonschema(name: "couponCode")
+
+  @@jsonschema(open)
+}
+
+model CheckoutError402 {
+  decline_code string @jsonschema(name: "declineCode")
+  message      string
+
+  @@jsonschema(open)
+}
+
+model ListOrdersRequest {
+  /// The page to return, from 1.
+  page      int32        { min 1 } = 1
+  /// Items per page.
+  page_size int32        { min 1, max 100 } @openapi(name: "pageSize") = 20
+  status    OrderStatus?
+}
+
+model GetOrderRequest { order_id uuid @openapi(name: "orderId") }
+
+model CancelOrderRequest { order_id uuid @openapi(name: "orderId") }
+
+model GetInvoiceRequest { order_id uuid @openapi(name: "orderId") }
+
+model GetPaymentRequest { payment_id uuid @openapi(name: "paymentId") }
+
+model RefundPaymentRequest {
+  payment_id uuid    @openapi(name: "paymentId")
+  amount     Money
+  reason     string? { max 500 }
+
+  @@jsonschema(open)
+}
+
+model CreateReviewRequest {
+  product_id uuid    @openapi(name: "productId")
+  rating     int32   { min 1, max 5 }
+  title      string? { max 120 }
+  body       string  { max 5000 }
+
+  @@jsonschema(open)
+}
+
+model ListProductReviewsRequest {
+  product_id uuid  @openapi(name: "productId")
+  /// The page to return, from 1.
+  page       int32 { min 1 } = 1
+  /// Items per page.
+  page_size  int32 { min 1, max 100 } @openapi(name: "pageSize") = 20
+}
+
+model ListUsersRequest {
+  /// The page to return, from 1.
+  page      int32 { min 1 } = 1
+  /// Items per page.
+  page_size int32 { min 1, max 100 } @openapi(name: "pageSize") = 20
+  role      Role?
+}
+
+model UpdateOrderStatusRequest {
+  order_id uuid        @openapi(name: "orderId")
+  status   OrderStatus
+  note     string?     { max 500 }
+
+  @@jsonschema(open)
+}
+
+model DeleteProductRequest { product_id uuid @openapi(name: "productId") }
+
+model GetSalesReportRequest {
+  /// The first day of the report.
+  from date
+  /// The last day of the report.
+  to   date
+}
+
+/// Register, sign in and manage tokens.
+service Auth {
+  errors { default Problem }
+  /// Register an account
+  @openapi(name: "register")
+  @openapi(auth: none)
+  #1 register(RegisterRequest): AuthTokens  post "/auth/register" 201  errors {
+    409 Problem
+    422 ValidationProblem
+  }
+  /// Sign in
+  @openapi(name: "login")
+  @openapi(auth: none)
+  #2 login(LoginRequest): AuthTokens  post "/auth/login"  errors { 401 Problem  429 Problem }
+  /// Refresh the access token
+  @openapi(name: "refreshToken")
+  @openapi(auth: none)
+  #3 refresh_token(RefreshTokenRequest): AuthTokens  post "/auth/refresh"  errors { 401 Problem }
+  /// Sign out
+  @openapi(name: "logout") #4 logout()  post "/auth/logout"  errors { 401 Problem }
+}
+
+/// The signed-in customer's account and addresses.
+service Users {
+  errors { 401 Problem  default Problem }
+  /// Read the signed-in user
+  @openapi(name: "getCurrentUser") #1 get_current_user(): User  get "/users/me"
+  /// Change the signed-in user
+  @openapi(name: "updateCurrentUser") #2 update_current_user(UpdateCurrentUserRequest): User
+    patch "/users/me"  errors { 422 ValidationProblem }
+  /// List the addresses
+  @openapi(name: "listAddresses") #3 list_addresses(): ListAddressesResponse
+    get "/users/me/addresses"
+  /// Add an address
+  @openapi(name: "createAddress") #4 create_address(Address): CreateAddressResponse
+    post "/users/me/addresses" 201  errors { 422 ValidationProblem }
+  /// Remove an address
+  @openapi(name: "deleteAddress") #5 delete_address(DeleteAddressRequest)
+    delete "/users/me/addresses/{address_id}"  errors { 404 Problem }
+}
+
+/// Browse and search the products on sale.
+@openapi(auth: (bearer, api_key))
+service Catalog {
+  errors { 401 Problem  default Problem }
+  /// List the categories
+  @openapi(name: "listCategories") #1 list_categories(): ListCategoriesResponse  get "/categories"
+  /// List the products
+  ///
+  /// Lists the products on sale, a page at a time, optionally in one category and in the order asked for.
+  @openapi(name: "listProducts") #2 list_products(ListProductsRequest): ProductPage  get "/products"  errors {
+    400 Problem
+  }
+  /// Search the products
+  @openapi(name: "searchProducts") #3 search_products(SearchProductsRequest): SearchResults
+    get "/products/search"  errors { 400 Problem }
+  /// Read a product
+  ///
+  /// Reads one product with its images and attributes. The ETag header lets a client ask again only when the product changed.
+  @openapi(name: "getProduct") #4 get_product(GetProductRequest): GetProductResponse
+    get "/products/{product_id}"  errors { 404 Problem }
+}
+
+/// The items the customer means to buy.
+@openapi(name: "Cart")
+service Cart2 {
+  errors { 401 Problem  default Problem }
+  /// Read the cart
+  @openapi(name: "getCart") #1 get_cart(): Cart  get "/cart"
+  /// Add an item to the cart
+  @openapi(name: "addCartItem") #2 add_cart_item(AddCartItemRequest): Cart  post "/cart/items" 201  errors {
+    409 Problem
+    422 ValidationProblem
+  }
+  /// Set an item's quantity
+  @openapi(name: "updateCartItem") #3 update_cart_item(UpdateCartItemRequest): Cart
+    put "/cart/items/{sku}"  errors { 404 Problem  422 ValidationProblem }
+  /// Remove an item from the cart
+  @openapi(name: "removeCartItem") #4 remove_cart_item(RemoveCartItemRequest)
+    delete "/cart/items/{sku}"  errors { 404 Problem }
+}
+
+/// Turn the cart into an order.
+service Checkout {
+  /// Place an order
+  ///
+  /// Places an order for everything in the cart and charges the payment method. A retried request with the same Idempotency-Key places one order.
+  @openapi(name: "checkout") #1 checkout(CheckoutRequest): Order  post "/checkout" 201  errors {
+    401 Problem
+    402 CheckoutError402
+    409 Problem
+    422 ValidationProblem
+    default Problem
+  }
+}
+
+/// The customer's orders and their invoices.
+service Orders {
+  errors { 401 Problem  default Problem }
+  /// List the orders
+  @openapi(name: "listOrders") #1 list_orders(ListOrdersRequest): OrderPage  get "/orders"
+  /// Read an order
+  @openapi(name: "getOrder") #2 get_order(GetOrderRequest): Order  get "/orders/{order_id}"  errors {
+    404 Problem
+  }
+  /// Cancel an order
+  @openapi(name: "cancelOrder") #3 cancel_order(CancelOrderRequest): Order
+    post "/orders/{order_id}/cancel"  errors { 404 Problem  409 Problem }
+  /// Read an order's invoice
+  @openapi(name: "getInvoice") #4 get_invoice(GetInvoiceRequest): Invoice
+    get "/orders/{order_id}/invoice"  errors { 404 Problem }
+}
+
+/// Payments for orders and their refunds.
+service Payments {
+  errors { 401 Problem  default Problem }
+  /// Pay for an order
+  @openapi(name: "createPayment") #1 create_payment(CreatePaymentRequest): Payment
+    post "/payments" 201  errors { 422 ValidationProblem }
+  /// Read a payment
+  @openapi(name: "getPayment") #2 get_payment(GetPaymentRequest): Payment
+    get "/payments/{payment_id}"  errors { 404 Problem }
+  /// Refund a payment
+  @openapi(name: "refundPayment") #3 refund_payment(RefundPaymentRequest): Refund
+    post "/payments/{payment_id}/refunds" 202  errors { 404 Problem  409 Problem }
+}
+
+/// What customers say about the products.
+service Reviews {
+  errors { 404 Problem  default Problem }
+  /// Review a product
+  @openapi(name: "createReview") #1 create_review(CreateReviewRequest): Review
+    post "/products/{product_id}/reviews" 201  errors {
+    401 Problem
+    409 Problem
+    422 ValidationProblem
+  }
+  /// List a product's reviews
+  @openapi(name: "listProductReviews")
+  @openapi(auth: none)
+  #2 list_product_reviews(ListProductReviewsRequest): ReviewPage
+    get "/products/{product_id}/reviews"
+}
+
+/// Back-office work on users, orders and the catalog.
+service Admin {
+  errors { 401 Problem  403 Problem  default Problem }
+  /// List the users
+  @openapi(name: "listUsers")
+  @openapi(auth: oauth2)
+  @openapi(scopes: "admin:read")
+  #1 list_users(ListUsersRequest): AdminUserPage  get "/admin/users"
+  /// Move an order to another status
+  @openapi(name: "updateOrderStatus")
+  @openapi(auth: oauth2)
+  @openapi(scopes: "admin:write")
+  #2 update_order_status(UpdateOrderStatusRequest): Order  patch "/admin/orders/{order_id}/status"  errors {
+    404 Problem
+    409 Problem
+  }
+  /// Create a product
+  @openapi(name: "createProduct")
+  @openapi(auth: oauth2)
+  @openapi(scopes: "catalog:write")
+  #3 create_product(ProductInput): Product  post "/admin/products" 201  errors {
+    422 ValidationProblem
+  }
+  /// Delete a product
+  ///
+  /// Archive the product with createProduct's replacement instead; deleting loses its order history.
+  @deprecated
+  @openapi(name: "deleteProduct")
+  @openapi(auth: oauth2)
+  @openapi(scopes: "catalog:write")
+  #4 delete_product(DeleteProductRequest)  delete "/admin/products/{product_id}"  errors {
+    404 Problem
+  }
+  /// Read the sales report
+  @openapi(name: "getSalesReport")
+  @openapi(auth: oauth2)
+  @openapi(scopes: "admin:read")
+  #5 get_sales_report(GetSalesReportRequest): SalesReport  get "/admin/reports/sales"  errors {
+    400 Problem
+  }
+}

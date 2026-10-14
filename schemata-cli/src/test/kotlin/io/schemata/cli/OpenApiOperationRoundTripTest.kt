@@ -39,18 +39,12 @@ class OpenApiOperationRoundTripTest {
     }
 
     /**
-     * Each file of [result] cut where a blank line is followed by an unindented line: the head and
-     * the services in order, the other declarations sorted. A second import declares a model the
-     * compiled document holds as a component before those it makes for operations, so only their
-     * order may differ.
+     * Each file of [result] as its [SchemataLayout]. A second import declares a model the compiled
+     * document holds as a component before those it makes for operations, so only their order may
+     * differ.
      */
-    private fun schemata(result: ImportResult): Map<String, List<String>> =
-        result.files.associate { file ->
-            val blocks = file.content.split(Regex("\n\n(?=\\S)"))
-            val (services, others) =
-                blocks.drop(1).partition { it.lines().any { line -> line.startsWith("service ") } }
-            file.path to listOf(blocks.first()) + services + others.sorted()
-        }
+    private fun schemata(result: ImportResult): Map<String, SchemataLayout> =
+        result.files.associate { it.path to SchemataLayout.of(it.content) }
 
     @Test
     fun `an operation without an id imports the same after a compile`() {

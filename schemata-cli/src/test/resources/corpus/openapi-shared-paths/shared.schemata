@@ -1,0 +1,20 @@
+/// Two services whose operations share their paths.
+schema corpus.shared
+
+model OrderId { #1 id uuid { id } }
+
+model Order { #1 id uuid { id }  #2 total int64 }
+
+model Note { #1 id uuid { id }  #2 text string { max 200 } }
+
+/// Read orders and their notes.
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{id}"
+  #2 notes(OrderId): Note  get "/orders/{id}/notes"
+}
+
+/// Write notes, and drop an order with its notes.
+service Notes {
+  #1 add(Note): Note  post "/orders/{id}/notes"
+  #2 remove(OrderId)  delete "/orders/{id}"
+}

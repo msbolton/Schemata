@@ -1,0 +1,43 @@
+SCH2403 ecommerce.yaml: #/components/schemas/Problem/properties/type: format 'uri' has no Schemata type; imported as string
+SCH2403 ecommerce.yaml: #/components/schemas/Problem/properties/instance: format 'uri' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/components/schemas/AuthTokens/properties/tokenType: keyword 'example' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/User/properties/id: keyword 'readOnly' dropped
+SCH2403 ecommerce.yaml: #/components/schemas/User/properties/email: format 'email' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/components/schemas/User/properties/displayName: keyword 'example' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/User/properties/createdAt: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/AdminUser/allOf/1/properties/roles: keyword 'uniqueItems' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Address/properties/id: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Money/properties/amount: keyword 'example' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Money/properties/currency: keyword 'example' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/ProductSummary/properties/id: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/ProductSummary/properties/name: keyword 'example' dropped
+SCH2403 ecommerce.yaml: #/components/schemas/ProductSummary/properties/thumbnailUrl: format 'uri' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/components/schemas/ProductSummary/properties/tags: keyword 'uniqueItems' dropped
+SCH2403 ecommerce.yaml: #/components/schemas/Product/allOf/1/properties/images/items: format 'uri' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/components/schemas/Product/allOf/1/properties/createdAt: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Product/allOf/1/properties/updatedAt: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Order/properties/id: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Order/properties/number: keyword 'example' dropped
+SCH2403 ecommerce.yaml: #/components/schemas/Invoice/properties/pdfUrl: format 'uri' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/components/schemas/CardPayment/properties/token: keyword 'writeOnly' dropped
+SCH2403 ecommerce.yaml: #/components/schemas/PayPalPayment/properties/payerEmail: format 'email' has no Schemata type; imported as string
+SCH2403 ecommerce.yaml: #/components/schemas/PaymentMethod/discriminator: discriminator mapping is not kept; the union is tagged by member name
+SCH2405 ecommerce.yaml: #/components/schemas/Payment/properties/id: keyword 'readOnly' dropped
+SCH2405 ecommerce.yaml: #/components/schemas/Review/properties/id: keyword 'readOnly' dropped
+SCH2402 ecommerce.yaml: #/tags/3: tag 'Cart' is imported as 'Cart2', since 'Cart' is taken
+SCH2403 ecommerce.yaml: #/paths/~1auth~1register/post/requestBody/content/application~1json/schema/properties/email: format 'email' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/paths/~1auth~1register/post/requestBody/content/application~1json/schema/properties/password: keyword 'writeOnly' dropped
+SCH2403 ecommerce.yaml: #/paths/~1auth~1register/post/requestBody/content/application~1json/schema/properties/password: format 'password' has no Schemata type; imported as string
+SCH2403 ecommerce.yaml: #/paths/~1auth~1login/post/requestBody/content/application~1json/schema/properties/email: format 'email' has no Schemata type; imported as string
+SCH2405 ecommerce.yaml: #/paths/~1auth~1login/post/requestBody/content/application~1json/schema/properties/password: keyword 'writeOnly' dropped
+SCH2403 ecommerce.yaml: #/paths/~1auth~1login/post/requestBody/content/application~1json/schema/properties/password: format 'password' has no Schemata type; imported as string
+SCH2403 ecommerce.yaml: #/paths/~1users~1me~1addresses/get/responses/200/content/application~1json/schema: the body of response '200' is wrapped in 'ListAddressesResponse' as field 'items', since it is not a model
+SCH2403 ecommerce.yaml: #/paths/~1users~1me~1addresses/post/responses/201/content/application~1json/schema: 'Address' is copied into 'CreateAddressResponse' to sit beside the headers
+SCH2403 ecommerce.yaml: #/paths/~1categories/get/responses/200/content/application~1json/schema: the body of response '200' is wrapped in 'ListCategoriesResponse' as field 'items', since it is not a model
+SCH2403 ecommerce.yaml: #/paths/~1products~1{productId}/get/responses/200/content/application~1json/schema: 'Product' is copied into 'GetProductResponse' to sit beside the headers
+SCH2405 ecommerce.yaml: #/components/parameters/CartSession: cookie parameter 'cartSession' dropped
+SCH2405 ecommerce.yaml: #/paths/~1cart~1items~1{sku}/put/responses/201: response '201' dropped; the success response is 200
+SCH2403 ecommerce.yaml: #/paths/~1orders~1{orderId}~1invoice/get/responses/206: success response '206' is imported as 200
+SCH2405 ecommerce.yaml: #/info/title: title 'Example Shop API' dropped; the regenerated title is the schema name 'ecommerce'
+SCH2405 ecommerce.yaml: #/servers/1: server 'https://sandbox.shop.example.com/v1' dropped; only the first server is kept
+SCH2405 ecommerce.yaml: #/components/securitySchemes/OAuth2/flows/authorizationCode/scopes: scopes of scheme 'OAuth2' dropped; the regenerated scheme lists only the scopes its requirements name, without descriptions
