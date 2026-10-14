@@ -2,6 +2,7 @@ package io.schemata.cli
 
 import io.schemata.importer.ImportInput
 import io.schemata.importer.Importer
+import io.schemata.importer.openapi.OpenApiImporter
 import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
@@ -9,6 +10,7 @@ import io.schemata.lang.Severity
 import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
 import io.schemata.target.jsonschema.JsonSchemaTarget
+import io.schemata.target.openapi.OpenApiTarget
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlCodes
 import io.schemata.target.sql.SqlTarget
@@ -21,15 +23,19 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every corpus and example case with an `expected/xsd`, `expected/proto`, or `expected/sql` tree
- * round trips through that format: compiling it under the format's target, importing that output
- * back (each file named by its output path, which is also its path under the output root), and
- * compiling the import regenerates the same files byte for byte, with no import diagnostics, and
- * the import compiles cleanly under proto, xsd, and jsonschema; the sql target cannot carry a key
- * the format never declared, so it is checked separately, only for errors other than a missing key.
- * The one diagnostic a round trip may report is SQL's for a record or union stored as json, whose
- * fields the DDL never held. A SQL file holding nothing but its `CREATE SCHEMA` (a namespace whose
- * every record is embedded elsewhere) imports as no namespace, so it is not expected back.
+ * Every corpus and example case with an `expected/xsd`, `expected/proto`, `expected/sql`, or
+ * `expected/openapi` tree round trips through that format: compiling it under the format's target,
+ * importing that output back (each file named by its output path, which is also its path under the
+ * output root), and compiling the import regenerates the same files byte for byte, with no import
+ * diagnostics, and the import compiles cleanly under proto, xsd, and jsonschema; the sql target
+ * cannot carry a key the format never declared, so it is checked separately, only for errors other
+ * than a missing key. The one diagnostic a round trip may report is SQL's for a record or union
+ * stored as json, whose fields the DDL never held. A SQL file holding nothing but its `CREATE
+ * SCHEMA` (a namespace whose every record is embedded elsewhere) imports as no namespace, so it is
+ * not expected back. An openapi round trip reports nothing: each document is named by its path, so
+ * no schema name is derived, and the target writes no construct the importer approximates; the
+ * documents of one case are imported together, so a component every document copies is one
+ * declaration.
  */
 class ImportRoundTripTest {
     private val corpus = File("src/test/resources/corpus")
@@ -40,6 +46,7 @@ class ImportRoundTripTest {
             Triple("xsd", XsdTarget, XsdImporter),
             Triple("proto", ProtoTarget, ProtoImporter),
             Triple("sql", SqlTarget, SqlImporter),
+            Triple("openapi", OpenApiTarget, OpenApiImporter),
         )
 
     /** A SQL file that creates its schema and nothing else. */
@@ -81,15 +88,44 @@ class ImportRoundTripTest {
     @TestFactory
     fun `importing a target's output regenerates it byte for byte`(): List<DynamicTest> =
         formats.flatMap { (format, target, importer) ->
-            (corpus.listFiles { f -> File(f, "expected/$format").isDirectory }!! +
-                    examples.listFiles { f -> File(f, "expected/$format").isDirectory }!!)
-                .sortedBy { it.name }
-                .map { case ->
-                    DynamicTest.dynamicTest("$format ${case.name}") {
-                        check(case, format, target, importer)
-                    }
+            cases(format).map { case ->
+                DynamicTest.dynamicTest("$format ${case.name}") {
+                    check(case, format, target, importer)
                 }
+            }
         }
+
+    /** The corpus and example cases with an `expected/<format>` tree, by name. */
+    private fun cases(format: String): List<File> =
+        (corpus.listFiles { f -> File(f, "expected/$format").isDirectory }!! +
+                examples.listFiles { f -> File(f, "expected/$format").isDirectory }!!)
+            .sortedBy { it.name }
+
+    /**
+     * The openapi row runs every case that writes an OpenAPI document, among them a path two
+     * services share and a schema line with `auth: none` beside an operation's own requirement.
+     */
+    @Test
+    fun `the openapi row runs every case with an openapi tree`() {
+        assertEquals(
+            listOf(
+                "cycle",
+                "openapi-auth-none",
+                "openapi-parameter-names",
+                "openapi-security",
+                "openapi-shared-paths",
+                "responses",
+                "services",
+                "services",
+                "services-proto",
+                "services-shadow",
+                "storefront",
+                "type-layout",
+                "union-payload",
+            ),
+            cases("openapi").map { it.name },
+        )
+    }
 
     /**
      * A corpus case with an `expected/proto-type` tree compiles under the per-type layout, imports
@@ -220,6 +256,31 @@ class ImportRoundTripTest {
             XsdTarget,
             XsdImporter,
             listOf(xsdSchemaName, xsdMemberName, xsdEnumValueName),
+            File("src/test/resources/import"),
+        )
+
+    /**
+     * A service that shares its tag's name with a model takes a suffix and keeps the tag with
+     * `@openapi(name)`, so the regenerated document names the tag as before; the import says so
+     * each time.
+     */
+    private val openapiServiceName =
+        Regex("SCH2402 .*: tag '.*' is imported as '.*', since '.*' is taken")
+
+    /**
+     * The `.schemata` files of every imported openapi case's `expected/` tree compile to openapi,
+     * import back, and regenerate that openapi byte for byte. The document the target writes from
+     * an import holds nothing the importer approximates; the one note it may carry is a service
+     * renamed beside a model of its tag's name.
+     */
+    @TestFactory
+    fun `imported openapi cases regenerate their openapi byte for byte`(): List<DynamicTest> =
+        importedCases(
+            { it.name.startsWith("openapi-") },
+            "openapi",
+            OpenApiTarget,
+            OpenApiImporter,
+            listOf(openapiServiceName),
             File("src/test/resources/import"),
         )
 

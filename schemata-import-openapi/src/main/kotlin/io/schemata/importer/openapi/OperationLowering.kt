@@ -122,7 +122,8 @@ internal fun serviceImports(services: List<UnitService>, namespace: String): Lis
  * document does not declare in first-use order, then the untagged operations, under a service named
  * after the schema's last segment. A declared tag with no operation is an empty service, since the
  * target writes a tag for every service. Operations take ordinals in path order and, within a path,
- * the order get, put, post, delete, options, head, patch.
+ * the order they first reach the components in, else the order get, put, post, delete, options,
+ * head, patch.
  *
  * A request merges the path parameters (in path order), the query and header parameters, and the
  * body's fields into one model, `<OpId>Request`, the reverse of how the target splits a request

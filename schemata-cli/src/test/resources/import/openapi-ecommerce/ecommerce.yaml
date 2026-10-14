@@ -1,0 +1,1896 @@
+openapi: 3.0.3
+info:
+  title: Example Shop API
+  version: 2.3.0
+  description: |
+    The storefront's public API: accounts, the catalog, the cart, checkout, orders, payments and reviews.
+
+    Admin operations need an OAuth2 token with the scope each one names.
+servers:
+  - url: https://api.shop.example.com/v1
+    description: Production
+  - url: https://sandbox.shop.example.com/v1
+    description: Sandbox
+tags:
+  - name: Auth
+    description: Register, sign in and manage tokens.
+  - name: Users
+    description: The signed-in customer's account and addresses.
+  - name: Catalog
+    description: Browse and search the products on sale.
+  - name: Cart
+    description: The items the customer means to buy.
+  - name: Checkout
+    description: Turn the cart into an order.
+  - name: Orders
+    description: The customer's orders and their invoices.
+  - name: Payments
+    description: Payments for orders and their refunds.
+  - name: Reviews
+    description: What customers say about the products.
+  - name: Admin
+    description: Back-office work on users, orders and the catalog.
+security:
+  - BearerAuth: []
+paths:
+  /auth/register:
+    post:
+      operationId: register
+      tags:
+        - Auth
+      summary: Register an account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - displayName
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                password:
+                  type: string
+                  format: password
+                  minLength: 12
+                  writeOnly: true
+                displayName:
+                  type: string
+                  maxLength: 80
+      responses:
+        '201':
+          description: The new account's tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /auth/login:
+    post:
+      operationId: login
+      tags:
+        - Auth
+      summary: Sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  writeOnly: true
+      responses:
+        '200':
+          description: Fresh tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags:
+        - Auth
+      summary: Refresh the access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Fresh tokens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /auth/logout:
+    post:
+      operationId: logout
+      tags:
+        - Auth
+      summary: Sign out
+      responses:
+        '204':
+          description: No content
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags:
+        - Users
+      summary: Read the signed-in user
+      responses:
+        '200':
+          description: The signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+    patch:
+      operationId: updateCurrentUser
+      tags:
+        - Users
+      summary: Change the signed-in user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                  maxLength: 80
+                phone:
+                  type: string
+                  nullable: true
+                  pattern: '^\+[1-9][0-9]{6,14}$'
+                marketingOptIn:
+                  type: boolean
+      responses:
+        '200':
+          description: The changed user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /users/me/addresses:
+    get:
+      operationId: listAddresses
+      tags:
+        - Users
+      summary: List the addresses
+      responses:
+        '200':
+          description: Every address of the user.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Address'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createAddress
+      tags:
+        - Users
+      summary: Add an address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Address'
+      responses:
+        '201':
+          description: The new address.
+          headers:
+            Location:
+              description: The new address's URL.
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /users/me/addresses/{addressId}:
+    delete:
+      operationId: deleteAddress
+      tags:
+        - Users
+      summary: Remove an address
+      parameters:
+        - name: addressId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: No content
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /categories:
+    get:
+      operationId: listCategories
+      tags:
+        - Catalog
+      summary: List the categories
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Every category.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /products:
+    get:
+      operationId: listProducts
+      tags:
+        - Catalog
+      summary: List the products
+      description: >-
+        Lists the products on sale, a page at a time, optionally in one category and in the
+        order asked for.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: category
+          in: query
+          description: A category slug.
+          schema:
+            type: string
+            maxLength: 64
+        - name: sort
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProductSort'
+      responses:
+        '200':
+          description: One page of products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /products/search:
+    get:
+      operationId: searchProducts
+      tags:
+        - Catalog
+      summary: Search the products
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: The words to look for.
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 200
+        - name: limit
+          in: query
+          description: The most hits to return.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: The best hits.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResults'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      tags:
+        - Catalog
+      summary: Read a product
+      description: >-
+        Reads one product with its images and attributes. The ETag header lets a client ask
+        again only when the product changed.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: The product.
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /cart:
+    get:
+      operationId: getCart
+      tags:
+        - Cart
+      summary: Read the cart
+      parameters:
+        - $ref: '#/components/parameters/CartSession'
+      responses:
+        '200':
+          description: The cart.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /cart/items:
+    post:
+      operationId: addCartItem
+      tags:
+        - Cart
+      summary: Add an item to the cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sku
+              properties:
+                sku:
+                  type: string
+                  maxLength: 64
+                quantity:
+                  type: integer
+                  format: int32
+                  minimum: 1
+                  maximum: 99
+                  default: 1
+      responses:
+        '201':
+          description: The cart with the item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /cart/items/{sku}:
+    put:
+      operationId: updateCartItem
+      tags:
+        - Cart
+      summary: Set an item's quantity
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+            pattern: '^[A-Z0-9-]+$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  format: int32
+                  minimum: 1
+                  maximum: 99
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: removeCartItem
+      tags:
+        - Cart
+      summary: Remove an item from the cart
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+            pattern: '^[A-Z0-9-]+$'
+      responses:
+        '204':
+          description: No content
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /checkout:
+    post:
+      operationId: checkout
+      tags:
+        - Checkout
+      summary: Place an order
+      description: >-
+        Places an order for everything in the cart and charges the payment method. A retried
+        request with the same Idempotency-Key places one order.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - shippingAddressId
+                - paymentMethod
+              properties:
+                shippingAddressId:
+                  type: string
+                  format: uuid
+                paymentMethod:
+                  $ref: '#/components/schemas/PaymentMethod'
+                couponCode:
+                  type: string
+                  nullable: true
+                  maxLength: 32
+      responses:
+        '201':
+          description: The order placed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          description: The payment was declined.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - declineCode
+                  - message
+                properties:
+                  declineCode:
+                    type: string
+                  message:
+                    type: string
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /orders:
+    get:
+      operationId: listOrders
+      tags:
+        - Orders
+      summary: List the orders
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+      responses:
+        '200':
+          description: One page of orders.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      tags:
+        - Orders
+      summary: Read an order
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /orders/{orderId}/cancel:
+    post:
+      operationId: cancelOrder
+      tags:
+        - Orders
+      summary: Cancel an order
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: The cancelled order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /orders/{orderId}/invoice:
+    get:
+      operationId: getInvoice
+      tags:
+        - Orders
+      summary: Read an order's invoice
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '206':
+          description: The invoice so far; lines still being priced are left out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /payments:
+    post:
+      operationId: createPayment
+      tags:
+        - Payments
+      summary: Pay for an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /payments/{paymentId}:
+    get:
+      operationId: getPayment
+      tags:
+        - Payments
+      summary: Read a payment
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /payments/{paymentId}/refunds:
+    post:
+      operationId: refundPayment
+      tags:
+        - Payments
+      summary: Refund a payment
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  $ref: '#/components/schemas/Money'
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '202':
+          description: The refund, under way.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /products/{productId}/reviews:
+    get:
+      operationId: listProductReviews
+      tags:
+        - Reviews
+      summary: List a product's reviews
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: One page of reviews.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createReview
+      tags:
+        - Reviews
+      summary: Review a product
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+                - body
+              properties:
+                rating:
+                  type: integer
+                  format: int32
+                  minimum: 1
+                  maximum: 5
+                title:
+                  type: string
+                  maxLength: 120
+                body:
+                  type: string
+                  maxLength: 5000
+      responses:
+        '201':
+          description: The review, awaiting moderation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags:
+        - Admin
+      summary: List the users
+      security:
+        - OAuth2:
+            - admin:read
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: One page of users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /admin/orders/{orderId}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags:
+        - Admin
+      summary: Move an order to another status
+      security:
+        - OAuth2:
+            - admin:write
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  $ref: '#/components/schemas/OrderStatus'
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /admin/products:
+    post:
+      operationId: createProduct
+      tags:
+        - Admin
+      summary: Create a product
+      security:
+        - OAuth2:
+            - catalog:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: The new product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /admin/products/{productId}:
+    delete:
+      operationId: deleteProduct
+      tags:
+        - Admin
+      summary: Delete a product
+      description: Archive the product with createProduct's replacement instead; deleting loses its order history.
+      deprecated: true
+      security:
+        - OAuth2:
+            - catalog:write
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204':
+          description: No content
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/ServerError'
+  /admin/reports/sales:
+    get:
+      operationId: getSalesReport
+      tags:
+        - Admin
+      summary: Read the sales report
+      security:
+        - OAuth2:
+            - admin:read
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: The first day of the report.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: The last day of the report.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: The sales between the two days.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        default:
+          $ref: '#/components/responses/ServerError'
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: The page to return, from 1.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: Items per page.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: A key the client makes up, so a retried checkout places one order.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 64
+    CartSession:
+      name: cartSession
+      in: cookie
+      description: The anonymous cart, before sign-in.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: The request is malformed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: The credentials are missing or invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: The token lacks the scope this needs.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: No such resource.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: The resource's state does not allow this.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationFailed:
+      description: A field is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+    TooManyRequests:
+      description: Too many attempts; wait and retry.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServerError:
+      description: Something went wrong on our side.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      description: A problem report, as RFC 9457 describes one.
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+    FieldError:
+      type: object
+      description: One field that failed its checks.
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          description: A JSON pointer into the request.
+        message:
+          type: string
+    ValidationProblem:
+      description: A problem report naming the fields that failed their checks.
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required:
+            - errors
+          properties:
+            errors:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/FieldError'
+    PageInfo:
+      type: object
+      description: Where a page sits in the whole listing.
+      required:
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 1
+        pageSize:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+    AuthTokens:
+      type: object
+      description: The tokens a sign-in gives.
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+        - tokenType
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Seconds until the access token expires.
+        tokenType:
+          type: string
+          example: Bearer
+    Role:
+      type: string
+      description: What a user may do.
+      enum:
+        - CUSTOMER
+        - SUPPORT
+        - ADMIN
+    User:
+      type: object
+      description: A customer's account.
+      required:
+        - id
+        - email
+        - displayName
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+          maxLength: 80
+          example: Ada Lovelace
+        phone:
+          type: string
+          nullable: true
+          pattern: '^\+[1-9][0-9]{6,14}$'
+        marketingOptIn:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+    AdminUser:
+      description: A user as the back office sees one.
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required:
+            - roles
+          properties:
+            roles:
+              type: array
+              items:
+                $ref: '#/components/schemas/Role'
+              minItems: 1
+              uniqueItems: true
+            lastLoginAt:
+              type: string
+              format: date-time
+              nullable: true
+    Address:
+      type: object
+      description: A postal address.
+      required:
+        - line1
+        - city
+        - postalCode
+        - country
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        line1:
+          type: string
+          maxLength: 200
+        line2:
+          type: string
+          maxLength: 200
+        city:
+          type: string
+          maxLength: 100
+        region:
+          type: string
+          maxLength: 100
+        postalCode:
+          type: string
+          maxLength: 20
+        country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+        isDefault:
+          type: boolean
+          default: false
+    Money:
+      type: object
+      description: An amount in one currency.
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: '^-?[0-9]{1,10}(\.[0-9]{1,2})?$'
+          example: '19.99'
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          example: EUR
+    Category:
+      type: object
+      description: A category of products.
+      required:
+        - id
+        - slug
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+        name:
+          type: string
+          maxLength: 100
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+    ProductSort:
+      type: string
+      description: The order to list products in.
+      enum:
+        - RELEVANCE
+        - PRICE_ASC
+        - PRICE_DESC
+        - NEWEST
+    ProductSummary:
+      type: object
+      description: A product as a listing shows it.
+      required:
+        - id
+        - sku
+        - name
+        - price
+        - inStock
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        sku:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+          example: Linen shirt
+        price:
+          $ref: '#/components/schemas/Money'
+        category:
+          $ref: '#/components/schemas/Category'
+        thumbnailUrl:
+          type: string
+          format: uri
+        inStock:
+          type: boolean
+        tags:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items:
+            type: string
+    Product:
+      description: A product with everything about it.
+      allOf:
+        - $ref: '#/components/schemas/ProductSummary'
+        - type: object
+          required:
+            - description
+          properties:
+            description:
+              type: string
+              maxLength: 10000
+            images:
+              type: array
+              maxItems: 20
+              items:
+                type: string
+                format: uri
+            attributes:
+              type: object
+              description: Free-text attributes such as material.
+              additionalProperties:
+                type: string
+            legacySku:
+              type: string
+              deprecated: true
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+            updatedAt:
+              type: string
+              format: date-time
+              readOnly: true
+    ProductInput:
+      type: object
+      description: A new product.
+      required:
+        - sku
+        - name
+        - price
+        - description
+      properties:
+        sku:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+        price:
+          $ref: '#/components/schemas/Money'
+        description:
+          type: string
+          maxLength: 10000
+        categoryId:
+          type: string
+          format: uuid
+        stock:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+    ProductPage:
+      type: object
+      description: One page of products.
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    SearchResults:
+      type: object
+      description: The products a search found.
+      required:
+        - items
+        - totalHits
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        totalHits:
+          type: integer
+          format: int64
+          minimum: 0
+        facets:
+          type: object
+          description: Hits by category slug.
+          additionalProperties:
+            type: integer
+            format: int64
+    CartItem:
+      type: object
+      description: A product in the cart.
+      required:
+        - sku
+        - productId
+        - name
+        - quantity
+        - unitPrice
+        - lineTotal
+      properties:
+        sku:
+          type: string
+          maxLength: 64
+        productId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 99
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        lineTotal:
+          $ref: '#/components/schemas/Money'
+    Cart:
+      type: object
+      description: The items the customer means to buy.
+      required:
+        - id
+        - items
+        - subtotal
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+        subtotal:
+          $ref: '#/components/schemas/Money'
+        updatedAt:
+          type: string
+          format: date-time
+    OrderStatus:
+      type: string
+      description: Where an order is in its life.
+      enum:
+        - PENDING
+        - PAID
+        - SHIPPED
+        - DELIVERED
+        - CANCELLED
+        - REFUNDED
+    OrderItem:
+      type: object
+      description: A product bought, at the price it had.
+      required:
+        - productId
+        - sku
+        - name
+        - quantity
+        - unitPrice
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 200
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+    Order:
+      type: object
+      description: An order checkout placed.
+      required:
+        - id
+        - number
+        - status
+        - items
+        - totals
+        - placedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        number:
+          type: string
+          maxLength: 20
+          example: SO-104223
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        shippingAddress:
+          $ref: '#/components/schemas/Address'
+        totals:
+          type: object
+          required:
+            - subtotal
+            - shipping
+            - tax
+            - total
+          properties:
+            subtotal:
+              $ref: '#/components/schemas/Money'
+            shipping:
+              $ref: '#/components/schemas/Money'
+            tax:
+              $ref: '#/components/schemas/Money'
+            total:
+              $ref: '#/components/schemas/Money'
+        couponCode:
+          type: string
+          nullable: true
+        placedAt:
+          type: string
+          format: date-time
+    OrderPage:
+      type: object
+      description: One page of orders.
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    Invoice:
+      type: object
+      description: The invoice for an order.
+      required:
+        - orderId
+        - number
+        - issuedAt
+        - lines
+        - total
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        number:
+          type: string
+          maxLength: 20
+        issuedAt:
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total:
+          $ref: '#/components/schemas/Money'
+        pdfUrl:
+          type: string
+          format: uri
+          nullable: true
+        cutoffTime:
+          type: string
+          format: time
+          description: Local time after which lines move to the next invoice.
+    CardPayment:
+      type: object
+      description: Payment by card.
+      required:
+        - type
+        - token
+        - last4
+      properties:
+        type:
+          type: string
+        token:
+          type: string
+          writeOnly: true
+        last4:
+          type: string
+          pattern: '^[0-9]{4}$'
+    PayPalPayment:
+      type: object
+      description: Payment through PayPal.
+      required:
+        - type
+        - payerEmail
+      properties:
+        type:
+          type: string
+        payerEmail:
+          type: string
+          format: email
+    BankTransferPayment:
+      type: object
+      description: Payment by bank transfer.
+      required:
+        - type
+        - iban
+      properties:
+        type:
+          type: string
+        iban:
+          type: string
+          pattern: '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'
+    PaymentMethod:
+      description: How the customer pays.
+      oneOf:
+        - $ref: '#/components/schemas/CardPayment'
+        - $ref: '#/components/schemas/PayPalPayment'
+        - $ref: '#/components/schemas/BankTransferPayment'
+      discriminator:
+        propertyName: type
+        mapping:
+          card: '#/components/schemas/CardPayment'
+          paypal: '#/components/schemas/PayPalPayment'
+          bank_transfer: '#/components/schemas/BankTransferPayment'
+    CreatePaymentRequest:
+      type: object
+      description: A payment to make for an order.
+      required:
+        - orderId
+        - method
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        savePaymentMethod:
+          type: boolean
+          default: false
+    PaymentStatus:
+      type: string
+      description: Where a payment is in its life.
+      enum:
+        - PENDING
+        - AUTHORIZED
+        - CAPTURED
+        - FAILED
+        - REFUNDED
+    Payment:
+      type: object
+      description: A payment for an order.
+      required:
+        - id
+        - orderId
+        - status
+        - amount
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        orderId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        amount:
+          $ref: '#/components/schemas/Money'
+        failureReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    Refund:
+      type: object
+      description: Money given back for a payment.
+      required:
+        - id
+        - paymentId
+        - amount
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        paymentId:
+          type: string
+          format: uuid
+        amount:
+          $ref: '#/components/schemas/Money'
+        status:
+          type: string
+          enum:
+            - PENDING
+            - SUCCEEDED
+            - FAILED
+    Review:
+      type: object
+      description: A customer's review of a product.
+      required:
+        - id
+        - productId
+        - author
+        - rating
+        - body
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        productId:
+          type: string
+          format: uuid
+        author:
+          type: string
+          maxLength: 80
+        rating:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+          maxLength: 120
+        body:
+          type: string
+          maxLength: 5000
+        status:
+          type: string
+          enum:
+            - PENDING
+            - PUBLISHED
+            - REJECTED
+        createdAt:
+          type: string
+          format: date-time
+    ReviewPage:
+      type: object
+      description: One page of reviews.
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+        averageRating:
+          type: number
+          format: double
+          minimum: 1
+          maximum: 5
+    AdminUserPage:
+      type: object
+      description: One page of users.
+      required:
+        - items
+        - page
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    SalesReport:
+      type: object
+      description: Sales between two days.
+      required:
+        - from
+        - to
+        - orders
+        - revenue
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        orders:
+          type: integer
+          format: int64
+          minimum: 0
+        revenue:
+          $ref: '#/components/schemas/Money'
+        averageOrderValue:
+          $ref: '#/components/schemas/Money'
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.shop.example.com/authorize
+          tokenUrl: https://auth.shop.example.com/token
+          scopes:
+            admin:read: Read users and reports
+            admin:write: Change orders
+            catalog:write: Create and delete products

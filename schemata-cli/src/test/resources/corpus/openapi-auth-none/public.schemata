@@ -1,0 +1,19 @@
+/// A public catalog with a few operations that need a token.
+schema corpus.public @openapi(bearer: "JWT", auth: none)
+
+model ItemId { #1 id uuid { id } }
+
+model Item { #1 id uuid { id }  #2 name string { max 100 } }
+
+/// Browse the catalog; changing an item needs a token.
+service Catalog {
+  #1 get(ItemId): Item  get "/items/{id}"
+  @openapi(auth: bearer) #2 put(Item): Item  put "/items/{id}"
+}
+
+/// Tools for signed-in staff.
+@openapi(auth: bearer)
+service Admin {
+  #1 purge(ItemId)  delete "/admin/items/{id}"
+  #2 rename(Item): Item  post "/admin/items/{id}/name"
+}
