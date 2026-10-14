@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+tags:
+  - name: Order Management
+paths:
+  /orders:
+    get:
+      tags: [Order Management]
+      operationId: list orders
+      responses: {'204': {description: No content}}

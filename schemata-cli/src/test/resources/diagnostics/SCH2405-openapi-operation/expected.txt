@@ -1,0 +1,14 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/paths/~1files~1{name}.json/get: operation dropped; its path is not one a binding can write
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/trace: operation dropped; Schemata has no trace verb
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders~1{ids}/get/parameters/0: operation dropped; path parameter 'ids' is not a scalar or an enum
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 3 warnings

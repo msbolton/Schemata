@@ -1,0 +1,14 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/post/responses/201: response '201' dropped; the success response is 200
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/post/responses/302: response '302' dropped; Schemata writes no redirects
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/post/responses/4XX: response '4XX' dropped; it is not a status code Schemata writes
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 3 warnings

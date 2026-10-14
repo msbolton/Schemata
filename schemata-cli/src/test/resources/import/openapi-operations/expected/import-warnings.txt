@@ -1,0 +1,2 @@
+SCH2405 shop.yaml: #/paths/~1products/get/parameters/2: cookie parameter 'session' dropped
+SCH2403 shop.yaml: #/paths/~1products/get/responses/200/content/application~1json/schema: the body of response '200' is wrapped in 'SearchProductsResponse' as field 'items', since it is not a model

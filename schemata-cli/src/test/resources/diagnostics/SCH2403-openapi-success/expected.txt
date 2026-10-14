@@ -1,0 +1,10 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/paths/~1health/get/responses: the operation has no success response, so it is imported as a 204
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): api.yaml: #/paths/~1orders/get/responses/206: success response '206' is imported as 200
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

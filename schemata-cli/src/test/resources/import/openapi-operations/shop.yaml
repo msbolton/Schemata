@@ -1,0 +1,188 @@
+openapi: 3.0.3
+info:
+  title: shop
+  version: 1.0.0
+tags:
+  - name: orders
+    description: Placing and following orders.
+  - name: catalog
+paths:
+  /orders:
+    get:
+      tags: [orders]
+      operationId: listOrders
+      summary: List the customer's orders, newest first.
+      parameters:
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: {$ref: '#/components/schemas/OrderStatus'}
+      responses:
+        '200':
+          description: OrderPage
+          headers:
+            ETag:
+              required: true
+              schema: {type: string, maxLength: 64}
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Order'}
+                  next: {type: string}
+                required: [items]
+                additionalProperties: false
+        '401': {$ref: '#/components/responses/Problem'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [orders]
+      operationId: placeOrder
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: A key the client makes up, so a retried request places one order.
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              description: The cart to order.
+              type: object
+              properties:
+                cartId: {type: string, format: uuid}
+                note: {type: string, maxLength: 500}
+              required: [cartId]
+              additionalProperties: false
+      responses:
+        '201':
+          description: Order
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Order'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {description: Conflict}
+        default: {$ref: '#/components/responses/Problem'}
+  /orders/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      tags: [orders]
+      operationId: getOrder
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Order'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {description: Not found}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      tags: [orders]
+      operationId: cancelOrder
+      deprecated: true
+      responses:
+        '204': {description: Cancelled}
+        '401': {$ref: '#/components/responses/Problem'}
+        default: {$ref: '#/components/responses/Problem'}
+  /orders/{orderId}/events:
+    get:
+      tags: [orders]
+      operationId: watchOrder
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Stream of OrderEvent
+          content:
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/OrderEvent'}
+        '401': {$ref: '#/components/responses/Problem'}
+        default: {$ref: '#/components/responses/Problem'}
+  /products:
+    get:
+      tags: [catalog]
+      operationId: searchProducts
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/PageSize'
+        - {name: session, in: cookie, schema: {type: string}}
+      responses:
+        '200':
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Product'}
+  /products/import:
+    post:
+      tags: [catalog]
+      operationId: importProducts
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema: {$ref: '#/components/schemas/Product'}
+      responses:
+        '202': {description: Accepted}
+  /health:
+    get:
+      operationId: health
+      responses:
+        '204': {description: Healthy}
+components:
+  parameters:
+    PageSize:
+      name: pageSize
+      in: query
+      schema: {type: integer, format: int32, minimum: 1, maximum: 100, default: 20}
+  responses:
+    Problem:
+      description: Problem
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    OrderStatus:
+      type: string
+      enum: [pending, paid, shipped]
+    Order:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        total: {type: string}
+      required: [id, status, total]
+      additionalProperties: false
+    OrderEvent:
+      type: object
+      properties:
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        at: {type: string, format: date-time}
+      required: [status, at]
+      additionalProperties: false
+    Product:
+      type: object
+      properties:
+        sku: {type: string, maxLength: 64}
+        name: {type: string}
+      required: [sku, name]
+      additionalProperties: false
+    Problem:
+      type: object
+      properties:
+        title: {type: string}
+        status: {type: integer, format: int32}
+      required: [title, status]
+      additionalProperties: false

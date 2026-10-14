@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    post:
+      operationId: Api_batch
+      requestBody:
+        content:
+          application/json:
+            schema: {type: array, items: {type: string}}
+      responses: {'204': {description: No content}}

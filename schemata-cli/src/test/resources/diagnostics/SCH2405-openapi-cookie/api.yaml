@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    get:
+      operationId: Api_list
+      parameters:
+        - {name: session, in: cookie, schema: {type: string}}
+      responses: {'204': {description: No content}}

@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/get/responses/200/content/application~1xml: media type 'application/xml' dropped; only JSON bodies are read
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning
