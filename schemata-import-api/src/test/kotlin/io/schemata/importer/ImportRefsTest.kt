@@ -113,4 +113,56 @@ class ImportRefsTest {
             party.fields.map { it.type },
         )
     }
+
+    @Test
+    fun `payloads and error bodies an import also declares are written in full`() {
+        val location = UnitType.Ref("Location")
+        val aggregate =
+            unit("aggregate", listOf("basic"), record("Location"))
+                .copy(
+                    services =
+                        listOf(
+                            UnitService(
+                                name = "Places",
+                                operations =
+                                    listOf(
+                                        UnitOperation(
+                                            "find",
+                                            UnitPayload(location, false),
+                                            UnitPayload(location, true),
+                                            "get \"/places\"",
+                                            null,
+                                            emptyList(),
+                                            errors =
+                                                listOf(
+                                                    UnitErrorResponse(404, location),
+                                                    UnitErrorResponse(
+                                                        409,
+                                                        UnitType.Ref("basic.Code"),
+                                                    ),
+                                                    UnitErrorResponse(503, null),
+                                                ),
+                                        )
+                                    ),
+                                doc = null,
+                                annotations = emptyList(),
+                                errors = listOf(UnitErrorResponse(null, location)),
+                            )
+                        )
+                )
+        val service = qualifyAmbiguousRefs(listOf(basic, aggregate))[1].services.single()
+        val qualified = UnitType.Ref("aggregate.Location")
+        assertEquals(listOf(UnitErrorResponse(null, qualified)), service.errors)
+        val find = service.operations.single()
+        assertEquals(UnitPayload(qualified, false), find.request)
+        assertEquals(UnitPayload(qualified, true), find.response)
+        assertEquals(
+            listOf(
+                UnitErrorResponse(404, qualified),
+                UnitErrorResponse(409, UnitType.Ref("basic.Code")),
+                UnitErrorResponse(503, null),
+            ),
+            find.errors,
+        )
+    }
 }

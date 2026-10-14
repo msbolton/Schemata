@@ -1,0 +1,19 @@
+schema shop.orders
+
+import shop.common
+
+model OrderId { id uuid }
+
+model Order { id uuid  total int64 }
+
+model Conflict { current uuid }
+
+/// Place and read orders.
+service Orders {
+  errors { 400 Problem  503  default Problem }
+  /// Fetch one order.
+  #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+  #2 place(Order): Order  post "/orders" 201  errors { 409 Conflict  422 }
+  #3 cancel(OrderId)  delete "/orders/{id}"
+  #4 ping()  errors { 429 }
+}
