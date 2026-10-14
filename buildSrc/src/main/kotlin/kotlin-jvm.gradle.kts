@@ -41,8 +41,8 @@ tasks.withType<Test>().configureEach {
 
 // Dependency direction: a module may only depend on modules in a strictly lower layer.
 // lang(0) -> core(1) -> target-api(2) -> import-api/config(3) ->
-// proto/sql/xsd/jsonschema/import-xsd/import-proto/import-sql/evolution/lsp(4) -> openapi/migrate(5) ->
-// cli(6).
+// proto/sql/xsd/jsonschema/import-xsd/import-proto/import-sql/import-openapi/evolution/lsp(4) ->
+// openapi/migrate(5) -> cli(6).
 // testkit is outside the layering.
 val layers =
     mapOf(
@@ -58,6 +58,7 @@ val layers =
         "schemata-import-xsd" to 4,
         "schemata-import-proto" to 4,
         "schemata-import-sql" to 4,
+        "schemata-import-openapi" to 4,
         "schemata-evolution" to 4,
         "schemata-lsp" to 4,
         "schemata-target-openapi" to 5,

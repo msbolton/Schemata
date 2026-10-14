@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/Order/properties/total: reference 'https://example.com/common.yaml#/components/schemas/Money' is a URL and is not fetched
+ --> shop.yaml:1:1
+  = help: copy the referenced file beside the document and refer to it by its relative path
+
+1 error, 0 warnings

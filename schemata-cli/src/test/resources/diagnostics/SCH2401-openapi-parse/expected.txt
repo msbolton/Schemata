@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: broken.yaml: cannot parse: expected ',' or ']', but got <stream end> at line 3, column 1
+ --> broken.yaml:1:1
+  = help: give the importer an OpenAPI 3.0 or 3.1 document
+
+1 error, 0 warnings

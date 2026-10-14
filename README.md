@@ -5,8 +5,8 @@
 Schemata is a schema language and compiler. You describe a data model once in
 `.schemata` files and compile it to Protobuf, Postgres DDL, XML Schema, and JSON Schema, and the
 services that use it to OpenAPI 3.1 and to gRPC `service` blocks in the Protobuf output, with every
-lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf, or
-Postgres DDL schema. A reference to a model with a key means that key on every target.
+lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf,
+Postgres DDL, or OpenAPI schema. A reference to a model with a key means that key on every target.
 
 This is Schemata 2.0. Coming from 1.x, run `schemata upgrade` over your schemas; the wiki's
 [Upgrading from 1.x][upgrading] page lists every rewrite and the one change of meaning. The
@@ -137,7 +137,7 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 
     schemata compile [--target proto,sql,xsd,jsonschema,openapi] [--out DIR] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata check   [--target proto,sql,xsd,jsonschema,openapi]             [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
-    schemata import  [--from xsd|proto|sql] [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
+    schemata import  [--from xsd|proto|sql|openapi] [--out DIR] [--namespace NAME] [--strict] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
     schemata targets [--format human|json]
     schemata config  [--config FILE|--no-config] [--format human|json] [--color auto|always|never] [PATHS...]
     schemata fmt     [--check] [--format human|json] [--color auto|always|never] [--config FILE|--no-config] [PATHS...]
@@ -150,8 +150,9 @@ pattern, the default) and exits 2; `--strict` turns those into errors.
 when another target failed; the `openapi` target writes one document per schema that declares a
 service, and nothing for a schema without one, and the `proto` target writes each service as a gRPC
 `service` in its schema's `.proto`. `check` reports everything `compile` would and writes nothing.
-`import --from xsd|proto|sql` reads existing `.xsd`, `.proto`, or Postgres `.sql` files and writes
-`--out/import/<file>`, one `.schemata` file per schema. `targets` lists each target's attribute keys
+`import --from xsd|proto|sql|openapi` reads existing `.xsd`, `.proto`, or Postgres `.sql` files, or
+OpenAPI 3.0 and 3.1 documents in `.yaml`, `.yml`, or `.json`, and writes `--out/import/<file>`, one
+`.schemata` file per schema. `targets` lists each target's attribute keys
 and diagnostic codes. `upgrade` rewrites 1.x schema files in the 2.0 syntax, in place; `--check`
 writes nothing and fails while any file would change. `diff OLD NEW` judges every change between two
 schema versions against each target's compatibility rulebook, so a breaking change is caught before
@@ -239,6 +240,7 @@ Dependencies point strictly downward; the build fails if they do not.
 | `schemata-import-xsd` | XSD reader and importer |
 | `schemata-import-proto` | Protobuf reader and importer |
 | `schemata-import-sql` | Postgres DDL reader and importer |
+| `schemata-import-openapi` | OpenAPI 3.0 and 3.1 importer over swagger-parser, its reference resolution |
 | `schemata-evolution` | the differ and the per-target compatibility rulebooks |
 | `schemata-migrate` | the migration planner and renderer over the relational model's provenance |
 | `schemata-config` | `schemata.toml`: discovery, reading and checking the file, the `SCH29` codes, the attributes it adds |

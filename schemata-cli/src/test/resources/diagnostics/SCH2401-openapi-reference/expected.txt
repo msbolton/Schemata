@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/Order/properties/total: reference '#/components/schemas/Money' names nothing in shop.yaml
+ --> shop.yaml:1:1
+  = help: fix the reference, or add what it names
+
+1 error, 0 warnings

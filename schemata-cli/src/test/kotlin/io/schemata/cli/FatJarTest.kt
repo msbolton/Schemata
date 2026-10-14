@@ -2,6 +2,7 @@ package io.schemata.cli
 
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -89,5 +90,35 @@ class FatJarTest {
                 .matches(out),
             out,
         )
+    }
+
+    @Test
+    fun `an OpenAPI import prints nothing from SLF4J`() {
+        assumeTrue(
+            jar != null && jar.isFile,
+            "shadow jar not built; run ./gradlew :schemata-cli:shadowJar",
+        )
+        val dir = createTempDirectory("openapi").toFile()
+        try {
+            File(dir, "api").mkdirs()
+            File(dir, "api/shop.yaml")
+                .writeText("openapi: 3.0.3\ninfo:\n  title: shop\n  version: 1.0.0\npaths: {}\n")
+            val out = File(dir, "out")
+            val (code, _, err) =
+                run(
+                    "import",
+                    "--no-config",
+                    "--from",
+                    "openapi",
+                    "--out",
+                    out.path,
+                    File(dir, "api").path,
+                )
+            assertEquals(0, code, err)
+            assertFalse(err.contains("SLF4J"), err)
+            assertTrue(File(out, "import/shop.schemata").isFile, err)
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 }

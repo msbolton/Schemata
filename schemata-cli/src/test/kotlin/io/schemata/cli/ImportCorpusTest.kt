@@ -2,11 +2,13 @@ package io.schemata.cli
 
 import io.schemata.core.CoreCodes
 import io.schemata.importer.ImportInput
+import io.schemata.importer.openapi.OpenApiImporter
 import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
 import io.schemata.lang.Severity
 import io.schemata.target.jsonschema.JsonSchemaTarget
+import io.schemata.target.openapi.OpenApiTarget
 import io.schemata.target.proto.ProtoTarget
 import io.schemata.target.sql.SqlCodes
 import io.schemata.target.sql.SqlTarget
@@ -21,20 +23,32 @@ import org.junit.jupiter.api.TestFactory
 
 /**
  * Every `src/test/resources/import/<case>/` directory imports the `.xsd`, `.proto`, or `.sql` files
- * under it (named by their path relative to the case, `expected/` aside, which is also a proto or
- * sql file's path under its root; an include or import outside the inputs is read from the case
- * directory too) into exactly its `expected/` tree, reports exactly the warnings in
+ * under it, or its OpenAPI documents (`.yaml`, `.yml`, `.json`), named by their path relative to
+ * the case, `expected/` aside, which is also a proto, sql, or OpenAPI file's path under its root;
+ * an include, import, or referenced file outside the inputs is read from the case directory too. It
+ * imports them into exactly its `expected/` tree, reports exactly the warnings in
  * `expected/import-warnings.txt` (none when the file is absent) and no error, since an import that
- * reports one writes nothing, and compiles under proto, xsd, and jsonschema without errors and with
- * every import it writes used (no SCH1012). The sql target cannot carry a key the xsd never
- * declared, nor some shapes it documents as beyond it, so its errors other than a missing key are
- * compared with `expected/sql-errors.txt` (none when absent). `SCHEMATA_GOLDEN_UPDATE=1` rewrites
- * the tree, the warnings, and the sql errors.
+ * reports one writes nothing, and compiles under proto, xsd, and jsonschema, and openapi for an
+ * OpenAPI case, without errors and with every import it writes used (no SCH1012). The sql target
+ * cannot carry a key the xsd never declared, nor some shapes it documents as beyond it, so its
+ * errors other than a missing key are compared with `expected/sql-errors.txt` (none when absent).
+ * `SCHEMATA_GOLDEN_UPDATE=1` rewrites the tree, the warnings, and the sql errors.
  */
 class ImportCorpusTest {
     private val root = File("src/test/resources/import")
     private val update = System.getenv("SCHEMATA_GOLDEN_UPDATE") == "1"
     private val goldenTexts = setOf("import-warnings.txt", "sql-errors.txt")
+
+    /** The format each input extension belongs to. */
+    private val formats =
+        mapOf(
+            "xsd" to "xsd",
+            "proto" to "proto",
+            "sql" to "sql",
+            "yaml" to "openapi",
+            "yml" to "openapi",
+            "json" to "openapi",
+        )
 
     @TestFactory
     fun `import corpus cases render their expected tree and compile under every target`():
@@ -50,17 +64,17 @@ class ImportCorpusTest {
                 .walkTopDown()
                 .filter {
                     it.isFile &&
-                        it.extension in setOf("xsd", "proto", "sql") &&
+                        it.extension in formats &&
                         !it.relativeTo(case).path.startsWith("expected") &&
                         !it.relativeTo(case).path.startsWith("include/")
                 }
                 .sortedBy { it.relativeTo(case).path }
                 .toList()
-        val extensions = sources.map { it.extension }.toSet()
-        check(extensions.size == 1) {
-            "${case.name} must hold .xsd, .proto, or .sql inputs, one kind only: $extensions"
+        val kinds = sources.map { formats.getValue(it.extension) }.toSet()
+        check(kinds.size == 1) {
+            "${case.name} must hold .xsd, .proto, .sql, or OpenAPI inputs, one kind only: $kinds"
         }
-        val format = extensions.single()
+        val format = kinds.single()
         val inputs =
             sources.map {
                 val path = it.relativeTo(case).path.replace(File.separatorChar, '/')
@@ -70,6 +84,7 @@ class ImportCorpusTest {
             when (format) {
                 "proto" -> ProtoImporter
                 "sql" -> SqlImporter
+                "openapi" -> OpenApiImporter
                 else -> XsdImporter
             }
         val locate = { path: String ->
@@ -134,6 +149,16 @@ class ImportCorpusTest {
                     .filter { it.severity == Severity.ERROR }
                     .joinToString("\n") { "${it.code.id} ${it.message}" },
         )
+        if (format == "openapi") {
+            val openapi = Pipeline.compile(imported, listOf(OpenApiTarget))
+            assertFalse(
+                openapi.hasErrors,
+                "imported ${case.name} under openapi: " +
+                    openapi.diagnostics
+                        .filter { it.severity == Severity.ERROR }
+                        .joinToString("\n") { "${it.code.id} ${it.message}" },
+            )
+        }
         val unusedImports =
             noSql.diagnostics
                 .filter { it.code == CoreCodes.UNUSED_IMPORT }

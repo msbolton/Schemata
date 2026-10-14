@@ -14,6 +14,7 @@ import io.schemata.cli.report.importReport
 import io.schemata.importer.ImportInput
 import io.schemata.importer.ImportNames
 import io.schemata.importer.Importer
+import io.schemata.importer.openapi.OpenApiImporter
 import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
@@ -21,10 +22,11 @@ import kotlin.io.path.Path
 
 class ImportCommand : CliktCommand(name = "import") {
     override fun help(context: Context) =
-        "Create .schemata files from an existing schema (XSD, Protobuf, or Postgres DDL)."
+        "Create .schemata files from an existing schema (XSD, Protobuf, Postgres DDL, or OpenAPI)."
 
     private val fromFlag by
-        option("--from", help = "Source format: xsd, proto, sql").choice("xsd", "proto", "sql")
+        option("--from", help = "Source format: xsd, proto, sql, openapi")
+            .choice("xsd", "proto", "sql", "openapi")
     private val out by
         option("--out", help = "Output directory (default: out)")
             .path(canBeFile = false)
@@ -34,7 +36,8 @@ class ImportCommand : CliktCommand(name = "import") {
             "--namespace",
             help =
                 "Schema name for a single input file: one whose XSD targetNamespace is not " +
-                    "urn:schemata:, or whose proto package or SQL schema is not a schema name",
+                    "urn:schemata:, whose proto package or SQL schema is not a schema name, or " +
+                    "any OpenAPI document, which is otherwise named after its file",
         )
     private val include by
         option(
@@ -71,6 +74,9 @@ class ImportCommand : CliktCommand(name = "import") {
             when (from) {
                 "proto" -> ProtoImporter to loadSources(paths, config, from, ProtoSet::load)
                 "sql" -> SqlImporter to loadSources(paths, config, from, SqlSet::load)
+                "openapi" ->
+                    OpenApiImporter to
+                        loadSources(paths, config, from, OpenApiSet::load, "OpenAPI documents")
                 else -> XsdImporter to loadSources(paths, config, from, XsdSet::load)
             }
         // The file's namespace is a default for a single input file; with several it is ignored,
