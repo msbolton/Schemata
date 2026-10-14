@@ -177,6 +177,13 @@ internal class OperationLowering(
     /** The namespace's top-level names: declarations, services, and the models made here. */
     private val top = Scope()
 
+    /**
+     * The models made for responses named by their description, by the name each wanted. The target
+     * writes a model with header fields inline in every response that returns it, so the same model
+     * answering several operations comes back as one declaration.
+     */
+    private val describedModels = HashMap<String, Pair<UnitDecl, String>>()
+
     fun lower(): List<LoweredService> {
         schemas.declarations()[namespace].orEmpty().forEach { top.claim(it.name) }
         val groups = groups()
@@ -773,7 +780,8 @@ internal class OperationLowering(
                     UnitPayload(UnitType.Ref(payloadName(it, place.at)), stream = false)
                 }
             }
-        val name = described(value.description) ?: wanted
+        val describedName = described(value.description)
+        val name = describedName ?: wanted
         val part =
             picked?.let {
                 (body(it.media, name, role, "headers") as? Body.Declared)?.decl as? UnitRecord
@@ -789,7 +797,15 @@ internal class OperationLowering(
                 annotations = part?.annotations.orEmpty(),
                 deprecated = part?.deprecated ?: false,
             )
-        return UnitPayload(UnitType.Ref(synthesize(place.at, decl)), stream = false)
+        if (describedName == null)
+            return UnitPayload(UnitType.Ref(synthesize(place.at, decl)), stream = false)
+        val same = describedModels[describedName]?.takeIf { it.first == decl }?.second
+        val declared =
+            same
+                ?: synthesize(place.at, decl).also {
+                    describedModels.putIfAbsent(describedName, decl to it)
+                }
+        return UnitPayload(UnitType.Ref(declared), stream = false)
     }
 
     /**

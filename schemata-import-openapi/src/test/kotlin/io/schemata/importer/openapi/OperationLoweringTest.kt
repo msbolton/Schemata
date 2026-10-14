@@ -1754,4 +1754,62 @@ class OperationLoweringTest {
             messages(r),
         )
     }
+
+    @Test
+    fun `responses with headers that describe one model alike are that one model`() {
+        val profile =
+            "{'200': {description: Profile, headers: {ETag: {required: true, schema: {type: string}}}, " +
+                "content: {application/json: {schema: {type: object, properties: {name: {type: string}}, " +
+                "required: [name], additionalProperties: false}}}}}"
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                tags: [{name: Account}]
+                paths:
+                  /me:
+                    get:
+                      tags: [Account]
+                      operationId: Account_get
+                      responses: $profile
+                    patch:
+                      tags: [Account]
+                      operationId: Account_touch
+                      responses: $profile
+                  /others:
+                    get:
+                      tags: [Account]
+                      operationId: Account_other
+                      responses:
+                        '200':
+                          description: Profile
+                          headers:
+                            ETag: {required: true, schema: {type: string}}
+                """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            model Profile { name string  e_tag string @openapi(header: "ETag") }
+
+            model Profile2 { e_tag string @openapi(header: "ETag") }
+
+            service Account {
+              #1 get(): Profile  get "/me"
+              #2 touch(): Profile  patch "/me"
+              #3 other(): Profile2  get "/others"
+            }
+            """
+                .trimIndent() + "\n",
+            text(r),
+        )
+        assertEquals(
+            listOf(
+                "SCH2402 shop.yaml: #/paths/~1others/get/responses/200: model 'Profile' is imported as 'Profile2', since 'Profile' is taken"
+            ),
+            messages(r),
+        )
+    }
 }
