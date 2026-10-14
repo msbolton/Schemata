@@ -1,0 +1,11 @@
+get:
+  tags: [Reviews]
+  operationId: listReviews
+  parameters:
+    - {name: page, in: query, schema: {type: integer, format: int32, minimum: 1}}
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema: {$ref: '../shop.yaml#/components/schemas/ReviewPage'}

@@ -1,0 +1,17 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Cat:
+      type: object
+      properties: {name: {type: string}}
+      additionalProperties: false
+    Dog:
+      type: object
+      properties: {name: {type: string}}
+      additionalProperties: false
+    Pet:
+      oneOf:
+        - {$ref: '#/components/schemas/Cat'}
+        - {$ref: '#/components/schemas/Dog'}

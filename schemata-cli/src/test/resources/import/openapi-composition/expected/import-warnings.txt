@@ -1,9 +1,10 @@
 SCH2403 adoptions.json: #/components/schemas/Adoption/properties/fee: exclusiveMinimum 0 is imported as min 0
 SCH2405 adoptions.json: #/components/schemas/Adoption/properties/tags: keyword 'uniqueItems' dropped
 SCH2403 adoptions.json: #/components/schemas/Notice/discriminator: discriminator mapping is not kept; the union is tagged by member name
+SCH2403 pets.yaml: #/components/schemas/Pet: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
 SCH2405 pets.yaml: #/components/schemas/Animal/properties/id: keyword 'readOnly' dropped
 SCH2404 pets.yaml: #/components/schemas/Cat/allOf/1/properties/lives: integer enum imported as int32; its values are not kept
 SCH2405 pets.yaml: #/components/schemas/Owner/properties/name: keyword 'example' dropped
 SCH2403 pets.yaml: #/components/schemas/Owner/properties/contact/oneOf/0: format 'email' has no Schemata type; imported as string
-SCH2403 pets.yaml: #/components/schemas/Owner/properties/age: exclusiveMinimum 0 is imported as min 0
+SCH2403 pets.yaml: #/components/schemas/Owner/properties/contact: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
 SCH2403 pets.yaml: #/components/schemas/Owner/additionalProperties: additionalProperties beside properties is imported as an open model; its schema is not kept

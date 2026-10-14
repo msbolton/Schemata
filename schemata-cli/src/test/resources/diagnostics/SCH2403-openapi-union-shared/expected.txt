@@ -3,4 +3,8 @@ warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Contact/oneOf: union m
  --> shop.yaml:1:1
   = help: review the imported declaration; the regenerated schema will differ here
 
-0 errors, 1 warning
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Contact: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
+ --> shop.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

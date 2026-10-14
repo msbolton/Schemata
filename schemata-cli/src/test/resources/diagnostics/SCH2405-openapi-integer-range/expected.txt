@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/components/schemas/Counter/properties/count: maximum 18446744073709551615 dropped; it lies outside int64
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

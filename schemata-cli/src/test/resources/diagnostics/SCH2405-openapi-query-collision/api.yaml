@@ -1,0 +1,19 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    post:
+      operationId: Api_create
+      parameters:
+        - {name: note, in: query, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Order'}
+      responses: {'204': {description: No content}}
+components:
+  schemas:
+    Order:
+      type: object
+      properties: {note: {type: string}}
+      additionalProperties: false

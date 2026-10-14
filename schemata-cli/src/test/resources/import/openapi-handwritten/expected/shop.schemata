@@ -1,0 +1,87 @@
+/// A shop written by hand, in the shapes such documents use.
+schema shop
+
+enum Status {
+  @jsonschema(name: "PENDING") pending
+  @jsonschema(name: "PAID") paid
+  @jsonschema(name: "SHIPPED") shipped
+}
+
+model Order {
+  id       uuid
+  note     string?
+  status   Status  = pending
+  previous Status?
+  quantity int32   { min 1, max 99 }
+  serial   int64?  { min 0 }
+}
+
+model Shipment {
+  carrier string?
+  address ShipmentAddress?
+
+  model ShipmentAddress { city string? }
+}
+
+model Card { last4 string? }
+
+model Transfer { iban string? }
+
+union Payment = Card | Transfer
+
+model Review { stars int32? }
+
+model ReviewPage { items Review[]? }
+
+model CreateOrderRequest {
+  dry_run  bool?   @jsonschema(name: "dryRun")
+  id       uuid
+  note     string?
+  status   Status  = pending
+  previous Status?
+  quantity int32   { min 1, max 99 }
+  serial   int64?  { min 0 }
+}
+
+model CreateOrderResponse { location string @openapi(header: "Location") }
+
+model CreateOrderError401 { www_authenticate string? @openapi(header: "WWW-Authenticate") }
+
+model GetOrderRequest { id uuid }
+
+model UpdateOrderRequest {
+  id2      uuid    @openapi(name: "id")
+  id       uuid
+  note     string?
+  status   Status  = pending
+  previous Status?
+  quantity int32   { min 1, max 99 }
+  serial   int64?  { min 0 }
+}
+
+model GetPaymentRequest { id uuid }
+
+model GetShipmentRequest { id uuid }
+
+model GetAddressRequest { id uuid }
+
+model GetAddressResponse { city string? }
+
+model ListReviewsRequest { page int32? { min 1 } }
+
+service Orders {
+  @openapi(name: "createOrder") #1 create_order(CreateOrderRequest): CreateOrderResponse
+    post "/orders" 201  errors { 401 CreateOrderError401 }
+  @openapi(name: "getOrder") #2 get_order(GetOrderRequest): Order  get "/orders/{id}"
+  @openapi(name: "updateOrder") #3 update_order(UpdateOrderRequest): Order  put "/orders/{id2}"
+  @openapi(name: "getPayment") #4 get_payment(GetPaymentRequest): Payment
+    get "/orders/{id}/payment"
+  @openapi(name: "getShipment") #5 get_shipment(GetShipmentRequest): Shipment
+    get "/orders/{id}/shipment"
+  @openapi(name: "getAddress") #6 get_address(GetAddressRequest): GetAddressResponse
+    get "/orders/{id}/address"
+}
+
+service Reviews {
+  @openapi(name: "listReviews") #1 list_reviews(ListReviewsRequest): ReviewPage  get "/reviews"
+}

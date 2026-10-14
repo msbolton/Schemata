@@ -1,0 +1,155 @@
+openapi: 3.0.3
+info:
+  title: shop
+  version: 1.0.0
+  description: A shop written by hand, in the shapes such documents use.
+externalDocs: {url: 'https://docs.example.com'}
+tags:
+  - name: Orders
+  - name: Reviews
+paths:
+  /orders:
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      parameters:
+        - {name: note, in: query, schema: {type: string}}
+        - {name: dryRun, in: query, schema: {type: boolean}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Order'}
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location: {required: true, schema: {type: string}}
+        '401':
+          description: Unauthorized
+          headers:
+            WWW-Authenticate: {schema: {type: string}}
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrderResponse'}
+    put:
+      tags: [Orders]
+      operationId: updateOrder
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Order'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Order'}
+  /orders/{id}/payment:
+    get:
+      tags: [Orders]
+      operationId: getPayment
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Payment'}
+  /orders/{id}/shipment:
+    get:
+      tags: [Orders]
+      operationId: getShipment
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Shipment'}
+  /orders/{id}/address:
+    get:
+      tags: [Orders]
+      operationId: getAddress
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Shipment/properties/address'}
+  /reviews: {$ref: 'include/reviews.yaml'}
+components:
+  schemas:
+    Status:
+      type: string
+      enum: [PENDING, PAID, SHIPPED, '']
+    Order:
+      type: object
+      required: [id, status, quantity]
+      properties:
+        id: {type: string, format: uuid}
+        note: {type: string}
+        status:
+          allOf:
+            - {$ref: '#/components/schemas/Status'}
+            - {default: PENDING}
+        previous:
+          allOf:
+            - {$ref: '#/components/schemas/Status'}
+            - {nullable: true, readOnly: true}
+        quantity: {type: integer, format: int32, minimum: 0, exclusiveMinimum: true, maximum: 99.5}
+        serial: {type: integer, minimum: 0, maximum: 18446744073709551615}
+      additionalProperties: false
+    Shipment:
+      type: object
+      properties:
+        carrier: {type: string}
+        address:
+          type: object
+          properties:
+            city: {type: string}
+          additionalProperties: false
+      additionalProperties: false
+    OrderResponse: {$ref: '#/components/schemas/Order'}
+    Card:
+      type: object
+      properties: {last4: {type: string}}
+      additionalProperties: false
+    Transfer:
+      type: object
+      properties: {iban: {type: string}}
+      additionalProperties: false
+    Payment:
+      oneOf:
+        - {$ref: '#/components/schemas/Card'}
+        - {$ref: '#/components/schemas/Transfer'}
+      discriminator: {propertyName: kind}
+    Review:
+      type: object
+      properties:
+        stars: {type: integer, format: int32}
+      discriminator: {propertyName: stars}
+      additionalProperties: false
+    ReviewPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Review'}
+      additionalProperties: false

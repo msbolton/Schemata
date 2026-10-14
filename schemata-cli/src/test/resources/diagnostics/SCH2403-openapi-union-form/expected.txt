@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/components/schemas/Pet: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

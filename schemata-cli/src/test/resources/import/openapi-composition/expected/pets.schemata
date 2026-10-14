@@ -42,7 +42,7 @@ model Dog {
 model Owner {
   name    string
   contact OwnerContact
-  age     int32?       { min 0 }
+  age     int32?       { min 1 }
 
   union OwnerContact = string | OwnerContactMember2
 

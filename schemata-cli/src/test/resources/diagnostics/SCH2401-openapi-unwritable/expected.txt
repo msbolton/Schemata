@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: api.yaml: schema 'api' cannot be written: control character U+0000 in a doc comment
+ --> api.yaml:1:1
+  = help: change the text the message names in the document, then import again
+
+1 error, 0 warnings
