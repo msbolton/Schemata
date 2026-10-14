@@ -638,12 +638,15 @@ class SchemaLowering(
                         "make the field that holds the union nullable to keep the null",
                     )
                 }
-                val type =
+                var type =
                     if (typed.type is UnitType.Ref || typed.type is UnitType.Scalar) typed.type
                     else unknown(place).type
                 if (tag != null) {
                     val stem = stemOf(type, typed.decl)
-                    if (tag != stem) {
+                    val keyed = (type as? UnitType.Scalar)?.takeIf { tag != stem }
+                    val model = keyed?.let { keyedMember(place, tag, it) }
+                    if (model != null) type = model
+                    else if (tag != stem) {
                         say(
                             place,
                             ImportCodes.APPROXIMATED,
@@ -661,6 +664,30 @@ class SchemaLowering(
             annotations = listOfNotNull(wireName(decl)),
             deprecated = node.isTrue("deprecated"),
         )
+    }
+
+    /**
+     * The model a tagged member holding [scalar] under [tag] stands for, declared beside the union,
+     * or null when [tag] is no name such a model could have. The target writes a member that refers
+     * to a keyed model as the model's key, tagged with the model's name, and leaves the model out
+     * when nothing else reaches it, so the member is that model with one key field of the scalar's
+     * type: compiled again, it is written the same way.
+     */
+    private fun keyedMember(place: Place, tag: String, scalar: UnitType.Scalar): UnitType? {
+        val wanted = ImportNames.upperCamel(tag)
+        if (visible(place, wanted) || TargetNames.snakeCase(wanted) != tag) return null
+        val model = inlineDecl(Place(place.doc, place.pointer, place.owner, wanted), DeclKind.MODEL)
+        model.built =
+            UnitRecord(
+                model.name,
+                listOf(
+                    UnitField("id", scalar, false, null, null, emptyList(), options = KEY_OPTION)
+                ),
+                emptyList(),
+                null,
+                emptyList(),
+            )
+        return UnitType.Ref(refText(model, place.owner))
     }
 
     /**
@@ -913,13 +940,7 @@ class SchemaLowering(
         val wanted = place.inline
         var name = wanted
         var n = 1
-        while (
-            names.taken(name) ||
-                space.names.taken(name) ||
-                place.owner.chain.any { it.names.taken(name) }
-        ) {
-            name = "$wanted${++n}"
-        }
+        while (visible(place, name)) name = "$wanted${++n}"
         names.claim(name)
         if (name != wanted) {
             say(
@@ -934,6 +955,15 @@ class SchemaLowering(
         decl.kind = kind
         (holder?.children ?: space.top) += decl
         return decl
+    }
+
+    /** Whether a declaration inline at [place] would find [name] already taken. */
+    private fun visible(place: Place, name: String): Boolean {
+        val space = space(place.owner.namespace)
+        val holder = place.owner.chain.lastOrNull()
+        return (holder?.names ?: space.names).taken(name) ||
+            space.names.taken(name) ||
+            place.owner.chain.any { it.names.taken(name) }
     }
 
     /** The type a schema without a `type` has from the keywords it carries. */
@@ -1470,6 +1500,8 @@ class SchemaLowering(
     )
 
     private companion object {
+        // the option that makes a field its model's key
+        val KEY_OPTION: List<Pair<String, String?>> = listOf("id" to null)
         val STRING = UnitType.Scalar("string", emptyList())
         val OPEN = UnitAnnotation("jsonschema", "open", null)
 
