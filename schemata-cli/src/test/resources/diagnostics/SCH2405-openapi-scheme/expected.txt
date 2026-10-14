@@ -1,0 +1,18 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/Digest: scheme 'Digest' dropped; Schemata has no http digest scheme
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/Key: scheme 'Key' dropped; its name 'X Key' holds whitespace
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/OAuth: scheme 'OAuth' dropped; its URL '/token' is not an absolute http or https URL
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/Second: scheme 'Second' dropped; scheme 'BearerAuth' is already the bearer scheme
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 4 warnings

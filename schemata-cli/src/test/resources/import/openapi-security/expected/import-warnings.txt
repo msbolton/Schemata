@@ -1,0 +1,1 @@
+SCH2405 shop.yaml: #/components/securitySchemes/OAuth2/flows/authorizationCode/scopes: scopes of scheme 'OAuth2' dropped; the regenerated scheme lists only the scopes its requirements name, without descriptions

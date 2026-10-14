@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/OAuth/flows/clientCredentials/scopes: scopes of scheme 'OAuth' dropped; the regenerated scheme lists only the scopes its requirements name, without descriptions
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

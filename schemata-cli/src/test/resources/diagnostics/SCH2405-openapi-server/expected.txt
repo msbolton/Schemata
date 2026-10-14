@@ -1,0 +1,10 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/servers/0: server 'api.example.com' dropped; it is not an absolute URL or a path
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/servers/1: server 'https://staging.example.com' dropped; only the first server is kept
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 2 warnings

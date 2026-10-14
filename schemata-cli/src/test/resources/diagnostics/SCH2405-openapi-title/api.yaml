@@ -1,0 +1,7 @@
+openapi: 3.0.3
+info: {title: Shop API, version: 1.0.0}
+paths:
+  /health:
+    get:
+      operationId: Api_health
+      responses: {'204': {description: No content}}

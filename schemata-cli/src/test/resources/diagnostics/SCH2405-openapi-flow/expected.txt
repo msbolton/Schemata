@@ -1,0 +1,18 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/Legacy/flows/password: password flow of scheme 'Legacy' dropped; Schemata writes the authorization code and client credentials flows
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/Legacy: scheme 'Legacy' dropped; it has no authorization code or client credentials flow
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/OAuth/flows/clientCredentials: clientCredentials flow of scheme 'OAuth' dropped; the authorizationCode flow is kept
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/OAuth/flows/implicit: implicit flow of scheme 'OAuth' dropped; Schemata writes the authorization code and client credentials flows
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 4 warnings

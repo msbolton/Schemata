@@ -1,0 +1,65 @@
+openapi: 3.0.3
+info:
+  title: shop
+  version: 2.0.0
+  description: The shop's public API.
+servers:
+  - url: https://api.example.com/v2
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+tags:
+  - name: catalog
+  - name: admin
+    description: Back-office operations.
+paths:
+  /products:
+    get:
+      tags: [catalog]
+      operationId: listProducts
+      security: []
+      responses:
+        '204': {description: No content}
+  /products/{id}:
+    get:
+      tags: [catalog]
+      operationId: getProduct
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '204': {description: No content}
+  /admin/products:
+    post:
+      tags: [admin]
+      operationId: createProduct
+      security:
+        - OAuth2: ['products:write']
+      responses:
+        '201': {description: Created}
+    delete:
+      tags: [admin]
+      operationId: purgeProducts
+      security:
+        - OAuth2: ['products:write']
+      responses:
+        '204': {description: No content}
+  /admin/reports:
+    get:
+      tags: [admin]
+      operationId: salesReport
+      security:
+        - OAuth2: ['products:write']
+      responses:
+        '204': {description: No content}
+components:
+  securitySchemes:
+    BearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+    ApiKeyAuth: {type: apiKey, in: header, name: X-API-Key}
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.example.com/authorize
+          tokenUrl: https://auth.example.com/token
+          scopes:
+            products:write: Create and remove products
