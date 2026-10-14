@@ -163,10 +163,18 @@ tasks.test {
     inputs.files(v1Jar).withPropertyName("v1Jar").withPathSensitivity(PathSensitivity.NONE)
     systemProperty("schemata.v1Jar", v1Jar.get().asFile.absolutePath)
     systemProperty("schemata.requireV1Jar", requireV1Jar.get().toString())
-    // The guide, README, and example tests read these from the repository root, outside the
-    // module's own sources, so a change to them alone must still rerun the tests.
+    // The wiki, README, and example tests read these from the repository root, outside the
+    // module's own sources, so a change to them alone must still rerun the tests. The wiki is the
+    // `wiki` submodule unless `-Pschemata.wiki=<dir>` names another checkout of it.
+    val wiki =
+        providers
+            .gradleProperty("schemata.wiki")
+            .map { rootProject.file(it) }
+            .orElse(rootProject.layout.projectDirectory.dir("wiki").asFile)
+    systemProperty("schemata.wiki", wiki.get().absolutePath)
     inputs
-        .dir(rootProject.layout.projectDirectory.dir("guide"))
+        .files(fileTree(wiki) { include("*.md") })
+        .withPropertyName("wiki")
         .withPathSensitivity(PathSensitivity.RELATIVE)
     inputs
         .file(rootProject.layout.projectDirectory.file("README.md"))

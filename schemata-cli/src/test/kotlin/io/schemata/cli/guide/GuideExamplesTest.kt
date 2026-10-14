@@ -6,11 +6,11 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every schema and rendered-output excerpt and quoted warning in examples.md is exactly what the
- * file it names holds, in the example directories or in the import corpus.
+ * Every schema and rendered-output excerpt and quoted warning in Worked-Examples is exactly what
+ * the file it names holds, in the example directories or in the import corpus.
  */
 class GuideExamplesTest {
-    private val text = File(Guide.dir, "examples.md").readText()
+    private val text = Guide.page("Worked-Examples").readText()
     private val lines = text.lines()
 
     @TestFactory
@@ -19,7 +19,7 @@ class GuideExamplesTest {
             .flatMap { language -> Guide.blocks(text, language) }
             .sortedBy { it.line }
             .map { block ->
-                DynamicTest.dynamicTest("examples.md:${block.line}") {
+                DynamicTest.dynamicTest("Worked-Examples.md:${block.line}") {
                     val source = sourceFor(block.line, "From `")
                     val file = File(Guide.root, source).readText()
                     assertTrue(
@@ -32,7 +32,7 @@ class GuideExamplesTest {
     @TestFactory
     fun `quoted warnings exist in the warnings file`(): List<DynamicTest> =
         warningsBlocks().map { block ->
-            DynamicTest.dynamicTest("examples.md:${block.line}") {
+            DynamicTest.dynamicTest("Worked-Examples.md:${block.line}") {
                 val source = sourceFor(block.line, "Warnings from `")
                 val warnings = File(Guide.root, source).readLines()
                 block.body
@@ -52,7 +52,7 @@ class GuideExamplesTest {
         warningsBlocks()
             .groupBy { sourceFor(it.line, "Warnings from `") }
             .map { (source, blocks) ->
-                DynamicTest.dynamicTest("examples.md -> $source") {
+                DynamicTest.dynamicTest("Worked-Examples.md -> $source") {
                     val shapes =
                         File(Guide.root, source)
                             .readLines()
@@ -68,7 +68,7 @@ class GuideExamplesTest {
                     val missing = shapes - quotedShapes
                     assertTrue(
                         missing.isEmpty(),
-                        "examples.md quotes no line for these shapes from $source:\n" +
+                        "Worked-Examples.md quotes no line for these shapes from $source:\n" +
                             missing.joinToString("\n"),
                     )
                 }
