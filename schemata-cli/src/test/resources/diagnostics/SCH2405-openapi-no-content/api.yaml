@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    delete:
+      operationId: Api_purge
+      responses:
+        '204':
+          description: Gone
+          content:
+            application/json:
+              schema: {type: string}

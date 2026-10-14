@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    post:
+      operationId: Api_create
+      parameters:
+        - {name: dryRun, in: query, schema: {type: boolean}}
+      responses: {'204': {description: No content}}

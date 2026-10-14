@@ -30,7 +30,7 @@ object OpenApiImporter : Importer {
         docs.forEach(refs::checkAll)
         val context = ImportContext(docs, namespaces, refs, report)
         val schemas = lowerSchemas(context)
-        lowerOperations(context)
+        lowerOperations(context, schemas)
         lowerSecurityAndInfo(context)
         // read last: lowering an operation adds the models it synthesizes
         addDeclarations(context, schemas)
@@ -140,8 +140,25 @@ object OpenApiImporter : Importer {
         }
     }
 
-    /** Paths and operations become services. No operation is lowered: a unit holds no service. */
-    private fun lowerOperations(context: ImportContext) {}
+    /**
+     * Each document's paths as services on its schema's draft, with the schemas their payloads and
+     * error bodies refer to as imports; the lowered services by schema name, for the security
+     * stage. A document is one schema, so each name has one document.
+     */
+    private fun lowerOperations(
+        context: ImportContext,
+        schemas: SchemaLowering,
+    ): Map<String, List<LoweredService>> =
+        context.docs.associate { doc ->
+            val namespace = context.namespaceOf(doc)
+            val lowered =
+                OperationLowering(doc, namespace, context.refs, schemas, context.report).lower()
+            val services = lowered.map { it.service }
+            val draft = context.draftOf(doc)
+            draft.services += services
+            draft.imports += serviceImports(services, namespace)
+            namespace to lowered
+        }
 
     /** Each document's `info` on its unit: `info.description` is the schema's doc comment. */
     private fun lowerSecurityAndInfo(context: ImportContext) {

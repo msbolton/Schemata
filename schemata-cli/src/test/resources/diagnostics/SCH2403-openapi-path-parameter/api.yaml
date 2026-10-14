@@ -1,0 +1,7 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders/{id}:
+    get:
+      operationId: Api_get
+      responses: {'204': {description: No content}}

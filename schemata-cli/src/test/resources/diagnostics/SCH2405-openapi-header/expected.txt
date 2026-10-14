@@ -1,0 +1,10 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/get/parameters/0: header 'Accept' dropped; OpenAPI ignores a header of this name
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/get/parameters/1: header 'X-Tags' dropped; a header holds a scalar or an enum
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 2 warnings

@@ -1,0 +1,18 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+tags:
+  - name: Cart
+paths:
+  /cart:
+    get:
+      tags: [Cart]
+      operationId: Cart_get
+      responses:
+        '200':
+          description: Cart
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Cart'}
+components:
+  schemas:
+    Cart: {type: object, properties: {id: {type: string}}, required: [id], additionalProperties: false}

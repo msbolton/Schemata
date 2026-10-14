@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /search:
+    get:
+      operationId: Api_search
+      requestBody:
+        content:
+          application/json:
+            schema: {type: string}
+      responses: {'204': {description: No content}}

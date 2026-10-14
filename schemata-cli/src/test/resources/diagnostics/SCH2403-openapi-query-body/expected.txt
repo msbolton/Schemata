@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/paths/~1orders/post/parameters/0: query parameter 'dryRun' becomes a body field, since post sends no query parameters
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/paths/~1orders~1{id}/put/requestBody/content/application~1json/schema: 'Order' is copied into 'ApiReplaceRequest' to sit beside the parameters
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

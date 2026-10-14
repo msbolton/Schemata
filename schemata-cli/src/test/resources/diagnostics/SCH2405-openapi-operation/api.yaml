@@ -1,0 +1,19 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    trace:
+      operationId: Api_trace
+      responses: {'204': {description: No content}}
+  /files/{name}.json:
+    get:
+      operationId: Api_file
+      parameters:
+        - {name: name, in: path, required: true, schema: {type: string}}
+      responses: {'204': {description: No content}}
+  /orders/{ids}:
+    get:
+      operationId: Api_many
+      parameters:
+        - {name: ids, in: path, required: true, schema: {type: array, items: {type: string}}}
+      responses: {'204': {description: No content}}

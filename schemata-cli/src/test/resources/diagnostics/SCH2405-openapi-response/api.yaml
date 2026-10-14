@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    post:
+      operationId: Api_create
+      responses:
+        '201': {description: Created}
+        '200': {description: OK}
+        '302': {description: Found}
+        4XX: {description: Client error}

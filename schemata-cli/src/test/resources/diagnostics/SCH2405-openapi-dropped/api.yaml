@@ -1,0 +1,18 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    post:
+      operationId: Api_create
+      servers:
+        - url: https://other.example.com
+      callbacks:
+        done:
+          '{$request.body#/url}':
+            post:
+              responses: {'204': {description: No content}}
+      responses:
+        '204':
+          description: No content
+          links:
+            self: {operationId: Api_create}
