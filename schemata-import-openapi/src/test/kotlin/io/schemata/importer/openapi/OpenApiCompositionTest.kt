@@ -889,6 +889,57 @@ class OpenApiCompositionTest {
     }
 
     @Test
+    fun `a tagged scalar under a model's name is that model carried by its key`() {
+        val r =
+            importText(
+                "shop.json" to
+                    """
+                    {
+                      "openapi": "3.1.0",
+                      "info": {"title": "shop", "version": "1.0.0"},
+                      "components": {
+                        "schemas": {
+                          "Hit": {
+                            "type": "object",
+                            "oneOf": [
+                              {"type": "object", "properties": {"customer": {"type": "string", "format": "uuid"}}, "required": ["customer"], "additionalProperties": false},
+                              {"type": "object", "properties": {"order_line": {"type": "string", "maxLength": 20}}, "required": ["order_line"], "additionalProperties": false},
+                              {"type": "object", "properties": {"order": {"$REF": "#/components/schemas/Order"}}, "required": ["order"], "additionalProperties": false},
+                              {"type": "object", "properties": {"Not-Snake": {"type": "integer", "format": "int32"}}, "required": ["Not-Snake"], "additionalProperties": false},
+                              {"type": "object", "properties": {"hit": {"type": "integer", "format": "int64"}}, "required": ["hit"], "additionalProperties": false}
+                            ]
+                          },
+                          "Order": {"type": "object", "properties": {}, "additionalProperties": false}
+                        }
+                      }
+                    }
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            union Hit = Customer | OrderLine | Order | int32 | int64
+
+            model Order {}
+
+            model Customer { id uuid { id } }
+
+            model OrderLine { id string { id, max 20 } }
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.json: #/components/schemas/Hit/oneOf/3/properties/Not-Snake: union member tag 'Not-Snake' is not the member's own; the regenerated union tags it 'int32'",
+                "SCH2403 shop.json: #/components/schemas/Hit/oneOf/4/properties/hit: union member tag 'hit' is not the member's own; the regenerated union tags it 'int64'",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
     fun `a discriminator mapping names a component or a file and never fails to resolve`() {
         val dog =
             """
