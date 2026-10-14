@@ -1,0 +1,22 @@
+/// The shop's public API.
+schema shop @openapi(version: "2.0.0") @openapi(server: "https://api.example.com/v2") @openapi(bearer: "JWT") @openapi(api_key: "header X-API-Key") @openapi(oauth2_token_url: "https://auth.example.com/token") @openapi(oauth2_authorization_url: "https://auth.example.com/authorize") @openapi(auth: (bearer, api_key))
+
+model GetProductRequest { id string }
+
+@openapi(name: "catalog")
+service Catalog {
+  @openapi(name: "listProducts")
+  @openapi(auth: none)
+  #1 list_products()  get "/products"
+  @openapi(name: "getProduct") #2 get_product(GetProductRequest)  get "/products/{id}"
+}
+
+/// Back-office operations.
+@openapi(name: "admin")
+@openapi(auth: oauth2)
+@openapi(scopes: "products:write")
+service Admin {
+  @openapi(name: "createProduct") #1 create_product()  post "/admin/products" 201
+  @openapi(name: "purgeProducts") #2 purge_products()  delete "/admin/products"
+  @openapi(name: "salesReport") #3 sales_report()  get "/admin/reports"
+}
