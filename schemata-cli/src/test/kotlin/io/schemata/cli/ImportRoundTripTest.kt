@@ -278,10 +278,19 @@ class ImportRoundTripTest {
         Regex("SCH2402 .*: tag '.*' is imported as '.*', since '.*' is taken")
 
     /**
+     * A request model whose parameter field gave way to a body property of its name, `id2` with
+     * `@openapi(name: "id")` beside `id`, compiles to a path parameter and a body property of one
+     * name, so the import meets the same collision again and makes the same field.
+     */
+    private val openapiParameterBesideBody =
+        Regex("SCH2402 .*/parameters/\\d+: parameter '.*' is imported as '.*', since '.*' is taken")
+
+    /**
      * The `.schemata` files of every imported openapi case's `expected/` tree compile to openapi,
      * import back, and regenerate that openapi byte for byte. The document the target writes from
      * an import holds nothing the importer approximates; the notes it may carry are a service
-     * renamed beside a model of its tag's name and a union member carried by its key.
+     * renamed beside a model of its tag's name, a union member carried by its key, and a parameter
+     * renamed beside a body property of its name.
      */
     @TestFactory
     fun `imported openapi cases regenerate their openapi byte for byte`(): List<DynamicTest> =
@@ -290,7 +299,7 @@ class ImportRoundTripTest {
             "openapi",
             OpenApiTarget,
             OpenApiImporter,
-            listOf(openapiServiceName, openapiKeyedMember),
+            listOf(openapiServiceName, openapiKeyedMember, openapiParameterBesideBody),
             File("src/test/resources/import"),
         )
 

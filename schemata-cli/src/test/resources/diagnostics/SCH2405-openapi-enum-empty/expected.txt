@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/components/schemas/Size/enum/2: enum value '' dropped; an enum value cannot be empty
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

@@ -1,0 +1,14 @@
+SCH2403 shop.yaml: #/components/schemas/OrderResponse: component 'OrderResponse' is not a model, enum or union; each use takes its type
+SCH2405 shop.yaml: #/components/schemas/Status/enum/3: enum value '' dropped; an enum value cannot be empty
+SCH2405 shop.yaml: #/components/schemas/Order/properties/previous/allOf/1: keyword 'readOnly' dropped
+SCH2403 shop.yaml: #/components/schemas/Order/properties/quantity: maximum 99.5 is imported as max 99
+SCH2405 shop.yaml: #/components/schemas/Order/properties/serial: maximum 18446744073709551615 dropped; it lies outside int64
+SCH2403 shop.yaml: #/components/schemas/Payment: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
+SCH2405 shop.yaml: #/components/schemas/Review: keyword 'discriminator' dropped
+SCH2405 shop.yaml: #/externalDocs: externalDocs dropped
+SCH2403 shop.yaml: #/paths/~1orders/post/parameters/0: query parameter 'note' becomes a body field, since post sends no query parameters
+SCH2403 shop.yaml: #/paths/~1orders/post/parameters/1: query parameter 'dryRun' becomes a body field, since post sends no query parameters
+SCH2403 shop.yaml: #/paths/~1orders/post/requestBody/content/application~1json/schema: 'Order' is copied into 'CreateOrderRequest' to sit beside the parameters
+SCH2405 shop.yaml: #/paths/~1orders/post/parameters/0: query parameter 'note' dropped; the body has a property of that name
+SCH2403 shop.yaml: #/paths/~1orders~1{id}/put/requestBody/content/application~1json/schema: 'Order' is copied into 'UpdateOrderRequest' to sit beside the parameters
+SCH2402 shop.yaml: #/paths/~1orders~1{id}/put/parameters/0: parameter 'id' is imported as 'id2', since 'id' is taken

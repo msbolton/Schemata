@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Note:
+      type: object
+      description: "a\0b"
+      properties: {text: {type: string}}
+      additionalProperties: false

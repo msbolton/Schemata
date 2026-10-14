@@ -35,6 +35,7 @@ class OpenApiFixpointTest {
             "openapi-security",
             "openapi-security-none",
             "openapi-ecommerce",
+            "openapi-handwritten",
         )
 
     @TestFactory
@@ -69,14 +70,18 @@ class OpenApiFixpointTest {
 
     private fun layout(text: String): SchemataLayout = SchemataLayout.of(text)
 
-    /** The OpenAPI documents of [case], `expected/` aside, named by their path in the case. */
+    /**
+     * The OpenAPI documents of [case], `expected/` aside, named by their path in the case. A file
+     * under `include/` is one a document refers to, read through the lookup, never an input.
+     */
     private fun documents(case: File): List<ImportInput> =
         case
             .walkTopDown()
             .filter {
                 it.isFile &&
                     it.extension in documentExtensions &&
-                    !it.relativeTo(case).path.startsWith("expected")
+                    !it.relativeTo(case).path.startsWith("expected") &&
+                    !it.relativeTo(case).path.startsWith("include/")
             }
             .sortedBy { it.relativeTo(case).path }
             .map {
