@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Pet/properties/anything: schema is imported as string, since Schemata has no type for it
+ --> shop.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

@@ -1,0 +1,13 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Tree:
+      type: array
+      items: {$ref: "#/components/schemas/Tree"}
+    Forest:
+      type: object
+      properties:
+        trees: {$ref: "#/components/schemas/Tree"}
+      additionalProperties: false

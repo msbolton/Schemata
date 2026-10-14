@@ -1,0 +1,89 @@
+openapi: 3.0.3
+info:
+  title: catalog
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    Product:
+      description: Something the shop sells.
+      type: object
+      required: [id, name, price, sku, category]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sku:
+          $ref: '#/components/schemas/Sku'
+        price:
+          description: The price before tax.
+          $ref: '#/components/schemas/shop.common.Money'
+        category:
+          $ref: '#/components/schemas/Category'
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+        attributes:
+          type: object
+        ratings:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 5
+        dimensions:
+          $ref: '#/components/schemas/catalog.Product.Dimensions'
+        stock:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        releasedOn:
+          type: string
+          format: date
+          nullable: true
+        thumbnail:
+          type: string
+          format: byte
+          maxLength: 4096
+        weight:
+          type: number
+          format: float
+        legacyCode:
+          description: The code the old catalog used.
+          type: string
+          deprecated: true
+    catalog.Product.Dimensions:
+      type: object
+      required: [width, height]
+      properties:
+        width:
+          type: number
+        height:
+          type: number
+      additionalProperties: false
+    Category:
+      description: Where a product is shelved.
+      type: string
+      enum: [books, games, MUSIC-CDS]
+    Sku:
+      type: string
+      pattern: '^[A-Z]{3}-[0-9]{4}$'
+    shop.common.Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: string
+          pattern: '^-?[0-9]{1,17}(\.[0-9]{1,2})?$'
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+      additionalProperties: false

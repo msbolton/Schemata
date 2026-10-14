@@ -1,0 +1,26 @@
+schema orders
+
+import catalog
+import shop.common
+
+model Order {
+  id        uuid
+  placed_at instant                                   @jsonschema(name: "placedAt")
+  lines     Line[]                                    { minItems 1 }
+  total     shop.common.Money
+  note      string?                                   { max 500 }
+  status    OrderStatus                               = placed
+  metadata  map<string { match "^[a-z]+$" }, string>?
+
+  model Line {
+    product    catalog.Product
+    quantity   int32              { min 1 }
+    unit_price shop.common.Money? @jsonschema(name: "unitPrice")
+  }
+}
+
+enum OrderStatus {
+  @jsonschema(name: "PLACED") placed
+  @jsonschema(name: "SHIPPED") shipped
+  @jsonschema(name: "DELIVERED") delivered
+}

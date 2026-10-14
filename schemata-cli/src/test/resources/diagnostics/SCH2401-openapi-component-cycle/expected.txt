@@ -1,0 +1,10 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/Tree: component 'Tree' refers to itself and is not a model, enum or union
+ --> shop.yaml:1:1
+  = help: make the component an object with properties
+
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Tree: component 'Tree' is not a model, enum or union; each use takes its type
+ --> shop.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+1 error, 1 warning

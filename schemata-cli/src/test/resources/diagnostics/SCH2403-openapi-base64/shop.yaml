@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Blob:
+      type: object
+      properties:
+        data: {type: string, format: byte, maxLength: 10}
+      additionalProperties: false

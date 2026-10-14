@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: users.yaml: #/components/schemas/shared.common.Problem: component 'shared.common.Problem' differs from the one in orders.yaml
+ --> users.yaml:1:1
+  = help: import the documents separately, or make the two components the same
+
+1 error, 0 warnings

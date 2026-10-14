@@ -2,6 +2,7 @@ package io.schemata.importer.openapi
 
 import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportInput
+import io.schemata.importer.ImportNames
 import io.schemata.importer.ImportResult
 import io.schemata.importer.Importer
 import io.schemata.importer.Roots
@@ -28,9 +29,11 @@ object OpenApiImporter : Importer {
         val refs = Refs(docs.associateBy { it.path }, locate, report)
         docs.forEach(refs::checkAll)
         val context = ImportContext(docs, namespaces, refs, report)
-        lowerSchemas(context)
+        val schemas = lowerSchemas(context)
         lowerOperations(context)
         lowerSecurityAndInfo(context)
+        // read last: lowering an operation adds the models it synthesizes
+        addDeclarations(context, schemas)
         return importResult(context.units(), diagnostics)
     }
 
@@ -115,9 +118,27 @@ object OpenApiImporter : Importer {
     private val FORMAT_SUFFIX = Regex("""\.openapi(\.[^./\\]+)$""", RegexOption.IGNORE_CASE)
 
     /**
-     * Components become declarations of their schemas. No component is lowered: a unit holds none.
+     * Lowers every input document's components, each into the schema its dotted name gives. A file
+     * reached only through a `$ref` is in the schema of its file stem, a `.openapi` before the
+     * extension left out.
      */
-    private fun lowerSchemas(context: ImportContext) {}
+    private fun lowerSchemas(context: ImportContext): SchemaLowering =
+        SchemaLowering(context.docs, context.refs, context.report) { doc ->
+            context.namespaces[doc.path] ?: ImportNames.namespaceStem(withoutFormatSuffix(doc.path))
+        }
+
+    /**
+     * Puts each schema's declarations, and the schemas they refer to, on its draft. A schema that
+     * only components name, such as `storefront.common`, gets its draft here, named after the first
+     * document that put a declaration in it.
+     */
+    private fun addDeclarations(context: ImportContext, schemas: SchemaLowering) {
+        for ((namespace, declarations) in schemas.declarations()) {
+            val draft = context.draft(namespace, schemas.sourcePath(namespace) ?: namespace)
+            draft.declarations += declarations
+            draft.imports += schemas.imports(namespace)
+        }
+    }
 
     /** Paths and operations become services. No operation is lowered: a unit holds no service. */
     private fun lowerOperations(context: ImportContext) {}
