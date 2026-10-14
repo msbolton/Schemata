@@ -1478,6 +1478,93 @@ class OpenApiSchemasTest {
         assertEquals(emptyList(), diagnostics)
     }
 
+    @Test
+    fun `a schema inside a component that reaches itself is an error`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Pet:
+                          type: object
+                          properties:
+                            a:
+                              type: array
+                              items: {$REF: "#/components/schemas/Pet/properties/a"}
+                          additionalProperties: false
+                    """
+            )
+        assertEquals(emptyList(), r.files)
+        assertEquals(
+            listOf(
+                "SCH2401 shop.yaml: #/components/schemas/Pet/properties/a: schema refers to itself and is not a model, enum or union"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a component of a referenced file first reached by an operation has its parents checked`() {
+        val text =
+            """
+            openapi: 3.0.3
+            info: {title: shop, version: 1.0.0}
+            paths:
+              /carts:
+                get:
+                  parameters:
+                    - name: line
+                      in: query
+                      schema: {$REF: 'common.yaml#/components/schemas/common.Cart.Line'}
+                  responses:
+                    '204': {description: No content}
+            """
+                .trimIndent()
+        val doc =
+            (OpenApiReader.read(ImportInput("shop.yaml", text, "shop.yaml")) as ReadOutcome.Read)
+                .doc
+        val common =
+            """
+            openapi: 3.0.3
+            info: {title: common, version: 1.0.0}
+            paths: {}
+            components:
+              schemas:
+                common.Cart.Line:
+                  type: object
+                  properties: {}
+                  additionalProperties: false
+            """
+                .trimIndent()
+        val diagnostics = mutableListOf<Diagnostic>()
+        val report = Report(diagnostics)
+        val refs =
+            Refs(
+                mapOf(doc.path to doc),
+                { path -> ImportInput(path, common).takeIf { path == "common.yaml" } },
+                report,
+            )
+        val schemas =
+            SchemaLowering(listOf(doc), refs, report) {
+                if (it.path == "shop.yaml") "shop" else "common"
+            }
+        assertEquals(emptyList(), diagnostics)
+        val parameter = Pointer.ROOT / "paths" / "/carts" / "get" / "parameters" / 0 / "schema"
+        val line = schemas.fieldType(doc, parameter, Schema<Any>(), "ListRequest", "line")
+        assertEquals(UnitType.Ref("common.Cart.Line"), line.type)
+        assertEquals(listOf("Cart"), schemas.declarations().getValue("common").map { it.name })
+        assertEquals(
+            listOf(
+                "SCH2403 common.yaml: #/components/schemas/common.Cart.Line: component 'common.Cart.Line' is nested in 'Cart', which no component declares; an empty model holds it"
+            ),
+            diagnostics.map { "${it.code.id} ${it.message}" },
+        )
+    }
+
     private companion object {
         /** A file the documents reference that is not itself an input. */
         val COMMON =
