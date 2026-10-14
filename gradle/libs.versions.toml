@@ -11,6 +11,8 @@ graalvmBuildTools = "0.10.6"
 jsonSchemaValidator = "1.5.6"
 lsp4j = "0.23.1"
 tomlj = "1.1.1"
+swaggerParser = "2.1.48"
+slf4j = "2.0.17"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -23,6 +25,8 @@ postgresJdbc = { module = "org.postgresql:postgresql", version.ref = "postgresJd
 jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.ref = "jsonSchemaValidator" }
 lsp4j = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j", version.ref = "lsp4j" }
 tomlj = { module = "org.tomlj:tomlj", version.ref = "tomlj" }
+swaggerParser = { module = "io.swagger.parser.v3:swagger-parser-v3", version.ref = "swaggerParser" }
+slf4jNop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 [plugins]
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

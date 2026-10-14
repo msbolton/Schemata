@@ -419,6 +419,17 @@ class ConfigLoaderTest {
     }
 
     @Test
+    fun `import from accepts openapi`() {
+        assertEquals(Setting("openapi", 2), loaded("[import]\nfrom = \"openapi\"\n").import.from)
+        assertDiagnostic(
+            "SCH2903 schemata.toml:2: import.from expects one of \"xsd\", \"proto\", \"sql\", " +
+                "\"openapi\"",
+            "for example import.from = \"xsd\"",
+            failure("[import]\nfrom = \"avro\"\n"),
+        )
+    }
+
+    @Test
     fun `an unclosed placeholder is SCH2904`() {
         assertDiagnostic(
             "SCH2904 schemata.toml:2: proto.java_package holds the unknown placeholder '{schema'",

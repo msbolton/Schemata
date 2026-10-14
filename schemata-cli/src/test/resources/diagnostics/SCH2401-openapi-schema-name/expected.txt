@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: shop.yaml: schema name 'shop' is taken by shop.json
+ --> shop.yaml:1:1
+  = help: rename one of them
+
+1 error, 0 warnings

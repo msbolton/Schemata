@@ -1,6 +1,7 @@
 package io.schemata.cli
 
 import io.schemata.importer.ImportInput
+import io.schemata.importer.openapi.OpenApiImporter
 import io.schemata.importer.xsd.XsdReader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -50,16 +51,39 @@ object SqlSet {
     fun load(paths: List<Path>): List<SourceInput> = loadByExtension(paths, "sql")
 }
 
+/**
+ * Like [SourceSet], but for the OpenAPI documents `schemata import --from openapi` reads: `.yaml`,
+ * `.yml`, and `.json` files. A directory holds other files with those extensions too (a
+ * `package.json`, a `docker-compose.yml`), so a file found by walking one is kept only when it is
+ * an OpenAPI or Swagger document. A file named on its own is always kept, and the importer reports
+ * it when it is not one.
+ */
+object OpenApiSet {
+    val extensions = setOf("yaml", "yml", "json")
+
+    fun load(paths: List<Path>): List<SourceInput> =
+        loadByExtensions(paths, extensions) { it.readText() }
+            .filter { it.relative == null || OpenApiImporter.isDocument(it.content) }
+}
+
 private fun loadByExtension(paths: List<Path>, extension: String): List<SourceInput> =
+    loadByExtensions(paths, setOf(extension)) { text(it, extension) }
+
+/** The files under [paths] with one of [extensions], each read by [read]; see [SourceSet]. */
+private fun loadByExtensions(
+    paths: List<Path>,
+    extensions: Set<String>,
+    read: (Path) -> String,
+): List<SourceInput> =
     paths
-        .flatMap { expand(it, extension) }
+        .flatMap { expand(it, extensions) }
         // A file named on its own and again under a directory is one file whichever came first
         // on the command line; the copy found under the directory keeps its path under it.
         .sortedBy { it.second == null }
         .distinctBy { it.first.toAbsolutePath().normalize() }
         .map { (path, relative) -> path.normalize() to relative }
         .sortedBy { it.first.toString() }
-        .map { (path, relative) -> SourceInput(path.toString(), text(path, extension), relative) }
+        .map { (path, relative) -> SourceInput(path.toString(), read(path), relative) }
 
 /**
  * [path]'s text: UTF-8, except for an `.xsd`, which may name another encoding in its XML
@@ -69,12 +93,14 @@ private fun text(path: Path, extension: String): String =
     if (extension == "xsd") XsdReader.decode(path.readBytes()) else path.readText()
 
 /** Each file [path] names, with its `/`-separated path under [path] when [path] is a directory. */
-private fun expand(path: Path, extension: String): List<Pair<Path, String?>> =
+private fun expand(path: Path, extensions: Set<String>): List<Pair<Path, String?>> =
     if (path.isDirectory()) {
         Files.walk(path).use { stream ->
             stream
                 .asSequence()
-                .filter { Files.isRegularFile(it) && it.toString().endsWith(".$extension") }
+                .filter { file ->
+                    Files.isRegularFile(file) && extensions.any { file.toString().endsWith(".$it") }
+                }
                 .map { it to path.relativize(it).joinToString("/") }
                 .toList()
         }
