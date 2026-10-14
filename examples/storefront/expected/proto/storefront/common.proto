@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package storefront.common;
+
+// An amount in one currency.
+message Money {
+  string amount = 1;  // schemata: decimal(19, 4)
+  string currency = 2;  // schemata: string { min 3, max 3, match "^[A-Z]{3}$" }
+}
+
+// Where a page sits in its listing.
+message PageInfo {
+  // The cursor of the next page; absent on the last one.
+  optional string next_cursor = 1;  // schemata: string? { max 200 }
+  // How many items the listing holds in all.
+  int64 total = 2;  // schemata: int64 { min 0 }
+}
+
+// A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,
+// `status` and `instance` are required, `instance` because a top-level model needs a key. Members
+// beyond those declared are allowed, as the RFC allows extensions.
+message Problem {
+  // A URI naming the kind of problem; `about:blank` when the status says it all.
+  string type = 1;  // schemata: string { max 2048 }; default = "about:blank"
+  // A short summary of the kind of problem, the same for every occurrence.
+  string title = 2;  // schemata: string { max 200 }
+  // The HTTP status code of the response.
+  int32 status = 3;  // schemata: int32 { min 400, max 599 }
+  // What went wrong this time.
+  optional string detail = 4;  // schemata: string? { max 2000 }
+  // A URI naming this occurrence, to quote when asking for help.
+  string instance = 5;  // schemata: string { max 2048 }
+  // The request's fields that failed their checks, when it failed on its fields.
+  repeated Violation errors = 6;  // schemata: Violation[]?
+
+  // One field of the request and what is wrong with it.
+  message Violation {
+    string field = 1;  // schemata: string { max 200 }
+    string message = 2;  // schemata: string { max 500 }
+  }
+}

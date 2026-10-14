@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package storefront.reviews;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "storefront/common.proto";
+
+// A customer's review of a product.
+message Review {
+  string id = 1;  // schemata: uuid
+  string product_id = 2;  // schemata: uuid
+  string author_id = 3;  // schemata: uuid
+  int32 rating = 4;  // schemata: int32 { min 1, max 5 }
+  string title = 5;  // schemata: string { max 120 }
+  optional string body = 6;  // schemata: string? { max 5000 }
+  // Whether the author bought the product here.
+  bool verified = 7;  // schemata: default = false
+  .google.protobuf.Timestamp created_at = 8;
+}
+
+// Which reviews of a product to list, newest first.
+message ListReviews {
+  string product_id = 1;  // schemata: uuid
+  optional int32 rating = 2;  // schemata: int32? { min 1, max 5 }
+  optional string cursor = 3;  // schemata: string? { max 200 }
+  int32 limit = 4;  // schemata: int32 { min 1, max 100 }; default = 20
+}
+
+// One page of a product's reviews.
+message ReviewPage {
+  string etag = 1;  // schemata: string { max 64 }
+  repeated Review items = 2;
+  .storefront.common.PageInfo page = 3;
+}
+
+// A new review of a product.
+message WriteReview {
+  string product_id = 1;  // schemata: uuid
+  int32 rating = 2;  // schemata: int32 { min 1, max 5 }
+  string title = 3;  // schemata: string { max 120 }
+  optional string body = 4;  // schemata: string? { max 5000 }
+}
+
+message ReviewId {
+  string id = 1;  // schemata: uuid
+}
+
+// Read and write reviews.
+service Reviews {
+  rpc List(ListReviews) returns (ReviewPage);  // schemata: get "/products/{product_id}/reviews"
+  // Review a product; a customer reviews each product once.
+  rpc Write(WriteReview) returns (Review);  // schemata: post "/products/{product_id}/reviews"
+  // Remove one of the customer's own reviews.
+  rpc Remove(ReviewId) returns (.google.protobuf.Empty);  // schemata: delete "/reviews/{id}"
+}

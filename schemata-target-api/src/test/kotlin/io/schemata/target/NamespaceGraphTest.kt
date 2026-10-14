@@ -82,6 +82,24 @@ class NamespaceGraphTest {
     }
 
     @Test
+    fun `an error body adds no namespace reference`() {
+        val schema =
+            compile(
+                "a.schemata" to
+                    """
+                    schema a
+                    model R { #1 x int32 }
+                    service Svc {
+                      errors { 500 b.Problem }
+                      #1 call(R): R  post "/r" 201  errors { 409 b.Problem }
+                    }
+                    """,
+                "b.schemata" to "schema b\nmodel Problem { #1 title string }",
+            )
+        assertEquals(emptySet(), schema.namespaceReferences().getValue("a"))
+    }
+
+    @Test
     fun `every namespace has an entry`() {
         val schema =
             compile(

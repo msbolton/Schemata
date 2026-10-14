@@ -1,0 +1,131 @@
+s
+  @openapi(bearer) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  @openapi(oauth2_token_url) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+s.PlaceOrder
+  field 'request_id': @openapi(header) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+s.Order
+  field 'etag': @openapi(header) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+s.Orders
+  operation 'get' error response 503 added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'get' error response 500 removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'get': @openapi(auth) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'get': @openapi(scopes) added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'place' success code changed from 200 to 201    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'place' error response 409 body changed from Problem to Conflict    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'place' error response 503 added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'place' error response 500 removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'cancel' error response 503 added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'cancel' error response 500 removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'cancel': @openapi(auth) changed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+  operation 'ping' error response 503 added    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: note
+  operation 'ping' error response 500 removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: compatible
+  operation 'ping': @openapi(auth) removed    proto: compatible, sql: compatible, xsd: compatible, jsonschema: compatible, openapi: breaking
+
+18 changes
+proto: 0 breaking, 0 notes
+sql: 0 breaking, 0 notes
+xsd: 0 breaking, 0 notes
+jsonschema: 0 breaking, 0 notes
+openapi: 8 breaking, 6 notes
+
+warning[SCH2502] (lossy): openapi: s: @openapi(oauth2_token_url) changed from "https://auth.example.com/token" to "https://auth.example.com/oauth/token"; clients configured with the old URL must move
+ --> new/orders.schemata:1:1
+  |
+1 | schema s @openapi(bearer: "JWT", api_key: "header X-API-Key", oauth2_token_url: "https://auth.example.com/oauth/token", auth: bearer)
+  | ^^^^^^^^
+  = help: keep the old URL answering until every client uses the new one
+
+warning[SCH2502] (lossy): openapi: s: the bearer token format changed from none to JWT
+ --> new/orders.schemata:1:1
+  |
+1 | schema s @openapi(bearer: "JWT", api_key: "header X-API-Key", oauth2_token_url: "https://auth.example.com/oauth/token", auth: bearer)
+  | ^^^^^^^^
+  = help: tell clients which token format to send
+
+error[SCH2501]: openapi: s.PlaceOrder.request_id: @openapi(header) added, so field 'request_id' moves into the Idempotency-Key header, which breaks clients that send or read it where it was
+ --> new/orders.schemata:5:64
+  |
+5 | model PlaceOrder { #1 sku string { id }  #2 quantity int32  #3 request_id string? @openapi(header: "Idempotency-Key") }
+  |                                                                ^^^^^^^^^^
+  = help: add a new field for the header instead of moving this one
+
+error[SCH2501]: openapi: s.Order.etag: @openapi(header) added, so field 'etag' moves into the ETag header, which breaks clients that send or read it where it was
+ --> new/orders.schemata:7:62
+  |
+7 | model Order { #1 id uuid { id }  #2 total decimal(12, 2)  #3 etag string? @openapi(header: "ETag") }
+  |                                                              ^^^^
+  = help: add a new field for the header instead of moving this one
+
+warning[SCH2502] (lossy): openapi: s.Orders.get: the operation can now answer 503; a client may not handle it
+  --> new/orders.schemata:15:3
+   |
+15 |   @openapi(auth: oauth2, scopes: "orders:read")
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | ...
+   = help: tell clients about the new response before the operation sends it
+
+error[SCH2501]: openapi: s.Orders.get: @openapi(auth) added, so operation 'get' no longer accepts bearer, which breaks clients without those credentials
+  --> new/orders.schemata:16:6
+   |
+16 |   #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+   |      ^^^
+   = help: keep the old requirement on these operations, or require the new one on new operations
+
+error[SCH2501]: openapi: s.Orders.get: @openapi(scopes) added, so operation 'get' now needs the scopes orders:read, which breaks clients without those credentials
+  --> new/orders.schemata:16:6
+   |
+16 |   #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+   |      ^^^
+   = help: keep the old requirement on these operations, or require the new one on new operations
+
+error[SCH2501]: openapi: s.Orders.place: the 409 response changed from Problem to Conflict breaks clients that read the old one
+  --> new/orders.schemata:17:3
+   |
+17 |   #2 place(PlaceOrder): Order  post "/orders" 201  errors { 409 Conflict }
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new operation instead of changing this one's error responses
+
+error[SCH2501]: openapi: s.Orders.place: the success code changed from 200 to 201 breaks clients that check for the old one
+  --> new/orders.schemata:17:3
+   |
+17 |   #2 place(PlaceOrder): Order  post "/orders" 201  errors { 409 Conflict }
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: add a new operation instead of changing this one's success code
+
+warning[SCH2502] (lossy): openapi: s.Orders.place: the operation can now answer 503; a client may not handle it
+  --> new/orders.schemata:17:3
+   |
+17 |   #2 place(PlaceOrder): Order  post "/orders" 201  errors { 409 Conflict }
+   |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: tell clients about the new response before the operation sends it
+
+warning[SCH2502] (lossy): openapi: s.Orders.cancel: the operation can now answer 503; a client may not handle it
+  --> new/orders.schemata:18:3
+   |
+18 |   @openapi(auth: bearer)
+   |   ^^^^^^^^^^^^^^^^^^^^^^
+   | ...
+   = help: tell clients about the new response before the operation sends it
+
+error[SCH2501]: openapi: s.Orders.cancel: @openapi(auth) changed, so operation 'cancel' no longer accepts api_key, which breaks clients without those credentials
+  --> new/orders.schemata:19:6
+   |
+19 |   #3 cancel(OrderId)  delete "/orders/{id}"
+   |      ^^^^^^
+   = help: keep the old requirement on these operations, or require the new one on new operations
+
+warning[SCH2502] (lossy): openapi: s.Orders.ping: the operation can now answer 503; a client may not handle it
+  --> new/orders.schemata:20:3
+   |
+20 |   #4 ping()  get "/ping"
+   |   ^^^^^^^^^^^^^^^^^^^^^^
+   = help: tell clients about the new response before the operation sends it
+
+error[SCH2501]: openapi: s.Orders.ping: @openapi(auth) removed, so operation 'ping' now requires bearer, which breaks clients without those credentials
+  --> new/orders.schemata:20:6
+   |
+20 |   #4 ping()  get "/ping"
+   |      ^^^^
+   = help: keep the old requirement on these operations, or require the new one on new operations
+
+8 errors, 6 warnings

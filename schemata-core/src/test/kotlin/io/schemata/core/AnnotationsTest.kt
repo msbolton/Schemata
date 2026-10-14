@@ -128,6 +128,23 @@ class AnnotationsTest {
     }
 
     @Test
+    fun `a name tuple key takes one bare name as a one-element tuple`() {
+        val r = analyze("t.schemata" to "schema a\n@sql(key: id)\nmodel R { #1 id uuid }")
+        assertEquals(emptyList(), messages(r))
+        val record = r.schema!!.namespaces.single().declarations.single() as RecordType
+        assertEquals(
+            Annotations(mapOf("sql" to mapOf("key" to Names(listOf("id"))))),
+            record.annotations,
+        )
+        val bad = analyze("t.schemata" to "schema a\n@sql(key: \"id\")\nmodel R { #1 id uuid }")
+        assertNull(bad.schema)
+        assertEquals(
+            listOf("t.schemata:2:6 @sql(key) expects a name or a tuple of names: (a, b)"),
+            messages(bad),
+        )
+    }
+
+    @Test
     fun `unknown, misplaced, malformed, and repeated annotations are reported`() {
         val src =
             "schema a\n" +

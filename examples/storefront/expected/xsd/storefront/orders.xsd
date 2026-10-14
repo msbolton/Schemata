@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:storefront.orders"
+           xmlns:ns1="urn:schemata:storefront.users"
+           xmlns:ns2="urn:schemata:storefront.common"
+           targetNamespace="urn:schemata:storefront.orders"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:storefront.users" schemaLocation="users.xsd"/>
+  <xs:import namespace="urn:schemata:storefront.common" schemaLocation="common.xsd"/>
+  <xs:simpleType name="OrderStatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="paid"/>
+      <xs:enumeration value="shipped"/>
+      <xs:enumeration value="delivered"/>
+      <xs:enumeration value="cancelled"/>
+      <xs:enumeration value="refunded"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="OrderType">
+    <xs:annotation>
+      <xs:documentation>An order checkout placed.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="number">
+        <xs:annotation>
+          <xs:documentation>The number the customer quotes, such as `SF-104223`.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="20"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="customer_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="status" type="tns:OrderStatusType" minOccurs="0" default="pending"/>
+      <xs:element name="lines" type="tns:OrderLineType" maxOccurs="unbounded"/>
+      <xs:element name="shipping" type="ns1:AddressType">
+        <xs:annotation>
+          <xs:documentation>The address the order ships to, as it was at checkout.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="subtotal" type="ns2:MoneyType"/>
+      <xs:element name="shipping_cost" type="ns2:MoneyType"/>
+      <xs:element name="tax" type="ns2:MoneyType"/>
+      <xs:element name="total" type="ns2:MoneyType"/>
+      <xs:element name="placed_at" type="xs:dateTime"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderLineType">
+    <xs:annotation>
+      <xs:documentation>A variant bought, at the price it had at checkout.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="product_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="sku">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="name">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="quantity">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="unit_price" type="ns2:MoneyType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CheckoutType">
+    <xs:annotation>
+      <xs:documentation>Places an order for everything in the cart.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="idempotency_key">
+        <xs:annotation>
+          <xs:documentation>A key the client makes up, so a retried checkout places one order.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="cart_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="shipping_address_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="note" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="500"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PlacedType">
+    <xs:annotation>
+      <xs:documentation>The order checkout placed, and where to read it from now on.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="location">
+        <xs:annotation>
+          <xs:documentation>The URL of the new order.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="2048"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="order_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="number">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="20"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="total" type="ns2:MoneyType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ListOrdersType">
+    <xs:annotation>
+      <xs:documentation>Which orders to list, newest first.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="status" type="tns:OrderStatusType" minOccurs="0"/>
+      <xs:element name="cursor" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="limit" minOccurs="0" default="20">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1"/>
+            <xs:maxInclusive value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderPageType">
+    <xs:annotation>
+      <xs:documentation>One page of the customer's orders.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="etag">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="items" type="tns:OrderType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="page" type="ns2:PageInfoType"/>
+      <xs:element name="query" type="tns:ListOrdersType">
+        <xs:annotation>
+          <xs:documentation>The listing this page answers, with which to ask for the next one.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OrderIdType">
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CancelOrderType">
+    <xs:annotation>
+      <xs:documentation>Why the customer cancels.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="reason" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="500"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="order" type="tns:OrderType"/>
+  <xs:element name="checkout" type="tns:CheckoutType"/>
+  <xs:element name="placed" type="tns:PlacedType"/>
+  <xs:element name="list_orders" type="tns:ListOrdersType"/>
+  <xs:element name="order_page" type="tns:OrderPageType"/>
+  <xs:element name="order_id" type="tns:OrderIdType"/>
+  <xs:element name="cancel_order" type="tns:CancelOrderType"/>
+</xs:schema>

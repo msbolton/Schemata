@@ -81,7 +81,8 @@ data class AliasDecl(
 
 /**
  * `service Orders { … }`: not a [Declaration], so it never nests and no `when` over declarations
- * sees it.
+ * sees it. [errors] holds every `errors { … }` member of the service in source order; the checker
+ * allows one.
  */
 data class ServiceDecl(
     val name: String,
@@ -91,11 +92,14 @@ data class ServiceDecl(
     val doc: String?,
     val annotations: List<Annotation>,
     val span: Span,
+    val errors: List<ErrorsDecl> = emptyList(),
 )
 
 /**
  * `#1 get(OrderId): Order get "/orders/{id}"`. [request] is null for `()`, [response] when there is
- * no `: …`, and [binding] when no HTTP route is given.
+ * no `: …`, and [binding] when no HTTP route is given. [errors] is the `errors { … }` clause that
+ * ends the operation on the line its signature or binding ends on, and [span] then runs through the
+ * clause's `}`.
  */
 data class OperationDecl(
     val ordinal: Int?,
@@ -108,14 +112,17 @@ data class OperationDecl(
     val doc: String?,
     val annotations: List<Annotation>,
     val span: Span,
+    val errors: ErrorsDecl? = null,
 )
 
 /** `stream Order` or `Order`. */
 data class PayloadDecl(val type: TypeExpr, val stream: Boolean, val span: Span)
 
 /**
- * `get "/orders/{id}"`; [parameters] are the `{name}` segments in order; [pathSpan] is the
- * literal's.
+ * `get "/orders/{id}"` or `post "/orders" 201`; [parameters] are the `{name}` segments in order;
+ * [pathSpan] is the literal's. [status] is the success code written after the path and [statusSpan]
+ * its span; both are null when there is none, and [status] alone is null when the code was
+ * malformed (SCH0010).
  */
 data class BindingDecl(
     val verb: String,
@@ -123,6 +130,25 @@ data class BindingDecl(
     val path: String,
     val pathSpan: Span,
     val parameters: List<String>,
+    val span: Span,
+    val status: Int? = null,
+    val statusSpan: Span? = null,
+)
+
+/**
+ * `errors { 404 Problem 410 default Problem }`; [span] runs from the `errors` word through the
+ * closing `}`.
+ */
+data class ErrorsDecl(val responses: List<ErrorResponseDecl>, val span: Span)
+
+/**
+ * One entry of an `errors` clause: [code] is the integer written, or null for `default`, at
+ * [codeSpan]; [body] is the type after it, if any; [span] runs from the code through the body.
+ */
+data class ErrorResponseDecl(
+    val code: Int?,
+    val codeSpan: Span,
+    val body: TypeExpr?,
     val span: Span,
 )
 

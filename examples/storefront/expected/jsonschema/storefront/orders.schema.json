@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.orders",
+  "title": "storefront.orders",
+  "$defs": {
+    "OrderStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "paid",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "refunded"
+      ]
+    },
+    "Order": {
+      "description": "An order checkout placed.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "number": {
+          "description": "The number the customer quotes, such as `SF-104223`.",
+          "type": "string",
+          "maxLength": 20
+        },
+        "customer_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "status": {
+          "$ref": "#/$defs/OrderStatus",
+          "default": "pending"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Order.Line"
+          },
+          "minItems": 1
+        },
+        "shipping": {
+          "description": "The address the order ships to, as it was at checkout.",
+          "$ref": "urn:schemata:storefront.users#/$defs/Address"
+        },
+        "subtotal": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "shipping_cost": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "tax": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "total": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "placed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "number",
+        "customer_id",
+        "lines",
+        "shipping",
+        "subtotal",
+        "shipping_cost",
+        "tax",
+        "total",
+        "placed_at"
+      ],
+      "additionalProperties": false
+    },
+    "Order.Line": {
+      "description": "A variant bought, at the price it had at checkout.",
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "unit_price": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        }
+      },
+      "required": [
+        "product_id",
+        "sku",
+        "name",
+        "quantity",
+        "unit_price"
+      ],
+      "additionalProperties": false
+    },
+    "Checkout": {
+      "description": "Places an order for everything in the cart.",
+      "type": "object",
+      "properties": {
+        "idempotency_key": {
+          "description": "A key the client makes up, so a retried checkout places one order.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "cart_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "shipping_address_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "idempotency_key",
+        "cart_id",
+        "shipping_address_id"
+      ],
+      "additionalProperties": false
+    },
+    "Placed": {
+      "description": "The order checkout placed, and where to read it from now on.",
+      "type": "object",
+      "properties": {
+        "location": {
+          "description": "The URL of the new order.",
+          "type": "string",
+          "maxLength": 2048
+        },
+        "order_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "number": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "total": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        }
+      },
+      "required": [
+        "location",
+        "order_id",
+        "number",
+        "total"
+      ],
+      "additionalProperties": false
+    },
+    "ListOrders": {
+      "description": "Which orders to list, newest first.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OrderStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "OrderPage": {
+      "description": "One page of the customer's orders.",
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Order"
+          }
+        },
+        "page": {
+          "$ref": "urn:schemata:storefront.common#/$defs/PageInfo"
+        },
+        "query": {
+          "description": "The listing this page answers, with which to ask for the next one.",
+          "$ref": "#/$defs/ListOrders"
+        }
+      },
+      "required": [
+        "etag",
+        "items",
+        "page",
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "OrderId": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "CancelOrder": {
+      "description": "Why the customer cancels.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

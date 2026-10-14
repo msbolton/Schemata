@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:schemata:storefront.catalog"
+           xmlns:ns1="urn:schemata:storefront.common"
+           targetNamespace="urn:schemata:storefront.catalog"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:schemata:storefront.common" schemaLocation="common.xsd"/>
+  <xs:complexType name="CategoryType">
+    <xs:annotation>
+      <xs:documentation>A category; categories nest under a parent.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="slug">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="100"/>
+            <xs:pattern value="[a-z0-9]+(-[a-z0-9]+)*"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="name">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="parent_id" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CategoryListType">
+    <xs:annotation>
+      <xs:documentation>Every category, parents before their children.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="etag">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="items" type="tns:CategoryType" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="AvailabilityType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="in_stock"/>
+      <xs:enumeration value="backorder"/>
+      <xs:enumeration value="out_of_stock"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ProductType">
+    <xs:annotation>
+      <xs:documentation>A product and the variants it is sold in.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="slug">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="100"/>
+            <xs:pattern value="[a-z0-9]+(-[a-z0-9]+)*"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="name">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="description" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="5000"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="category_id">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="brand" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="variants" type="tns:ProductVariantType" maxOccurs="unbounded"/>
+      <xs:element name="images" minOccurs="0" maxOccurs="20">
+        <xs:annotation>
+          <xs:documentation>Image URLs, the first one the product's main image.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="2048"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="rating" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>The average review rating, absent until the first review.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:double">
+            <xs:minInclusive value="1"/>
+            <xs:maxInclusive value="5"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ProductVariantType">
+    <xs:annotation>
+      <xs:documentation>One form of a product that can be bought, such as a size and a colour.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="sku">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="size" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="20"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="color" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="30"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="price" type="ns1:MoneyType"/>
+      <xs:element name="availability" type="tns:AvailabilityType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ProductSlugType">
+    <xs:sequence>
+      <xs:element name="slug">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="100"/>
+            <xs:pattern value="[a-z0-9]+(-[a-z0-9]+)*"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="ProductSortType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="relevance"/>
+      <xs:enumeration value="price_asc"/>
+      <xs:enumeration value="price_desc"/>
+      <xs:enumeration value="newest"/>
+      <xs:enumeration value="rating"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="ProductSearchType">
+    <xs:annotation>
+      <xs:documentation>What a search asks for. Each filter is a query parameter, and a filter left out matches every
+product.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="q" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Words to look for in a product's name and description.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="category" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>A category's slug; its subcategories match too.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:minLength value="1"/>
+            <xs:maxLength value="100"/>
+            <xs:pattern value="[a-z0-9]+(-[a-z0-9]+)*"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="brand" minOccurs="0" maxOccurs="10">
+        <xs:annotation>
+          <xs:documentation>Any of these brands.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="min_price" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="max_price" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:decimal">
+            <xs:totalDigits value="19"/>
+            <xs:fractionDigits value="4"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="availability" type="tns:AvailabilityType" minOccurs="0"/>
+      <xs:element name="sort" type="tns:ProductSortType" minOccurs="0" default="relevance"/>
+      <xs:element name="cursor" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="limit" minOccurs="0" default="20">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1"/>
+            <xs:maxInclusive value="100"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ProductPageType">
+    <xs:annotation>
+      <xs:documentation>One page of a search.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="etag">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="64"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="items" type="tns:ProductType" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="page" type="ns1:PageInfoType"/>
+      <xs:element name="query" type="tns:ProductSearchType">
+        <xs:annotation>
+          <xs:documentation>The search this page answers, with which to ask for the next one.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="category" type="tns:CategoryType"/>
+  <xs:element name="category_list" type="tns:CategoryListType"/>
+  <xs:element name="product" type="tns:ProductType"/>
+  <xs:element name="product_slug" type="tns:ProductSlugType"/>
+  <xs:element name="product_search" type="tns:ProductSearchType"/>
+  <xs:element name="product_page" type="tns:ProductPageType"/>
+</xs:schema>

@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package storefront.admin;
+
+import "google/protobuf/empty.proto";
+import "storefront/catalog.proto";
+import "storefront/orders.proto";
+
+// Which variant's stock to change, and to what.
+message SetAvailability {
+  string sku = 1;  // schemata: string { max 64 }
+  .storefront.catalog.Availability availability = 2;
+}
+
+message ProductId {
+  string id = 1;  // schemata: uuid
+}
+
+// Hands an order to a carrier.
+message Ship {
+  string id = 1;  // schemata: uuid
+  string carrier = 2;  // schemata: string { max 50 }
+  string tracking_number = 3;  // schemata: string { max 100 }
+}
+
+// Change the catalog.
+service CatalogAdmin {
+  // Add a product under an id the tool chooses, or replace the one it names.
+  rpc PutProduct(.storefront.catalog.Product) returns (.storefront.catalog.Product);  // schemata: put "/admin/products/{id}"
+  rpc RemoveProduct(ProductId) returns (.google.protobuf.Empty);  // schemata: delete "/admin/products/{id}"
+  rpc SetAvailability(.storefront.admin.SetAvailability) returns (.google.protobuf.Empty);  // schemata: put "/admin/variants/{sku}/availability"
+}
+
+// Fulfil orders.
+service OrderAdmin {
+  // Read any customer's order.
+  rpc GetOrder(.storefront.orders.OrderId) returns (.storefront.orders.Order);  // schemata: get "/admin/orders/{id}"
+  // Record that the order left with a carrier.
+  rpc Ship(.storefront.admin.Ship) returns (.storefront.orders.Order);  // schemata: post "/admin/orders/{id}/shipments"
+}

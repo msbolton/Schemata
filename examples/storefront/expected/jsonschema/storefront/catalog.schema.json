@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:schemata:storefront.catalog",
+  "title": "storefront.catalog",
+  "$defs": {
+    "Category": {
+      "description": "A category; categories nest under a parent.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "parent_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "CategoryList": {
+      "description": "Every category, parents before their children.",
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Category"
+          }
+        }
+      },
+      "required": [
+        "etag",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "Availability": {
+      "type": "string",
+      "enum": [
+        "in_stock",
+        "backorder",
+        "out_of_stock"
+      ]
+    },
+    "Product": {
+      "description": "A product and the variants it is sold in.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 5000
+        },
+        "category_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Product.Variant"
+          },
+          "minItems": 1
+        },
+        "images": {
+          "description": "Image URLs, the first one the product's main image.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "maxItems": 20
+        },
+        "rating": {
+          "description": "The average review rating, absent until the first review.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "name",
+        "category_id",
+        "variants",
+        "images"
+      ],
+      "additionalProperties": false
+    },
+    "Product.Variant": {
+      "description": "One form of a product that can be bought, such as a size and a colour.",
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "size": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 20
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 30
+        },
+        "price": {
+          "$ref": "urn:schemata:storefront.common#/$defs/Money"
+        },
+        "availability": {
+          "$ref": "#/$defs/Availability"
+        }
+      },
+      "required": [
+        "sku",
+        "price",
+        "availability"
+      ],
+      "additionalProperties": false
+    },
+    "ProductSlug": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "slug"
+      ],
+      "additionalProperties": false
+    },
+    "ProductSort": {
+      "type": "string",
+      "enum": [
+        "relevance",
+        "price_asc",
+        "price_desc",
+        "newest",
+        "rating"
+      ]
+    },
+    "ProductSearch": {
+      "description": "What a search asks for. Each filter is a query parameter, and a filter left out matches every\nproduct.",
+      "type": "object",
+      "properties": {
+        "q": {
+          "description": "Words to look for in a product's name and description.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "category": {
+          "description": "A category's slug; its subcategories match too.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "brand": {
+          "description": "Any of these brands.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "maxItems": 10
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_price": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "max_price": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+        },
+        "availability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Availability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sort": {
+          "$ref": "#/$defs/ProductSort",
+          "default": "relevance"
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProductPage": {
+      "description": "One page of a search.",
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Product"
+          }
+        },
+        "page": {
+          "$ref": "urn:schemata:storefront.common#/$defs/PageInfo"
+        },
+        "query": {
+          "description": "The search this page answers, with which to ask for the next one.",
+          "$ref": "#/$defs/ProductSearch"
+        }
+      },
+      "required": [
+        "etag",
+        "items",
+        "page",
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

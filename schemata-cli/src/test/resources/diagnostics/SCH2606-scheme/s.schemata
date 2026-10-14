@@ -1,0 +1,7 @@
+schema s @openapi(api_key: "header", oauth2_authorization_url: "https://auth.example.com/authorize", openid: "auth.example.com")
+
+model R { #1 ok bool }
+
+service S {
+  #1 ping(): R
+}

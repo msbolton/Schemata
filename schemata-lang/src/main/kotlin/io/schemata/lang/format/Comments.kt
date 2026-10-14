@@ -6,7 +6,9 @@ import io.schemata.lang.antlr.SchemataLexer
 import io.schemata.lang.ast.Annotation
 import io.schemata.lang.ast.Declaration
 import io.schemata.lang.ast.EnumDecl
+import io.schemata.lang.ast.ErrorsDecl
 import io.schemata.lang.ast.FieldDecl
+import io.schemata.lang.ast.OperationDecl
 import io.schemata.lang.ast.RecordDecl
 import io.schemata.lang.ast.ReservedItem
 import io.schemata.lang.ast.ServiceDecl
@@ -123,7 +125,9 @@ object Comments {
      * prefix (an import, a reserved statement). [annotations] are the element's own annotations,
      * used to tell a comment that shares an annotation's line from one that merely precedes the
      * element's keyword or ordinal. [hasBraces] marks a record, enum or service, whose header line
-     * can carry a comment of its own.
+     * can carry a comment of its own. [opens] is the span of the `errors` clause whose entries are
+     * the members: an operation's, or a service's clause itself. A comment inside the element but
+     * before it trails the element as it would a leaf, and the header line is the clause's first.
      */
     private class Element(
         val span: Span,
@@ -133,6 +137,7 @@ object Comments {
         val prefixEnd: Span? = null,
         val annotations: List<Annotation> = emptyList(),
         val hasBraces: Boolean = false,
+        val opens: Span? = null,
     )
 
     private fun leaf(
@@ -155,7 +160,8 @@ object Comments {
         prefixEnd: Span,
         annotations: List<Annotation>,
         hasBraces: Boolean,
-    ) = Element(span, span, sortedBlock(members), true, prefixEnd, annotations, hasBraces)
+        opens: Span? = null,
+    ) = Element(span, span, sortedBlock(members), true, prefixEnd, annotations, hasBraces, opens)
 
     private fun sortedBlock(members: List<Element>) =
         members.sortedWith(compareBy({ it.span.startLine }, { it.span.startColumn }))
@@ -236,11 +242,41 @@ object Comments {
         fun element(s: ServiceDecl): Element =
             block(
                 s.span,
-                s.operations.map { leaf(it.span, it.ordinalSpan ?: it.nameSpan, it.annotations) } +
+                s.operations.map(::operation) +
+                    s.errors.map(::errors) +
                     reservedElements(s.reserved),
                 s.nameSpan,
                 s.annotations,
                 hasBraces = true,
+            )
+
+        /**
+         * An operation is a leaf, unless it ends in an `errors` clause: then it is a block whose
+         * members are the clause's entries, so a comment inside the clause belongs to an entry or
+         * to the clause's header line or end.
+         */
+        private fun operation(op: OperationDecl): Element {
+            val prefixEnd = op.ordinalSpan ?: op.nameSpan
+            val clause = op.errors ?: return leaf(op.span, prefixEnd, op.annotations)
+            return block(
+                op.span,
+                clause.responses.map { leaf(it.span) },
+                prefixEnd,
+                op.annotations,
+                hasBraces = true,
+                opens = clause.span,
+            )
+        }
+
+        /** A service's own `errors` clause, a block of its entries keyed by the clause. */
+        private fun errors(e: ErrorsDecl): Element =
+            block(
+                e.span,
+                e.responses.map { leaf(it.span) },
+                e.span,
+                emptyList(),
+                hasBraces = true,
+                opens = e.span,
             )
 
         /**
@@ -313,14 +349,16 @@ object Comments {
             }
             val container = members.firstOrNull { it.isBlock && inside(c, it.span) }
             if (container != null) {
-                if (
+                val opens = container.opens
+                val headerLine = opens?.startLine ?: container.prefixEnd!!.endLine
+                when {
+                    opens != null && before(c, opens) ->
+                        addTrailing(container.key, container.key, c)
                     container.hasBraces &&
-                        c.line == container.prefixEnd!!.endLine &&
-                        container.members.all { before(c, it.span) }
-                ) {
-                    headerTrailing.getOrPut(container.key) { mutableListOf() } += c
-                } else {
-                    place(c, container.members, container)
+                        c.line == headerLine &&
+                        container.members.all { before(c, it.span) } ->
+                        headerTrailing.getOrPut(container.key) { mutableListOf() } += c
+                    else -> place(c, container.members, container)
                 }
                 return
             }

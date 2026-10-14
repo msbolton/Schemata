@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package storefront.users;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+enum AddressKind {
+  ADDRESS_KIND_UNSPECIFIED = 0;
+  ADDRESS_KIND_SHIPPING = 1;
+  ADDRESS_KIND_BILLING = 2;
+}
+
+// The signed-in customer.
+message Profile {
+  string id = 1;  // schemata: uuid
+  string email = 2;  // schemata: string { max 254, match "^[^@]+@[^@]+$" }
+  string name = 3;  // schemata: string { max 100 }
+  optional string phone = 4;  // schemata: string? { max 32 }
+  bool marketing = 5;  // schemata: default = false
+  .google.protobuf.Timestamp created_at = 6;
+  // The version of the profile, for a later conditional update.
+  string etag = 7;  // schemata: string { max 64 }
+}
+
+// The parts of the profile to change; a field left out keeps its value.
+message UpdateProfile {
+  // The `ETag` the profile was read with; the update fails with 412 when it changed since.
+  string if_match = 1;  // schemata: string { max 64 }
+  optional string name = 2;  // schemata: string? { max 100 }
+  optional string phone = 3;  // schemata: string? { max 32 }
+  optional bool marketing = 4;
+}
+
+// A postal address in the address book.
+message Address {
+  string id = 1;  // schemata: uuid
+  AddressKind kind = 2;
+  string name = 3;  // schemata: string { max 100 }
+  string line1 = 4;  // schemata: string { max 200 }
+  optional string line2 = 5;  // schemata: string? { max 200 }
+  string city = 6;  // schemata: string { max 100 }
+  optional string region = 7;  // schemata: string? { max 100 }
+  string postal_code = 8;  // schemata: string { max 20 }
+  // A two-letter ISO 3166-1 country code.
+  string country = 9;  // schemata: string { min 2, max 2, match "^[A-Z]{2}$" }
+  bool is_default = 10;  // schemata: default = false
+}
+
+message AddressId {
+  string id = 1;  // schemata: uuid
+}
+
+// Every address of the customer, default addresses first.
+message AddressBook {
+  string etag = 1;  // schemata: string { max 64 }
+  repeated Address items = 2;
+}
+
+// The signed-in customer's own data.
+service Account {
+  rpc GetProfile(.google.protobuf.Empty) returns (Profile);  // schemata: get "/me"
+  rpc UpdateProfile(.storefront.users.UpdateProfile) returns (Profile);  // schemata: patch "/me"
+  rpc ListAddresses(.google.protobuf.Empty) returns (AddressBook);  // schemata: get "/me/addresses"
+  // Add an address under an id the client chooses, or replace the one it names.
+  rpc PutAddress(Address) returns (Address);  // schemata: put "/me/addresses/{id}"
+  rpc RemoveAddress(AddressId) returns (.google.protobuf.Empty);  // schemata: delete "/me/addresses/{id}"
+}

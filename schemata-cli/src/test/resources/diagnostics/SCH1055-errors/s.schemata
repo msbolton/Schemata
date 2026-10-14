@@ -1,0 +1,9 @@
+schema t
+
+model Order { #1 id uuid }
+
+service Orders {
+  errors { 500 Order  302 }
+  errors { 503 }
+  #1 get(Order): Order  post "/orders"  errors { 404 uuid  404 }
+}

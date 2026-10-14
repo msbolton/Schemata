@@ -1,0 +1,583 @@
+schema admin
+table admin.product_id
+  column id uuid not null
+  constraint pk_product_id PRIMARY KEY (id)
+table admin.set_availability -- Which variant's stock to change, and to what.
+  column sku character varying(64) not null
+  column availability text not null
+  constraint ck_set_availability_availability_enum CHECK ((availability = ANY (ARRAY['in_stock'::text, 'backorder'::text, 'out_of_stock'::text])))
+  constraint pk_set_availability PRIMARY KEY (sku)
+table admin.ship -- Hands an order to a carrier.
+  column id uuid not null
+  column carrier character varying(50) not null
+  column tracking_number character varying(100) not null
+  constraint pk_ship PRIMARY KEY (id)
+schema auth
+table auth.login -- The credentials a session starts from.
+  column email text not null
+  column password text not null
+  constraint ck_login_email_max CHECK ((char_length(email) <= 254))
+  constraint ck_login_email_pattern CHECK ((email ~ '^[^@]+@[^@]+$'::text))
+  constraint ck_login_password_max CHECK ((char_length(password) <= 128))
+  constraint ck_login_password_min CHECK ((char_length(password) >= 1))
+  constraint pk_login PRIMARY KEY (email)
+table auth.refresh_token -- A refresh token, traded for a new session or given up at sign-out.
+  column refresh_token character varying(512) not null
+  constraint pk_refresh_token PRIMARY KEY (refresh_token)
+table auth.register -- A new account.
+  column email text not null
+  column password text not null
+  column name character varying(100) not null
+  constraint ck_register_email_max CHECK ((char_length(email) <= 254))
+  constraint ck_register_email_pattern CHECK ((email ~ '^[^@]+@[^@]+$'::text))
+  constraint ck_register_password_max CHECK ((char_length(password) <= 128))
+  constraint ck_register_password_min CHECK ((char_length(password) >= 12))
+  constraint pk_register PRIMARY KEY (email)
+table auth.session -- A session: a short-lived access token, sent as `Authorization: Bearer …`, and the refresh
+token that renews it.
+  column access_token character varying(4096) not null
+  column token_type text not null default 'Bearer'::text
+  column expires_in integer not null -- Seconds until the access token expires.
+  column refresh_token character varying(512) not null
+  column user_id uuid not null
+  constraint ck_session_expires_in_min CHECK ((expires_in >= 1))
+  constraint pk_session PRIMARY KEY (access_token)
+schema cart
+table cart.add_item -- A variant to put in the cart; one already there gains the quantity.
+  column sku character varying(64) not null
+  column product_id uuid not null
+  column quantity integer not null default 1
+  constraint ck_add_item_quantity_max CHECK ((quantity <= 99))
+  constraint ck_add_item_quantity_min CHECK ((quantity >= 1))
+  constraint fk_add_item_product FOREIGN KEY (product_id) REFERENCES catalog.product(id)
+  constraint pk_add_item PRIMARY KEY (sku)
+table cart.cart -- What the customer means to buy.
+  column id uuid not null
+  column subtotal_amount numeric(19,4) not null
+  column subtotal_currency text not null
+  column updated_at timestamp with time zone not null
+  constraint ck_cart_subtotal_currency_max CHECK ((char_length(subtotal_currency) <= 3))
+  constraint ck_cart_subtotal_currency_min CHECK ((char_length(subtotal_currency) >= 3))
+  constraint ck_cart_subtotal_currency_pattern CHECK ((subtotal_currency ~ '^[A-Z]{3}$'::text))
+  constraint pk_cart PRIMARY KEY (id)
+table cart.cart_lines -- A variant of a product, and how many of it.
+  column cart_id uuid not null
+  column position integer not null
+  column product_id uuid not null
+  column sku character varying(64) not null
+  column quantity integer not null
+  column unit_price_amount numeric(19,4) not null
+  column unit_price_currency text not null
+  constraint ck_cart_lines_quantity_max CHECK ((quantity <= 99))
+  constraint ck_cart_lines_quantity_min CHECK ((quantity >= 1))
+  constraint ck_cart_lines_unit_price_currency_max CHECK ((char_length(unit_price_currency) <= 3))
+  constraint ck_cart_lines_unit_price_currency_min CHECK ((char_length(unit_price_currency) >= 3))
+  constraint ck_cart_lines_unit_price_currency_pattern CHECK ((unit_price_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_cart_lines_cart FOREIGN KEY (cart_id) REFERENCES cart.cart(id) ON DELETE CASCADE
+  constraint fk_cart_lines_product FOREIGN KEY (product_id) REFERENCES catalog.product(id)
+  constraint pk_cart_lines PRIMARY KEY (cart_id, "position")
+table cart.item_sku
+  column sku character varying(64) not null
+  constraint pk_item_sku PRIMARY KEY (sku)
+table cart.set_quantity -- A new quantity for a variant in the cart.
+  column sku character varying(64) not null
+  column quantity integer not null
+  constraint ck_set_quantity_quantity_max CHECK ((quantity <= 99))
+  constraint ck_set_quantity_quantity_min CHECK ((quantity >= 1))
+  constraint pk_set_quantity PRIMARY KEY (sku)
+schema catalog
+table catalog.category -- A category; categories nest under a parent.
+  column id uuid not null
+  column slug text not null
+  column name character varying(100) not null
+  column parent_id uuid
+  constraint ck_category_slug_max CHECK ((char_length(slug) <= 100))
+  constraint ck_category_slug_min CHECK ((char_length(slug) >= 1))
+  constraint ck_category_slug_pattern CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+  constraint fk_category_parent FOREIGN KEY (parent_id) REFERENCES catalog.category(id)
+  constraint pk_category PRIMARY KEY (id)
+  constraint uq_category_slug UNIQUE (slug)
+table catalog.category_list -- Every category, parents before their children.
+  column etag character varying(64) not null
+  constraint pk_category_list PRIMARY KEY (etag)
+table catalog.category_list_items -- A category; categories nest under a parent.
+  column category_list_etag character varying(64) not null
+  column position integer not null
+  column id uuid not null
+  column slug text not null
+  column name character varying(100) not null
+  column parent_id uuid
+  constraint ck_category_list_items_slug_max CHECK ((char_length(slug) <= 100))
+  constraint ck_category_list_items_slug_min CHECK ((char_length(slug) >= 1))
+  constraint ck_category_list_items_slug_pattern CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+  constraint fk_category_list_items_category_list FOREIGN KEY (category_list_etag) REFERENCES catalog.category_list(etag) ON DELETE CASCADE
+  constraint fk_category_list_items_parent FOREIGN KEY (parent_id) REFERENCES catalog.category(id)
+  constraint pk_category_list_items PRIMARY KEY (category_list_etag, "position")
+  constraint uq_category_list_items_slug UNIQUE (slug)
+table catalog.product -- A product and the variants it is sold in.
+  column id uuid not null
+  column slug text not null
+  column name character varying(200) not null
+  column description character varying(5000)
+  column category_id uuid not null
+  column brand character varying(100)
+  column images text[] not null -- Image URLs, the first one the product's main image.
+  column rating double precision -- The average review rating, absent until the first review.
+  constraint ck_product_rating_max CHECK ((rating <= (5)::double precision))
+  constraint ck_product_rating_min CHECK ((rating >= (1)::double precision))
+  constraint ck_product_slug_max CHECK ((char_length(slug) <= 100))
+  constraint ck_product_slug_min CHECK ((char_length(slug) >= 1))
+  constraint ck_product_slug_pattern CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+  constraint fk_product_category FOREIGN KEY (category_id) REFERENCES catalog.category(id)
+  constraint pk_product PRIMARY KEY (id)
+  constraint uq_product_slug UNIQUE (slug)
+table catalog.product_page -- One page of a search.
+  column etag character varying(64) not null
+  column page_next_cursor character varying(200) -- The cursor of the next page; absent on the last one.
+  column page_total bigint not null -- How many items the listing holds in all.
+  column query_q character varying(200) -- Words to look for in a product's name and description.
+  column query_category text -- A category's slug; its subcategories match too.
+  column query_brand text[] -- Any of these brands.
+  column query_min_price numeric(19,4)
+  column query_max_price numeric(19,4)
+  column query_availability text
+  column query_sort text not null default 'relevance'::text
+  column query_cursor character varying(200)
+  column query_limit integer not null default 20
+  constraint ck_product_page_page_total_min CHECK ((page_total >= 0))
+  constraint ck_product_page_query_availability_enum CHECK ((query_availability = ANY (ARRAY['in_stock'::text, 'backorder'::text, 'out_of_stock'::text])))
+  constraint ck_product_page_query_category_max CHECK ((char_length(query_category) <= 100))
+  constraint ck_product_page_query_category_min CHECK ((char_length(query_category) >= 1))
+  constraint ck_product_page_query_category_pattern CHECK ((query_category ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+  constraint ck_product_page_query_limit_max CHECK ((query_limit <= 100))
+  constraint ck_product_page_query_limit_min CHECK ((query_limit >= 1))
+  constraint ck_product_page_query_sort_enum CHECK ((query_sort = ANY (ARRAY['relevance'::text, 'price_asc'::text, 'price_desc'::text, 'newest'::text, 'rating'::text])))
+  constraint pk_product_page PRIMARY KEY (etag)
+table catalog.product_page_items -- A product and the variants it is sold in.
+  column product_page_etag character varying(64) not null
+  column position integer not null
+  column id uuid not null
+  column slug text not null
+  column name character varying(200) not null
+  column description character varying(5000)
+  column category_id uuid not null
+  column brand character varying(100)
+  column images text[] not null -- Image URLs, the first one the product's main image.
+  column rating double precision -- The average review rating, absent until the first review.
+  constraint ck_product_page_items_rating_max CHECK ((rating <= (5)::double precision))
+  constraint ck_product_page_items_rating_min CHECK ((rating >= (1)::double precision))
+  constraint ck_product_page_items_slug_max CHECK ((char_length(slug) <= 100))
+  constraint ck_product_page_items_slug_min CHECK ((char_length(slug) >= 1))
+  constraint ck_product_page_items_slug_pattern CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+  constraint fk_product_page_items_category FOREIGN KEY (category_id) REFERENCES catalog.category(id)
+  constraint fk_product_page_items_product_page FOREIGN KEY (product_page_etag) REFERENCES catalog.product_page(etag) ON DELETE CASCADE
+  constraint pk_product_page_items PRIMARY KEY (product_page_etag, "position")
+  constraint uq_product_page_items_slug UNIQUE (slug)
+table catalog.product_page_items_variants -- One form of a product that can be bought, such as a size and a colour.
+  column product_page_items_product_page_etag character varying(64) not null
+  column product_page_items_position integer not null
+  column position integer not null
+  column sku character varying(64) not null
+  column size character varying(20)
+  column color character varying(30)
+  column price_amount numeric(19,4) not null
+  column price_currency text not null
+  column availability text not null
+  constraint ck_product_page_items_variants_availability_enum CHECK ((availability = ANY (ARRAY['in_stock'::text, 'backorder'::text, 'out_of_stock'::text])))
+  constraint ck_product_page_items_variants_price_currency_max CHECK ((char_length(price_currency) <= 3))
+  constraint ck_product_page_items_variants_price_currency_min CHECK ((char_length(price_currency) >= 3))
+  constraint ck_product_page_items_variants_price_currency_pattern CHECK ((price_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_product_page_items_variants_product_page_items FOREIGN KEY (product_page_items_product_page_etag, product_page_items_position) REFERENCES catalog.product_page_items(product_page_etag, "position") ON DELETE CASCADE
+  constraint pk_product_page_items_variants PRIMARY KEY (product_page_items_product_page_etag, product_page_items_position, "position")
+table catalog.product_slug
+  column slug text not null
+  constraint ck_product_slug_slug_max CHECK ((char_length(slug) <= 100))
+  constraint ck_product_slug_slug_min CHECK ((char_length(slug) >= 1))
+  constraint ck_product_slug_slug_pattern CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+  constraint pk_product_slug PRIMARY KEY (slug)
+table catalog.product_variants -- One form of a product that can be bought, such as a size and a colour.
+  column product_id uuid not null
+  column position integer not null
+  column sku character varying(64) not null
+  column size character varying(20)
+  column color character varying(30)
+  column price_amount numeric(19,4) not null
+  column price_currency text not null
+  column availability text not null
+  constraint ck_product_variants_availability_enum CHECK ((availability = ANY (ARRAY['in_stock'::text, 'backorder'::text, 'out_of_stock'::text])))
+  constraint ck_product_variants_price_currency_max CHECK ((char_length(price_currency) <= 3))
+  constraint ck_product_variants_price_currency_min CHECK ((char_length(price_currency) >= 3))
+  constraint ck_product_variants_price_currency_pattern CHECK ((price_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_product_variants_product FOREIGN KEY (product_id) REFERENCES catalog.product(id) ON DELETE CASCADE
+  constraint pk_product_variants PRIMARY KEY (product_id, "position")
+schema common
+table common.problem -- A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,
+`status` and `instance` are required, `instance` because a top-level model needs a key. Members
+beyond those declared are allowed, as the RFC allows extensions.
+  column type character varying(2048) not null default 'about:blank'::character varying -- A URI naming the kind of problem; `about:blank` when the status says it all.
+  column title character varying(200) not null -- A short summary of the kind of problem, the same for every occurrence.
+  column status integer not null -- The HTTP status code of the response.
+  column detail character varying(2000) -- What went wrong this time.
+  column instance character varying(2048) not null -- A URI naming this occurrence, to quote when asking for help.
+  constraint ck_problem_status_max CHECK ((status <= 599))
+  constraint ck_problem_status_min CHECK ((status >= 400))
+  constraint pk_problem PRIMARY KEY (instance)
+table common.problem_errors -- One field of the request and what is wrong with it.
+  column problem_instance character varying(2048) not null
+  column position integer not null
+  column field character varying(200) not null
+  column message character varying(500) not null
+  constraint fk_problem_errors_problem FOREIGN KEY (problem_instance) REFERENCES common.problem(instance) ON DELETE CASCADE
+  constraint pk_problem_errors PRIMARY KEY (problem_instance, "position")
+schema orders
+table orders.cancel_order -- Why the customer cancels.
+  column id uuid not null
+  column reason character varying(500)
+  constraint pk_cancel_order PRIMARY KEY (id)
+table orders.checkout -- Places an order for everything in the cart.
+  column idempotency_key uuid not null -- A key the client makes up, so a retried checkout places one order.
+  column cart_id uuid not null
+  column shipping_address_id uuid not null
+  column note character varying(500)
+  constraint fk_checkout_cart FOREIGN KEY (cart_id) REFERENCES cart.cart(id)
+  constraint fk_checkout_shipping_address FOREIGN KEY (shipping_address_id) REFERENCES users.address(id)
+  constraint pk_checkout PRIMARY KEY (idempotency_key)
+table orders.order -- An order checkout placed.
+  column id uuid not null
+  column number character varying(20) not null -- The number the customer quotes, such as `SF-104223`.
+  column customer_id uuid not null
+  column status text not null default 'pending'::text
+  column shipping_id uuid not null
+  column shipping_kind text not null
+  column shipping_name character varying(100) not null
+  column shipping_line1 character varying(200) not null
+  column shipping_line2 character varying(200)
+  column shipping_city character varying(100) not null
+  column shipping_region character varying(100)
+  column shipping_postal_code character varying(20) not null
+  column shipping_country text not null -- A two-letter ISO 3166-1 country code.
+  column shipping_is_default boolean not null default false
+  column subtotal_amount numeric(19,4) not null
+  column subtotal_currency text not null
+  column shipping_cost_amount numeric(19,4) not null
+  column shipping_cost_currency text not null
+  column tax_amount numeric(19,4) not null
+  column tax_currency text not null
+  column total_amount numeric(19,4) not null
+  column total_currency text not null
+  column placed_at timestamp with time zone not null
+  constraint ck_order_shipping_cost_currency_max CHECK ((char_length(shipping_cost_currency) <= 3))
+  constraint ck_order_shipping_cost_currency_min CHECK ((char_length(shipping_cost_currency) >= 3))
+  constraint ck_order_shipping_cost_currency_pattern CHECK ((shipping_cost_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_order_shipping_country_max CHECK ((char_length(shipping_country) <= 2))
+  constraint ck_order_shipping_country_min CHECK ((char_length(shipping_country) >= 2))
+  constraint ck_order_shipping_country_pattern CHECK ((shipping_country ~ '^[A-Z]{2}$'::text))
+  constraint ck_order_shipping_kind_enum CHECK ((shipping_kind = ANY (ARRAY['shipping'::text, 'billing'::text])))
+  constraint ck_order_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'delivered'::text, 'cancelled'::text, 'refunded'::text])))
+  constraint ck_order_subtotal_currency_max CHECK ((char_length(subtotal_currency) <= 3))
+  constraint ck_order_subtotal_currency_min CHECK ((char_length(subtotal_currency) >= 3))
+  constraint ck_order_subtotal_currency_pattern CHECK ((subtotal_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_order_tax_currency_max CHECK ((char_length(tax_currency) <= 3))
+  constraint ck_order_tax_currency_min CHECK ((char_length(tax_currency) >= 3))
+  constraint ck_order_tax_currency_pattern CHECK ((tax_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_order_total_currency_max CHECK ((char_length(total_currency) <= 3))
+  constraint ck_order_total_currency_min CHECK ((char_length(total_currency) >= 3))
+  constraint ck_order_total_currency_pattern CHECK ((total_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_order_customer FOREIGN KEY (customer_id) REFERENCES users.profile(id)
+  constraint pk_order PRIMARY KEY (id)
+  constraint uq_order_number UNIQUE (number)
+table orders.order_id
+  column id uuid not null
+  constraint pk_order_id PRIMARY KEY (id)
+table orders.order_lines -- A variant bought, at the price it had at checkout.
+  column order_id uuid not null
+  column position integer not null
+  column product_id uuid not null
+  column sku character varying(64) not null
+  column name character varying(200) not null
+  column quantity integer not null
+  column unit_price_amount numeric(19,4) not null
+  column unit_price_currency text not null
+  constraint ck_order_lines_quantity_min CHECK ((quantity >= 1))
+  constraint ck_order_lines_unit_price_currency_max CHECK ((char_length(unit_price_currency) <= 3))
+  constraint ck_order_lines_unit_price_currency_min CHECK ((char_length(unit_price_currency) >= 3))
+  constraint ck_order_lines_unit_price_currency_pattern CHECK ((unit_price_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_order_lines_order FOREIGN KEY (order_id) REFERENCES orders."order"(id) ON DELETE CASCADE
+  constraint fk_order_lines_product FOREIGN KEY (product_id) REFERENCES catalog.product(id)
+  constraint pk_order_lines PRIMARY KEY (order_id, "position")
+table orders.order_page -- One page of the customer's orders.
+  column etag character varying(64) not null
+  column page_next_cursor character varying(200) -- The cursor of the next page; absent on the last one.
+  column page_total bigint not null -- How many items the listing holds in all.
+  column query_status text
+  column query_cursor character varying(200)
+  column query_limit integer not null default 20
+  constraint ck_order_page_page_total_min CHECK ((page_total >= 0))
+  constraint ck_order_page_query_limit_max CHECK ((query_limit <= 100))
+  constraint ck_order_page_query_limit_min CHECK ((query_limit >= 1))
+  constraint ck_order_page_query_status_enum CHECK ((query_status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'delivered'::text, 'cancelled'::text, 'refunded'::text])))
+  constraint pk_order_page PRIMARY KEY (etag)
+table orders.order_page_items -- An order checkout placed.
+  column order_page_etag character varying(64) not null
+  column position integer not null
+  column id uuid not null
+  column number character varying(20) not null -- The number the customer quotes, such as `SF-104223`.
+  column customer_id uuid not null
+  column status text not null default 'pending'::text
+  column shipping_id uuid not null
+  column shipping_kind text not null
+  column shipping_name character varying(100) not null
+  column shipping_line1 character varying(200) not null
+  column shipping_line2 character varying(200)
+  column shipping_city character varying(100) not null
+  column shipping_region character varying(100)
+  column shipping_postal_code character varying(20) not null
+  column shipping_country text not null -- A two-letter ISO 3166-1 country code.
+  column shipping_is_default boolean not null default false
+  column subtotal_amount numeric(19,4) not null
+  column subtotal_currency text not null
+  column shipping_cost_amount numeric(19,4) not null
+  column shipping_cost_currency text not null
+  column tax_amount numeric(19,4) not null
+  column tax_currency text not null
+  column total_amount numeric(19,4) not null
+  column total_currency text not null
+  column placed_at timestamp with time zone not null
+  constraint ck_order_page_items_shipping_cost_currency_max CHECK ((char_length(shipping_cost_currency) <= 3))
+  constraint ck_order_page_items_shipping_cost_currency_min CHECK ((char_length(shipping_cost_currency) >= 3))
+  constraint ck_order_page_items_shipping_cost_currency_pattern CHECK ((shipping_cost_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_order_page_items_shipping_country_max CHECK ((char_length(shipping_country) <= 2))
+  constraint ck_order_page_items_shipping_country_min CHECK ((char_length(shipping_country) >= 2))
+  constraint ck_order_page_items_shipping_country_pattern CHECK ((shipping_country ~ '^[A-Z]{2}$'::text))
+  constraint ck_order_page_items_shipping_kind_enum CHECK ((shipping_kind = ANY (ARRAY['shipping'::text, 'billing'::text])))
+  constraint ck_order_page_items_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'shipped'::text, 'delivered'::text, 'cancelled'::text, 'refunded'::text])))
+  constraint ck_order_page_items_subtotal_currency_max CHECK ((char_length(subtotal_currency) <= 3))
+  constraint ck_order_page_items_subtotal_currency_min CHECK ((char_length(subtotal_currency) >= 3))
+  constraint ck_order_page_items_subtotal_currency_pattern CHECK ((subtotal_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_order_page_items_tax_currency_max CHECK ((char_length(tax_currency) <= 3))
+  constraint ck_order_page_items_tax_currency_min CHECK ((char_length(tax_currency) >= 3))
+  constraint ck_order_page_items_tax_currency_pattern CHECK ((tax_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_order_page_items_total_currency_max CHECK ((char_length(total_currency) <= 3))
+  constraint ck_order_page_items_total_currency_min CHECK ((char_length(total_currency) >= 3))
+  constraint ck_order_page_items_total_currency_pattern CHECK ((total_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_order_page_items_customer FOREIGN KEY (customer_id) REFERENCES users.profile(id)
+  constraint fk_order_page_items_order_page FOREIGN KEY (order_page_etag) REFERENCES orders.order_page(etag) ON DELETE CASCADE
+  constraint pk_order_page_items PRIMARY KEY (order_page_etag, "position")
+  constraint uq_order_page_items_number UNIQUE (number)
+table orders.order_page_items_lines -- A variant bought, at the price it had at checkout.
+  column order_page_items_order_page_etag character varying(64) not null
+  column order_page_items_position integer not null
+  column position integer not null
+  column product_id uuid not null
+  column sku character varying(64) not null
+  column name character varying(200) not null
+  column quantity integer not null
+  column unit_price_amount numeric(19,4) not null
+  column unit_price_currency text not null
+  constraint ck_order_page_items_lines_quantity_min CHECK ((quantity >= 1))
+  constraint ck_order_page_items_lines_unit_price_currency_max CHECK ((char_length(unit_price_currency) <= 3))
+  constraint ck_order_page_items_lines_unit_price_currency_min CHECK ((char_length(unit_price_currency) >= 3))
+  constraint ck_order_page_items_lines_unit_price_currency_pattern CHECK ((unit_price_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_order_page_items_lines_order_page_items FOREIGN KEY (order_page_items_order_page_etag, order_page_items_position) REFERENCES orders.order_page_items(order_page_etag, "position") ON DELETE CASCADE
+  constraint fk_order_page_items_lines_product FOREIGN KEY (product_id) REFERENCES catalog.product(id)
+  constraint pk_order_page_items_lines PRIMARY KEY (order_page_items_order_page_etag, order_page_items_position, "position")
+table orders.placed -- The order checkout placed, and where to read it from now on.
+  column location character varying(2048) not null -- The URL of the new order.
+  column order_id uuid not null
+  column number character varying(20) not null
+  column total_amount numeric(19,4) not null
+  column total_currency text not null
+  constraint ck_placed_total_currency_max CHECK ((char_length(total_currency) <= 3))
+  constraint ck_placed_total_currency_min CHECK ((char_length(total_currency) >= 3))
+  constraint ck_placed_total_currency_pattern CHECK ((total_currency ~ '^[A-Z]{3}$'::text))
+  constraint fk_placed_order FOREIGN KEY (order_id) REFERENCES orders."order"(id)
+  constraint pk_placed PRIMARY KEY (location)
+schema payments
+table payments.notice -- What the provider reports about a payment.
+  column event_id character varying(100) not null
+  column kind text not null
+  column payment_id uuid not null
+  column occurred_at timestamp with time zone not null
+  column signature character varying(512) not null -- The provider's signature over the body.
+  constraint ck_notice_kind_enum CHECK ((kind = ANY (ARRAY['authorized'::text, 'captured'::text, 'failed'::text, 'refunded'::text])))
+  constraint pk_notice PRIMARY KEY (event_id)
+table payments.pay -- Pays for an order.
+  column idempotency_key uuid not null -- A key the client makes up, so a retried payment charges once.
+  column order_id uuid not null
+  column method_kind text not null
+  column method_card_token character varying(200)
+  column method_card_brand character varying(32)
+  column method_card_last4 text
+  column method_wallet_kind text
+  column method_wallet_token character varying(200)
+  column method_bank_transfer_iban character varying(34)
+  constraint ck_pay_method_bank_transfer CHECK (((method_kind <> 'bank_transfer'::text) OR (method_bank_transfer_iban IS NOT NULL)))
+  constraint ck_pay_method_card CHECK (((method_kind <> 'card'::text) OR ((method_card_token IS NOT NULL) AND (method_card_brand IS NOT NULL) AND (method_card_last4 IS NOT NULL))))
+  constraint ck_pay_method_card_last4_max CHECK ((char_length(method_card_last4) <= 4))
+  constraint ck_pay_method_card_last4_min CHECK ((char_length(method_card_last4) >= 4))
+  constraint ck_pay_method_card_last4_pattern CHECK ((method_card_last4 ~ '^[0-9]{4}$'::text))
+  constraint ck_pay_method_kind CHECK ((method_kind = ANY (ARRAY['card'::text, 'wallet'::text, 'bank_transfer'::text])))
+  constraint ck_pay_method_wallet CHECK (((method_kind <> 'wallet'::text) OR ((method_wallet_kind IS NOT NULL) AND (method_wallet_token IS NOT NULL))))
+  constraint ck_pay_method_wallet_kind_enum CHECK ((method_wallet_kind = ANY (ARRAY['apple_pay'::text, 'google_pay'::text, 'paypal'::text])))
+  constraint pk_pay PRIMARY KEY (idempotency_key)
+table payments.payment -- A payment for one order.
+  column id uuid not null
+  column order_id uuid not null
+  column amount_amount numeric(19,4) not null
+  column amount_currency text not null
+  column method_kind text not null
+  column method_card_token character varying(200)
+  column method_card_brand character varying(32)
+  column method_card_last4 text
+  column method_wallet_kind text
+  column method_wallet_token character varying(200)
+  column method_bank_transfer_iban character varying(34)
+  column status text not null
+  column failure character varying(500) -- Why the provider declined, when it did.
+  column created_at timestamp with time zone not null
+  constraint ck_payment_amount_currency_max CHECK ((char_length(amount_currency) <= 3))
+  constraint ck_payment_amount_currency_min CHECK ((char_length(amount_currency) >= 3))
+  constraint ck_payment_amount_currency_pattern CHECK ((amount_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_payment_method_bank_transfer CHECK (((method_kind <> 'bank_transfer'::text) OR (method_bank_transfer_iban IS NOT NULL)))
+  constraint ck_payment_method_card CHECK (((method_kind <> 'card'::text) OR ((method_card_token IS NOT NULL) AND (method_card_brand IS NOT NULL) AND (method_card_last4 IS NOT NULL))))
+  constraint ck_payment_method_card_last4_max CHECK ((char_length(method_card_last4) <= 4))
+  constraint ck_payment_method_card_last4_min CHECK ((char_length(method_card_last4) >= 4))
+  constraint ck_payment_method_card_last4_pattern CHECK ((method_card_last4 ~ '^[0-9]{4}$'::text))
+  constraint ck_payment_method_kind CHECK ((method_kind = ANY (ARRAY['card'::text, 'wallet'::text, 'bank_transfer'::text])))
+  constraint ck_payment_method_wallet CHECK (((method_kind <> 'wallet'::text) OR ((method_wallet_kind IS NOT NULL) AND (method_wallet_token IS NOT NULL))))
+  constraint ck_payment_method_wallet_kind_enum CHECK ((method_wallet_kind = ANY (ARRAY['apple_pay'::text, 'google_pay'::text, 'paypal'::text])))
+  constraint ck_payment_status_enum CHECK ((status = ANY (ARRAY['pending'::text, 'authorized'::text, 'captured'::text, 'failed'::text, 'refunded'::text])))
+  constraint fk_payment_order FOREIGN KEY (order_id) REFERENCES orders."order"(id)
+  constraint pk_payment PRIMARY KEY (id)
+table payments.payment_id
+  column id uuid not null
+  constraint pk_payment_id PRIMARY KEY (id)
+table payments.refund -- Gives some or all of a captured payment back.
+  column id uuid not null
+  column amount_amount numeric(19,4)
+  column amount_currency text
+  column reason character varying(500)
+  constraint ck_refund_amount_currency_max CHECK ((char_length(amount_currency) <= 3))
+  constraint ck_refund_amount_currency_min CHECK ((char_length(amount_currency) >= 3))
+  constraint ck_refund_amount_currency_pattern CHECK ((amount_currency ~ '^[A-Z]{3}$'::text))
+  constraint ck_refund_amount_present CHECK ((((amount_amount IS NULL) AND (amount_currency IS NULL)) OR ((amount_amount IS NOT NULL) AND (amount_currency IS NOT NULL))))
+  constraint pk_refund PRIMARY KEY (id)
+schema reviews
+table reviews.list_reviews -- Which reviews of a product to list, newest first.
+  column product_id uuid not null
+  column rating integer
+  column cursor character varying(200)
+  column limit integer not null default 20
+  constraint ck_list_reviews_limit_max CHECK (("limit" <= 100))
+  constraint ck_list_reviews_limit_min CHECK (("limit" >= 1))
+  constraint ck_list_reviews_rating_max CHECK ((rating <= 5))
+  constraint ck_list_reviews_rating_min CHECK ((rating >= 1))
+  constraint pk_list_reviews PRIMARY KEY (product_id)
+table reviews.review -- A customer's review of a product.
+  column id uuid not null
+  column product_id uuid not null
+  column author_id uuid not null
+  column rating integer not null
+  column title character varying(120) not null
+  column body character varying(5000)
+  column verified boolean not null default false -- Whether the author bought the product here.
+  column created_at timestamp with time zone not null
+  constraint ck_review_rating_max CHECK ((rating <= 5))
+  constraint ck_review_rating_min CHECK ((rating >= 1))
+  constraint fk_review_author FOREIGN KEY (author_id) REFERENCES users.profile(id)
+  constraint fk_review_product FOREIGN KEY (product_id) REFERENCES catalog.product(id)
+  constraint pk_review PRIMARY KEY (id)
+table reviews.review_id
+  column id uuid not null
+  constraint pk_review_id PRIMARY KEY (id)
+table reviews.review_page -- One page of a product's reviews.
+  column etag character varying(64) not null
+  column page_next_cursor character varying(200) -- The cursor of the next page; absent on the last one.
+  column page_total bigint not null -- How many items the listing holds in all.
+  constraint ck_review_page_page_total_min CHECK ((page_total >= 0))
+  constraint pk_review_page PRIMARY KEY (etag)
+table reviews.review_page_items -- A customer's review of a product.
+  column review_page_etag character varying(64) not null
+  column position integer not null
+  column id uuid not null
+  column product_id uuid not null
+  column author_id uuid not null
+  column rating integer not null
+  column title character varying(120) not null
+  column body character varying(5000)
+  column verified boolean not null default false -- Whether the author bought the product here.
+  column created_at timestamp with time zone not null
+  constraint ck_review_page_items_rating_max CHECK ((rating <= 5))
+  constraint ck_review_page_items_rating_min CHECK ((rating >= 1))
+  constraint fk_review_page_items_author FOREIGN KEY (author_id) REFERENCES users.profile(id)
+  constraint fk_review_page_items_product FOREIGN KEY (product_id) REFERENCES catalog.product(id)
+  constraint fk_review_page_items_review_page FOREIGN KEY (review_page_etag) REFERENCES reviews.review_page(etag) ON DELETE CASCADE
+  constraint pk_review_page_items PRIMARY KEY (review_page_etag, "position")
+table reviews.write_review -- A new review of a product.
+  column product_id uuid not null
+  column rating integer not null
+  column title character varying(120) not null
+  column body character varying(5000)
+  constraint ck_write_review_rating_max CHECK ((rating <= 5))
+  constraint ck_write_review_rating_min CHECK ((rating >= 1))
+  constraint pk_write_review PRIMARY KEY (product_id)
+schema users
+table users.address -- A postal address in the address book.
+  column id uuid not null
+  column kind text not null
+  column name character varying(100) not null
+  column line1 character varying(200) not null
+  column line2 character varying(200)
+  column city character varying(100) not null
+  column region character varying(100)
+  column postal_code character varying(20) not null
+  column country text not null -- A two-letter ISO 3166-1 country code.
+  column is_default boolean not null default false
+  constraint ck_address_country_max CHECK ((char_length(country) <= 2))
+  constraint ck_address_country_min CHECK ((char_length(country) >= 2))
+  constraint ck_address_country_pattern CHECK ((country ~ '^[A-Z]{2}$'::text))
+  constraint ck_address_kind_enum CHECK ((kind = ANY (ARRAY['shipping'::text, 'billing'::text])))
+  constraint pk_address PRIMARY KEY (id)
+table users.address_book -- Every address of the customer, default addresses first.
+  column etag character varying(64) not null
+  constraint pk_address_book PRIMARY KEY (etag)
+table users.address_book_items -- A postal address in the address book.
+  column address_book_etag character varying(64) not null
+  column position integer not null
+  column id uuid not null
+  column kind text not null
+  column name character varying(100) not null
+  column line1 character varying(200) not null
+  column line2 character varying(200)
+  column city character varying(100) not null
+  column region character varying(100)
+  column postal_code character varying(20) not null
+  column country text not null -- A two-letter ISO 3166-1 country code.
+  column is_default boolean not null default false
+  constraint ck_address_book_items_country_max CHECK ((char_length(country) <= 2))
+  constraint ck_address_book_items_country_min CHECK ((char_length(country) >= 2))
+  constraint ck_address_book_items_country_pattern CHECK ((country ~ '^[A-Z]{2}$'::text))
+  constraint ck_address_book_items_kind_enum CHECK ((kind = ANY (ARRAY['shipping'::text, 'billing'::text])))
+  constraint fk_address_book_items_address_book FOREIGN KEY (address_book_etag) REFERENCES users.address_book(etag) ON DELETE CASCADE
+  constraint pk_address_book_items PRIMARY KEY (address_book_etag, "position")
+table users.address_id
+  column id uuid not null
+  constraint pk_address_id PRIMARY KEY (id)
+table users.profile -- The signed-in customer.
+  column id uuid not null
+  column email text not null
+  column name character varying(100) not null
+  column phone character varying(32)
+  column marketing boolean not null default false
+  column created_at timestamp with time zone not null
+  column etag character varying(64) not null -- The version of the profile, for a later conditional update.
+  constraint ck_profile_email_max CHECK ((char_length(email) <= 254))
+  constraint ck_profile_email_pattern CHECK ((email ~ '^[^@]+@[^@]+$'::text))
+  constraint pk_profile PRIMARY KEY (id)
+  constraint uq_profile_email UNIQUE (email)
+table users.update_profile -- The parts of the profile to change; a field left out keeps its value.
+  column if_match character varying(64) not null -- The `ETag` the profile was read with; the update fails with 412 when it changed since.
+  column name character varying(100)
+  column phone character varying(32)
+  column marketing boolean
+  constraint pk_update_profile PRIMARY KEY (if_match)

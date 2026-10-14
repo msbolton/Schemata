@@ -1,0 +1,963 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "storefront.admin",
+    "version": "1.0.0",
+    "description": "Back-office work on the catalog and on orders, for the company's own tools. They sign in with\nOAuth 2.0 client credentials, and each service needs its own scopes."
+  },
+  "security": [
+    {
+      "oauth2": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "CatalogAdmin",
+      "description": "Change the catalog."
+    },
+    {
+      "name": "OrderAdmin",
+      "description": "Fulfil orders."
+    }
+  ],
+  "paths": {
+    "/admin/products/{id}": {
+      "put": {
+        "operationId": "CatalogAdmin_put_product",
+        "tags": [
+          "CatalogAdmin"
+        ],
+        "summary": "Add a product under an id the tool chooses, or replace the one it names.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "A product and the variants it is sold in.",
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 5000
+                  },
+                  "category_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                  },
+                  "brand": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 100
+                  },
+                  "variants": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/storefront.catalog.Product.Variant"
+                    },
+                    "minItems": 1
+                  },
+                  "images": {
+                    "description": "Image URLs, the first one the product's main image.",
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2048
+                    },
+                    "maxItems": 20
+                  },
+                  "rating": {
+                    "description": "The average review rating, absent until the first review.",
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 5
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name",
+                  "category_id",
+                  "variants",
+                  "images"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.catalog.Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "catalog:write"
+            ]
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "CatalogAdmin_remove_product",
+        "tags": [
+          "CatalogAdmin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "catalog:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/admin/variants/{sku}/availability": {
+      "put": {
+        "operationId": "CatalogAdmin_set_availability",
+        "tags": [
+          "CatalogAdmin"
+        ],
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Which variant's stock to change, and to what.",
+                "type": "object",
+                "properties": {
+                  "availability": {
+                    "$ref": "#/components/schemas/storefront.catalog.Availability"
+                  }
+                },
+                "required": [
+                  "availability"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "catalog:write"
+            ]
+          }
+        ]
+      }
+    },
+    "/admin/orders/{id}": {
+      "get": {
+        "operationId": "OrderAdmin_get_order",
+        "tags": [
+          "OrderAdmin"
+        ],
+        "summary": "Read any customer's order.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.orders.Order"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "orders:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/admin/orders/{id}/shipments": {
+      "post": {
+        "operationId": "OrderAdmin_ship",
+        "tags": [
+          "OrderAdmin"
+        ],
+        "summary": "Record that the order left with a carrier.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Hands an order to a carrier.",
+                "type": "object",
+                "properties": {
+                  "carrier": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "tracking_number": {
+                    "type": "string",
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "carrier",
+                  "tracking_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.orders.Order"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Problem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/storefront.common.Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "orders:read",
+              "orders:write"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "storefront.catalog.Product.Variant": {
+        "description": "One form of a product that can be bought, such as a size and a colour.",
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "size": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 30
+          },
+          "price": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/storefront.catalog.Availability"
+          }
+        },
+        "required": [
+          "sku",
+          "price",
+          "availability"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.common.Money": {
+        "description": "An amount in one currency.",
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]{1,15}(\\.[0-9]{1,4})?$"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "minLength": 3,
+            "maxLength": 3
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.catalog.Availability": {
+        "type": "string",
+        "enum": [
+          "in_stock",
+          "backorder",
+          "out_of_stock"
+        ]
+      },
+      "storefront.catalog.Product": {
+        "description": "A product and the variants it is sold in.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000
+          },
+          "category_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/storefront.catalog.Product.Variant"
+            },
+            "minItems": 1
+          },
+          "images": {
+            "description": "Image URLs, the first one the product's main image.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "maxItems": 20
+          },
+          "rating": {
+            "description": "The average review rating, absent until the first review.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "category_id",
+          "variants",
+          "images"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.common.Problem": {
+        "description": "A problem report in a stricter profile of RFC 9457, the body of every error response: `title`,\n`status` and `instance` are required, `instance` because a top-level model needs a key. Members\nbeyond those declared are allowed, as the RFC allows extensions.",
+        "type": "object",
+        "properties": {
+          "type": {
+            "description": "A URI naming the kind of problem; `about:blank` when the status says it all.",
+            "type": "string",
+            "maxLength": 2048,
+            "default": "about:blank"
+          },
+          "title": {
+            "description": "A short summary of the kind of problem, the same for every occurrence.",
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "description": "The HTTP status code of the response.",
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "description": "What went wrong this time.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "instance": {
+            "description": "A URI naming this occurrence, to quote when asking for help.",
+            "type": "string",
+            "maxLength": 2048
+          },
+          "errors": {
+            "description": "The request's fields that failed their checks, when it failed on its fields.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/storefront.common.Problem.Violation"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "instance"
+        ]
+      },
+      "storefront.common.Problem.Violation": {
+        "description": "One field of the request and what is wrong with it.",
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.orders.Order": {
+        "description": "An order checkout placed.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "number": {
+            "description": "The number the customer quotes, such as `SF-104223`.",
+            "type": "string",
+            "maxLength": 20
+          },
+          "customer_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "status": {
+            "$ref": "#/components/schemas/storefront.orders.OrderStatus",
+            "default": "pending"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/storefront.orders.Order.Line"
+            },
+            "minItems": 1
+          },
+          "shipping": {
+            "description": "The address the order ships to, as it was at checkout.",
+            "$ref": "#/components/schemas/storefront.users.Address"
+          },
+          "subtotal": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          },
+          "shipping_cost": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          },
+          "tax": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          },
+          "total": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          },
+          "placed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "customer_id",
+          "lines",
+          "shipping",
+          "subtotal",
+          "shipping_cost",
+          "tax",
+          "total",
+          "placed_at"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.orders.Order.Line": {
+        "description": "A variant bought, at the price it had at checkout.",
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "unit_price": {
+            "$ref": "#/components/schemas/storefront.common.Money"
+          }
+        },
+        "required": [
+          "product_id",
+          "sku",
+          "name",
+          "quantity",
+          "unit_price"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.orders.OrderStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "paid",
+          "shipped",
+          "delivered",
+          "cancelled",
+          "refunded"
+        ]
+      },
+      "storefront.users.Address": {
+        "description": "A postal address in the address book.",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/storefront.users.AddressKind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "line1": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "line2": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "postal_code": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "country": {
+            "description": "A two-letter ISO 3166-1 country code.",
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "minLength": 2,
+            "maxLength": 2
+          },
+          "is_default": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "line1",
+          "city",
+          "postal_code",
+          "country"
+        ],
+        "additionalProperties": false
+      },
+      "storefront.users.AddressKind": {
+        "type": "string",
+        "enum": [
+          "shipping",
+          "billing"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "oauth2": {
+        "type": "oauth2",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://id.example.com/token",
+            "scopes": {
+              "catalog:write": "",
+              "orders:read": "",
+              "orders:write": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -3,11 +3,13 @@ package io.schemata.evolution
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.core.ir.EnumType
 import io.schemata.core.ir.EnumValue
+import io.schemata.core.ir.ErrorResponse
 import io.schemata.core.ir.Field
 import io.schemata.core.ir.HttpBinding
 import io.schemata.core.ir.Namespace
 import io.schemata.core.ir.Operation
 import io.schemata.core.ir.Payload
+import io.schemata.core.ir.QualifiedName
 import io.schemata.core.ir.RecordType
 import io.schemata.core.ir.Reserved
 import io.schemata.core.ir.Service
@@ -307,6 +309,66 @@ data class OperationBindingChanged(
     val to: HttpBinding?,
 ) : Change {
     override val kind = "operation.bindingChanged"
+}
+
+/**
+ * The success code changed where at least one side declares it; a code that follows the response by
+ * the default rule changes with it, which [OperationResponseChanged] reports. [service] and
+ * [operation] are NEW's.
+ */
+data class OperationStatusChanged(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val from: Int,
+    val to: Int,
+) : Change {
+    override val kind = "operation.statusChanged"
+}
+
+/**
+ * A code joined the operation's error responses, its service's clause merged with its own;
+ * [service] and [operation] are NEW's.
+ */
+data class OperationErrorAdded(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val error: ErrorResponse,
+) : Change {
+    override val kind = "operation.errorAdded"
+}
+
+/**
+ * A code left the operation's error responses; [error] is OLD's, [service] and [operation] are
+ * NEW's.
+ */
+data class OperationErrorRemoved(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val error: ErrorResponse,
+) : Change {
+    override val kind = "operation.errorRemoved"
+}
+
+/**
+ * The body of the error response for [code] (null is `default`) changed, or a code gained or lost
+ * its body (a null [from] or [to]); [service] and [operation] are NEW's.
+ */
+data class OperationErrorChanged(
+    override val path: String,
+    override val span: Span,
+    val service: Service,
+    val operation: Operation,
+    val code: Int?,
+    val from: QualifiedName?,
+    val to: QualifiedName?,
+) : Change {
+    override val kind = "operation.errorChanged"
 }
 
 /**

@@ -1,0 +1,61 @@
+/// The signed-in customer's profile and address book.
+schema storefront.users @openapi(bearer: "JWT", auth: bearer)
+
+import storefront.common
+
+enum AddressKind { #1 shipping #2 billing }
+
+/// The signed-in customer.
+model Profile {
+  #1 id         uuid    { id }
+  #2 email      Email   { unique }
+  #3 name       string  { max 100 }
+  #4 phone      string? { max 32 }
+  #5 marketing  bool    = false
+  #6 created_at instant
+  /// The version of the profile, for a later conditional update.
+  #7 etag       string  { max 64 } @openapi(header: "ETag")
+}
+
+/// The parts of the profile to change; a field left out keeps its value.
+model UpdateProfile {
+  /// The `ETag` the profile was read with; the update fails with 412 when it changed since.
+  #1 if_match  string  { id, max 64 } @openapi(header: "If-Match")
+  #2 name      string? { max 100 }
+  #3 phone     string? { max 32 }
+  #4 marketing bool?
+}
+
+/// A postal address in the address book.
+model Address {
+  #1  id          uuid        { id }
+  #2  kind        AddressKind
+  #3  name        string      { max 100 }
+  #4  line1       string      { max 200 }
+  #5  line2       string?     { max 200 }
+  #6  city        string      { max 100 }
+  #7  region      string?     { max 100 }
+  #8  postal_code string      { max 20 }
+  /// A two-letter ISO 3166-1 country code.
+  #9  country     string      { min 2, max 2, match "^[A-Z]{2}$" }
+  #10 is_default  bool        = false
+}
+
+model AddressId { #1 id uuid { id } }
+
+/// Every address of the customer, default addresses first.
+model AddressBook {
+  #1 etag  string    { id, max 64 } @openapi(header: "ETag")
+  #2 items Address[] { embed }
+}
+
+/// The signed-in customer's own data.
+service Account {
+  errors { 401 Problem  default Problem }
+  #1 get_profile(): Profile  get "/me"
+  #2 update_profile(UpdateProfile): Profile  patch "/me"  errors { 400 Problem  412 Problem }
+  #3 list_addresses(): AddressBook  get "/me/addresses"
+  /// Add an address under an id the client chooses, or replace the one it names.
+  #4 put_address(Address): Address  put "/me/addresses/{id}"  errors { 400 Problem }
+  #5 remove_address(AddressId)  delete "/me/addresses/{id}"  errors { 404 Problem }
+}

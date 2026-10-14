@@ -1,0 +1,2 @@
+SCH2201 field 'ProductSearch.brand': a nullable list has no XSD representation; lowered to an optional repeated element
+SCH2201 field 'Problem.errors': a nullable list has no XSD representation; lowered to an optional repeated element
