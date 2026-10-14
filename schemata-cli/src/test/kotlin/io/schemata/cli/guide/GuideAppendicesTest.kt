@@ -10,13 +10,12 @@ import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.LangCodes
 import io.schemata.lsp.LspCodes
 import io.schemata.migrate.MigrateCodes
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * `guide/diagnostics.md` and `guide/annotations.md` are rendered from the compiler and compared as
+ * The wiki's Diagnostics and Annotations pages are rendered from the compiler and compared as
  * goldens.
  */
 class GuideAppendicesTest {
@@ -24,12 +23,12 @@ class GuideAppendicesTest {
 
     @Test
     fun `diagnostics appendix is current`() {
-        Guide.golden(File(Guide.dir, "diagnostics.md"), banner + diagnostics())
+        Guide.golden(Guide.page("Diagnostics"), banner + diagnostics())
     }
 
     @Test
     fun `annotations appendix is current`() {
-        Guide.golden(File(Guide.dir, "annotations.md"), banner + annotations())
+        Guide.golden(Guide.page("Annotations"), banner + annotations())
     }
 
     @Test

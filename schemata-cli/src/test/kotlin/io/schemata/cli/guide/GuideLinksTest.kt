@@ -10,21 +10,21 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every relative link in the README and the guide points at a path that exists, every `#fragment`
- * at a heading, and none into `docs/`, which is not shipped; the README's quoted compiler output is
- * what the compiler writes.
+ * Every relative link in the README and the wiki points at a path or a page that exists, every
+ * `#fragment` at a heading, every README link into the wiki at a page and heading of it, and none
+ * into `docs/`, which is not shipped; the README's quoted compiler output is what the compiler
+ * writes.
  */
 class GuideLinksTest {
-    private val files =
-        listOf(File(Guide.root, "README.md")) +
-            Guide.dir.listFiles { f -> f.extension == "md" }!!.sortedBy { it.name }
+    private val readme = File(Guide.root, "README.md")
+    private val files = listOf(readme) + Guide.pages
 
     @TestFactory
     fun `relative links resolve`(): List<DynamicTest> =
         files.flatMap { file ->
             Guide.relativeLinks(file.readText()).map { link ->
                 DynamicTest.dynamicTest("${file.name} -> $link") {
-                    val target = File(file.parentFile, link).canonicalFile
+                    val target = Guide.resolve(file, link)
                     assertTrue(target.exists(), "${file.name} links to missing $link")
                 }
             }
@@ -35,13 +35,27 @@ class GuideLinksTest {
         files.flatMap { file ->
             Guide.crossReferences(file.readText()).map { ref ->
                 DynamicTest.dynamicTest("${file.name} -> ${ref.path}#${ref.fragment}") {
-                    val target = if (ref.path.isEmpty()) file else File(file.parentFile, ref.path)
+                    val target = if (ref.path.isEmpty()) file else Guide.resolve(file, ref.path)
                     assertTrue(target.isFile, "${file.name} links to missing ${ref.path}")
                     assertTrue(
                         ref.fragment in Guide.headingAnchors(target.readText()),
                         "${file.name} links to ${ref.path}#${ref.fragment}, which is no heading",
                     )
                 }
+            }
+        }
+
+    @TestFactory
+    fun `README links into the wiki resolve`(): List<DynamicTest> =
+        Guide.wikiReferences(readme.readText()).map { ref ->
+            DynamicTest.dynamicTest("README.md -> ${ref.path}#${ref.fragment}") {
+                val target = Guide.page(ref.path)
+                assertTrue(target.isFile, "README.md links to missing wiki page ${ref.path}")
+                if (ref.fragment.isNotEmpty())
+                    assertTrue(
+                        ref.fragment in Guide.headingAnchors(target.readText()),
+                        "README.md links to ${ref.path}#${ref.fragment}, which is no heading",
+                    )
             }
         }
 
@@ -61,7 +75,7 @@ class GuideLinksTest {
         val docs = File(Guide.root, "docs").canonicalFile
         for (file in files) {
             Guide.relativeLinks(file.readText()).forEach { link ->
-                val target = File(file.parentFile, link).canonicalFile
+                val target = Guide.resolve(file, link)
                 assertFalse(
                     target == docs || target.path.startsWith(docs.path + File.separator),
                     "${file.name} links into docs/: $link",
@@ -77,15 +91,15 @@ class GuideLinksTest {
      */
     @Test
     fun `README output blocks begin the files the quick start compiles to`() {
-        val readme = File(Guide.root, "README.md").readText()
-        val lines = readme.lines()
-        val schema = Guide.blocks(readme, "schemata").single()
+        val text = readme.readText()
+        val lines = text.lines()
+        val schema = Guide.blocks(text, "schemata").single()
         val compiled = Pipeline.compile(Guide.sources(schema.body), Pipeline.targets)
         assertFalse(compiled.hasErrors, "the quick start schema does not compile")
         val written = compiled.files.associate { "${it.target}/${it.file.path}" to it.file.content }
         val labelled =
             listOf("proto", "sql", "xml", "json")
-                .flatMap { language -> Guide.blocks(readme, language) }
+                .flatMap { language -> Guide.blocks(text, language) }
                 .sortedBy { it.line }
         assertTrue(labelled.isNotEmpty(), "the README quotes no output")
         for (block in labelled) {
@@ -102,16 +116,22 @@ class GuideLinksTest {
     }
 
     @Test
-    fun `the stability page is linked from the readme and the reference`() {
-        assertTrue(File(Guide.dir, "stability.md").isFile, "guide/stability.md is missing")
-        assertTrue(File(Guide.root, "README.md").readText().contains("](guide/stability.md)"))
-        val opening = File(Guide.dir, "reference.md").readLines().take(12).joinToString("\n")
-        assertTrue(opening.contains("](stability.md)"), "the reference's opening does not link it")
+    fun `the stability page is linked from the readme and the wiki home`() {
+        assertTrue(Guide.page("What-Is-Stable").isFile, "the What-Is-Stable page is missing")
+        assertTrue(
+            Guide.wikiReferences(readme.readText()).any { it.path == "What-Is-Stable" },
+            "the README does not link the What-Is-Stable page",
+        )
+        val opening = Guide.page("Home").readLines().take(20).joinToString("\n")
+        assertTrue(
+            opening.contains("](What-Is-Stable)"),
+            "the Home page's opening does not link it",
+        )
     }
 
     @Test
     fun `the stability page names every code family and every target`() {
-        val text = File(Guide.dir, "stability.md").readText()
+        val text = Guide.page("What-Is-Stable").readText()
         listOf(
                 "SCH0",
                 "SCH1",
