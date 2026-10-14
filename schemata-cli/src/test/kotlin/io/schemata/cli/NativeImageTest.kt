@@ -160,6 +160,35 @@ class NativeImageTest {
     }
 
     @Test
+    fun `import from openapi matches the jar on the ecommerce and storefront documents`() {
+        ready()
+        val ecommerce = File("src/test/resources/import/openapi-ecommerce").canonicalFile
+        val storefront = File(examples, "storefront/expected/openapi")
+        listOf(
+                ecommerce to "out/import/ecommerce.schemata",
+                storefront to "out/import/storefront/orders.schemata",
+            )
+            .forEach { (dir, expected) ->
+                val args =
+                    listOf(
+                        "import",
+                        "--no-config",
+                        "--from",
+                        "openapi",
+                        "--format",
+                        "json",
+                        "--out",
+                        "out",
+                        dir.path,
+                    )
+                assertSame(*args.toTypedArray())
+                // The parity holds only if the binary read the documents: its import is written.
+                val written = run(listOf(binary!!.path), args).files
+                assertTrue(expected in written.keys, written.keys.toString())
+            }
+    }
+
+    @Test
     fun `the language server serves a session from the native binary`() {
         ready()
         runLspSession(listOf(binary!!.path), examples)
