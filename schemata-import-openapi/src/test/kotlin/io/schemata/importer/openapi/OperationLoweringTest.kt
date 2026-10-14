@@ -1590,7 +1590,7 @@ class OperationLoweringTest {
     }
 
     @Test
-    fun `an alias component as a response body is wrapped`() {
+    fun `an alias component as a response body is the model it names`() {
         val r =
             importYaml(
                 """
@@ -1618,10 +1618,8 @@ class OperationLoweringTest {
 
             model Order { id string }
 
-            model ShopGetResponse { items Order }
-
             service Shop {
-              #1 get(): ShopGetResponse  get "/orders"
+              #1 get(): Order  get "/orders"
             }
             """
                 .trimIndent() + "\n",
@@ -1629,15 +1627,14 @@ class OperationLoweringTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 shop.yaml: #/components/schemas/Alias: component 'Alias' is not a model, enum or union; each use takes its type",
-                "SCH2403 shop.yaml: #/paths/~1orders/get/responses/200/content/application~1json/schema: the body of response '200' is wrapped in 'ShopGetResponse' as field 'items', since it is not a model",
+                "SCH2403 shop.yaml: #/components/schemas/Alias: component 'Alias' is not a model, enum or union; each use takes its type"
             ),
             messages(r),
         )
     }
 
     @Test
-    fun `a request body naming a schema inside a component is wrapped`() {
+    fun `a request body naming a schema inside a component is declared for the operation`() {
         val r =
             importYaml(
                 """
@@ -1668,12 +1665,8 @@ class OperationLoweringTest {
             )
         val shop = text(r)
         assertTrue("#1 create(ShopCreateRequest)  post \"/addresses\"" in shop, shop)
-        assertEquals(
-            listOf(
-                "SCH2403 shop.yaml: #/paths/~1addresses/post/requestBody/content/application~1json/schema: the request body is wrapped in 'ShopCreateRequest' as field 'items', since it is not a model"
-            ),
-            messages(r),
-        )
+        assertTrue("model ShopCreateRequest { city string }" in shop, shop)
+        assertEquals(emptyList(), messages(r))
     }
 
     @Test

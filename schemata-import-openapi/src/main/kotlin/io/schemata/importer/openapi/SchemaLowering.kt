@@ -19,6 +19,7 @@ import io.schemata.target.Names as TargetNames
 import io.swagger.v3.core.util.Json31
 import io.swagger.v3.oas.models.media.Schema
 import java.math.BigDecimal
+import java.math.RoundingMode
 
 /** What a field takes from the schema of a property or parameter. */
 data class FieldShape(
@@ -105,13 +106,19 @@ class SchemaLowering(
     /**
      * Each schema's declarations, schemas in the order first seen, declarations likewise. A
      * component first reached after the inputs' were lowered, such as one of a referenced file an
-     * operation names, has its nesting checked here, once every reference has been followed.
+     * operation names, has its nesting checked here, so this is read once every operation of every
+     * document has followed its references: a later document can still declare the parent of a
+     * component an earlier one reached. [topNames] reads the names before then.
      */
     fun declarations(): Map<String, List<UnitDecl>> {
         unchecked.forEach(::checkParents)
         unchecked.clear()
         return spaces.mapValues { (_, space) -> space.top.mapNotNull(::assemble) }
     }
+
+    /** The names of [namespace]'s top-level declarations so far, checking nothing. */
+    fun topNames(namespace: String): List<String> =
+        spaces[namespace]?.top?.map { it.name }.orEmpty()
 
     /** The schemas [namespace]'s declarations refer to, in name order. */
     fun imports(namespace: String): List<String> = spaces[namespace]?.imports?.toList().orEmpty()
@@ -424,13 +431,19 @@ class SchemaLowering(
      * annotations `readOnly`, `writeOnly`, `example`, `examples`, `xml` and `externalDocs`, the
      * conditionals `not`, `if`, `then` and `else`, and the constraints `patternProperties`,
      * `uniqueItems` (a list has no uniqueness option) and `multipleOf`. A model's `oneOf` or
-     * `anyOf` beside its properties is dropped too.
+     * `anyOf` beside its properties is dropped too, and so is a `discriminator` anywhere but on a
+     * union.
      */
     private fun dropped(doc: OpenApiDoc, at: Pointer, node: JsonNode) {
         if (!node.isObject) return
         val beside =
             if (node.has("properties")) listOf("oneOf", "anyOf").filter(node::has) else emptyList()
-        val keys = DROPPED_KEYWORDS.filter(node::has) + beside
+        // a union drops its discriminator for its tagged form; anything else simply loses it
+        val discriminator =
+            listOf("discriminator").filter {
+                node.has(it) && (choiceOf(node) == null || node.has("properties"))
+            }
+        val keys = DROPPED_KEYWORDS.filter(node::has) + beside + discriminator
         if (keys.isEmpty()) return
         val listed = keys.joinToString(", ") { "'$it'" }
         say(
@@ -578,7 +591,7 @@ class SchemaLowering(
         val choice = choiceOf(node)?.takeIf { !node.has("enum") }
         val values =
             if (choice != null) {
-                choice.mapIndexed { i, entry ->
+                choice.mapIndexedNotNull { i, entry ->
                     val where = at / choiceKey(node) / i
                     enumValue(
                         doc,
@@ -656,7 +669,16 @@ class SchemaLowering(
                 }
                 Member(i, place, type, schema.text("description"))
             }
-        discriminator(doc, at, node)
+        val mapped = discriminator(doc, at, node)
+        val unmapped = node.get("discriminator")?.let { it.get("mapping") == null } == true
+        if (!mapped && (!tagged || unmapped)) {
+            say(
+                doc,
+                at,
+                ImportCodes.APPROXIMATED,
+                "union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
+            )
+        }
         return UnitUnion(
             name = decl.name,
             members = distinct(doc, at / key, members),
@@ -781,13 +803,13 @@ class SchemaLowering(
         }
 
     /**
-     * Schemata tags a union member by its name and writes no discriminator. A discriminator without
-     * a mapping is dropped silently, as is one whose mapping gives each member the tag Schemata
-     * would; any other mapping is approximated. A mapping value is a component name, or else a
-     * reference; one that names nothing only makes the mapping one Schemata cannot keep.
+     * Schemata tags a union member by its name and writes no discriminator. A mapping that gives a
+     * member another tag than Schemata would is approximated, and true is returned once it is
+     * reported. A mapping value is a component name, or else a reference; one that names nothing
+     * only makes the mapping one Schemata cannot keep.
      */
-    private fun discriminator(doc: OpenApiDoc, at: Pointer, node: JsonNode) {
-        val mapping = node.get("discriminator")?.get("mapping") ?: return
+    private fun discriminator(doc: OpenApiDoc, at: Pointer, node: JsonNode): Boolean {
+        val mapping = node.get("discriminator")?.get("mapping") ?: return false
         val reproducible =
             mapping.properties().all { (tag, value) ->
                 val name = value.textValue() ?: return@all false
@@ -804,9 +826,13 @@ class SchemaLowering(
                 "discriminator mapping is not kept; the union is tagged by member name",
             )
         }
+        return !reproducible
     }
 
-    /** One enum value named from its [wire] text, recorded in [decl] so a default can find it. */
+    /**
+     * One enum value named from its [wire] text, recorded in [decl] so a default can find it; null
+     * for an empty text, which no Schemata enum value can be written as.
+     */
     private fun enumValue(
         doc: OpenApiDoc,
         at: Pointer,
@@ -814,7 +840,16 @@ class SchemaLowering(
         decl: Decl,
         wire: String,
         valueDoc: String?,
-    ): UnitEnumValue {
+    ): UnitEnumValue? {
+        if (wire.isEmpty()) {
+            say(
+                doc,
+                at,
+                ImportCodes.DROPPED,
+                "enum value '' dropped; an enum value cannot be empty",
+            )
+            return null
+        }
         val wanted = if (ImportNames.isLowerSnake(wire)) wire else ImportNames.lowerSnake(wire)
         val name = names.claim(wanted)
         if (name != wanted) {
@@ -834,15 +869,34 @@ class SchemaLowering(
 
     private fun shape(place: Place, node: JsonNode): FieldShape {
         val typed = typed(place, node)
-        val default = node.get("default")?.let { defaultOf(place, it, typed) }
+        val parts = annotatingParts(node, typed)
+        val default =
+            (node.get("default") ?: parts.firstNotNullOfOrNull { it.get("default") })?.let {
+                defaultOf(place, it, typed)
+            }
         return FieldShape(
             type = typed.type,
             nullable = typed.nullable,
             default = default,
             doc = node.text("description") ?: annotatingDoc(node),
-            deprecated = node.isTrue("deprecated"),
+            deprecated = node.isTrue("deprecated") || parts.any { it.isTrue("deprecated") },
             annotations = emptyList(),
         )
+    }
+
+    /** The parts of [node]'s `allOf` other than its reference at [part], with their positions. */
+    private fun annotating(node: JsonNode, part: Int): List<IndexedValue<JsonNode>> =
+        node.get("allOf").withIndex().filter { it.index != part }
+
+    /**
+     * The parts that annotate [node]'s reference when it names an enum or union, which take them as
+     * their own; none otherwise, since a model's parts are flattened into a model instead.
+     */
+    private fun annotatingParts(node: JsonNode, typed: Typed): List<JsonNode> {
+        val kind = typed.decl?.kind
+        if (kind != DeclKind.ENUM && kind != DeclKind.UNION) return emptyList()
+        val part = refPart(node) ?: return emptyList()
+        return annotating(node, part).map { it.value }
     }
 
     /** The description an `allOf` part beside its one reference carries. */
@@ -890,7 +944,13 @@ class SchemaLowering(
                 if (allOf.size() == 1) null
                 else refs.resolve(place.doc, where, ref)?.let(::componentAt)?.decl?.kind
             if (allOf.size() == 1 || kind == DeclKind.ENUM || kind == DeclKind.UNION) {
-                return refType(place.at(where), ref)
+                // the other parts annotate the reference: a null they admit is the field's, and
+                // what Schemata has no place for is reported as on any schema
+                val parts = annotating(node, part)
+                parts.forEach { (j, it) -> dropped(place.doc, place.pointer / "allOf" / j, it) }
+                val typed = refType(place.at(where), ref)
+                return if (parts.any { it.value.isTrue("nullable") }) typed.copy(nullable = true)
+                else typed
             }
         }
         if (allOf != null) return hoist(place, node, DeclKind.MODEL)
@@ -1093,8 +1153,8 @@ class SchemaLowering(
      * limits on every integer.
      */
     private fun integerType(place: Place, node: JsonNode): UnitType {
-        val min = bound(place, node, "minimum", "exclusiveMinimum", "min")
-        val max = bound(place, node, "maximum", "exclusiveMaximum", "max")
+        val min = integerBound(place, node, "minimum", "exclusiveMinimum", "min", up = true)
+        val max = integerBound(place, node, "maximum", "exclusiveMaximum", "max", up = false)
         val written = node.text("format")
         val format = written?.takeIf { it == "int32" || it == "int64" }
         val fits = { b: BigDecimal? -> b == null || (b >= INT32_MIN && b <= INT32_MAX) }
@@ -1155,6 +1215,48 @@ class SchemaLowering(
         val shown = number(value)
         say(place, ImportCodes.APPROXIMATED, "$exclusive $shown is imported as $refinement $shown")
         return value
+    }
+
+    /**
+     * An integer's bound as a whole number. Only whole numbers lie past an exclusive bound, so
+     * `exclusiveMinimum: 0` is exactly `min 1`; an inclusive bound that is not whole rounds inward,
+     * which is approximated. A bound outside `int64` is dropped, since no Schemata integer reaches
+     * it. [up] is true for a lower bound.
+     */
+    private fun integerBound(
+        place: Place,
+        node: JsonNode,
+        inclusive: String,
+        exclusive: String,
+        refinement: String,
+        up: Boolean,
+    ): BigDecimal? {
+        val flag = node.get(exclusive)
+        val open = flag != null && (flag.isNumber || (flag.isBoolean && flag.booleanValue()))
+        val keyword = if (flag != null && flag.isNumber) exclusive else inclusive
+        val value =
+            (if (flag != null && flag.isNumber) flag.decimalValue() else node.decimal(inclusive))
+                ?: return null
+        val whole =
+            when {
+                open && up -> value.setScale(0, RoundingMode.FLOOR) + BigDecimal.ONE
+                open -> value.setScale(0, RoundingMode.CEILING) - BigDecimal.ONE
+                up -> value.setScale(0, RoundingMode.CEILING)
+                else -> value.setScale(0, RoundingMode.FLOOR)
+            }
+        val shown = number(value)
+        if (whole < INT64_MIN || whole > INT64_MAX) {
+            say(place, ImportCodes.DROPPED, "$keyword $shown dropped; it lies outside int64")
+            return null
+        }
+        if (!open && whole.compareTo(value) != 0) {
+            say(
+                place,
+                ImportCodes.APPROXIMATED,
+                "$keyword $shown is imported as $refinement ${integral(whole)}",
+            )
+        }
+        return whole
     }
 
     private fun unknownFormat(place: Place, format: String, builtin: String) {
@@ -1338,8 +1440,16 @@ class SchemaLowering(
                 type !is UnitType.Scalar -> null
                 type.builtin == "string" -> value.textValue()?.let(SchemataText::string)
                 type.builtin == "bool" -> value.takeIf { it.isBoolean }?.asText()
-                type.builtin == "int32" || type.builtin == "int64" ->
-                    value.takeIf { it.isNumber }?.decimalValue()?.let(::integralOrNull)
+                type.builtin == "int32" ->
+                    value
+                        .takeIf { it.isNumber }
+                        ?.decimalValue()
+                        ?.let { within(it, INT32_MIN, INT32_MAX) }
+                type.builtin == "int64" ->
+                    value
+                        .takeIf { it.isNumber }
+                        ?.decimalValue()
+                        ?.let { within(it, INT64_MIN, INT64_MAX) }
                 type.builtin == "float32" || type.builtin == "float64" ->
                     value.takeIf { it.isNumber }?.let(::literal)
                 type.builtin == "decimal" ->
@@ -1534,8 +1644,22 @@ class SchemaLowering(
             )
         val DECIMAL_LITERAL = Regex("-?[0-9]+(\\.[0-9]+)?")
 
-        /** Keys of an `allOf` part that describe the schema without giving it a type. */
-        val ANNOTATIONS = setOf("description", "title")
+        /**
+         * Keys of an `allOf` part that describe the schema without giving it a type, as 3.0 writes
+         * a description, a default or `nullable` beside a reference.
+         */
+        val ANNOTATIONS =
+            setOf(
+                "description",
+                "title",
+                "nullable",
+                "default",
+                "deprecated",
+                "readOnly",
+                "writeOnly",
+                "example",
+                "examples",
+            )
 
         val DROPPED_KEYWORDS =
             listOf(
@@ -1614,6 +1738,10 @@ private fun literal(node: JsonNode): String =
 private fun number(n: BigDecimal): String = integralOrNull(n) ?: n.toPlainString()
 
 private fun integral(n: BigDecimal): String = integralOrNull(n) ?: n.toPlainString()
+
+/** [n] as digits when it is a whole number from [low] to [high]; null otherwise. */
+private fun within(n: BigDecimal, low: BigDecimal, high: BigDecimal): String? =
+    if (n < low || n > high) null else integralOrNull(n)
 
 private fun integralOrNull(n: BigDecimal): String? =
     try {
