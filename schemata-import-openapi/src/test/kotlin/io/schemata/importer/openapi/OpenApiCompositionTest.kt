@@ -798,4 +798,256 @@ class OpenApiCompositionTest {
             messages(r),
         )
     }
+
+    @Test
+    fun `objects of one required property that are not closed are inline members, not tags`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Contact:
+                          oneOf:
+                            - type: object
+                              properties: {email: {type: string}}
+                              required: [email]
+                            - type: object
+                              properties: {phone: {type: string}}
+                              required: [phone]
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            union Contact = ContactMember1 | ContactMember2
+
+            model ContactMember1 {
+              email string
+
+              @@jsonschema(open)
+            }
+
+            model ContactMember2 {
+              phone string
+
+              @@jsonschema(open)
+            }
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `members that lower to one type are each held in a model`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Contact:
+                          oneOf:
+                            - type: string
+                            - type: string
+                              format: email
+                            - $REF: '#/components/schemas/Cat'
+                        Cat: {type: object, properties: {}, additionalProperties: false}
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            union Contact = ContactMember1 | ContactMember2 | Cat
+
+            model Cat {}
+
+            model ContactMember1 { value string }
+
+            model ContactMember2 { value string }
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/1: format 'email' has no Schemata type; imported as string",
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf: union members 1 and 2 share type 'string'; each imported as a model holding it",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a discriminator mapping names a component or a file and never fails to resolve`() {
+        val dog =
+            """
+            type: object
+            properties:
+              bark: {type: boolean}
+            required: [bark]
+            additionalProperties: false
+            """
+                .trimIndent()
+        val r =
+            importText(
+                "shop.json" to
+                    """
+                    {
+                      "openapi": "3.1.0",
+                      "info": {"title": "shop", "version": "1.0.0"},
+                      "components": {
+                        "schemas": {
+                          "Pet": {
+                            "oneOf": [{"$REF": "#/components/schemas/Cat"}, {"$REF": "dog.yaml"}],
+                            "discriminator": {"propertyName": "kind", "mapping": {"cat": "Cat", "dog": "dog.yaml"}}
+                          },
+                          "Odd": {
+                            "oneOf": [{"$REF": "#/components/schemas/Cat"}, {"$REF": "#/components/schemas/Bird"}],
+                            "discriminator": {"propertyName": "kind", "mapping": {"x": "Missing", "cat": "Cat"}}
+                          },
+                          "Cat": {"type": "object", "properties": {}, "additionalProperties": false},
+                          "Bird": {"type": "object", "properties": {}, "additionalProperties": false}
+                        }
+                      }
+                    }
+                    """,
+                locate = {
+                    if (it == "dog.yaml") ImportInput("dog.yaml", dog, "dog.yaml") else null
+                },
+            )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.json: #/components/schemas/Pet/discriminator: discriminator mapping is not kept; the union is tagged by member name",
+                "SCH2403 shop.json: #/components/schemas/Odd/discriminator: discriminator mapping is not kept; the union is tagged by member name",
+            ),
+            messages(r).filter { "discriminator" in it || it.startsWith("SCH2401") },
+        )
+        assertEquals(1, r.files.size)
+    }
+
+    @Test
+    fun `an allOf that only annotates a reference to an enum or union is that enum or union`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Order:
+                          type: object
+                          required: [status, other, pick]
+                          properties:
+                            status:
+                              allOf:
+                                - $REF: '#/components/schemas/Status'
+                              description: The status.
+                            other:
+                              allOf:
+                                - $REF: '#/components/schemas/Status'
+                                - description: Another status.
+                            pick:
+                              allOf:
+                                - $REF: '#/components/schemas/Pick'
+                                - description: What to pick.
+                            current:
+                              $REF: '#/components/schemas/Current'
+                          additionalProperties: false
+                        Current:
+                          description: The current status.
+                          allOf:
+                            - $REF: '#/components/schemas/Status'
+                        Status: {type: string, enum: [open, closed]}
+                        Pick:
+                          oneOf:
+                            - $REF: '#/components/schemas/Status'
+                            - type: integer
+                              format: int32
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            model Order {
+              /// The status.
+              status  Status
+              /// Another status.
+              other   Status
+              /// What to pick.
+              pick    Pick
+              current Status?
+            }
+
+            enum Status { open closed }
+
+            union Pick = Status | int32
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Current: component 'Current' is not a model, enum or union; each use takes its type"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a union member's own null is dropped with a note`() {
+        val r =
+            importText(
+                "old.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: old, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Pick:
+                          oneOf:
+                            - {type: string, nullable: true}
+                            - {type: integer, format: int32}
+                    """,
+                "new.json" to
+                    """
+                    {
+                      "openapi": "3.1.0",
+                      "info": {"title": "new", "version": "1.0.0"},
+                      "components": {
+                        "schemas": {
+                          "Pick": {"oneOf": [{"type": "string"}, {"type": ["integer", "null"], "format": "int32"}]}
+                        }
+                      }
+                    }
+                    """,
+            )
+        assertEquals("schema old\n\nunion Pick = string | int32\n", text(r, "old.schemata"))
+        assertEquals("schema new\n\nunion Pick = string | int32\n", text(r, "new.schemata"))
+        assertEquals(
+            listOf(
+                "SCH2403 old.yaml: #/components/schemas/Pick/oneOf/0: union member's null is dropped; a union member cannot be null",
+                "SCH2403 new.json: #/components/schemas/Pick/oneOf/1: union member's null is dropped; a union member cannot be null",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            listOf("make the field that holds the union nullable to keep the null"),
+            r.diagnostics.map { it.help }.distinct(),
+        )
+    }
 }

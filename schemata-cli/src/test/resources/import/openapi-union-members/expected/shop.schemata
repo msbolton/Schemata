@@ -1,0 +1,34 @@
+schema shop
+
+model Order {
+  contact Contact
+  handle  Handle
+  /// Where the order is.
+  status  Status
+  /// What was picked.
+  pick    Pick
+}
+
+union Contact = ContactMember1 | ContactMember2
+
+union Handle = HandleMember1 | HandleMember2
+
+enum Status { placed shipped }
+
+union Pick = Status | int32
+
+model ContactMember1 {
+  email string
+
+  @@jsonschema(open)
+}
+
+model ContactMember2 {
+  phone string
+
+  @@jsonschema(open)
+}
+
+model HandleMember1 { value string }
+
+model HandleMember2 { value string }

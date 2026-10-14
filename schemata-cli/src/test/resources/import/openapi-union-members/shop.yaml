@@ -1,0 +1,55 @@
+openapi: 3.0.3
+info:
+  title: shop
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    Order:
+      type: object
+      required: [contact, handle, status, pick]
+      properties:
+        contact:
+          $ref: '#/components/schemas/Contact'
+        handle:
+          $ref: '#/components/schemas/Handle'
+        status:
+          allOf:
+            - $ref: '#/components/schemas/Status'
+            - description: Where the order is.
+        pick:
+          allOf:
+            - $ref: '#/components/schemas/Pick'
+          description: What was picked.
+      additionalProperties: false
+    Contact:
+      oneOf:
+        - type: object
+          properties:
+            email:
+              type: string
+          required: [email]
+        - type: object
+          properties:
+            phone:
+              type: string
+          required: [phone]
+    Handle:
+      oneOf:
+        - type: string
+        - type: string
+          format: email
+    Status:
+      type: string
+      enum: [placed, shipped]
+    Pick:
+      oneOf:
+        - $ref: '#/components/schemas/Status'
+        - type: integer
+          format: int32
+          nullable: true
+      discriminator:
+        propertyName: kind
+        mapping:
+          status: Status
+          other: Missing
