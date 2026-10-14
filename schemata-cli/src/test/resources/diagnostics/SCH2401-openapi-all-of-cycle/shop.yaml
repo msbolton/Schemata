@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Pet:
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+    Animal:
+      allOf:
+        - $ref: "#/components/schemas/Pet"

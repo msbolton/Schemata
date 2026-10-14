@@ -1,0 +1,10 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/Animal/allOf/0: allOf part '#/components/schemas/Pet' includes itself
+ --> shop.yaml:1:1
+  = help: remove the part that leads back to this schema
+
+error[SCH2401]: shop.yaml: #/components/schemas/Pet/allOf/0: allOf part '#/components/schemas/Animal' includes itself
+ --> shop.yaml:1:1
+  = help: remove the part that leads back to this schema
+
+2 errors, 0 warnings

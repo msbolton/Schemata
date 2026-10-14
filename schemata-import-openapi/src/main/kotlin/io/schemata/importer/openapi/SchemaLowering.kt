@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonPointer
 import com.fasterxml.jackson.databind.JsonNode
 import io.schemata.importer.ImportCodes
 import io.schemata.importer.ImportNames
+import io.schemata.importer.UnionMember
 import io.schemata.importer.UnitAnnotation
 import io.schemata.importer.UnitDecl
 import io.schemata.importer.UnitEnum
@@ -14,6 +15,7 @@ import io.schemata.importer.UnitType
 import io.schemata.importer.UnitUnion
 import io.schemata.lang.DiagnosticCode
 import io.schemata.lang.SchemataText
+import io.schemata.target.Names as TargetNames
 import io.swagger.v3.core.util.Json31
 import io.swagger.v3.oas.models.media.Schema
 import java.math.BigDecimal
@@ -157,6 +159,7 @@ class SchemaLowering(
         // declared in [into]; what [doc]'s schema declares is referred to qualified from there
         val decl = Decl(into, name, null, null)
         decl.kind = classify(node) ?: DeclKind.MODEL
+        dropped(doc, at, node)
         decl.built = lowered(decl, doc, at, node)
         return assemble(decl)!!
     }
@@ -306,16 +309,21 @@ class SchemaLowering(
         return parent!!.also { it.kind = kind }
     }
 
-    /** What [node] declares as a component: a model, an enum, or nothing (null). */
+    /** What [node] declares as a component: a model, an enum, a union, or nothing (null). */
     private fun classify(node: JsonNode): DeclKind? {
         val types = typesOf(node) - "null"
         val enum = node.get("enum")
+        val choice = choiceOf(node)
         return when {
             node.has("\$ref") -> null
             enum != null ->
                 if ((types.isEmpty() || types == listOf("string")) && isStringEnum(enum))
                     DeclKind.ENUM
                 else null
+            choice != null && isConstEnum(choice) -> DeclKind.ENUM
+            node.has("allOf") -> DeclKind.MODEL
+            choice != null && !node.has("properties") ->
+                if (choice.count { !isNullSchema(it) } >= 2) DeclKind.UNION else null
             (types.isEmpty() || types == listOf("object")) && node.has("properties") ->
                 DeclKind.MODEL
             types == listOf("object") && node.get("additionalProperties")?.isFalse() == true ->
@@ -323,6 +331,20 @@ class SchemaLowering(
             else -> null
         }
     }
+
+    /** `oneOf`, or else `anyOf`: the members of a choice. */
+    private fun choiceOf(node: JsonNode): JsonNode? =
+        (node.get("oneOf") ?: node.get("anyOf"))?.takeIf { it.isArray }
+
+    private fun choiceKey(node: JsonNode): String = if (node.has("oneOf")) "oneOf" else "anyOf"
+
+    /** The target's enum with value docs: a `oneOf` of `{"const": …, "description": …}`. */
+    private fun isConstEnum(choice: JsonNode): Boolean =
+        choice.size() > 0 &&
+            choice.all { entry ->
+                entry.get("const")?.isTextual == true &&
+                    entry.properties().all { it.key == "const" || it.key == "description" }
+            }
 
     private fun isStringEnum(enum: JsonNode): Boolean =
         enum.isArray && enum.any { it.isTextual } && enum.all { it.isTextual || it.isNull }
@@ -336,6 +358,7 @@ class SchemaLowering(
         val component = decl.component ?: return
         decl.building = true
         val at = pointerOf(component.name)
+        dropped(component.doc, at, component.node)
         decl.built = lowered(decl, component.doc, at, component.node)
         decl.building = false
     }
@@ -344,12 +367,34 @@ class SchemaLowering(
         when (decl.kind) {
             DeclKind.MODEL -> record(decl, doc, at, node)
             DeclKind.ENUM -> enumDecl(decl, doc, at, node)
-            DeclKind.UNION -> error("unions are not lowered yet")
+            DeclKind.UNION -> union(decl, doc, at, node)
         }
+
+    /**
+     * Reports the keywords of [node] that Schemata has no place for, all in one message: the
+     * annotations `readOnly`, `writeOnly`, `example`, `examples`, `xml` and `externalDocs`, the
+     * conditionals `not`, `if`, `then` and `else`, and the constraints `patternProperties`,
+     * `uniqueItems` (a list has no uniqueness option) and `multipleOf`. A model's `oneOf` or
+     * `anyOf` beside its properties is dropped too.
+     */
+    private fun dropped(doc: OpenApiDoc, at: Pointer, node: JsonNode) {
+        if (!node.isObject) return
+        val beside =
+            if (node.has("properties")) listOf("oneOf", "anyOf").filter(node::has) else emptyList()
+        val keys = DROPPED_KEYWORDS.filter(node::has) + beside
+        if (keys.isEmpty()) return
+        val listed = keys.joinToString(", ") { "'$it'" }
+        say(
+            doc,
+            at,
+            ImportCodes.DROPPED,
+            "${if (keys.size == 1) "keyword" else "keywords"} $listed dropped",
+        )
+    }
 
     private fun record(decl: Decl, doc: OpenApiDoc, at: Pointer, node: JsonNode): UnitRecord {
         val owner = Owner(decl.namespace, decl.ancestors + decl)
-        val (properties, required) = collect(doc, at, node)
+        val (properties, required) = collect(doc, at, node, mutableSetOf())
         return UnitRecord(
             name = decl.name,
             fields = fields(owner, properties, required),
@@ -364,20 +409,80 @@ class SchemaLowering(
      * `@@jsonschema(open)` unless `additionalProperties` is `false`: a schema without the key, or
      * with `true` or `{}`, admits properties it does not list.
      */
-    private fun openness(doc: OpenApiDoc, at: Pointer, node: JsonNode): UnitAnnotation? =
-        if (node.get("additionalProperties")?.isFalse() == true) null else OPEN
+    private fun openness(doc: OpenApiDoc, at: Pointer, node: JsonNode): UnitAnnotation? {
+        val extra = node.get("additionalProperties") ?: return OPEN
+        if (extra.isFalse()) return null
+        if (extra.isObject && !extra.isEmpty) {
+            say(
+                doc,
+                at / "additionalProperties",
+                ImportCodes.APPROXIMATED,
+                "additionalProperties beside properties is imported as an open model; its schema is not kept",
+            )
+        }
+        return OPEN
+    }
 
-    /** [node]'s properties, each with where it is, and the names it requires. */
+    /**
+     * [node]'s properties, each with where it is, and the names it requires. The parts of an
+     * `allOf` come first, flattened in order, a referenced part through its component; when two
+     * parts give one property different schemas, the first is kept. [seen] holds the parts being
+     * flattened, so a part that reaches itself is caught.
+     */
     private fun collect(
         doc: OpenApiDoc,
         at: Pointer,
         node: JsonNode,
+        seen: MutableSet<String>,
     ): Pair<List<Prop>, Set<String>> {
-        val properties =
-            node.get("properties")?.properties()?.map { (wire, schema) ->
-                Prop(doc, at / "properties" / wire, wire, schema)
+        val properties = LinkedHashMap<String, Prop>()
+        val required = LinkedHashSet<String>()
+        fun add(part: Pair<List<Prop>, Set<String>>, where: Pointer) {
+            part.first.forEach { prop ->
+                val first = properties.putIfAbsent(prop.wire, prop)
+                if (first != null && first.schema != prop.schema) {
+                    say(
+                        doc,
+                        where,
+                        ImportCodes.APPROXIMATED,
+                        "allOf parts disagree on property '${prop.wire}'; the first part's schema is kept",
+                    )
+                }
             }
-        return properties.orEmpty() to required(node)
+            required += part.second
+        }
+        node.get("allOf")?.forEachIndexed { i, part ->
+            val where = at / "allOf" / i
+            val ref = part.text("\$ref")
+            if (ref == null) {
+                dropped(doc, where, part)
+                add(collect(doc, where, part, seen), where)
+                return@forEachIndexed
+            }
+            val target = refs.resolve(doc, where, ref) ?: return@forEachIndexed
+            val key = "${target.doc.path}${target.pointer}"
+            if (!seen.add(key)) {
+                say(
+                    doc,
+                    where,
+                    ImportCodes.UNRESOLVED,
+                    "allOf part '$ref' includes itself",
+                    "remove the part that leads back to this schema",
+                )
+                return@forEachIndexed
+            }
+            add(collect(target.doc, target.pointer, target.node, seen), where)
+            seen.remove(key)
+        }
+        add(
+            node
+                .get("properties")
+                ?.properties()
+                ?.map { (wire, schema) -> Prop(doc, at / "properties" / wire, wire, schema) }
+                .orEmpty() to required(node),
+            at,
+        )
+        return properties.values.toList() to required
     }
 
     private fun required(node: JsonNode): Set<String> =
@@ -418,11 +523,29 @@ class SchemaLowering(
         }
     }
 
+    /** An `enum` of strings, or the target's `oneOf` of `const`s whose descriptions are docs. */
     private fun enumDecl(decl: Decl, doc: OpenApiDoc, at: Pointer, node: JsonNode): UnitEnum {
         val names = Scope()
+        val choice = choiceOf(node)?.takeIf { !node.has("enum") }
         val values =
-            node.get("enum").mapIndexedNotNull { i, value ->
-                value.textValue()?.let { enumValue(doc, at / "enum" / i, names, decl, it, null) }
+            if (choice != null) {
+                choice.mapIndexed { i, entry ->
+                    val where = at / choiceKey(node) / i
+                    enumValue(
+                        doc,
+                        where,
+                        names,
+                        decl,
+                        entry.text("const")!!,
+                        entry.text("description"),
+                    )
+                }
+            } else {
+                node.get("enum").mapIndexedNotNull { i, value ->
+                    value.textValue()?.let {
+                        enumValue(doc, at / "enum" / i, names, decl, it, null)
+                    }
+                }
             }
         return UnitEnum(
             name = decl.name,
@@ -431,6 +554,104 @@ class SchemaLowering(
             annotations = listOfNotNull(wireName(decl)),
             deprecated = node.isTrue("deprecated"),
         )
+    }
+
+    /**
+     * A union from a `oneOf` or `anyOf`. Each member is a reference, a scalar, or an inline schema
+     * declared beside the union as `<Union>Member<n>`. In the target's own form each member is a
+     * closed object of one required property, the member's tag; a tag that is not the one the
+     * target would write is approximated. A `null` member makes each use of the union nullable
+     * instead.
+     */
+    private fun union(decl: Decl, doc: OpenApiDoc, at: Pointer, node: JsonNode): UnitUnion {
+        val key = choiceKey(node)
+        val choice = choiceOf(node)!!
+        val tagged = isTagged(choice)
+        val owner = Owner(decl.namespace, decl.ancestors)
+        val members =
+            choice.mapIndexedNotNull { i, entry ->
+                if (isNullSchema(entry)) return@mapIndexedNotNull null
+                var where = at / key / i
+                var schema = entry
+                val tag = if (tagged) entry.get("properties").properties().first().key else null
+                if (tag != null) {
+                    where = where / "properties" / tag
+                    schema = entry.get("properties").get(tag)
+                }
+                val place = Place(doc, where, owner, "${decl.name}Member${i + 1}")
+                val typed = typed(place, schema)
+                val type =
+                    if (typed.type is UnitType.Ref || typed.type is UnitType.Scalar) typed.type
+                    else unknown(place).type
+                if (tag != null) {
+                    val stem = stemOf(type, typed.decl)
+                    if (tag != stem) {
+                        say(
+                            place,
+                            ImportCodes.APPROXIMATED,
+                            "union member tag '$tag' is not the member's own; the regenerated union tags it '$stem'",
+                        )
+                    }
+                }
+                UnionMember(type, schema.text("description"))
+            }
+        discriminator(doc, at, node)
+        return UnitUnion(
+            name = decl.name,
+            members = members,
+            doc = node.text("description"),
+            annotations = listOfNotNull(wireName(decl)),
+            deprecated = node.isTrue("deprecated"),
+        )
+    }
+
+    /** The target's externally tagged form: every member an object of one required property. */
+    private fun isTagged(choice: JsonNode): Boolean =
+        choice.any { !isNullSchema(it) } &&
+            choice.all { entry ->
+                if (isNullSchema(entry)) return@all true
+                val properties = entry.get("properties")
+                val required = entry.get("required")
+                !entry.has("\$ref") &&
+                    properties != null &&
+                    properties.size() == 1 &&
+                    required != null &&
+                    required.size() == 1 &&
+                    required[0].textValue() == properties.properties().first().key
+            }
+
+    /** The tag the target writes for a member: a declaration's wire name in lower snake case. */
+    private fun stemOf(type: UnitType, decl: Decl?): String =
+        when {
+            decl != null ->
+                decl.wire?.takeIf { it != decl.name } ?: TargetNames.snakeCase(decl.name)
+            type is UnitType.Scalar -> type.builtin
+            else -> "string"
+        }
+
+    /**
+     * Schemata tags a union member by its name and writes no discriminator. A discriminator without
+     * a mapping is dropped silently, as is one whose mapping gives each member the tag Schemata
+     * would; any other mapping is approximated.
+     */
+    private fun discriminator(doc: OpenApiDoc, at: Pointer, node: JsonNode) {
+        val mapping = node.get("discriminator")?.get("mapping") ?: return
+        val reproducible =
+            mapping.properties().all { (tag, value) ->
+                val name = value.textValue() ?: return@all false
+                val ref = if ('#' in name || '/' in name) name else "#/components/schemas/$name"
+                val where = at / "discriminator" / "mapping" / tag
+                val decl = refs.resolve(doc, where, ref)?.let(::componentAt)?.decl
+                decl != null && stemOf(UnitType.Ref(decl.name), decl) == tag
+            }
+        if (!reproducible) {
+            say(
+                doc,
+                at / "discriminator",
+                ImportCodes.APPROXIMATED,
+                "discriminator mapping is not kept; the union is tagged by member name",
+            )
+        }
     }
 
     /** One enum value named from its [wire] text, recorded in [decl] so a default can find it. */
@@ -477,16 +698,19 @@ class SchemaLowering(
      * 3.1 type list or enum, and the target's `anyOf` of a schema and `{"type": "null"}` all do.
      */
     private fun typed(place: Place, node: JsonNode): Typed {
-        val pair = node.get("anyOf") ?: node.get("oneOf")
-        if (pair != null && pair.size() == 2 && pair.count(::isNullSchema) == 1) {
-            val key = if (node.has("anyOf")) "anyOf" else "oneOf"
-            val i = pair.indexOfFirst { !isNullSchema(it) }
-            return typed(place.at(place.pointer / key / i), pair[i]).copy(nullable = true)
+        dropped(place.doc, place.pointer, node)
+        val choice = choiceOf(node)?.takeIf { !node.has("properties") }
+        val nulls = choice?.count(::isNullSchema) ?: 0
+        if (choice != null && nulls > 0 && choice.size() - nulls == 1) {
+            val i = choice.indexOfFirst { !isNullSchema(it) }
+            return typed(place.at(place.pointer / choiceKey(node) / i), choice[i])
+                .copy(nullable = true)
         }
         val nullable =
             node.isTrue("nullable") ||
                 "null" in typesOf(node) ||
-                node.get("enum")?.any { it.isNull } == true
+                node.get("enum")?.any { it.isNull } == true ||
+                nulls > 0
         val typed = typeOf(place, node)
         return if (nullable) typed.copy(nullable = true) else typed
     }
@@ -499,6 +723,19 @@ class SchemaLowering(
         if (allOf != null && allOf.size() == 1 && allOf[0].has("\$ref")) {
             return refType(place.at(place.pointer / "allOf" / 0), allOf[0].text("\$ref")!!)
         }
+        if (allOf != null) return hoist(place, node, DeclKind.MODEL)
+        val choice = choiceOf(node)?.takeIf { !node.has("properties") }
+        if (choice != null) {
+            if (isConstEnum(choice)) return hoist(place, node, DeclKind.ENUM)
+            val members = choice.withIndex().filter { !isNullSchema(it.value) }
+            if (members.size == 1) {
+                val (i, member) = members.single()
+                return typed(place.at(place.pointer / choiceKey(node) / i), member)
+            }
+            if (members.size > 1) return hoist(place, node, DeclKind.UNION)
+        }
+        val enum = node.get("enum")
+        if (enum != null && isStringEnum(enum)) return hoist(place, node, DeclKind.ENUM)
         val types = typesOf(node) - "null"
         val type =
             when {
@@ -506,25 +743,77 @@ class SchemaLowering(
                 types.isEmpty() -> inferred(node)
                 else -> null
             }
-        return when (type) {
-            "string" -> Typed(stringType(place, node))
-            "integer" -> Typed(integerType(place, node))
-            "number" -> Typed(numberType(place, node))
-            "boolean" -> Typed(UnitType.Scalar("bool", emptyList()))
-            "array" -> Typed(listType(place, node))
-            "object" -> objectType(place, node)
-            else -> unknown(place)
+        val typed =
+            when (type) {
+                "string" -> Typed(stringType(place, node))
+                "integer" -> Typed(integerType(place, node))
+                "number" -> Typed(numberType(place, node))
+                "boolean" -> Typed(UnitType.Scalar("bool", emptyList()))
+                "array" -> Typed(listType(place, node))
+                "object" -> objectType(place, node)
+                else -> unknown(place)
+            }
+        // a Schemata enum's values are names, so an enum of numbers or booleans keeps its type
+        if (enum != null && type != null && type != "string") {
+            say(
+                place,
+                ImportCodes.WIDENED,
+                "$type enum imported as ${(typed.type as UnitType.Scalar).builtin}; its values are not kept",
+            )
         }
+        return typed
+    }
+
+    /**
+     * An inline object, enum or union, declared where the core hoister would declare it: nested in
+     * the innermost model as `<Model><Field>`, under a name nothing visible there already has.
+     */
+    private fun hoist(place: Place, node: JsonNode, kind: DeclKind): Typed {
+        val holder = place.owner.chain.lastOrNull()
+        val space = space(place.owner.namespace)
+        if (space.source == null) space.source = place.doc.path
+        val names = holder?.names ?: space.names
+        val wanted = place.inline
+        var name = wanted
+        var n = 1
+        while (
+            names.taken(name) ||
+                space.names.taken(name) ||
+                place.owner.chain.any { it.names.taken(name) }
+        ) {
+            name = "$wanted${++n}"
+        }
+        names.claim(name)
+        if (name != wanted) {
+            say(
+                place.doc,
+                place.pointer,
+                ImportCodes.RENAMED,
+                "inline schema is imported as '$name', since '$wanted' is taken",
+                SUFFIX_HELP,
+            )
+        }
+        val decl = Decl(place.owner.namespace, name, holder, null)
+        decl.kind = kind
+        (holder?.children ?: space.top) += decl
+        decl.built = lowered(decl, place.doc, place.pointer, node)
+        return Typed(UnitType.Ref(refText(decl, place.owner)), decl = decl)
     }
 
     /** The type a schema without a `type` has from the keywords it carries. */
-    private fun inferred(node: JsonNode): String? =
-        when {
+    private fun inferred(node: JsonNode): String? {
+        val enum = node.get("enum")?.filter { !it.isNull }.orEmpty()
+        return when {
             node.has("properties") || node.has("additionalProperties") -> "object"
             node.has("items") -> "array"
-            node.get("enum")?.let(::isStringEnum) == true -> "string"
+            enum.isEmpty() -> null
+            enum.all { it.isTextual } -> "string"
+            enum.all { it.isIntegralNumber } -> "integer"
+            enum.all { it.isNumber } -> "number"
+            enum.all { it.isBoolean } -> "boolean"
             else -> null
         }
+    }
 
     private fun unknown(place: Place): Typed {
         say(
@@ -556,6 +845,7 @@ class SchemaLowering(
             decimal(pattern)?.let {
                 return it
             }
+        if (format != null) unknownFormat(place, format, "string")
         return UnitType.Scalar(
             "string",
             listOfNotNull(
@@ -621,17 +911,20 @@ class SchemaLowering(
      * limits on every integer.
      */
     private fun integerType(place: Place, node: JsonNode): UnitType {
-        val min = node.decimal("minimum")
-        val max = node.decimal("maximum")
-        val format = node.text("format")?.takeIf { it == "int32" || it == "int64" }
+        val min = bound(place, node, "minimum", "exclusiveMinimum", "min")
+        val max = bound(place, node, "maximum", "exclusiveMaximum", "max")
+        val written = node.text("format")
+        val format = written?.takeIf { it == "int32" || it == "int64" }
         val fits = { b: BigDecimal? -> b == null || (b >= INT32_MIN && b <= INT32_MAX) }
         val int32 =
             fits(min) &&
                 fits(max) &&
                 (format == "int32" || (format == null && min != null && max != null))
+        val builtin = if (int32) "int32" else "int64"
+        if (written != null && format == null) unknownFormat(place, written, builtin)
         val (low, high) = if (int32) INT32_MIN to INT32_MAX else INT64_MIN to INT64_MAX
         return UnitType.Scalar(
-            if (int32) "int32" else "int64",
+            builtin,
             listOfNotNull(
                 min?.takeIf { it.compareTo(low) != 0 }?.let { "min" to integral(it) },
                 max?.takeIf { it.compareTo(high) != 0 }?.let { "max" to integral(it) },
@@ -639,14 +932,56 @@ class SchemaLowering(
         )
     }
 
-    private fun numberType(place: Place, node: JsonNode): UnitType =
-        UnitType.Scalar(
-            if (node.text("format") == "float") "float32" else "float64",
+    private fun numberType(place: Place, node: JsonNode): UnitType {
+        val format = node.text("format")
+        val builtin = if (format == "float") "float32" else "float64"
+        if (format != null && format != "float" && format != "double") {
+            unknownFormat(place, format, builtin)
+        }
+        return UnitType.Scalar(
+            builtin,
             listOfNotNull(
-                node.get("minimum")?.takeIf { it.isNumber }?.let { "min" to literal(it) },
-                node.get("maximum")?.takeIf { it.isNumber }?.let { "max" to literal(it) },
+                bound(place, node, "minimum", "exclusiveMinimum", "min")?.let {
+                    "min" to number(it)
+                },
+                bound(place, node, "maximum", "exclusiveMaximum", "max")?.let {
+                    "max" to number(it)
+                },
             ),
         )
+    }
+
+    /**
+     * A bound from [inclusive], or from [exclusive] approximated as inclusive: 3.0 writes
+     * `exclusiveMinimum: true` beside `minimum`, 3.1 writes the bound as `exclusiveMinimum` itself.
+     */
+    private fun bound(
+        place: Place,
+        node: JsonNode,
+        inclusive: String,
+        exclusive: String,
+        refinement: String,
+    ): BigDecimal? {
+        val flag = node.get(exclusive)
+        val value =
+            when {
+                flag == null || flag.isFalse() -> return node.decimal(inclusive)
+                flag.isNumber -> flag.decimalValue()
+                flag.isBoolean -> node.decimal(inclusive) ?: return null
+                else -> return node.decimal(inclusive)
+            }
+        val shown = number(value)
+        say(place, ImportCodes.APPROXIMATED, "$exclusive $shown is imported as $refinement $shown")
+        return value
+    }
+
+    private fun unknownFormat(place: Place, format: String, builtin: String) {
+        say(
+            place,
+            ImportCodes.APPROXIMATED,
+            "format '$format' has no Schemata type; imported as $builtin",
+        )
+    }
 
     private fun listType(place: Place, node: JsonNode): UnitType {
         val items = node.get("items")
@@ -662,7 +997,9 @@ class SchemaLowering(
      */
     private fun objectType(place: Place, node: JsonNode): Typed {
         val extra = node.get("additionalProperties")
-        if (node.has("properties") || extra?.isFalse() == true) return unknown(place)
+        if (node.has("properties") || extra?.isFalse() == true) {
+            return hoist(place, node, DeclKind.MODEL)
+        }
         if (extra == null || !extra.isObject || extra.isEmpty) {
             say(
                 place.doc,
@@ -1009,6 +1346,23 @@ class SchemaLowering(
             )
         val DECIMAL_LITERAL = Regex("-?[0-9]+(\\.[0-9]+)?")
 
+        val DROPPED_KEYWORDS =
+            listOf(
+                "readOnly",
+                "writeOnly",
+                "example",
+                "examples",
+                "xml",
+                "externalDocs",
+                "not",
+                "if",
+                "then",
+                "else",
+                "patternProperties",
+                "uniqueItems",
+                "multipleOf",
+            )
+
         val FORMATS =
             mapOf(
                 "uuid" to "uuid",
@@ -1055,12 +1409,18 @@ private fun isNullSchema(node: JsonNode): Boolean =
     typesOf(node) == listOf("null") || node.get("const")?.isNull == true
 
 /** Whether a component's own schema admits null, which every use of it then does. */
-private fun admitsNull(node: JsonNode): Boolean = node.isTrue("nullable") || "null" in typesOf(node)
+private fun admitsNull(node: JsonNode): Boolean =
+    node.isTrue("nullable") ||
+        "null" in typesOf(node) ||
+        (node.get("oneOf") ?: node.get("anyOf"))?.any(::isNullSchema) == true
 
 /** A number as Schemata source: an integer as its digits, any other as plain decimal text. */
 private fun literal(node: JsonNode): String =
     if (node.isIntegralNumber) node.bigIntegerValue().toString()
     else node.decimalValue().toPlainString()
+
+/** A bound as Schemata source: an integer as its digits, any other as plain decimal text. */
+private fun number(n: BigDecimal): String = integralOrNull(n) ?: n.toPlainString()
 
 private fun integral(n: BigDecimal): String = integralOrNull(n) ?: n.toPlainString()
 
