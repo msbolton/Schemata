@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Pick/oneOf/0: union member's null is dropped; a union member cannot be null
+ --> shop.yaml:1:1
+  = help: make the field that holds the union nullable to keep the null
+
+0 errors, 1 warning

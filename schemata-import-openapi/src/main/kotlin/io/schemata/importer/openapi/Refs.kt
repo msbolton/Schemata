@@ -45,8 +45,15 @@ class Refs(
     fun resolve(from: OpenApiDoc, at: Pointer, ref: String): Target? {
         val key = Triple(from.path, at.text, ref)
         if (key in failed) return null
-        return find(from, at, ref).also { if (it == null) failed += key }
+        return find(from, at, ref, quiet = false).also { if (it == null) failed += key }
     }
+
+    /**
+     * The target [ref] names, or null, reporting nothing about the reference itself: for a value
+     * that may name a schema but need not, such as a discriminator mapping's. A file it reads is
+     * still read once, and that file's own messages are reported.
+     */
+    fun peek(from: OpenApiDoc, ref: String): Target? = find(from, Pointer.ROOT, ref, quiet = true)
 
     /**
      * Resolves every `$ref` in [doc], so a reference that cannot be resolved is reported even where
@@ -72,41 +79,45 @@ class Refs(
         walk(doc.tree, Pointer.ROOT, names = false)
     }
 
-    private fun find(from: OpenApiDoc, at: Pointer, ref: String): Target? {
+    private fun find(from: OpenApiDoc, at: Pointer, ref: String, quiet: Boolean): Target? {
         if (URL.containsMatchIn(ref)) {
-            report.at(
-                from,
-                at,
-                ImportCodes.UNRESOLVED,
-                "reference '$ref' is a URL and is not fetched",
-                URL_HELP,
-            )
+            if (!quiet)
+                report.at(
+                    from,
+                    at,
+                    ImportCodes.UNRESOLVED,
+                    "reference '$ref' is a URL and is not fetched",
+                    URL_HELP,
+                )
             return null
         }
         val file = percentDecoded(ref.substringBefore('#'))
         val fragment = percentDecoded(ref.substringAfter('#', ""))
         if (fragment.isNotEmpty() && !fragment.startsWith("/")) {
-            report.at(
-                from,
-                at,
-                ImportCodes.UNRESOLVED,
-                "reference '$ref' is not a JSON pointer",
-                POINTER_HELP,
-            )
+            if (!quiet)
+                report.at(
+                    from,
+                    at,
+                    ImportCodes.UNRESOLVED,
+                    "reference '$ref' is not a JSON pointer",
+                    POINTER_HELP,
+                )
             return null
         }
         val doc =
             if (file.isEmpty()) from
-            else document(from, at, ref, resolvePath(slashed(from.path), file)) ?: return null
+            else
+                document(from, at, ref, resolvePath(slashed(from.path), file), quiet) ?: return null
         val node = doc.tree.at(fragment)
         if (node.isMissingNode) {
-            report.at(
-                from,
-                at,
-                ImportCodes.UNRESOLVED,
-                "reference '$ref' names nothing in ${doc.path}",
-                MISSING_HELP,
-            )
+            if (!quiet)
+                report.at(
+                    from,
+                    at,
+                    ImportCodes.UNRESOLVED,
+                    "reference '$ref' names nothing in ${doc.path}",
+                    MISSING_HELP,
+                )
             return null
         }
         val pointer = Pointer("#$fragment")
@@ -126,20 +137,27 @@ class Refs(
      * exist is reported at each reference to it. A file that exists but cannot be read is reported
      * once, by the reader's own diagnostics.
      */
-    private fun document(from: OpenApiDoc, at: Pointer, ref: String, path: String): OpenApiDoc? {
+    private fun document(
+        from: OpenApiDoc,
+        at: Pointer,
+        ref: String,
+        path: String,
+        quiet: Boolean,
+    ): OpenApiDoc? {
         docs[path]?.let {
             return it
         }
         if (path in read) return read[path]
         val input = locate(path)
         if (input == null) {
-            report.at(
-                from,
-                at,
-                ImportCodes.UNRESOLVED,
-                "reference '$ref' names the file $path, which does not exist",
-                FILE_HELP,
-            )
+            if (!quiet)
+                report.at(
+                    from,
+                    at,
+                    ImportCodes.UNRESOLVED,
+                    "reference '$ref' names the file $path, which does not exist",
+                    FILE_HELP,
+                )
             return null
         }
         val doc =
