@@ -5,11 +5,56 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.fail
 
-/** Shared access to the committed guide and the repository root from the CLI module's tests. */
+/**
+ * Shared access to the wiki and the repository root from the CLI module's tests. The wiki is the
+ * `wiki` submodule, or the checkout `-Pschemata.wiki=<dir>` names.
+ */
 object Guide {
     val root: File = File("..").canonicalFile
-    val dir: File = File(root, "guide")
+    val dir: File =
+        (System.getProperty("schemata.wiki")?.let(::File) ?: File(root, "wiki")).canonicalFile
     private val update = System.getenv("SCHEMATA_GOLDEN_UPDATE") == "1"
+
+    /** Where the README links to a wiki page: this prefix, then the page name. */
+    const val WIKI_URL = "https://github.com/msbolton/Schemata/wiki/"
+
+    /** Every wiki page, sorted by name; fails when the wiki is not checked out. */
+    val pages: List<File> by lazy {
+        if (!File(dir, "Home.md").isFile)
+            fail("no wiki at ${dir.path}; run `git submodule update --init wiki`")
+        dir.listFiles { f -> f.extension == "md" }!!.sortedBy { it.name }
+    }
+
+    /**
+     * The wiki pages whose `schemata` blocks compile on their own. Worked-Examples quotes runs of
+     * lines from the example files instead, which `GuideExamplesTest` checks.
+     */
+    val referencePages: List<File> by lazy { pages.filterNot { it.name == "Worked-Examples.md" } }
+
+    /** The wiki page [name], as a link names it. */
+    fun page(name: String): File = File(dir, "$name.md")
+
+    /**
+     * The file a relative link [path] in [from] points at: a wiki page links to another by its name
+     * alone, and the README links to files of the repository.
+     */
+    fun resolve(from: File, path: String): File =
+        if (from.parentFile.canonicalFile == dir && '/' !in path && '.' !in path) page(path)
+        else File(from.parentFile, path).canonicalFile
+
+    /**
+     * Every link into the wiki in [text], inline `[x](<WIKI_URL>Page#fragment)` or a reference
+     * definition `[x]: <WIKI_URL>Page#fragment`, as the page name and its fragment.
+     */
+    fun wikiReferences(text: String): List<CrossReference> =
+        Regex(
+                "(?m)(?:\\]\\(|^\\[[^]]+]: )" +
+                    Regex.escape(WIKI_URL) +
+                    "([^)\\s#]+)(?:#([^)\\s]+))?"
+            )
+            .findAll(text)
+            .map { CrossReference(it.groupValues[1], it.groupValues[2]) }
+            .toList()
 
     /** Compares [actual] to [file], rewriting it under SCHEMATA_GOLDEN_UPDATE=1. */
     fun golden(file: File, actual: String) {

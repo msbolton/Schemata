@@ -8,9 +8,9 @@ services that use it to OpenAPI 3.1 and to gRPC `service` blocks in the Protobuf
 lossy decision reported as a warning, or import one from an existing XML Schema, Protobuf, or
 Postgres DDL schema. A reference to a model with a key means that key on every target.
 
-This is Schemata 2.0. Coming from 1.x, run `schemata upgrade` over your schemas; the reference's
-[Upgrading from 1.x](guide/reference.md#23-upgrading-from-1x) section lists every rewrite and the
-one change of meaning.
+This is Schemata 2.0. Coming from 1.x, run `schemata upgrade` over your schemas; the wiki's
+[Upgrading from 1.x][upgrading] page lists every rewrite and the one change of meaning. The
+[wiki][home] is the documentation: the language, every target, the commands, and the diagnostics.
 
 ## Install
 
@@ -157,11 +157,11 @@ writes nothing and fails while any file would change. `diff OLD NEW` judges ever
 schema versions against each target's compatibility rulebook, so a breaking change is caught before
 it ships. `migrate OLD NEW` writes the Postgres DDL that carries a database from one schema version
 to the next, refusing to write a step that loses data unless `--allow-destructive` says so. `lsp`
-runs the language server an editor starts; the guide's Editor support section covers the VS Code and
-Zed extensions and what the server does. A `schemata.toml` at the project root supplies defaults for
-the commands' options and the schema files to read when a command is given no paths; `config` prints
-what it resolved, and the reference's
-[Project configuration](guide/reference.md#24-project-configuration) section describes the file.
+runs the language server an editor starts; the wiki's [Editor support][editors] page covers the
+VS Code and Zed extensions and what the server does. A `schemata.toml` at the project root supplies
+defaults for the commands' options and the schema files to read when a command is given no paths;
+`config` prints what it resolved, and the wiki's [Project configuration][configuration] page
+describes the file.
 
 `--strict` reports implicit ordinals and treats every warning, lossy ones included, as an
 error. `--format json` prints one document on stdout and nothing on stderr.
@@ -181,14 +181,30 @@ stderr too.
 
 ## Learn more
 
-- [What is stable](guide/stability.md)
-- [Language reference](guide/reference.md)
-- [Worked examples](guide/examples.md) and the [`examples/`](examples/) directory
-- [Diagnostics](guide/diagnostics.md) and [annotations](guide/annotations.md)
+- [The wiki][home], starting with [Getting started][getting-started]
+- [What is stable][stability]
+- [Worked examples][examples] and the [`examples/`](examples/) directory
+- [Diagnostics][diagnostics] and [annotations][annotations]
+
+[home]: https://github.com/msbolton/Schemata/wiki/Home
+[getting-started]: https://github.com/msbolton/Schemata/wiki/Getting-Started
+[upgrading]: https://github.com/msbolton/Schemata/wiki/Upgrading-from-1x
+[editors]: https://github.com/msbolton/Schemata/wiki/Editor-Support
+[configuration]: https://github.com/msbolton/Schemata/wiki/Project-Configuration
+[stability]: https://github.com/msbolton/Schemata/wiki/What-Is-Stable
+[examples]: https://github.com/msbolton/Schemata/wiki/Worked-Examples
+[diagnostics]: https://github.com/msbolton/Schemata/wiki/Diagnostics
+[annotations]: https://github.com/msbolton/Schemata/wiki/Annotations
 
 ## Contributing
 
 ### Build
+
+The wiki is the `wiki` submodule, and the test suite checks it: every `schemata` block compiles,
+every excerpt matches its file, every link resolves, and the Annotations and Diagnostics pages are
+current. Clone with `--recurse-submodules`, or run `git submodule update --init wiki` once.
+`SCHEMATA_GOLDEN_UPDATE=1` regenerates the two generated pages; commit and push them in the
+submodule, then commit the new submodule pointer. `-Pschemata.wiki=<dir>` tests another checkout.
 
     ./gradlew build          # compile, test, lint, dependency-direction check
     ./gradlew :schemata-cli:installDist
