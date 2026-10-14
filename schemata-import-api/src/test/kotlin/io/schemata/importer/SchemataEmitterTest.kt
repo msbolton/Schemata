@@ -1,5 +1,11 @@
 package io.schemata.importer
 
+import io.schemata.core.Analyzer
+import io.schemata.core.ir.effectiveErrors
+import io.schemata.core.ir.services
+import io.schemata.core.ir.successStatus
+import io.schemata.lang.Parser
+import io.schemata.lang.Severity
 import io.schemata.lang.format.FormatResult
 import io.schemata.lang.format.Formatter
 import io.schemata.testkit.Golden
@@ -592,4 +598,206 @@ class SchemataEmitterTest {
             )
         assertEquals("schema s\n\nunion U = string { max 34 } | R\n", formatted(unitOf(union)))
     }
+
+    private val common =
+        SchemataUnit(
+            namespace = "shop.common",
+            doc = null,
+            imports = emptyList(),
+            declarations =
+                listOf(
+                    UnitRecord(
+                        "Problem",
+                        listOf(
+                            field("type", UnitType.Scalar("string", emptyList())),
+                            field("title", UnitType.Scalar("string", emptyList())),
+                        ),
+                        emptyList(),
+                        null,
+                        emptyList(),
+                    )
+                ),
+            sourcePath = "common.yaml",
+        )
+
+    private val problem = UnitType.Ref("Problem")
+
+    private val orders =
+        SchemataUnit(
+            namespace = "shop.orders",
+            doc = null,
+            imports = listOf("shop.common"),
+            declarations =
+                listOf(
+                    UnitRecord(
+                        "OrderId",
+                        listOf(field("id", UnitType.Scalar("uuid", emptyList()))),
+                        emptyList(),
+                        null,
+                        emptyList(),
+                    ),
+                    UnitRecord(
+                        "Order",
+                        listOf(
+                            field("id", UnitType.Scalar("uuid", emptyList())),
+                            field("total", UnitType.Scalar("int64", emptyList())),
+                        ),
+                        emptyList(),
+                        null,
+                        emptyList(),
+                    ),
+                    UnitRecord(
+                        "Conflict",
+                        listOf(field("current", UnitType.Scalar("uuid", emptyList()))),
+                        emptyList(),
+                        null,
+                        emptyList(),
+                    ),
+                ),
+            services =
+                listOf(
+                    UnitService(
+                        name = "Orders",
+                        operations =
+                            listOf(
+                                UnitOperation(
+                                    "get",
+                                    UnitPayload(UnitType.Ref("OrderId"), false),
+                                    UnitPayload(UnitType.Ref("Order"), false),
+                                    "get \"/orders/{id}\"",
+                                    "Fetch one order.",
+                                    emptyList(),
+                                    ordinal = 1,
+                                    errors = listOf(UnitErrorResponse(404, problem)),
+                                ),
+                                UnitOperation(
+                                    "place",
+                                    UnitPayload(UnitType.Ref("Order"), false),
+                                    UnitPayload(UnitType.Ref("Order"), false),
+                                    "post \"/orders\" 201",
+                                    null,
+                                    emptyList(),
+                                    ordinal = 2,
+                                    errors =
+                                        listOf(
+                                            UnitErrorResponse(409, UnitType.Ref("Conflict")),
+                                            UnitErrorResponse(422, null),
+                                        ),
+                                ),
+                                UnitOperation(
+                                    "cancel",
+                                    UnitPayload(UnitType.Ref("OrderId"), false),
+                                    null,
+                                    "delete \"/orders/{id}\"",
+                                    null,
+                                    emptyList(),
+                                    ordinal = 3,
+                                ),
+                                UnitOperation(
+                                    "ping",
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    emptyList(),
+                                    ordinal = 4,
+                                    errors = listOf(UnitErrorResponse(429, null)),
+                                ),
+                            ),
+                        doc = "Place and read orders.",
+                        annotations = emptyList(),
+                        errors =
+                            listOf(
+                                UnitErrorResponse(400, problem),
+                                UnitErrorResponse(503, null),
+                                UnitErrorResponse(null, problem),
+                            ),
+                    )
+                ),
+            sourcePath = "orders.yaml",
+        )
+
+    @Test
+    fun `error responses print first in the service and after each operation's binding`() {
+        assertEquals(
+            """
+            |schema shop.orders
+            |
+            |import shop.common
+            |
+            |model OrderId {
+            |  id uuid
+            |}
+            |
+            |model Order {
+            |  id uuid
+            |  total int64
+            |}
+            |
+            |model Conflict {
+            |  current uuid
+            |}
+            |
+            |/// Place and read orders.
+            |service Orders {
+            |  errors { 400 Problem  503  default Problem }
+            |  /// Fetch one order.
+            |  #1 get(OrderId): Order  get "/orders/{id}"  errors { 404 Problem }
+            |  #2 place(Order): Order  post "/orders" 201  errors { 409 Conflict  422 }
+            |  #3 cancel(OrderId)  delete "/orders/{id}"
+            |  #4 ping()  errors { 429 }
+            |}
+            |"""
+                .trimMargin(),
+            SchemataEmitter.emit(orders),
+        )
+        Golden.assertMatches("services.schemata", formatted(orders))
+    }
+
+    @Test
+    fun `an emitted unit with error responses formats and analyses with every clause in place`() {
+        val files = emitUnits(listOf(common, orders))
+        assertEquals(listOf("shop/common.schemata", "shop/orders.schemata"), files.map { it.path })
+        val parsed = files.map { Parser.parse(it.content, it.path) }
+        assertEquals(emptyList(), parsed.flatMap { it.diagnostics }.map { it.message })
+        val analysis = Analyzer.analyze(parsed.map { it.file!! })
+        assertEquals(
+            emptyList(),
+            analysis.diagnostics.filter { it.severity == Severity.ERROR }.map { it.message },
+        )
+        val service = analysis.schema!!.services().single()
+        val byName = service.operations.associateBy { it.name }
+        // the service's clause applies to every operation, and an operation's adds its own codes
+        assertEquals(
+            listOf(400, 404, 503, null),
+            effectiveErrors(service, byName.getValue("get")).map { it.code },
+        )
+        assertEquals(
+            listOf(400, 409, 422, 503, null),
+            effectiveErrors(service, byName.getValue("place")).map { it.code },
+        )
+        assertEquals(
+            listOf(400, 429, 503, null),
+            effectiveErrors(service, byName.getValue("ping")).map { it.code },
+        )
+        assertEquals(201, byName.getValue("place").successStatus())
+        assertEquals(204, byName.getValue("cancel").successStatus())
+    }
+
+    @Test
+    fun `an error response code outside 400 to 599 is refused`() {
+        assertFailsWith<IllegalArgumentException> { UnitErrorResponse(399, null) }
+        assertFailsWith<IllegalArgumentException> { UnitErrorResponse(600, null) }
+        assertEquals(null, UnitErrorResponse(null, null).code)
+        assertEquals(599, UnitErrorResponse(599, UnitType.Ref("P")).code)
+    }
+
+    private fun emitUnits(units: List<SchemataUnit>): List<EmittedUnit> {
+        return units.map { unit ->
+            val path = unit.namespace.replace(".", "/") + ".schemata"
+            EmittedUnit(path, SchemataEmitter.emit(unit))
+        }
+    }
+
+    private data class EmittedUnit(val path: String, val content: String)
 }

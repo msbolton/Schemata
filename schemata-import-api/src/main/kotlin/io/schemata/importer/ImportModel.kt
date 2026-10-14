@@ -21,7 +21,11 @@ data class SchemataUnit(
     val sourcePath: String,
 )
 
-/** A `service` block; [reserved] prints as one `reserved` statement after the operations. */
+/**
+ * A `service` block; [reserved] prints as one `reserved` statement after the operations. [errors]
+ * is the service's `errors` clause, which applies to every operation, printed first in the body;
+ * empty prints none.
+ */
 data class UnitService(
     val name: String,
     val operations: List<UnitOperation>,
@@ -29,12 +33,15 @@ data class UnitService(
     val annotations: List<UnitAnnotation>,
     val reserved: List<UnitReserved> = emptyList(),
     val deprecated: Boolean = false,
+    val errors: List<UnitErrorResponse> = emptyList(),
 )
 
 /**
  * One operation. [binding] is the HTTP binding exactly as Schemata source spells it (`get
- * "/orders/{id}"`), or null. [ordinal] prints as `#n` before the name; a service gives every
- * operation one or none.
+ * "/orders/{id}"`, or `post "/orders" 201` with a success code), or null. [ordinal] prints as `#n`
+ * before the name; a service gives every operation one or none. [errors] is the operation's own
+ * `errors` clause, printed on its line after the binding; for a code the service also lists it
+ * replaces the service's body.
  */
 data class UnitOperation(
     val name: String,
@@ -45,7 +52,17 @@ data class UnitOperation(
     val annotations: List<UnitAnnotation>,
     val ordinal: Int? = null,
     val deprecated: Boolean = false,
+    val errors: List<UnitErrorResponse> = emptyList(),
 )
+
+/** One `errors` entry: a code from 400 to 599, or null for `default`, with an optional body. */
+data class UnitErrorResponse(val code: Int?, val body: UnitType.Ref?) {
+    init {
+        require(code == null || code in 400..599) {
+            "an error response code is 400 to 599 or default, not $code"
+        }
+    }
+}
 
 data class UnitPayload(val type: UnitType.Ref, val stream: Boolean)
 
