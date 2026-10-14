@@ -25,6 +25,7 @@ dependencies {
     implementation(project(":schemata-import-xsd"))
     implementation(project(":schemata-import-proto"))
     implementation(project(":schemata-import-sql"))
+    implementation(project(":schemata-import-openapi"))
     implementation(project(":schemata-evolution"))
     implementation(project(":schemata-migrate"))
     implementation(project(":schemata-lsp"))

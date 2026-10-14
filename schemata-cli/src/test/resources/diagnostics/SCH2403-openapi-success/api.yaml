@@ -1,0 +1,13 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    get:
+      operationId: Api_list
+      responses:
+        '206': {description: Partial}
+  /health:
+    get:
+      operationId: Api_health
+      responses:
+        '503': {description: Down}

@@ -1,0 +1,69 @@
+schema shop
+
+enum OrderStatus { pending paid shipped }
+
+model Order { id uuid  status OrderStatus  total string }
+
+model OrderEvent { status OrderStatus  at instant }
+
+model Product { sku string { max 64 }  name string }
+
+model Problem { title string  status int32 }
+
+model ListOrdersRequest {
+  page_size int32        { min 1, max 100 } @openapi(name: "pageSize") = 20
+  status    OrderStatus?
+}
+
+model OrderPage { items Order[]  next string?  e_tag string { max 64 } @openapi(header: "ETag") }
+
+/// The cart to order.
+model PlaceOrderRequest {
+  /// A key the client makes up, so a retried request places one order.
+  idempotency_key uuid    @openapi(header: "Idempotency-Key")
+  cart_id         uuid    @jsonschema(name: "cartId")
+  note            string? { max 500 }
+}
+
+model GetOrderRequest { order_id uuid @openapi(name: "orderId") }
+
+model CancelOrderRequest { order_id uuid @openapi(name: "orderId") }
+
+model WatchOrderRequest { order_id uuid @openapi(name: "orderId") }
+
+model SearchProductsRequest {
+  q         string
+  page_size int32  { min 1, max 100 } @openapi(name: "pageSize") = 20
+}
+
+model SearchProductsResponse { items Product[] }
+
+/// Placing and following orders.
+@openapi(name: "orders")
+service Orders {
+  errors { 401 Problem  default Problem }
+  /// List the customer's orders, newest first.
+  @openapi(name: "listOrders") #1 list_orders(ListOrdersRequest): OrderPage  get "/orders"
+  @openapi(name: "placeOrder") #2 place_order(PlaceOrderRequest): Order  post "/orders" 201  errors {
+    409
+  }
+  @openapi(name: "getOrder") #3 get_order(GetOrderRequest): Order  get "/orders/{order_id}"  errors {
+    404
+  }
+  @deprecated
+  @openapi(name: "cancelOrder")
+  #4 cancel_order(CancelOrderRequest)  delete "/orders/{order_id}"
+  @openapi(name: "watchOrder") #5 watch_order(WatchOrderRequest): stream OrderEvent
+    get "/orders/{order_id}/events"
+}
+
+@openapi(name: "catalog")
+service Catalog {
+  @openapi(name: "searchProducts") #1 search_products(SearchProductsRequest): SearchProductsResponse
+    get "/products"
+  @openapi(name: "importProducts") #2 import_products(stream Product)  post "/products/import" 202
+}
+
+service Shop {
+  @openapi(name: "health") #1 health()  get "/health"
+}

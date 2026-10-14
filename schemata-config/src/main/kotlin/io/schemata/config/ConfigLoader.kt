@@ -183,7 +183,7 @@ private class Validator(
                 ),
             "import" to
                 linkedMapOf(
-                    "from" to Expect.OneOf(listOf("xsd", "proto", "sql")),
+                    "from" to Expect.OneOf(listOf("xsd", "proto", "sql", "openapi")),
                     "namespace" to Expect.Text,
                     "include" to Expect.Texts,
                 ),

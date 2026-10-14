@@ -1,0 +1,18 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/paths/~1a/get/security/1: empty requirement dropped; it admits a call without credentials, which Schemata cannot say beside a scheme
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1b/get/security/0: requirement names 'Nope', which is not a scheme Schemata keeps; dropped
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1b/get/security/1: scopes of 'BearerAuth' dropped; only oauth2 and openid requirements carry scopes
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/security/0: requirement names 'BearerAuth', 'ApiKeyAuth' together, which Schemata cannot say; only 'BearerAuth' is kept
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 4 warnings

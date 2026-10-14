@@ -1,0 +1,2 @@
+SCH2403 catalog.yaml: #/components/schemas/Sku: component 'Sku' is not a model, enum or union; each use takes its type
+SCH2403 catalog.yaml: #/components/schemas/Product/properties/attributes: free-form object is imported as map<string, string>

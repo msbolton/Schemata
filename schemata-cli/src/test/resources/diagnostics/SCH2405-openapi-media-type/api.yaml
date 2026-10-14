@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    get:
+      operationId: Api_list
+      responses:
+        '200':
+          description: Orders
+          content:
+            application/xml:
+              schema: {type: string}

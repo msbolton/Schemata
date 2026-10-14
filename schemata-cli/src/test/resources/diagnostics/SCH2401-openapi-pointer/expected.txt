@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/Order/properties/total: reference '#Money' is not a JSON pointer
+ --> shop.yaml:1:1
+  = help: write the fragment as a JSON pointer, such as #/components/schemas/Order
+
+1 error, 0 warnings

@@ -1,5 +1,6 @@
 package io.schemata.cli
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.schemata.lsp.server.SchemataServer
 import java.io.File
 import java.nio.file.Files
@@ -17,6 +18,12 @@ import kotlin.test.fail
  * and parser by name, so those two are listed as well. The list is derived from the jars on the
  * classpath and compared with the checked-in file; run with SCHEMATA_GOLDEN_UPDATE=1 to rewrite the
  * file after an lsp4j upgrade or a new server class.
+ *
+ * The OpenAPI importer's reader, swagger-parser on Jackson and snakeyaml, reaches classes by
+ * reflection that no classpath walk can predict, so its metadata is traced by GraalVM's agent and
+ * kept in a directory of its own, `schemata-import-openapi`, which `scripts/trace-openapi-metadata`
+ * rewrites. That file is checked for what can go stale: every class it names must still exist, and
+ * it must name nothing outside the reader's libraries, which the rest of the metadata covers.
  */
 class NativeMetadataTest {
     private val file =
@@ -90,5 +97,68 @@ class NativeMetadataTest {
                 "io.schemata.lsp.server.SchemataServer",
             )
             .forEach { assertTrue("\"name\": \"$it\"" in text, "$it is not listed") }
+    }
+
+    private val traced =
+        File(
+            "src/main/resources/META-INF/native-image/io.schemata/schemata-import-openapi/" +
+                "reflect-config.json"
+        )
+
+    private val tracedPrefixes =
+        listOf("io.swagger.", "com.fasterxml.jackson.", "org.yaml.snakeyaml.")
+
+    /**
+     * The class an agent entry names: an array type, written `[Lcom.x.Y;` or `com.x.Y[]`, names its
+     * element class.
+     */
+    private fun elementClass(name: String): String {
+        var n = name
+        while (n.endsWith("[]")) n = n.removeSuffix("[]")
+        n = n.trimStart('[')
+        if (n.startsWith("L") && n.endsWith(";")) n = n.substring(1, n.length - 1)
+        return n
+    }
+
+    /**
+     * Every class name the traced reflection metadata lists, from each entry's `name` or `type`.
+     */
+    private fun tracedClasses(): List<String> {
+        if (!traced.isFile) fail("${traced.path} is missing; run scripts/trace-openapi-metadata")
+        return ObjectMapper().readTree(traced).map { entry ->
+            (entry.get("name") ?: entry.get("type"))?.asText()
+                ?: fail("an entry of ${traced.path} names no class: $entry")
+        }
+    }
+
+    @Test
+    fun `the traced openapi metadata names only classes on the classpath`() {
+        val names = tracedClasses()
+        assertTrue(names.isNotEmpty(), "${traced.path} lists no class")
+        val loader = NativeMetadataTest::class.java.classLoader
+        val missing =
+            names.filter { name ->
+                runCatching { Class.forName(elementClass(name), false, loader) }.isFailure
+            }
+        assertEquals(
+            emptyList(),
+            missing,
+            "${traced.path} names classes that no longer exist; " +
+                "run scripts/trace-openapi-metadata after a swagger-parser or Jackson upgrade",
+        )
+    }
+
+    @Test
+    fun `the traced openapi metadata holds only swagger, jackson and snakeyaml entries`() {
+        val stray =
+            tracedClasses().filterNot { name ->
+                tracedPrefixes.any { elementClass(name).startsWith(it) }
+            }
+        assertEquals(
+            emptyList(),
+            stray,
+            "${traced.path} holds entries outside the reader's libraries; " +
+                "regenerate it with scripts/trace-openapi-metadata, which filters them out",
+        )
     }
 }

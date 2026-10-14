@@ -602,6 +602,87 @@ class OpenApiRulesTest {
         )
     }
 
+    private fun parameters(order: String, list: String, out: String = "#2 total int64") =
+        analysed(
+            "schema t\n\nmodel OrderId { $order }\n\nmodel ListOrders { #1 cursor string?  $list }\n\n" +
+                "model Order { #1 id uuid  $out }\n\n" +
+                "service Orders {\n" +
+                "  #1 get(OrderId): Order  get \"/orders/{order_id}\"\n" +
+                "  #2 list(ListOrders): Order  get \"/orders\"\n" +
+                "}"
+        )
+
+    @Test
+    fun `a path or query parameter's name changed by its field's openapi name is breaking`() {
+        val plain = parameters("#1 order_id uuid", "#2 page_size int32?")
+        val path = parameters("#1 order_id uuid @openapi(name: \"orderId\")", "#2 page_size int32?")
+        assertEquals(
+            Verdict.Breaking(
+                "t.OrderId.order_id: the parameter name changes from 'order_id' to 'orderId', " +
+                    "which breaks clients that send it",
+                "keep @openapi(name: \"order_id\")",
+            ),
+            only(plain, path),
+        )
+        val query =
+            parameters("#1 order_id uuid", "#2 page_size int32? @openapi(name: \"pageSize\")")
+        assertEquals(
+            Verdict.Breaking(
+                "t.ListOrders.page_size: the parameter name changes from 'page_size' to " +
+                    "'pageSize', which breaks clients that send it",
+                "keep @openapi(name: \"page_size\")",
+            ),
+            only(plain, query),
+        )
+        assertEquals(
+            Verdict.Breaking(
+                "t.ListOrders.page_size: the parameter name changes from 'pageSize' to " +
+                    "'page_size', which breaks clients that send it",
+                "keep @openapi(name: \"pageSize\")",
+            ),
+            only(query, plain),
+        )
+        val size = parameters("#1 order_id uuid", "#2 page_size int32? @openapi(name: \"size\")")
+        assertIs<Verdict.Breaking>(only(query, size))
+    }
+
+    @Test
+    fun `a field's openapi name that keeps the parameter name or names no parameter is compatible`() {
+        val plain = parameters("#1 order_id uuid", "#2 page_size int32?")
+        // a pin of the name the parameter already has
+        val pinned =
+            parameters("#1 order_id uuid", "#2 page_size int32? @openapi(name: \"page_size\")")
+        assertEquals(Verdict.Compatible, only(plain, pinned))
+        // a name the target refuses falls back to the field's own
+        val invalid = parameters("#1 order_id uuid", "#2 page_size int32? @openapi(name: \"a b\")")
+        assertEquals(Verdict.Compatible, only(plain, invalid))
+        // a response field is no parameter
+        val response =
+            parameters(
+                "#1 order_id uuid",
+                "#2 page_size int32?",
+                "#2 total int64 @openapi(name: \"grandTotal\")",
+            )
+        assertEquals(Verdict.Compatible, only(plain, response))
+        // a header is named by @openapi(header)
+        val header =
+            parameters("#1 order_id uuid", "#2 page_size int32? @openapi(header: \"X-Size\")")
+        val headerNamed =
+            parameters(
+                "#1 order_id uuid",
+                "#2 page_size int32? @openapi(header: \"X-Size\", name: \"pageSize\")",
+            )
+        assertEquals(Verdict.Compatible, only(header, headerNamed))
+        // a body field is a property, not a parameter
+        val body =
+            "schema t\n\nmodel In { #1 id uuid  #2 note string? %s }\n\n" +
+                "service S { #1 put(In): In  post \"/a\" }"
+        assertEquals(
+            Verdict.Compatible,
+            only(analysed(body.format("")), analysed(body.format("@openapi(name: \"Note\")"))),
+        )
+    }
+
     @Test
     fun `a header field renamed on a model used only as a payload is compatible`() {
         val etag = headers("#2 key string?", "#2 etag string @openapi(header: \"ETag\")")

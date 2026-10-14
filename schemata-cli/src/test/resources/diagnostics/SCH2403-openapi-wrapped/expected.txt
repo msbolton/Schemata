@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/paths/~1orders/post/requestBody/content/application~1json/schema: the request body is wrapped in 'ApiBatchRequest' as field 'items', since it is not a model
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

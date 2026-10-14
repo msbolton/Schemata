@@ -1,0 +1,6 @@
+# targets=openapi
+error[SCH2605] (openapi): field 'Find.trace': @openapi(name) cannot rename a header; @openapi(header) names it
+ --> s.schemata:3:17
+  = help: take off @openapi(name), and name the header with @openapi(header: "…")
+
+1 error, 0 warnings

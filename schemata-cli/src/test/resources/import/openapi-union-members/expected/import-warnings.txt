@@ -1,0 +1,6 @@
+SCH2403 shop.yaml: #/components/schemas/Contact: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
+SCH2403 shop.yaml: #/components/schemas/Handle/oneOf/1: format 'email' has no Schemata type; imported as string
+SCH2403 shop.yaml: #/components/schemas/Handle: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
+SCH2403 shop.yaml: #/components/schemas/Handle/oneOf: union members 1 and 2 share type 'string'; each imported as a model holding it
+SCH2403 shop.yaml: #/components/schemas/Pick/oneOf/1: union member's null is dropped; a union member cannot be null
+SCH2403 shop.yaml: #/components/schemas/Pick/discriminator: discriminator mapping is not kept; the union is tagged by member name

@@ -1,0 +1,52 @@
+schema pets
+
+/// Any pet the shelter keeps.
+union Pet = Cat | Dog
+
+model Animal {
+  id       int64?
+  name     string
+  pet_type string @jsonschema(name: "petType")
+
+  @@jsonschema(open)
+}
+
+model Cat {
+  id       int64?
+  name     string
+  pet_type string @jsonschema(name: "petType")
+  indoor   bool   = true
+  lives    int32?
+
+  @@jsonschema(open)
+}
+
+model Dog {
+  id       int64?
+  name     string
+  pet_type string     @jsonschema(name: "petType")
+  breed    string
+  size     DogSize?
+  collar   DogCollar?
+
+  enum DogSize { small medium large }
+
+  model DogCollar {
+    color string?
+    tag   DogCollarTag?
+
+    model DogCollarTag { code string }
+  }
+}
+
+model Owner {
+  name    string
+  contact OwnerContact
+  age     int32?       { min 1 }
+
+  union OwnerContact = string | OwnerContactMember2
+
+  model OwnerContactMember2 { phone string? }
+
+  @@jsonschema(open)
+}

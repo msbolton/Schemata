@@ -1,0 +1,14 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/externalDocs: externalDocs dropped
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/tags/0/externalDocs: externalDocs dropped
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+warning[SCH2405] (lossy): api.yaml: #/webhooks/orderCreated: webhook 'orderCreated' dropped; Schemata has no webhooks
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 3 warnings

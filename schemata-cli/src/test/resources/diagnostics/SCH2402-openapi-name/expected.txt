@@ -1,0 +1,10 @@
+# import=openapi
+warning[SCH2402] (lossy): api.yaml: #/paths/~1orders/get/operationId: operationId 'list orders' is imported as 'list_orders' with no @openapi(name), since the target cannot write it
+ --> api.yaml:1:1
+  = help: rename it in the document to a name the target can write, to keep its spelling
+
+warning[SCH2402] (lossy): api.yaml: #/tags/0: tag 'Order Management' is imported as 'OrderManagement' with no @openapi(name), since the target cannot write it
+ --> api.yaml:1:1
+  = help: rename it in the document to a name the target can write, to keep its spelling
+
+0 errors, 2 warnings

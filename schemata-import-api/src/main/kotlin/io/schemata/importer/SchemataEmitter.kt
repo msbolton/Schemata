@@ -12,7 +12,10 @@ import io.schemata.lang.SchemataText
  * its body as block attributes (`@@xsd(name: "…")`), after its composite key, uniques, and indexes.
  * A type's refinements print as the options of the slot it sits in: a field's, a union member's, or
  * a type argument's. A list is `T[]`, its element's options sharing the field's block after the
- * list's own; a list of lists keeps the outer `list<…>`, since a type takes one `[]`.
+ * list's own; a list of lists keeps the outer `list<…>`, since a type takes one `[]`. A service's
+ * `errors` clause is the first line of its body, and an operation's ends the operation's line,
+ * after its binding: the language gives an operation only a clause that opens on the line where its
+ * signature or binding ends.
  */
 object SchemataEmitter {
     private const val INDENT = "  "
@@ -41,6 +44,7 @@ object SchemataEmitter {
         s.annotations.forEach { appendLine(indent + annotation(it)) }
         checkOrdinals(s.name, s.operations.map { it.ordinal })
         appendLine(indent + "service ${s.name} {")
+        if (s.errors.isNotEmpty()) appendLine(inner + errorsClause(s.errors))
         s.operations.forEach { op -> operationLines(op, inner).forEach(::appendLine) }
         reservedLine(s.reserved, inner)?.let(::appendLine)
         appendLine(indent + "}")
@@ -53,8 +57,21 @@ object SchemataEmitter {
         val request = op.request?.let { payload(it) } ?: ""
         val response = op.response?.let { ": " + payload(it) } ?: ""
         val binding = op.binding?.let { "  $it" } ?: ""
-        add("$indent${ordinalPrefix(op.ordinal)}${op.name}($request)$response$binding")
+        val errors = if (op.errors.isEmpty()) "" else "  " + errorsClause(op.errors)
+        add("$indent${ordinalPrefix(op.ordinal)}${op.name}($request)$response$binding$errors")
     }
+
+    /**
+     * `errors { 400 Problem 503 default Problem }`: each code, `default` for a null one, then its
+     * body when it has one, entries two spaces apart. A code without a body may come before
+     * `default`, since the parser starts an entry at every code and at a bare `default`.
+     */
+    private fun errorsClause(errors: List<UnitErrorResponse>): String =
+        "errors { " +
+            errors.joinToString("  ") { e ->
+                (e.code?.toString() ?: "default") + (e.body?.let { " ${it.name}" } ?: "")
+            } +
+            " }"
 
     private fun payload(p: UnitPayload): String = (if (p.stream) "stream " else "") + p.type.name
 

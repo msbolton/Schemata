@@ -1,0 +1,19 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+security:
+  - {BearerAuth: [], ApiKeyAuth: []}
+paths:
+  /a:
+    get:
+      operationId: Api_a
+      security: [{BearerAuth: []}, {}]
+      responses: {'204': {description: No content}}
+  /b:
+    get:
+      operationId: Api_b
+      security: [{Nope: []}, {BearerAuth: [admin]}]
+      responses: {'204': {description: No content}}
+components:
+  securitySchemes:
+    BearerAuth: {type: http, scheme: bearer}
+    ApiKeyAuth: {type: apiKey, in: query, name: key}

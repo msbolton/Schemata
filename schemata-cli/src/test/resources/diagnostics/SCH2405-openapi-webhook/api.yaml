@@ -1,0 +1,11 @@
+openapi: 3.1.0
+info: {title: api, version: 1.0.0}
+externalDocs: {url: 'https://docs.example.com'}
+tags:
+  - name: Orders
+    externalDocs: {url: 'https://docs.example.com/orders'}
+paths: {}
+webhooks:
+  orderCreated:
+    post:
+      responses: {'200': {description: OK}}

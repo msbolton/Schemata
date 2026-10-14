@@ -1,0 +1,56 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "adoptions",
+    "version": "1.0.0"
+  },
+  "components": {
+    "schemas": {
+      "Adoption": {
+        "type": "object",
+        "properties": {
+          "pet": {"$ref": "pets.yaml#/components/schemas/Pet"},
+          "owner": {"anyOf": [{"$ref": "pets.yaml#/components/schemas/Owner"}, {"type": "null"}]},
+          "stage": {"$ref": "#/components/schemas/Stage"},
+          "fee": {"type": "number", "exclusiveMinimum": 0},
+          "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "channel": {
+            "type": "string",
+            "oneOf": [
+              {"const": "web", "description": "Through the website."},
+              {"const": "desk"}
+            ]
+          }
+        },
+        "required": ["pet", "owner", "stage", "fee", "tags", "channel"],
+        "additionalProperties": false
+      },
+      "Stage": {
+        "description": "How far an adoption has come.",
+        "type": "string",
+        "oneOf": [
+          {"const": "applied", "description": "The form is in."},
+          {"const": "approved"},
+          {"const": "completed", "description": "The pet has gone home."}
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "oneOf": [
+          {"type": "object", "properties": {"adoption": {"$ref": "#/components/schemas/Adoption"}}, "required": ["adoption"], "additionalProperties": false},
+          {"type": "object", "properties": {"string": {"description": "A note from the desk.", "type": "string"}}, "required": ["string"], "additionalProperties": false}
+        ]
+      },
+      "Notice": {
+        "oneOf": [
+          {"$ref": "#/components/schemas/Adoption"},
+          {"$ref": "#/components/schemas/Event"}
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {"ADOPTION": "#/components/schemas/Adoption", "EVENT": "#/components/schemas/Event"}
+        }
+      }
+    }
+  }
+}

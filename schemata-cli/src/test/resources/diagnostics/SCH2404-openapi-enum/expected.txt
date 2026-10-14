@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2404] (lossy): shop.yaml: #/components/schemas/Pet/properties/level: integer enum imported as int32; its values are not kept
+ --> shop.yaml:1:1
+  = help: narrow the type by hand if the data needs it
+
+0 errors, 1 warning

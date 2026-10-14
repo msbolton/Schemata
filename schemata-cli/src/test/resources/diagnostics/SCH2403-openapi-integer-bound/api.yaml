@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Range:
+      type: object
+      required: [n]
+      properties:
+        n: {type: integer, format: int32, minimum: 1.5}
+      additionalProperties: false

@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/Order/properties/total: reference 'common.yaml#/components/schemas/Money' names the file common.yaml, which does not exist
+ --> shop.yaml:1:1
+  = help: add the file beside the document, or fix the reference
+
+1 error, 0 warnings

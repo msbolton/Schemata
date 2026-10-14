@@ -1,0 +1,10 @@
+# import=openapi
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Pick/oneOf/0: union member's null is dropped; a union member cannot be null
+ --> shop.yaml:1:1
+  = help: make the field that holds the union nullable to keep the null
+
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Pick: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept
+ --> shop.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 2 warnings

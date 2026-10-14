@@ -369,4 +369,106 @@ class ImportCommandTest {
         assertEquals(1, flagged.statusCode)
         assertTrue(flagged.stderr.contains("--namespace applies to a single input file"))
     }
+
+    private val shopApi =
+        """
+        openapi: 3.0.3
+        info:
+          title: shop
+          version: 1.0.0
+          description: The shop's API
+        paths: {}
+        """
+            .trimIndent()
+
+    @Test
+    fun `--from openapi writes one schema per document`() {
+        write("shop.yaml", shopApi)
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--no-config --from openapi --out ${out.path} ${dir.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertEquals(
+            "/// The shop's API\nschema shop\n",
+            out.resolve("import/shop.schemata").readText(),
+        )
+        assertTrue(r.stderr.contains("wrote 1 file to ${out.path}/import"), r.stderr)
+    }
+
+    @Test
+    fun `walked files that are not OpenAPI documents are skipped`() {
+        File(dir, "api").mkdirs()
+        write("api/shop.yaml", shopApi.replace("title: shop", "title: api.shop"))
+        write("package.json", """{"name": "shop", "version": "1.0.0"}""")
+        write("docker-compose.yml", "services:\n  db:\n    image: postgres\n")
+        write("notes.yaml", "- not\n- a document\n")
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--no-config --from openapi --out ${out.path} ${dir.path}")
+        assertEquals(0, r.statusCode, r.stderr)
+        assertFalse(r.stderr.contains("error"), r.stderr)
+        assertEquals(
+            listOf("api/shop.schemata"),
+            out.resolve("import")
+                .walkTopDown()
+                .filter { it.isFile }
+                .map { it.relativeTo(out.resolve("import")).invariantSeparatorsPath }
+                .toList(),
+        )
+    }
+
+    @Test
+    fun `--from openapi on a directory with no OpenAPI documents is a usage error`() {
+        write("package.json", """{"name": "shop"}""")
+        write("s.xsd", clean)
+        val r =
+            ImportCommand()
+                .test("--no-config --from openapi --out ${File(dir, "out").path} ${dir.path}")
+        assertEquals(1, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("no OpenAPI documents found under: ${dir.path}"), r.stderr)
+    }
+
+    @Test
+    fun `a file named on its own that is not an OpenAPI document cannot be read`() {
+        val file = write("package.json", """{"name": "shop"}""")
+        val out = File(dir, "out")
+        val r = ImportCommand().test("--no-config --from openapi --out ${out.path} ${file.path}")
+        assertEquals(1, r.statusCode, r.stderr)
+        assertTrue(r.stderr.contains("error[SCH2401]"), r.stderr)
+        assertTrue(r.stderr.contains("cannot parse: no top-level openapi key"), r.stderr)
+        assertFalse(out.exists(), r.stderr)
+    }
+
+    @Test
+    fun `--namespace names a single OpenAPI document`() {
+        val file = write("shop.openapi.yaml", shopApi.replace("title: shop", "title: store.front"))
+        val out = File(dir, "out")
+        val derived =
+            ImportCommand().test("--no-config --from openapi --out ${out.path} ${file.path}")
+        assertEquals(2, derived.statusCode, derived.stderr)
+        assertTrue(
+            derived.stderr.contains("schema name 'shop' was derived from the file name"),
+            derived.stderr,
+        )
+        val r =
+            ImportCommand()
+                .test(
+                    "--no-config --from openapi --namespace store.front --out ${out.path} ${file.path}"
+                )
+        assertEquals(0, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/store/front.schemata").isFile, r.stderr)
+    }
+
+    @Test
+    fun `from openapi comes from the file`() {
+        write("shop.yaml", shopApi)
+        val toml =
+            File(dir, "config")
+                .apply { mkdirs() }
+                .resolve("schemata.toml")
+                .apply { writeText("[import]\nfrom = \"openapi\"\n") }
+        val out = File(dir, "out")
+        val r =
+            ImportCommand().test("--config ${toml.path} --out ${out.path} ${dir.path}/shop.yaml")
+        assertEquals(2, r.statusCode, r.stderr)
+        assertTrue(out.resolve("import/shop.schemata").isFile, r.stderr)
+    }
 }

@@ -1,0 +1,14 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/paths/~1orders/post/parameters/0: query parameter 'note' becomes a body field, since post sends no query parameters
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2403] (lossy): api.yaml: #/paths/~1orders/post/requestBody/content/application~1json/schema: 'Order' is copied into 'ApiCreateRequest' to sit beside the parameters
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+warning[SCH2405] (lossy): api.yaml: #/paths/~1orders/post/parameters/0: query parameter 'note' dropped; the body has a property of that name
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 3 warnings

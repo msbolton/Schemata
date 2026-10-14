@@ -1,0 +1,3 @@
+schema shop.common
+
+model Money { amount decimal(19, 2)  currency string { match "^[A-Z]{3}$" } }

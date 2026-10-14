@@ -119,18 +119,18 @@ internal fun CliktCommand.withProtoLayout(
 
 /**
  * The files [load] finds under [inputs] (the `.schemata` files by default), less those [config]'s
- * `[sources].exclude` matches. Finding none is a usage error, and so is an exclude that removes
- * every file found, which names the configuration file instead.
+ * `[sources].exclude` matches. Finding none is a usage error naming [noun], what was looked for,
+ * and so is an exclude that removes every file found, which names the configuration file instead.
  */
 internal fun CliktCommand.loadSources(
     inputs: List<Path>,
     config: ProjectConfig? = null,
     extension: String = "schemata",
     load: (List<Path>) -> List<SourceInput> = SourceSet::load,
+    noun: String = ".$extension files",
 ): List<SourceInput> {
     val found = load(inputs)
-    if (found.isEmpty())
-        throw usageError("no .$extension files found under: ${inputs.joinToString(", ")}")
+    if (found.isEmpty()) throw usageError("no $noun found under: ${inputs.joinToString(", ")}")
     if (config == null) return found
     val kept = withoutExcluded(found, config)
     if (kept.isEmpty())

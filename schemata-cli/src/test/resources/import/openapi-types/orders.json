@@ -1,0 +1,45 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "orders",
+    "version": "1.0.0"
+  },
+  "components": {
+    "schemas": {
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "placedAt": {"type": "string", "format": "date-time"},
+          "lines": {"type": "array", "items": {"$ref": "#/components/schemas/orders.Order.Line"}, "minItems": 1},
+          "total": {"$ref": "#/components/schemas/shop.common.Money"},
+          "note": {"type": ["string", "null"], "maxLength": 500},
+          "status": {"$ref": "#/components/schemas/OrderStatus", "default": "PLACED"},
+          "metadata": {"type": "object", "propertyNames": {"type": "string", "pattern": "^[a-z]+$"}, "additionalProperties": {"type": "string"}}
+        },
+        "required": ["id", "placedAt", "lines", "total", "note"],
+        "additionalProperties": false
+      },
+      "orders.Order.Line": {
+        "type": "object",
+        "properties": {
+          "product": {"$ref": "catalog.yaml#/components/schemas/Product"},
+          "quantity": {"type": "integer", "format": "int32", "minimum": 1, "maximum": 2147483647},
+          "unitPrice": {"anyOf": [{"$ref": "#/components/schemas/shop.common.Money"}, {"type": "null"}]}
+        },
+        "required": ["product", "quantity", "unitPrice"],
+        "additionalProperties": false
+      },
+      "OrderStatus": {"type": "string", "enum": ["PLACED", "SHIPPED", "DELIVERED"]},
+      "shop.common.Money": {
+        "type": "object",
+        "required": ["amount", "currency"],
+        "properties": {
+          "amount": {"type": "string", "pattern": "^-?[0-9]{1,17}(\\.[0-9]{1,2})?$"},
+          "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

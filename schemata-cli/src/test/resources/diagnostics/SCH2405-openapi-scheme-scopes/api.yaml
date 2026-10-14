@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+security:
+  - OAuth: [read]
+paths:
+  /health:
+    get:
+      operationId: Api_health
+      responses: {'204': {description: No content}}
+components:
+  securitySchemes:
+    OAuth:
+      type: oauth2
+      flows:
+        clientCredentials: {tokenUrl: 'https://auth.example.com/token', scopes: {read: Read access, write: Write access}}

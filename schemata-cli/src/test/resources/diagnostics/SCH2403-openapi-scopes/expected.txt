@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/security/1: scopes of 'Oidc' differ from those of 'OAuth'; the requirement keeps those of 'OAuth'
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

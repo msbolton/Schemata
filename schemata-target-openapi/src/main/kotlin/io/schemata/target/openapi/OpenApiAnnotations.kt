@@ -26,10 +26,12 @@ object OpenApiAnnotations {
                 ValueKind.STRING,
                 Role.REPRESENTATION,
             ),
+            // a service's tag, an operation's operationId, or the path or query parameter a field
+            // becomes
             AnnotationSpec(
                 "openapi",
                 "name",
-                setOf(Element.SERVICE, Element.OPERATION),
+                setOf(Element.SERVICE, Element.OPERATION, Element.FIELD),
                 ValueKind.STRING,
                 Role.NAME,
             ),

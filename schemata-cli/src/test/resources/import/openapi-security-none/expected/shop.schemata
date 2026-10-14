@@ -1,0 +1,8 @@
+schema shop @openapi(oauth2_token_url: "https://auth.example.com/token") @openapi(auth: none)
+
+service Shop {
+  #1 list_products()  get "/products"
+  @openapi(auth: oauth2)
+  @openapi(scopes: "products:write")
+  #2 create_product()  post "/admin/products" 201
+}

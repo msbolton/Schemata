@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): shop.yaml: attribute info.colour is unexpected; ignored
+ --> shop.yaml:1:1
+  = help: fix the document where the message points; the import ignores that part
+
+0 errors, 1 warning

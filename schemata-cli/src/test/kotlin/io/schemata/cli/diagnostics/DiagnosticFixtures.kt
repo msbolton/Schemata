@@ -17,6 +17,7 @@ import io.schemata.evolution.Rulebook
 import io.schemata.evolution.Rulebooks
 import io.schemata.importer.ImportInput
 import io.schemata.importer.Importer
+import io.schemata.importer.openapi.OpenApiImporter
 import io.schemata.importer.proto.ProtoImporter
 import io.schemata.importer.sql.SqlImporter
 import io.schemata.importer.xsd.XsdImporter
@@ -99,8 +100,9 @@ class Fixture(val dir: File) {
             .map { SourceInput(it.name, it.readText()) }
 
     /**
-     * The `.xsd`, `.proto`, or `.sql` sources of an import fixture, all of one format; non-empty
-     * exactly when [render] runs the importer.
+     * The `.xsd`, `.proto`, or `.sql` sources of an import fixture, or its OpenAPI documents
+     * (`.yaml`, `.yml`, `.json`), all of one format; non-empty exactly when [render] runs the
+     * importer.
      */
     val foreign: List<SourceInput> =
         dir.listFiles { f -> f.extension in importers }!!
@@ -264,8 +266,8 @@ class Fixture(val dir: File) {
     fun importDiagnostics(): List<Diagnostic> = imported
 
     private val imported: List<Diagnostic> by lazy {
-        val extension = foreign.map { it.path.substringAfterLast('.') }.distinct().single()
-        val importer = importers.getValue(extension)
+        val importer =
+            foreign.map { importers.getValue(it.path.substringAfterLast('.')) }.distinct().single()
         val rooted = importer !is XsdImporter && !lone
         importer
             .import(foreign.map { ImportInput(it.path, it.content, it.path.takeIf { rooted }) })
@@ -300,7 +302,7 @@ class Fixture(val dir: File) {
         private val HEADER =
             Regex(
                 "^#(?: (?:strict|config|upgrade|lone|allow-destructive|diff=old,new|migrate=old,new" +
-                    "|import=(?:xsd|proto|sql)|targets=[a-z,]+|proto-layout=type))+$"
+                    "|import=(?:xsd|proto|sql|openapi)|targets=[a-z,]+|proto-layout=type))+$"
             )
 
         /**
@@ -324,7 +326,14 @@ class Fixture(val dir: File) {
         }
 
         private val importers: Map<String, Importer> =
-            mapOf("xsd" to XsdImporter, "proto" to ProtoImporter, "sql" to SqlImporter)
+            mapOf(
+                "xsd" to XsdImporter,
+                "proto" to ProtoImporter,
+                "sql" to SqlImporter,
+                "yaml" to OpenApiImporter,
+                "yml" to OpenApiImporter,
+                "json" to OpenApiImporter,
+            )
 
         fun all(): List<Fixture> =
             root.listFiles { f -> f.isDirectory }!!.sortedBy { it.name }.map { Fixture(it) }

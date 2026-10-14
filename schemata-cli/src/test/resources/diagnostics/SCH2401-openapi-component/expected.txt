@@ -1,0 +1,10 @@
+# import=openapi
+error[SCH2401]: api.yaml: #/paths/~1orders/get/responses/200: reference '#/components/schemas/Order' does not name a response component
+ --> api.yaml:1:1
+  = help: add the schema that declares it to the inputs, or fix the reference
+
+warning[SCH2405] (lossy): api.yaml: paths.'/orders'(get).responses.200.$ref target #/components/schemas/Order is not of expected type Response; ignored
+ --> api.yaml:1:1
+  = help: fix the document where the message points; the import ignores that part
+
+1 error, 1 warning

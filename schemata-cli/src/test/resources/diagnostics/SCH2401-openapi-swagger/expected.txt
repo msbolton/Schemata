@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: petstore.yaml: Swagger 2.0 is not read; convert it to OpenAPI 3 first
+ --> petstore.yaml:1:1
+  = help: convert the document with a Swagger 2.0 to OpenAPI 3 converter
+
+1 error, 0 warnings

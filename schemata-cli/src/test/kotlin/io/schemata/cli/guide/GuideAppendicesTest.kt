@@ -159,9 +159,11 @@ class GuideAppendicesTest {
 
     /**
      * The bare `<file>: ` or `<file>:<line>:<col>: ` prefix an import-level diagnostic (not tied to
-     * one construct) carries.
+     * one construct) carries, or an OpenAPI import's `<file>: <JSON pointer>: `. A pointer may hold
+     * a colon (`#/paths/~1orders:cancel`), so it ends at the first colon followed by a space.
      */
-    private val fileLocation = Regex("^\\S+\\.(xsd|proto|sql)(:\\d+:\\d+)?: ")
+    private val fileLocation =
+        Regex("^\\S+\\.(xsd|proto|sql|yaml|yml|json)(:\\d+:\\d+)?: (#.*?: )?")
 
     /** An evolution diagnostic's `<target>: <ns.Decl.member>: ` prefix. */
     private val evolutionLocation = Regex("^[a-z]+: [A-Za-z0-9_.#]+: ")

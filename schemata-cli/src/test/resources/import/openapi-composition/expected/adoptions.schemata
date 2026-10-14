@@ -1,0 +1,34 @@
+schema adoptions
+
+import pets
+
+model Adoption {
+  pet     pets.Pet
+  owner   pets.Owner?
+  stage   Stage
+  fee     float64         { min 0 }
+  tags    string[]
+  channel AdoptionChannel
+
+  enum AdoptionChannel {
+    /// Through the website.
+    web
+    desk
+  }
+}
+
+/// How far an adoption has come.
+enum Stage {
+  /// The form is in.
+  applied
+  approved
+  /// The pet has gone home.
+  completed
+}
+
+union Event =
+  Adoption |
+  /// A note from the desk.
+  string
+
+union Notice = Adoption | Event

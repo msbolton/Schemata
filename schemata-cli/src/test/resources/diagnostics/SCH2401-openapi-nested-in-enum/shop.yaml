@@ -1,0 +1,12 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    shop.Status:
+      type: string
+      enum: [open]
+    shop.Status.Detail:
+      type: object
+      properties: {}
+      additionalProperties: false

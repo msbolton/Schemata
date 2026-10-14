@@ -1,0 +1,89 @@
+openapi: 3.0.3
+info:
+  title: pets
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    Pet:
+      description: Any pet the shelter keeps.
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+        - $ref: '#/components/schemas/Dog'
+      discriminator:
+        propertyName: petType
+        mapping:
+          cat: '#/components/schemas/Cat'
+          dog: Dog
+    Animal:
+      type: object
+      required: [name, petType]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        name:
+          type: string
+        petType:
+          type: string
+    Cat:
+      allOf:
+        - $ref: '#/components/schemas/Animal'
+        - type: object
+          properties:
+            indoor:
+              type: boolean
+              default: true
+            lives:
+              type: integer
+              format: int32
+              enum: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    Dog:
+      allOf:
+        - $ref: '#/components/schemas/Animal'
+        - type: object
+          required: [breed]
+          properties:
+            breed:
+              type: string
+            size:
+              type: string
+              enum: [small, medium, large]
+            collar:
+              type: object
+              properties:
+                color:
+                  type: string
+                tag:
+                  type: object
+                  required: [code]
+                  properties:
+                    code:
+                      type: string
+                  additionalProperties: false
+              additionalProperties: false
+      additionalProperties: false
+    Owner:
+      type: object
+      required: [name, contact]
+      properties:
+        name:
+          type: string
+          example: Ada
+        contact:
+          oneOf:
+            - type: string
+              format: email
+            - type: object
+              properties:
+                phone:
+                  type: string
+              additionalProperties: false
+        age:
+          type: integer
+          format: int32
+          minimum: 0
+          exclusiveMinimum: true
+      additionalProperties:
+        type: string

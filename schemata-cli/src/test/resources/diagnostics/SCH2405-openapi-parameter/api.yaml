@@ -1,0 +1,14 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /orders:
+    get:
+      operationId: Api_list
+      parameters:
+        - {name: filter, in: query, schema: {type: object, properties: {status: {type: string}}}}
+        - name: where
+          in: query
+          content:
+            application/json:
+              schema: {type: string}
+      responses: {'204': {description: No content}}

@@ -18,14 +18,14 @@ object OpenApiCodes {
             "SCH2602",
             Severity.ERROR,
             Category.SEMANTIC,
-            "two services, operations, or schemas lower to one OpenAPI name",
+            "two services, operations, schemas, or parameters lower to one OpenAPI name",
         )
     val INVALID_OVERRIDE =
         DiagnosticCode(
             "SCH2603",
             Severity.ERROR,
             Category.SEMANTIC,
-            "an @openapi value is not a valid id, URL, or key",
+            "an @openapi value is not a valid id, URL, key, or parameter name",
         )
     val LOSSY =
         DiagnosticCode(
@@ -39,7 +39,7 @@ object OpenApiCodes {
             "SCH2605",
             Severity.ERROR,
             Category.SEMANTIC,
-            "a header field is not a scalar or an enum, or its header name is not one OpenAPI can write",
+            "a header field is not a scalar or an enum, its header name is not one OpenAPI can write, or it also sets @openapi(name)",
         )
     val SECURITY =
         DiagnosticCode(
