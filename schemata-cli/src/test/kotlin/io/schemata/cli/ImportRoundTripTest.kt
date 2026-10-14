@@ -32,10 +32,10 @@ import org.junit.jupiter.api.TestFactory
  * than a missing key. The one diagnostic a round trip may report is SQL's for a record or union
  * stored as json, whose fields the DDL never held. A SQL file holding nothing but its `CREATE
  * SCHEMA` (a namespace whose every record is embedded elsewhere) imports as no namespace, so it is
- * not expected back. An openapi round trip reports nothing: each document is named by its path, so
- * no schema name is derived, and the target writes no construct the importer approximates; the
- * documents of one case are imported together, so a component every document copies is one
- * declaration.
+ * not expected back. An openapi round trip reports only a union member carried by its key, whose
+ * model the import makes again: each document is named by its path, so no schema name is derived,
+ * and the target writes no other construct the importer approximates; the documents of one case are
+ * imported together, so a component every document copies is one declaration.
  */
 class ImportRoundTripTest {
     private val corpus = File("src/test/resources/corpus")
@@ -52,9 +52,19 @@ class ImportRoundTripTest {
     /** A SQL file that creates its schema and nothing else. */
     private val schemaOnly = Regex("CREATE SCHEMA IF NOT EXISTS \"[^\"]+\";\\s*")
 
+    /**
+     * A union member carried by its key: the target writes the key alone, tagged with the model's
+     * name, and the import makes that model again with the key it holds, saying so each time.
+     */
+    private val openapiKeyedMember =
+        Regex("SCH2403 .*: member '.*' is imported as model '.*' carried by its key '.*'")
+
     /** The import diagnostics a format's round trip may report, by format. */
     private val tolerated: Map<String, Regex> =
-        mapOf("sql" to Regex("SCH2403 .*: '.*' is stored as json; its fields are not in the DDL"))
+        mapOf(
+            "sql" to Regex("SCH2403 .*: '.*' is stored as json; its fields are not in the DDL"),
+            "openapi" to openapiKeyedMember,
+        )
 
     /**
      * A type-layout file holds no schema declaration the importer could read a name from, so the
@@ -270,8 +280,8 @@ class ImportRoundTripTest {
     /**
      * The `.schemata` files of every imported openapi case's `expected/` tree compile to openapi,
      * import back, and regenerate that openapi byte for byte. The document the target writes from
-     * an import holds nothing the importer approximates; the one note it may carry is a service
-     * renamed beside a model of its tag's name.
+     * an import holds nothing the importer approximates; the notes it may carry are a service
+     * renamed beside a model of its tag's name and a union member carried by its key.
      */
     @TestFactory
     fun `imported openapi cases regenerate their openapi byte for byte`(): List<DynamicTest> =
@@ -280,7 +290,7 @@ class ImportRoundTripTest {
             "openapi",
             OpenApiTarget,
             OpenApiImporter,
-            listOf(openapiServiceName),
+            listOf(openapiServiceName, openapiKeyedMember),
             File("src/test/resources/import"),
         )
 

@@ -241,6 +241,10 @@ internal class OperationLowering(
      * the document, and verb order decides where that gives no order: an operation that reaches
      * nothing new keeps its place. A document the target wrote then compiles back to the same
      * component order.
+     *
+     * Only the operations of one path are reordered, among themselves; a service keeps its paths in
+     * document order. So a service whose operations on one path are not adjacent in ordinal order,
+     * with an operation on another path between them, can come back in another order.
      */
     private fun inReachOrder(groups: List<Group>) {
         val index =

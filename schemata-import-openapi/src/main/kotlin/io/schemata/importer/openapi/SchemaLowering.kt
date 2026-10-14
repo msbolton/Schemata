@@ -671,7 +671,8 @@ class SchemaLowering(
      * or null when [tag] is no name such a model could have. The target writes a member that refers
      * to a keyed model as the model's key, tagged with the model's name, and leaves the model out
      * when nothing else reaches it, so the member is that model with one key field of the scalar's
-     * type: compiled again, it is written the same way.
+     * type: compiled again, it is written the same way. A hand-written member of one scalar
+     * property has the same shape, so the model and its made-up key are always reported.
      */
     private fun keyedMember(place: Place, tag: String, scalar: UnitType.Scalar): UnitType? {
         val wanted = ImportNames.upperCamel(tag)
@@ -681,12 +682,27 @@ class SchemaLowering(
             UnitRecord(
                 model.name,
                 listOf(
-                    UnitField("id", scalar, false, null, null, emptyList(), options = KEY_OPTION)
+                    UnitField(
+                        KEY_FIELD,
+                        scalar,
+                        false,
+                        null,
+                        null,
+                        emptyList(),
+                        options = KEY_OPTION,
+                    )
                 ),
                 emptyList(),
                 null,
                 emptyList(),
             )
+        say(
+            place.doc,
+            place.pointer,
+            ImportCodes.APPROXIMATED,
+            "member '$tag' is imported as model '${model.name}' carried by its key '$KEY_FIELD'",
+            "if the member is not a reference to a keyed model, replace the model with the member's own type",
+        )
         return UnitType.Ref(refText(model, place.owner))
     }
 
@@ -1500,6 +1516,8 @@ class SchemaLowering(
     )
 
     private companion object {
+        // the field a model made for a member carried by its key holds that key in
+        const val KEY_FIELD = "id"
         // the option that makes a field its model's key
         val KEY_OPTION: List<Pair<String, String?>> = listOf("id" to null)
         val STRING = UnitType.Scalar("string", emptyList())

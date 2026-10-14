@@ -932,10 +932,63 @@ class OpenApiCompositionTest {
         )
         assertEquals(
             listOf(
+                "SCH2403 shop.json: #/components/schemas/Hit/oneOf/0/properties/customer: member 'customer' is imported as model 'Customer' carried by its key 'id'",
+                "SCH2403 shop.json: #/components/schemas/Hit/oneOf/1/properties/order_line: member 'order_line' is imported as model 'OrderLine' carried by its key 'id'",
                 "SCH2403 shop.json: #/components/schemas/Hit/oneOf/3/properties/Not-Snake: union member tag 'Not-Snake' is not the member's own; the regenerated union tags it 'int32'",
                 "SCH2403 shop.json: #/components/schemas/Hit/oneOf/4/properties/hit: union member tag 'hit' is not the member's own; the regenerated union tags it 'int64'",
             ),
             messages(r),
+        )
+    }
+
+    @Test
+    fun `closed members of one scalar property become keyed models with a note`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Contact:
+                          oneOf:
+                            - type: object
+                              properties: {email: {type: string}}
+                              required: [email]
+                              additionalProperties: false
+                            - type: object
+                              properties: {phone: {type: string, maxLength: 20}}
+                              required: [phone]
+                              additionalProperties: false
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            union Contact = Email | Phone
+
+            model Email { id string { id } }
+
+            model Phone { id string { id, max 20 } }
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: member 'email' is imported as model 'Email' carried by its key 'id'",
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/1/properties/phone: member 'phone' is imported as model 'Phone' carried by its key 'id'",
+            ),
+            messages(r),
+        )
+        assertEquals(
+            listOf(
+                "if the member is not a reference to a keyed model, replace the model with the member's own type"
+            ),
+            r.diagnostics.map { it.help }.distinct(),
         )
     }
 

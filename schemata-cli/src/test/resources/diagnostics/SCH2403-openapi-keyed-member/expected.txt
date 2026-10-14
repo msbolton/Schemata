@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: member 'email' is imported as model 'Email' carried by its key 'id'
+ --> shop.yaml:1:1
+  = help: if the member is not a reference to a keyed model, replace the model with the member's own type
+
+0 errors, 1 warning
