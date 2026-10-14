@@ -48,6 +48,9 @@ object OpenApiNames {
     }
 }
 
+/** The help for a name that took a numeric suffix because another construct has it. */
+internal const val SUFFIX_HELP = "rename one of them in the document, or keep the suffixed name"
+
 /**
  * The names taken in one scope: a schema's top level, a model's nested declarations, a model's
  * fields, or an enum's values. A name already taken gets the first free numeric suffix, `2`, `3`,

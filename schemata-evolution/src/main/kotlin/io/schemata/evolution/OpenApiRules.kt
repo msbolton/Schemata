@@ -547,7 +547,8 @@ object OpenApiRules : Rulebook {
     /**
      * What the OpenAPI target accepts as a parameter name: not empty, and no whitespace, control
      * character, or any of `{ } / ? # & = %`; keep in step with `OpenApiLowering.isParameterName`,
-     * which this module cannot depend on.
+     * which this module cannot depend on, and `OperationLowering.isParameterName` in
+     * schemata-import-openapi.
      */
     private fun isParameterName(name: String): Boolean =
         name.isNotEmpty() &&

@@ -1,6 +1,6 @@
 # import=openapi
 warning[SCH2402] (lossy): api.yaml: #/tags/0: tag 'Cart' is imported as 'Cart2', since 'Cart' is taken
  --> api.yaml:1:1
-  = help: rename one of them
+  = help: rename one of them in the document, or keep the suffixed name
 
 0 errors, 1 warning
