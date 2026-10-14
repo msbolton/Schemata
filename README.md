@@ -64,6 +64,14 @@ pointing at a GraalVM JDK 21, `./gradlew :schemata-cli:nativeCompile` builds the
 ./gradlew :schemata-cli:test --tests 'io.schemata.cli.NativeImageTest' -Pschemata.nativeBinary=<that path>
 ```
 
+The OpenAPI importer reads documents with swagger-parser, which reaches its classes through
+Jackson by reflection, so the native image carries metadata traced by GraalVM's agent under
+`schemata-cli/src/main/resources/META-INF/native-image/io.schemata/schemata-import-openapi/`.
+After upgrading swagger-parser or Jackson, or adding an import case that reads a part of a
+document none read before, build the jar with `./gradlew :schemata-cli:shadowJar`, run
+`scripts/trace-openapi-metadata --java <GraalVM JDK 21>/bin/java`, commit what it writes, and build
+and check the native binary again.
+
 ## Quick start
 
 `contacts.schemata`:
@@ -265,3 +273,6 @@ Dependencies point strictly downward; the build fails if they do not.
 - `scripts/check-uc2-import <iepd-dir>` runs the XSD importer over a real UC2 IEPD and checks that
   every target, `xmllint`, `protoc` (when on PATH) and an xsd round trip accept the result, and
   that the whole `core-xsd` tree imports without a crash. It is a local check, not part of CI.
+- `scripts/trace-openapi-metadata` imports the OpenAPI corpus documents under GraalVM's tracing
+  agent and rewrites the native-image metadata the OpenAPI reader needs. It is a local step, not
+  part of CI; `NativeMetadataTest` fails when that metadata names a class that no longer exists.

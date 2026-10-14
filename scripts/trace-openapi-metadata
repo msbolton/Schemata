@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""Regenerate the native-image metadata the OpenAPI importer's reader needs, with GraalVM's agent.
+
+usage: trace-openapi-metadata [--java JAVA] [--jar JAR]
+JAVA is the java launcher of a GraalVM JDK 21, which carries the native-image-agent.
+Default: $GRAALVM_HOME/bin/java, else $JAVA_HOME/bin/java. JAR is the fat jar; default: the newest
+schemata-cli/build/libs/schemata-[0-9]*.jar (build it with ./gradlew :schemata-cli:shadowJar).
+
+swagger-parser and Jackson reach classes and resources by reflection, and a native image allows
+only what its metadata names. The agent records every such access while the jar runs, all inside a
+temporary directory that is removed afterwards (the inputs are only read):
+  1. import of each import-corpus case named openapi-* (schemata-cli/src/test/resources/import),
+     walked as a directory
+  2. import of the ecommerce document named on its own, with --namespace
+  3. import of the storefront example's documents (examples/storefront/expected/openapi), walked
+  4. import of the documents of each diagnostics fixture named *-openapi-*
+     (schemata-cli/src/test/resources/diagnostics), named on their own, so the refusals and the
+     error paths are traced too
+Each run must print a JSON report and exit 0, 1 or 2. The merged trace is filtered to the entries
+of swagger-parser, Jackson and snakeyaml (the CLI's own metadata covers the rest), sorted, and
+written to schemata-cli/src/main/resources/META-INF/native-image/io.schemata/schemata-import-openapi/,
+replacing what is there. Local use only, not part of CI; commit the files it writes.
+"""
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "schemata-cli/src/main/resources/META-INF/native-image/io.schemata/schemata-import-openapi"
+IMPORT_CORPUS = ROOT / "schemata-cli/src/test/resources/import"
+DIAGNOSTICS = ROOT / "schemata-cli/src/test/resources/diagnostics"
+STOREFRONT = ROOT / "examples/storefront/expected/openapi"
+ECOMMERCE = IMPORT_CORPUS / "openapi-ecommerce/ecommerce.yaml"
+DOCUMENT_SUFFIXES = {".yaml", ".yml", ".json"}
+KEEP = ("io.swagger.", "com.fasterxml.jackson.", "org.yaml.snakeyaml.")
+KEEP_RESOURCES = ("io/swagger", "com/fasterxml/jackson", "org/yaml/snakeyaml",
+                  "io.swagger", "com.fasterxml.jackson", "org.yaml.snakeyaml")
+LIST_FILES = ("reflect-config.json", "jni-config.json", "proxy-config.json", "serialization-config.json")
+RESOURCE_FILE = "resource-config.json"
+
+
+def find_java(explicit):
+    if explicit:
+        return explicit
+    for var in ("GRAALVM_HOME", "JAVA_HOME"):
+        home = os.environ.get(var)
+        if home and (Path(home) / "bin/java").is_file():
+            return str(Path(home) / "bin/java")
+    sys.exit("trace-openapi-metadata: no GraalVM java; pass --java or set GRAALVM_HOME")
+
+
+def find_jar(explicit):
+    if explicit:
+        return explicit
+    jars = sorted((ROOT / "schemata-cli/build/libs").glob("schemata-[0-9]*.jar"),
+                  key=lambda p: p.stat().st_mtime)
+    if not jars:
+        sys.exit("trace-openapi-metadata: no fat jar; run ./gradlew :schemata-cli:shadowJar")
+    return str(jars[-1])
+
+
+def runs(work):
+    """The argument lists of every traced import, each writing under its own output directory."""
+    out = []
+    for case in sorted(p for p in IMPORT_CORPUS.glob("openapi-*") if p.is_dir()):
+        out.append(("corpus " + case.name, ["--out", str(work / "out" / case.name), str(case)]))
+    out.append(("ecommerce on its own",
+                ["--namespace", "ecommerce", "--out", str(work / "out" / "lone"), str(ECOMMERCE)]))
+    out.append(("storefront", ["--out", str(work / "out" / "storefront"), str(STOREFRONT)]))
+    for fixture in sorted(p for p in DIAGNOSTICS.glob("*-openapi-*") if p.is_dir()):
+        documents = sorted(str(p) for p in fixture.iterdir() if p.suffix in DOCUMENT_SUFFIXES)
+        if documents:
+            out.append(("fixture " + fixture.name,
+                        ["--out", str(work / "out" / fixture.name)] + documents))
+    return out
+
+
+def trace(java, jar, work, agent):
+    if not ECOMMERCE.is_file():
+        sys.exit(f"trace-openapi-metadata: {ECOMMERCE.relative_to(ROOT)} is missing")
+    for index, (label, args) in enumerate(runs(work)):
+        mode = "config-output-dir" if index == 0 else "config-merge-dir"
+        cmd = [java, f"-agentlib:native-image-agent={mode}={agent}", "-jar", jar,
+               "import", "--no-config", "--from", "openapi", "--format", "json"] + args
+        p = subprocess.run(cmd, capture_output=True, text=True, cwd=work)
+        try:
+            json.loads(p.stdout)
+        except json.JSONDecodeError:
+            sys.exit(f"trace-openapi-metadata: {label} printed no JSON report (exit {p.returncode})\n"
+                     f"{p.stdout[:2000]}{p.stderr[:2000]}")
+        if p.returncode not in (0, 1, 2):
+            sys.exit(f"trace-openapi-metadata: {label} exited {p.returncode}\n{p.stderr[:2000]}")
+        print(f"traced: {label} (exit {p.returncode})")
+
+
+def element(name):
+    """The class an entry names; an array type, [Lcom.x.Y; or com.x.Y[], names its element."""
+    while name.endswith("[]"):
+        name = name[:-2]
+    name = name.lstrip("[")
+    if name.startswith("L") and name.endswith(";"):
+        name = name[1:-1]
+    return name
+
+
+def names_in(entry):
+    """The class names one entry of a list-shaped config file mentions."""
+    if isinstance(entry, str):
+        return [entry]
+    if isinstance(entry, list):
+        return [n for e in entry for n in names_in(e)]
+    if isinstance(entry, dict):
+        if isinstance(entry.get("interfaces"), list):
+            return [n for n in entry["interfaces"] if isinstance(n, str)]
+        for key in ("name", "type"):
+            if isinstance(entry.get(key), str):
+                return [entry[key]]
+    return []
+
+
+def kept(entry):
+    return any(element(n).startswith(KEEP) for n in names_in(entry))
+
+
+def kept_resource(entry):
+    text = " ".join(str(entry.get(k, "")) for k in ("pattern", "glob", "name", "module"))
+    return any(p in text for p in KEEP_RESOURCES)
+
+
+def filter_list_file(data):
+    if isinstance(data, list):
+        return [e for e in data if kept(e)]
+    if isinstance(data, dict):  # serialization-config.json: lists under named keys
+        return {k: [e for e in v if kept(e)] if isinstance(v, list) else v for k, v in data.items()}
+    return data
+
+
+def filter_resources(data):
+    out = {}
+    resources = data.get("resources", {})
+    if isinstance(resources, dict):
+        out["resources"] = {k: [e for e in v if kept_resource(e)] for k, v in resources.items()
+                            if isinstance(v, list)}
+    elif isinstance(resources, list):
+        out["resources"] = [e for e in resources if kept_resource(e)]
+    out["bundles"] = [e for e in data.get("bundles", []) if kept(e) or kept_resource(e)]
+    return out
+
+
+def empty(data):
+    if isinstance(data, list):
+        return not data
+    if isinstance(data, dict):
+        return all(empty(v) for v in data.values())
+    return False
+
+
+def normal(value):
+    """Sorted keys, and lists of objects sorted by the classes they name, so a rerun is stable."""
+    if isinstance(value, dict):
+        return {k: normal(value[k]) for k in sorted(value)}
+    if isinstance(value, list):
+        items = [normal(v) for v in value]
+        if items and all(isinstance(v, dict) for v in items):
+            return sorted(items, key=lambda v: (json.dumps(names_in(v)), json.dumps(v, sort_keys=True)))
+        return items
+    return value
+
+
+def write(agent):
+    written = {}
+    for name in LIST_FILES:
+        path = agent / name
+        if path.is_file():
+            filtered = filter_list_file(json.loads(path.read_text()))
+            if not empty(filtered):
+                written[name] = filtered
+    path = agent / RESOURCE_FILE
+    if path.is_file():
+        filtered = filter_resources(json.loads(path.read_text()))
+        if not empty(filtered):
+            written[RESOURCE_FILE] = filtered
+    if "reflect-config.json" not in written:
+        sys.exit("trace-openapi-metadata: the trace holds no swagger-parser reflection; did the imports run?")
+    OUT.mkdir(parents=True, exist_ok=True)
+    for name in LIST_FILES + (RESOURCE_FILE,):
+        (OUT / name).unlink(missing_ok=True)
+    for name, data in written.items():
+        (OUT / name).write_text(json.dumps(normal(data), indent=2) + "\n")
+        count = len(data) if isinstance(data, list) else sum(
+            len(v) if isinstance(v, list) else sum(len(x) for x in v.values() if isinstance(x, list))
+            for v in data.values())
+        print(f"wrote {(OUT / name).relative_to(ROOT)}: {count} entries")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Trace the OpenAPI reader's native-image metadata.")
+    parser.add_argument("--java", help="java of a GraalVM JDK 21")
+    parser.add_argument("--jar", help="the schemata fat jar")
+    args = parser.parse_args()
+    java = find_java(args.java)
+    jar = find_jar(args.jar)
+    work = Path(tempfile.mkdtemp(prefix="schemata-trace-"))
+    try:
+        agent = work / "agent"
+        trace(java, jar, work, agent)
+        write(agent)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()
