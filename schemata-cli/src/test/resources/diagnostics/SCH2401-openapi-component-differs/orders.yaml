@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info: {title: orders, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    shared.common.Problem:
+      type: object
+      properties:
+        title: {type: string}
+      additionalProperties: false

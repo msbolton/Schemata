@@ -1,0 +1,30 @@
+schema catalog
+
+import shop.common
+
+/// Something the shop sells.
+model Product {
+  id          uuid
+  name        string                               { min 1, max 200 }
+  sku         string                               { match "^[A-Z]{3}-[0-9]{4}$" }
+  /// The price before tax.
+  price       shop.common.Money
+  category    Category
+  tags        string[]?                            { maxItems 10 }
+  attributes  map<string, string>?
+  ratings     map<string, int32 { min 1, max 5 }>?
+  dimensions  Dimensions?
+  stock       int32                                { min 0 } = 0
+  released_on date?                                @jsonschema(name: "releasedOn")
+  thumbnail   bytes?                               { max 3072 }
+  weight      float32?
+  /// The code the old catalog used.
+  legacy_code string?                              @deprecated @jsonschema(name: "legacyCode")
+
+  model Dimensions { width float64  height float64 }
+
+  @@jsonschema(open)
+}
+
+/// Where a product is shelved.
+enum Category { books games @jsonschema(name: "MUSIC-CDS") music_cds }

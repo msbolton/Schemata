@@ -1,0 +1,14 @@
+# import=openapi
+warning[SCH2402] (lossy): shop.yaml: #/components/schemas/Pet/properties/first_name: property 'first_name' is imported as 'first_name2', since 'first_name' is taken
+ --> shop.yaml:1:1
+  = help: rename one of them in the document, or keep the suffixed name
+
+warning[SCH2402] (lossy): shop.yaml: #/components/schemas/pet/enum/1: enum value 'IN_STOCK' is imported as 'in_stock2', since 'in_stock' is taken
+ --> shop.yaml:1:1
+  = help: rename one of them in the document, or keep the suffixed name
+
+warning[SCH2402] (lossy): shop.yaml: #/components/schemas/pet: component 'pet' is imported as 'Pet2', since 'Pet' is taken
+ --> shop.yaml:1:1
+  = help: rename one of them in the document, or keep the suffixed name
+
+0 errors, 3 warnings

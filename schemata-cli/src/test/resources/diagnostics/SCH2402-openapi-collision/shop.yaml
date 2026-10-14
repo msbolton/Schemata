@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      required: [firstName, first_name]
+      properties:
+        firstName: {type: string}
+        first_name: {type: string}
+      additionalProperties: false
+    pet:
+      type: string
+      enum: [in_stock, IN_STOCK]

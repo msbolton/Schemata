@@ -1,0 +1,6 @@
+# import=openapi
+error[SCH2401]: shop.yaml: #/components/schemas/shop.Status.Detail: component 'shop.Status.Detail' is nested in 'Status', which is not a model
+ --> shop.yaml:1:1
+  = help: rename the component so its path ends in a model
+
+1 error, 0 warnings

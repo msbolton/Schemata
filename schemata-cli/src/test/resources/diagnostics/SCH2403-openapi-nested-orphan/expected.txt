@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/shop.Cart.Line: component 'shop.Cart.Line' is nested in 'Cart', which no component declares; an empty model holds it
+ --> shop.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning
