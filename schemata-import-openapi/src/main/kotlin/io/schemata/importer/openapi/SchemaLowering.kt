@@ -62,13 +62,22 @@ class SchemaLowering(
     /** The models of operations not yet synthesized, by schema and wanted name. */
     private val pending = HashMap<Pair<String, String>, Decl>()
 
-    /** Components whose type is being taken at a use, to catch one that reaches itself. */
+    /**
+     * The schemas, by document path and pointer, whose type is being taken at a use through a
+     * `$ref`, to catch one that reaches itself.
+     */
     private val inlining = HashSet<String>()
 
     /** What has been reported, so a construct reached twice is reported once. */
     private val said = HashSet<String>()
 
     private var ready = false
+
+    /**
+     * The top-level declarations that components registered after the inputs' were lowered joined,
+     * whose nesting is checked when the declarations are read.
+     */
+    private val unchecked = LinkedHashSet<Decl>()
 
     /**
      * The schemas a component name can start with: every input document's own, and every one a
@@ -88,9 +97,16 @@ class SchemaLowering(
         ready = true
     }
 
-    /** Each schema's declarations, schemas in the order first seen, declarations likewise. */
-    fun declarations(): Map<String, List<UnitDecl>> =
-        spaces.mapValues { (_, space) -> space.top.mapNotNull(::assemble) }
+    /**
+     * Each schema's declarations, schemas in the order first seen, declarations likewise. A
+     * component first reached after the inputs' were lowered, such as one of a referenced file an
+     * operation names, has its nesting checked here, once every reference has been followed.
+     */
+    fun declarations(): Map<String, List<UnitDecl>> {
+        unchecked.forEach(::checkParents)
+        unchecked.clear()
+        return spaces.mapValues { (_, space) -> space.top.mapNotNull(::assemble) }
+    }
 
     /** The schemas [namespace]'s declarations refer to, in name order. */
     fun imports(namespace: String): List<String> = spaces[namespace]?.imports?.toList().orEmpty()
@@ -238,7 +254,12 @@ class SchemaLowering(
         components[doc.path to name] = component
         if (decl != null) {
             order += decl
-            if (ready) build(decl)
+            if (ready) {
+                build(decl)
+                // checked when the declarations are read, since a later reference can still
+                // declare a parent this one is nested in
+                unchecked += decl.ancestors.firstOrNull() ?: decl
+            }
         }
         return component
     }
@@ -692,12 +713,7 @@ class SchemaLowering(
      */
     private fun refType(place: Place, ref: String): Typed {
         val target = refs.resolve(place.doc, place.pointer, ref) ?: return Typed(STRING)
-        val component =
-            componentAt(target)
-                ?: return typed(
-                    Place(target.doc, target.pointer, place.owner, place.inline),
-                    target.node,
-                )
+        val component = componentAt(target) ?: return inlineSchema(target, place)
         val decl = component.decl ?: return inlineComponent(component, place)
         return Typed(
             UnitType.Ref(refText(decl, place.owner)),
@@ -716,19 +732,49 @@ class SchemaLowering(
     /** Each use of a component that is not a model, enum or union takes its type. */
     private fun inlineComponent(component: Component, place: Place): Typed {
         val at = pointerOf(component.name)
-        val key = "${component.doc.path}#${component.name}"
+        return followed(
+            component.doc,
+            at,
+            "component '${component.name}' refers to itself and is not a model, enum or union",
+            "make the component an object with properties",
+        ) {
+            typed(Place(component.doc, at, place.owner, place.inline), component.node)
+        }
+    }
+
+    /**
+     * Each use of a schema inside a component, such as `#/components/schemas/Pet/properties/a`,
+     * takes its type, since only a whole component declares anything.
+     */
+    private fun inlineSchema(target: Refs.Target, place: Place): Typed =
+        followed(
+            target.doc,
+            target.pointer,
+            "schema refers to itself and is not a model, enum or union",
+            "move the schema into a component that is an object with properties",
+        ) {
+            typed(Place(target.doc, target.pointer, place.owner, place.inline), target.node)
+        }
+
+    /**
+     * The type [take] gives the schema at [at] in [doc], reached through a `$ref`. A schema reached
+     * again while its own type is being taken refers to itself with no model, enum or union to stop
+     * at, so it is SCH2401 with [message] and [help], and string.
+     */
+    private inline fun followed(
+        doc: OpenApiDoc,
+        at: Pointer,
+        message: String,
+        help: String,
+        take: () -> Typed,
+    ): Typed {
+        val key = "${doc.path}${at.text}"
         if (!inlining.add(key)) {
-            say(
-                component.doc,
-                at,
-                ImportCodes.UNRESOLVED,
-                "component '${component.name}' refers to itself and is not a model, enum or union",
-                "make the component an object with properties",
-            )
+            say(doc, at, ImportCodes.UNRESOLVED, message, help)
             return Typed(STRING)
         }
         try {
-            return typed(Place(component.doc, at, place.owner, place.inline), component.node)
+            return take()
         } finally {
             inlining.remove(key)
         }
