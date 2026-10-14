@@ -1812,4 +1812,88 @@ class OperationLoweringTest {
             messages(r),
         )
     }
+
+    @Test
+    fun `operations of one path come in the order they first reach the components`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                tags: [{name: Orders}]
+                paths:
+                  /orders:
+                    get:
+                      tags: [Orders]
+                      operationId: Orders_list
+                      responses:
+                        '200':
+                          description: Page
+                          content:
+                            application/json:
+                              schema: {${'$'}ref: '#/components/schemas/Page'}
+                    post:
+                      tags: [Orders]
+                      operationId: Orders_place
+                      responses:
+                        '201':
+                          description: Receipt
+                          content:
+                            application/json:
+                              schema: {${'$'}ref: '#/components/schemas/Receipt'}
+                  /orders/{id}:
+                    get:
+                      tags: [Orders]
+                      operationId: Orders_get
+                      parameters:
+                        - {name: id, in: path, required: true, schema: {type: string}}
+                      responses:
+                        '200':
+                          description: Receipt
+                          content:
+                            application/json:
+                              schema: {${'$'}ref: '#/components/schemas/Receipt'}
+                    delete:
+                      tags: [Orders]
+                      operationId: Orders_cancel
+                      parameters:
+                        - {name: id, in: path, required: true, schema: {type: string}}
+                      responses: {'204': {description: No content}}
+                components:
+                  schemas:
+                    Receipt:
+                      type: object
+                      properties: {total: {${'$'}ref: '#/components/schemas/Money'}}
+                      required: [total]
+                      additionalProperties: false
+                    Money: {type: object, properties: {cents: {type: integer, format: int64}}, required: [cents], additionalProperties: false}
+                    Page: {type: object, properties: {size: {type: integer, format: int32}}, required: [size], additionalProperties: false}
+                """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            model Receipt { total Money }
+
+            model Money { cents int64 }
+
+            model Page { size int32 }
+
+            model OrdersGetRequest { id string }
+
+            model OrdersCancelRequest { id string }
+
+            service Orders {
+              #1 place(): Receipt  post "/orders" 201
+              #2 list(): Page  get "/orders"
+              #3 get(OrdersGetRequest): Receipt  get "/orders/{id}"
+              #4 cancel(OrdersCancelRequest)  delete "/orders/{id}"
+            }
+            """
+                .trimIndent() + "\n",
+            text(r),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
 }

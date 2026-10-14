@@ -224,9 +224,100 @@ internal class OperationLowering(
                 group.operations += Found(path, verb, item, operation, at / verb)
             }
         }
-        return declared.values +
-            undeclared.values +
-            listOfNotNull(untagged.takeIf { it.operations.isNotEmpty() })
+        val groups =
+            declared.values +
+                undeclared.values +
+                listOfNotNull(untagged.takeIf { it.operations.isNotEmpty() })
+        inReachOrder(groups)
+        return groups
+    }
+
+    /**
+     * Puts the operations of each path in [groups] in the order they first reach the components.
+     * The target writes a path's operations in verb order, losing their order in the service, but
+     * writes the components in the order the operations, service by service, first reach them. So
+     * among a path's operations the next is the one whose components not yet reached come first in
+     * the document, and verb order decides where that gives no order: an operation that reaches
+     * nothing new keeps its place. A document the target wrote then compiles back to the same
+     * component order.
+     */
+    private fun inReachOrder(groups: List<Group>) {
+        val index =
+            doc.tree
+                .path("components")
+                .path("schemas")
+                .fieldNames()
+                .asSequence()
+                .withIndex()
+                .associate { it.value to it.index }
+        val reached = HashSet<Int>()
+        for (group in groups) {
+            val ordered = mutableListOf<Found>()
+            for (run in group.operations.groupBy { it.path }.values) {
+                val reach =
+                    run.associateWith { if (it.verb in VERBS) reach(it, index) else emptySet() }
+                val left = run.toMutableList()
+                while (left.isNotEmpty()) {
+                    val fresh = left.associateWith { (reach.getValue(it) - reached).sorted() }
+                    val first = fresh.values.filter { it.isNotEmpty() }.minWithOrNull(LEXICAL)
+                    val next =
+                        left.first { fresh.getValue(it).let { f -> f.isEmpty() || f == first } }
+                    left.remove(next)
+                    reached += reach.getValue(next)
+                    ordered += next
+                }
+            }
+            group.operations.clear()
+            group.operations += ordered
+        }
+    }
+
+    /**
+     * The positions in `components/schemas` ([index]) of every component [found] reaches through
+     * its own and its path's references, and through theirs in turn. A component reaches the
+     * components nested in it, `<name>.<Nested>`, as the target writes every nested declaration of
+     * a component it writes.
+     */
+    private fun reach(found: Found, index: Map<String, Int>): Set<Int> {
+        val positions = HashSet<Int>()
+        val seen = HashSet<String>()
+        val queue =
+            ArrayDeque(listOf(node(found.at), node(ROOT / "paths" / found.path / "parameters")))
+        while (queue.isNotEmpty()) {
+            for (ref in refsIn(queue.removeFirst())) {
+                if (!ref.startsWith("#/") || !seen.add(ref)) continue
+                val target =
+                    try {
+                        doc.tree.at(ref.removePrefix("#"))
+                    } catch (e: IllegalArgumentException) {
+                        continue
+                    }
+                queue.addLast(target)
+                val name =
+                    ref.removePrefix(SCHEMAS)
+                        .takeIf { ref.startsWith(SCHEMAS) && '/' !in it }
+                        ?.replace("~1", "/")
+                        ?.replace("~0", "~") ?: continue
+                for ((other, i) in index) {
+                    if (other != name && !other.startsWith("$name.")) continue
+                    positions += i
+                    if (other != name && seen.add(SCHEMAS + other))
+                        queue.addLast(doc.tree.path("components").path("schemas").path(other))
+                }
+            }
+        }
+        return positions
+    }
+
+    /** Every `$ref` under [node]. */
+    private fun refsIn(node: JsonNode): List<String> {
+        val refs = mutableListOf<String>()
+        fun walk(n: JsonNode) {
+            n.path("\$ref").textValue()?.let { refs += it }
+            n.forEach(::walk)
+        }
+        walk(node)
+        return refs
     }
 
     /** The service name [group] claims at the top of the namespace, reporting a change. */
@@ -1125,6 +1216,13 @@ internal class OperationLowering(
         val ROOT = Pointer("#")
         // the verbs a binding writes; a document's trace operation has none
         val VERBS = setOf("get", "put", "post", "delete", "options", "head", "patch")
+        const val SCHEMAS = "#/components/schemas/"
+        // lists of positions compared item by item, a list before every longer one it starts
+        val LEXICAL =
+            Comparator<List<Int>> { a, b ->
+                a.zip(b).firstOrNull { (x, y) -> x != y }?.let { (x, y) -> x.compareTo(y) }
+                    ?: a.size.compareTo(b.size)
+            }
         // the target sends these verbs' request fields as a body, the others' as query parameters
         val BODY_VERBS = setOf("post", "put", "patch")
         val SUCCESS = listOf(200, 201, 202, 204)
