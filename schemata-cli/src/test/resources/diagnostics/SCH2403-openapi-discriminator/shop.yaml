@@ -1,0 +1,16 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Pet:
+      oneOf:
+        - $ref: "#/components/schemas/Cat"
+        - $ref: "#/components/schemas/Dog"
+      discriminator:
+        propertyName: kind
+        mapping:
+          CAT: "#/components/schemas/Cat"
+          DOG: "#/components/schemas/Dog"
+    Cat: {type: object, properties: {}, additionalProperties: false}
+    Dog: {type: object, properties: {}, additionalProperties: false}

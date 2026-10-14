@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2402] (lossy): shop.yaml: #/components/schemas/Order/properties/status: inline schema is imported as 'OrderStatus2', since 'OrderStatus' is taken
+ --> shop.yaml:1:1
+  = help: rename one of them in the document, or keep the suffixed name
+
+0 errors, 1 warning

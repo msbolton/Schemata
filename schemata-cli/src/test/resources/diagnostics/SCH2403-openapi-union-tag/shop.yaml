@@ -1,0 +1,19 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Pick:
+      type: object
+      oneOf:
+        - type: object
+          properties:
+            hound: {$ref: "#/components/schemas/Dog"}
+          required: [hound]
+          additionalProperties: false
+        - type: object
+          properties:
+            string: {type: string}
+          required: [string]
+          additionalProperties: false
+    Dog: {type: object, properties: {}, additionalProperties: false}

@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [placed, shipped]
+      additionalProperties: false
+    OrderStatus:
+      type: string
+      enum: [a, b]

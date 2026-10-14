@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): shop.yaml: #/components/schemas/Pet/properties/id: keywords 'readOnly', 'example' dropped
+ --> shop.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning
