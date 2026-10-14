@@ -141,13 +141,18 @@ internal class OperationLowering(
     private val schemas: SchemaLowering,
     private val report: Report,
 ) {
-    /** One operation as the document lists it. */
+    /**
+     * One operation as the document lists it: [at] is its place in [on], the document that holds
+     * its path item at [itemAt], which a path item `$ref` makes another file.
+     */
     private class Found(
         val path: String,
         val verb: String,
         val item: PathItem,
         val operation: Operation,
         val at: Pointer,
+        val on: OpenApiDoc,
+        val itemAt: Pointer,
     )
 
     /** The operations of one tag, or of none, and where the tag is first named. */
@@ -172,6 +177,14 @@ internal class OperationLowering(
         data class Declared(val decl: UnitDecl) : Body
     }
 
+    /** Where a request field comes from: its wire name, its location, and its place. */
+    private class Origin(
+        val wire: String,
+        val location: String,
+        val on: OpenApiDoc,
+        val at: Pointer,
+    )
+
     /** The media type a body is read from, and whether it is a stream of messages. */
     private class Picked(val media: Placed<MediaType>, val stream: Boolean)
 
@@ -186,7 +199,7 @@ internal class OperationLowering(
     private val describedModels = HashMap<String, Pair<UnitDecl, String>>()
 
     fun lower(): List<LoweredService> {
-        schemas.declarations()[namespace].orEmpty().forEach { top.claim(it.name) }
+        schemas.topNames(namespace).forEach { top.claim(it) }
         val groups = groups()
         // every service is named before any operation makes a model, so a model whose name a
         // service has takes a suffix instead
@@ -198,18 +211,16 @@ internal class OperationLowering(
     private fun groups(): List<Group> {
         val declared = LinkedHashMap<String, Group>()
         doc.api.tags.orEmpty().forEachIndexed { i, tag ->
+            if (tag.externalDocs != null)
+                dropped(ROOT / "tags" / i / "externalDocs", "externalDocs dropped")
             val name = tag.name ?: return@forEachIndexed
             declared.putIfAbsent(name, Group(name, ROOT / "tags" / i))
         }
         val undeclared = LinkedHashMap<String, Group>()
         val untagged = Group(null, null)
-        doc.api.paths.orEmpty().forEach { (path, item) ->
-            val at = ROOT / "paths" / path
-            if (item.`$ref` != null) {
-                dropped(at, "path item reference dropped")
-                return@forEach
-            }
-            if (!item.servers.isNullOrEmpty()) dropped(at / "servers", "servers dropped")
+        doc.api.paths.orEmpty().forEach { (path, written) ->
+            val (on, at, item) = pathItem(written, ROOT / "paths" / path) ?: return@forEach
+            if (!item.servers.isNullOrEmpty()) dropped(at / "servers", "servers dropped", on)
             // the model lists a path's operations in the order get, put, post, delete, options,
             // head, patch, trace, whatever order the document writes them in
             item.readOperationsMap().forEach { (method, operation) ->
@@ -222,15 +233,49 @@ internal class OperationLowering(
                             declared[tag]
                                 ?: undeclared.getOrPut(tag) { Group(tag, at / verb / "tags" / 0) }
                     }
-                group.operations += Found(path, verb, item, operation, at / verb)
+                group.operations += Found(path, verb, item, operation, at / verb, on, at)
             }
         }
+        // 3.1 added webhooks; the reader already reports the key in a 3.0 document as unexpected
+        if (doc.version.startsWith("3.1"))
+            doc.tree.path("webhooks").fieldNames().forEach { name ->
+                dropped(
+                    ROOT / "webhooks" / name,
+                    "webhook '$name' dropped; Schemata has no webhooks",
+                )
+            }
+        if (doc.tree.has("externalDocs")) dropped(ROOT / "externalDocs", "externalDocs dropped")
         val groups =
             declared.values +
                 undeclared.values +
                 listOfNotNull(untagged.takeIf { it.operations.isNotEmpty() })
         inReachOrder(groups)
         return groups
+    }
+
+    /**
+     * The path item [written] at [at], its document and its place, following a `$ref` to the file
+     * or the place that holds it; null after reporting a reference that cannot be followed.
+     */
+    private fun pathItem(written: PathItem, at: Pointer): Triple<OpenApiDoc, Pointer, PathItem>? {
+        var on = doc
+        var where = at
+        var item = written
+        var depth = 0
+        while (true) {
+            val ref = item.`$ref` ?: return Triple(on, where, item)
+            val target = refs.resolve(on, where, ref) ?: return null
+            val node = target.node as? ObjectNode
+            if (node == null || depth++ == DEPTH) {
+                dropped(where, "path item reference '$ref' names no path item", on)
+                return null
+            }
+            val result =
+                OpenAPIDeserializer.ParseResult().openapi31(target.doc.version.startsWith("3.1"))
+            item = OpenAPIDeserializer().getPathItem(node, "pathItem", result) ?: return null
+            on = target.doc
+            where = target.pointer
+        }
     }
 
     /**
@@ -260,7 +305,9 @@ internal class OperationLowering(
             val ordered = mutableListOf<Found>()
             for (run in group.operations.groupBy { it.path }.values) {
                 val reach =
-                    run.associateWith { if (it.verb in VERBS) reach(it, index) else emptySet() }
+                    run.associateWith {
+                        if (it.verb in VERBS && it.on === doc) reach(it, index) else emptySet()
+                    }
                 val left = run.toMutableList()
                 while (left.isNotEmpty()) {
                     val fresh = left.associateWith { (reach.getValue(it) - reached).sorted() }
@@ -405,10 +452,12 @@ internal class OperationLowering(
     ): Pair<UnitOperation, SourceOperation>? {
         val op = found.operation
         val at = found.at
-        if (found.verb !in VERBS) return droppedOperation(at, "Schemata has no ${found.verb} verb")
+        val on = found.on
+        if (found.verb !in VERBS)
+            return droppedOperation(on, at, "Schemata has no ${found.verb} verb")
         val wires =
             template(found.path)
-                ?: return droppedOperation(at, "its path is not one a binding can write")
+                ?: return droppedOperation(on, at, "its path is not one a binding can write")
         val parameters = parameters(found)
         val pathParameters = parameters.filter { it.value.`in` == "path" }
         // a path segment holds one value, so a path parameter is a scalar or an enum
@@ -418,7 +467,11 @@ internal class OperationLowering(
                 p.value.schema == null ||
                     !flat(p.doc, p.at / "schema", p.node.path("schema"), false)
             )
-                return droppedOperation(p.at, "path parameter '$wire' is not a scalar or an enum")
+                return droppedOperation(
+                    p.doc,
+                    p.at,
+                    "path parameter '$wire' is not a scalar or an enum",
+                )
         }
         val (name, nameAnnotation) = name(found, compiledTag, names)
         // the models are named after the operationId the target writes back, so a compile and a
@@ -431,19 +484,22 @@ internal class OperationLowering(
         val owner = "${opId}Request"
         val fields = Scope()
         val requestFields = mutableListOf<UnitField>()
+        val origins = mutableListOf<Origin>()
         val fieldOf = mutableMapOf<String, String>()
         wires.forEach { wire ->
             val p = pathParameters.firstOrNull { it.value.name == wire }
             if (p == null)
                 report.at(
-                    doc,
+                    on,
                     at,
                     ImportCodes.APPROXIMATED,
                     "path parameter '$wire' is not declared, so it is imported as a string",
                 )
-            val field = parameterField(p, wire, "path", owner, fields, p?.doc ?: doc, p?.at ?: at)
+            val origin = Origin(wire, "path", p?.doc ?: on, p?.at ?: at)
+            val field = parameterField(p, wire, "path", owner, fields, origin.on, origin.at)
             fieldOf[wire] = field.name
             requestFields += field
+            origins += origin
         }
         val headerNames = mutableSetOf<String>()
         val accepted = parameters.filter { accept(it, found.verb, headerNames) }
@@ -454,12 +510,14 @@ internal class OperationLowering(
             .forEach {
                 requestFields +=
                     parameterField(it, it.value.name, queryLocation, owner, fields, it.doc, it.at)
+                origins += Origin(it.value.name, queryLocation, it.doc, it.at)
             }
         accepted
             .filter { it.value.`in` == "header" }
             .forEach {
                 requestFields +=
                     parameterField(it, it.value.name, "header", owner, fields, it.doc, it.at)
+                origins += Origin(it.value.name, "header", it.doc, it.at)
             }
         val bodyAt = at / "requestBody"
         var requestBody: Body? = null
@@ -472,7 +530,7 @@ internal class OperationLowering(
             val place =
                 refs.follow(
                     report,
-                    Placed(written, doc, bodyAt, node(bodyAt)),
+                    Placed(written, on, bodyAt, node(on, bodyAt)),
                     "requestBodies",
                     "request body",
                     { it.`$ref` },
@@ -493,19 +551,23 @@ internal class OperationLowering(
         }
         val request =
             if (requestFields.isEmpty()) {
-                requestBody?.let { UnitPayload(UnitType.Ref(payloadName(it, bodyAt)), streamed) }
+                requestBody?.let {
+                    UnitPayload(UnitType.Ref(payloadName(it, on, bodyAt)), streamed)
+                }
             } else {
                 val part = (requestBody as? Body.Declared)?.decl as? UnitRecord
                 val decl =
                     UnitRecord(
                         name = owner,
-                        fields = requestFields + renamed(part?.fields.orEmpty(), fields, bodyAt),
+                        fields =
+                            besideBody(requestFields, origins, part, fieldOf) +
+                                part?.fields.orEmpty(),
                         nested = schemas.takeNested(owner) + part?.nested.orEmpty(),
                         doc = part?.doc,
                         annotations = part?.annotations.orEmpty(),
                         deprecated = part?.deprecated ?: false,
                     )
-                UnitPayload(UnitType.Ref(synthesize(at, decl)), stream = false)
+                UnitPayload(UnitType.Ref(synthesize(on, at, decl)), stream = false)
             }
         val responsesAt = at / "responses"
         val responses = op.responses.orEmpty()
@@ -520,7 +582,7 @@ internal class OperationLowering(
         var response: UnitPayload? = null
         val errors = mutableListOf<UnitErrorResponse>()
         responses.forEach { (key, written) ->
-            val place = Placed(written, doc, responsesAt / key, node(responsesAt / key))
+            val place = Placed(written, on, responsesAt / key, node(on, responsesAt / key))
             val code = key.toIntOrNull()
             when {
                 key == "default" ->
@@ -530,21 +592,21 @@ internal class OperationLowering(
                             response(place, key, "${opId}ErrorDefault", false)?.type,
                         )
                 code == null || code !in 100..599 ->
-                    droppedResponse(place.at, key, "it is not a status code Schemata writes")
+                    droppedResponse(on, place.at, key, "it is not a status code Schemata writes")
                 code < 200 ->
-                    droppedResponse(place.at, key, "Schemata writes no informational responses")
+                    droppedResponse(on, place.at, key, "Schemata writes no informational responses")
                 code == chosen -> {
                     if (code !in SUCCESS)
                         report.at(
-                            doc,
+                            on,
                             place.at,
                             ImportCodes.APPROXIMATED,
                             "success response '$key' is imported as 200",
                         )
                     response = response(place, key, "${opId}Response", true)
                 }
-                code < 300 -> droppedResponse(place.at, key, "the success response is $status")
-                code < 400 -> droppedResponse(place.at, key, "Schemata writes no redirects")
+                code < 300 -> droppedResponse(on, place.at, key, "the success response is $status")
+                code < 400 -> droppedResponse(on, place.at, key, "Schemata writes no redirects")
                 else ->
                     errors +=
                         UnitErrorResponse(
@@ -555,14 +617,14 @@ internal class OperationLowering(
         }
         if (chosen == null)
             report.at(
-                doc,
+                on,
                 responsesAt,
                 ImportCodes.APPROXIMATED,
                 "the operation has no success response, so it is imported as a 204",
             )
-        if (!op.callbacks.isNullOrEmpty()) dropped(at / "callbacks", "callbacks dropped")
-        if (!op.servers.isNullOrEmpty()) dropped(at / "servers", "servers dropped")
-        if (op.externalDocs != null) dropped(at / "externalDocs", "externalDocs dropped")
+        if (!op.callbacks.isNullOrEmpty()) dropped(at / "callbacks", "callbacks dropped", on)
+        if (!op.servers.isNullOrEmpty()) dropped(at / "servers", "servers dropped", on)
+        if (op.externalDocs != null) dropped(at / "externalDocs", "externalDocs dropped", on)
         // a path parameter is bound by its field's name; `@openapi(name)` writes the wire name back
         val path =
             found.path.split("/").joinToString("/") { segment ->
@@ -621,14 +683,14 @@ internal class OperationLowering(
             list.orEmpty().mapIndexedNotNull { i, p ->
                 refs.follow(
                     report,
-                    Placed(p, doc, at / i, node(at / i)),
+                    Placed(p, found.on, at / i, node(found.on, at / i)),
                     "parameters",
                     "parameter",
                     { it.`$ref` },
                     { d, n, r -> d.getParameter(n, "parameter", r) },
                 )
             }
-        val shared = resolved(found.item.parameters, ROOT / "paths" / found.path / "parameters")
+        val shared = resolved(found.item.parameters, found.itemAt / "parameters")
         val own = resolved(found.operation.parameters, found.at / "parameters")
         val redefined = own.map { it.value.`in` to it.value.name }.toSet()
         return shared.filter { (it.value.`in` to it.value.name) !in redefined } + own
@@ -736,8 +798,8 @@ internal class OperationLowering(
         val name = names.claim(wanted)
         val at = found.at / "operationId"
         when {
-            id != null && !valid -> invalid(doc, at, "operationId", id, name)
-            name != wanted -> taken(doc, at, "operation", id ?: wanted, name, wanted)
+            id != null && !valid -> invalid(found.on, at, "operationId", id, name)
+            name != wanted -> taken(found.on, at, "operation", id ?: wanted, name, wanted)
         }
         val annotation = if (valid && "${compiledTag}_$name" != id) openapi("name", id!!) else null
         return name to annotation
@@ -852,7 +914,7 @@ internal class OperationLowering(
                 )
             }
             return body(picked.media, wanted, role, null)?.let {
-                UnitPayload(UnitType.Ref(payloadName(it, place.at)), stream = true)
+                UnitPayload(UnitType.Ref(payloadName(it, place.doc, place.at)), stream = true)
             }
         }
         val seen = mutableSetOf<String>()
@@ -873,7 +935,7 @@ internal class OperationLowering(
         if (kept.isEmpty())
             return picked?.let { media ->
                 body(media.media, wanted, role, null)?.let {
-                    UnitPayload(UnitType.Ref(payloadName(it, place.at)), stream = false)
+                    UnitPayload(UnitType.Ref(payloadName(it, place.doc, place.at)), stream = false)
                 }
             }
         val describedName = described(value.description)
@@ -894,11 +956,11 @@ internal class OperationLowering(
                 deprecated = part?.deprecated ?: false,
             )
         if (describedName == null)
-            return UnitPayload(UnitType.Ref(synthesize(place.at, decl)), stream = false)
+            return UnitPayload(UnitType.Ref(synthesize(place.doc, place.at, decl)), stream = false)
         val same = describedModels[describedName]?.takeIf { it.first == decl }?.second
         val declared =
             same
-                ?: synthesize(place.at, decl).also {
+                ?: synthesize(place.doc, place.at, decl).also {
                     describedModels.putIfAbsent(describedName, decl to it)
                 }
         return UnitPayload(UnitType.Ref(declared), stream = false)
@@ -932,10 +994,12 @@ internal class OperationLowering(
     }
 
     /**
-     * [media]'s schema as a body named [wanted]: a model or union component by name, an inline
-     * model or union as its own declaration, anything else wrapped in a model with one field
-     * `items`. Beside parameters or headers ([beside]) the body's fields join theirs, so a model
-     * component is copied and a union wrapped. [role] names the body in a message.
+     * [media]'s schema as a body named [wanted]: a model or union component by name, through any
+     * component that is only a `$ref` to another; a model or union that is no component, inline or
+     * reached by a `$ref` to a file or into a component, as its own declaration; anything else
+     * wrapped in a model with one field `items`. Beside parameters or headers ([beside]) the body's
+     * fields join theirs, so a model component is copied and a union wrapped. [role] names the body
+     * in a message.
      */
     private fun body(
         media: Placed<MediaType>,
@@ -947,13 +1011,20 @@ internal class OperationLowering(
         val at = media.at / "schema"
         val node = media.node.path("schema")
         val ref = schema.`$ref`
-        val target = if (ref != null) (refs.resolve(media.doc, at, ref) ?: return null) else null
-        // a reference is read as the declaration its component lowers to; one that declares
-        // nothing, such as an alias or a schema inside a component, is wrapped. A component is
-        // read from its own document's tree, which a file reached only through a `$ref` has even
-        // though its model is empty
+        val target =
+            if (ref != null) (refs.resolve(media.doc, at, ref) ?: return null).let(::aliased)
+            else null
+        // a reference is read as the declaration its component lowers to. One that declares
+        // nothing, such as a schema inside a component or a file of one schema, is read where it
+        // is, as an inline schema would be. A component is read from its own document's tree,
+        // which a file reached only through a `$ref` has even though its model is empty
         val declared = target?.let(schemas::declarationKind)
-        val kind = if (target == null) kind(media.doc, at, node) else null
+        val kind =
+            when {
+                target == null -> kind(media.doc, at, node)
+                declared == null -> kind(target.doc, target.pointer, target.node)
+                else -> null
+            }
         return when {
             declared == DeclKind.MODEL && beside != null -> {
                 report.at(
@@ -976,8 +1047,16 @@ internal class OperationLowering(
                 beside == null &&
                 (declared == DeclKind.MODEL || declared == DeclKind.UNION) ->
                 Body.Named(schemas.refName(target, namespace))
-            target == null && (kind == Kind.MODEL || (kind == Kind.UNION && beside == null)) ->
-                Body.Declared(schemas.declaration(media.doc, at, schema, wanted, into = namespace))
+            declared == null && (kind == Kind.MODEL || (kind == Kind.UNION && beside == null)) ->
+                Body.Declared(
+                    schemas.declaration(
+                        target?.doc ?: media.doc,
+                        target?.pointer ?: at,
+                        schema,
+                        wanted,
+                        into = namespace,
+                    )
+                )
             else -> {
                 report.at(
                     media.doc,
@@ -1010,33 +1089,86 @@ internal class OperationLowering(
         }
     }
 
+    /**
+     * [start], or the schema its chain of `$ref`s ends at when it declares nothing and is only a
+     * reference, as a component `OrderResponse: {$ref: Order}` is an alias of `Order`.
+     */
+    private fun aliased(start: Refs.Target): Refs.Target {
+        var target = start
+        repeat(DEPTH) {
+            if (schemas.declarationKind(target) != null) return target
+            val ref = target.node.path("\$ref").textValue() ?: return target
+            target = refs.resolve(target.doc, target.pointer, ref) ?: return target
+        }
+        return target
+    }
+
     /** The name a payload refers to [body] by, claiming a declaration made for it. */
-    private fun payloadName(body: Body, at: Pointer): String =
+    private fun payloadName(body: Body, on: OpenApiDoc, at: Pointer): String =
         when (body) {
             is Body.Named -> body.name
-            is Body.Declared -> synthesize(at, body.decl)
+            is Body.Declared -> synthesize(on, at, body.decl)
         }
 
     /**
-     * The body's fields after the parameters' or headers' in [scope]; a field whose name is taken
-     * is renamed and keeps its property name with `@jsonschema(name)`.
+     * The parameter fields [fields], from [origins] in step, that sit beside the fields of the body
+     * [part]. The body's property names are the wire contract, so a parameter field whose name a
+     * body field has, or a body property's name, gives way: it takes a numeric suffix and keeps its
+     * wire name with `@openapi(name)` in the path or the query and `@jsonschema(name)` in the body,
+     * while a header's `@openapi(header)` already names it. A query parameter sent in the body
+     * whose name a body property has would be a second property of that name, so it is dropped.
+     * [fieldOf] follows a renamed path parameter.
      */
-    private fun renamed(fields: List<UnitField>, scope: Scope, at: Pointer): List<UnitField> =
-        fields.map { field ->
+    private fun besideBody(
+        fields: List<UnitField>,
+        origins: List<Origin>,
+        part: UnitRecord?,
+        fieldOf: MutableMap<String, String>,
+    ): List<UnitField> {
+        if (part == null) return fields
+        val bodyNames = part.fields.map { it.name }.toSet()
+        val bodyWires = part.fields.mapNotNull(::wireOf).toSet()
+        val scope =
+            Scope().apply { (bodyNames + bodyWires + fields.map { it.name }).forEach(::claim) }
+        return fields.zip(origins).mapNotNull { (field, origin) ->
+            if (field.name !in bodyNames && field.name !in bodyWires) return@mapNotNull field
+            if (origin.location == "body" && origin.wire in bodyWires) {
+                dropped(
+                    origin.at,
+                    "query parameter '${origin.wire}' dropped; the body has a property of that name",
+                    origin.on,
+                )
+                return@mapNotNull null
+            }
             val name = scope.claim(field.name)
-            if (name == field.name) return@map field
-            taken(doc, at, "property", field.name, name, field.name)
-            val keeps = field.annotations.any { it.target == "jsonschema" && it.key == "name" }
+            taken(origin.on, origin.at, "parameter", origin.wire, name, field.name)
+            if (origin.location == "path") fieldOf[origin.wire] = name
+            val keeps =
+                when (origin.location) {
+                    "path",
+                    "query" -> openapi("name", origin.wire).takeIf { isParameterName(origin.wire) }
+                    "body" -> UnitAnnotation("jsonschema", "name", SchemataText.string(origin.wire))
+                    else -> null
+                }
             field.copy(
                 name = name,
                 annotations =
-                    if (keeps) field.annotations
-                    else
-                        listOf(
-                            UnitAnnotation("jsonschema", "name", SchemataText.string(field.name))
-                        ) + field.annotations,
+                    if (keeps == null || keeps in field.annotations) field.annotations
+                    else listOf(keeps) + field.annotations,
             )
         }
+    }
+
+    /**
+     * The property name a body field is written under: its `@jsonschema(name)` when it has one,
+     * otherwise its own name. A name that needs escaping is left out, since no field has it.
+     */
+    private fun wireOf(field: UnitField): String? {
+        val kept =
+            field.annotations.firstOrNull { it.target == "jsonschema" && it.key == "name" }?.value
+                ?: return field.name
+        return kept.removeSurrounding("\"").takeIf { '\\' !in it && '"' !in it }
+    }
 
     /**
      * The media type a body is read from: the first JSON one (`application/json` or a `+json`
@@ -1144,15 +1276,21 @@ internal class OperationLowering(
     private fun isNull(node: JsonNode): Boolean = node.path("type").textValue() == "null"
 
     /**
-     * A response's description when it is a model name, as the target describes one with headers.
+     * A response's description when it is a model name, as the target describes one with headers. A
+     * reason phrase such as `Created` or `Unauthorized` describes the status, not a model, as a
+     * hand-written response so often does, so it names nothing.
      */
     private fun described(description: String?): String? =
-        description?.trim()?.takeIf { OpenApiNames.isUpperCamel(it) && it.any(Char::isLowerCase) }
+        description?.trim()?.takeIf {
+            OpenApiNames.isUpperCamel(it) &&
+                it.any(Char::isLowerCase) &&
+                it.lowercase() !in REASON_PHRASES
+        }
 
     /** Claims [decl]'s name at the top of the namespace, reporting a suffix the name took. */
-    private fun synthesize(at: Pointer, decl: UnitDecl): String {
+    private fun synthesize(on: OpenApiDoc, at: Pointer, decl: UnitDecl): String {
         val name = schemas.synthesize(namespace, decl.name, decl)
-        if (name != decl.name) taken(doc, at, kindWord(decl), decl.name, name, decl.name)
+        if (name != decl.name) taken(on, at, kindWord(decl), decl.name, name, decl.name)
         top.claim(name)
         return name
     }
@@ -1164,7 +1302,9 @@ internal class OperationLowering(
             is UnitUnion -> "union"
         }
 
-    private fun node(at: Pointer): JsonNode = doc.tree.at(at.text.removePrefix("#"))
+    private fun node(at: Pointer): JsonNode = node(doc, at)
+
+    private fun node(on: OpenApiDoc, at: Pointer): JsonNode = on.tree.at(at.text.removePrefix("#"))
 
     private fun openapi(key: String, value: String): UnitAnnotation =
         UnitAnnotation("openapi", key, SchemataText.string(value))
@@ -1179,15 +1319,16 @@ internal class OperationLowering(
     }
 
     private fun droppedOperation(
+        on: OpenApiDoc,
         at: Pointer,
         reason: String,
     ): Pair<UnitOperation, SourceOperation>? {
-        dropped(at, "operation dropped; $reason")
+        dropped(at, "operation dropped; $reason", on)
         return null
     }
 
-    private fun droppedResponse(at: Pointer, key: String, reason: String) {
-        dropped(at, "response '$key' dropped; $reason")
+    private fun droppedResponse(on: OpenApiDoc, at: Pointer, key: String, reason: String) {
+        dropped(at, "response '$key' dropped; $reason", on)
     }
 
     private fun taken(
@@ -1260,6 +1401,82 @@ internal class OperationLowering(
         // OpenAPI ignores header parameters of these names: the media types and the credentials
         val IGNORED_HEADERS = setOf("accept", "content-type", "authorization")
         val STRING = UnitType.Scalar("string", emptyList())
+
+        /**
+         * The HTTP reason phrases, lower-cased without spaces or hyphens, and the words written in
+         * their place, such as `Success`.
+         */
+        val REASON_PHRASES =
+            listOf(
+                    "Continue",
+                    "Switching Protocols",
+                    "Processing",
+                    "Early Hints",
+                    "OK",
+                    "Created",
+                    "Accepted",
+                    "Non-Authoritative Information",
+                    "No Content",
+                    "Reset Content",
+                    "Partial Content",
+                    "Multi-Status",
+                    "Already Reported",
+                    "IM Used",
+                    "Multiple Choices",
+                    "Moved Permanently",
+                    "Found",
+                    "See Other",
+                    "Not Modified",
+                    "Use Proxy",
+                    "Temporary Redirect",
+                    "Permanent Redirect",
+                    "Bad Request",
+                    "Unauthorized",
+                    "Payment Required",
+                    "Forbidden",
+                    "Not Found",
+                    "Method Not Allowed",
+                    "Not Acceptable",
+                    "Proxy Authentication Required",
+                    "Request Timeout",
+                    "Conflict",
+                    "Gone",
+                    "Length Required",
+                    "Precondition Failed",
+                    "Content Too Large",
+                    "Payload Too Large",
+                    "URI Too Long",
+                    "Unsupported Media Type",
+                    "Range Not Satisfiable",
+                    "Expectation Failed",
+                    "Misdirected Request",
+                    "Unprocessable Content",
+                    "Unprocessable Entity",
+                    "Locked",
+                    "Failed Dependency",
+                    "Too Early",
+                    "Upgrade Required",
+                    "Precondition Required",
+                    "Too Many Requests",
+                    "Request Header Fields Too Large",
+                    "Unavailable For Legal Reasons",
+                    "Internal Server Error",
+                    "Not Implemented",
+                    "Bad Gateway",
+                    "Service Unavailable",
+                    "Gateway Timeout",
+                    "HTTP Version Not Supported",
+                    "Variant Also Negotiates",
+                    "Insufficient Storage",
+                    "Loop Detected",
+                    "Not Extended",
+                    "Network Authentication Required",
+                    "Success",
+                    "Successful",
+                )
+                .map { it.replace(" ", "").replace("-", "").lowercase() }
+                .toSet()
+
         const val INVALID_HELP =
             "rename it in the document to a name the target can write, to keep its spelling"
     }

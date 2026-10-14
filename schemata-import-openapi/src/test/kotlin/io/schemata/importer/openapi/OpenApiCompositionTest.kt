@@ -100,7 +100,9 @@ class OpenApiCompositionTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 shop.json: #/components/schemas/Pick/oneOf/2/properties/hound: union member tag 'hound' is not the member's own; the regenerated union tags it 'dog'"
+                "SCH2403 shop.json: #/components/schemas/Pet: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
+                "SCH2403 shop.json: #/components/schemas/Pick/oneOf/2/properties/hound: union member tag 'hound' is not the member's own; the regenerated union tags it 'dog'",
+                "SCH2403 shop.json: #/components/schemas/Either: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
             ),
             messages(r),
         )
@@ -156,7 +158,8 @@ class OpenApiCompositionTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 shop.yaml: #/components/schemas/Lost/discriminator: discriminator mapping is not kept; the union is tagged by member name"
+                "SCH2403 shop.yaml: #/components/schemas/Kept: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
+                "SCH2403 shop.yaml: #/components/schemas/Lost/discriminator: discriminator mapping is not kept; the union is tagged by member name",
             ),
             messages(r),
         )
@@ -317,7 +320,8 @@ class OpenApiCompositionTest {
         )
         assertEquals(
             listOf(
-                "SCH2402 shop.yaml: #/components/schemas/Order/properties/status: inline schema is imported as 'OrderStatus2', since 'OrderStatus' is taken"
+                "SCH2402 shop.yaml: #/components/schemas/Order/properties/status: inline schema is imported as 'OrderStatus2', since 'OrderStatus' is taken",
+                "SCH2403 shop.yaml: #/components/schemas/Order/properties/payment: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
             ),
             messages(r),
         )
@@ -474,7 +478,7 @@ class OpenApiCompositionTest {
     }
 
     @Test
-    fun `exclusive bounds in both versions become inclusive bounds`() {
+    fun `exclusive bounds in both versions become inclusive bounds exactly on an integer`() {
         val r =
             importText(
                 "new.json" to
@@ -517,7 +521,7 @@ class OpenApiCompositionTest {
             """
             schema new
 
-            model Range { above float64 { min 0 }  below int32 { min 0, max 100 } }
+            model Range { above float64 { min 0 }  below int32 { min 0, max 99 } }
             """
                 .trimIndent() + "\n",
             text(r, "new.schemata"),
@@ -526,7 +530,7 @@ class OpenApiCompositionTest {
             """
             schema old
 
-            model Range { above float64 { min 0 }  below int32 { min 0, max 100 } }
+            model Range { above float64 { min 0 }  below int32 { min 0, max 99 } }
             """
                 .trimIndent() + "\n",
             text(r, "old.schemata"),
@@ -534,9 +538,7 @@ class OpenApiCompositionTest {
         assertEquals(
             listOf(
                 "SCH2403 new.json: #/components/schemas/Range/properties/above: exclusiveMinimum 0 is imported as min 0",
-                "SCH2403 new.json: #/components/schemas/Range/properties/below: exclusiveMaximum 100 is imported as max 100",
                 "SCH2403 old.yaml: #/components/schemas/Range/properties/above: exclusiveMinimum 0 is imported as min 0",
-                "SCH2403 old.yaml: #/components/schemas/Range/properties/below: exclusiveMaximum 100 is imported as max 100",
             ),
             messages(r),
         )
@@ -841,7 +843,12 @@ class OpenApiCompositionTest {
                 .trimIndent() + "\n",
             text(r, "shop.schemata"),
         )
-        assertEquals(emptyList(), messages(r))
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Contact: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept"
+            ),
+            messages(r),
+        )
     }
 
     @Test
@@ -882,6 +889,7 @@ class OpenApiCompositionTest {
         assertEquals(
             listOf(
                 "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/1: format 'email' has no Schemata type; imported as string",
+                "SCH2403 shop.yaml: #/components/schemas/Contact: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
                 "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf: union members 1 and 2 share type 'string'; each imported as a model holding it",
             ),
             messages(r),
@@ -1105,7 +1113,8 @@ class OpenApiCompositionTest {
         )
         assertEquals(
             listOf(
-                "SCH2403 shop.yaml: #/components/schemas/Current: component 'Current' is not a model, enum or union; each use takes its type"
+                "SCH2403 shop.yaml: #/components/schemas/Current: component 'Current' is not a model, enum or union; each use takes its type",
+                "SCH2403 shop.yaml: #/components/schemas/Pick: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
             ),
             messages(r),
         )
@@ -1145,13 +1154,15 @@ class OpenApiCompositionTest {
         assertEquals(
             listOf(
                 "SCH2403 old.yaml: #/components/schemas/Pick/oneOf/0: union member's null is dropped; a union member cannot be null",
+                "SCH2403 old.yaml: #/components/schemas/Pick: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
                 "SCH2403 new.json: #/components/schemas/Pick/oneOf/1: union member's null is dropped; a union member cannot be null",
+                "SCH2403 new.json: #/components/schemas/Pick: union is imported in the externally tagged form, each member under its name; the document's untagged or in-band form is not kept",
             ),
             messages(r),
         )
         assertEquals(
             listOf("make the field that holds the union nullable to keep the null"),
-            r.diagnostics.map { it.help }.distinct(),
+            r.diagnostics.filter { "null is dropped" in it.message }.map { it.help }.distinct(),
         )
     }
 }
