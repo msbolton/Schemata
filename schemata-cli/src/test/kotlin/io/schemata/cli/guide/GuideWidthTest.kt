@@ -8,23 +8,21 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * The README and every guide page wrap their prose at 100 columns. Fenced blocks, table rows, and
+ * The README and every wiki page wrap their prose at 100 columns. Fenced blocks, table rows, and
  * indented code are exempt because their lines are quoted output or one row of a table, which
- * cannot wrap; `guide/annotations.md` is the exception that holds its fences to the width too,
- * since the page is generated and carries only prose and tables.
+ * cannot wrap; the Annotations page is the exception that holds its fences to the width too, since
+ * the page is generated and carries only prose and tables.
  */
 class GuideWidthTest {
     private val width = 100
 
-    private val files =
-        listOf(File(Guide.root, "README.md")) +
-            Guide.dir.listFiles { f -> f.extension == "md" }!!.sortedBy { it.name }
+    private val files = listOf(File(Guide.root, "README.md")) + Guide.pages
 
     @TestFactory
     fun `prose lines fit the wrapped width`(): List<DynamicTest> =
         files.map { file ->
             DynamicTest.dynamicTest(file.name) {
-                val over = overlong(file.readText(), includeFences = file.name == "annotations.md")
+                val over = overlong(file.readText(), includeFences = file.name == "Annotations.md")
                 assertTrue(
                     over.isEmpty(),
                     "${file.name} has lines over $width columns:\n" +

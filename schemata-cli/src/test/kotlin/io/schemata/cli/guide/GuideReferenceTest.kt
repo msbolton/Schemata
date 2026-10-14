@@ -12,33 +12,32 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
 /**
- * Every fenced `schemata` block in the reference and in the README compiles through both targets
- * without an error; every block fenced `schemata error SCHnnnn...` must report each named code
- * among its errors. A block may hold several files separated by a line `--- <name>.schemata`;
- * otherwise it is `example.schemata`. A README block whose body does not start with `namespace` is
- * a fragment, not a full example, and fails with a message naming it instead of being compiled.
+ * Every fenced `schemata` block in the wiki and in the README compiles through every target without
+ * an error; every block fenced `schemata error SCHnnnn...` must report each named code among its
+ * errors. A block may hold several files separated by a line `--- <name>.schemata`; otherwise it is
+ * `example.schemata`. A README block whose body does not start with `namespace` is a fragment, not
+ * a full example, and fails with a message naming it instead of being compiled.
  */
 class GuideReferenceTest {
-    private val referenceFile = File(Guide.dir, "reference.md")
     private val readmeFile = File(Guide.root, "README.md")
 
     @TestFactory
-    fun `reference and README blocks compile or fail as marked`(): List<DynamicTest> =
-        listOf(referenceFile, readmeFile).flatMap { file ->
+    fun `wiki and README blocks compile or fail as marked`(): List<DynamicTest> =
+        (Guide.referencePages + readmeFile).flatMap { file ->
             Guide.blocks(file.readText(), "schemata").map { block ->
                 DynamicTest.dynamicTest("${file.name}:${block.line}") { check(file, block) }
             }
         }
 
     @Test
-    fun `reference has at least one schemata block`() {
-        assertTrue(Guide.blocks(referenceFile.readText(), "schemata").isNotEmpty())
+    fun `the wiki has at least one schemata block`() {
+        assertTrue(Guide.pages.any { Guide.blocks(it.readText(), "schemata").isNotEmpty() })
     }
 
     /** The import family table's SCH2402 row says what the code's own description says. */
     @Test
     fun `the SCH2402 row repeats the import code description`() {
-        val row = referenceFile.readLines().single { it.startsWith("| SCH2402 | ") }
+        val row = Guide.page("Importing").readLines().single { it.startsWith("| SCH2402 | ") }
         assertTrue(
             row.contains(ImportCodes.RENAMED.description),
             "the SCH2402 row does not contain '${ImportCodes.RENAMED.description}':\n$row",

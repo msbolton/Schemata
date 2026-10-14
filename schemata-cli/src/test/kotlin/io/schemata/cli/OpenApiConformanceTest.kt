@@ -16,7 +16,7 @@ import org.junit.jupiter.api.TestFactory
  * Every OpenAPI document the compiler writes is valid OpenAPI 3.1: each corpus case with services
  * renders exactly its `expected/openapi` tree and the warnings in `expected/openapi-warnings.txt`
  * (none when the file is absent), each example with services validates (its goldens are
- * `ExamplesTest`'s), and so does each guide block that declares a service. A source set without a
+ * `ExamplesTest`'s), and so does each wiki block that declares a service. A source set without a
  * service writes no document. `SCHEMATA_GOLDEN_UPDATE=1` rewrites the corpus goldens.
  */
 class OpenApiConformanceTest {
@@ -51,8 +51,8 @@ class OpenApiConformanceTest {
         }
 
     @TestFactory
-    fun `guide blocks with services validate`(): List<DynamicTest> =
-        listOf(File(Guide.dir, "reference.md"), File(Guide.root, "README.md")).flatMap { file ->
+    fun `wiki blocks with services validate`(): List<DynamicTest> =
+        (Guide.referencePages + File(Guide.root, "README.md")).flatMap { file ->
             Guide.blocks(file.readText(), "schemata")
                 .filter { "error" !in it.info.split(' ') && service.containsMatchIn(it.body) }
                 .map { block ->
