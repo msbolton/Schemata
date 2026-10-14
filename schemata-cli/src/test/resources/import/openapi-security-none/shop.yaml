@@ -1,0 +1,26 @@
+openapi: 3.0.3
+info:
+  title: shop
+  version: 1.0.0
+security: []
+paths:
+  /products:
+    get:
+      operationId: Shop_list_products
+      responses:
+        '204': {description: No content}
+  /admin/products:
+    post:
+      operationId: Shop_create_product
+      security:
+        - OAuth2: ['products:write']
+      responses:
+        '201': {description: Created}
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.example.com/token
+          scopes: {}

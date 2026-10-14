@@ -56,7 +56,12 @@ internal class SecurityLowering(
     fun lower(services: List<LoweredService>): SchemaLine {
         val info = info()
         schemes()
-        val document = doc.api.security?.let { requirement(it, ROOT / "security") }
+        // the model reads an empty top-level `security` as absent, so the tree says whether it is
+        // there
+        val written = doc.tree.path("security")
+        val document =
+            if (written.isArray && written.isEmpty) Requirement(emptyList(), emptyList())
+            else doc.api.security?.let { requirement(it, ROOT / "security") }
         val effective = mutableListOf<Requirement>()
         val placed = services.map { place(it, document, effective) }
         checkScopes(listOfNotNull(document) + effective)
@@ -154,7 +159,8 @@ internal class SecurityLowering(
                 val key = scheme.name ?: return null
                 val where = scheme.`in`?.toString() ?: return null
                 // the target reads `api_key` as the place, then the name up to the end
-                if (key.any(Char::isWhitespace))
+                if (key.isEmpty()) drop(place, name, "its name is empty")
+                else if (key.any(Char::isWhitespace))
                     drop(place, name, "its name '$key' holds whitespace")
                 else "api_key" to listOf(openapi("api_key", "$where $key"))
             }

@@ -353,4 +353,74 @@ class SecurityLoweringTest {
             messages(r),
         )
     }
+
+    @Test
+    fun `an empty document security is auth none`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                security: []
+                paths:
+                  /admin:
+                    get:
+                      operationId: Shop_admin
+                      security: [{OAuth: [admin]}]
+                      responses: {'204': {description: No content}}
+                  /health:
+                    get:
+                      operationId: Shop_health
+                      responses: {'204': {description: No content}}
+                components:
+                  securitySchemes:
+                    OAuth:
+                      type: oauth2
+                      flows:
+                        clientCredentials:
+                          tokenUrl: https://auth.example.com/token
+                          scopes: {admin: ''}
+                """
+            )
+        assertEquals(
+            """
+            schema shop @openapi(oauth2_token_url: "https://auth.example.com/token") @openapi(auth: none)
+
+            service Shop {
+              @openapi(auth: oauth2)
+              @openapi(scopes: "admin")
+              #1 admin()  get "/admin"
+              #2 health()  get "/health"
+            }
+            """
+                .trimIndent() + "\n",
+            text(r),
+        )
+        assertEquals(emptyList(), messages(r))
+    }
+
+    @Test
+    fun `an api key with an empty name is dropped`() {
+        val r =
+            importYaml(
+                """
+                openapi: 3.0.3
+                info: {title: shop, version: 1.0.0}
+                paths:
+                  /health:
+                    get:
+                      operationId: Shop_health
+                      responses: {'204': {description: No content}}
+                components:
+                  securitySchemes:
+                    Key: {type: apiKey, in: header, name: ''}
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2405 shop.yaml: #/components/securitySchemes/Key: scheme 'Key' dropped; its name is empty"
+            ),
+            messages(r),
+        )
+    }
 }

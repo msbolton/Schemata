@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2405] (lossy): api.yaml: #/components/securitySchemes/Key: scheme 'Key' dropped; its name is empty
+ --> api.yaml:1:1
+  = help: add the missing part by hand; Schemata cannot express it
+
+0 errors, 1 warning

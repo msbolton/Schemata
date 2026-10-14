@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info: {title: api, version: 1.0.0}
+paths:
+  /health:
+    get:
+      operationId: Api_health
+      responses: {'204': {description: No content}}
+components:
+  securitySchemes:
+    Key: {type: apiKey, in: header, name: ''}
