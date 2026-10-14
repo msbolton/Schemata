@@ -1,0 +1,12 @@
+schema s
+
+model OrderId { #1 order_id uuid { id } @openapi(name: "orderId") }
+
+model ListOrders { #1 cursor string { id } @openapi(name: "cursor")  #2 page_size int32? @openapi(name: "pageSize") }
+
+model Order { #1 id uuid { id }  #2 total decimal(12, 2) @openapi(name: "grandTotal") }
+
+service Orders {
+  #1 get(OrderId): Order  get "/orders/{order_id}"
+  #2 list(ListOrders): Order  get "/orders"
+}

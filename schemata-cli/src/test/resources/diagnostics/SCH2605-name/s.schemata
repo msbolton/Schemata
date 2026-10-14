@@ -1,0 +1,9 @@
+schema s
+
+model Find { #1 trace string @openapi(header: "X-Trace", name: "traceId")  #2 q string? }
+
+model R { #1 ok bool }
+
+service S {
+  #1 find(Find): R  get "/find"
+}

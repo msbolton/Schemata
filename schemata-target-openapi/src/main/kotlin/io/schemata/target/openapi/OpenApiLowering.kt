@@ -94,6 +94,11 @@ private class NamespaceLowering(
     /** Each path template to the first path that lowered to it and that path's operation. */
     private val templates = mutableMapOf<String, Pair<String, Pair<Service, Operation>>>()
 
+    /**
+     * Each request field's parameter name, keyed by model and field, so a bad one is reported once.
+     */
+    private val parameterNames = mutableMapOf<Pair<QualifiedName, String>, String>()
+
     fun lower(): OpenApiDocument {
         // every operation is planned first, so the components are filed before any operation
         // lowers a field schema or a partial body: a name collision is then blamed as the JSON
@@ -163,10 +168,6 @@ private class NamespaceLowering(
     private fun plan(service: Service, op: Operation): Plan? {
         val operationId = operationId(service, op)
         val verb = op.binding?.verb ?: Verb.POST
-        val path = op.binding?.path ?: "/${tagName(service)}/${op.name}"
-        val routeTaken = claimRoute(service, op, verb, path)
-        // an operation dropped for its route is not in the document, so its id stays free
-        if (!routeTaken) claimId(operationId, service, op)
         val request = op.request
         val decl = request?.let { schema.lookup(it.target) }
         val record = decl as? RecordType
@@ -176,6 +177,14 @@ private class NamespaceLowering(
                 op.binding?.parameters.orEmpty().map { name ->
                     record.fields.first { it.name == name }
                 }
+        // the route is claimed on the path as written to the document, so two paths that one
+        // parameter's rename makes differ only in their parameter names collide
+        val path =
+            op.binding?.let { pathOf(it.path, record, pathFields) }
+                ?: "/${tagName(service)}/${op.name}"
+        val routeTaken = claimRoute(service, op, verb, path)
+        // an operation dropped for its route is not in the document, so its id stays free
+        if (!routeTaken) claimId(operationId, service, op)
         // a field the path binds is a path parameter, whatever header it also names
         val headerFields =
             if (request == null || request.stream || record == null) emptyList()
@@ -228,6 +237,46 @@ private class NamespaceLowering(
             body,
         )
     }
+
+    /**
+     * [path] with each `{field}` segment written `{<parameter name>}`: the binding names the
+     * request's fields, the document their parameters.
+     */
+    private fun pathOf(path: String, record: RecordType?, pathFields: List<Field>): String {
+        if (record == null || pathFields.isEmpty()) return path
+        return path.split("/").joinToString("/") { segment ->
+            val field = pathFields.firstOrNull { "{${it.name}}" == segment }
+            if (field == null) segment else "{${parameterName(record, field)}}"
+        }
+    }
+
+    /**
+     * The name [field] of [record] has as a path or query parameter: its `@openapi(name)` when that
+     * is a parameter name, else its own name. A header field is named by `@openapi(header)` alone,
+     * so its `@openapi(name)` is never read here; [headers] reports the pair. A name that is empty
+     * or holds whitespace, a control character, or one of `{ } / ? # & = %`, which a path segment
+     * or a query string would have to escape, is reported once and the field's own name stands.
+     */
+    private fun parameterName(record: RecordType, field: Field): String =
+        parameterNames.getOrPut(record.qualifiedName to field.name) {
+            val override = field.annotations.string("openapi", "name")
+            when {
+                override == null || field.annotations.string("openapi", "header") != null ->
+                    field.name
+                isParameterName(override) -> override
+                else -> {
+                    diagnostics +=
+                        Diagnostic(
+                            OpenApiCodes.INVALID_OVERRIDE,
+                            "field '${record.name}.${field.name}': @openapi(name) '$override' is not a parameter name",
+                            field.nameSpan,
+                            help =
+                                "use a name without whitespace, control characters, or any of `{ } / ? # & = %`",
+                        )
+                    field.name
+                }
+            }
+        }
 
     /**
      * `@openapi(name)` when valid, else `<Service>_<operation>` with the service's tag name; an
@@ -369,6 +418,17 @@ private class NamespaceLowering(
             val byName = mutableMapOf<String, HeaderField>()
             record.storedFields.mapNotNull { field ->
                 val name = field.annotations.string("openapi", "header") ?: return@mapNotNull null
+                // a header's name is its `@openapi(header)`; a rename beside it is ignored
+                if (field.annotations.string("openapi", "name") != null) {
+                    diagnostics +=
+                        Diagnostic(
+                            OpenApiCodes.HEADER,
+                            "field '${record.name}.${field.name}': @openapi(name) cannot rename a header; @openapi(header) names it",
+                            field.nameSpan,
+                            help =
+                                "take off @openapi(name), and name the header with @openapi(header: \"…\")",
+                        )
+                }
                 val refusal = headerRefusal(field, name, byName[name.lowercase()])
                 if (refusal == null) HeaderField(field, name).also { byName[name.lowercase()] = it }
                 else {
@@ -470,9 +530,10 @@ private class NamespaceLowering(
     private fun operation(plan: Plan): OpenApiOperation {
         val op = plan.operation
         val (summary, description) = paragraphs(op.doc)
+        // headers of one model already have names distinct ignoring case; see [headers]
         val parameters =
-            plan.pathFields.map { parameter(plan, it, "path") } +
-                plan.queryFields.map { parameter(plan, it, "query") } +
+            claimParameters(op, plan.pathFields.map { it to parameter(plan, it, "path") }) +
+                claimParameters(op, plan.queryFields.map { it to parameter(plan, it, "query") }) +
                 plan.headerFields.map { parameter(plan, it.field, "header", it.name) }
         val requestBody =
             when (val body = plan.body) {
@@ -504,6 +565,29 @@ private class NamespaceLowering(
             responses = responses,
             security = security.operation(plan.service, op),
         )
+    }
+
+    /**
+     * [parameters] of one place of [op], each with its field, without any whose name an earlier one
+     * has: OpenAPI identifies a parameter by its name and place, so the later is reported and
+     * dropped.
+     */
+    private fun claimParameters(
+        op: Operation,
+        parameters: List<Pair<Field, Parameter>>,
+    ): List<Parameter> {
+        val byName = mutableMapOf<String, Field>()
+        return parameters.mapNotNull { (field, parameter) ->
+            val earlier = byName.putIfAbsent(parameter.name, field) ?: return@mapNotNull parameter
+            diagnostics +=
+                Diagnostic(
+                    OpenApiCodes.COLLISION,
+                    "operation '${op.name}': fields '${earlier.name}' and '${field.name}' both lower to ${parameter.location} parameter '${parameter.name}'",
+                    field.nameSpan,
+                    help = "give one of them another `@openapi(name: \"…\")`",
+                )
+            null
+        }
     }
 
     /**
@@ -566,20 +650,29 @@ private class NamespaceLowering(
     }
 
     /**
-     * [field] as a parameter, named by its Schemata name in the path and the query and by [name] in
-     * a header; its doc and deprecation go on the parameter, its type, refinements, and default
-     * stay in the schema. A nullable or defaulted query or header field is an optional parameter
-     * with the plain schema, since neither a query string nor a header has a null; a path parameter
-     * is never nullable, analysis refuses one.
+     * [field] as a parameter, named in the path and the query by [parameterName] and in a header by
+     * [name]; its doc and deprecation go on the parameter, its type, refinements, and default stay
+     * in the schema. A nullable or defaulted query or header field is an optional parameter with
+     * the plain schema, since neither a query string nor a header has a null; a path parameter is
+     * never nullable, analysis refuses one.
      */
     private fun parameter(
         plan: Plan,
         field: Field,
         location: String,
-        name: String = field.name,
+        name: String? = null,
     ): Parameter {
-        // a header is named by `@openapi(header)`, so only a path or query parameter loses a rename
-        if (location != "header" && field.annotations.string("jsonschema", "name") != null) {
+        val record = plan.record!!
+        // named first, so a refused `@openapi(name)` is reported before what it leaves unrenamed
+        val emitted = name ?: parameterName(record, field)
+        // a header is named by `@openapi(header)`, so only a path or query parameter loses a
+        // rename, and one that `@openapi(name)` names loses nothing
+        val named =
+            field.annotations.string("openapi", "header") == null &&
+                field.annotations.string("openapi", "name")?.let(::isParameterName) == true
+        if (
+            location != "header" && !named && field.annotations.string("jsonschema", "name") != null
+        ) {
             diagnostics +=
                 Diagnostic(
                     OpenApiCodes.LOSSY,
@@ -588,9 +681,9 @@ private class NamespaceLowering(
                     help = "a parameter is named by the field; rename the field to rename it",
                 )
         }
-        val schema: JsonSchema = document.fieldSchema(plan.record!!, field)
+        val schema: JsonSchema = document.fieldSchema(record, field)
         return Parameter(
-            name = name,
+            name = emitted,
             location = location,
             required = location == "path" || (!field.nullable && field.default == null),
             schema =
@@ -688,5 +781,13 @@ private class NamespaceLowering(
         // the `tchar` characters of an HTTP token, which a header name is made of
         val HTTP_TOKEN = Regex("[A-Za-z0-9!#\$%&'*+.^_`|~-]+")
         val MEDIA_HEADERS = setOf("accept", "content-type")
+
+        // the characters a path segment or a query string would have to escape in a parameter
+        // name; keep in step with `OpenApiRules.isParameterName` in schemata-evolution
+        const val PARAMETER_PUNCTUATION = "{}/?#&=%"
+
+        fun isParameterName(name: String): Boolean =
+            name.isNotEmpty() &&
+                name.none { it.isWhitespace() || it.isISOControl() || it in PARAMETER_PUNCTUATION }
     }
 }

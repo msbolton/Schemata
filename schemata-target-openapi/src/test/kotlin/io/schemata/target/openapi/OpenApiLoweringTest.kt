@@ -978,6 +978,234 @@ class OpenApiLoweringTest {
     }
 
     @Test
+    fun `a field name renames its path parameter and the path`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model OrderId { #1 order_id uuid @openapi(name: "orderId") }
+
+                model Order { #1 id uuid }
+
+                service Orders {
+                  #1 get(OrderId): Order  get "/orders/{order_id}"
+                  #2 cancel(OrderId)  delete "/orders/{order_id}"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        assertEquals(listOf("/orders/{orderId}"), doc.paths.map { it.path })
+        val ops = doc.paths.single().operations
+        assertEquals(listOf(Verb.GET, Verb.DELETE), ops.map { it.verb })
+        assertEquals(
+            listOf(
+                Parameter("orderId", "path", true, uuid, null, false, style = false),
+                Parameter("orderId", "path", true, uuid, null, false, style = false),
+            ),
+            ops.flatMap { it.parameters },
+        )
+        assertNull(OpenApi.validate(OpenApiRenderer.render(l.model).single().content))
+    }
+
+    @Test
+    fun `a field name renames its query parameter and leaves every property alone`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Find { #1 page_size int32? @openapi(name: "pageSize")  #2 sort_by string? }
+
+                model R { #1 ok bool @openapi(name: "OK") }
+
+                service S {
+                  #1 find(Find): R  get "/items"
+                  #2 search(Find): R  post "/search"
+                }
+                """
+            )
+        assertEquals(emptyList(), messages(l))
+        val doc = l.model.documents.single()
+        val find = doc.paths.first { it.path == "/items" }.operations.single()
+        assertEquals(listOf("pageSize", "sort_by"), find.parameters.map { it.name })
+        assertEquals(listOf("query", "query"), find.parameters.map { it.location })
+        // the body and the response are components named by the JSON Schema lowering
+        fun properties(key: String) =
+            (doc.components.single { it.key == key }.schema as ObjectSchema).properties.map {
+                it.name
+            }
+        assertEquals(listOf("page_size", "sort_by"), properties("t.Find"))
+        assertEquals(listOf("ok"), properties("t.R"))
+        assertNull(OpenApi.validate(OpenApiRenderer.render(l.model).single().content))
+    }
+
+    private fun findWith(field: String) =
+        lower(
+            "schema t\n" +
+                "\n" +
+                "model Q { #1 $field }\n" +
+                "\n" +
+                "model R { #1 ok bool }\n" +
+                "\n" +
+                "service S {\n" +
+                "  #1 find(Q): R  get \"/find\"\n" +
+                "  #2 again(Q): R  get \"/again\"\n" +
+                "}"
+        )
+
+    @Test
+    fun `an invalid field name is SCH2603 once and the field name stands`() {
+        for (bad in listOf("", "a b", "a/b", "{a}", "a?b", "a#b", "a&b", "a=b", "a%b")) {
+            val l = findWith("text string @openapi(name: \"$bad\")")
+            assertEquals(
+                listOf("SCH2603 field 'Q.text': @openapi(name) '$bad' is not a parameter name"),
+                messages(l),
+                bad,
+            )
+            assertEquals(
+                listOf("text", "text"),
+                l.model.documents.single().paths.flatMap { p ->
+                    p.operations.flatMap { op -> op.parameters.map { it.name } }
+                },
+                bad,
+            )
+        }
+    }
+
+    @Test
+    fun `a parameter name may hold the punctuation a path or a query carries`() {
+        for (good in listOf("sort-by", "page.size", "x~y", "\$top", "a:b", "café")) {
+            val l = findWith("text string @openapi(name: \"$good\")")
+            assertEquals(emptyList(), messages(l), good)
+            assertEquals(
+                good,
+                l.model.documents
+                    .single()
+                    .paths
+                    .first()
+                    .operations
+                    .single()
+                    .parameters
+                    .single()
+                    .name,
+            )
+        }
+    }
+
+    @Test
+    fun `a field name beside a header is SCH2605 and the header stands`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Find { #1 trace string @openapi(header: "X-Trace", name: "traceId")  #2 q string? }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 find(Find): R  get "/find"
+                  #2 again(Find): R  get "/again"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2605 field 'Find.trace': @openapi(name) cannot rename a header; @openapi(header) names it"
+            ),
+            messages(l),
+        )
+        val op = l.model.documents.single().paths.first().operations.single()
+        assertEquals(
+            listOf("q" to "query", "X-Trace" to "header"),
+            op.parameters.map { it.name to it.location },
+        )
+    }
+
+    @Test
+    fun `a valid field name silences the jsonschema name warning`() {
+        val l = findWith("text string @jsonschema(name: \"Text\") @openapi(name: \"q\")")
+        assertEquals(emptyList(), messages(l))
+        assertEquals(
+            "q",
+            l.model.documents.single().paths.first().operations.single().parameters.single().name,
+        )
+        val invalid = findWith("text string @jsonschema(name: \"Text\") @openapi(name: \"a b\")")
+        assertEquals(
+            listOf(
+                "SCH2603 field 'Q.text': @openapi(name) 'a b' is not a parameter name",
+                "SCH2604 operation 'find': @jsonschema(name) on field 'text' does not rename the parameter",
+                "SCH2604 operation 'again': @jsonschema(name) on field 'text' does not rename the parameter",
+            ),
+            messages(invalid),
+        )
+    }
+
+    @Test
+    fun `two parameters of one operation and place with one name collide and the later is dropped`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model Q { #1 page int32? @openapi(name: "p")  #2 p int32? }
+
+                model G { #1 id uuid  #2 key string? @openapi(name: "id") }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 find(Q): R  get "/find"
+                  #2 get(G): R  get "/g/{id}"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2602 operation 'find': fields 'page' and 'p' both lower to query parameter 'p'"
+            ),
+            messages(l),
+        )
+        val (find, get) = l.model.documents.single().paths.map { it.operations.single() }
+        assertEquals(listOf("p" to "query"), find.parameters.map { it.name to it.location })
+        // a path and a query parameter of one name are two parameters to OpenAPI
+        assertEquals(
+            listOf("id" to "path", "id" to "query"),
+            get.parameters.map { it.name to it.location },
+        )
+    }
+
+    @Test
+    fun `a renamed path parameter that splits one path in two is a template collision`() {
+        val l =
+            lower(
+                """
+                schema t
+
+                model A { #1 x uuid @openapi(name: "X") }
+
+                model B { #1 x uuid }
+
+                model R { #1 ok bool }
+
+                service S {
+                  #1 one(A): R  get "/a/{x}"
+                  #2 two(B): R  delete "/a/{x}"
+                }
+                """
+            )
+        assertEquals(
+            listOf(
+                "SCH2602 operations 'one' and 'two' bind \"/a/{X}\" and \"/a/{x}\", which differ only in their parameter names"
+            ),
+            messages(l),
+        )
+        assertEquals(listOf("/a/{X}"), l.model.documents.single().paths.map { it.path })
+    }
+
+    @Test
     fun `a component shared by two documents reports its problems once`() {
         val shared = "schema m\n\nmodel R { #1 a string  #2 b string @jsonschema(name: \"a\") }"
         val one = "schema one\n\nservice S {\n  #1 ping(): m.R\n}"
