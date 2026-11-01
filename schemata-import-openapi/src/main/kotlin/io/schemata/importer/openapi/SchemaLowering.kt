@@ -735,11 +735,24 @@ class SchemaLowering(
      * to a keyed model as the model's key, tagged with the model's name, and leaves the model out
      * when nothing else reaches it, so the member is that model with one key field of the scalar's
      * type: compiled again, it is written the same way. A hand-written member of one scalar
-     * property has the same shape, so the model and its made-up key are always reported.
+     * property has the same shape, so the model and its made-up key are always reported. When a
+     * component already has the model's name and is a model of one field of the scalar's type, the
+     * member refers to it; when the name is taken otherwise, the made-up model takes a numeric
+     * suffix and keeps the tag with `@jsonschema(name)`, which the target tags a member by.
      */
     private fun keyedMember(place: Place, tag: String, scalar: UnitType.Scalar): UnitType? {
         val wanted = ImportNames.upperCamel(tag)
-        if (visible(place, wanted) || TargetNames.snakeCase(wanted) != tag) return null
+        if (TargetNames.snakeCase(wanted) != tag) return null
+        val existing = if (visible(place, wanted)) visibleDecl(place, wanted) else null
+        if (existing != null && holdsOnly(existing, scalar)) {
+            say(
+                place,
+                ImportCodes.APPROXIMATED,
+                "member '$tag' refers to model '${existing.name}', whose one field holds its value; " +
+                    "the regenerated union writes the model",
+            )
+            return UnitType.Ref(refText(existing, place.owner))
+        }
         val model = inlineDecl(Place(place.doc, place.pointer, place.owner, wanted), DeclKind.MODEL)
         model.built =
             UnitRecord(
@@ -757,7 +770,12 @@ class SchemaLowering(
                 ),
                 emptyList(),
                 null,
-                emptyList(),
+                // a suffixed model keeps the tag the member was written under
+                listOfNotNull(
+                    UnitAnnotation("jsonschema", "name", SchemataText.string(tag)).takeIf {
+                        model.name != wanted
+                    }
+                ),
             )
         say(
             place.doc,
@@ -767,6 +785,23 @@ class SchemaLowering(
             "if the member is not a reference to a keyed model, replace the model with the member's own type",
         )
         return UnitType.Ref(refText(model, place.owner))
+    }
+
+    /**
+     * The declaration named [name] that [visible] sees at [place]: one nested in a model the place
+     * sits in, innermost first, else a top-level one of its schema.
+     */
+    private fun visibleDecl(place: Place, name: String): Decl? =
+        place.owner.chain.asReversed().firstNotNullOfOrNull { holder ->
+            holder.children.firstOrNull { it.name == name }
+        } ?: space(place.owner.namespace).top.firstOrNull { it.name == name }
+
+    /** Whether [decl] is a model component of exactly one field, whose type is [scalar]. */
+    private fun holdsOnly(decl: Decl, scalar: UnitType.Scalar): Boolean {
+        if (decl.component == null || decl.kind != DeclKind.MODEL) return false
+        build(decl)
+        val fields = (decl.built as? UnitRecord)?.fields ?: return false
+        return fields.size == 1 && fields.single().type == scalar
     }
 
     /**

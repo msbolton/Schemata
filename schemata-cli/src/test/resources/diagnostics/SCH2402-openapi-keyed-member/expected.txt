@@ -1,0 +1,14 @@
+# import=openapi
+warning[SCH2402] (lossy): shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: inline schema is imported as 'Email2', since 'Email' is taken
+ --> shop.yaml:1:1
+  = help: rename one of them in the document, or keep the suffixed name
+
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: member 'email' is imported as model 'Email2' carried by its key 'id'
+ --> shop.yaml:1:1
+  = help: if the member is not a reference to a keyed model, replace the model with the member's own type
+
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Contact/oneOf/1/properties/phone: member 'phone' is imported as model 'Phone' carried by its key 'id'
+ --> shop.yaml:1:1
+  = help: if the member is not a reference to a keyed model, replace the model with the member's own type
+
+0 errors, 3 warnings

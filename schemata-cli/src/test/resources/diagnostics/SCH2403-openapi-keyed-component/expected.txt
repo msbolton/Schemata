@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: member 'email' refers to model 'Email', whose one field holds its value; the regenerated union writes the model
+ --> shop.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning
