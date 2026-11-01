@@ -22,16 +22,31 @@ object ConfigLoader {
     /** U+FEFF, which some editors write at the start of a UTF-8 file. */
     private const val BYTE_ORDER_MARK = "\uFEFF"
 
-    /** The nearest `schemata.toml` in [start] or an ancestor, or null. */
-    fun discover(start: Path): Path? {
+    /**
+     * The nearest `schemata.toml` in [start] or an ancestor, or null. With [ceiling], the search
+     * stops after that directory, so a caller rooted in a known directory reads nothing above it.
+     */
+    fun discover(start: Path, ceiling: Path? = null): Path? {
+        val stop = ceiling?.let(::real)
         var directory: Path? = start.toAbsolutePath().normalize()
         while (directory != null) {
             val candidate = directory.resolve(FILE_NAME)
             if (Files.isRegularFile(candidate)) return candidate
+            if (stop != null && real(directory) == stop) return null
             directory = directory.parent
         }
         return null
     }
+
+    /**
+     * [path] with its links resolved when it exists, so `/var` and `/private/var` compare equal.
+     */
+    private fun real(path: Path): Path =
+        try {
+            path.toRealPath()
+        } catch (e: IOException) {
+            path.toAbsolutePath().normalize()
+        }
 
     /**
      * Reads and validates [path]. [registry] gives each target's schema-line keys and kinds;

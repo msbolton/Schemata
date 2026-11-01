@@ -104,6 +104,9 @@ class SchemataServer(
     private val published = mutableMapOf<String, List<Diagnostic>>()
     private var client: LanguageClient? = null
     private var folder: Path? = null
+
+    /** Where the search for `schemata.toml` stops going up; null searches to the root. */
+    private var configCeiling: Path? = null
     private var watchFiles = false
     private var roots: List<String> = emptyList()
     private var strict = false
@@ -220,7 +223,7 @@ class SchemataServer(
     private fun readProjectFile(options: JsonObject?) {
         if (rootsIn(options).orEmpty().isNotEmpty() && strictIn(options) == true) return
         val base = folder?.toAbsolutePath()?.normalize() ?: return
-        val file = ConfigLoader.discover(base) ?: return
+        val file = ConfigLoader.discover(base, configCeiling) ?: return
         val shown = base.relativize(file).toString()
         val loaded = ConfigLoader.load(file, annotations, targetNames, shown)
         val config = loaded.config
@@ -549,6 +552,20 @@ class SchemataServer(
             return if (server.shutdownRequested) 0 else 1
         }
 
+        /**
+         * As [launch], with the search for `schemata.toml` stopping at [ceiling], so a test whose
+         * workspace is a temporary directory never reads a file above it.
+         */
+        internal fun launchWithin(
+            ceiling: Path,
+            input: InputStream,
+            output: OutputStream,
+            annotations: AnnotationRegistry,
+            targetNames: List<String> = emptyList(),
+            onExit: (Int) -> Unit,
+        ): Future<Void> =
+            start(input, output, annotations, targetNames, DEBOUNCE_MS, onExit, ceiling).second
+
         private fun start(
             input: InputStream,
             output: OutputStream,
@@ -556,8 +573,10 @@ class SchemataServer(
             targetNames: List<String>,
             debounceMs: Long,
             onExit: (Int) -> Unit,
+            ceiling: Path? = null,
         ): Pair<SchemataServer, Future<Void>> {
             val server = SchemataServer(annotations, targetNames, debounceMs, onExit)
+            server.configCeiling = ceiling
             val launcher = LSPLauncher.createServerLauncher(server, input, output)
             server.connect(launcher.remoteProxy)
             return server to launcher.startListening()

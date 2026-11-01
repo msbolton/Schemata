@@ -12,6 +12,7 @@ import io.schemata.target.xsd.XsdAnnotations
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -80,6 +81,10 @@ class ConfigLoaderTest {
         assertEquals(file, ConfigLoader.discover(nested))
         assertEquals(file, ConfigLoader.discover(project))
         assertNull(ConfigLoader.discover(elsewhere))
+        // a ceiling stops the search after that directory
+        assertNull(ConfigLoader.discover(nested, ceiling = nested.parent))
+        assertEquals(file, ConfigLoader.discover(nested, ceiling = project))
+        assertNull(ConfigLoader.discover(elsewhere, ceiling = root))
     }
 
     @Test
@@ -599,6 +604,8 @@ class ConfigLoaderTest {
         // Other tests in this JVM have already loaded tomlj, so the first parse only happens in a
         // fresh one.
         val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+        // stderr goes to a file, so a child that hangs cannot block the read; the wait is bounded
+        val stderr = root.resolve("stderr.txt")
         val process =
             ProcessBuilder(
                     java,
@@ -608,11 +615,16 @@ class ConfigLoaderTest {
                     root.toString(),
                 )
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(stderr.toFile())
                 .start()
-        val stderr = process.errorStream.bufferedReader().readText()
+        try {
+            assertTrue(process.waitFor(60, TimeUnit.SECONDS), "the child JVM ran over 60 seconds")
+        } finally {
+            process.destroyForcibly()
+        }
 
-        assertEquals(0, process.waitFor())
-        assertEquals("", stderr)
+        assertEquals(0, process.exitValue())
+        assertEquals("", Files.readString(stderr))
     }
 
     @Test
