@@ -397,7 +397,7 @@ class ConfigLoaderTest {
     }
 
     @Test
-    fun `a short unknown key is suggested only a key close to its length`() {
+    fun `a short unknown key is suggested only a close key`() {
         assertDiagnostic(
             "SCH2902 schemata.toml:2: unknown key 'report.fmt'",
             "keys of [report] are color, format",
