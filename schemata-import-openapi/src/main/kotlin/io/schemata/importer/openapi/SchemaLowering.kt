@@ -99,7 +99,11 @@ class SchemaLowering(
         docs.forEach { doc -> schemasOf(doc).forEach { (name, node) -> register(doc, name, node) } }
         var i = 0
         while (i < order.size) build(order[i++])
-        spaces.values.forEach { space -> space.top.forEach(::checkParents) }
+        // a top-level step no component declares may still be filled by an operation's request
+        // model, and operations are lowered later, so it is checked when the declarations are read
+        spaces.values.forEach { space ->
+            space.top.forEach { if (it.isPlaceholder) unchecked += it else checkParents(it) }
+        }
         ready = true
     }
 
@@ -187,16 +191,35 @@ class SchemaLowering(
     /**
      * Declares [decl] at the top level of [namespace] under [wanted], or under [wanted] with a
      * numeric suffix when that is taken, and returns the name it got. The caller reports a changed
-     * name. Declarations nested by [fieldType] calls for [wanted] join it.
+     * name. Declarations nested by [fieldType] calls for [wanted] join it. With [adopt], a model
+     * fills the top-level placeholder named [wanted] instead, keeping the name: the target writes a
+     * request model whose fields the path or headers take as an inline body, and the declarations
+     * nested in it as components whose dotted names made that placeholder.
      */
-    fun synthesize(namespace: String, wanted: String, decl: UnitDecl): String {
+    fun synthesize(
+        namespace: String,
+        wanted: String,
+        decl: UnitDecl,
+        adopt: Boolean = false,
+    ): String {
         val space = space(namespace)
-        val name = space.names.claim(wanted)
-        val created = Decl(namespace, name, null, null)
-        created.built = renamed(decl, name)
+        val placeholder =
+            if (adopt && decl is UnitRecord)
+                space.top
+                    .firstOrNull { it.name == wanted && it.isPlaceholder }
+                    ?.takeUnless { found ->
+                        // two nested declarations of one name would not compile
+                        val moving =
+                            decl.nested.map { it.name } +
+                                pending[namespace to wanted]?.children.orEmpty().map { it.name }
+                        found.children.any { it.name in moving }
+                    }
+            else null
+        val created = placeholder ?: Decl(namespace, space.names.claim(wanted), null, null)
+        created.built = renamed(decl, created.name)
         pending.remove(namespace to wanted)?.let { created.children += it.children }
-        space.top += created
-        return name
+        if (placeholder == null) space.top += created
+        return created.name
     }
 
     /**
@@ -265,7 +288,8 @@ class SchemaLowering(
                 doc,
                 pointerOf(name),
                 ImportCodes.APPROXIMATED,
-                "component '$name' is not a model, enum or union; each use takes its type",
+                if (hasNoValue(node)) NO_VALUE
+                else "component '$name' is not a model, enum or union; each use takes its type",
             )
         }
         val decl = kind?.let { declare(doc, name, namespace, split.path, it) }
@@ -338,6 +362,7 @@ class SchemaLowering(
         val choice = choiceOf(node)
         return when {
             node.has("\$ref") -> null
+            hasNoValue(node) -> null
             enum != null ->
                 if ((types.isEmpty() || types == listOf("string")) && isStringEnum(enum))
                     DeclKind.ENUM
@@ -394,16 +419,42 @@ class SchemaLowering(
 
     private fun choiceKey(node: JsonNode): String = if (node.has("oneOf")) "oneOf" else "anyOf"
 
-    /** The target's enum with value docs: a `oneOf` of `{"const": …, "description": …}`. */
-    private fun isConstEnum(choice: JsonNode): Boolean =
+    /**
+     * Whether every member of [choice] is a text `const`, with at most a `description` beside it.
+     */
+    private fun isConstValues(choice: JsonNode): Boolean =
         choice.size() > 0 &&
             choice.all { entry ->
                 entry.get("const")?.isTextual == true &&
                     entry.properties().all { it.key == "const" || it.key == "description" }
             }
 
-    private fun isStringEnum(enum: JsonNode): Boolean =
+    /** [isConstValues] with a value that is not empty, which an enum value can be written as. */
+    private fun isConstEnum(choice: JsonNode): Boolean =
+        isConstValues(choice) && choice.any { it.get("const").textValue().isNotEmpty() }
+
+    private fun isStringValues(enum: JsonNode): Boolean =
         enum.isArray && enum.any { it.isTextual } && enum.all { it.isTextual || it.isNull }
+
+    /** [isStringValues] with a value that is not empty, which an enum value can be written as. */
+    private fun isStringEnum(enum: JsonNode): Boolean =
+        isStringValues(enum) && enum.any { it.isTextual && it.textValue().isNotEmpty() }
+
+    /**
+     * Whether [node] is a string `enum`, or the target's `oneOf` of `const`s, whose every value is
+     * empty. No enum value can be written as `""`, so such a schema is a string.
+     */
+    private fun hasNoValue(node: JsonNode): Boolean {
+        val enum = node.get("enum")
+        if (enum != null) {
+            val types = typesOf(node) - "null"
+            return (types.isEmpty() || types == listOf("string")) &&
+                isStringValues(enum) &&
+                !isStringEnum(enum)
+        }
+        val choice = choiceOf(node)?.takeIf { !node.has("properties") } ?: return false
+        return isConstValues(choice) && !isConstEnum(choice)
+    }
 
     private fun space(namespace: String): Space = spaces.getOrPut(namespace) { Space() }
 
@@ -694,11 +745,24 @@ class SchemaLowering(
      * to a keyed model as the model's key, tagged with the model's name, and leaves the model out
      * when nothing else reaches it, so the member is that model with one key field of the scalar's
      * type: compiled again, it is written the same way. A hand-written member of one scalar
-     * property has the same shape, so the model and its made-up key are always reported.
+     * property has the same shape, so the model and its made-up key are always reported. When a
+     * component already has the model's name and is a model of one field of the scalar's type, the
+     * member refers to it; when the name is taken otherwise, the made-up model takes a numeric
+     * suffix and keeps the tag with `@jsonschema(name)`, which the target tags a member by.
      */
     private fun keyedMember(place: Place, tag: String, scalar: UnitType.Scalar): UnitType? {
         val wanted = ImportNames.upperCamel(tag)
-        if (visible(place, wanted) || TargetNames.snakeCase(wanted) != tag) return null
+        if (TargetNames.snakeCase(wanted) != tag) return null
+        val existing = if (visible(place, wanted)) visibleDecl(place, wanted) else null
+        if (existing != null && holdsOnly(existing, scalar)) {
+            say(
+                place,
+                ImportCodes.APPROXIMATED,
+                "member '$tag' refers to model '${existing.name}', whose one field holds its value; " +
+                    "the regenerated union writes the model",
+            )
+            return UnitType.Ref(refText(existing, place.owner))
+        }
         val model = inlineDecl(Place(place.doc, place.pointer, place.owner, wanted), DeclKind.MODEL)
         model.built =
             UnitRecord(
@@ -716,7 +780,12 @@ class SchemaLowering(
                 ),
                 emptyList(),
                 null,
-                emptyList(),
+                // a suffixed model keeps the tag the member was written under
+                listOfNotNull(
+                    UnitAnnotation("jsonschema", "name", SchemataText.string(tag)).takeIf {
+                        model.name != wanted
+                    }
+                ),
             )
         say(
             place.doc,
@@ -726,6 +795,23 @@ class SchemaLowering(
             "if the member is not a reference to a keyed model, replace the model with the member's own type",
         )
         return UnitType.Ref(refText(model, place.owner))
+    }
+
+    /**
+     * The declaration named [name] that [visible] sees at [place]: one nested in a model the place
+     * sits in, innermost first, else a top-level one of its schema.
+     */
+    private fun visibleDecl(place: Place, name: String): Decl? =
+        place.owner.chain.asReversed().firstNotNullOfOrNull { holder ->
+            holder.children.firstOrNull { it.name == name }
+        } ?: space(place.owner.namespace).top.firstOrNull { it.name == name }
+
+    /** Whether [decl] is a model component of exactly one field, whose type is [scalar]. */
+    private fun holdsOnly(decl: Decl, scalar: UnitType.Scalar): Boolean {
+        if (decl.component == null || decl.kind != DeclKind.MODEL) return false
+        build(decl)
+        val fields = (decl.built as? UnitRecord)?.fields ?: return false
+        return fields.size == 1 && fields.single().type == scalar
     }
 
     /**
@@ -954,6 +1040,10 @@ class SchemaLowering(
             }
         }
         if (allOf != null) return hoist(place, node, DeclKind.MODEL)
+        if (hasNoValue(node)) {
+            say(place, ImportCodes.APPROXIMATED, NO_VALUE)
+            return Typed(if (node.has("enum")) stringType(place, node) else STRING)
+        }
         val choice = choiceOf(node)?.takeIf { !node.has("properties") }
         if (choice != null) {
             if (isConstEnum(choice)) return hoist(place, node, DeclKind.ENUM)
@@ -1589,6 +1679,10 @@ class SchemaLowering(
 
         fun firstComponent(): Component? =
             component ?: children.firstNotNullOfOrNull { it.firstComponent() }
+
+        /** A step of a dotted path that no component declares, held by an empty model. */
+        val isPlaceholder: Boolean
+            get() = component == null && built == null && kind == DeclKind.MODEL
     }
 
     /** The models a field sits in, outermost first, which an inline shape there joins. */
@@ -1631,6 +1725,8 @@ class SchemaLowering(
         // the option that makes a field its model's key
         val KEY_OPTION: List<Pair<String, String?>> = listOf("id" to null)
         val STRING = UnitType.Scalar("string", emptyList())
+        // what an enum whose every value is empty imports as
+        const val NO_VALUE = "enum has no non-empty value; imported as string"
         val OPEN = UnitAnnotation("jsonschema", "open", null)
 
         const val UUID_PATTERN =

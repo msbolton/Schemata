@@ -927,13 +927,19 @@ class OpenApiCompositionTest {
             """
             schema shop
 
-            union Hit = Customer | OrderLine | Order | int32 | int64
+            union Hit = Customer | OrderLine | Order | int32 | Hit2
 
             model Order {}
 
             model Customer { id uuid { id } }
 
             model OrderLine { id string { id, max 20 } }
+
+            model Hit2 {
+              id int64 { id }
+
+              @@jsonschema(name: "hit")
+            }
             """
                 .trimIndent() + "\n",
             text(r, "shop.schemata"),
@@ -943,7 +949,8 @@ class OpenApiCompositionTest {
                 "SCH2403 shop.json: #/components/schemas/Hit/oneOf/0/properties/customer: member 'customer' is imported as model 'Customer' carried by its key 'id'",
                 "SCH2403 shop.json: #/components/schemas/Hit/oneOf/1/properties/order_line: member 'order_line' is imported as model 'OrderLine' carried by its key 'id'",
                 "SCH2403 shop.json: #/components/schemas/Hit/oneOf/3/properties/Not-Snake: union member tag 'Not-Snake' is not the member's own; the regenerated union tags it 'int32'",
-                "SCH2403 shop.json: #/components/schemas/Hit/oneOf/4/properties/hit: union member tag 'hit' is not the member's own; the regenerated union tags it 'int64'",
+                "SCH2402 shop.json: #/components/schemas/Hit/oneOf/4/properties/hit: inline schema is imported as 'Hit2', since 'Hit' is taken",
+                "SCH2403 shop.json: #/components/schemas/Hit/oneOf/4/properties/hit: member 'hit' is imported as model 'Hit2' carried by its key 'id'",
             ),
             messages(r),
         )
@@ -997,6 +1004,113 @@ class OpenApiCompositionTest {
                 "if the member is not a reference to a keyed model, replace the model with the member's own type"
             ),
             r.diagnostics.map { it.help }.distinct(),
+        )
+    }
+
+    @Test
+    fun `a keyed member whose model is a component of its shape refers to it`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Contact:
+                          oneOf:
+                            - type: object
+                              properties: {email: {type: string}}
+                              required: [email]
+                              additionalProperties: false
+                            - type: object
+                              properties: {phone: {type: string, maxLength: 20}}
+                              required: [phone]
+                              additionalProperties: false
+                        Email:
+                          type: object
+                          properties: {id: {type: string}}
+                          required: [id]
+                          additionalProperties: false
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            union Contact = Email | Phone
+
+            model Email { id string }
+
+            model Phone { id string { id, max 20 } }
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: member 'email' refers to model 'Email', whose one field holds its value; the regenerated union writes the model",
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/1/properties/phone: member 'phone' is imported as model 'Phone' carried by its key 'id'",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `a keyed member beside a component of another shape takes a suffix and keeps its tag`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Contact:
+                          oneOf:
+                            - type: object
+                              properties: {email: {type: string}}
+                              required: [email]
+                              additionalProperties: false
+                            - type: object
+                              properties: {phone: {type: string, maxLength: 20}}
+                              required: [phone]
+                              additionalProperties: false
+                        Email:
+                          type: object
+                          properties: {id: {type: string, maxLength: 5}}
+                          required: [id]
+                          additionalProperties: false
+                    """
+            )
+        assertEquals(
+            """
+            schema shop
+
+            union Contact = Email2 | Phone
+
+            model Email { id string { max 5 } }
+
+            model Email2 {
+              id string { id }
+
+              @@jsonschema(name: "email")
+            }
+
+            model Phone { id string { id, max 20 } }
+            """
+                .trimIndent() + "\n",
+            text(r, "shop.schemata"),
+        )
+        assertEquals(
+            listOf(
+                "SCH2402 shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: inline schema is imported as 'Email2', since 'Email' is taken",
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/0/properties/email: member 'email' is imported as model 'Email2' carried by its key 'id'",
+                "SCH2403 shop.yaml: #/components/schemas/Contact/oneOf/1/properties/phone: member 'phone' is imported as model 'Phone' carried by its key 'id'",
+            ),
+            messages(r),
         )
     }
 

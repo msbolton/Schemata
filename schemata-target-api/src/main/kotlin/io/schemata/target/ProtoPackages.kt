@@ -51,7 +51,7 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
         fun of(schema: Schema): ProtoPackages {
             val byName = schema.namespaces.associateBy { it.name }
             val components =
-                stronglyConnected(schema.namespaceReferences()).map { names ->
+                stronglyConnected(references(schema)).map { names ->
                     names.map { byName.getValue(it) }
                 }
             // The package each unit would take if nothing outside it stood in the way: a declared
@@ -81,6 +81,18 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
         private fun pathOf(name: String) = name.replace('.', '/') + ".proto"
 
         /**
+         * [schema]'s namespace references among its own namespaces. A reference to one the schema
+         * does not hold, as a caller holding part of a project can have, ties nothing, so every
+         * unit is made of namespaces the schema holds.
+         */
+        private fun references(schema: Schema): Map<String, Set<String>> {
+            val names = schema.namespaces.map { it.name }.toSet()
+            return schema.namespaceReferences().mapValues { (_, targets) ->
+                targets.filterTo(sortedSetOf()) { it in names }
+            }
+        }
+
+        /**
          * The package scopes of the type layout. Files of different packages may import each other
          * as long as no two files import each other, and the type layout writes a file per type, so
          * a reference cycle between schemas does not merge their packages: each schema takes its
@@ -92,7 +104,7 @@ class ProtoPackages private constructor(val units: List<ProtoUnit>) {
          */
         private fun scopes(schema: Schema): List<ProtoUnit> {
             val byName = schema.namespaces.associateBy { it.name }
-            return stronglyConnected(schema.namespaceReferences())
+            return stronglyConnected(references(schema))
                 .flatMap { names -> names.map { byName.getValue(it) }.groupBy { own(it) }.values }
                 .map { members ->
                     ProtoUnit(members, own(members.first()), pathOf(members.first().name))

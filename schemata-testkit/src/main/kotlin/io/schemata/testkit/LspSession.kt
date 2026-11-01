@@ -26,6 +26,7 @@ import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
+import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.RegistrationParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
@@ -53,7 +54,7 @@ private constructor(
         val lock = ReentrantLock()
         val changed: Condition = lock.newCondition()
         val published = mutableMapOf<String, MutableList<List<Diagnostic>>>()
-        val logged = mutableListOf<String>()
+        val logged = mutableListOf<MessageParams>()
         val registered = mutableListOf<String>()
 
         override fun publishDiagnostics(params: PublishDiagnosticsParams) {
@@ -64,7 +65,7 @@ private constructor(
         }
 
         override fun logMessage(params: MessageParams) {
-            lock.withLock { logged += params.message }
+            lock.withLock { logged += params }
         }
 
         override fun telemetryEvent(value: Any?) = Unit
@@ -157,7 +158,10 @@ private constructor(
         client.lock.withLock { client.published[uri]?.size ?: 0 }
 
     /** Everything the server has logged to the client. */
-    fun logged(): List<String> = client.lock.withLock { client.logged.toList() }
+    fun logged(): List<String> = client.lock.withLock { client.logged.map { it.message } }
+
+    /** The type of each message the server has logged, in step with [logged]. */
+    fun loggedTypes(): List<MessageType> = client.lock.withLock { client.logged.map { it.type } }
 
     /** The method of every capability the server has registered, such as a file watcher. */
     fun registrations(): List<String> = client.lock.withLock { client.registered.toList() }

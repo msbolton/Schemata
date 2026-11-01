@@ -12,6 +12,7 @@ import io.schemata.target.xsd.XsdAnnotations
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -80,6 +81,10 @@ class ConfigLoaderTest {
         assertEquals(file, ConfigLoader.discover(nested))
         assertEquals(file, ConfigLoader.discover(project))
         assertNull(ConfigLoader.discover(elsewhere))
+        // a ceiling stops the search after that directory
+        assertNull(ConfigLoader.discover(nested, ceiling = nested.parent))
+        assertEquals(file, ConfigLoader.discover(nested, ceiling = project))
+        assertNull(ConfigLoader.discover(elsewhere, ceiling = root))
     }
 
     @Test
@@ -372,6 +377,58 @@ class ConfigLoaderTest {
     }
 
     @Test
+    fun `a byte order mark is ignored`() {
+        val config = loaded("\uFEFF[compile]\nstrict = true\n")
+        assertEquals(Setting(true, 2), config.compile.strict)
+        assertEquals("[compile]\nstrict = true\n", config.text)
+    }
+
+    @Test
+    fun `a byte order mark and CRLF line ends still report the right line`() {
+        assertEquals(
+            Setting(true, 2),
+            loaded("\uFEFF[compile]\r\nstrict = true\r\n").compile.strict,
+        )
+        assertDiagnostic(
+            "SCH2903 schemata.toml:2: compile.strict expects true or false",
+            "for example compile.strict = true",
+            failure("\uFEFF[compile]\r\nstrict = \"yes\"\r\n"),
+        )
+    }
+
+    @Test
+    fun `a short unknown key is suggested only a close key`() {
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'report.fmt'",
+            "keys of [report] are color, format",
+            failure("[report]\nfmt = \"json\"\n"),
+        )
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'compile.x'",
+            "keys of [compile] are out, proto_layout, strict, targets",
+            failure("[compile]\nx = 1\n"),
+        )
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'compile.ou'",
+            "did you mean 'out'",
+            failure("[compile]\nou = \"x\"\n"),
+        )
+    }
+
+    @Test
+    fun `a key with no choices shows no example value`() {
+        val file = root.resolve(ConfigLoader.FILE_NAME)
+        Files.writeString(file, "[compile]\ntargets = [\"proto\"]\n")
+        val result = ConfigLoader.load(file, registry, emptyList(), ConfigLoader.FILE_NAME)
+        assertNull(result.config)
+        assertDiagnostic(
+            "SCH2903 schemata.toml:2: compile.targets expects an empty array",
+            "remove compile.targets",
+            result.diagnostics.single(),
+        )
+    }
+
+    @Test
     fun `a wrong type is SCH2903`() {
         val d = failure("[compile]\nstrict = \"yes\"\n")
 
@@ -547,6 +604,8 @@ class ConfigLoaderTest {
         // Other tests in this JVM have already loaded tomlj, so the first parse only happens in a
         // fresh one.
         val java = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+        // stderr goes to a file, so a child that hangs cannot block the read; the wait is bounded
+        val stderr = root.resolve("stderr.txt")
         val process =
             ProcessBuilder(
                     java,
@@ -556,11 +615,16 @@ class ConfigLoaderTest {
                     root.toString(),
                 )
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(stderr.toFile())
                 .start()
-        val stderr = process.errorStream.bufferedReader().readText()
+        try {
+            assertTrue(process.waitFor(60, TimeUnit.SECONDS), "the child JVM ran over 60 seconds")
+        } finally {
+            process.destroyForcibly()
+        }
 
-        assertEquals(0, process.waitFor())
-        assertEquals("", stderr)
+        assertEquals(0, process.exitValue())
+        assertEquals("", Files.readString(stderr))
     }
 
     @Test

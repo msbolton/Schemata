@@ -2,6 +2,11 @@ package io.schemata.cli
 
 import io.schemata.config.ConfigLoader
 import io.schemata.config.ProjectConfig
+import io.schemata.importer.ImportInput
+import io.schemata.importer.ImportResult
+import io.schemata.importer.proto.ProtoImporter
+import io.schemata.importer.xsd.XsdImporter
+import io.schemata.lang.Severity
 import io.schemata.target.ProtoLayout
 import io.schemata.target.Target
 import io.schemata.target.proto.ProtoTarget
@@ -11,6 +16,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
@@ -33,13 +39,80 @@ class ConfigCorpusTest {
             .sortedBy { it.name }
             .map { case -> DynamicTest.dynamicTest(case.name) { check(case) } }
 
+    private fun inputs(case: File): List<SourceInput> =
+        case
+            .listFiles { f -> f.extension == "schemata" }!!
+            .sortedBy { it.name }
+            .map { SourceInput(it.name, it.readText()) }
+
+    /**
+     * Each case's Protobuf and XSD output, compiled under its file, imports back and compiles with
+     * no file to the same bytes: what the file added to each `schema` line is read back as the
+     * schema's own. The import may note what it derived, such as a schema name, and reports no
+     * error.
+     */
+    @TestFactory
+    fun `configured proto and xsd output round trips through import`(): List<DynamicTest> =
+        corpus
+            .listFiles { f -> f.isDirectory && File(f, ConfigLoader.FILE_NAME).isFile }!!
+            .sortedBy { it.name }
+            .flatMap { case ->
+                val selected = targets(load(case)).map { it.name }
+                listOf("proto", "xsd")
+                    .filter { it in selected }
+                    .map { format ->
+                        DynamicTest.dynamicTest("${case.name} $format") { roundTrip(case, format) }
+                    }
+            }
+
+    private fun roundTrip(case: File, format: String) {
+        val config = load(case)
+        val target = assertNotNull(targets(config).firstOrNull { it.name == format })
+        val strict = config.compile.strict?.value == true
+        val original = Pipeline.compile(inputs(case), listOf(target), strict, config)
+        assertFalse(
+            original.hasErrors,
+            original.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
+        )
+        assertTrue(original.files.isNotEmpty(), "${case.name} $format wrote nothing to import")
+        val output = original.files.map { ImportInput(it.file.path, it.file.content, it.file.path) }
+        val imported =
+            if (format == "proto") ProtoImporter.import(output)
+            else {
+                // a namespace set under [xsd] hides the schema name, so each file is told its own
+                val files =
+                    output.map { file ->
+                        val name = file.path.removeSuffix(".xsd").replace('/', '.')
+                        XsdImporter.import(listOf(file), name)
+                    }
+                ImportResult(files.flatMap { it.files }, files.flatMap { it.diagnostics })
+            }
+        assertEquals(
+            emptyList(),
+            imported.diagnostics
+                .filter { it.severity == Severity.ERROR }
+                .map { "${it.code.id} ${it.message}" },
+            "import of ${case.name} $format",
+        )
+        val again =
+            Pipeline.compile(
+                imported.files.map { SourceInput(it.path, it.content) },
+                listOf(target),
+            )
+        assertFalse(
+            again.hasErrors,
+            again.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
+        )
+        assertEquals(
+            original.files.associate { it.file.path to it.file.content },
+            again.files.associate { it.file.path to it.file.content },
+            "regenerated $format for ${case.name}",
+        )
+    }
+
     private fun check(case: File) {
         val config = load(case)
-        val inputs =
-            case
-                .listFiles { f -> f.extension == "schemata" }!!
-                .sortedBy { it.name }
-                .map { SourceInput(it.name, it.readText()) }
+        val inputs = inputs(case)
         val strict = config.compile.strict?.value == true
         val result = Pipeline.compile(inputs, targets(config), strict, config)
         assertFalse(

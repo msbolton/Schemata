@@ -1,0 +1,20 @@
+openapi: 3.0.3
+info: {title: shop, version: 1.0.0}
+paths: {}
+components:
+  schemas:
+    Contact:
+      oneOf:
+        - type: object
+          properties: {email: {type: string}}
+          required: [email]
+          additionalProperties: false
+        - type: object
+          properties: {phone: {type: string, maxLength: 20}}
+          required: [phone]
+          additionalProperties: false
+    Email:
+      type: object
+      properties: {address: {type: string}, verified: {type: boolean}}
+      required: [address, verified]
+      additionalProperties: false

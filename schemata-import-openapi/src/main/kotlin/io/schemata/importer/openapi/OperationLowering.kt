@@ -552,7 +552,7 @@ internal class OperationLowering(
         val request =
             if (requestFields.isEmpty()) {
                 requestBody?.let {
-                    UnitPayload(UnitType.Ref(payloadName(it, on, bodyAt)), streamed)
+                    UnitPayload(UnitType.Ref(payloadName(it, on, bodyAt, adopt = true)), streamed)
                 }
             } else {
                 val part = (requestBody as? Body.Declared)?.decl as? UnitRecord
@@ -567,7 +567,7 @@ internal class OperationLowering(
                         annotations = part?.annotations.orEmpty(),
                         deprecated = part?.deprecated ?: false,
                     )
-                UnitPayload(UnitType.Ref(synthesize(on, at, decl)), stream = false)
+                UnitPayload(UnitType.Ref(synthesize(on, at, decl, adopt = true)), stream = false)
             }
         val responsesAt = at / "responses"
         val responses = op.responses.orEmpty()
@@ -1103,11 +1103,19 @@ internal class OperationLowering(
         return target
     }
 
-    /** The name a payload refers to [body] by, claiming a declaration made for it. */
-    private fun payloadName(body: Body, on: OpenApiDoc, at: Pointer): String =
+    /**
+     * The name a payload refers to [body] by, claiming a declaration made for it; [adopt] lets a
+     * request model fill the placeholder its nested components made.
+     */
+    private fun payloadName(
+        body: Body,
+        on: OpenApiDoc,
+        at: Pointer,
+        adopt: Boolean = false,
+    ): String =
         when (body) {
             is Body.Named -> body.name
-            is Body.Declared -> synthesize(on, at, body.decl)
+            is Body.Declared -> synthesize(on, at, body.decl, adopt)
         }
 
     /**
@@ -1287,9 +1295,17 @@ internal class OperationLowering(
                 it.lowercase() !in REASON_PHRASES
         }
 
-    /** Claims [decl]'s name at the top of the namespace, reporting a suffix the name took. */
-    private fun synthesize(on: OpenApiDoc, at: Pointer, decl: UnitDecl): String {
-        val name = schemas.synthesize(namespace, decl.name, decl)
+    /**
+     * Claims [decl]'s name at the top of the namespace, reporting a suffix the name took; with
+     * [adopt], a request model fills the placeholder of its name instead.
+     */
+    private fun synthesize(
+        on: OpenApiDoc,
+        at: Pointer,
+        decl: UnitDecl,
+        adopt: Boolean = false,
+    ): String {
+        val name = schemas.synthesize(namespace, decl.name, decl, adopt)
         if (name != decl.name) taken(on, at, kindWord(decl), decl.name, name, decl.name)
         top.claim(name)
         return name

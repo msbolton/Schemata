@@ -549,6 +549,188 @@ class HandWrittenDocumentsTest {
         )
     }
 
+    @Test
+    fun `an enum whose every value is empty imports as a string`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.1.0
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Size: {type: string, enum: ['']}
+                        Order:
+                          type: object
+                          properties:
+                            size: {$REF: '#/components/schemas/Size'}
+                            kind: {type: string, enum: ['', '']}
+                            mode:
+                              oneOf:
+                                - {const: ''}
+                                - {const: '', description: none}
+                          required: [size, kind, mode]
+                          additionalProperties: false
+                    """
+            )
+        val text = text(r)
+        assertHas(text, "model Order", "size string", "kind string", "mode string")
+        assertFalse("enum " in text, text)
+        assertFalse("union " in text, text)
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Size: enum has no non-empty value; imported as string",
+                "SCH2403 shop.yaml: #/components/schemas/Order/properties/kind: enum has no non-empty value; imported as string",
+                "SCH2403 shop.yaml: #/components/schemas/Order/properties/mode: enum has no non-empty value; imported as string",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an enum of whitespace values stays an enum`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Blank: {type: string, enum: [' ']}
+                    """
+            )
+        assertHas(text(r), "enum Blank {")
+        assertFalse(messages(r).any { "no non-empty value" in it }, messages(r).toString())
+    }
+
+    // ---- a request model with nested components ----
+
+    /**
+     * What the openapi target writes for `create_order(OrdersCreateOrderRequest)` bound to `post
+     * "/carts/{cart_id}/orders"`, where the request model nests `Line`: the path field leaves the
+     * rest as an inline body, and `Line` is a component under the model's dotted name. [extra] adds
+     * components, each line indented as the document's own components are.
+     */
+    private fun requestWithNested(extra: String = "") =
+        """
+        openapi: 3.1.0
+        info: {title: shop, version: 1.0.0}
+        tags: [{name: Orders}]
+        paths:
+          /carts/{cart_id}/orders:
+            post:
+              tags: [Orders]
+              operationId: Orders_create_order
+              parameters:
+                - {name: cart_id, in: path, required: true, schema: {type: string}}
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        lines:
+                          type: array
+                          items: {$REF: '#/components/schemas/shop.OrdersCreateOrderRequest.Line'}
+                      required: [lines]
+                      additionalProperties: false
+              responses:
+                '200':
+                  description: Order
+                  content:
+                    application/json:
+                      schema: {$REF: '#/components/schemas/shop.Order'}
+        components:
+          schemas:
+            shop.Order:
+              type: object
+              properties: {id: {type: string}}
+              required: [id]
+              additionalProperties: false
+            shop.OrdersCreateOrderRequest.Line:
+              type: object
+              properties: {sku: {type: string}}
+              required: [sku]
+              additionalProperties: false
+$extra
+        """
+
+    @Test
+    fun `a request model fills the placeholder its nested component made`() {
+        val r = importText("shop.yaml" to requestWithNested())
+        assertEquals(emptyList(), messages(r))
+        val text = text(r)
+        assertHas(text, "model OrdersCreateOrderRequest {", "model Line { sku string }")
+        assertFalse("OrdersCreateOrderRequest2" in text, text)
+        assertEquals(1, Regex("model OrdersCreateOrderRequest\\b").findAll(text).count(), text)
+    }
+
+    @Test
+    fun `a request model whose name a component declares still takes a suffix`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    requestWithNested(
+                        """
+                        shop.OrdersCreateOrderRequest:
+                          type: object
+                          properties: {note: {type: string}}
+                          additionalProperties: false
+                        """
+                            .trimIndent()
+                            .prependIndent("            ")
+                    )
+            )
+        assertTrue(
+            messages(r).any {
+                it.startsWith("SCH2402 shop.yaml: ") &&
+                    it.endsWith(
+                        "model 'OrdersCreateOrderRequest' is imported as " +
+                            "'OrdersCreateOrderRequest2', since 'OrdersCreateOrderRequest' is taken"
+                    )
+            },
+            messages(r).joinToString("\n"),
+        )
+        assertHas(text(r), "model OrdersCreateOrderRequest2 {")
+    }
+
+    @Test
+    fun `a request model with an inline child named like a nested component takes a suffix`() {
+        val body =
+            requestWithNested(
+                """
+                shop.OrdersCreateOrderRequest.OrdersCreateOrderRequestLine:
+                  type: object
+                  properties: {sku: {type: string}}
+                  additionalProperties: false
+                """
+                    .trimIndent()
+                    .prependIndent("            ")
+            )
+        val doc =
+            body.replace(
+                "                      required: [lines]\n",
+                "                        line:\n" +
+                    "                          type: object\n" +
+                    "                          properties: {qty: {type: integer}}\n" +
+                    "                          required: [qty]\n" +
+                    "                      required: [lines]\n",
+            )
+        val text = text(importText("shop.yaml" to doc))
+        assertHas(text, "model OrdersCreateOrderRequest2 {", "model OrdersCreateOrderRequest {")
+        // the two same-named children live apart, one in each model
+        assertTrue(
+            text.indexOf("model Line { sku string }") <
+                text.indexOf("model OrdersCreateOrderRequest2 {"),
+            text,
+        )
+        assertEquals(2, Regex("model OrdersCreateOrderRequestLine\\b").findAll(text).count(), text)
+    }
+
     // ---- nesting checked once every document is lowered ----
 
     @Test

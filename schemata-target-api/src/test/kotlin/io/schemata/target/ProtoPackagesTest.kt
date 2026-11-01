@@ -301,4 +301,15 @@ class ProtoPackagesTest {
         val units = ProtoPackages.of(schema.referencesByKey()).units
         assertEquals(listOf(listOf("a", "b")), units.map { u -> u.members.map { it.name } })
     }
+
+    @Test
+    fun `a reference to a namespace outside the schema is ignored`() {
+        val alone = ns("a", listOf("gone"))
+        val unit = packages(alone).unitOf("a")
+        assertEquals(listOf("a"), unit.members.map { it.name })
+        assertEquals("a", unit.packageName)
+        assertFalse(unit.merged)
+        val scope = ProtoPackages.of(Schema(listOf(alone)), ProtoLayout.TYPE).unitOf("a")
+        assertEquals(listOf("a"), scope.members.map { it.name })
+    }
 }

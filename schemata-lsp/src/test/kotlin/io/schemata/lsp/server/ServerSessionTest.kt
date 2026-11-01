@@ -33,6 +33,7 @@ import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
+import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
@@ -67,9 +68,16 @@ class ServerSessionTest {
         options: Map<String, Any?> = emptyMap(),
         targetNames: List<String> = emptyList(),
     ): LspSession {
+        // discovery stops at the temporary directory, so no schemata.toml above it is ever read
         val session =
             LspSession.inProcess { input, output ->
-                SchemataServer.launch(input, output, AnnotationRegistry.CORE, targetNames) {}
+                SchemataServer.launchWithin(
+                    dir,
+                    input,
+                    output,
+                    AnnotationRegistry.CORE,
+                    targetNames,
+                ) {}
             }
         session.initialize(dir, options)
         return session
@@ -747,6 +755,7 @@ class ServerSessionTest {
                 ),
                 session.logged(),
             )
+            assertEquals(listOf(MessageType.Warning), session.loggedTypes())
             session.open(o, looseOrders)
             val shown = session.diagnostics(o) { it.isNotEmpty() }
             assertTrue("SCH1011" in codes(shown), shown.toString())
@@ -777,5 +786,31 @@ class ServerSessionTest {
                 session.logged(),
             )
         }
+    }
+
+    @Test
+    fun `discovery stops at the ceiling it is given`() {
+        write("schemata.toml", "[colour]\nscheme = \"dark\"\n")
+        val folder = dir.resolve("work").createDirectories()
+        LspSession.inProcess { input, output ->
+                SchemataServer.launchWithin(folder, input, output, AnnotationRegistry.CORE) {}
+            }
+            .use { session ->
+                session.initialize(folder)
+                assertEquals(emptyList(), session.logged())
+            }
+        LspSession.inProcess { input, output ->
+                SchemataServer.launchWithin(dir, input, output, AnnotationRegistry.CORE) {}
+            }
+            .use { session ->
+                session.initialize(folder)
+                assertEquals(
+                    listOf(
+                        "schemata: ignoring the configuration file: ../schemata.toml:1: " +
+                            "unknown table 'colour'"
+                    ),
+                    session.logged(),
+                )
+            }
     }
 }
