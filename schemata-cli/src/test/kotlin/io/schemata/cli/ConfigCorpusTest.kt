@@ -16,6 +16,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 
@@ -56,20 +57,24 @@ class ConfigCorpusTest {
             .listFiles { f -> f.isDirectory && File(f, ConfigLoader.FILE_NAME).isFile }!!
             .sortedBy { it.name }
             .flatMap { case ->
-                listOf("proto", "xsd").map { format ->
-                    DynamicTest.dynamicTest("${case.name} $format") { roundTrip(case, format) }
-                }
+                val selected = targets(load(case)).map { it.name }
+                listOf("proto", "xsd")
+                    .filter { it in selected }
+                    .map { format ->
+                        DynamicTest.dynamicTest("${case.name} $format") { roundTrip(case, format) }
+                    }
             }
 
     private fun roundTrip(case: File, format: String) {
         val config = load(case)
-        val target = targets(config).firstOrNull { it.name == format } ?: return
+        val target = assertNotNull(targets(config).firstOrNull { it.name == format })
         val strict = config.compile.strict?.value == true
         val original = Pipeline.compile(inputs(case), listOf(target), strict, config)
         assertFalse(
             original.hasErrors,
             original.diagnostics.joinToString("\n") { "${it.code.id} ${it.message}" },
         )
+        assertTrue(original.files.isNotEmpty(), "${case.name} $format wrote nothing to import")
         val output = original.files.map { ImportInput(it.file.path, it.file.content, it.file.path) }
         val imported =
             if (format == "proto") ProtoImporter.import(output)
