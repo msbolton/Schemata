@@ -372,6 +372,58 @@ class ConfigLoaderTest {
     }
 
     @Test
+    fun `a byte order mark is ignored`() {
+        val config = loaded("\uFEFF[compile]\nstrict = true\n")
+        assertEquals(Setting(true, 2), config.compile.strict)
+        assertEquals("[compile]\nstrict = true\n", config.text)
+    }
+
+    @Test
+    fun `a byte order mark and CRLF line ends still report the right line`() {
+        assertEquals(
+            Setting(true, 2),
+            loaded("\uFEFF[compile]\r\nstrict = true\r\n").compile.strict,
+        )
+        assertDiagnostic(
+            "SCH2903 schemata.toml:2: compile.strict expects true or false",
+            "for example compile.strict = true",
+            failure("\uFEFF[compile]\r\nstrict = \"yes\"\r\n"),
+        )
+    }
+
+    @Test
+    fun `a short unknown key is suggested only a key close to its length`() {
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'report.fmt'",
+            "keys of [report] are color, format",
+            failure("[report]\nfmt = \"json\"\n"),
+        )
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'compile.x'",
+            "keys of [compile] are out, proto_layout, strict, targets",
+            failure("[compile]\nx = 1\n"),
+        )
+        assertDiagnostic(
+            "SCH2902 schemata.toml:2: unknown key 'compile.ou'",
+            "did you mean 'out'",
+            failure("[compile]\nou = \"x\"\n"),
+        )
+    }
+
+    @Test
+    fun `a key with no choices shows no example value`() {
+        val file = root.resolve(ConfigLoader.FILE_NAME)
+        Files.writeString(file, "[compile]\ntargets = [\"proto\"]\n")
+        val result = ConfigLoader.load(file, registry, emptyList(), ConfigLoader.FILE_NAME)
+        assertNull(result.config)
+        assertDiagnostic(
+            "SCH2903 schemata.toml:2: compile.targets expects an empty array",
+            "remove compile.targets",
+            result.diagnostics.single(),
+        )
+    }
+
+    @Test
     fun `a wrong type is SCH2903`() {
         val d = failure("[compile]\nstrict = \"yes\"\n")
 

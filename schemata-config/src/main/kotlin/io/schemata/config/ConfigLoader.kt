@@ -24,6 +24,9 @@ data class LoadedConfig(val config: ProjectConfig?, val diagnostics: List<Diagno
 object ConfigLoader {
     const val FILE_NAME = "schemata.toml"
 
+    /** U+FEFF, which some editors write at the start of a UTF-8 file. */
+    private const val BYTE_ORDER_MARK = "\uFEFF"
+
     /** The nearest `schemata.toml` in [start] or an ancestor, or null. */
     fun discover(start: Path): Path? {
         var directory: Path? = start.toAbsolutePath().normalize()
@@ -49,7 +52,8 @@ object ConfigLoader {
         val absolute = path.toAbsolutePath().normalize()
         val text =
             try {
-                Files.readString(absolute)
+                // a byte order mark is not TOML, and the file means nothing by it
+                Files.readString(absolute).removePrefix(BYTE_ORDER_MARK)
             } catch (e: IOException) {
                 return LoadedConfig(null, listOf(unreadable(displayPath, reason(absolute, e))))
             }
@@ -143,8 +147,11 @@ private object TomljClasses {
     fun load() = loaded
 }
 
-/** The value a key takes: the wording of SCH2903 and the example its help shows. */
-private sealed class Expect(val wording: String, val example: String) {
+/**
+ * The value a key takes: the wording of SCH2903 and the example its help shows, or none when no
+ * value would be accepted.
+ */
+private sealed class Expect(val wording: String, val example: String?) {
     object Text : Expect("a string", "\"…\"")
 
     object Flag : Expect("true or false", "true")
@@ -153,11 +160,18 @@ private sealed class Expect(val wording: String, val example: String) {
 
     object Texts : Expect("an array of strings", "[\"…\"]")
 
-    /** A string out of [choices]; with [many], an array of such strings. */
+    /**
+     * A string out of [choices]; with [many], an array of such strings. With no choices only an
+     * empty array, or nothing at all, is accepted, so there is no value to show.
+     */
     class OneOf(val choices: List<String>, val many: Boolean = false) :
         Expect(
-            "one of " + choices.joinToString(", ") { "\"$it\"" },
-            choices.firstOrNull().orEmpty().let { if (many) "[\"$it\"]" else "\"$it\"" },
+            when {
+                choices.isNotEmpty() -> "one of " + choices.joinToString(", ") { "\"$it\"" }
+                many -> "an empty array"
+                else -> "no value"
+            },
+            choices.firstOrNull()?.let { if (many) "[\"$it\"]" else "\"$it\"" },
         )
 }
 
@@ -357,7 +371,8 @@ private class Validator(
                     ConfigCodes.BAD_VALUE,
                     line,
                     "$display.$key expects ${failed.wording}",
-                    "for example $display.$key = ${failed.example}",
+                    failed.example?.let { "for example $display.$key = $it" }
+                        ?: "remove $display.$key",
                 )
                 continue
             }
@@ -422,7 +437,8 @@ private class Validator(
             known
                 .sorted()
                 .map { it to levenshtein(key, it) }
-                .filter { it.second <= 3 }
+                // a third of the typed key, so a short key is not matched to almost anything
+                .filter { it.second <= maxOf(1, key.length / 3) }
                 .minByOrNull { it.second }
         return if (nearest != null) "did you mean '${nearest.first}'"
         else "keys of [$table] are ${known.sorted().joinToString(", ")}"

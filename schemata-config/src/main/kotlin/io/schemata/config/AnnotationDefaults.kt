@@ -57,7 +57,12 @@ object AnnotationDefaults {
             schema.namespaces
                 .mapNotNull { ns ->
                     val setting = effective(config, PROTO, ns.name)[PACKAGE]
-                    if (setting == null || declares(ns, PROTO, PACKAGE)) null
+                    if (
+                        setting == null ||
+                            declares(ns, PROTO, PACKAGE) ||
+                            (layout == ProtoLayout.SCHEMA && cycleDeclares(config, files, ns))
+                    )
+                        null
                     else {
                         val expandedFrom =
                             when (layout) {
@@ -124,6 +129,21 @@ object AnnotationDefaults {
 
     private fun declares(namespace: Namespace, target: String, key: String): Boolean =
         namespace.annotations[target][key] != null
+
+    /**
+     * Whether [namespace] would take its package from the `[proto]` table while a schema of its
+     * schema-layout file declares `@proto(package)`. The declared package names that file, so the
+     * table's template stays off every schema of it rather than disagree with the declaration. A
+     * package from the schema's own `[proto.schemas."…"]` table stands, as its `schema` line would.
+     */
+    private fun cycleDeclares(
+        config: ProjectConfig,
+        files: ProtoPackages,
+        namespace: Namespace,
+    ): Boolean {
+        val own = config.defaults[PROTO]?.schemas?.get(namespace.name)?.containsKey(PACKAGE) == true
+        return !own && files.unitOf(namespace.name).members.any { declares(it, PROTO, PACKAGE) }
+    }
 
     /**
      * The annotation [setting] makes, of the kind the key's schema-line annotation takes, with

@@ -349,6 +349,78 @@ class AnnotationDefaultsTest {
         )
     }
 
+    private val alphaDeclared =
+        ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"cyc.v1\")")
+
+    private fun Schema.protoErrors(): List<String> =
+        ProtoTarget.lower(this)
+            .diagnostics
+            .filter { it.code.id == "SCH2007" }
+            .map { "${it.code.id} ${it.message}" }
+
+    @Test
+    fun `a package declared in a cycle keeps the package template off the whole cycle`() {
+        val schema =
+            applied(
+                "[proto]\npackage = \"{schema_}.v1\"\njava_package = \"com.example.{package}\"\n",
+                alphaDeclared,
+                BETA,
+            )
+        assertEquals(AnnotationValue.Str("cyc.v1"), schema.value("cyc.alpha", "proto", "package"))
+        assertNull(schema.value("cyc.beta", "proto", "package"))
+        for (member in listOf("cyc.alpha", "cyc.beta")) {
+            assertEquals(
+                AnnotationValue.Str("com.example.cyc.v1"),
+                schema.value(member, "proto", "java_package"),
+            )
+        }
+        assertEquals(emptyList(), schema.protoErrors())
+        assertEquals("cyc.v1", ProtoTarget.lower(schema).model.files.single().packageName)
+    }
+
+    @Test
+    fun `members that declare different packages still conflict under a package template`() {
+        val schema =
+            applied(
+                "[proto]\npackage = \"{schema_}.v1\"\n",
+                ALPHA.replace("schema cyc.alpha", "schema cyc.alpha @proto(package: \"p\")"),
+                BETA.replace("schema cyc.beta", "schema cyc.beta @proto(package: \"q\")"),
+            )
+        assertEquals(
+            listOf(
+                "SCH2007 schemas cyc.alpha and cyc.beta reference each other but declare packages " +
+                    "'p' and 'q'"
+            ),
+            schema.protoErrors(),
+        )
+    }
+
+    @Test
+    fun `a per-schema package in a cycle with a declared one still stands`() {
+        val schema =
+            applied(
+                "[proto]\npackage = \"{schema_}.v1\"\n\n[proto.schemas.\"cyc.beta\"]\npackage = \"other\"\n",
+                alphaDeclared,
+                BETA,
+            )
+        assertEquals(AnnotationValue.Str("other"), schema.value("cyc.beta", "proto", "package"))
+    }
+
+    @Test
+    fun `under the type layout a declared package leaves the other members' template alone`() {
+        val schema =
+            appliedUnder(
+                ProtoLayout.TYPE,
+                "[proto]\npackage = \"{schema_}.v1\"\n",
+                alphaDeclared,
+                BETA,
+            )
+        assertEquals(
+            AnnotationValue.Str("cyc_beta.v1"),
+            schema.value("cyc.beta", "proto", "package"),
+        )
+    }
+
     @Test
     fun `plan lists the file line of each entry`() {
         // The analysed schema lists its namespaces by name, so shop.orders comes last.
