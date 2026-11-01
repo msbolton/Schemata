@@ -419,7 +419,9 @@ class SchemaLowering(
 
     private fun choiceKey(node: JsonNode): String = if (node.has("oneOf")) "oneOf" else "anyOf"
 
-    /** The target's enum with value docs: a `oneOf` of `{"const": …, "description": …}`. */
+    /**
+     * Whether every member of [choice] is a text `const`, with at most a `description` beside it.
+     */
     private fun isConstValues(choice: JsonNode): Boolean =
         choice.size() > 0 &&
             choice.all { entry ->
