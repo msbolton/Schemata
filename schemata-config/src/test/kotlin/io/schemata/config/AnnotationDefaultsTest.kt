@@ -125,6 +125,35 @@ class AnnotationDefaultsTest {
     }
 
     @Test
+    fun `a choice key is synthesized as written`() {
+        val schema = applied("[xsd]\nelement_form = \"qualified\"\n", ORDERS)
+        assertEquals(
+            AnnotationValue.Str("qualified"),
+            schema.value("shop.orders", "xsd", "element_form"),
+        )
+    }
+
+    @Test
+    fun `a declared annotation wins over a per-schema table`() {
+        val schema =
+            applied(
+                """
+                [proto.schemas."shop.orders"]
+                java_package = "com.orders"
+                """
+                    .trimIndent(),
+                ORDERS.replace(
+                    "schema shop.orders",
+                    "schema shop.orders @proto(java_package: \"org.declared\")",
+                ),
+            )
+        assertEquals(
+            AnnotationValue.Str("org.declared"),
+            schema.value("shop.orders", "proto", "java_package"),
+        )
+    }
+
+    @Test
     fun `a boolean key is synthesized as a boolean`() {
         val schema = applied("[proto]\njava_multiple_files = true\n", ORDERS)
         assertEquals(
