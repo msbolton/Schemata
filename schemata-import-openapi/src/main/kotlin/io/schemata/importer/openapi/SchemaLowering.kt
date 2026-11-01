@@ -205,7 +205,15 @@ class SchemaLowering(
         val space = space(namespace)
         val placeholder =
             if (adopt && decl is UnitRecord)
-                space.top.firstOrNull { it.name == wanted && it.isPlaceholder }
+                space.top
+                    .firstOrNull { it.name == wanted && it.isPlaceholder }
+                    ?.takeUnless { found ->
+                        // two nested declarations of one name would not compile
+                        val moving =
+                            decl.nested.map { it.name } +
+                                pending[namespace to wanted]?.children.orEmpty().map { it.name }
+                        found.children.any { it.name in moving }
+                    }
             else null
         val created = placeholder ?: Decl(namespace, space.names.claim(wanted), null, null)
         created.built = renamed(decl, created.name)

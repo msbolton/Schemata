@@ -698,6 +698,39 @@ $extra
         assertHas(text(r), "model OrdersCreateOrderRequest2 {")
     }
 
+    @Test
+    fun `a request model with an inline child named like a nested component takes a suffix`() {
+        val body =
+            requestWithNested(
+                """
+                shop.OrdersCreateOrderRequest.OrdersCreateOrderRequestLine:
+                  type: object
+                  properties: {sku: {type: string}}
+                  additionalProperties: false
+                """
+                    .trimIndent()
+                    .prependIndent("            ")
+            )
+        val doc =
+            body.replace(
+                "                      required: [lines]\n",
+                "                        line:\n" +
+                    "                          type: object\n" +
+                    "                          properties: {qty: {type: integer}}\n" +
+                    "                          required: [qty]\n" +
+                    "                      required: [lines]\n",
+            )
+        val text = text(importText("shop.yaml" to doc))
+        assertHas(text, "model OrdersCreateOrderRequest2 {", "model OrdersCreateOrderRequest {")
+        // the two same-named children live apart, one in each model
+        assertTrue(
+            text.indexOf("model Line { sku string }") <
+                text.indexOf("model OrdersCreateOrderRequest2 {"),
+            text,
+        )
+        assertEquals(2, Regex("model OrdersCreateOrderRequestLine\\b").findAll(text).count(), text)
+    }
+
     // ---- nesting checked once every document is lowered ----
 
     @Test
