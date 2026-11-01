@@ -99,7 +99,11 @@ class SchemaLowering(
         docs.forEach { doc -> schemasOf(doc).forEach { (name, node) -> register(doc, name, node) } }
         var i = 0
         while (i < order.size) build(order[i++])
-        spaces.values.forEach { space -> space.top.forEach(::checkParents) }
+        // a top-level step no component declares may still be filled by an operation's request
+        // model, and operations are lowered later, so it is checked when the declarations are read
+        spaces.values.forEach { space ->
+            space.top.forEach { if (it.isPlaceholder) unchecked += it else checkParents(it) }
+        }
         ready = true
     }
 
@@ -187,16 +191,27 @@ class SchemaLowering(
     /**
      * Declares [decl] at the top level of [namespace] under [wanted], or under [wanted] with a
      * numeric suffix when that is taken, and returns the name it got. The caller reports a changed
-     * name. Declarations nested by [fieldType] calls for [wanted] join it.
+     * name. Declarations nested by [fieldType] calls for [wanted] join it. With [adopt], a model
+     * fills the top-level placeholder named [wanted] instead, keeping the name: the target writes a
+     * request model whose fields the path or headers take as an inline body, and the declarations
+     * nested in it as components whose dotted names made that placeholder.
      */
-    fun synthesize(namespace: String, wanted: String, decl: UnitDecl): String {
+    fun synthesize(
+        namespace: String,
+        wanted: String,
+        decl: UnitDecl,
+        adopt: Boolean = false,
+    ): String {
         val space = space(namespace)
-        val name = space.names.claim(wanted)
-        val created = Decl(namespace, name, null, null)
-        created.built = renamed(decl, name)
+        val placeholder =
+            if (adopt && decl is UnitRecord)
+                space.top.firstOrNull { it.name == wanted && it.isPlaceholder }
+            else null
+        val created = placeholder ?: Decl(namespace, space.names.claim(wanted), null, null)
+        created.built = renamed(decl, created.name)
         pending.remove(namespace to wanted)?.let { created.children += it.children }
-        space.top += created
-        return name
+        if (placeholder == null) space.top += created
+        return created.name
     }
 
     /**
@@ -1589,6 +1604,10 @@ class SchemaLowering(
 
         fun firstComponent(): Component? =
             component ?: children.firstNotNullOfOrNull { it.firstComponent() }
+
+        /** A step of a dotted path that no component declares, held by an empty model. */
+        val isPlaceholder: Boolean
+            get() = component == null && built == null && kind == DeclKind.MODEL
     }
 
     /** The models a field sits in, outermost first, which an inline shape there joins. */

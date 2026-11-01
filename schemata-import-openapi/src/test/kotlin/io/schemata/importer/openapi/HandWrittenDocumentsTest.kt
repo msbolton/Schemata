@@ -549,6 +549,98 @@ class HandWrittenDocumentsTest {
         )
     }
 
+    // ---- a request model with nested components ----
+
+    /**
+     * What the openapi target writes for `create_order(OrdersCreateOrderRequest)` bound to `post
+     * "/carts/{cart_id}/orders"`, where the request model nests `Line`: the path field leaves the
+     * rest as an inline body, and `Line` is a component under the model's dotted name. [extra] adds
+     * components, each line indented as the document's own components are.
+     */
+    private fun requestWithNested(extra: String = "") =
+        """
+        openapi: 3.1.0
+        info: {title: shop, version: 1.0.0}
+        tags: [{name: Orders}]
+        paths:
+          /carts/{cart_id}/orders:
+            post:
+              tags: [Orders]
+              operationId: Orders_create_order
+              parameters:
+                - {name: cart_id, in: path, required: true, schema: {type: string}}
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        lines:
+                          type: array
+                          items: {$REF: '#/components/schemas/shop.OrdersCreateOrderRequest.Line'}
+                      required: [lines]
+                      additionalProperties: false
+              responses:
+                '200':
+                  description: Order
+                  content:
+                    application/json:
+                      schema: {$REF: '#/components/schemas/shop.Order'}
+        components:
+          schemas:
+            shop.Order:
+              type: object
+              properties: {id: {type: string}}
+              required: [id]
+              additionalProperties: false
+            shop.OrdersCreateOrderRequest.Line:
+              type: object
+              properties: {sku: {type: string}}
+              required: [sku]
+              additionalProperties: false
+$extra
+        """
+
+    @Test
+    fun `a request model fills the placeholder its nested component made`() {
+        val r = importText("shop.yaml" to requestWithNested())
+        assertEquals(emptyList(), messages(r))
+        val text = text(r)
+        assertHas(text, "model OrdersCreateOrderRequest {", "model Line { sku string }")
+        assertFalse("OrdersCreateOrderRequest2" in text, text)
+        assertEquals(1, Regex("model OrdersCreateOrderRequest\\b").findAll(text).count(), text)
+    }
+
+    @Test
+    fun `a request model whose name a component declares still takes a suffix`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    requestWithNested(
+                        """
+                        shop.OrdersCreateOrderRequest:
+                          type: object
+                          properties: {note: {type: string}}
+                          additionalProperties: false
+                        """
+                            .trimIndent()
+                            .prependIndent("            ")
+                    )
+            )
+        assertTrue(
+            messages(r).any {
+                it.startsWith("SCH2402 shop.yaml: ") &&
+                    it.endsWith(
+                        "model 'OrdersCreateOrderRequest' is imported as " +
+                            "'OrdersCreateOrderRequest2', since 'OrdersCreateOrderRequest' is taken"
+                    )
+            },
+            messages(r).joinToString("\n"),
+        )
+        assertHas(text(r), "model OrdersCreateOrderRequest2 {")
+    }
+
     // ---- nesting checked once every document is lowered ----
 
     @Test

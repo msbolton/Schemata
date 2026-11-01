@@ -138,4 +138,49 @@ class OpenApiOperationRoundTripTest {
         assertTrue(result.files.isNotEmpty())
         compiled(result)
     }
+
+    @Test
+    fun `a request model with a path field and a nested model keeps its name`() {
+        val source =
+            """
+            schema shop
+
+            model Order { #1 id string }
+
+            model OrdersCreateOrderRequest {
+              #1 cart_id string
+              #2 lines Line[]
+
+              model Line { #1 sku string }
+            }
+
+            service Orders {
+              #1 create_order(OrdersCreateOrderRequest): Order  post "/carts/{cart_id}/orders"
+            }
+            """
+                .trimIndent()
+        val original =
+            Pipeline.compile(listOf(SourceInput("shop.schemata", source)), listOf(OpenApiTarget))
+        assertEquals(
+            emptyList(),
+            original.diagnostics
+                .filter { it.severity == Severity.ERROR }
+                .map { "${it.code.id} ${it.message}" },
+        )
+        val documents =
+            original.files.map {
+                ImportInput(it.file.path, it.file.content, relative = it.file.path)
+            }
+        val first = OpenApiImporter.import(documents)
+        assertEquals(emptyList(), first.diagnostics.map { "${it.code.id} ${it.message}" })
+        val text = first.files.single().content
+        assertTrue("model OrdersCreateOrderRequest {" in text, text)
+        assertTrue("OrdersCreateOrderRequest2" !in text, text)
+        val again = compiled(first)
+        assertEquals(
+            documents.associate { it.path to it.content },
+            again.associate { it.path to it.content },
+        )
+        assertEquals(schemata(first), schemata(OpenApiImporter.import(again)))
+    }
 }
