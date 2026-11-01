@@ -549,6 +549,63 @@ class HandWrittenDocumentsTest {
         )
     }
 
+    @Test
+    fun `an enum whose every value is empty imports as a string`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.1.0
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Size: {type: string, enum: ['']}
+                        Order:
+                          type: object
+                          properties:
+                            size: {$REF: '#/components/schemas/Size'}
+                            kind: {type: string, enum: ['', '']}
+                            mode:
+                              oneOf:
+                                - {const: ''}
+                                - {const: '', description: none}
+                          required: [size, kind, mode]
+                          additionalProperties: false
+                    """
+            )
+        val text = text(r)
+        assertHas(text, "model Order", "size string", "kind string", "mode string")
+        assertFalse("enum " in text, text)
+        assertFalse("union " in text, text)
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Size: enum has no non-empty value; imported as string",
+                "SCH2403 shop.yaml: #/components/schemas/Order/properties/kind: enum has no non-empty value; imported as string",
+                "SCH2403 shop.yaml: #/components/schemas/Order/properties/mode: enum has no non-empty value; imported as string",
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an enum of whitespace values stays an enum`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.0.3
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Blank: {type: string, enum: [' ']}
+                    """
+            )
+        assertHas(text(r), "enum Blank {")
+        assertFalse(messages(r).any { "no non-empty value" in it }, messages(r).toString())
+    }
+
     // ---- a request model with nested components ----
 
     /**

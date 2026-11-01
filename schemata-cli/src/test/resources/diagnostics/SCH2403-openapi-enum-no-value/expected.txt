@@ -1,0 +1,6 @@
+# import=openapi
+warning[SCH2403] (lossy): api.yaml: #/components/schemas/Size: enum has no non-empty value; imported as string
+ --> api.yaml:1:1
+  = help: review the imported declaration; the regenerated schema will differ here
+
+0 errors, 1 warning

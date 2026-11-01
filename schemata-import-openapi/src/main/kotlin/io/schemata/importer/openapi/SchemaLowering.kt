@@ -280,7 +280,8 @@ class SchemaLowering(
                 doc,
                 pointerOf(name),
                 ImportCodes.APPROXIMATED,
-                "component '$name' is not a model, enum or union; each use takes its type",
+                if (hasNoValue(node)) NO_VALUE
+                else "component '$name' is not a model, enum or union; each use takes its type",
             )
         }
         val decl = kind?.let { declare(doc, name, namespace, split.path, it) }
@@ -353,6 +354,7 @@ class SchemaLowering(
         val choice = choiceOf(node)
         return when {
             node.has("\$ref") -> null
+            hasNoValue(node) -> null
             enum != null ->
                 if ((types.isEmpty() || types == listOf("string")) && isStringEnum(enum))
                     DeclKind.ENUM
@@ -410,15 +412,39 @@ class SchemaLowering(
     private fun choiceKey(node: JsonNode): String = if (node.has("oneOf")) "oneOf" else "anyOf"
 
     /** The target's enum with value docs: a `oneOf` of `{"const": …, "description": …}`. */
-    private fun isConstEnum(choice: JsonNode): Boolean =
+    private fun isConstValues(choice: JsonNode): Boolean =
         choice.size() > 0 &&
             choice.all { entry ->
                 entry.get("const")?.isTextual == true &&
                     entry.properties().all { it.key == "const" || it.key == "description" }
             }
 
-    private fun isStringEnum(enum: JsonNode): Boolean =
+    /** [isConstValues] with a value that is not empty, which an enum value can be written as. */
+    private fun isConstEnum(choice: JsonNode): Boolean =
+        isConstValues(choice) && choice.any { it.get("const").textValue().isNotEmpty() }
+
+    private fun isStringValues(enum: JsonNode): Boolean =
         enum.isArray && enum.any { it.isTextual } && enum.all { it.isTextual || it.isNull }
+
+    /** [isStringValues] with a value that is not empty, which an enum value can be written as. */
+    private fun isStringEnum(enum: JsonNode): Boolean =
+        isStringValues(enum) && enum.any { it.isTextual && it.textValue().isNotEmpty() }
+
+    /**
+     * Whether [node] is a string `enum`, or the target's `oneOf` of `const`s, whose every value is
+     * empty. No enum value can be written as `""`, so such a schema is a string.
+     */
+    private fun hasNoValue(node: JsonNode): Boolean {
+        val enum = node.get("enum")
+        if (enum != null) {
+            val types = typesOf(node) - "null"
+            return (types.isEmpty() || types == listOf("string")) &&
+                isStringValues(enum) &&
+                !isStringEnum(enum)
+        }
+        val choice = choiceOf(node)?.takeIf { !node.has("properties") } ?: return false
+        return isConstValues(choice) && !isConstEnum(choice)
+    }
 
     private fun space(namespace: String): Space = spaces.getOrPut(namespace) { Space() }
 
@@ -969,6 +995,10 @@ class SchemaLowering(
             }
         }
         if (allOf != null) return hoist(place, node, DeclKind.MODEL)
+        if (hasNoValue(node)) {
+            say(place, ImportCodes.APPROXIMATED, NO_VALUE)
+            return Typed(if (node.has("enum")) stringType(place, node) else STRING)
+        }
         val choice = choiceOf(node)?.takeIf { !node.has("properties") }
         if (choice != null) {
             if (isConstEnum(choice)) return hoist(place, node, DeclKind.ENUM)
@@ -1650,6 +1680,8 @@ class SchemaLowering(
         // the option that makes a field its model's key
         val KEY_OPTION: List<Pair<String, String?>> = listOf("id" to null)
         val STRING = UnitType.Scalar("string", emptyList())
+        // what an enum whose every value is empty imports as
+        const val NO_VALUE = "enum has no non-empty value; imported as string"
         val OPEN = UnitAnnotation("jsonschema", "open", null)
 
         const val UUID_PATTERN =
