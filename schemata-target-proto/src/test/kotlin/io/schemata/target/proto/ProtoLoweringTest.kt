@@ -3351,6 +3351,97 @@ class ProtoLoweringTest {
         )
     }
 
+    private val outerHelp =
+        "rename the declaration or set `@proto(name: \"…\")`, or choose another " +
+            "`java_outer_classname`"
+
+    @Test
+    fun `a declared java_outer_classname equal to a model is an error at the model`() {
+        val lowered =
+            lower(
+                "schema shop.orders @proto(java_outer_classname: \"Order\")\n\n" +
+                    "model Order { #1 x bool }\n\nmodel Cart { #1 y bool }\n"
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:3 SCH2004 model 'Order' has the Java outer class name of " +
+                    "its file 'shop/orders.proto'; protoc --java_out refuses it"
+            ),
+            lowered.located(),
+        )
+        assertEquals(listOf(outerHelp), lowered.diagnostics.map { it.help })
+    }
+
+    @Test
+    fun `a declared java_outer_classname equal to a nested enum or a service is an error at each`() {
+        val nested =
+            lower(
+                "schema shop.orders @proto(java_outer_classname: \"Status\")\n\n" +
+                    "model Cart {\n  #1 y bool\n\n  enum Status { #1 open  #2 closed }\n}\n\n" +
+                    "model Label {\n  #1 b bool\n\n  @@proto(name: \"Status\")\n}\n"
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:6 SCH2001 enum 'Status': proto3 requires a zero value; " +
+                    "synthesized STATUS_UNSPECIFIED = 0",
+                "shop.orders.schemata:6 SCH2004 enum 'Status' has the Java outer class name of " +
+                    "its file 'shop/orders.proto'; protoc --java_out refuses it",
+                "shop.orders.schemata:9 SCH2004 model 'Status' has the Java outer class name of " +
+                    "its file 'shop/orders.proto'; protoc --java_out refuses it",
+            ),
+            nested.located(),
+        )
+        val service =
+            lower(
+                "schema shop.orders @proto(java_outer_classname: \"Orders\")\n\n" +
+                    "model Order { #1 x bool }\n\nservice Orders { #1 get(Order): Order }\n"
+            )
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:5 SCH2004 service 'Orders' has the Java outer class name " +
+                    "of its file 'shop/orders.proto'; protoc --java_out refuses it"
+            ),
+            service.located(),
+        )
+    }
+
+    @Test
+    fun `an outer class name differing only by case or left to protoc is not checked`() {
+        val caseOnly =
+            lower(
+                "schema shop.orders @proto(java_outer_classname: \"ORDER\")\n\n" +
+                    "model Order { #1 x bool }\n"
+            )
+        assertEquals(emptyList(), caseOnly.codes())
+        assertNull(caseOnly.protocErrors())
+        // protoc derives `Orders` for orders.proto and adds `OuterClass` itself on a clash
+        val derived = lower("schema shop.orders\n\nmodel Orders { #1 x bool }\n")
+        assertEquals(emptyList(), derived.codes())
+    }
+
+    @Test
+    fun `a nested declaration named like its file's wrapper class is an error at any depth`() {
+        val lowered =
+            lowerTypes(
+                "schema shop.orders @proto(java_multiple_files: true)\n\n" +
+                    "model Order {\n  #1 x bool\n\n  model OrderProto { #1 y bool }\n}\n\n" +
+                    "model Cart {\n  #1 a bool\n\n  model Line {\n    #1 b bool\n\n" +
+                    "    enum CartProto { #1 open }\n  }\n}\n"
+            )
+        // files in path order: cart.proto, then order.proto
+        assertEquals(
+            listOf(
+                "shop.orders.schemata:15 SCH2001 enum 'CartProto': proto3 requires a zero " +
+                    "value; synthesized CART_PROTO_UNSPECIFIED = 0",
+                "shop.orders.schemata:15 SCH2004 enum 'CartProto' has the Java outer class name " +
+                    "of its file 'shop/orders/cart.proto'; protoc --java_out refuses it",
+                "shop.orders.schemata:6 SCH2004 model 'OrderProto' has the Java outer class name " +
+                    "of its file 'shop/orders/order.proto'; protoc --java_out refuses it",
+            ),
+            lowered.located(),
+        )
+    }
+
     @Test
     fun `without java_multiple_files no wrapper class name is written`() {
         val lowered =

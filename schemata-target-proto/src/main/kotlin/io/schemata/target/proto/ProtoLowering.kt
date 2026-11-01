@@ -22,6 +22,7 @@ import io.schemata.core.ir.TypeDecl
 import io.schemata.core.ir.UnionType
 import io.schemata.core.ir.declarationPath
 import io.schemata.core.ir.kindWord
+import io.schemata.core.ir.selfAndNested
 import io.schemata.core.ir.storedFields
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.SchemataText
@@ -560,20 +561,24 @@ object ProtoLowering {
                     Symbol(serviceNames.getValue(it), "service '${it.name}'", it.nameSpan)
                 }
             scope(typeDecls.flatMap { symbols(it) } + serviceSymbols)
-            return files.map { file ->
-                imports.clear()
-                current = file.path
-                val declarations = file.declarations.map { decl(it) }
-                val services = file.services.map { service(it, serviceNames.getValue(it)) }
-                ProtoFile(
-                    path = file.path,
-                    packageName = file.scope.packageName,
-                    imports = imports.toList(),
-                    declarations = declarations,
-                    services = services,
-                    options = fileOptions(unitOptions, file),
-                )
-            }
+            val lowered =
+                files.map { file ->
+                    imports.clear()
+                    current = file.path
+                    val declarations = file.declarations.map { decl(it) }
+                    val services = file.services.map { service(it, serviceNames.getValue(it)) }
+                    ProtoFile(
+                        path = file.path,
+                        packageName = file.scope.packageName,
+                        imports = imports.toList(),
+                        declarations = declarations,
+                        services = services,
+                        options = fileOptions(unitOptions, file),
+                    )
+                }
+            // after the files, so every emitted name, and any invalid override, is already known
+            outerClassCollisions()
+            return lowered
         }
 
         /** Option [values] as proto literals, in key order. */
@@ -725,6 +730,49 @@ object ProtoLowering {
                         span,
                         help = "set `@proto(name: \"…\")` on it",
                     )
+            }
+        }
+
+        /**
+         * protoc's Java generator refuses a file whose outer class name is the name of a message,
+         * enum, or service the file declares, nested ones included. Schemata sets that name when
+         * the scope declares `java_outer_classname`, and when every file names its wrapper class
+         * itself. Each declaration, at any depth, and each service whose emitted name equals it
+         * exactly is reported at its name. Top-level ones under a wrapper a file names itself are
+         * left to [wrapperCollisions], which already reports them ignoring case. When the name is
+         * not set, protoc derives one that avoids the clash, so nothing is checked.
+         */
+        private fun outerClassCollisions() {
+            val declared =
+                (ProtoFileOptions.of(unit).values["java_outer_classname"] as? AnnotationValue.Str)
+                    ?.value
+            for (file in files) {
+                val outer = if (namesWrappers) wrapper(file) else declared ?: continue
+                val decls =
+                    if (namesWrappers) file.declarations.flatMap { top -> top.nested }
+                    else file.declarations
+                val named =
+                    decls
+                        .flatMap { it.selfAndNested() }
+                        .map { Triple(it.kindWord, emitted(it), it.nameSpan) } +
+                        if (namesWrappers) emptyList()
+                        else
+                            file.services.map {
+                                Triple("service", serviceNames.getValue(it), it.nameSpan)
+                            }
+                for ((kind, name, span) in named) {
+                    if (name != outer) continue
+                    diagnostics +=
+                        Diagnostic(
+                            ProtoCodes.NAME_COLLISION,
+                            "$kind '$name' has the Java outer class name of its file " +
+                                "'${file.path}'; protoc --java_out refuses it",
+                            span,
+                            help =
+                                "rename the declaration or set `@proto(name: \"…\")`, or choose " +
+                                    "another `java_outer_classname`",
+                        )
+                }
             }
         }
 

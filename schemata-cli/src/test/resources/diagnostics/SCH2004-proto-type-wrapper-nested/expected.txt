@@ -1,0 +1,6 @@
+# targets=proto proto-layout=type
+error[SCH2004] (proto): model 'OrderProto' has the Java outer class name of its file 's/order.proto'; protoc --java_out refuses it
+ --> s.schemata:6:9
+  = help: rename the declaration or set `@proto(name: "…")`, or choose another `java_outer_classname`
+
+1 error, 0 warnings
