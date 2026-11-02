@@ -42,6 +42,7 @@ import java.math.BigDecimal
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -3456,6 +3457,35 @@ class ProtoLoweringTest {
                     "model Order { #1 tags map<string, string> @proto(name: \"labels\") }\n"
             )
         assertEquals(emptyList(), none)
+    }
+
+    @Test
+    fun `protoc refuses a map entry outer class and accepts the renamed field`() {
+        val clash =
+            lower(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> }\n"
+            )
+        assertEquals(listOf("SCH2004"), clash.diagnostics.map { it.code.id })
+        val out = Files.createTempDirectory("schemata-generated").toFile()
+        try {
+            val files = ProtoRenderer.render(clash.model).associate { it.path to it.content }
+            assertNotNull(Protoc.generate(files, "java", out))
+        } finally {
+            out.deleteRecursively()
+        }
+        val renamed =
+            lower(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> @proto(name: \"labels\") }\n"
+            )
+        assertEquals(emptyList(), renamed.codes())
+        generated(renamed, "java") { out2 ->
+            assertTrue(
+                out2.walk().any { it.name == "TagsEntry.java" },
+                out2.walk().toList().toString(),
+            )
+        }
     }
 
     @Test
