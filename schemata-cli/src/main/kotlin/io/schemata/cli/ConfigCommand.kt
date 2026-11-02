@@ -9,12 +9,12 @@ import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Json
 import io.schemata.cli.report.Report
 import io.schemata.config.AnnotationDefaults
+import io.schemata.config.ConfigKeys
 import io.schemata.config.ProjectConfig
 import io.schemata.config.Setting
 import io.schemata.config.Synthesized
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.lang.SchemataText
-import io.schemata.target.ProtoLayout
 
 /**
  * `schemata config`: the configuration the other commands would run with (SCH-102). Each setting
@@ -100,53 +100,13 @@ private class Shown(
      * target table the file holds.
      */
     private val tables: List<Table> = buildList {
-        val compile = config?.compile
-        add(
-            Table(
-                "compile",
-                listOfNotNull(
-                    entry("targets", compile?.targets, Pipeline.targets.map { it.name }),
-                    entry("out", compile?.out, "out"),
-                    entry("strict", compile?.strict, false),
-                    entry("proto_layout", compile?.protoLayout, ProtoLayout.SCHEMA.flag),
-                ),
-            )
-        )
-        val import = config?.import
-        add(
-            Table(
-                "import",
-                listOfNotNull(
-                    entry("from", import?.from, null),
-                    entry("namespace", import?.namespace, null),
-                    entry("include", import?.include, emptyList<String>()),
-                ),
-            )
-        )
-        add(
-            Table(
-                "migrate",
-                listOfNotNull(entry("allow_destructive", config?.migrate?.allowDestructive, false)),
-            )
-        )
-        val report = config?.report
-        add(
-            Table(
-                "report",
-                listOfNotNull(
-                    entry("format", report?.format, "human"),
-                    entry("color", report?.color, "auto"),
-                ),
-            )
-        )
-        config?.sources?.let { sources ->
+        for ((name, keys) in ConfigKeys.runTables(Pipeline.targets.map { it.name })) {
+            // [sources] has no defaults: it shows only when the file has the table
+            if (name == "sources" && config?.sources == null) continue
             add(
                 Table(
-                    "sources",
-                    listOfNotNull(
-                        entry("paths", sources.paths, null),
-                        entry("exclude", sources.exclude, null),
-                    ),
+                    name,
+                    keys.mapNotNull { entry(it.name, config?.setting(name, it.name), it.default) },
                 )
             )
         }
