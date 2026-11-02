@@ -554,7 +554,8 @@ class ConfigLoaderTest {
 
         assertDiagnostic(
             "SCH2903 schemata.toml:3: sources.exclude holds an invalid glob 'schemas\\drafts\\**'",
-            globHelp,
+            "globs use / as the separator, also on Windows, and \\ is not accepted; " +
+                "match a literal character with a class, for example [*] or [{]",
             failure("[sources]\npaths = [\"schemas\"]\nexclude = ['schemas\\drafts\\**']\n"),
         )
     }

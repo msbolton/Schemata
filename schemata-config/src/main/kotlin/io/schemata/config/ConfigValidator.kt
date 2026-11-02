@@ -96,8 +96,12 @@ internal class Validator(
                     ConfigCodes.BAD_VALUE,
                     exclude.line,
                     "sources.exclude holds an invalid glob '$glob'",
-                    "globs use / as the separator and the syntax of java.nio.file.PathMatcher, " +
-                        "for example \"schemas/drafts/**\"",
+                    if ('\\' in glob)
+                        "globs use / as the separator, also on Windows, and \\ is not accepted; " +
+                            "match a literal character with a class, for example [*] or [{]"
+                    else
+                        "globs use / as the separator and the syntax of java.nio.file.PathMatcher, " +
+                            "for example \"schemas/drafts/**\"",
                 )
             }
         return SourcesSettings(paths, exclude)
