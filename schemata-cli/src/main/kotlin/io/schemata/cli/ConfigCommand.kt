@@ -108,7 +108,9 @@ private class Shown(
             add(
                 Table(
                     name,
-                    keys.mapNotNull { entry(it.name, config?.setting(name, it.name), it.default) },
+                    keys.mapNotNull {
+                        entry(name, it.name, config?.setting(name, it.name), it.default)
+                    },
                 )
             )
         }
@@ -125,8 +127,32 @@ private class Shown(
         }
     }
 
-    private fun entry(key: String, setting: Setting<out Any>?, default: Any?): Entry? =
-        setting?.let { Entry(key, it.value, it.line) } ?: default?.let { Entry(key, it, null) }
+    private fun entry(
+        table: String,
+        key: String,
+        setting: Setting<out Any>?,
+        default: Any?,
+    ): Entry? =
+        setting?.let { Entry(key, shown(table, key, it.value, true), it.line) }
+            ?: default?.let { Entry(key, shown(table, key, it, false), null) }
+
+    /**
+     * [value] as `config` prints it. Paths in the file are relative to its directory, so the ones
+     * that name directories, `out`, the `[sources]` paths and the `[import]` include directories,
+     * are resolved and shown as every command shows a path, relative to the working directory or
+     * absolute outside it (SCH-108). The `out` default stays as is: it is relative to the working
+     * directory already. Excludes are globs matched below the file's directory and stay as written.
+     */
+    private fun shown(table: String, key: String, value: Any, fromFile: Boolean): Any {
+        val dir = config?.directory ?: return value
+        fun resolved(path: String) = displayPath(dir.resolve(path))
+        return when {
+            table == "compile" && key == "out" && fromFile -> resolved(value as String)
+            table == "sources" && key == "paths" || table == "import" && key == "include" ->
+                (value as List<*>).map { resolved(it as String) }
+            else -> value
+        }
+    }
 
     /** [synthesized] is null when no schemas were analysed, and then has no block. */
     fun human(synthesized: List<Synthesized>?): String = buildString {
