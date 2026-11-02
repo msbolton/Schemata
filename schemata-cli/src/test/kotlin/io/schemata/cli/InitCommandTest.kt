@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.testing.test
 import io.schemata.cli.guide.Guide
 import io.schemata.config.ConfigLoader
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.readText
@@ -11,6 +12,7 @@ import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.io.TempDir
 
 class InitCommandTest {
@@ -105,5 +107,41 @@ class InitCommandTest {
                 }
         file.writeText(uncommented + "\n")
         loads(file)
+    }
+
+    @Test
+    fun `an unreadable directory holds no schema file`() {
+        write("schemas/a.schemata")
+        val locked = tmp.resolve("pgdata").also { it.createDirectories() }.toFile()
+        write("pgdata/x/b.schemata")
+        locked.setReadable(false, false)
+        try {
+            assumeTrue(!Files.isReadable(locked.toPath()), "directory is still readable")
+            val result = InitCommand().test(tmp.toString())
+            assertEquals(0, result.statusCode, result.stderr)
+            assertTrue("paths = [\"schemas\"]" in tmp.resolve("schemata.toml").readText())
+        } finally {
+            locked.setReadable(true, false)
+        }
+    }
+
+    @Test
+    fun `a directory that cannot be written reports one line`() {
+        write("schemas/a.schemata")
+        val dir = tmp.toFile()
+        dir.setWritable(false, false)
+        try {
+            assumeTrue(!Files.isWritable(dir.toPath()), "directory is still writable")
+            val result = InitCommand().test(tmp.toString())
+            assertEquals(1, result.statusCode)
+            val file = tmp.resolve("schemata.toml")
+            assertTrue(
+                result.stderr.startsWith("cannot write ${displayPath(file)}: "),
+                result.stderr,
+            )
+            assertEquals(1, result.stderr.trim().lines().size, result.stderr)
+        } finally {
+            dir.setWritable(true, false)
+        }
     }
 }

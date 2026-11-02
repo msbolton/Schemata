@@ -8,8 +8,13 @@ import com.github.ajalt.clikt.parameters.arguments.optional
 import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.config.ConfigLoader
 import io.schemata.config.StarterFile
+import java.io.IOException
+import java.nio.file.AccessDeniedException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import kotlin.io.path.isDirectory
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.listDirectoryEntries
@@ -38,7 +43,20 @@ class InitCommand : CliktCommand(name = "init") {
                 Pipeline.targets.map { it.name },
                 sourcePathsIn(dir),
             )
-        Files.writeString(file, text)
+        try {
+            Files.writeString(file, text)
+        } catch (e: IOException) {
+            val reason =
+                when {
+                    e is AccessDeniedException -> e.reason ?: "permission denied"
+                    else -> e.message ?: e.javaClass.simpleName
+                }
+            echo(
+                "cannot write ${displayPath(file)}: ${reason.replaceFirstChar { it.lowercase() }}",
+                err = true,
+            )
+            throw ProgramResult(1)
+        }
         echo("wrote ${displayPath(file)}")
     }
 }
@@ -53,11 +71,31 @@ internal fun sourcePathsIn(dir: Path): List<String> {
     if (entries.any { it.isRegularFile() && it.name.endsWith(".schemata") }) return listOf(".")
     return entries
         .filter { it.isDirectory() && !it.name.startsWith(".") && it.name != "out" }
-        .filter { sub ->
-            Files.walk(sub).use { s ->
-                s.anyMatch { it.isRegularFile() && it.name.endsWith(".schemata") }
-            }
-        }
+        .filter { sub -> holdsSchemaFile(sub) }
         .map { it.name }
         .sorted()
+}
+
+/**
+ * Whether [dir] holds a schema file at any depth. A directory that cannot be read holds none, so
+ * one unreadable folder, such as a database's data directory, never stops `init`.
+ */
+private fun holdsSchemaFile(dir: Path): Boolean {
+    var found = false
+    Files.walkFileTree(
+        dir,
+        object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                if (attrs.isRegularFile && file.name.endsWith(".schemata")) {
+                    found = true
+                    return FileVisitResult.TERMINATE
+                }
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun visitFileFailed(file: Path, exc: IOException) =
+                FileVisitResult.SKIP_SUBTREE
+        },
+    )
+    return found
 }
