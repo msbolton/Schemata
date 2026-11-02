@@ -917,4 +917,51 @@ class ServerSessionTest {
             session.diagnostics(c) { it.isEmpty() }
         }
     }
+
+    @Test
+    fun `clearing the options reads a file that was never read`() {
+        write("schemata.toml", sourcesAndStrict)
+        val c = write("schemas/customers/c.schemata", customers)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        val outside = write("model/x.schemata", "schema x\n\nmodel X { #1 x Nope }\n")
+        session(mapOf("roots" to listOf("model"), "strict" to true)).use { session ->
+            session.open(outside, "schema x\n\nmodel X { #1 x Nope }\n")
+            session.diagnostics(outside) { it.isNotEmpty() }
+            configure(
+                session,
+                JsonObject().apply {
+                    add("schemata", roots().apply { addProperty("strict", false) })
+                },
+            )
+            session.open(o, looseOrders)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            session.diagnostics(c) { it.isEmpty() }
+            assertEquals(emptyList(), session.logged())
+        }
+    }
+
+    @Test
+    fun `options sent after start that override the file log nothing for a bad file`() {
+        val toml = write("schemata.toml", "[sources]\npaths = [\"schemas\"]\n")
+        val o = write("model/orders/o.schemata", looseOrders)
+        write("model/customers/c.schemata", customers)
+        write("schemas/s.schemata", "schema s\n")
+        session().use { session ->
+            session.open(o, looseOrders)
+            session.diagnostics(o) { it.isNotEmpty() }
+            configure(
+                session,
+                JsonObject().apply {
+                    add("schemata", roots("model").apply { addProperty("strict", true) })
+                },
+            )
+            toml.writeText("[colour]\nscheme = \"dark\"\n")
+            session.watched(toml, FileChangeType.Changed)
+            session.change(o, looseOrders + "\n")
+            val shown = session.diagnostics(o) { codes(it) == listOf("SCH1014") }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            assertEquals(emptyList(), session.logged())
+        }
+    }
 }

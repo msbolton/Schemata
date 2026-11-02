@@ -205,6 +205,9 @@ class SchemataServer(
     private fun configure(options: JsonObject?) {
         rootsIn(options)?.let { givenRoots = it }
         strictIn(options)?.let { givenStrict = it }
+        // A server started with non-empty roots and strict never read the file; once the options
+        // stop overriding it, it must.
+        readProjectFile()
         apply()
     }
 
