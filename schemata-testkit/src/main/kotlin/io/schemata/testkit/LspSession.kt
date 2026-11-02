@@ -1,5 +1,6 @@
 package io.schemata.testkit
 
+import com.google.gson.JsonObject
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.PipedInputStream
@@ -56,6 +57,7 @@ private constructor(
         val published = mutableMapOf<String, MutableList<List<Diagnostic>>>()
         val logged = mutableListOf<MessageParams>()
         val registered = mutableListOf<String>()
+        val globs = mutableListOf<String>()
 
         override fun publishDiagnostics(params: PublishDiagnosticsParams) {
             lock.withLock {
@@ -77,7 +79,15 @@ private constructor(
         ): CompletableFuture<MessageActionItem> = CompletableFuture.completedFuture(null)
 
         override fun registerCapability(params: RegistrationParams): CompletableFuture<Void> {
-            lock.withLock { registered += params.registrations.map { it.method } }
+            lock.withLock {
+                registered += params.registrations.map { it.method }
+                params.registrations.forEach { r ->
+                    // over the wire the options arrive as JSON, not as lsp4j's options class
+                    (r.registerOptions as? JsonObject)?.getAsJsonArray("watchers")?.forEach {
+                        globs += it.asJsonObject.get("globPattern").asString
+                    }
+                }
+            }
             return CompletableFuture.completedFuture(null)
         }
     }
@@ -165,6 +175,9 @@ private constructor(
 
     /** The method of every capability the server has registered, such as a file watcher. */
     fun registrations(): List<String> = client.lock.withLock { client.registered.toList() }
+
+    /** The glob pattern of every file watcher the server has registered. */
+    fun watchers(): List<String> = client.lock.withLock { client.globs.toList() }
 
     /**
      * Asks the server for [path]'s outline and waits for the answer. The server publishes whatever

@@ -112,6 +112,12 @@ class SchemataServer(
     private var strict = false
     private var exclude: (Path) -> Boolean = { false }
 
+    /** The latest `roots` the options carried, or null before any did. */
+    private var givenRoots: List<String>? = null
+
+    /** The latest `strict` the options carried, or null before any did. */
+    private var givenStrict: Boolean? = null
+
     /** The `[sources]` roots of `schemata.toml`, or null when it has none. */
     private var fileRoots: List<String>? = null
     private var fileExclude: (Path) -> Boolean = { false }
@@ -138,8 +144,10 @@ class SchemataServer(
             watchFiles =
                 params.capabilities?.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
             val options = params.initializationOptions as? JsonObject
-            readProjectFile(options)
-            configure(options)
+            rootsIn(options)?.let { givenRoots = it }
+            strictIn(options)?.let { givenStrict = it }
+            readProjectFile()
+            apply()
             val capabilities =
                 ServerCapabilities().apply {
                     setTextDocumentSync(TextDocumentSyncKind.Full)
@@ -157,7 +165,10 @@ class SchemataServer(
         if (watchFiles) {
             val options =
                 DidChangeWatchedFilesRegistrationOptions(
-                    listOf(FileSystemWatcher(Either.forLeft("**/*.schemata")))
+                    listOf(
+                        FileSystemWatcher(Either.forLeft("**/*.schemata")),
+                        FileSystemWatcher(Either.forLeft("**/schemata.toml")),
+                    )
                 )
             client?.registerCapability(
                 RegistrationParams(
@@ -192,16 +203,22 @@ class SchemataServer(
      * false `strict`, so neither value can mean that the user chose it over the file.
      */
     private fun configure(options: JsonObject?) {
-        rootsIn(options)?.let { given ->
-            if (given.isEmpty()) {
-                roots = fileRoots ?: emptyList()
-                exclude = fileExclude
-            } else {
-                roots = given
-                exclude = { false }
-            }
+        rootsIn(options)?.let { givenRoots = it }
+        strictIn(options)?.let { givenStrict = it }
+        apply()
+    }
+
+    /** The settings in force: the options' where they say something, else the file's. */
+    private fun apply() {
+        val given = givenRoots.orEmpty()
+        if (given.isNotEmpty()) {
+            roots = given
+            exclude = { false }
+        } else {
+            roots = fileRoots ?: emptyList()
+            exclude = fileExclude
         }
-        strictIn(options)?.let { strict = it || fileStrict }
+        strict = givenStrict == true || fileStrict
         val base = folder
         val paths =
             roots.mapNotNull { root ->
@@ -212,18 +229,24 @@ class SchemataServer(
     }
 
     /**
-     * Reads the nearest `schemata.toml` at or above the workspace folder for the settings [options]
-     * leave to it: the roots and excludes of `[sources]`, the strictness of `[compile]`. So the
-     * editor reports what `schemata check` does (SCH-102). Empty `roots` and `strict: false` leave
-     * a setting to the file just as a missing key does, see [configure]; when the options give
-     * non-empty roots and `strict: true`, the file is not even looked for. A file with errors is
-     * the CLI's to report: the server notes it in the client's log and carries on as if there were
-     * no file.
+     * Reads the nearest `schemata.toml` at or above the workspace folder for the settings the
+     * options leave to it: the roots and excludes of `[sources]`, the strictness of `[compile]`. So
+     * the editor reports what `schemata check` does (SCH-102). Empty `roots` and `strict: false`
+     * leave a setting to the file just as a missing key does, see [configure]; when the options
+     * give non-empty roots and `strict: true`, the file is not even looked for. No file at all
+     * clears what an earlier one gave. A file with errors is the CLI's to report: the server notes
+     * it in the client's log and keeps the settings it last read, which are none at start.
      */
-    private fun readProjectFile(options: JsonObject?) {
-        if (rootsIn(options).orEmpty().isNotEmpty() && strictIn(options) == true) return
+    private fun readProjectFile() {
+        if (givenRoots.orEmpty().isNotEmpty() && givenStrict == true) return
         val base = folder?.toAbsolutePath()?.normalize() ?: return
-        val file = ConfigLoader.discover(base, configCeiling) ?: return
+        val file = ConfigLoader.discover(base, configCeiling)
+        if (file == null) {
+            fileRoots = null
+            fileExclude = { false }
+            fileStrict = false
+            return
+        }
         val shown = base.relativize(file).toString()
         val loaded = ConfigLoader.load(file, annotations, targetNames, shown)
         val config = loaded.config
@@ -237,14 +260,9 @@ class SchemataServer(
             )
             return
         }
-        if (config.sources != null) {
-            fileRoots = config.sourcePaths.map(Path::toString)
-            fileExclude = config::excluded
-            roots = fileRoots.orEmpty()
-            exclude = fileExclude
-        }
+        fileRoots = config.sources?.let { config.sourcePaths.map(Path::toString) }
+        fileExclude = if (config.sources != null) config::excluded else { _ -> false }
         fileStrict = config.compile.strict?.value == true
-        strict = fileStrict
     }
 
     private fun rootsIn(options: JsonObject?): List<String>? =
@@ -292,9 +310,25 @@ class SchemataServer(
     override fun didSave(params: DidSaveTextDocumentParams) = Unit
 
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams) = notify {
-        params.changes.forEach { change ->
-            path(change.uri)?.let { touch(workspace.diskChanged(it)) }
-        }
+        val (projectFiles, schemaFiles) =
+            params.changes.partition {
+                path(it.uri)?.let { p -> Paths.get(p).fileName?.toString() } ==
+                    ConfigLoader.FILE_NAME
+            }
+        schemaFiles.forEach { change -> path(change.uri)?.let { touch(workspace.diskChanged(it)) } }
+        if (projectFiles.isNotEmpty()) reloadProjectFile()
+    }
+
+    /**
+     * Reads `schemata.toml` again after the editor saw one change on disk (SCH-109): it is found
+     * again from the workspace folder, so a file created or deleted counts too, and every open set
+     * is analysed again under the new settings.
+     */
+    private fun reloadProjectFile() {
+        readProjectFile()
+        cancelPending()
+        apply()
+        republish()
     }
 
     /**
@@ -307,6 +341,11 @@ class SchemataServer(
             (params.settings as? JsonObject)?.get("schemata") as? JsonObject ?: return@notify
         cancelPending()
         configure(section)
+        republish()
+    }
+
+    /** Publishes every open set and clears the files no set publishes any more. */
+    private fun republish() {
         val members = workspace.openSets().flatMap(::publish).toSet()
         published
             .filter { (path, diagnostics) -> diagnostics.isNotEmpty() && path !in members }
