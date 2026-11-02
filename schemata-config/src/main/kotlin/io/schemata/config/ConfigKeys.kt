@@ -65,7 +65,7 @@ object ConfigKeys {
                         "out",
                         Expect.Text,
                         "out",
-                        "where compile writes, relative to this file",
+                        "where compile writes; a value set here is relative to this file",
                     ),
                     ConfigKey("strict", Expect.Flag, false, "report every warning as an error"),
                     ConfigKey(

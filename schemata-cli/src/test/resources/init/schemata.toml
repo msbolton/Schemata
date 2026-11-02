@@ -3,7 +3,7 @@
 
 [compile]
 # targets = ["proto", "sql", "xsd", "jsonschema", "openapi"]   # the targets compile and check write
-# out = "out"   # where compile writes, relative to this file
+# out = "out"   # where compile writes; a value set here is relative to this file
 # strict = false   # report every warning as an error
 # proto_layout = "schema"   # "schema" writes a Protobuf file per schema, "type" one per type
 
