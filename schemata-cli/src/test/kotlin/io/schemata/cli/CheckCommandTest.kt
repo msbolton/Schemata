@@ -113,4 +113,29 @@ class CheckCommandTest {
         val plain = CheckCommand().test("--no-config --target proto $src")
         assertEquals(0, plain.statusCode, plain.stderr)
     }
+
+    @Test
+    fun `a per-schema package in a cycle beside a declared one reports the clash`() {
+        val src = tmp.resolve("cycle").createDirectories()
+        src.resolve("alpha.schemata")
+            .writeText(
+                "schema cyc.alpha @proto(package: \"alpha\")\n\nimport cyc.beta\n\n" +
+                    "model A { #1 b B? }\n"
+            )
+        src.resolve("beta.schemata")
+            .writeText("schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n")
+        val toml = tmp.resolve("schemata.toml")
+        toml.writeText(
+            "[proto]\npackage = \"{schema_}.v1\"\n\n[proto.schemas.\"cyc.beta\"]\npackage = \"other\"\n"
+        )
+        val result = CheckCommand().test("--config $toml --target proto --proto-layout schema $src")
+        assertEquals(1, result.statusCode, result.stderr)
+        assertTrue(
+            result.stderr.startsWith(
+                "error[SCH2007] (proto): schemas cyc.alpha and cyc.beta reference each other " +
+                    "but declare packages 'alpha' and 'other'"
+            ),
+            result.stderr,
+        )
+    }
 }

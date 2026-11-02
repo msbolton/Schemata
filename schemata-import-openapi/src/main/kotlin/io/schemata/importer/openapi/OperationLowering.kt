@@ -914,7 +914,10 @@ internal class OperationLowering(
                 )
             }
             return body(picked.media, wanted, role, null)?.let {
-                UnitPayload(UnitType.Ref(payloadName(it, place.doc, place.at)), stream = true)
+                UnitPayload(
+                    UnitType.Ref(payloadName(it, place.doc, place.at, adopt = true)),
+                    stream = true,
+                )
             }
         }
         val seen = mutableSetOf<String>()
@@ -935,7 +938,10 @@ internal class OperationLowering(
         if (kept.isEmpty())
             return picked?.let { media ->
                 body(media.media, wanted, role, null)?.let {
-                    UnitPayload(UnitType.Ref(payloadName(it, place.doc, place.at)), stream = false)
+                    UnitPayload(
+                        UnitType.Ref(payloadName(it, place.doc, place.at, adopt = true)),
+                        stream = false,
+                    )
                 }
             }
         val describedName = described(value.description)
@@ -956,11 +962,14 @@ internal class OperationLowering(
                 deprecated = part?.deprecated ?: false,
             )
         if (describedName == null)
-            return UnitPayload(UnitType.Ref(synthesize(place.doc, place.at, decl)), stream = false)
+            return UnitPayload(
+                UnitType.Ref(synthesize(place.doc, place.at, decl, adopt = true)),
+                stream = false,
+            )
         val same = describedModels[describedName]?.takeIf { it.first == decl }?.second
         val declared =
             same
-                ?: synthesize(place.doc, place.at, decl).also {
+                ?: synthesize(place.doc, place.at, decl, adopt = true).also {
                     describedModels.putIfAbsent(describedName, decl to it)
                 }
         return UnitPayload(UnitType.Ref(declared), stream = false)
@@ -1105,7 +1114,7 @@ internal class OperationLowering(
 
     /**
      * The name a payload refers to [body] by, claiming a declaration made for it; [adopt] lets a
-     * request model fill the placeholder its nested components made.
+     * request, response or error model fill the placeholder its nested components made.
      */
     private fun payloadName(
         body: Body,
@@ -1297,7 +1306,7 @@ internal class OperationLowering(
 
     /**
      * Claims [decl]'s name at the top of the namespace, reporting a suffix the name took; with
-     * [adopt], a request model fills the placeholder of its name instead.
+     * [adopt], a request, response or error model fills the placeholder of its name instead.
      */
     private fun synthesize(
         on: OpenApiDoc,
