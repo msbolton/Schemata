@@ -720,6 +720,25 @@ $extra
     }
 
     @Test
+    fun `a plain response model adopts its placeholder`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    responseWithNested("200")
+                        .replace("NAME", "OrdersGetOrderResponse")
+                        .replace(
+                            "                  headers:\n                    X-Total: {schema: {type: integer}}\n",
+                            "",
+                        )
+            )
+        assertEquals(emptyList(), messages(r))
+        val text = text(r)
+        assertHas(text, "model OrdersGetOrderResponse {", "model Line { sku string }")
+        assertFalse("OrdersGetOrderResponse2" in text, text)
+        assertEquals(1, Regex("model OrdersGetOrderResponse\\b").findAll(text).count(), text)
+    }
+
+    @Test
     fun `an error model fills the placeholder its nested component made`() {
         val r =
             importText(
