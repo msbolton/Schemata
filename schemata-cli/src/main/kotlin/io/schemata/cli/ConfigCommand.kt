@@ -29,6 +29,8 @@ class ConfigCommand : CliktCommand(name = "config") {
 
     private val configuration by ConfigOptions()
 
+    private val protoLayout by protoLayoutOption()
+
     private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
     override fun run() {
@@ -54,8 +56,8 @@ class ConfigCommand : CliktCommand(name = "config") {
             emit(this, report, reportSources(schemas, config), style, out = "")
             return
         }
-        // `config` writes nothing, so the `[proto]` keys expand under the file's layout, the one
-        // `compile` takes when the command line names none.
+        // `config` writes nothing, so the `[proto]` keys expand under `--proto-layout`, else the
+        // file's layout, the one `compile` takes.
         val synthesized =
             analyzed?.schema?.let { schema ->
                 config
@@ -64,7 +66,7 @@ class ConfigCommand : CliktCommand(name = "config") {
                             schema,
                             it,
                             Pipeline.annotations,
-                            configuredProtoLayout(null, it),
+                            configuredProtoLayout(protoLayout, it),
                         )
                     }
                     .orEmpty()

@@ -21,6 +21,30 @@ class ConfigCommandTest {
         }
 
     @Test
+    fun `config takes proto layout from the command line over the file`() {
+        val toml = toml("[proto]\njava_package = \"com.example.{schema}\"\n")
+        val src = tmp.resolve("src")
+        schema("src/alpha.schemata", "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b B? }\n")
+        schema("src/beta.schemata", "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n")
+        val result = ConfigCommand().test("--config $toml --proto-layout type $src")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertEquals(
+            listOf(
+                "synthesized:",
+                "  cyc.alpha: @proto(java_package: \"com.example.cyc.alpha\")  ($toml:2)",
+                "  cyc.beta: @proto(java_package: \"com.example.cyc.beta\")  ($toml:2)",
+                "",
+            ),
+            result.stdout.lines().dropWhile { it != "synthesized:" },
+        )
+        // the setting itself still shows what the file says
+        assertTrue(
+            result.stdout.lines().contains("compile.proto_layout = \"schema\"  (default)"),
+            result.stdout,
+        )
+    }
+
+    @Test
     fun `config prints no file when none applies`() {
         val result = ConfigCommand().test("--no-config")
         assertEquals(0, result.statusCode, result.stderr)
