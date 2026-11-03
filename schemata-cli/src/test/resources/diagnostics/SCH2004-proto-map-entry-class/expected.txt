@@ -1,0 +1,6 @@
+# targets=proto
+error[SCH2004] (proto): map field 'tags' of model 'Order' gets the Java class TagsEntry, the outer class name of its file 's.proto'; protoc --java_out refuses it
+ --> s.schemata:3:18
+  = help: rename the field, or choose another `java_outer_classname`
+
+1 error, 0 warnings

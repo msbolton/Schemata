@@ -105,6 +105,28 @@ class ConfigLoaderTest {
     }
 
     @Test
+    fun `every catalogue key loads and reads back`() {
+        Files.createDirectories(root.resolve("schemas"))
+        val tables = ConfigKeys.runTables(targets)
+        val text =
+            tables.entries.joinToString("\n") { (table, keys) ->
+                "[$table]\n" +
+                    keys.joinToString("") { key ->
+                        val value =
+                            if (table == "sources" && key.name == "paths") "[\"schemas\"]"
+                            else assertNotNull(key.expect.example, "${table}.${key.name}")
+                        "${key.name} = $value\n"
+                    }
+            }
+        val config = loaded(text)
+        for ((table, keys) in tables) {
+            for (key in keys) {
+                assertNotNull(config.setting(table, key.name), "$table.${key.name}")
+            }
+        }
+    }
+
+    @Test
     fun `run settings load with their lines`() {
         val config =
             loaded(
@@ -554,7 +576,8 @@ class ConfigLoaderTest {
 
         assertDiagnostic(
             "SCH2903 schemata.toml:3: sources.exclude holds an invalid glob 'schemas\\drafts\\**'",
-            globHelp,
+            "globs use / as the separator, also on Windows, and \\ is not accepted; " +
+                "match a literal character with a class, for example [*] or [{]",
             failure("[sources]\npaths = [\"schemas\"]\nexclude = ['schemas\\drafts\\**']\n"),
         )
     }

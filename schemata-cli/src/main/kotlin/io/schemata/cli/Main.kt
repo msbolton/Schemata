@@ -21,6 +21,7 @@ object Version {
 fun main(args: Array<String>) =
     Schemata()
         .subcommands(
+            InitCommand(),
             CompileCommand(),
             CheckCommand(),
             FmtCommand(),

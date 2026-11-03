@@ -57,6 +57,40 @@ data class ProjectConfig(
     /** By target name; only the target tables the file holds. */
     val defaults: Map<String, TargetDefaults>,
 ) {
+    /** The setting the file gives run table [table]'s [key], or null when it leaves it unset. */
+    fun setting(table: String, key: String): Setting<out Any>? =
+        when (table) {
+            "compile" ->
+                when (key) {
+                    "targets" -> compile.targets
+                    "out" -> compile.out
+                    "strict" -> compile.strict
+                    "proto_layout" -> compile.protoLayout
+                    else -> null
+                }
+            "import" ->
+                when (key) {
+                    "from" -> import.from
+                    "namespace" -> import.namespace
+                    "include" -> import.include
+                    else -> null
+                }
+            "migrate" -> migrate.allowDestructive.takeIf { key == "allow_destructive" }
+            "report" ->
+                when (key) {
+                    "format" -> report.format
+                    "color" -> report.color
+                    else -> null
+                }
+            "sources" ->
+                when (key) {
+                    "paths" -> sources?.paths
+                    "exclude" -> sources?.exclude
+                    else -> null
+                }
+            else -> null
+        }
+
     /** Paths in the file are relative to the directory that holds it. */
     val directory: Path
         get() = path.toAbsolutePath().parent

@@ -1,6 +1,7 @@
 package io.schemata.cli
 
 import com.github.ajalt.clikt.testing.test
+import io.schemata.cli.report.Json
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
@@ -19,6 +20,48 @@ class ConfigCommandTest {
             parent.createDirectories()
             writeText(text)
         }
+
+    @Test
+    fun `config takes proto layout from the command line over the file`() {
+        val toml = toml("[proto]\njava_package = \"com.example.{schema}\"\n")
+        val src = tmp.resolve("src")
+        schema("src/alpha.schemata", "schema cyc.alpha\n\nimport cyc.beta\n\nmodel A { #1 b B? }\n")
+        schema("src/beta.schemata", "schema cyc.beta\n\nimport cyc.alpha\n\nmodel B { #1 a A? }\n")
+        val result = ConfigCommand().test("--config $toml --proto-layout type $src")
+        assertEquals(0, result.statusCode, result.stderr)
+        assertEquals(
+            listOf(
+                "synthesized:",
+                "  cyc.alpha: @proto(java_package: \"com.example.cyc.alpha\")  ($toml:2)",
+                "  cyc.beta: @proto(java_package: \"com.example.cyc.beta\")  ($toml:2)",
+                "",
+            ),
+            result.stdout.lines().dropWhile { it != "synthesized:" },
+        )
+        // the setting itself still shows what the file says
+        assertTrue(
+            result.stdout.lines().contains("compile.proto_layout = \"schema\"  (default)"),
+            result.stdout,
+        )
+    }
+
+    @Test
+    fun `config shows out from the file resolved and the default as is`() {
+        val set = ConfigCommand().test("--config ${toml("[compile]\nout = \"gen\"\n")}")
+        assertTrue(
+            set.stdout.lines().any { it.startsWith("compile.out = \"${tmp.resolve("gen")}\"  (") },
+            set.stdout,
+        )
+        val unset = ConfigCommand().test("--config ${toml("[compile]\nstrict = true\n")}")
+        assertTrue(unset.stdout.lines().contains("compile.out = \"out\"  (default)"), unset.stdout)
+    }
+
+    @Test
+    fun `config json shows resolved paths`() {
+        val toml = toml("[import]\ninclude = [\"vendor\"]\n")
+        val result = ConfigCommand().test("--config $toml --format json")
+        assertTrue(Json.string(tmp.resolve("vendor").toString()) in result.stdout, result.stdout)
+    }
 
     @Test
     fun `config prints no file when none applies`() {
@@ -83,11 +126,11 @@ class ConfigCommandTest {
                 "compile.strict = true  ($toml:3)",
                 "compile.proto_layout = \"schema\"  (default)",
                 "import.from = \"proto\"  ($toml:6)",
-                "import.include = [\"vendor\"]  ($toml:7)",
+                "import.include = [\"${tmp.resolve("vendor")}\"]  ($toml:7)",
                 "migrate.allow_destructive = false  (default)",
                 "report.format = \"human\"  (default)",
                 "report.color = \"never\"  ($toml:10)",
-                "sources.paths = [\"schemas\"]  ($toml:13)",
+                "sources.paths = [\"${tmp.resolve("schemas")}\"]  ($toml:13)",
                 "sources.exclude = [\"schemas/drafts/**\"]  ($toml:14)",
                 "sources: 1 file",
                 "proto.java_package = \"com.example.{schema}\"  ($toml:17)",
@@ -213,7 +256,7 @@ class ConfigCommandTest {
         assertEquals(0, result.statusCode, result.stderr)
         assertTrue(
             result.stdout.contains(
-                "\"sources\":{\"paths\":{\"value\":[\"schemas\"],\"line\":2}}},\n"
+                "\"sources\":{\"paths\":{\"value\":[\"${tmp.resolve("schemas")}\"],\"line\":2}}},\n"
             ),
             result.stdout,
         )

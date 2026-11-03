@@ -1,8 +1,6 @@
 package io.schemata.config
 
 import io.schemata.core.annotations.AnnotationRegistry
-import io.schemata.core.annotations.Element
-import io.schemata.core.annotations.ValueKind
 import io.schemata.lang.Diagnostic
 import io.schemata.lang.DiagnosticCode
 import java.nio.file.Files
@@ -10,34 +8,6 @@ import java.nio.file.Path
 import org.tomlj.TomlArray
 import org.tomlj.TomlParseResult
 import org.tomlj.TomlTable
-
-/**
- * The value a key takes: the wording of SCH2903 and the example its help shows, or none when no
- * value would be accepted.
- */
-private sealed class Expect(val wording: String, val example: String?) {
-    object Text : Expect("a string", "\"…\"")
-
-    object Flag : Expect("true or false", "true")
-
-    object Integer : Expect("an integer", "1")
-
-    object Texts : Expect("an array of strings", "[\"…\"]")
-
-    /**
-     * A string out of [choices]; with [many], an array of such strings. With no choices only an
-     * empty array, or nothing at all, is accepted, so there is no value to show.
-     */
-    class OneOf(val choices: List<String>, val many: Boolean = false) :
-        Expect(
-            when {
-                choices.isNotEmpty() -> "one of " + choices.joinToString(", ") { "\"$it\"" }
-                many -> "an empty array"
-                else -> "no value"
-            },
-            choices.firstOrNull()?.let { if (many) "[\"$it\"]" else "\"$it\"" },
-        )
-}
 
 /** Walks one parsed file against the known tables, collecting diagnostics as it goes. */
 internal class Validator(
@@ -51,28 +21,9 @@ internal class Validator(
     val diagnostics = mutableListOf<Diagnostic>()
 
     private val runTables: Map<String, Map<String, Expect>> =
-        linkedMapOf(
-            "compile" to
-                linkedMapOf(
-                    "targets" to Expect.OneOf(targetNames, many = true),
-                    "out" to Expect.Text,
-                    "strict" to Expect.Flag,
-                    "proto_layout" to Expect.OneOf(listOf("schema", "type")),
-                ),
-            "import" to
-                linkedMapOf(
-                    "from" to Expect.OneOf(listOf("xsd", "proto", "sql", "openapi")),
-                    "namespace" to Expect.Text,
-                    "include" to Expect.Texts,
-                ),
-            "migrate" to linkedMapOf("allow_destructive" to Expect.Flag),
-            "report" to
-                linkedMapOf(
-                    "format" to Expect.OneOf(listOf("human", "json")),
-                    "color" to Expect.OneOf(listOf("auto", "always", "never")),
-                ),
-            "sources" to linkedMapOf("paths" to Expect.Texts, "exclude" to Expect.Texts),
-        )
+        ConfigKeys.runTables(targetNames).mapValues { (_, keys) ->
+            keys.associate { it.name to it.expect }
+        }
 
     private val tablesHelp =
         "tables are " +
@@ -145,8 +96,12 @@ internal class Validator(
                     ConfigCodes.BAD_VALUE,
                     exclude.line,
                     "sources.exclude holds an invalid glob '$glob'",
-                    "globs use / as the separator and the syntax of java.nio.file.PathMatcher, " +
-                        "for example \"schemas/drafts/**\"",
+                    if ('\\' in glob)
+                        "globs use / as the separator, also on Windows, and \\ is not accepted; " +
+                            "match a literal character with a class, for example [*] or [{]"
+                    else
+                        "globs use / as the separator and the syntax of java.nio.file.PathMatcher, " +
+                            "for example \"schemas/drafts/**\"",
                 )
             }
         return SourcesSettings(paths, exclude)
@@ -154,7 +109,7 @@ internal class Validator(
 
     /** A target table: its schema-line keys, and `schemas` holding one table per schema. */
     private fun readTarget(target: String): TargetDefaults {
-        val keys = schemaLineKeys(target)
+        val keys = ConfigKeys.targetKeys(registry, target)
         val table = listOf(target)
         val values = readTable(table, target, keys, placeholdersOf = target, skip = SCHEMAS)
         val schemas = linkedMapOf<String, Map<String, Setting<Any>>>()
@@ -175,34 +130,6 @@ internal class Validator(
         }
         return TargetDefaults(values, schemas)
     }
-
-    /**
-     * The keys [target] declares for a schema line, by the TOML value each takes. A key whose
-     * annotation is a bare flag or a name tuple has no single literal to default to, so the file
-     * cannot set it. `@openapi(scopes)` cannot be set either: its scopes belong to the oauth2 or
-     * openid scheme the same line's `auth` requires, and `auth` is a name tuple the file cannot
-     * default, so a default `scopes` would be refused on every schema line that does not itself
-     * require such a scheme.
-     */
-    private fun schemaLineKeys(target: String): Map<String, Expect> =
-        registry
-            .specs(target)
-            .filter { Element.NAMESPACE in it.elements }
-            .filterNot { target == "openapi" && it.key == "scopes" }
-            .mapNotNull { spec ->
-                val expect =
-                    when (spec.valueKind) {
-                        ValueKind.STRING,
-                        ValueKind.NAME ->
-                            spec.choices?.let { Expect.OneOf(it.toList()) } ?: Expect.Text
-                        ValueKind.BOOL -> Expect.Flag
-                        ValueKind.INT -> Expect.Integer
-                        ValueKind.FLAG,
-                        ValueKind.NAME_TUPLE -> null
-                    }
-                expect?.let { spec.key to it }
-            }
-            .toMap()
 
     /**
      * Reads every key of the table at [path] against [keys]. With [placeholdersOf], free string

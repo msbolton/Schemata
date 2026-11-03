@@ -9,12 +9,12 @@ import com.github.ajalt.clikt.parameters.types.path
 import io.schemata.cli.report.Json
 import io.schemata.cli.report.Report
 import io.schemata.config.AnnotationDefaults
+import io.schemata.config.ConfigKeys
 import io.schemata.config.ProjectConfig
 import io.schemata.config.Setting
 import io.schemata.config.Synthesized
 import io.schemata.core.ir.AnnotationValue
 import io.schemata.lang.SchemataText
-import io.schemata.target.ProtoLayout
 
 /**
  * `schemata config`: the configuration the other commands would run with (SCH-102). Each setting
@@ -28,6 +28,8 @@ class ConfigCommand : CliktCommand(name = "config") {
     private val reporting by FormatOptions()
 
     private val configuration by ConfigOptions()
+
+    private val protoLayout by protoLayoutOption()
 
     private val inputs by argument("PATHS").path(mustExist = true).multiple()
 
@@ -54,8 +56,8 @@ class ConfigCommand : CliktCommand(name = "config") {
             emit(this, report, reportSources(schemas, config), style, out = "")
             return
         }
-        // `config` writes nothing, so the `[proto]` keys expand under the file's layout, the one
-        // `compile` takes when the command line names none.
+        // `config` writes nothing, so the `[proto]` keys expand under `--proto-layout`, else the
+        // file's layout, the one `compile` takes.
         val synthesized =
             analyzed?.schema?.let { schema ->
                 config
@@ -64,7 +66,7 @@ class ConfigCommand : CliktCommand(name = "config") {
                             schema,
                             it,
                             Pipeline.annotations,
-                            configuredProtoLayout(null, it),
+                            configuredProtoLayout(protoLayout, it),
                         )
                     }
                     .orEmpty()
@@ -100,53 +102,15 @@ private class Shown(
      * target table the file holds.
      */
     private val tables: List<Table> = buildList {
-        val compile = config?.compile
-        add(
-            Table(
-                "compile",
-                listOfNotNull(
-                    entry("targets", compile?.targets, Pipeline.targets.map { it.name }),
-                    entry("out", compile?.out, "out"),
-                    entry("strict", compile?.strict, false),
-                    entry("proto_layout", compile?.protoLayout, ProtoLayout.SCHEMA.flag),
-                ),
-            )
-        )
-        val import = config?.import
-        add(
-            Table(
-                "import",
-                listOfNotNull(
-                    entry("from", import?.from, null),
-                    entry("namespace", import?.namespace, null),
-                    entry("include", import?.include, emptyList<String>()),
-                ),
-            )
-        )
-        add(
-            Table(
-                "migrate",
-                listOfNotNull(entry("allow_destructive", config?.migrate?.allowDestructive, false)),
-            )
-        )
-        val report = config?.report
-        add(
-            Table(
-                "report",
-                listOfNotNull(
-                    entry("format", report?.format, "human"),
-                    entry("color", report?.color, "auto"),
-                ),
-            )
-        )
-        config?.sources?.let { sources ->
+        for ((name, keys) in ConfigKeys.runTables(Pipeline.targets.map { it.name })) {
+            // [sources] has no defaults: it shows only when the file has the table
+            if (name == "sources" && config?.sources == null) continue
             add(
                 Table(
-                    "sources",
-                    listOfNotNull(
-                        entry("paths", sources.paths, null),
-                        entry("exclude", sources.exclude, null),
-                    ),
+                    name,
+                    keys.mapNotNull {
+                        entry(name, it.name, config?.setting(name, it.name), it.default)
+                    },
                 )
             )
         }
@@ -163,8 +127,32 @@ private class Shown(
         }
     }
 
-    private fun entry(key: String, setting: Setting<out Any>?, default: Any?): Entry? =
-        setting?.let { Entry(key, it.value, it.line) } ?: default?.let { Entry(key, it, null) }
+    private fun entry(
+        table: String,
+        key: String,
+        setting: Setting<out Any>?,
+        default: Any?,
+    ): Entry? =
+        setting?.let { Entry(key, shown(table, key, it.value, true), it.line) }
+            ?: default?.let { Entry(key, shown(table, key, it, false), null) }
+
+    /**
+     * [value] as `config` prints it. Paths in the file are relative to its directory, so the ones
+     * that name directories, `out`, the `[sources]` paths and the `[import]` include directories,
+     * are resolved and shown as every command shows a path, relative to the working directory or
+     * absolute outside it (SCH-108). The `out` default stays as is: it is relative to the working
+     * directory already. Excludes are globs matched below the file's directory and stay as written.
+     */
+    private fun shown(table: String, key: String, value: Any, fromFile: Boolean): Any {
+        val dir = config?.directory ?: return value
+        fun resolved(path: String) = displayPath(dir.resolve(path))
+        return when {
+            table == "compile" && key == "out" && fromFile -> resolved(value as String)
+            table == "sources" && key == "paths" || table == "import" && key == "include" ->
+                (value as List<*>).map { resolved(it as String) }
+            else -> value
+        }
+    }
 
     /** [synthesized] is null when no schemas were analysed, and then has no block. */
     fun human(synthesized: List<Synthesized>?): String = buildString {

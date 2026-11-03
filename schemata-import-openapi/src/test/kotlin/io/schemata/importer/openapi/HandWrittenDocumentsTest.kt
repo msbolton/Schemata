@@ -669,6 +669,247 @@ $extra
         assertEquals(1, Regex("model OrdersCreateOrderRequest\\b").findAll(text).count(), text)
     }
 
+    /**
+     * A `GET /orders/{id}` whose [code] response carries a header and an inline body that nests
+     * `Line`, a component under the dotted name of the model the response becomes.
+     */
+    private fun responseWithNested(code: String) =
+        """
+        openapi: 3.1.0
+        info: {title: shop, version: 1.0.0}
+        tags: [{name: Orders}]
+        paths:
+          /orders/{id}:
+            get:
+              tags: [Orders]
+              operationId: Orders_get_order
+              parameters:
+                - {name: id, in: path, required: true, schema: {type: string}}
+              responses:
+                '$code':
+                  description: Order
+                  headers:
+                    X-Total: {schema: {type: integer}}
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                        properties:
+                          lines:
+                            type: array
+                            items: {$REF: '#/components/schemas/shop.NAME.Line'}
+                        required: [lines]
+                        additionalProperties: false
+        components:
+          schemas:
+            shop.NAME.Line:
+              type: object
+              properties: {sku: {type: string}}
+              required: [sku]
+              additionalProperties: false
+        """
+
+    @Test
+    fun `a response model fills the placeholder its nested component made`() {
+        val r = importText("shop.yaml" to responseWithNested("200").replace("NAME", "Order"))
+        assertEquals(emptyList(), messages(r))
+        val text = text(r)
+        assertHas(text, "model Order {", "model Line { sku string }")
+        assertFalse("Order2" in text, text)
+        assertEquals(1, Regex("model Order\\b").findAll(text).count(), text)
+    }
+
+    @Test
+    fun `a plain response model adopts its placeholder`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    responseWithNested("200")
+                        .replace("NAME", "OrdersGetOrderResponse")
+                        .replace(
+                            "                  headers:\n                    X-Total: {schema: {type: integer}}\n",
+                            "",
+                        )
+            )
+        assertEquals(emptyList(), messages(r))
+        val text = text(r)
+        assertHas(text, "model OrdersGetOrderResponse {", "model Line { sku string }")
+        assertFalse("OrdersGetOrderResponse2" in text, text)
+        assertEquals(1, Regex("model OrdersGetOrderResponse\\b").findAll(text).count(), text)
+    }
+
+    @Test
+    fun `an error model fills the placeholder its nested component made`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    responseWithNested("404")
+                        .replace("NAME", "Order")
+                        .replace(
+                            "responses:\n",
+                            "responses:\n                '200': {description: ok}\n",
+                        )
+            )
+        assertEquals(emptyList(), messages(r))
+        val text = text(r)
+        assertHas(text, "model Order {", "model Line { sku string }")
+        assertFalse("Order2" in text, text)
+        assertEquals(1, Regex("model Order\\b").findAll(text).count(), text)
+    }
+
+    @Test
+    fun `a const oneOf mixing empty and non-empty values drops the empty one`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.1.0
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Size:
+                          oneOf:
+                            - {const: ''}
+                            - {const: A}
+                            - {const: B}
+                    """
+            )
+        assertHas(text(r), "enum Size {", "a @jsonschema(name: \"B\") b }")
+        assertEquals(
+            listOf(
+                "SCH2405 shop.yaml: #/components/schemas/Size/oneOf/0: enum value '' dropped; an enum value cannot be empty"
+            ),
+            messages(r),
+        )
+    }
+
+    @Test
+    fun `an all-empty const oneOf component imports as string`() {
+        val r =
+            importText(
+                "shop.yaml" to
+                    """
+                    openapi: 3.1.0
+                    info: {title: shop, version: 1.0.0}
+                    paths: {}
+                    components:
+                      schemas:
+                        Size:
+                          oneOf:
+                            - {const: ''}
+                    """
+            )
+        assertEquals(
+            listOf(
+                "SCH2403 shop.yaml: #/components/schemas/Size: enum has no non-empty value; imported as string"
+            ),
+            messages(r),
+        )
+        assertFalse("enum " in text(r), text(r))
+        assertFalse("union " in text(r), text(r))
+    }
+
+    private fun contacts(field: String, required: String = "required: [email]") =
+        """
+        openapi: 3.0.3
+        info: {title: shop, version: 1.0.0}
+        paths: {}
+        components:
+          schemas:
+            Contact:
+              oneOf:
+                - type: object
+                  properties: {email: {type: string}}
+                  required: [email]
+                  additionalProperties: false
+                - type: object
+                  properties: {phone: {type: string, maxLength: 20}}
+                  required: [phone]
+                  additionalProperties: false
+            Email:
+              type: object
+              properties: {$field: {type: string}}
+              $required
+              additionalProperties: false
+        """
+
+    @Test
+    fun `a keyed member refers to a one-field component whatever its field name`() {
+        val r = importText("shop.yaml" to contacts("value", "required: [value]"))
+        assertTrue(
+            messages(r).any {
+                it.contains(
+                    "member 'email' refers to model 'Email', whose one field holds its value"
+                )
+            },
+            messages(r).toString(),
+        )
+        assertHas(text(r), "union Contact = Email | Phone", "model Email { value string }")
+    }
+
+    @Test
+    fun `a keyed member refers to a one-field component whose field is optional`() {
+        val r = importText("shop.yaml" to contacts("value", "required: []"))
+        assertTrue(
+            messages(r).any {
+                it.contains(
+                    "member 'email' refers to model 'Email', whose one field holds its value"
+                )
+            },
+            messages(r).toString(),
+        )
+        assertHas(text(r), "union Contact = Email | Phone")
+    }
+
+    @Test
+    fun `the same tag in two unions takes one suffix each`() {
+        val r = importText("shop.yaml" to twoUnions())
+        val text = text(r)
+        assertHas(
+            text,
+            "union Contact = Email2 | Phone",
+            "union Other = Email3 | Fax",
+            "model Email { id string { max 5 } }",
+        )
+        assertEquals(2, Regex("@@jsonschema\\(name: \"email\"\\)").findAll(text).count(), text)
+        assertHas(text, "model Email2 {", "model Email3 {")
+    }
+
+    private fun twoUnions() =
+        """
+        openapi: 3.0.3
+        info: {title: shop, version: 1.0.0}
+        paths: {}
+        components:
+          schemas:
+            Contact:
+              oneOf:
+                - type: object
+                  properties: {email: {type: string}}
+                  required: [email]
+                  additionalProperties: false
+                - type: object
+                  properties: {phone: {type: string, maxLength: 20}}
+                  required: [phone]
+                  additionalProperties: false
+            Other:
+              oneOf:
+                - type: object
+                  properties: {email: {type: string, maxLength: 7}}
+                  required: [email]
+                  additionalProperties: false
+                - type: object
+                  properties: {fax: {type: string, maxLength: 9}}
+                  required: [fax]
+                  additionalProperties: false
+            Email:
+              type: object
+              properties: {id: {type: string, maxLength: 5}}
+              required: [id]
+              additionalProperties: false
+        """
+
     @Test
     fun `a request model whose name a component declares still takes a suffix`() {
         val r =

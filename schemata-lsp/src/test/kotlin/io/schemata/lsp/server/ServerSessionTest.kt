@@ -813,4 +813,155 @@ class ServerSessionTest {
                 )
             }
     }
+
+    @Test
+    fun `the server watches schemata toml beside schema files`() {
+        session().use { session ->
+            val a = write("m/a.schemata", "schema m\n\nmodel R { #1 x int32 }\n")
+            session.open(a, a.toFile().readText())
+            session.settle(a)
+            assertEquals(listOf("**/*.schemata", "**/schemata.toml"), session.watchers())
+        }
+    }
+
+    @Test
+    fun `a change to the file applies without a restart`() {
+        val toml = write("schemata.toml", "[sources]\npaths = [\"schemas\"]\n")
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        write("schemas/customers/c.schemata", customers)
+        session().use { session ->
+            session.open(o, looseOrders)
+            session.diagnostics(o) { it.isEmpty() }
+            toml.writeText(sourcesAndStrict)
+            session.watched(toml, FileChangeType.Changed)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            assertEquals(emptyList(), session.logged())
+        }
+    }
+
+    @Test
+    fun `a file created or deleted after start applies`() {
+        val c = write("schemas/customers/c.schemata", customers)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        session().use { session ->
+            session.open(o, looseOrders)
+            val before = session.diagnostics(o) { it.isNotEmpty() }
+            assertTrue("SCH1011" in codes(before), before.toString())
+            val toml = write("schemata.toml", sourcesAndStrict)
+            session.watched(toml, FileChangeType.Created)
+            val after = session.diagnostics(o) { codes(it) == listOf("SCH1014") }
+            assertEquals(listOf("SCH1014"), codes(after), after.toString())
+            session.diagnostics(c) { it.isEmpty() }
+            toml.toFile().delete()
+            session.watched(toml, FileChangeType.Deleted)
+            val gone = session.diagnostics(o) { "SCH1011" in codes(it) }
+            assertTrue("SCH1014" !in codes(gone), gone.toString())
+        }
+    }
+
+    @Test
+    fun `an invalid change keeps the last settings and a fix applies`() {
+        val toml = write("schemata.toml", sourcesAndStrict)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        write("schemas/customers/c.schemata", customers)
+        session().use { session ->
+            session.open(o, looseOrders)
+            session.diagnostics(o) { codes(it) == listOf("SCH1014") }
+            toml.writeText(sourcesAndStrict + "\n[colour]\nscheme = \"dark\"\n")
+            session.watched(toml, FileChangeType.Changed)
+            session.change(o, looseOrders + "\n")
+            // a request is answered after the notifications before it, so the reload has run
+            session.settle(o)
+            val kept = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(kept), kept.toString())
+            assertEquals(
+                listOf(
+                    "schemata: ignoring the configuration file: schemata.toml:7: unknown table 'colour'"
+                ),
+                session.logged(),
+            )
+            toml.writeText("[sources]\npaths = [\"schemas\"]\n")
+            session.watched(toml, FileChangeType.Changed)
+            session.diagnostics(o) { it.isEmpty() }
+            assertEquals(1, session.logged().size)
+        }
+    }
+
+    @Test
+    fun `a change to the file is ignored when the options leave it nothing`() {
+        val toml = write("schemata.toml", "[sources]\npaths = [\"schemas\"]\n")
+        val o = write("model/orders/o.schemata", looseOrders)
+        write("model/customers/c.schemata", customers)
+        session(mapOf("roots" to listOf("model"), "strict" to true)).use { session ->
+            session.open(o, looseOrders)
+            session.diagnostics(o) { codes(it) == listOf("SCH1014") }
+            toml.writeText("[colour]\nscheme = \"dark\"\n")
+            session.watched(toml, FileChangeType.Changed)
+            session.change(o, looseOrders + "\n")
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            assertEquals(emptyList(), session.logged())
+        }
+    }
+
+    @Test
+    fun `non-empty roots with strict false take strict from the file`() {
+        write("schemata.toml", "[compile]\nstrict = true\n")
+        val c = write("schemas/customers/c.schemata", customers)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        session(mapOf("roots" to listOf("schemas"), "strict" to false)).use { session ->
+            session.open(o, looseOrders)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            session.diagnostics(c) { it.isEmpty() }
+        }
+    }
+
+    @Test
+    fun `clearing the options reads a file that was never read`() {
+        write("schemata.toml", sourcesAndStrict)
+        val c = write("schemas/customers/c.schemata", customers)
+        val o = write("schemas/orders/o.schemata", looseOrders)
+        val outside = write("model/x.schemata", "schema x\n\nmodel X { #1 x Nope }\n")
+        session(mapOf("roots" to listOf("model"), "strict" to true)).use { session ->
+            session.open(outside, "schema x\n\nmodel X { #1 x Nope }\n")
+            session.diagnostics(outside) { it.isNotEmpty() }
+            configure(
+                session,
+                JsonObject().apply {
+                    add("schemata", roots().apply { addProperty("strict", false) })
+                },
+            )
+            session.open(o, looseOrders)
+            val shown = session.diagnostics(o) { it.isNotEmpty() }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            session.diagnostics(c) { it.isEmpty() }
+            assertEquals(emptyList(), session.logged())
+        }
+    }
+
+    @Test
+    fun `options sent after start that override the file log nothing for a bad file`() {
+        val toml = write("schemata.toml", "[sources]\npaths = [\"schemas\"]\n")
+        val o = write("model/orders/o.schemata", looseOrders)
+        write("model/customers/c.schemata", customers)
+        write("schemas/s.schemata", "schema s\n")
+        session().use { session ->
+            session.open(o, looseOrders)
+            session.diagnostics(o) { it.isNotEmpty() }
+            configure(
+                session,
+                JsonObject().apply {
+                    add("schemata", roots("model").apply { addProperty("strict", true) })
+                },
+            )
+            toml.writeText("[colour]\nscheme = \"dark\"\n")
+            session.watched(toml, FileChangeType.Changed)
+            session.change(o, looseOrders + "\n")
+            val shown = session.diagnostics(o) { codes(it) == listOf("SCH1014") }
+            assertEquals(listOf("SCH1014"), codes(shown), shown.toString())
+            assertEquals(emptyList(), session.logged())
+        }
+    }
 }

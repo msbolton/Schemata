@@ -449,6 +449,17 @@ object ProtoLowering {
         private val imports = sortedSetOf<String>()
         private var current = unit.path
 
+        /** A map field of a written file: its declared and emitted names, its model, its span. */
+        private class MapField(
+            val field: String,
+            val emitted: String,
+            val model: String,
+            val span: Span,
+        )
+
+        /** The map fields each file writes, by file path, for [outerClassCollisions]. */
+        private val mapFields = mutableMapOf<String, MutableList<MapField>>()
+
         /**
          * The top-level declarations the unit's files hold, set by [partition]. Under the type
          * layout they are the scope's: its members' declarations that stay and the declarations
@@ -740,9 +751,15 @@ object ProtoLowering {
          * itself. Each declaration, at any depth, and each service whose emitted name equals it
          * exactly is reported at its name. Top-level ones under a wrapper a file names itself are
          * left to [wrapperCollisions], which already reports them ignoring case. When the name is
-         * not set, protoc derives one that avoids the clash, so nothing is checked.
+         * not set, protoc derives one that avoids the clash, so nothing is checked. protoc also
+         * writes a message for each map field, nested in the field's message, so a map field whose
+         * entry class is the outer class name is reported at the field, under a wrapper a file
+         * names itself as well.
          */
         private fun outerClassCollisions() {
+            // Under the type layout a declared name over several files is already reported by
+            // [outerClassname]; it names no one file's class, so nothing more is said about it.
+            if (!namesWrappers && layout == ProtoLayout.TYPE && files.size > 1) return
             val declared =
                 (ProtoFileOptions.of(unit).values["java_outer_classname"] as? AnnotationValue.Str)
                     ?.value
@@ -771,6 +788,19 @@ object ProtoLowering {
                             help =
                                 "rename the declaration or set `@proto(name: \"…\")`, or choose " +
                                     "another `java_outer_classname`",
+                        )
+                }
+                for (map in mapFields[file.path].orEmpty()) {
+                    val entry = mapEntryName(map.emitted)
+                    if (entry != outer) continue
+                    diagnostics +=
+                        Diagnostic(
+                            ProtoCodes.NAME_COLLISION,
+                            "map field '${map.field}' of model '${map.model}' gets the Java class " +
+                                "$entry, the outer class name of its file '${file.path}'; " +
+                                "protoc --java_out refuses it",
+                            map.span,
+                            help = "rename the field, or choose another `java_outer_classname`",
                         )
                 }
             }
@@ -972,6 +1002,10 @@ object ProtoLowering {
             val where = "field '${record.name}.${field.name}'"
             fieldNumber(where, field.ordinal, field.span)
             val mapped = map(field.type, field.nullable, where, field.span, here)
+            if (mapped.type is ProtoType.MapOf) {
+                mapFields.getOrPut(current) { mutableListOf() } +=
+                    MapField(field.name, fieldNames.getValue(field), record.name, field.nameSpan)
+            }
             val notes = mutableListOf<String>()
             if (mapped.lossy) notes += note(field.type, field.nullable)
             field.default?.let {
@@ -1458,4 +1492,23 @@ object ProtoLowering {
                 }
         }
     }
+}
+
+/**
+ * The message protoc writes for map field [field]: its name with the first letter and each letter
+ * after `_` upper-cased, the `_` dropped, and `Entry` appended. protoc changes only `a` to `z`.
+ */
+private fun mapEntryName(field: String): String = buildString {
+    var upper = true
+    for (c in field) {
+        when {
+            c == '_' -> upper = true
+            upper -> {
+                append(if (c in 'a'..'z') c - ('a' - 'A') else c)
+                upper = false
+            }
+            else -> append(c)
+        }
+    }
+    append("Entry")
 }

@@ -42,6 +42,7 @@ import java.math.BigDecimal
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -3402,6 +3403,130 @@ class ProtoLoweringTest {
                     "of its file 'shop/orders.proto'; protoc --java_out refuses it"
             ),
             service.located(),
+        )
+    }
+
+    private fun outerMessages(source: String) = lower(source).diagnostics.map { it.message }
+
+    @Test
+    fun `a map entry class named like the outer class is SCH2004 at the field`() {
+        val lowered =
+            lower(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> }\n"
+            )
+        assertEquals(
+            listOf(
+                "map field 'tags' of model 'Order' gets the Java class TagsEntry, the outer class " +
+                    "name of its file 's.proto'; protoc --java_out refuses it"
+            ),
+            lowered.diagnostics.map { it.message },
+        )
+        assertEquals(listOf("SCH2004"), lowered.diagnostics.map { it.code.id })
+        assertEquals(
+            listOf("rename the field, or choose another `java_outer_classname`"),
+            lowered.diagnostics.map { it.help },
+        )
+        assertEquals(
+            "3:18",
+            lowered.diagnostics.single().span.let { "${it.startLine}:${it.startColumn}" },
+        )
+    }
+
+    @Test
+    fun `a map field's entry name drops underscores`() {
+        val messages =
+            outerMessages(
+                "schema s @proto(java_outer_classname: \"LineItemsEntry\")\n\n" +
+                    "model Order { #1 line_items map<string, int32> }\n"
+            )
+        assertEquals(1, messages.size, messages.toString())
+    }
+
+    @Test
+    fun `a map field renamed by proto name is checked under its emitted name`() {
+        val clash =
+            outerMessages(
+                "schema s @proto(java_outer_classname: \"LabelsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> @proto(name: \"labels\") }\n"
+            )
+        assertEquals(1, clash.size, clash.toString())
+        val none =
+            outerMessages(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> @proto(name: \"labels\") }\n"
+            )
+        assertEquals(emptyList(), none)
+    }
+
+    @Test
+    fun `protoc refuses a map entry outer class and accepts the renamed field`() {
+        val clash =
+            lower(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> }\n"
+            )
+        assertEquals(listOf("SCH2004"), clash.diagnostics.map { it.code.id })
+        val out = Files.createTempDirectory("schemata-generated").toFile()
+        try {
+            val files = ProtoRenderer.render(clash.model).associate { it.path to it.content }
+            assertNotNull(Protoc.generate(files, "java", out))
+        } finally {
+            out.deleteRecursively()
+        }
+        val renamed =
+            lower(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order { #1 tags map<string, string> @proto(name: \"labels\") }\n"
+            )
+        assertEquals(emptyList(), renamed.codes())
+        generated(renamed, "java") { out2 ->
+            assertTrue(
+                out2.walk().any { it.name == "TagsEntry.java" },
+                out2.walk().toList().toString(),
+            )
+        }
+    }
+
+    @Test
+    fun `a nested model's map field is checked`() {
+        val messages =
+            outerMessages(
+                "schema s @proto(java_outer_classname: \"TagsEntry\")\n\n" +
+                    "model Order {\n  #1 line Line\n\n  model Line { #1 tags map<string, string> }\n}\n"
+            )
+        assertEquals(1, messages.size, messages.toString())
+    }
+
+    @Test
+    fun `a union named like the outer class is SCH2004`() {
+        val messages =
+            outerMessages(
+                "schema s @proto(java_outer_classname: \"Choice\")\n\n" +
+                    "model A { #1 x bool }\n\nmodel B { #1 y bool }\n\nunion Choice = A | B\n"
+            )
+        assertEquals(
+            listOf(
+                "union 'Choice' has the Java outer class name of its file 's.proto'; " +
+                    "protoc --java_out refuses it"
+            ),
+            messages,
+        )
+    }
+
+    @Test
+    fun `a type layout outer class name over several files is reported once`() {
+        // two models give two files under the type layout; the declared name is SCH2007 there,
+        // and the outer class check adds nothing for the same key
+        val lowered =
+            lowerTypes(
+                "schema s @proto(java_outer_classname: \"Order\")\n\n" +
+                    "model Order { #1 x bool }\n\nmodel Line { #1 y bool }\n"
+            )
+        assertEquals(
+            listOf("SCH2007"),
+            lowered.diagnostics.map { it.code.id },
+            lowered.codes().toString(),
         )
     }
 

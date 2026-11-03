@@ -1,0 +1,60 @@
+# schemata.toml, written by schemata init. Each key shows its default; uncomment one
+# to change it. https://github.com/msbolton/Schemata/wiki/Project-Configuration
+
+[compile]
+# targets = ["proto", "sql", "xsd", "jsonschema", "openapi"]   # the targets compile and check write
+# out = "out"   # where compile writes; a value set here is relative to this file
+# strict = false   # report every warning as an error
+# proto_layout = "schema"   # "schema" writes a Protobuf file per schema, "type" one per type
+
+[import]
+# from = ""   # the format import reads: "xsd", "proto", "sql" or "openapi"
+# namespace = ""   # the schema name of a one-file import
+# include = []   # directories searched for imported .proto files
+
+[migrate]
+# allow_destructive = false   # let migrate drop tables and columns
+
+[report]
+# format = "human"   # "human" or "json"
+# color = "auto"   # "auto", "always" or "never"
+
+[sources]
+paths = ["models", "schemas"]   # schema files and directories read when a command is given none
+# exclude = []   # globs of files to leave out
+
+# Defaults for the schema line of every schema, by target (see the Attributes page).
+
+# [proto]
+# package = ""
+# java_package = ""
+# java_outer_classname = ""
+# java_multiple_files = false
+# csharp_namespace = ""
+# go_package = ""
+# objc_class_prefix = ""
+# php_namespace = ""
+# php_class_prefix = ""
+# php_metadata_namespace = ""
+# ruby_package = ""
+# swift_prefix = ""
+
+# [sql]
+# schema = ""
+
+# [xsd]
+# namespace = ""
+# element_form = ""   # one of "qualified", "unqualified"
+# attribute_form = ""   # one of "qualified", "unqualified"
+
+# [jsonschema]
+# id = ""
+
+# [openapi]
+# version = ""
+# server = ""
+# bearer = ""
+# api_key = ""
+# oauth2_token_url = ""
+# oauth2_authorization_url = ""
+# openid = ""
